@@ -12,6 +12,7 @@
 #include "Player.h"
 #include "RBAC.h"
 #include "ReputationMgr.h"
+#include <sstream>
 
 class factionrep_commandscript : public CommandScript
 {
@@ -49,19 +50,11 @@ private:
         if (handler->HasLowerSecurity(target, ObjectGuid::Empty))
             return false;
 
-        char* mutableArgs = strdup(args);
-        char* factionTxt = strtok(mutableArgs, " ");
-        char* amountTxt = strtok(nullptr, " ");
-
-        if (!factionTxt || !amountTxt)
-        {
-            free(mutableArgs);
+        uint32 factionId = 0;
+        int32 amount = 0;
+        std::istringstream input(args);
+        if (!(input >> factionId >> amount))
             return false;
-        }
-
-        uint32 factionId = uint32(atoi(factionTxt));
-        int32 amount = int32(atoi(amountTxt));
-        free(mutableArgs);
 
         FactionEntry const* factionEntry = sFactionStore.LookupEntry(factionId);
         if (!factionEntry)
