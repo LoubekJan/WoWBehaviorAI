@@ -24,6 +24,7 @@ class Position(BaseModel):
 
 
 class DecisionRequest(BaseModel):
+    agent_id: int
     request_id: int
     snapshot_sequence: int
     spawn_id: int
@@ -37,6 +38,7 @@ class DecisionRequest(BaseModel):
 
 
 class DecisionResponse(BaseModel):
+    agent_id: int
     request_id: int
     snapshot_sequence: int
     action: str
@@ -45,6 +47,7 @@ class DecisionResponse(BaseModel):
 @app.post("/decision", response_model=DecisionResponse)
 def decision(request: DecisionRequest) -> DecisionResponse:
     return DecisionResponse(
+        agent_id=request.agent_id,
         request_id=request.request_id,
         snapshot_sequence=request.snapshot_sequence,
         action="NONE",

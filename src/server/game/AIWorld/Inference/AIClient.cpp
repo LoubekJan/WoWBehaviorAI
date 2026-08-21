@@ -193,7 +193,8 @@ namespace
     std::string BuildDecisionRequestBody(AIRequest const& request)
     {
         std::ostringstream body;
-        body << "{\"request_id\":" << request.RequestId
+        body << "{\"agent_id\":" << request.Agent.Value
+             << ",\"request_id\":" << request.RequestId
              << ",\"snapshot_sequence\":" << request.SnapshotSequence
              << ",\"spawn_id\":" << request.SpawnId
              << ",\"entry\":" << request.Entry
@@ -210,14 +211,14 @@ namespace
     }
 
     // Defensive, minimal extraction for the fixed
-    // {"request_id":N,"snapshot_sequence":N,"action":"STR"} response shape -
-    // not a general JSON parser. Tolerant of key order, whitespace, and
-    // unknown extra keys; never throws; returns false (never partial output)
-    // if a required field is missing or malformed. Callers must still check
-    // requestId/snapshotSequence against what was actually sent - parsing
-    // successfully only means the body was well-formed, not that it answers
-    // this request.
-    bool ParseDecisionResponseBody(std::string const& body, uint64& requestId, uint64& snapshotSequence, std::string& action)
+    // {"agent_id":N,"request_id":N,"snapshot_sequence":N,"action":"STR"}
+    // response shape - not a general JSON parser. Tolerant of key order and
+    // whitespace and unknown extra keys; never throws; returns false (never
+    // partial output) if a required field is missing or malformed. Callers
+    // must still check agentId/requestId/snapshotSequence against what was
+    // actually sent - parsing successfully only means the body was
+    // well-formed, not that it answers this request.
+    bool ParseDecisionResponseBody(std::string const& body, uint64& agentId, uint64& requestId, uint64& snapshotSequence, std::string& action)
     {
         auto findUintField = [&body](std::string const& key, uint64& out) -> bool
         {
@@ -275,7 +276,8 @@ namespace
             return true;
         };
 
-        return findUintField("request_id", requestId) &&
+        return findUintField("agent_id", agentId) &&
+               findUintField("request_id", requestId) &&
                findUintField("snapshot_sequence", snapshotSequence) &&
                findStringField("action", action);
     }
@@ -307,8 +309,8 @@ namespace
                 _httpRequest.body() = BuildDecisionRequestBody(_request);
                 _httpRequest.prepare_payload();
 
-                TC_LOG_INFO("ai.world", "AI decision request id={} snapshot={} spawn={} submitted",
-                    _request.RequestId, _request.SnapshotSequence, _request.SpawnId);
+                TC_LOG_INFO("ai.world", "AI decision request id={} agent={} snapshot={} spawn={} submitted",
+                    _request.RequestId, _request.Agent.Value, _request.SnapshotSequence, _request.SpawnId);
 
                 _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
                 _resolveTimer.async_wait(
@@ -376,9 +378,10 @@ namespace
                 std::string rejectReason;
                 if (success)
                 {
+                    uint64 responseAgentId = 0;
                     uint64 responseRequestId = 0;
                     uint64 responseSnapshotSequence = 0;
-                    if (!ParseDecisionResponseBody(_httpResponse.body(), responseRequestId, responseSnapshotSequence, action))
+                    if (!ParseDecisionResponseBody(_httpResponse.body(), responseAgentId, responseRequestId, responseSnapshotSequence, action))
                     {
                         success = false;
                         rejectReason = "parse failure";
@@ -387,12 +390,13 @@ namespace
                     // actually answers the request we sent, not just any
                     // request/response the queue happened to pull off HTTP
                     // pipelining, a proxy, or a future protocol bug.
-                    else if (responseRequestId != _request.RequestId || responseSnapshotSequence != _request.SnapshotSequence)
+                    else if (responseAgentId != _request.Agent.Value || responseRequestId != _request.RequestId ||
+                        responseSnapshotSequence != _request.SnapshotSequence)
                     {
                         success = false;
                         std::ostringstream detail;
-                        detail << "protocol mismatch (server replied id=" << responseRequestId
-                               << " snapshot=" << responseSnapshotSequence << ")";
+                        detail << "protocol mismatch (server replied agent=" << responseAgentId
+                               << " id=" << responseRequestId << " snapshot=" << responseSnapshotSequence << ")";
                         rejectReason = detail.str();
                     }
                 }
@@ -416,22 +420,25 @@ namespace
                     std::chrono::steady_clock::now() - _startTime).count());
 
                 if (ec == beast::error::timeout)
-                    TC_LOG_WARN("ai.world", "AI decision request id={} timed out after {}ms", _request.RequestId, _timeoutMs);
+                    TC_LOG_WARN("ai.world", "AI decision request id={} agent={} timed out after {}ms",
+                        _request.RequestId, _request.Agent.Value, _timeoutMs);
                 else if (ec)
-                    TC_LOG_WARN("ai.world", "AI decision request id={} failed: {}", _request.RequestId, ec.message());
+                    TC_LOG_WARN("ai.world", "AI decision request id={} agent={} failed: {}",
+                        _request.RequestId, _request.Agent.Value, ec.message());
                 else if (!rejectReason.empty())
-                    TC_LOG_WARN("ai.world", "AI decision response id={} {} status={} latency={}ms",
-                        _request.RequestId, rejectReason, statusCode, latencyMs);
+                    TC_LOG_WARN("ai.world", "AI decision response id={} agent={} {} status={} latency={}ms",
+                        _request.RequestId, _request.Agent.Value, rejectReason, statusCode, latencyMs);
                 else if (!success)
-                    TC_LOG_WARN("ai.world", "AI decision request id={} completed with non-2xx status={} latency={}ms",
-                        _request.RequestId, statusCode, latencyMs);
+                    TC_LOG_WARN("ai.world", "AI decision request id={} agent={} completed with non-2xx status={} latency={}ms",
+                        _request.RequestId, _request.Agent.Value, statusCode, latencyMs);
                 else
-                    TC_LOG_INFO("ai.world", "AI decision response id={} snapshot={} action={} latency={}ms",
-                        _request.RequestId, _request.SnapshotSequence, action, latencyMs);
+                    TC_LOG_INFO("ai.world", "AI decision response id={} agent={} snapshot={} action={} latency={}ms",
+                        _request.RequestId, _request.Agent.Value, _request.SnapshotSequence, action, latencyMs);
 
                 AIResponse* response = new AIResponse();
                 response->RequestId = _request.RequestId;
                 response->Type = AIRequestType::Decision;
+                response->Agent = _request.Agent;
                 response->SnapshotSequence = _request.SnapshotSequence;
                 response->Success = success;
                 response->StatusCode = statusCode;

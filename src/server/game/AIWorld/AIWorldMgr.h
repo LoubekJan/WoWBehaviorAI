@@ -18,11 +18,14 @@
 #ifndef AIWORLD_AIWORLDMGR_H
 #define AIWORLD_AIWORLDMGR_H
 
+#include "Agent/AgentId.h"
+#include "Agent/AgentRegistry.h"
 #include "Define.h"
 #include "Inference/AIClient.h"
 #include <memory>
 
 namespace Trinity::Asio { class IoContext; }
+class Creature;
 
 // Entry point for the AIWorld subsystem. Driven from the world update thread
 // only (called after sMapMgr->Update() in World::Update()) - never spawns its
@@ -45,17 +48,24 @@ class TC_GAME_API AIWorldMgr
         AIWorldMgr(AIWorldMgr const&) = delete;
         AIWorldMgr& operator=(AIWorldMgr const&) = delete;
 
-        void CaptureTestAgentSnapshot();
+        void ProcessAgent(AgentId id);
+        void CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creature& creature);
 
         bool _enabled = false;
 
         uint32 _snapshotIntervalMs = 5000;
         uint32 _snapshotTimer = 0;
 
-        uint32 _testMapId = 0;
-        uint64 _testSpawnId = 0;
+        // Registry of persistent agents - survives its Creature being
+        // unloaded/reloaded; only ProcessAgent()'s Bind/UnbindCreature calls
+        // change an agent's WorldState. Not yet persisted across a
+        // worldserver restart (Milestone 2.2).
+        AgentRegistry _registry;
 
-        uint64 _snapshotSequence = 0;
+        // Milestone 2.1's single test agent: config identifies the spawn to
+        // register at Initialize() time, everything after that goes through
+        // _registry via _testAgentId instead of touching map/spawn directly.
+        AgentId _testAgentId;
 
         // Owned for the process lifetime, deliberately not reset in
         // Shutdown(): by the time Shutdown() runs, the io_context it was

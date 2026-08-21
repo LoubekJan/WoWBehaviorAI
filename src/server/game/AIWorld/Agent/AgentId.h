@@ -15,30 +15,24 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AIWORLD_AIRESPONSE_H
-#define AIWORLD_AIRESPONSE_H
+#ifndef AIWORLD_AGENTID_H
+#define AIWORLD_AGENTID_H
 
-#include "AIRequest.h"
 #include "Define.h"
-#include <string>
+#include <compare>
 
-// Delivered back to the world thread through AIClient::TryPopResponse().
-// Success=false covers a network/HTTP failure, a timeout, and a non-2xx
-// HTTP status alike; AIClient itself already logs which one happened at
-// completion time. Agent and Action are only populated (and only
-// meaningful) for Type == Decision responses that succeeded.
-struct AIResponse
+// Stable identity for a persistent agent - deliberately NOT a SpawnId. A
+// SpawnId names a TrinityCore creature spawn; an AgentId names the
+// long-lived AI entity currently (or not currently) bound to that spawn,
+// and is meant to keep existing across the spawn's Creature being unloaded
+// and reloaded. Assigned by AgentRegistry on registration. Only stable for
+// this process's lifetime until Milestone 2.2 persists it to the database.
+struct AgentId
 {
-    uint64 RequestId = 0;
-    AIRequestType Type = AIRequestType::Health;
-    AgentId Agent;
-    uint64 SnapshotSequence = 0;
+    uint64 Value = 0;
 
-    bool Success = false;
-    uint32 StatusCode = 0;
-    uint32 LatencyMs = 0;
-
-    std::string Action;
+    explicit operator bool() const { return Value != 0; }
+    auto operator<=>(AgentId const&) const = default;
 };
 
-#endif // AIWORLD_AIRESPONSE_H
+#endif // AIWORLD_AGENTID_H

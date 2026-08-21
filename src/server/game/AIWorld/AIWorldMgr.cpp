@@ -47,10 +47,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         configuredIntervalMs = 100;
     }
     _snapshotIntervalMs = uint32(configuredIntervalMs);
-    _testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
-    _testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
     _snapshotTimer = 0;
-    _snapshotSequence = 0;
+
+    uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
+    uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
     std::string aiHost = sConfigMgr->GetStringDefault("AIWorld.AIHost", "ai-server");
     std::string aiPort = std::to_string(sConfigMgr->GetIntDefault("AIWorld.AIPort", 8000));
@@ -74,8 +74,13 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
-    if (_testSpawnId)
-        TC_LOG_INFO("ai.world", "test agent map={} spawn={} interval={}ms", _testMapId, _testSpawnId, _snapshotIntervalMs);
+
+    // Registering does not require the spawn's Creature/grid to be loaded -
+    // the agent exists in _registry as soon as this returns, Abstract until
+    // ProcessAgent() finds a live Creature for it.
+    if (testSpawnId)
+        _testAgentId = _registry.RegisterCreatureAgent(AgentType::Guard, testMapId, testSpawnId);
+
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms)", aiHost, aiPort, requestTimeoutMs, _healthIntervalMs);
 }
 
@@ -84,13 +89,13 @@ void AIWorldMgr::Update(uint32 diff)
     if (!_enabled)
         return;
 
-    if (_testSpawnId)
+    if (_testAgentId)
     {
         _snapshotTimer += diff;
         if (_snapshotTimer >= _snapshotIntervalMs)
         {
             _snapshotTimer = 0;
-            CaptureTestAgentSnapshot();
+            ProcessAgent(_testAgentId);
         }
     }
 
@@ -118,61 +123,86 @@ void AIWorldMgr::Update(uint32 diff)
         if (!response.Success)
             continue; // AIClient already logged the failure/timeout
 
-        // Not just "<": a response claiming a snapshot sequence newer than
-        // anything this manager has actually captured is just as wrong as
-        // an old one, and must not be accepted either.
-        if (response.SnapshotSequence != _snapshotSequence)
+        AgentRecord* record = _registry.Find(response.Agent);
+        if (!record)
         {
-            TC_LOG_DEBUG("ai.world", "AI decision id={} snapshot={} is STALE (latest snapshot={}), discarding",
-                response.RequestId, response.SnapshotSequence, _snapshotSequence);
+            TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} is no longer registered, discarding",
+                response.RequestId, response.Agent.Value);
+            continue;
+        }
+
+        // Not just "<": a response claiming a snapshot sequence newer than
+        // anything this agent has actually captured is just as wrong as an
+        // old one, and must not be accepted either. Sequence is per-agent
+        // now, not a single manager-wide counter.
+        if (response.SnapshotSequence != record->SnapshotSequence)
+        {
+            TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} is STALE (latest snapshot={}), discarding",
+                response.RequestId, response.Agent.Value, response.SnapshotSequence, record->SnapshotSequence);
             continue;
         }
 
         // Milestone 2C: still just a stub - action is always NONE and
         // nothing is applied to the game world yet.
-        TC_LOG_DEBUG("ai.world", "AI decision id={} snapshot={} action={} accepted (no-op)",
-            response.RequestId, response.SnapshotSequence, response.Action);
+        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} action={} accepted (no-op)",
+            response.RequestId, response.Agent.Value, response.SnapshotSequence, response.Action);
     }
 }
 
-void AIWorldMgr::CaptureTestAgentSnapshot()
+// Bridges a registered agent to whatever its Creature is doing right now,
+// without ever holding onto that Creature past this call: materializes it
+// (Abstract -> Materialized) the tick it's found loaded, dematerializes it
+// (Materialized -> Abstract) the tick it stops being found - the agent
+// itself, and its SnapshotSequence, live in _registry across either
+// transition. Never forces a grid to load.
+void AIWorldMgr::ProcessAgent(AgentId id)
 {
-    Map* map = sMapMgr->FindBaseNonInstanceMap(_testMapId);
-    if (!map)
-    {
-        TC_LOG_DEBUG("ai.world", "AIWorld snapshot skipped: map {} not currently loaded", _testMapId);
+    AgentRecord* record = _registry.Find(id);
+    if (!record)
         return;
-    }
 
-    Creature* creature = map->GetCreatureBySpawnId(_testSpawnId);
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+    Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+
     if (!creature)
     {
-        TC_LOG_DEBUG("ai.world", "AIWorld snapshot skipped: spawn {} not currently loaded", _testSpawnId);
+        if (record->WorldState == AgentWorldState::Materialized)
+            _registry.UnbindCreature(id);
         return;
     }
 
-    AgentSnapshot snapshot;
-    snapshot.SpawnId = _testSpawnId;
-    snapshot.Guid = creature->GetGUID();
-    snapshot.Entry = creature->GetEntry();
-    snapshot.MapId = creature->GetMapId();
-    snapshot.X = creature->GetPositionX();
-    snapshot.Y = creature->GetPositionY();
-    snapshot.Z = creature->GetPositionZ();
-    snapshot.Orientation = creature->GetOrientation();
-    snapshot.Health = creature->GetHealth();
-    snapshot.MaxHealth = creature->GetMaxHealth();
-    snapshot.Alive = creature->IsAlive();
-    snapshot.InCombat = creature->IsInCombat();
-    snapshot.SnapshotSequence = ++_snapshotSequence;
+    if (record->WorldState == AgentWorldState::Abstract)
+        _registry.BindCreature(id, *creature);
 
-    TC_LOG_INFO("ai.agent", "snapshot seq={} spawn={} entry={} hp={}/{} position=({:.1f}, {:.1f}, {:.1f}) combat={}",
-        snapshot.SnapshotSequence, snapshot.SpawnId, snapshot.Entry,
+    CaptureAndSubmitSnapshot(id, *record, *creature);
+}
+
+void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creature& creature)
+{
+    AgentSnapshot snapshot;
+    snapshot.Agent = id;
+    snapshot.SpawnId = record.SpawnId;
+    snapshot.Guid = creature.GetGUID();
+    snapshot.Entry = creature.GetEntry();
+    snapshot.MapId = creature.GetMapId();
+    snapshot.X = creature.GetPositionX();
+    snapshot.Y = creature.GetPositionY();
+    snapshot.Z = creature.GetPositionZ();
+    snapshot.Orientation = creature.GetOrientation();
+    snapshot.Health = creature.GetHealth();
+    snapshot.MaxHealth = creature.GetMaxHealth();
+    snapshot.Alive = creature.IsAlive();
+    snapshot.InCombat = creature.IsInCombat();
+    snapshot.SnapshotSequence = ++record.SnapshotSequence;
+
+    TC_LOG_INFO("ai.agent", "snapshot agent={} seq={} spawn={} entry={} hp={}/{} position=({:.1f}, {:.1f}, {:.1f}) combat={}",
+        id.Value, snapshot.SnapshotSequence, snapshot.SpawnId, snapshot.Entry,
         snapshot.Health, snapshot.MaxHealth,
         snapshot.X, snapshot.Y, snapshot.Z,
         snapshot.InCombat);
 
     AIRequest request;
+    request.Agent = id;
     request.SnapshotSequence = snapshot.SnapshotSequence;
     request.SpawnId = snapshot.SpawnId;
     request.Entry = snapshot.Entry;

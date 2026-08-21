@@ -15,37 +15,31 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AIWORLD_AGENTSNAPSHOT_H
-#define AIWORLD_AGENTSNAPSHOT_H
+#ifndef AIWORLD_AGENTRECORD_H
+#define AIWORLD_AGENTRECORD_H
 
 #include "AgentId.h"
+#include "AgentType.h"
 #include "Define.h"
 #include "ObjectGuid.h"
 
-// Read-only, POD view of a tracked Creature at a point in time.
-// Never holds a pointer back into the Map/Creature/Player object graph -
-// AIWorld code must not touch those outside the world update thread.
-struct AgentSnapshot
+// One persistent agent's registry-owned state. SpawnId/MapId is the stable
+// binding to a TrinityCore creature spawn; RuntimeGuid is only the current
+// Creature this agent happens to be bound to right now (meaningful only
+// while WorldState == Materialized) - never the agent's identity, and never
+// a substitute for AgentId. Deliberately holds no Creature*/Map*.
+struct AgentRecord
 {
-    AgentId Agent;
-    uint64 SpawnId = 0;
-    ObjectGuid Guid;
-    uint32 Entry = 0;
+    AgentId Id;
+    AgentType Type = AgentType::Civilian;
 
     uint32 MapId = 0;
+    uint64 SpawnId = 0;
 
-    float X = 0.0f;
-    float Y = 0.0f;
-    float Z = 0.0f;
-    float Orientation = 0.0f;
-
-    uint32 Health = 0;
-    uint32 MaxHealth = 0;
-
-    bool Alive = false;
-    bool InCombat = false;
+    ObjectGuid RuntimeGuid;
+    AgentWorldState WorldState = AgentWorldState::Abstract;
 
     uint64 SnapshotSequence = 0;
 };
 
-#endif // AIWORLD_AGENTSNAPSHOT_H
+#endif // AIWORLD_AGENTRECORD_H
