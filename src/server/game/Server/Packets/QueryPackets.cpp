@@ -3,8 +3,7 @@
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * Free Software Foundation; either version 2 of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -16,6 +15,10 @@
  */
 
 #include "QueryPackets.h"
+#include "CreatureData.h"
+#include "DBCStores.h"
+#include "ObjectMgr.h"
+#include <string>
 
 void WorldPackets::Query::QueryCreature::Read()
 {
@@ -29,9 +32,51 @@ WorldPacket const* WorldPackets::Query::QueryCreatureResponse::Write()
 
     if (Allow)
     {
+        std::string title = Stats.Title;
+
+        // Creature queries do not expose faction information to the stock 3.3.5 client.
+        // Reuse the title/subname field so every NPC clearly shows its faction and the
+        // Faction.dbc id can be copied directly into the admin reputation command.
+        if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(CreatureID))
+        {
+            if (FactionTemplateEntry const* factionTemplate = sFactionTemplateStore.LookupEntry(creatureTemplate->faction))
+            {
+                std::string factionLabel;
+                if (factionTemplate->Faction)
+                {
+                    if (FactionEntry const* factionEntry = sFactionStore.LookupEntry(factionTemplate->Faction))
+                    {
+                        char const* factionName = nullptr;
+                        for (char const* localizedName : factionEntry->Name)
+                        {
+                            if (localizedName && *localizedName)
+                            {
+                                factionName = localizedName;
+                                break;
+                            }
+                        }
+
+                        if (factionName)
+                            factionLabel = factionName;
+                        else
+                            factionLabel = "Faction";
+
+                        factionLabel += " [" + std::to_string(factionEntry->ID) + "]";
+                    }
+                }
+
+                if (factionLabel.empty())
+                    factionLabel = "FactionTemplate [" + std::to_string(creatureTemplate->faction) + "]";
+
+                if (!title.empty())
+                    title += " | ";
+                title += factionLabel;
+            }
+        }
+
         _worldPacket << Stats.Name;
         _worldPacket << uint8(0) << uint8(0) << uint8(0);                   // name2, name3, name4, always empty
-        _worldPacket << Stats.Title;
+        _worldPacket << title;
         _worldPacket << Stats.CursorName;                                   // "Directions" for guard, string for Icons 2.3.0
         _worldPacket << uint32(Stats.Flags);                                // flags
         _worldPacket << uint32(Stats.CreatureType);                         // CreatureType.dbc
