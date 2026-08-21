@@ -24,6 +24,7 @@
 #include "Log.h"
 #include "Map.h"
 #include "MapManager.h"
+#include "Memory/MemoryImportance.h"
 #include "Player.h"
 #include <chrono>
 #include <optional>
@@ -497,10 +498,12 @@ void AIWorldMgr::ProcessObservation(Observation const& observation)
         observation.Actor.Guid.ToString(), observation.Actor.Agent.Value,
         observation.Target.Guid.ToString(), observation.Target.Entry, observation.Target.Agent.Value);
 
+    float importance = MemoryImportance::Score(observation);
+
     // Return value unused - ShortTermMemory already logs its own
     // Added/Refreshed transition, the same way AgentRegistry and EventBus
     // log their own state changes rather than making the caller do it.
-    _shortTermMemory.Remember(observation, _shortTermMemoryTtlMs);
+    _shortTermMemory.Remember(observation, _shortTermMemoryTtlMs, importance);
 }
 
 void AIWorldMgr::Shutdown()

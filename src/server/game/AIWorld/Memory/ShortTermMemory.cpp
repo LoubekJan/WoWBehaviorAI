@@ -58,7 +58,7 @@ MemoryRecord* ShortTermMemory::FindEquivalent(std::vector<MemoryRecord>& records
     return nullptr;
 }
 
-ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& observation, uint64 ttlMs)
+ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& observation, uint64 ttlMs, float importance)
 {
     std::vector<MemoryRecord>& records = _records[observation.Observer.Value];
 
@@ -70,6 +70,7 @@ ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& obs
         existing->LastObservedAtMs = now;
         existing->ExpiresAtMs = expiresAt;
         ++existing->ObservationCount;
+        existing->Importance = std::max(existing->Importance, importance);
 
         existing->Location = observation.Location;
         existing->Actor = observation.Actor;
@@ -77,9 +78,9 @@ ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& obs
         existing->LastDistance = observation.Distance;
         existing->LastLineOfSight = observation.LineOfSight;
 
-        TC_LOG_DEBUG("ai.world", "AI memory refreshed id={} agent={} type={} count={} targetGuid={}",
+        TC_LOG_DEBUG("ai.world", "AI memory refreshed id={} agent={} type={} count={} targetGuid={} importance={:.2f}",
             existing->Id, observation.Observer.Value, ToString(existing->Type), existing->ObservationCount,
-            existing->Target.Guid.ToString());
+            existing->Target.Guid.ToString(), existing->Importance);
 
         return RememberResult::Refreshed;
     }
@@ -99,6 +100,7 @@ ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& obs
     record.Id = _nextMemoryId++;
     record.Owner = observation.Observer;
     record.Type = observation.Type;
+    record.Importance = importance;
 
     record.SourceEventId = observation.SourceEventId;
     record.CorrelationId = observation.CorrelationId;
@@ -121,13 +123,13 @@ ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& obs
     if (record.Type == ObservationType::WorldEvent)
     {
         char const* sourceEventType = record.SourceEventType ? ToString(*record.SourceEventType) : "NONE";
-        TC_LOG_DEBUG("ai.world", "AI memory added id={} agent={} type={} sourceEvent={} sourceEventType={}",
-            record.Id, observation.Observer.Value, ToString(record.Type), record.SourceEventId, sourceEventType);
+        TC_LOG_DEBUG("ai.world", "AI memory added id={} agent={} type={} sourceEvent={} sourceEventType={} importance={:.2f}",
+            record.Id, observation.Observer.Value, ToString(record.Type), record.SourceEventId, sourceEventType, record.Importance);
     }
     else
     {
-        TC_LOG_DEBUG("ai.world", "AI memory added id={} agent={} type={} targetGuid={} ttl={}ms",
-            record.Id, observation.Observer.Value, ToString(record.Type), record.Target.Guid.ToString(), ttlMs);
+        TC_LOG_DEBUG("ai.world", "AI memory added id={} agent={} type={} targetGuid={} ttl={}ms importance={:.2f}",
+            record.Id, observation.Observer.Value, ToString(record.Type), record.Target.Guid.ToString(), ttlMs, record.Importance);
     }
 
     records.push_back(std::move(record));

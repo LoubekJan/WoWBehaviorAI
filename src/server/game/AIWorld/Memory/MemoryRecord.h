@@ -38,6 +38,12 @@ struct MemoryRecord
 
     ObservationType Type = ObservationType::WorldEvent;
 
+    // MemoryImportance::Score() at the time this record was created; on a
+    // refresh, the max of the existing value and the new Observation's
+    // score - importance never drops just because a later Observation of
+    // the same thing happened to score lower.
+    float Importance = 0.0f;
+
     uint64 SourceEventId = 0;
     uint64 CorrelationId = 0;
     uint64 SourceOccurredAtMs = 0;

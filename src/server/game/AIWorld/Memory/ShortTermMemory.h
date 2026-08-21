@@ -27,12 +27,11 @@
 #include <vector>
 
 // World-thread-only: an in-memory, per-agent, TTL'd, deduplicated record of
-// Observations. Milestone 2.5A only - not persisted (2.5B), not
-// importance-scored, not queried by decision context yet (2.5C). Pure
-// value storage: never touches Creature/Player/Map, never calls
-// ai-server, never mutates world state. Logs its own Added/Refreshed/
-// Expired/capacity-eviction transitions, the same way AgentRegistry and
-// EventBus already log their own state changes.
+// Observations. Milestone 2.5A/2.5B1 - not persisted (2.5B2+), not queried
+// by decision context yet (2.5C). Pure value storage: never touches
+// Creature/Player/Map, never calls ai-server, never mutates world state.
+// Logs its own Added/Refreshed/Expired/capacity-eviction transitions, the
+// same way AgentRegistry and EventBus already log their own state changes.
 class TC_GAME_API ShortTermMemory
 {
     public:
@@ -46,9 +45,10 @@ class TC_GAME_API ShortTermMemory
         // the same underlying thing and refreshes it (LastObservedAtMs,
         // ExpiresAtMs, ObservationCount, Location, Actor, Target,
         // LastDistance, LastLineOfSight all updated to the new
-        // Observation's values), or creates a new one if none matches.
-        // "Now" is taken from observation.ObservedAtMs, never queried
-        // separately.
+        // Observation's values; Importance set to max(existing, importance)
+        // - it never drops just because a later Observation scored lower),
+        // or creates a new one if none matches. "Now" is taken from
+        // observation.ObservedAtMs, never queried separately.
         //
         // Matching rule, by observation.Type:
         //   WorldEvent   -> same SourceEventId
@@ -64,7 +64,7 @@ class TC_GAME_API ShortTermMemory
         // If the owning agent is already at MaxEntriesPerAgent and this is
         // a new (non-matching) memory, the oldest record by
         // LastObservedAtMs is evicted first.
-        RememberResult Remember(Observation const& observation, uint64 ttlMs);
+        RememberResult Remember(Observation const& observation, uint64 ttlMs, float importance);
 
         // World thread only, meant to be called on its own ~1s maintenance
         // cadence, not every tick. Removes every record (for every agent)
