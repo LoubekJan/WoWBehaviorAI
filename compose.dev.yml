@@ -13,6 +13,9 @@ services:
       args:
         USER_UID: ${DEV_UID:-1000}
         USER_GID: ${DEV_GID:-1000}
+    environment:
+      TC_DB_USER: ${TC_DB_USER:-trinity}
+      TC_DB_PASSWORD: ${TC_DB_PASSWORD:-trinity}
     volumes:
       - .:/workspace
       - build-data:/build

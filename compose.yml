@@ -32,7 +32,7 @@ services:
       mysql:
         condition: service_healthy
     working_dir: /build/bin
-    command: ["/scripts/render-conf-and-run.sh", "/etc/trinitycore/authserver.conf", "./authserver"]
+    command: ["bash", "/scripts/render-conf-and-run.sh", "/etc/trinitycore/authserver.conf", "./authserver"]
     environment:
       TC_DB_USER: ${TC_DB_USER:-trinity}
       TC_DB_PASSWORD: ${TC_DB_PASSWORD:-trinity}
@@ -40,6 +40,7 @@ services:
       - build-data:/build
       - ./deploy/authserver.conf:/etc/trinitycore/authserver.conf:ro
       - ./docker/scripts:/scripts:ro
+      - ./sql:/workspace/sql:ro
       - ./runtime/logs:/runtime/logs
     ports:
       - "${AUTHSERVER_PORT:-3724}:3724"
@@ -53,7 +54,7 @@ services:
       mysql:
         condition: service_healthy
     working_dir: /build/bin
-    command: ["/scripts/render-conf-and-run.sh", "/etc/trinitycore/worldserver.conf", "./worldserver"]
+    command: ["bash", "/scripts/render-conf-and-run.sh", "/etc/trinitycore/worldserver.conf", "./worldserver"]
     environment:
       TC_DB_USER: ${TC_DB_USER:-trinity}
       TC_DB_PASSWORD: ${TC_DB_PASSWORD:-trinity}
@@ -61,6 +62,7 @@ services:
       - build-data:/build
       - ./deploy/worldserver.conf:/etc/trinitycore/worldserver.conf:ro
       - ./docker/scripts:/scripts:ro
+      - ./sql:/workspace/sql:ro
       - ${WOW_DATA_DIR:-./runtime/data}:/runtime/data
       - ./runtime/logs:/runtime/logs
     ports:

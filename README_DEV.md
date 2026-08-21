@@ -61,31 +61,54 @@ applies the base schema and SQL updates on `authserver`/`worldserver`
 startup (`Updates.EnableDatabases` + `Updates.AutoSetup = 1` in
 `deploy/*.conf`) — that's the empty-schema bootstrap.
 
-It does **not** import world content (creatures, quests, items — the TDB
-dataset). That has to be downloaded separately and imported into `world`
-before the server is actually playable; see the `TDB335.*` tags on
-`upstream`/`origin` for available dataset versions, per roadmap section 1.7
-("pin the initial world/TDB dataset version").
+The updater reads its SQL from `SourceDirectory` (empty in `deploy/*.conf`,
+so it falls back to the build-time `/workspace`, i.e. the source tree
+`worldserver`/`authserver` were compiled against). The runtime containers
+don't have the full source mounted, only `./sql:/workspace/sql:ro` — that's
+the one directory the updater actually needs.
 
-`TC_DB_USER`/`TC_DB_PASSWORD` are the single source of truth for DB
-credentials — set them in `.env`, never edit them directly in
-`deploy/*.conf` (those files use `__TC_DB_USER__`/`__TC_DB_PASSWORD__`
-placeholders, rendered at container start by
-`docker/scripts/render-conf-and-run.sh`).
+Schema alone is not a playable server: **`TC_DB_USER`/`TC_DB_PASSWORD` are
+the single source of truth for DB credentials** — set them in `.env`, never
+edit them directly in `deploy/*.conf` (those files use
+`__TC_DB_USER__`/`__TC_DB_PASSWORD__` placeholders, rendered at container
+start by `docker/scripts/render-conf-and-run.sh`).
+
+### World content (TDB)
+
+`world`'s schema has no creatures, quests, or items until you import a TDB
+dataset — the empty-schema bootstrap above is not enough to get from login
+to a populated Elwynn Forest. Pick a tag from
+[TrinityCore's releases](https://github.com/TrinityCore/TrinityCore/releases)
+(e.g. `TDB335.25101`) and pin it:
+
+```bash
+docker compose up -d mysql   # mysql only — the import script talks to it directly
+make db-import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<sha256 of the downloaded asset>
+```
+
+`docker/scripts/download-tdb.sh` resolves the release's SQL/7z/zip asset via
+the GitHub API (never a hardcoded URL), verifies `TDB_SHA256` if given, and
+imports it into `world`. Import it **before** `authserver`/`worldserver`
+first start — they cache game data in memory at startup, so importing after
+they're already up needs a restart to take effect. Re-running with a newer
+`TDB_VERSION` re-imports on top of the current data.
 
 ## Day-to-day workflow
 
 Order matters: `authserver`/`worldserver` run binaries out of the
-persistent `/build` volume, so it needs to exist before `start`.
+persistent `/build` volume, so it needs to exist before `start`; TDB import
+needs `mysql` up but should happen before `worldserver` first loads.
 
 ```bash
-make bootstrap          # .env, runtime/ dirs, build the dev image
-make build                # compile TrinityCore into the build-data volume (throwaway tc-dev container)
-make start                  # bring up mysql, authserver, worldserver, ai-server
-make restart-world             # restart only worldserver after a rebuild
-make world-logs                  # tail worldserver logs
+make bootstrap                     # .env, runtime/ dirs, build the dev image
+docker compose up -d mysql         # mysql only, for the TDB import below
+make db-import-tdb TDB_VERSION=... # see "World content (TDB)" above
+make build                         # compile TrinityCore into the build-data volume (throwaway tc-dev container)
+make start                         # bring up mysql, authserver, worldserver, ai-server
+make restart-world                 # restart only worldserver after a rebuild
+make world-logs                    # tail worldserver logs
 make shell                         # throwaway interactive shell in the dev container
-make db-shell                        # mysql shell as the TC_DB_USER application user
+make db-shell                      # mysql shell as the TC_DB_USER application user
 ```
 
 Clean build and DB reset are explicit and destructive by design:
@@ -117,10 +140,12 @@ the additions for this project. `runtime/` is host-only, gitignored state.
 
 This scaffold covers the repository/Compose/Makefile shape from Etapa 1,
 with real shared history against `upstream/3.3.5`, working DB credential
-plumbing, and mysql/ai-server kept off the host network by default. None
-of it has been run yet — `make bootstrap && make build && make start` is
-untested against an actual Docker/GPU host.
+plumbing, a `/workspace/sql` mount so the schema updater can actually find
+its SQL, a pinned/checksummed TDB import path, and mysql/ai-server kept off
+the host network by default. None of it has been run yet — `make bootstrap
+&& make build && make start` is untested against an actual Docker/GPU host.
 
-Still open: DB bootstrap verification against a real container run, TDB
-dataset import, game data extraction docs, debugging/observability
-(section 1.9), the async AI health bridge (1.11), and all of Etapa 2.
+Still open: end-to-end verification against a real container run (client
+login → character → Elwynn with mobs/quests), game data extraction docs,
+debugging/observability (section 1.9), the async AI health bridge (1.11),
+and all of Etapa 2.

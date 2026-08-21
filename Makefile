@@ -1,4 +1,4 @@
-.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test
+.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb
 
 COMPOSE := docker compose -f compose.yml -f compose.dev.yml
 BUILD_DIR := /build
@@ -61,3 +61,8 @@ reset-db:
 
 gpu-test:
 	$(COMPOSE) --profile gpu-check run --rm gpu-check
+
+## import a pinned TDB world-content dump: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]
+db-import-tdb:
+	@test -n "$(TDB_VERSION)" || (echo "Usage: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]"; exit 1)
+	$(COMPOSE) run --rm -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh

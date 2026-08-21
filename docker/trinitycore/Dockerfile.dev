@@ -17,11 +17,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-all-dev \
     libssl-dev \
     libmysqlclient-dev \
+    default-mysql-client \
     libreadline-dev \
     libncurses-dev \
     libbz2-dev \
     zlib1g-dev \
     ca-certificates \
+    curl \
+    jq \
+    p7zip-full \
+    unzip \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,6 +37,12 @@ ARG USER_GID=1000
 RUN groupadd --gid ${USER_GID} ${USERNAME} \
     && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME} \
     && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# /build and /ccache are Docker named volumes mounted here at runtime, which
+# would otherwise show up root-owned — created and chowned now so ${USERNAME}
+# can actually write to them.
+RUN mkdir -p /build /ccache \
+    && chown -R ${USERNAME}:${USERNAME} /build /ccache
 
 ENV CCACHE_DIR=/ccache
 ENV PATH="/usr/lib/ccache:${PATH}"
