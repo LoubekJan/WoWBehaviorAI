@@ -374,7 +374,7 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
 
         TC_LOG_DEBUG("ai.world",
             "AI relevant memory rank={} agent={} tier={} memory={} type={} relevance={:.3f} importance={:.2f} sourceEvent={} sourceEventType={}",
-            rank, snapshot.Agent.Value, ToString(memory.Tier), memory.MemoryId, ToString(memory.Type),
+            rank + 1, snapshot.Agent.Value, ToString(memory.Tier), memory.MemoryId, ToString(memory.Type),
             memory.Relevance, memory.Importance, memory.SourceEventId, sourceEventType);
     }
 
