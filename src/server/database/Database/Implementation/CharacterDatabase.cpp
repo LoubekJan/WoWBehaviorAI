@@ -590,6 +590,11 @@ void CharacterDatabaseConnection::DoPrepareStatements()
 
     // DeserterTracker
     PrepareStatement(CHAR_INS_DESERTER_TRACK, "INSERT INTO battleground_deserters (guid, type, datetime) VALUES (?, ?, NOW())", CONNECTION_ASYNC);
+
+    // AIWorld (Milestone 2.2A) - startup-only, never used from the world update loop
+    PrepareStatement(CHAR_SEL_AI_AGENTS, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE enabled = 1", CONNECTION_SYNCH);
+    PrepareStatement(CHAR_SEL_AI_AGENT_BY_BINDING, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE map_id = ? AND spawn_id = ?", CONNECTION_SYNCH);
+    PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_id, agent_type, map_id, spawn_id) VALUES (?, ?, ?, ?)", CONNECTION_SYNCH);
 }
 
 CharacterDatabaseConnection::CharacterDatabaseConnection(MySQLConnectionInfo& connInfo) : MySQLConnection(connInfo)

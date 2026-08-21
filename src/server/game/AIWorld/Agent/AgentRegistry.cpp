@@ -18,31 +18,38 @@
 #include "AgentRegistry.h"
 #include "Creature.h"
 #include "Log.h"
+#include <utility>
 
-AgentId AgentRegistry::RegisterCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId)
+bool AgentRegistry::Add(AgentRecord record)
 {
-    if (AgentRecord* existing = FindBySpawn(mapId, spawnId))
+    if (!record.Id)
     {
-        TC_LOG_WARN("ai.world", "AgentRegistry: map={} spawn={} is already registered as agent id={}, ignoring duplicate registration",
-            mapId, spawnId, existing->Id.Value);
-        return existing->Id;
+        TC_LOG_ERROR("ai.world", "AgentRegistry::Add: refusing to add an agent with AgentId=0");
+        return false;
     }
 
-    AgentId id{ _nextAgentId++ };
+    if (!record.SpawnId)
+    {
+        TC_LOG_ERROR("ai.world", "AgentRegistry::Add: refusing to add agent id={} with SpawnId=0", record.Id.Value);
+        return false;
+    }
 
-    AgentRecord record;
-    record.Id = id;
-    record.Type = type;
-    record.MapId = mapId;
-    record.SpawnId = spawnId;
-    record.WorldState = AgentWorldState::Abstract;
+    if (Find(record.Id))
+    {
+        TC_LOG_ERROR("ai.world", "AgentRegistry::Add: agent id={} is already registered, ignoring duplicate", record.Id.Value);
+        return false;
+    }
 
-    _agents.emplace(id.Value, record);
+    if (AgentRecord* existing = FindBySpawn(record.MapId, record.SpawnId))
+    {
+        TC_LOG_ERROR("ai.world", "AgentRegistry::Add: map={} spawn={} is already registered as agent id={}, ignoring duplicate binding",
+            record.MapId, record.SpawnId, existing->Id.Value);
+        return false;
+    }
 
-    TC_LOG_INFO("ai.world", "AI agent registered id={} type={} map={} spawn={} state=ABSTRACT",
-        id.Value, ToString(type), mapId, spawnId);
-
-    return id;
+    uint64 idValue = record.Id.Value;
+    _agents.emplace(idValue, std::move(record));
+    return true;
 }
 
 AgentRecord* AgentRegistry::Find(AgentId id)

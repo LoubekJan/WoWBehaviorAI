@@ -75,11 +75,39 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
 
-    // Registering does not require the spawn's Creature/grid to be loaded -
-    // the agent exists in _registry as soon as this returns, Abstract until
+    // Rebuild _registry from characters.ai_agents before touching anything
+    // spawn-specific below - every agent this produces is Abstract with an
+    // empty RuntimeGuid regardless of what it was before shutdown.
+    _persistence.LoadAgents(_registry);
+
+    // Does not require the spawn's Creature/grid to be loaded - the agent
+    // exists in _registry as soon as this returns, Abstract until
     // ProcessAgent() finds a live Creature for it.
     if (testSpawnId)
-        _testAgentId = _registry.RegisterCreatureAgent(AgentType::Guard, testMapId, testSpawnId);
+    {
+        if (AgentRecord* existing = _registry.FindBySpawn(testMapId, testSpawnId))
+        {
+            _testAgentId = existing->Id;
+        }
+        else
+        {
+            AgentId newId = _persistence.CreateCreatureAgent(AgentType::Guard, testMapId, testSpawnId);
+
+            AgentRecord record;
+            record.Id = newId;
+            record.Type = AgentType::Guard;
+            record.MapId = testMapId;
+            record.SpawnId = testSpawnId;
+            record.WorldState = AgentWorldState::Abstract;
+
+            if (_registry.Add(record))
+            {
+                _testAgentId = newId;
+                TC_LOG_INFO("ai.world", "AI persistent agent created id={} type={} map={} spawn={}",
+                    newId.Value, ToString(AgentType::Guard), testMapId, testSpawnId);
+            }
+        }
+    }
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms)", aiHost, aiPort, requestTimeoutMs, _healthIntervalMs);
 }

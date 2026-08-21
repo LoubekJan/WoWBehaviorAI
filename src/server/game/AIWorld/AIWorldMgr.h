@@ -22,6 +22,7 @@
 #include "Agent/AgentRegistry.h"
 #include "Define.h"
 #include "Inference/AIClient.h"
+#include "Persistence/AgentPersistence.h"
 #include <memory>
 
 namespace Trinity::Asio { class IoContext; }
@@ -58,13 +59,19 @@ class TC_GAME_API AIWorldMgr
 
         // Registry of persistent agents - survives its Creature being
         // unloaded/reloaded; only ProcessAgent()'s Bind/UnbindCreature calls
-        // change an agent's WorldState. Not yet persisted across a
-        // worldserver restart (Milestone 2.2).
+        // change an agent's WorldState. Purely in-memory; rebuilt from
+        // _persistence every startup.
         AgentRegistry _registry;
 
+        // characters-DB authority for AgentId (Milestone 2.2A): _registry
+        // never mints an id itself, only ever receives one already assigned
+        // by this. Used exclusively during Initialize(), never per-tick.
+        AgentPersistence _persistence;
+
         // Milestone 2.1's single test agent: config identifies the spawn to
-        // register at Initialize() time, everything after that goes through
-        // _registry via _testAgentId instead of touching map/spawn directly.
+        // load-or-create at Initialize() time, everything after that goes
+        // through _registry via _testAgentId instead of touching map/spawn
+        // directly.
         AgentId _testAgentId;
 
         // Owned for the process lifetime, deliberately not reset in

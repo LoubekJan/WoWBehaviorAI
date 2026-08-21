@@ -27,21 +27,27 @@
 
 class Creature;
 
-// Owns every persistent agent's AgentRecord. An agent registered here keeps
-// existing (as an Abstract record) across its Creature being unloaded and
-// reloaded - only BindCreature()/UnbindCreature() calls change that, never
-// the Creature's own lifecycle directly. Deliberately holds no Creature*/
-// Map* anywhere, only SpawnId/MapId/RuntimeGuid.
+// Owns every persistent agent's AgentRecord for the process's lifetime. An
+// agent added here keeps existing (as an Abstract record) across its
+// Creature being unloaded and reloaded - only BindCreature()/
+// UnbindCreature() calls change that, never the Creature's own lifecycle
+// directly. Deliberately holds no Creature*/Map* anywhere, only
+// SpawnId/MapId/RuntimeGuid.
 //
-// Not persisted yet (Milestone 2.2): AgentId is only stable for this
-// process's lifetime. Not thread-safe: like AIWorldMgr itself, only ever
+// Purely in-memory: does not generate AgentIds and does not talk to any
+// database. AgentPersistence (Milestone 2.2A) is the authority for minting
+// and loading AgentIds - this class only ever receives already-assigned
+// ones through Add(). Not thread-safe: like AIWorldMgr itself, only ever
 // touched from the world update thread.
 class TC_GAME_API AgentRegistry
 {
     public:
-        // Idempotent: registering the same map/spawn twice returns the
-        // existing AgentId instead of creating a second agent for it.
-        AgentId RegisterCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId);
+        // Adds an already-identified record (from AgentPersistence, either
+        // freshly created or loaded from ai_agents). Rejects and returns
+        // false for AgentId=0, SpawnId=0, a duplicate AgentId, or a
+        // duplicate (MapId, SpawnId) binding - these are registry-level
+        // invariants, not just persistence-layer ones.
+        bool Add(AgentRecord record);
 
         AgentRecord* Find(AgentId id);
         AgentRecord* FindBySpawn(uint32 mapId, uint64 spawnId);
@@ -52,7 +58,6 @@ class TC_GAME_API AgentRegistry
         std::vector<AgentId> GetAgents() const;
 
     private:
-        uint64 _nextAgentId = 1;
         std::unordered_map<uint64, AgentRecord> _agents;
 };
 
