@@ -3,8 +3,7 @@
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * Free Software Foundation; either version 2 of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -32,14 +31,14 @@ TC_GAME_API extern uint32 const ReputationRankStrIndex[MAX_REPUTATION_RANK];
 enum class ReputationFlags : uint8
 {
     None                        = 0x0000,
-    Visible                     = 0x0001,                   // makes visible in client (set or can be set at interaction with target of this faction)
-    AtWar                       = 0x0002,                   // enable AtWar-button in client. player controlled (except opposition team always war state), Flag only set on initial creation
-    Hidden                      = 0x0004,                   // hidden faction from reputation pane in client (player can gain reputation, but this update not sent to client)
-    Header                      = 0x0008,                   // Display as header in UI
+    Visible                     = 0x0001,
+    AtWar                       = 0x0002,
+    Hidden                      = 0x0004,
+    Header                      = 0x0008,
     Peaceful                    = 0x0010,
-    Inactive                    = 0x0020,                   // player controlled (CMSG_SET_FACTION_INACTIVE)
+    Inactive                    = 0x0020,
     ShowPropagated              = 0x0040,
-    HeaderShowsBar              = 0x0080                    // Header has its own reputation bar
+    HeaderShowsBar              = 0x0080
 };
 
 DEFINE_ENUM_FLAG(ReputationFlags);
@@ -58,36 +57,45 @@ struct FactionState
 typedef std::map<RepListID, FactionState> FactionStateList;
 typedef std::map<uint32, ReputationRank> ForcedReactions;
 
+struct ServerFactionReputation
+{
+    int32 Standing = 0;
+    bool needSave = false;
+};
+
+typedef std::map<uint32, ServerFactionReputation> ServerFactionReputationList;
+
 class Player;
 
 class TC_GAME_API ReputationMgr
 {
-    public:                                                 // constructors and global modifiers
+    public:
         explicit ReputationMgr(Player* owner) : _player(owner),
             _visibleFactionCount(0), _honoredFactionCount(0), _reveredFactionCount(0), _exaltedFactionCount(0), _sendFactionIncreased(false) { }
         ~ReputationMgr() { }
 
         void SaveToDB(CharacterDatabaseTransaction trans);
         void LoadFromDB(PreparedQueryResult result);
-    public:                                                 // statics
+    public:
         static std::set<int32> const ReputationRankThresholds;
         static const int32 Reputation_Cap;
         static const int32 Reputation_Bottom;
 
         static ReputationRank ReputationToRank(FactionEntry const* factionEntry, int32 standing);
-    public:                                                 // accessors
+    public:
         uint8 GetVisibleFactionCount() const { return _visibleFactionCount; }
         uint8 GetHonoredFactionCount() const { return _honoredFactionCount; }
         uint8 GetReveredFactionCount() const { return _reveredFactionCount; }
         uint8 GetExaltedFactionCount() const { return _exaltedFactionCount; }
 
         FactionStateList const& GetStateList() const { return _factions; }
+        ServerFactionReputationList const& GetServerFactionReputations() const { return _serverFactionReputations; }
 
         FactionState const* GetState(FactionEntry const* factionEntry) const;
 
         FactionState const* GetState(RepListID id) const
         {
-            FactionStateList::const_iterator repItr = _factions.find (id);
+            FactionStateList::const_iterator repItr = _factions.find(id);
             return repItr != _factions.end() ? &repItr->second : nullptr;
         }
 
@@ -103,12 +111,12 @@ class TC_GAME_API ReputationMgr
 
         ReputationRank GetRank(FactionEntry const* factionEntry) const;
         ReputationRank GetBaseRank(FactionEntry const* factionEntry) const;
-        std::string GetReputationRankName(FactionEntry const* factionEntry) const;;
+        std::string GetReputationRankName(FactionEntry const* factionEntry) const;
 
         ReputationRank const* GetForcedRankIfAny(FactionTemplateEntry const* factionTemplateEntry) const;
         ReputationRank const* GetForcedRankIfAny(uint32 factionId) const;
 
-    public:                                                 // modifiers
+    public:
         bool SetReputation(FactionEntry const* factionEntry, int32 standing)
         {
             return SetReputation(factionEntry, standing, false, false);
@@ -128,12 +136,12 @@ class TC_GAME_API ReputationMgr
         //! Public for chat command needs
         bool SetOneFactionReputation(FactionEntry const* factionEntry, int32 standing, bool incremental);
 
-    public:                                                 // senders
+    public:
         void SendInitialReputations();
         void SendForceReactions();
         void SendState(FactionState const* faction);
 
-    private:                                                // internal helper functions
+    private:
         void Initialize();
         ReputationFlags GetDefaultStateFlags(FactionEntry const* factionEntry) const;
         bool SetReputation(FactionEntry const* factionEntry, int32 standing, bool incremental, bool spillOverOnly);
@@ -147,12 +155,13 @@ class TC_GAME_API ReputationMgr
     private:
         Player* _player;
         FactionStateList _factions;
+        ServerFactionReputationList _serverFactionReputations;
         ForcedReactions _forcedReactions;
         uint8 _visibleFactionCount;
         uint8 _honoredFactionCount;
         uint8 _reveredFactionCount;
         uint8 _exaltedFactionCount;
-        bool _sendFactionIncreased; //! Play visual effect on next SMSG_SET_FACTION_STANDING sent
+        bool _sendFactionIncreased;
 };
 
 #endif
