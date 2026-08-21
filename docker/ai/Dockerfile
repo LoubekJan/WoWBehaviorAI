@@ -1,5 +1,5 @@
-# Empty AI bridge (Etapa 1 / section 1.11). Only exposes a health endpoint
-# for now; decision-making logic is added in Etapa 2.
+# AI bridge (Etapa 1 / section 1.11). Health + a /decision stub that always
+# returns action="NONE"; real inference logic is added in Etapa 2.
 FROM python:3.11-slim
 
 WORKDIR /app

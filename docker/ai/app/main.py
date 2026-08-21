@@ -1,10 +1,13 @@
-"""Empty AI bridge — health endpoint only (Etapa 1, section 1.11).
+"""AI bridge - health endpoint + decision protocol stub (Etapa 1 section
+1.11 / Etapa 2 section 2.9 kickoff).
 
-Decision protocol, GPU inference and the AgentContext contract are added in
-Etapa 2 (section 2.9). This service exists so worldserver has something to
-reach on the internal Docker network from the start.
+/decision always returns action="NONE": no real inference yet. This exists
+so worldserver's async transport (resolve/connect/write/read, timeouts,
+stale-response rejection) can be exercised end-to-end before any model is
+involved.
 """
 from fastapi import FastAPI
+from pydantic import BaseModel
 
 app = FastAPI(title="ai-server", version="0.1.0")
 
@@ -12,3 +15,37 @@ app = FastAPI(title="ai-server", version="0.1.0")
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+class Position(BaseModel):
+    x: float
+    y: float
+    z: float
+
+
+class DecisionRequest(BaseModel):
+    request_id: int
+    snapshot_sequence: int
+    spawn_id: int
+    entry: int
+    health: int
+    max_health: int
+    alive: bool
+    in_combat: bool
+    map_id: int
+    position: Position
+
+
+class DecisionResponse(BaseModel):
+    request_id: int
+    snapshot_sequence: int
+    action: str
+
+
+@app.post("/decision", response_model=DecisionResponse)
+def decision(request: DecisionRequest) -> DecisionResponse:
+    return DecisionResponse(
+        request_id=request.request_id,
+        snapshot_sequence=request.snapshot_sequence,
+        action="NONE",
+    )

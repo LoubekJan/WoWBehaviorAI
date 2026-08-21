@@ -18,6 +18,7 @@
 #ifndef AIWORLD_AICLIENT_H
 #define AIWORLD_AICLIENT_H
 
+#include "AIRequest.h"
 #include "AIResponse.h"
 #include "Define.h"
 #include <memory>
@@ -53,6 +54,14 @@ class TC_GAME_API AIClient
         // ai-server (RequestTimeoutMs > HealthIntervalMs) can't pile up
         // concurrent in-flight requests.
         uint64 SubmitHealthCheck();
+
+        // Builds and POSTs a /decision request from the given snapshot data.
+        // RequestId and Type are stamped internally (any value the caller
+        // set is overwritten), so only SnapshotSequence/SpawnId/Entry/
+        // Health/MaxHealth/Alive/InCombat/MapId/X/Y/Z need to be filled in.
+        // Same non-blocking contract as SubmitHealthCheck(); unlike it,
+        // decision requests are not single-flighted against each other yet.
+        uint64 SubmitDecision(AIRequest request);
 
         // Non-blocking pop of one completed response. Returns false if none
         // is queued yet.

@@ -102,13 +102,34 @@ void AIWorldMgr::Update(uint32 diff)
     }
 
     // World thread drains whatever AIClient's worker threads finished since
-    // the last tick. Nothing acts on the result yet (2B is a smoke test of
-    // the bridge itself) - AIClient already logged the outcome when the
-    // request completed or timed out.
+    // the last tick. AIClient already logged the raw outcome (submitted,
+    // succeeded, failed, or timed out); what happens here is the world
+    // thread's own judgment of whether a decision is still usable.
     AIResponse response;
     while (_aiClient->TryPopResponse(response))
-        TC_LOG_DEBUG("ai.world", "AI response id={} consumed by world thread (status={}, latency={}ms)",
-            response.RequestId, response.StatusCode, response.LatencyMs);
+    {
+        if (response.Type != AIRequestType::Decision)
+        {
+            TC_LOG_DEBUG("ai.world", "AI response id={} consumed by world thread (status={}, latency={}ms)",
+                response.RequestId, response.StatusCode, response.LatencyMs);
+            continue;
+        }
+
+        if (!response.Success)
+            continue; // AIClient already logged the failure/timeout
+
+        if (response.SnapshotSequence < _snapshotSequence)
+        {
+            TC_LOG_DEBUG("ai.world", "AI decision id={} snapshot={} is STALE (latest snapshot={}), discarding",
+                response.RequestId, response.SnapshotSequence, _snapshotSequence);
+            continue;
+        }
+
+        // Milestone 2C: still just a stub - action is always NONE and
+        // nothing is applied to the game world yet.
+        TC_LOG_DEBUG("ai.world", "AI decision id={} snapshot={} action={} accepted (no-op)",
+            response.RequestId, response.SnapshotSequence, response.Action);
+    }
 }
 
 void AIWorldMgr::CaptureTestAgentSnapshot()
@@ -147,6 +168,20 @@ void AIWorldMgr::CaptureTestAgentSnapshot()
         snapshot.Health, snapshot.MaxHealth,
         snapshot.X, snapshot.Y, snapshot.Z,
         snapshot.InCombat);
+
+    AIRequest request;
+    request.SnapshotSequence = snapshot.SnapshotSequence;
+    request.SpawnId = snapshot.SpawnId;
+    request.Entry = snapshot.Entry;
+    request.Health = snapshot.Health;
+    request.MaxHealth = snapshot.MaxHealth;
+    request.Alive = snapshot.Alive;
+    request.InCombat = snapshot.InCombat;
+    request.MapId = snapshot.MapId;
+    request.X = snapshot.X;
+    request.Y = snapshot.Y;
+    request.Z = snapshot.Z;
+    _aiClient->SubmitDecision(request);
 }
 
 void AIWorldMgr::Shutdown()

@@ -30,7 +30,9 @@
 #include <boost/beast/http.hpp>
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
+#include <sstream>
 
 namespace beast = boost::beast;
 namespace http = boost::beast::http;
@@ -160,6 +162,7 @@ namespace
 
                 AIResponse* response = new AIResponse();
                 response->RequestId = _requestId;
+                response->Type = AIRequestType::Health;
                 response->Success = success;
                 response->StatusCode = statusCode;
                 response->LatencyMs = latencyMs;
@@ -180,6 +183,246 @@ namespace
             uint64 _requestId;
             MPSCQueue<AIResponse>* _responseQueue;
             std::atomic<bool>* _inFlightFlag;
+            std::chrono::steady_clock::time_point _startTime;
+            std::atomic<bool> _completed { false };
+    };
+
+    // Builds the fixed-shape /decision request body. Deliberately not a
+    // general JSON serializer - just this one flat schema, all
+    // numeric/bool fields with nothing that needs escaping.
+    std::string BuildDecisionRequestBody(AIRequest const& request)
+    {
+        std::ostringstream body;
+        body << "{\"request_id\":" << request.RequestId
+             << ",\"snapshot_sequence\":" << request.SnapshotSequence
+             << ",\"spawn_id\":" << request.SpawnId
+             << ",\"entry\":" << request.Entry
+             << ",\"health\":" << request.Health
+             << ",\"max_health\":" << request.MaxHealth
+             << ",\"alive\":" << (request.Alive ? "true" : "false")
+             << ",\"in_combat\":" << (request.InCombat ? "true" : "false")
+             << ",\"map_id\":" << request.MapId
+             << ",\"position\":{\"x\":" << request.X
+             << ",\"y\":" << request.Y
+             << ",\"z\":" << request.Z
+             << "}}";
+        return body.str();
+    }
+
+    // Defensive, minimal extraction for the fixed
+    // {"request_id":N,"snapshot_sequence":N,"action":"STR"} response shape -
+    // not a general JSON parser. Tolerant of key order, whitespace, and
+    // unknown extra keys; never throws; returns false (never partial output)
+    // if a required field is missing or malformed.
+    bool ParseDecisionResponseBody(std::string const& body, uint64& snapshotSequence, std::string& action)
+    {
+        auto findUintField = [&body](std::string const& key, uint64& out) -> bool
+        {
+            std::string needle = "\"" + key + "\"";
+            size_t keyPos = body.find(needle);
+            if (keyPos == std::string::npos)
+                return false;
+
+            size_t colonPos = body.find(':', keyPos + needle.size());
+            if (colonPos == std::string::npos)
+                return false;
+
+            size_t valueStart = colonPos + 1;
+            while (valueStart < body.size() && std::isspace(static_cast<unsigned char>(body[valueStart])))
+                ++valueStart;
+
+            size_t valueEnd = valueStart;
+            while (valueEnd < body.size() && std::isdigit(static_cast<unsigned char>(body[valueEnd])))
+                ++valueEnd;
+
+            if (valueEnd == valueStart)
+                return false;
+
+            try
+            {
+                out = std::stoull(body.substr(valueStart, valueEnd - valueStart));
+            }
+            catch (std::exception const&)
+            {
+                return false;
+            }
+            return true;
+        };
+
+        auto findStringField = [&body](std::string const& key, std::string& out) -> bool
+        {
+            std::string needle = "\"" + key + "\"";
+            size_t keyPos = body.find(needle);
+            if (keyPos == std::string::npos)
+                return false;
+
+            size_t colonPos = body.find(':', keyPos + needle.size());
+            if (colonPos == std::string::npos)
+                return false;
+
+            size_t quoteStart = body.find('"', colonPos + 1);
+            if (quoteStart == std::string::npos)
+                return false;
+
+            size_t quoteEnd = body.find('"', quoteStart + 1);
+            if (quoteEnd == std::string::npos)
+                return false;
+
+            out = body.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+            return true;
+        };
+
+        return findUintField("snapshot_sequence", snapshotSequence) && findStringField("action", action);
+    }
+
+    // Same resolve/connect/write/read/timeout shape as HealthCheckSession
+    // (see its comments for why each piece is there), POSTing a JSON body
+    // to /decision and parsing a JSON body back instead of GETting /health.
+    class DecisionSession : public std::enable_shared_from_this<DecisionSession>
+    {
+        public:
+            DecisionSession(net::io_context& ioContext, std::string const& host, std::string const& port,
+                uint32 timeoutMs, AIRequest const& request, MPSCQueue<AIResponse>* responseQueue)
+                : _resolver(net::make_strand(ioContext)), _stream(net::make_strand(ioContext)),
+                  _resolveTimer(_resolver.get_executor()),
+                  _host(host), _port(port), _timeoutMs(timeoutMs), _request(request), _responseQueue(responseQueue),
+                  _startTime(std::chrono::steady_clock::now())
+            {
+            }
+
+            void Run()
+            {
+                _httpRequest.version(11);
+                _httpRequest.method(http::verb::post);
+                _httpRequest.target("/decision");
+                _httpRequest.set(http::field::host, _host + ":" + _port);
+                _httpRequest.set(http::field::user_agent, "TrinityCore-AIWorld");
+                _httpRequest.set(http::field::content_type, "application/json");
+                _httpRequest.body() = BuildDecisionRequestBody(_request);
+                _httpRequest.prepare_payload();
+
+                TC_LOG_INFO("ai.world", "AI decision request id={} snapshot={} spawn={} submitted",
+                    _request.RequestId, _request.SnapshotSequence, _request.SpawnId);
+
+                _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
+                _resolveTimer.async_wait(
+                    beast::bind_front_handler(&DecisionSession::OnResolveTimeout, shared_from_this()));
+
+                _resolver.async_resolve(_host, _port,
+                    beast::bind_front_handler(&DecisionSession::OnResolve, shared_from_this()));
+            }
+
+        private:
+            void OnResolveTimeout(beast::error_code ec)
+            {
+                if (ec == net::error::operation_aborted)
+                    return; // resolve finished first and cancelled this timer
+
+                _resolver.cancel();
+                Complete(false, 0, beast::error::timeout, std::string());
+            }
+
+            void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
+            {
+                _resolveTimer.cancel();
+
+                if (ec)
+                    return Complete(false, 0, ec, std::string());
+
+                if (_completed.load(std::memory_order_acquire))
+                    return; // resolve timeout already completed this request
+
+                _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
+                _stream.async_connect(results,
+                    beast::bind_front_handler(&DecisionSession::OnConnect, shared_from_this()));
+            }
+
+            void OnConnect(beast::error_code ec, tcp::resolver::results_type::endpoint_type)
+            {
+                if (ec)
+                    return Complete(false, 0, ec, std::string());
+
+                _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
+                http::async_write(_stream, _httpRequest,
+                    beast::bind_front_handler(&DecisionSession::OnWrite, shared_from_this()));
+            }
+
+            void OnWrite(beast::error_code ec, std::size_t /*bytesTransferred*/)
+            {
+                if (ec)
+                    return Complete(false, 0, ec, std::string());
+
+                http::async_read(_stream, _buffer, _httpResponse,
+                    beast::bind_front_handler(&DecisionSession::OnRead, shared_from_this()));
+            }
+
+            void OnRead(beast::error_code ec, std::size_t /*bytesTransferred*/)
+            {
+                if (ec)
+                    return Complete(false, 0, ec, std::string());
+
+                uint32 statusCode = _httpResponse.result_int();
+                bool success = statusCode >= 200 && statusCode < 300;
+                std::string action;
+                if (success)
+                {
+                    uint64 responseSnapshotSequence = 0;
+                    if (!ParseDecisionResponseBody(_httpResponse.body(), responseSnapshotSequence, action))
+                    {
+                        TC_LOG_WARN("ai.world", "AI decision response id={} could not be parsed, treating as failed", _request.RequestId);
+                        success = false;
+                    }
+                }
+                Complete(success, statusCode, ec, action);
+            }
+
+            // Guarded by _completed - see HealthCheckSession::Complete().
+            void Complete(bool success, uint32 statusCode, beast::error_code ec, std::string const& action)
+            {
+                if (_completed.exchange(true, std::memory_order_acq_rel))
+                    return;
+
+                beast::error_code ignored;
+                _stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+
+                uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - _startTime).count());
+
+                if (ec == beast::error::timeout)
+                    TC_LOG_WARN("ai.world", "AI decision request id={} timed out after {}ms", _request.RequestId, _timeoutMs);
+                else if (ec)
+                    TC_LOG_WARN("ai.world", "AI decision request id={} failed: {}", _request.RequestId, ec.message());
+                else if (!success)
+                    TC_LOG_WARN("ai.world", "AI decision request id={} completed with non-2xx status={} latency={}ms",
+                        _request.RequestId, statusCode, latencyMs);
+                else
+                    TC_LOG_INFO("ai.world", "AI decision response id={} snapshot={} action={} latency={}ms",
+                        _request.RequestId, _request.SnapshotSequence, action, latencyMs);
+
+                AIResponse* response = new AIResponse();
+                response->RequestId = _request.RequestId;
+                response->Type = AIRequestType::Decision;
+                response->SnapshotSequence = _request.SnapshotSequence;
+                response->Success = success;
+                response->StatusCode = statusCode;
+                response->LatencyMs = latencyMs;
+                response->Action = success ? action : std::string();
+
+                _responseQueue->Enqueue(response);
+            }
+
+            tcp::resolver _resolver;
+            beast::tcp_stream _stream;
+            net::steady_timer _resolveTimer;
+            beast::flat_buffer _buffer;
+            http::request<http::string_body> _httpRequest;
+            http::response<http::string_body> _httpResponse;
+
+            std::string _host;
+            std::string _port;
+            uint32 _timeoutMs;
+            AIRequest _request;
+            MPSCQueue<AIResponse>* _responseQueue;
             std::chrono::steady_clock::time_point _startTime;
             std::atomic<bool> _completed { false };
     };
@@ -235,6 +478,26 @@ uint64 AIClient::SubmitHealthCheck()
     net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, requestId, responseQueue, inFlightFlag]()
     {
         std::make_shared<HealthCheckSession>(rawIoContext, host, port, timeoutMs, requestId, responseQueue, inFlightFlag)->Run();
+    });
+
+    return requestId;
+}
+
+uint64 AIClient::SubmitDecision(AIRequest request)
+{
+    uint64 requestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
+    request.RequestId = requestId;
+    request.Type = AIRequestType::Decision;
+
+    net::io_context& rawIoContext = _impl->IoContextRef;
+    std::string const& host = _impl->Host;
+    std::string const& port = _impl->Port;
+    uint32 timeoutMs = _impl->RequestTimeoutMs;
+    MPSCQueue<AIResponse>* responseQueue = &_impl->ResponseQueue;
+
+    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, request, responseQueue]()
+    {
+        std::make_shared<DecisionSession>(rawIoContext, host, port, timeoutMs, request, responseQueue)->Run();
     });
 
     return requestId;

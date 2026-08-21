@@ -20,14 +20,33 @@
 
 #include "Define.h"
 
+enum class AIRequestType : uint8
+{
+    Health = 0,
+    Decision = 1
+};
+
 // Plain data handed to AIClient. Never carries a Creature*/Player*/Map* -
 // AIClient and everything below it only ever sees values, never live
-// game objects.
+// game objects. The Health/Entry/.../Z fields mirror AgentSnapshot and are
+// only meaningful (and only sent) for Type == Decision.
 struct AIRequest
 {
     uint64 RequestId = 0;
+    AIRequestType Type = AIRequestType::Health;
     uint64 SnapshotSequence = 0;
     uint64 SpawnId = 0;
+
+    uint32 Entry = 0;
+    uint32 Health = 0;
+    uint32 MaxHealth = 0;
+    bool Alive = false;
+    bool InCombat = false;
+
+    uint32 MapId = 0;
+    float X = 0.0f;
+    float Y = 0.0f;
+    float Z = 0.0f;
 };
 
 #endif // AIWORLD_AIREQUEST_H
