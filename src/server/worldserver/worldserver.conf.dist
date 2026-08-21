@@ -3455,6 +3455,16 @@ AIWorld.RequestTimeoutMs = 1000
 AIWorld.HealthIntervalMs = 10000
 
 #
+#    AIWorld.PerceptionSightRange
+#        Description: Distance (in yards) within which a Materialized agent can witness a
+#                     WorldEvent via PerceptionChannel::Sight, subject to line of sight. Abstract
+#                     agents (no currently loaded Creature) never perceive anything.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     40
+
+AIWorld.PerceptionSightRange = 40
+
+#
 ###################################################################################################
 
 ###################################################################################################

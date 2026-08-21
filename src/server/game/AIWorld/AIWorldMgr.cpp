@@ -23,6 +23,7 @@
 #include "Log.h"
 #include "Map.h"
 #include "MapManager.h"
+#include <optional>
 #include <string>
 
 AIWorldMgr* AIWorldMgr::instance()
@@ -70,6 +71,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _healthIntervalMs = uint32(healthIntervalMs);
     _healthTimer = 0;
+
+    int32 sightRange = sConfigMgr->GetIntDefault("AIWorld.PerceptionSightRange", 40);
+    if (sightRange < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.PerceptionSightRange ({}) is invalid or too low, clamping to 1", sightRange);
+        sightRange = 1;
+    }
+    _perceptionSightRange = uint32(sightRange);
 
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
@@ -303,8 +312,8 @@ void AIWorldMgr::PublishWorldEvent(WorldEvent event)
 // Enriches Actor/Target with whatever AgentId _registry currently has for
 // their SpawnId - this is the earliest point that lookup is safe to do,
 // since whoever published the event (a map/combat worker) must not touch
-// _registry itself. Still just a debug log for Milestone 2.3A: no
-// Perception, no Memory, no agent reaction.
+// _registry itself. Still no Memory, no agent reaction - Milestone 2.4A
+// only adds the witnessed-event -> Observation step below the debug log.
 void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 {
     if (event.Actor.SpawnId)
@@ -324,6 +333,45 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
         event.EventId, ToString(event.Type), event.CorrelationId, event.CauseEventId, event.Location.MapId,
         event.Actor.Guid.ToString(), event.Actor.SpawnId, event.Actor.Agent.Value,
         event.Target.Guid.ToString(), event.Target.Entry, event.Target.SpawnId, event.Target.Agent.Value);
+
+    // Linear over every registered agent - fine for the single-digit/dozens
+    // agent counts this milestone targets. Worth a spatial index only once
+    // there are hundreds+ agents; premature before that.
+    for (AgentId id : _registry.GetAgents())
+    {
+        AgentRecord* record = _registry.Find(id);
+        if (!record)
+            continue;
+
+        // Abstract agents get no perception at all here - no fake live
+        // LOS/range check against a Creature that doesn't currently exist.
+        // A later, coarser regional-fact mechanism is what abstract agents
+        // are meant to rely on instead, not this.
+        if (record->WorldState != AgentWorldState::Materialized)
+            continue;
+
+        if (record->MapId != event.Location.MapId)
+            continue;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        Creature* observer = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+        if (!observer)
+            continue;
+
+        if (std::optional<Observation> observation = _perception.ObserveEvent(id, *observer, event, float(_perceptionSightRange)))
+            ProcessObservation(*observation);
+    }
+}
+
+// World thread only. Milestone 2.4A: still just a debug log - no Memory,
+// no decision context, no agent reaction.
+void AIWorldMgr::ProcessObservation(Observation const& observation)
+{
+    TC_LOG_DEBUG("ai.world",
+        "AI observation observer={} sourceEvent={} type={} channel={} distance={:.1f} los={} actorAgent={} targetEntry={} targetAgent={}",
+        observation.Observer.Value, observation.SourceEventId, ToString(observation.EventType),
+        ToString(observation.Channel), observation.Distance, observation.LineOfSight,
+        observation.Actor.Agent.Value, observation.Target.Entry, observation.Target.Agent.Value);
 }
 
 void AIWorldMgr::Shutdown()

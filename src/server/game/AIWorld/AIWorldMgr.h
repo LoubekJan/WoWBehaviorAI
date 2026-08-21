@@ -24,6 +24,7 @@
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
 #include "Inference/AIClient.h"
+#include "Perception/PerceptionSystem.h"
 #include "Persistence/AgentPersistence.h"
 #include <atomic>
 #include <memory>
@@ -63,6 +64,7 @@ class TC_GAME_API AIWorldMgr
         void ProcessAgent(AgentId id);
         void CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creature& creature);
         void ProcessWorldEvent(WorldEvent& event);
+        void ProcessObservation(Observation const& observation);
 
         bool _enabled = false;
 
@@ -114,6 +116,14 @@ class TC_GAME_API AIWorldMgr
         // mutex instead.
         EventBus _eventBus;
         std::atomic<bool> _acceptEvents{ false };
+
+        // World-thread-only: turns a witnessed WorldEvent into an
+        // Observation per Materialized agent (range + LOS against the
+        // event's location). Never called from a map/combat worker - only
+        // from ProcessWorldEvent(), after this manager has already
+        // resolved the observer's live Creature itself.
+        PerceptionSystem _perception;
+        uint32 _perceptionSightRange = 40;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()
