@@ -35,10 +35,13 @@ class AgentRegistry;
 //
 // characters DB was picked over world DB (static content, not realm
 // runtime state) and over a fourth AI-specific database (not justified
-// yet for one table). AgentId is assigned here, in C++, not by MySQL
-// AUTO_INCREMENT - this database layer has no last-insert-id support, and
-// TrinityCore's own convention is to mint ids in code rather than rely on
-// one.
+// yet for one table). agent_id is MySQL AUTO_INCREMENT, not minted in
+// C++: this database layer has no last-insert-id support, so
+// CreateCreatureAgent() reads the assigned id back by the unique
+// (map_id, spawn_id) binding instead of predicting it - deliberately not
+// a locally-tracked counter, which would silently drift out of sync with
+// the table the moment a row exists that LoadAgents() didn't see (a
+// wider WHERE clause added later, another process, ...).
 //
 // Synchronous by design: LoadAgents() and CreateCreatureAgent() are only
 // ever meant to be called during AIWorldMgr::Initialize(), never from the
@@ -46,24 +49,23 @@ class AgentRegistry;
 class TC_GAME_API AgentPersistence
 {
     public:
-        // Loads every enabled row from ai_agents into registry (WorldState
-        // = Abstract, RuntimeGuid = Empty, SnapshotSequence = 0) and seeds
-        // the id counter CreateCreatureAgent() hands out next. Returns the
+        // Loads every row from ai_agents into registry (WorldState =
+        // Abstract, RuntimeGuid = Empty, SnapshotSequence = 0). Returns the
         // number of agents loaded.
         uint32 LoadAgents(AgentRegistry& registry);
 
-        // Idempotent against ai_agents (not just against what LoadAgents()
-        // already saw - a disabled row for the same binding would otherwise
-        // collide with the UNIQUE(map_id, spawn_id) constraint): if a row
-        // for (mapId, spawnId) already exists, its AgentId is reused
-        // instead of inserting a duplicate. Otherwise inserts a new row and
-        // returns the AgentId it was assigned - the only place a new
-        // AgentId is minted. Caller is responsible for adding the
-        // resulting record to an AgentRegistry.
+        // Idempotent against ai_agents itself (not just against what
+        // LoadAgents() already saw): if a row for (mapId, spawnId) already
+        // exists, its AgentId is reused instead of inserting a duplicate.
+        // Otherwise inserts a new row and reads its MySQL-assigned AgentId
+        // back by that same binding. Returns AgentId{} (Value == 0, never a
+        // valid id) if the read-back doesn't find a row - the caller must
+        // not add anything to an AgentRegistry in that case, since there is
+        // then no way to know whether the insert actually happened.
         AgentId CreateCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId);
 
     private:
-        uint64 _nextAgentId = 1;
+        AgentId FindBinding(uint32 mapId, uint64 spawnId);
 };
 
 #endif // AIWORLD_AGENTPERSISTENCE_H

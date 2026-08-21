@@ -19,7 +19,6 @@
 #include "Agent/AgentRegistry.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
-#include <algorithm>
 
 uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
 {
@@ -49,8 +48,6 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         if (!registry.Add(record))
             continue;
 
-        _nextAgentId = std::max(_nextAgentId, record.Id.Value + 1);
-
         TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT",
             record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId);
 
@@ -61,31 +58,41 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
     return loaded;
 }
 
+AgentId AgentPersistence::FindBinding(uint32 mapId, uint64 spawnId)
+{
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_BY_BINDING);
+    stmt->setUInt32(0, mapId);
+    stmt->setUInt64(1, spawnId);
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+        return AgentId{};
+
+    Field* fields = result->Fetch();
+    return AgentId{ fields[0].GetUInt64() };
+}
+
 AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId)
 {
-    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_BY_BINDING);
-    selectStmt->setUInt32(0, mapId);
-    selectStmt->setUInt64(1, spawnId);
-    if (PreparedQueryResult existing = CharacterDatabase.Query(selectStmt))
+    if (AgentId existingId = FindBinding(mapId, spawnId))
     {
-        Field* fields = existing->Fetch();
-        AgentId existingId{ fields[0].GetUInt64() };
-
         TC_LOG_WARN("ai.world", "AgentPersistence: map={} spawn={} already exists in ai_agents as agent id={}, reusing it instead of inserting a duplicate",
             mapId, spawnId, existingId.Value);
-
-        _nextAgentId = std::max(_nextAgentId, existingId.Value + 1);
         return existingId;
     }
 
-    AgentId id{ _nextAgentId++ };
-
     CharacterDatabasePreparedStatement* insertStmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT);
-    insertStmt->setUInt64(0, id.Value);
-    insertStmt->setUInt8(1, uint8(type));
-    insertStmt->setUInt32(2, mapId);
-    insertStmt->setUInt64(3, spawnId);
+    insertStmt->setUInt8(0, uint8(type));
+    insertStmt->setUInt32(1, mapId);
+    insertStmt->setUInt64(2, spawnId);
     CharacterDatabase.DirectExecute(insertStmt);
 
-    return id;
+    // DirectExecute() doesn't report success/failure, and agent_id is
+    // MySQL-assigned (AUTO_INCREMENT) rather than chosen here, so the only
+    // way to know what id - or whether one at all - actually got stored is
+    // to read it back by the unique (map_id, spawn_id) binding.
+    AgentId newId = FindBinding(mapId, spawnId);
+    if (!newId)
+        TC_LOG_ERROR("ai.world", "AgentPersistence: INSERT for map={} spawn={} did not produce a readable row, agent was not created", mapId, spawnId);
+
+    return newId;
 }

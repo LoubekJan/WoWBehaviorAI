@@ -92,19 +92,30 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         else
         {
             AgentId newId = _persistence.CreateCreatureAgent(AgentType::Guard, testMapId, testSpawnId);
-
-            AgentRecord record;
-            record.Id = newId;
-            record.Type = AgentType::Guard;
-            record.MapId = testMapId;
-            record.SpawnId = testSpawnId;
-            record.WorldState = AgentWorldState::Abstract;
-
-            if (_registry.Add(record))
+            if (!newId)
             {
-                _testAgentId = newId;
-                TC_LOG_INFO("ai.world", "AI persistent agent created id={} type={} map={} spawn={}",
-                    newId.Value, ToString(AgentType::Guard), testMapId, testSpawnId);
+                // AgentPersistence already logged why. Nothing goes into
+                // _registry without a real, DB-confirmed AgentId - the
+                // whole point of this milestone is that the two never
+                // disagree.
+                TC_LOG_ERROR("ai.world", "AI persistent agent creation failed for map={} spawn={}, test agent disabled this run",
+                    testMapId, testSpawnId);
+            }
+            else
+            {
+                AgentRecord record;
+                record.Id = newId;
+                record.Type = AgentType::Guard;
+                record.MapId = testMapId;
+                record.SpawnId = testSpawnId;
+                record.WorldState = AgentWorldState::Abstract;
+
+                if (_registry.Add(record))
+                {
+                    _testAgentId = newId;
+                    TC_LOG_INFO("ai.world", "AI persistent agent created id={} type={} map={} spawn={}",
+                        newId.Value, ToString(AgentType::Guard), testMapId, testSpawnId);
+                }
             }
         }
     }
