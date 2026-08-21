@@ -173,7 +173,7 @@ void AIWorldMgr::Update(uint32 diff)
     if (_nearbyPerceptionTimer >= _nearbyPerceptionIntervalMs)
     {
         _nearbyPerceptionTimer = 0;
-        ScanNearbyPlayers();
+        ScanNearbyEntities();
     }
 
     _healthTimer += diff;
@@ -394,12 +394,12 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 }
 
 // World thread only, on its own ~1s cadence (_nearbyPerceptionIntervalMs),
-// independent of any WorldEvent - Milestone 2.4B. Same "live Creature
+// independent of any WorldEvent - Milestone 2.4B/2.4C. Same "live Creature
 // existence is the authority, not record->WorldState" rule as
 // ProcessWorldEvent()'s perception loop, for the same reason: this runs
 // faster than _snapshotIntervalMs, so trusting WorldState here would
 // reintroduce the exact false-negative gap that was just closed there.
-void AIWorldMgr::ScanNearbyPlayers()
+void AIWorldMgr::ScanNearbyEntities()
 {
     for (AgentId id : _registry.GetAgents())
     {
@@ -426,6 +426,31 @@ void AIWorldMgr::ScanNearbyPlayers()
         {
             if (std::optional<Observation> observation = _perception.ObserveNearbyPlayer(id, *observer, *player, float(_perceptionSightRange)))
                 ProcessObservation(*observation);
+        }
+
+        // Default-constructed FindCreatureOptions: no filters. Final
+        // alive/self/range/LOS gating happens in ObserveNearbyCreature(),
+        // not here.
+        std::vector<Creature*> creatures;
+        observer->GetCreatureListWithOptionsInGrid(creatures, float(_perceptionSightRange), FindCreatureOptions{});
+
+        for (Creature* seen : creatures)
+        {
+            std::optional<Observation> observation = _perception.ObserveNearbyCreature(id, *observer, *seen, float(_perceptionSightRange));
+            if (!observation)
+                continue;
+
+            // PerceptionSystem never touches AgentRegistry - if the seen
+            // creature is itself a registered agent, that enrichment
+            // happens here, the same way ProcessWorldEvent() enriches
+            // Actor/Target for a WorldEvent.
+            if (observation->Target.SpawnId)
+            {
+                if (AgentRecord* seenAgent = _registry.FindBySpawn(observation->Location.MapId, observation->Target.SpawnId))
+                    observation->Target.Agent = seenAgent->Id;
+            }
+
+            ProcessObservation(*observation);
         }
     }
 }

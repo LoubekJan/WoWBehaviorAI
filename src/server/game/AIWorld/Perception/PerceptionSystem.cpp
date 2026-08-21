@@ -108,3 +108,55 @@ std::optional<Observation> PerceptionSystem::ObserveNearbyPlayer(AgentId observe
 
     return observation;
 }
+
+std::optional<Observation> PerceptionSystem::ObserveNearbyCreature(AgentId observerId, Creature const& observer,
+    Creature const& seen, float sightRange) const
+{
+    if (!observer.IsAlive())
+        return std::nullopt;
+
+    if (!seen.IsAlive())
+        return std::nullopt;
+
+    if (&observer == &seen)
+        return std::nullopt;
+
+    if (observer.GetMapId() != seen.GetMapId())
+        return std::nullopt;
+
+    float distance = observer.GetDistance(seen.GetPositionX(), seen.GetPositionY(), seen.GetPositionZ());
+    if (distance > sightRange)
+        return std::nullopt;
+
+    if (!observer.IsWithinLOS(seen.GetPositionX(), seen.GetPositionY(), seen.GetPositionZ()))
+        return std::nullopt;
+
+    Observation observation;
+    observation.Observer = observerId;
+    observation.Type = ObservationType::CreatureSeen;
+
+    // No underlying WorldEvent, same as ObserveNearbyPlayer.
+    observation.SourceEventId = 0;
+    observation.CorrelationId = 0;
+    observation.ObservedAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
+        GameTime::GetSystemTime().time_since_epoch()).count());
+
+    observation.Location.MapId = seen.GetMapId();
+    observation.Location.X = seen.GetPositionX();
+    observation.Location.Y = seen.GetPositionY();
+    observation.Location.Z = seen.GetPositionZ();
+
+    // Target, not Actor - same convention as ObserveNearbyPlayer. SpawnId
+    // is what lets AIWorldMgr enrich this with the seen creature's AgentId
+    // afterward, if it has one; PerceptionSystem itself never touches
+    // AgentRegistry.
+    observation.Target.Guid = seen.GetGUID();
+    observation.Target.Entry = seen.GetEntry();
+    observation.Target.SpawnId = seen.GetSpawnId();
+
+    observation.Channel = PerceptionChannel::Sight;
+    observation.Distance = distance;
+    observation.LineOfSight = true;
+
+    return observation;
+}
