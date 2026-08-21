@@ -343,20 +343,32 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
         if (!record)
             continue;
 
-        // Abstract agents get no perception at all here - no fake live
-        // LOS/range check against a Creature that doesn't currently exist.
-        // A later, coarser regional-fact mechanism is what abstract agents
-        // are meant to rely on instead, not this.
-        if (record->WorldState != AgentWorldState::Materialized)
-            continue;
-
         if (record->MapId != event.Location.MapId)
             continue;
 
+        // Whether a Creature actually exists right now is the authority
+        // for whether this agent can perceive anything - not
+        // record->WorldState, which is only as fresh as the last
+        // ProcessAgent() snapshot poll (up to AIWorld.SnapshotIntervalMs
+        // old). Gating on WorldState here would produce false-negative
+        // perception for however long a grid can be loaded before the
+        // next poll catches up: exactly the gap that must not exist going
+        // into Memory, where it would show up as random, snapshot-timer-
+        // dependent holes rather than a real absence of perception.
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
         Creature* observer = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+
         if (!observer)
+        {
+            if (record->WorldState == AgentWorldState::Materialized)
+                _registry.UnbindCreature(id);
             continue;
+        }
+
+        // Bring the registry in line with what was actually just found -
+        // BindCreature() is idempotent, so this is a no-op unless the
+        // agent was still Abstract or bound to a stale RuntimeGuid.
+        _registry.BindCreature(id, *observer);
 
         if (std::optional<Observation> observation = _perception.ObserveEvent(id, *observer, event, float(_perceptionSightRange)))
             ProcessObservation(*observation);
