@@ -40,11 +40,12 @@ std::optional<Observation> PerceptionSystem::ObserveEvent(AgentId observerId, Cr
     Observation observation;
     observation.Observer = observerId;
 
+    observation.Type = ObservationType::WorldEvent;
+
     observation.SourceEventId = event.EventId;
     observation.CorrelationId = event.CorrelationId;
     observation.ObservedAtMs = event.OccurredAtMs;
-
-    observation.EventType = event.Type;
+    observation.SourceEventType = event.Type;
 
     observation.Location = event.Location;
     observation.Actor = event.Actor;
@@ -75,17 +76,17 @@ std::optional<Observation> PerceptionSystem::ObserveNearbyPlayer(AgentId observe
 
     Observation observation;
     observation.Observer = observerId;
+    observation.Type = ObservationType::PlayerSeen;
 
     // No underlying WorldEvent: this is a periodic nearby-entity scan, not
     // a reaction to something that happened. SourceEventId/CorrelationId
-    // stay 0, and ObservedAtMs is stamped to now rather than copied from
-    // an OccurredAtMs that doesn't exist here.
+    // stay 0, SourceEventType stays nullopt, and ObservedAtMs is stamped
+    // to now rather than copied from an OccurredAtMs that doesn't exist
+    // here.
     observation.SourceEventId = 0;
     observation.CorrelationId = 0;
     observation.ObservedAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
         GameTime::GetSystemTime().time_since_epoch()).count());
-
-    observation.EventType = WorldEventType::PlayerSeen;
 
     observation.Location.MapId = player.GetMapId();
     observation.Location.X = player.GetPositionX();

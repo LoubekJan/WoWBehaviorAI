@@ -434,9 +434,11 @@ void AIWorldMgr::ScanNearbyPlayers()
 // Memory, no decision context, no agent reaction.
 void AIWorldMgr::ProcessObservation(Observation const& observation)
 {
+    char const* sourceEventType = observation.SourceEventType ? ToString(*observation.SourceEventType) : "NONE";
+
     TC_LOG_DEBUG("ai.world",
-        "AI observation observer={} sourceEvent={} type={} channel={} distance={:.1f} los={} actorGuid={} actorAgent={} targetGuid={} targetEntry={} targetAgent={}",
-        observation.Observer.Value, observation.SourceEventId, ToString(observation.EventType),
+        "AI observation observer={} type={} sourceEvent={} sourceEventType={} channel={} distance={:.1f} los={} actorGuid={} actorAgent={} targetGuid={} targetEntry={} targetAgent={}",
+        observation.Observer.Value, ToString(observation.Type), observation.SourceEventId, sourceEventType,
         ToString(observation.Channel), observation.Distance, observation.LineOfSight,
         observation.Actor.Guid.ToString(), observation.Actor.Agent.Value,
         observation.Target.Guid.ToString(), observation.Target.Entry, observation.Target.Agent.Value);

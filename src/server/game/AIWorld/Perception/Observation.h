@@ -22,23 +22,33 @@
 #include "Define.h"
 #include "Event/WorldEntityRef.h"
 #include "Event/WorldEventType.h"
+#include "ObservationType.h"
 #include "PerceptionChannel.h"
+#include <optional>
 
-// What a specific agent actually perceived out of an objective WorldEvent -
-// never the event itself. A WorldEvent is ground truth about the world; an
-// Observation only exists for the one Observer that was actually in range
-// (and, for Sight, had line of sight) when it happened. Pure value object,
-// same rule as WorldEvent/AgentRecord: no Creature*/Player*/Map* anywhere,
-// so it can safely flow on into Memory/decision context later.
+// What a specific agent actually perceived - never the underlying fact
+// itself, if there even is one. An Observation only exists for the one
+// Observer that was actually in range (and, for Sight, had line of sight)
+// at the time. Pure value object, same rule as WorldEvent/AgentRecord: no
+// Creature*/Player*/Map* anywhere, so it can safely flow on into Memory/
+// decision context later.
+//
+// Type says what kind of perception this is; SourceEventType is only ever
+// set (to the causing WorldEvent's Type) when Type == ObservationType::
+// WorldEvent. PlayerSeen/CreatureSeen observations - from a periodic
+// nearby-entity scan, not a witnessed WorldEvent - leave it nullopt and
+// SourceEventId/CorrelationId at 0.
 struct Observation
 {
     AgentId Observer;
+
+    ObservationType Type = ObservationType::WorldEvent;
 
     uint64 SourceEventId = 0;
     uint64 CorrelationId = 0;
     uint64 ObservedAtMs = 0;
 
-    WorldEventType EventType = WorldEventType::CreatureKilled;
+    std::optional<WorldEventType> SourceEventType;
 
     WorldEventLocation Location;
     WorldEntityRef Actor;
