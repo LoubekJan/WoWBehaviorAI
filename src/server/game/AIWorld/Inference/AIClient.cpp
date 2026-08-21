@@ -213,8 +213,11 @@ namespace
     // {"request_id":N,"snapshot_sequence":N,"action":"STR"} response shape -
     // not a general JSON parser. Tolerant of key order, whitespace, and
     // unknown extra keys; never throws; returns false (never partial output)
-    // if a required field is missing or malformed.
-    bool ParseDecisionResponseBody(std::string const& body, uint64& snapshotSequence, std::string& action)
+    // if a required field is missing or malformed. Callers must still check
+    // requestId/snapshotSequence against what was actually sent - parsing
+    // successfully only means the body was well-formed, not that it answers
+    // this request.
+    bool ParseDecisionResponseBody(std::string const& body, uint64& requestId, uint64& snapshotSequence, std::string& action)
     {
         auto findUintField = [&body](std::string const& key, uint64& out) -> bool
         {
@@ -272,7 +275,9 @@ namespace
             return true;
         };
 
-        return findUintField("snapshot_sequence", snapshotSequence) && findStringField("action", action);
+        return findUintField("request_id", requestId) &&
+               findUintField("snapshot_sequence", snapshotSequence) &&
+               findStringField("action", action);
     }
 
     // Same resolve/connect/write/read/timeout shape as HealthCheckSession
@@ -282,10 +287,11 @@ namespace
     {
         public:
             DecisionSession(net::io_context& ioContext, std::string const& host, std::string const& port,
-                uint32 timeoutMs, AIRequest const& request, MPSCQueue<AIResponse>* responseQueue)
+                uint32 timeoutMs, AIRequest const& request, MPSCQueue<AIResponse>* responseQueue, std::atomic<bool>* inFlightFlag)
                 : _resolver(net::make_strand(ioContext)), _stream(net::make_strand(ioContext)),
                   _resolveTimer(_resolver.get_executor()),
-                  _host(host), _port(port), _timeoutMs(timeoutMs), _request(request), _responseQueue(responseQueue),
+                  _host(host), _port(port), _timeoutMs(timeoutMs), _request(request),
+                  _responseQueue(responseQueue), _inFlightFlag(inFlightFlag),
                   _startTime(std::chrono::steady_clock::now())
             {
             }
@@ -366,10 +372,21 @@ namespace
                 std::string action;
                 if (success)
                 {
+                    uint64 responseRequestId = 0;
                     uint64 responseSnapshotSequence = 0;
-                    if (!ParseDecisionResponseBody(_httpResponse.body(), responseSnapshotSequence, action))
+                    if (!ParseDecisionResponseBody(_httpResponse.body(), responseRequestId, responseSnapshotSequence, action))
                     {
                         TC_LOG_WARN("ai.world", "AI decision response id={} could not be parsed, treating as failed", _request.RequestId);
+                        success = false;
+                    }
+                    // A well-formed body isn't enough on its own - verify it
+                    // actually answers the request we sent, not just any
+                    // request/response the queue happened to pull off HTTP
+                    // pipelining, a proxy, or a future protocol bug.
+                    else if (responseRequestId != _request.RequestId || responseSnapshotSequence != _request.SnapshotSequence)
+                    {
+                        TC_LOG_WARN("ai.world", "AI decision request id={} snapshot={} got mismatched response id={} snapshot={}, discarding",
+                            _request.RequestId, _request.SnapshotSequence, responseRequestId, responseSnapshotSequence);
                         success = false;
                     }
                 }
@@ -384,6 +401,7 @@ namespace
 
                 beast::error_code ignored;
                 _stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+                _inFlightFlag->store(false, std::memory_order_release);
 
                 uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - _startTime).count());
@@ -423,6 +441,7 @@ namespace
             uint32 _timeoutMs;
             AIRequest _request;
             MPSCQueue<AIResponse>* _responseQueue;
+            std::atomic<bool>* _inFlightFlag;
             std::chrono::steady_clock::time_point _startTime;
             std::atomic<bool> _completed { false };
     };
@@ -447,6 +466,10 @@ struct AIClient::Impl
     // Update() tick would spawn another in-flight session against a slow or
     // unresponsive ai-server instead of waiting for the previous one.
     std::atomic<bool> HealthCheckInFlight { false };
+
+    // Same guard, for decisions: SnapshotIntervalMs is the decision cadence,
+    // and nothing stops it being configured shorter than RequestTimeoutMs.
+    std::atomic<bool> DecisionInFlight { false };
 };
 
 AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs)
@@ -485,6 +508,12 @@ uint64 AIClient::SubmitHealthCheck()
 
 uint64 AIClient::SubmitDecision(AIRequest request)
 {
+    if (_impl->DecisionInFlight.exchange(true, std::memory_order_acq_rel))
+    {
+        TC_LOG_DEBUG("ai.world", "AI decision skipped: previous request still in flight");
+        return 0;
+    }
+
     uint64 requestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
     request.RequestId = requestId;
     request.Type = AIRequestType::Decision;
@@ -494,10 +523,11 @@ uint64 AIClient::SubmitDecision(AIRequest request)
     std::string const& port = _impl->Port;
     uint32 timeoutMs = _impl->RequestTimeoutMs;
     MPSCQueue<AIResponse>* responseQueue = &_impl->ResponseQueue;
+    std::atomic<bool>* inFlightFlag = &_impl->DecisionInFlight;
 
-    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, request, responseQueue]()
+    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightFlag]()
     {
-        std::make_shared<DecisionSession>(rawIoContext, host, port, timeoutMs, request, responseQueue)->Run();
+        std::make_shared<DecisionSession>(rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightFlag)->Run();
     });
 
     return requestId;

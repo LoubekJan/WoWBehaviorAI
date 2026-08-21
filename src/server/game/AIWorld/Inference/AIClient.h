@@ -59,8 +59,9 @@ class TC_GAME_API AIClient
         // RequestId and Type are stamped internally (any value the caller
         // set is overwritten), so only SnapshotSequence/SpawnId/Entry/
         // Health/MaxHealth/Alive/InCombat/MapId/X/Y/Z need to be filled in.
-        // Same non-blocking contract as SubmitHealthCheck(); unlike it,
-        // decision requests are not single-flighted against each other yet.
+        // Same non-blocking contract and same "0 means skipped, a previous
+        // decision is still in flight" return convention as
+        // SubmitHealthCheck().
         uint64 SubmitDecision(AIRequest request);
 
         // Non-blocking pop of one completed response. Returns false if none

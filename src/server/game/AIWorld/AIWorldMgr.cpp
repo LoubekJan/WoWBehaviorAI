@@ -118,7 +118,10 @@ void AIWorldMgr::Update(uint32 diff)
         if (!response.Success)
             continue; // AIClient already logged the failure/timeout
 
-        if (response.SnapshotSequence < _snapshotSequence)
+        // Not just "<": a response claiming a snapshot sequence newer than
+        // anything this manager has actually captured is just as wrong as
+        // an old one, and must not be accepted either.
+        if (response.SnapshotSequence != _snapshotSequence)
         {
             TC_LOG_DEBUG("ai.world", "AI decision id={} snapshot={} is STALE (latest snapshot={}), discarding",
                 response.RequestId, response.SnapshotSequence, _snapshotSequence);
