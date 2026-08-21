@@ -17,6 +17,7 @@
 
 #include "Unit.h"
 #include "AbstractFollower.h"
+#include "AIWorldMgr.h"
 #include "Battlefield.h"
 #include "BattlefieldMgr.h"
 #include "Battleground.h"
@@ -11138,6 +11139,40 @@ bool Unit::InitTamedPet(Pet* pet, uint8 level, uint32 spell_id)
         // Call creature just died function
         if (CreatureAI* ai = creature->AI())
             ai->JustDied(attacker);
+
+        // AIWorld: publish a transient CreatureKilled fact. This is the
+        // single central creature-death path (any killer, any map), so it
+        // is the right place to produce this event rather than every
+        // individual damage/kill callsite. PublishWorldEvent() is safe to
+        // call from whatever thread is updating this Creature's map - it
+        // never touches Creature/AgentRegistry itself, only value data
+        // already read off victim/attacker above.
+        {
+            WorldEvent event;
+            event.Type = WorldEventType::CreatureKilled;
+
+            event.Location.MapId = victim->GetMapId();
+            event.Location.X = victim->GetPositionX();
+            event.Location.Y = victim->GetPositionY();
+            event.Location.Z = victim->GetPositionZ();
+
+            event.Target.Guid = victim->GetGUID();
+            event.Target.Entry = victim->GetEntry();
+            event.Target.SpawnId = creature->GetSpawnId();
+
+            if (attacker)
+            {
+                event.Actor.Guid = attacker->GetGUID();
+
+                if (Creature* attackerCreature = attacker->ToCreature())
+                {
+                    event.Actor.Entry = attackerCreature->GetEntry();
+                    event.Actor.SpawnId = attackerCreature->GetSpawnId();
+                }
+            }
+
+            sAIWorldMgr->PublishWorldEvent(std::move(event));
+        }
 
         if (TempSummon * summon = creature->ToTempSummon())
         {

@@ -121,12 +121,23 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms)", aiHost, aiPort, requestTimeoutMs, _healthIntervalMs);
+
+    // Last step: only from here on can PublishWorldEvent() actually enqueue
+    // anything. Ordered after everything above so a map worker can't race
+    // a WorldEvent into _eventBus before _registry/_aiClient exist.
+    _acceptEvents.store(true, std::memory_order_release);
 }
 
 void AIWorldMgr::Update(uint32 diff)
 {
     if (!_enabled)
         return;
+
+    // Drained first: sMapMgr->Update(diff) (which runs immediately before
+    // AIWorldMgr::Update() in World::Update()) is where map/combat workers
+    // publish whatever happened this tick.
+    for (WorldEvent& event : _eventBus.Drain())
+        ProcessWorldEvent(event);
 
     if (_testAgentId)
     {
@@ -275,8 +286,53 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
     _aiClient->SubmitDecision(request);
 }
 
+// Safe to call from any thread - see the declaration in AIWorldMgr.h and
+// EventBus's own comments for why. Deliberately does nothing beyond the
+// atomic check and the publish itself: no Creature/AgentRecord lookups, no
+// ai-server calls, no world mutation. That happens later, in
+// ProcessWorldEvent() on the world thread.
+void AIWorldMgr::PublishWorldEvent(WorldEvent event)
+{
+    if (!_acceptEvents.load(std::memory_order_acquire))
+        return;
+
+    _eventBus.Publish(std::move(event));
+}
+
+// World thread only (called from Update(), right after EventBus::Drain()).
+// Enriches Actor/Target with whatever AgentId _registry currently has for
+// their SpawnId - this is the earliest point that lookup is safe to do,
+// since whoever published the event (a map/combat worker) must not touch
+// _registry itself. Still just a debug log for Milestone 2.3A: no
+// Perception, no Memory, no agent reaction.
+void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
+{
+    if (event.Actor.SpawnId)
+    {
+        if (AgentRecord* agent = _registry.FindBySpawn(event.Location.MapId, event.Actor.SpawnId))
+            event.Actor.Agent = agent->Id;
+    }
+
+    if (event.Target.SpawnId)
+    {
+        if (AgentRecord* agent = _registry.FindBySpawn(event.Location.MapId, event.Target.SpawnId))
+            event.Target.Agent = agent->Id;
+    }
+
+    TC_LOG_DEBUG("ai.world",
+        "AI event id={} type={} corr={} cause={} map={} actorGuid={} actorSpawn={} actorAgent={} targetGuid={} targetEntry={} targetSpawn={} targetAgent={}",
+        event.EventId, ToString(event.Type), event.CorrelationId, event.CauseEventId, event.Location.MapId,
+        event.Actor.Guid.ToString(), event.Actor.SpawnId, event.Actor.Agent.Value,
+        event.Target.Guid.ToString(), event.Target.Entry, event.Target.SpawnId, event.Target.Agent.Value);
+}
+
 void AIWorldMgr::Shutdown()
 {
+    // Unconditional and first, even if !_enabled: stops a map worker from
+    // publishing into a manager that's mid-teardown. Cheap and idempotent
+    // either way.
+    _acceptEvents.store(false, std::memory_order_release);
+
     if (!_enabled)
         return;
 

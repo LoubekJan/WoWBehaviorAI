@@ -21,8 +21,11 @@
 #include "Agent/AgentId.h"
 #include "Agent/AgentRegistry.h"
 #include "Define.h"
+#include "Event/EventBus.h"
+#include "Event/WorldEvent.h"
 #include "Inference/AIClient.h"
 #include "Persistence/AgentPersistence.h"
+#include <atomic>
 #include <memory>
 
 namespace Trinity::Asio { class IoContext; }
@@ -43,6 +46,14 @@ class TC_GAME_API AIWorldMgr
 
         bool IsEnabled() const { return _enabled; }
 
+        // Safe to call from ANY thread that can observe a game-world fact
+        // (a map/combat worker, not just the world thread). Does nothing
+        // but a relaxed-ish atomic check and a mutex-guarded enqueue - never
+        // looks up a Creature/AgentRecord, never calls ai-server, never
+        // mutates world state. See EventBus for the actual thread-safety
+        // story.
+        void PublishWorldEvent(WorldEvent event);
+
     private:
         AIWorldMgr() = default;
         ~AIWorldMgr() = default;
@@ -51,6 +62,7 @@ class TC_GAME_API AIWorldMgr
 
         void ProcessAgent(AgentId id);
         void CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creature& creature);
+        void ProcessWorldEvent(WorldEvent& event);
 
         bool _enabled = false;
 
@@ -83,6 +95,18 @@ class TC_GAME_API AIWorldMgr
 
         uint32 _healthIntervalMs = 10000;
         uint32 _healthTimer = 0;
+
+        // Cross-thread ingress for WorldEvents (see EventBus) - map/combat
+        // workers publish into it concurrently with the world thread
+        // draining it once per tick. _acceptEvents is the only thing
+        // PublishWorldEvent() reads before touching _eventBus; it has to be
+        // atomic because, unlike every other member here, it's read from
+        // threads other than the world thread. Set true at the end of
+        // Initialize(), false at the very start of Shutdown() - before
+        // anything else - so a map worker can't publish into a
+        // half-torn-down manager.
+        EventBus _eventBus;
+        std::atomic<bool> _acceptEvents{ false };
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()
