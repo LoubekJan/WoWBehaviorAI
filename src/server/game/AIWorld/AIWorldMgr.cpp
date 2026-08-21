@@ -19,9 +19,11 @@
 #include "Agent/AgentSnapshot.h"
 #include "Config.h"
 #include "Creature.h"
+#include "IoContext.h"
 #include "Log.h"
 #include "Map.h"
 #include "MapManager.h"
+#include <string>
 
 AIWorldMgr* AIWorldMgr::instance()
 {
@@ -29,7 +31,7 @@ AIWorldMgr* AIWorldMgr::instance()
     return &instance;
 }
 
-void AIWorldMgr::Initialize()
+void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 {
     _enabled = sConfigMgr->GetBoolDefault("AIWorld.Enable", false);
     if (!_enabled)
@@ -50,22 +52,63 @@ void AIWorldMgr::Initialize()
     _snapshotTimer = 0;
     _snapshotSequence = 0;
 
+    std::string aiHost = sConfigMgr->GetStringDefault("AIWorld.AIHost", "ai-server");
+    std::string aiPort = std::to_string(sConfigMgr->GetIntDefault("AIWorld.AIPort", 8000));
+
+    int32 requestTimeoutMs = sConfigMgr->GetIntDefault("AIWorld.RequestTimeoutMs", 1000);
+    if (requestTimeoutMs < 100)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.RequestTimeoutMs ({}) is invalid or too low, clamping to 100ms", requestTimeoutMs);
+        requestTimeoutMs = 100;
+    }
+
+    int32 healthIntervalMs = sConfigMgr->GetIntDefault("AIWorld.HealthIntervalMs", 10000);
+    if (healthIntervalMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.HealthIntervalMs ({}) is invalid or too low, clamping to 1000ms", healthIntervalMs);
+        healthIntervalMs = 1000;
+    }
+    _healthIntervalMs = uint32(healthIntervalMs);
+    _healthTimer = 0;
+
+    _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
+
     TC_LOG_INFO("ai.world", "AIWorld enabled");
     if (_testSpawnId)
         TC_LOG_INFO("ai.world", "test agent map={} spawn={} interval={}ms", _testMapId, _testSpawnId, _snapshotIntervalMs);
+    TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms)", aiHost, aiPort, requestTimeoutMs, _healthIntervalMs);
 }
 
 void AIWorldMgr::Update(uint32 diff)
 {
-    if (!_enabled || !_testSpawnId)
+    if (!_enabled)
         return;
 
-    _snapshotTimer += diff;
-    if (_snapshotTimer < _snapshotIntervalMs)
-        return;
+    if (_testSpawnId)
+    {
+        _snapshotTimer += diff;
+        if (_snapshotTimer >= _snapshotIntervalMs)
+        {
+            _snapshotTimer = 0;
+            CaptureTestAgentSnapshot();
+        }
+    }
 
-    _snapshotTimer = 0;
-    CaptureTestAgentSnapshot();
+    _healthTimer += diff;
+    if (_healthTimer >= _healthIntervalMs)
+    {
+        _healthTimer = 0;
+        _aiClient->SubmitHealthCheck();
+    }
+
+    // World thread drains whatever AIClient's worker threads finished since
+    // the last tick. Nothing acts on the result yet (2B is a smoke test of
+    // the bridge itself) - AIClient already logged the outcome when the
+    // request completed or timed out.
+    AIResponse response;
+    while (_aiClient->TryPopResponse(response))
+        TC_LOG_DEBUG("ai.world", "AI response id={} consumed by world thread (status={}, latency={}ms)",
+            response.RequestId, response.StatusCode, response.LatencyMs);
 }
 
 void AIWorldMgr::CaptureTestAgentSnapshot()

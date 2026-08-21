@@ -322,7 +322,7 @@ int main(int argc, char** argv)
     sSecretMgr->Initialize();
     sWorld->SetInitialWorldSettings();
 
-    sAIWorldMgr->Initialize();
+    sAIWorldMgr->Initialize(*ioContext);
 
     std::shared_ptr<void> mapManagementHandle(nullptr, [](void*)
     {

@@ -19,6 +19,10 @@
 #define AIWORLD_AIWORLDMGR_H
 
 #include "Define.h"
+#include "Inference/AIClient.h"
+#include <memory>
+
+namespace Trinity::Asio { class IoContext; }
 
 // Entry point for the AIWorld subsystem. Driven from the world update thread
 // only (called after sMapMgr->Update() in World::Update()) - never spawns its
@@ -29,7 +33,7 @@ class TC_GAME_API AIWorldMgr
     public:
         static AIWorldMgr* instance();
 
-        void Initialize();
+        void Initialize(Trinity::Asio::IoContext& ioContext);
         void Update(uint32 diff);
         void Shutdown();
 
@@ -52,6 +56,16 @@ class TC_GAME_API AIWorldMgr
         uint64 _testSpawnId = 0;
 
         uint64 _snapshotSequence = 0;
+
+        // Owned for the process lifetime, deliberately not reset in
+        // Shutdown(): by the time Shutdown() runs, the io_context it was
+        // built on may already be stopped and its worker threads joined
+        // (see Main.cpp), so there is no safe moment left to tear it down
+        // early. Setting _enabled = false just stops new submissions.
+        std::unique_ptr<AIClient> _aiClient;
+
+        uint32 _healthIntervalMs = 10000;
+        uint32 _healthTimer = 0;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()
