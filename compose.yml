@@ -55,6 +55,8 @@ services:
       args:
         USER_UID: ${DEV_UID:-1000}
         USER_GID: ${DEV_GID:-1000}
+    stdin_open: true
+    tty: true
     restart: unless-stopped
     depends_on:
       mysql:
