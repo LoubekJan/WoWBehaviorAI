@@ -325,7 +325,7 @@ namespace
                     return; // resolve finished first and cancelled this timer
 
                 _resolver.cancel();
-                Complete(false, 0, beast::error::timeout, std::string());
+                Complete(false, 0, beast::error::timeout, std::string(), std::string());
             }
 
             void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
@@ -333,7 +333,7 @@ namespace
                 _resolveTimer.cancel();
 
                 if (ec)
-                    return Complete(false, 0, ec, std::string());
+                    return Complete(false, 0, ec, std::string(), std::string());
 
                 if (_completed.load(std::memory_order_acquire))
                     return; // resolve timeout already completed this request
@@ -346,7 +346,7 @@ namespace
             void OnConnect(beast::error_code ec, tcp::resolver::results_type::endpoint_type)
             {
                 if (ec)
-                    return Complete(false, 0, ec, std::string());
+                    return Complete(false, 0, ec, std::string(), std::string());
 
                 _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
                 http::async_write(_stream, _httpRequest,
@@ -356,7 +356,7 @@ namespace
             void OnWrite(beast::error_code ec, std::size_t /*bytesTransferred*/)
             {
                 if (ec)
-                    return Complete(false, 0, ec, std::string());
+                    return Complete(false, 0, ec, std::string(), std::string());
 
                 http::async_read(_stream, _buffer, _httpResponse,
                     beast::bind_front_handler(&DecisionSession::OnRead, shared_from_this()));
@@ -365,19 +365,23 @@ namespace
             void OnRead(beast::error_code ec, std::size_t /*bytesTransferred*/)
             {
                 if (ec)
-                    return Complete(false, 0, ec, std::string());
+                    return Complete(false, 0, ec, std::string(), std::string());
 
                 uint32 statusCode = _httpResponse.result_int();
                 bool success = statusCode >= 200 && statusCode < 300;
                 std::string action;
+                // Set only when statusCode was 2xx but the body itself made
+                // the response unusable - lets Complete() tell that apart
+                // from a genuine non-2xx status instead of mislabeling it.
+                std::string rejectReason;
                 if (success)
                 {
                     uint64 responseRequestId = 0;
                     uint64 responseSnapshotSequence = 0;
                     if (!ParseDecisionResponseBody(_httpResponse.body(), responseRequestId, responseSnapshotSequence, action))
                     {
-                        TC_LOG_WARN("ai.world", "AI decision response id={} could not be parsed, treating as failed", _request.RequestId);
                         success = false;
+                        rejectReason = "parse failure";
                     }
                     // A well-formed body isn't enough on its own - verify it
                     // actually answers the request we sent, not just any
@@ -385,16 +389,21 @@ namespace
                     // pipelining, a proxy, or a future protocol bug.
                     else if (responseRequestId != _request.RequestId || responseSnapshotSequence != _request.SnapshotSequence)
                     {
-                        TC_LOG_WARN("ai.world", "AI decision request id={} snapshot={} got mismatched response id={} snapshot={}, discarding",
-                            _request.RequestId, _request.SnapshotSequence, responseRequestId, responseSnapshotSequence);
                         success = false;
+                        std::ostringstream detail;
+                        detail << "protocol mismatch (server replied id=" << responseRequestId
+                               << " snapshot=" << responseSnapshotSequence << ")";
+                        rejectReason = detail.str();
                     }
                 }
-                Complete(success, statusCode, ec, action);
+                Complete(success, statusCode, ec, action, rejectReason);
             }
 
             // Guarded by _completed - see HealthCheckSession::Complete().
-            void Complete(bool success, uint32 statusCode, beast::error_code ec, std::string const& action)
+            // rejectReason is only non-empty when statusCode was 2xx but the
+            // body itself made the response unusable (see OnRead) - without
+            // it, this would otherwise log a 2xx response as "non-2xx".
+            void Complete(bool success, uint32 statusCode, beast::error_code ec, std::string const& action, std::string const& rejectReason)
             {
                 if (_completed.exchange(true, std::memory_order_acq_rel))
                     return;
@@ -410,6 +419,9 @@ namespace
                     TC_LOG_WARN("ai.world", "AI decision request id={} timed out after {}ms", _request.RequestId, _timeoutMs);
                 else if (ec)
                     TC_LOG_WARN("ai.world", "AI decision request id={} failed: {}", _request.RequestId, ec.message());
+                else if (!rejectReason.empty())
+                    TC_LOG_WARN("ai.world", "AI decision response id={} {} status={} latency={}ms",
+                        _request.RequestId, rejectReason, statusCode, latencyMs);
                 else if (!success)
                     TC_LOG_WARN("ai.world", "AI decision request id={} completed with non-2xx status={} latency={}ms",
                         _request.RequestId, statusCode, latencyMs);
