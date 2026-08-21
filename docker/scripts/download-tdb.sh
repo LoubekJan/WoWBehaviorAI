@@ -13,7 +13,7 @@ set -euo pipefail
 
 DB_HOST="${TDB_DB_HOST:-mysql}"
 DB_PORT="${TDB_DB_PORT:-3306}"
-REPO="TrinityCore/TDB"
+REPO="TrinityCore/TrinityCore"
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
@@ -21,9 +21,9 @@ trap 'rm -rf "$WORKDIR"' EXIT
 echo "Resolving release ${TDB_VERSION} from ${REPO}..."
 release_json="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${TDB_VERSION}")"
 
-asset_url="$(echo "$release_json" | jq -r '.assets[].browser_download_url' | grep -Ei '\.(7z|zip|sql\.gz|sql)$' | head -n1)"
+asset_url="$(echo "$release_json" | jq -r '.assets[].browser_download_url' | grep -Ei 'TDB_full_world.*\.(7z|zip|sql\.gz|sql)$' | head -n1)"
 if [ -z "$asset_url" ]; then
-    echo "No downloadable .7z/.zip/.sql(.gz) asset found on release ${TDB_VERSION}" >&2
+    echo "No TDB_full_world .7z/.zip/.sql(.gz) asset found on release ${TDB_VERSION}" >&2
     exit 1
 fi
 
