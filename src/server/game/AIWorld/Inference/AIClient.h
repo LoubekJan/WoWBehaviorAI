@@ -48,7 +48,10 @@ class TC_GAME_API AIClient
         // Builds and submits a GET /health request. Returns the request id
         // immediately (assigned before the request is actually sent) so the
         // caller can correlate it with the "AI request id=... submitted" /
-        // "AI response id=..." log lines.
+        // "AI response id=..." log lines. Returns 0 - never a valid request
+        // id - if the previous health check hasn't completed yet, so a slow
+        // ai-server (RequestTimeoutMs > HealthIntervalMs) can't pile up
+        // concurrent in-flight requests.
         uint64 SubmitHealthCheck();
 
         // Non-blocking pop of one completed response. Returns false if none

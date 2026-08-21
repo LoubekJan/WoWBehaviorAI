@@ -21,8 +21,10 @@
 #include "MPSCQueue.h"
 
 #include <boost/asio/connect.hpp>
+#include <boost/asio/error.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
@@ -46,9 +48,11 @@ namespace
     {
         public:
             HealthCheckSession(net::io_context& ioContext, std::string const& host, std::string const& port,
-                uint32 timeoutMs, uint64 requestId, MPSCQueue<AIResponse>* responseQueue)
+                uint32 timeoutMs, uint64 requestId, MPSCQueue<AIResponse>* responseQueue, std::atomic<bool>* inFlightFlag)
                 : _resolver(net::make_strand(ioContext)), _stream(net::make_strand(ioContext)),
-                  _host(host), _port(port), _timeoutMs(timeoutMs), _requestId(requestId), _responseQueue(responseQueue),
+                  _resolveTimer(_resolver.get_executor()),
+                  _host(host), _port(port), _timeoutMs(timeoutMs), _requestId(requestId),
+                  _responseQueue(responseQueue), _inFlightFlag(inFlightFlag),
                   _startTime(std::chrono::steady_clock::now())
             {
             }
@@ -63,15 +67,37 @@ namespace
 
                 TC_LOG_INFO("ai.world", "AI request id={} type=health submitted", _requestId);
 
+                // tcp_stream's expires_after() only covers operations done
+                // through the stream itself (connect/write/read below) - the
+                // resolver is a separate object with no built-in deadline, so
+                // a stuck/unresponsive DNS server needs its own timer.
+                _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
+                _resolveTimer.async_wait(
+                    beast::bind_front_handler(&HealthCheckSession::OnResolveTimeout, shared_from_this()));
+
                 _resolver.async_resolve(_host, _port,
                     beast::bind_front_handler(&HealthCheckSession::OnResolve, shared_from_this()));
             }
 
         private:
+            void OnResolveTimeout(beast::error_code ec)
+            {
+                if (ec == net::error::operation_aborted)
+                    return; // resolve finished first and cancelled this timer
+
+                _resolver.cancel();
+                Complete(false, 0, beast::error::timeout);
+            }
+
             void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
             {
+                _resolveTimer.cancel();
+
                 if (ec)
                     return Complete(false, 0, ec);
+
+                if (_completed.load(std::memory_order_acquire))
+                    return; // resolve timeout already completed this request
 
                 _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
                 _stream.async_connect(results,
@@ -102,21 +128,33 @@ namespace
                 if (ec)
                     return Complete(false, 0, ec);
 
-                Complete(true, _response.result_int(), ec);
+                uint32 statusCode = _response.result_int();
+                bool success = statusCode >= 200 && statusCode < 300;
+                Complete(success, statusCode, ec);
             }
 
+            // Guarded by _completed so exactly one AIResponse is ever queued
+            // per request, even when the resolve-timeout timer and a
+            // just-completed resolve race each other (they run on the same
+            // strand, but the timer can already be queued to fire).
             void Complete(bool success, uint32 statusCode, beast::error_code ec)
             {
+                if (_completed.exchange(true, std::memory_order_acq_rel))
+                    return;
+
                 beast::error_code ignored;
                 _stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+                _inFlightFlag->store(false, std::memory_order_release);
 
                 uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - _startTime).count());
 
-                if (!success && ec == beast::error::timeout)
+                if (ec == beast::error::timeout)
                     TC_LOG_WARN("ai.world", "AI request id={} timed out after {}ms", _requestId, _timeoutMs);
-                else if (!success)
+                else if (ec)
                     TC_LOG_WARN("ai.world", "AI request id={} failed: {}", _requestId, ec.message());
+                else if (!success)
+                    TC_LOG_WARN("ai.world", "AI request id={} completed with non-2xx status={} latency={}ms", _requestId, statusCode, latencyMs);
                 else
                     TC_LOG_INFO("ai.world", "AI response id={} status={} latency={}ms", _requestId, statusCode, latencyMs);
 
@@ -131,6 +169,7 @@ namespace
 
             tcp::resolver _resolver;
             beast::tcp_stream _stream;
+            net::steady_timer _resolveTimer;
             beast::flat_buffer _buffer;
             http::request<http::empty_body> _request;
             http::response<http::string_body> _response;
@@ -140,7 +179,9 @@ namespace
             uint32 _timeoutMs;
             uint64 _requestId;
             MPSCQueue<AIResponse>* _responseQueue;
+            std::atomic<bool>* _inFlightFlag;
             std::chrono::steady_clock::time_point _startTime;
+            std::atomic<bool> _completed { false };
     };
 }
 
@@ -157,6 +198,12 @@ struct AIClient::Impl
     uint32 RequestTimeoutMs;
     std::atomic<uint64> NextRequestId { 1 };
     MPSCQueue<AIResponse> ResponseQueue;
+
+    // Guards against a health check pileup when RequestTimeoutMs is set
+    // higher than HealthIntervalMs (e.g. 30000/1000): without this, every
+    // Update() tick would spawn another in-flight session against a slow or
+    // unresponsive ai-server instead of waiting for the previous one.
+    std::atomic<bool> HealthCheckInFlight { false };
 };
 
 AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs)
@@ -168,6 +215,12 @@ AIClient::~AIClient() = default;
 
 uint64 AIClient::SubmitHealthCheck()
 {
+    if (_impl->HealthCheckInFlight.exchange(true, std::memory_order_acq_rel))
+    {
+        TC_LOG_DEBUG("ai.world", "AI health check skipped: previous request still in flight");
+        return 0;
+    }
+
     uint64 requestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
 
     net::io_context& rawIoContext = _impl->IoContextRef;
@@ -175,12 +228,13 @@ uint64 AIClient::SubmitHealthCheck()
     std::string const& port = _impl->Port;
     uint32 timeoutMs = _impl->RequestTimeoutMs;
     MPSCQueue<AIResponse>* responseQueue = &_impl->ResponseQueue;
+    std::atomic<bool>* inFlightFlag = &_impl->HealthCheckInFlight;
 
     // Hand the actual work off to the io_context's worker threads. Nothing
     // below this point ever runs on the calling (world update) thread.
-    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, requestId, responseQueue]()
+    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, requestId, responseQueue, inFlightFlag]()
     {
-        std::make_shared<HealthCheckSession>(rawIoContext, host, port, timeoutMs, requestId, responseQueue)->Run();
+        std::make_shared<HealthCheckSession>(rawIoContext, host, port, timeoutMs, requestId, responseQueue, inFlightFlag)->Run();
     });
 
     return requestId;
