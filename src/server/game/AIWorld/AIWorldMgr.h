@@ -24,9 +24,11 @@
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
 #include "Inference/AIClient.h"
+#include "Memory/LongTermMemory.h"
 #include "Memory/ShortTermMemory.h"
 #include "Perception/PerceptionSystem.h"
 #include "Persistence/AgentPersistence.h"
+#include "Persistence/MemoryPersistence.h"
 #include <atomic>
 #include <memory>
 
@@ -138,16 +140,27 @@ class TC_GAME_API AIWorldMgr
         uint32 _nearbyPerceptionIntervalMs = 1000;
         uint32 _nearbyPerceptionTimer = 0;
 
-        // Milestone 2.5A: deduplicated, TTL'd summary of every Observation
-        // ProcessObservation() sees. Not persisted, not importance-scored,
-        // not read by any decision context yet - only proves raw
-        // perception can turn into a bounded memory stream.
+        // Milestone 2.5A/2.5B1: deduplicated, TTL'd summary of every
+        // Observation ProcessObservation() sees, weighted by
+        // MemoryImportance::Score(). Not persisted, not read by any
+        // decision context yet.
         ShortTermMemory _shortTermMemory;
         uint32 _shortTermMemoryTtlMs = 30000;
 
         // Expiry doesn't need to run every tick - its own ~1s cadence,
         // independent of every other timer here.
         uint32 _memoryMaintenanceTimer = 0;
+
+        // Milestone 2.5B: every Observation goes into _shortTermMemory
+        // unconditionally, but only importance >= _longTermMemoryMinImportance
+        // gets promoted into _longTermMemory and (on an actual promotion,
+        // not a refresh of an existing one) queued for async persistence
+        // via _memoryPersistence. Rebuilt from characters.
+        // ai_long_term_memories every startup, the same way _registry is
+        // rebuilt from _persistence.
+        LongTermMemory _longTermMemory;
+        MemoryPersistence _memoryPersistence;
+        float _longTermMemoryMinImportance = 0.75f;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()

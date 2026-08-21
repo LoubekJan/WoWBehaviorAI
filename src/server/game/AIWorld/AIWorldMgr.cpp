@@ -26,6 +26,7 @@
 #include "MapManager.h"
 #include "Memory/MemoryImportance.h"
 #include "Player.h"
+#include <algorithm>
 #include <chrono>
 #include <optional>
 #include <string>
@@ -112,6 +113,9 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _shortTermMemoryTtlMs = uint32(shortTermMemoryTtlMs);
     _memoryMaintenanceTimer = 0;
 
+    _longTermMemoryMinImportance = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.LongTermMemoryMinImportance", 0.75f), 0.0f, 1.0f);
+
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
@@ -120,6 +124,11 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // spawn-specific below - every agent this produces is Abstract with an
     // empty RuntimeGuid regardless of what it was before shutdown.
     _persistence.LoadAgents(_registry);
+
+    // Same idea as _registry, for long-term memory: rebuilt from the DB
+    // every startup. Must come after LoadAgents() - it needs _registry
+    // populated to skip an orphaned row's agent_id.
+    _memoryPersistence.LoadLongTermMemories(_longTermMemory, _registry);
 
     // Does not require the spawn's Creature/grid to be loaded - the agent
     // exists in _registry as soon as this returns, Abstract until
@@ -504,6 +513,22 @@ void AIWorldMgr::ProcessObservation(Observation const& observation)
     // Added/Refreshed transition, the same way AgentRegistry and EventBus
     // log their own state changes rather than making the caller do it.
     _shortTermMemory.Remember(observation, _shortTermMemoryTtlMs, importance);
+
+    // Everything goes into short-term memory; only importance >= threshold
+    // gets promoted to long-term (and, only on an actual promotion - not a
+    // refresh of an existing long-term memory - persisted). PlayerSeen/
+    // CreatureSeen and most WorldEvent types never cross this bar; that's
+    // the point.
+    if (importance >= _longTermMemoryMinImportance)
+    {
+        if (std::optional<LongTermMemoryRecord> record = _longTermMemory.Remember(observation, importance))
+        {
+            TC_LOG_DEBUG("ai.world", "AI long-term memory promoted agent={} type={} importance={:.2f} sourceEvent={} sourceEventType={}",
+                observation.Observer.Value, ToString(record->Type), record->Importance, record->SourceEventId, sourceEventType);
+
+            _memoryPersistence.PersistLongTermMemory(*record);
+        }
+    }
 }
 
 void AIWorldMgr::Shutdown()

@@ -58,6 +58,12 @@ AgentRecord* AgentRegistry::Find(AgentId id)
     return it != _agents.end() ? &it->second : nullptr;
 }
 
+AgentRecord const* AgentRegistry::Find(AgentId id) const
+{
+    auto it = _agents.find(id.Value);
+    return it != _agents.end() ? &it->second : nullptr;
+}
+
 AgentRecord* AgentRegistry::FindBySpawn(uint32 mapId, uint64 spawnId)
 {
     for (auto& entry : _agents)

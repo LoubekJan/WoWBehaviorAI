@@ -3487,6 +3487,16 @@ AIWorld.NearbyPerceptionIntervalMs = 1000
 AIWorld.ShortTermMemoryTtlMs = 30000
 
 #
+#    AIWorld.LongTermMemoryMinImportance
+#        Description: Minimum MemoryImportance::Score() (0.0-1.0) an Observation needs to be
+#                     promoted into long-term memory and persisted to characters.
+#                     ai_long_term_memories. Everything is still remembered short-term regardless.
+#        Important:   Clamped to the 0.0-1.0 range.
+#        Default:     0.75
+
+AIWorld.LongTermMemoryMinImportance = 0.75
+
+#
 ###################################################################################################
 
 ###################################################################################################

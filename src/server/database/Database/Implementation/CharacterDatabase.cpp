@@ -595,6 +595,24 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_SEL_AI_AGENTS, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents", CONNECTION_SYNCH);
     PrepareStatement(CHAR_SEL_AI_AGENT_BY_BINDING, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE map_id = ? AND spawn_id = ?", CONNECTION_SYNCH);
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_type, map_id, spawn_id) VALUES (?, ?, ?)", CONNECTION_SYNCH);
+
+    // AIWorld (Milestone 2.5B) - CHAR_SEL_AI_LONG_TERM_MEMORIES is startup-only (synchronous
+    // load, same as CHAR_SEL_AI_AGENTS). CHAR_INS_AI_LONG_TERM_MEMORY is used from the world
+    // update thread when a memory is promoted, so it must stay CONNECTION_ASYNC/Execute() -
+    // never CONNECTION_SYNCH/DirectExecute(), which would block that thread on the DB.
+    PrepareStatement(CHAR_SEL_AI_LONG_TERM_MEMORIES,
+        "SELECT memory_id, agent_id, observation_type, importance, source_event_id, has_source_event_type, "
+        "source_event_type, correlation_id, source_occurred_at_ms, first_observed_at_ms, last_observed_at_ms, "
+        "observation_count, map_id, position_x, position_y, position_z, actor_guid, actor_spawn_id, actor_entry, "
+        "actor_agent_id, target_guid, target_spawn_id, target_entry, target_agent_id, channel FROM ai_long_term_memories",
+        CONNECTION_SYNCH);
+    PrepareStatement(CHAR_INS_AI_LONG_TERM_MEMORY,
+        "INSERT INTO ai_long_term_memories (agent_id, observation_type, importance, source_event_id, "
+        "has_source_event_type, source_event_type, correlation_id, source_occurred_at_ms, first_observed_at_ms, "
+        "last_observed_at_ms, observation_count, map_id, position_x, position_y, position_z, actor_guid, "
+        "actor_spawn_id, actor_entry, actor_agent_id, target_guid, target_spawn_id, target_entry, target_agent_id, "
+        "channel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        CONNECTION_ASYNC);
 }
 
 CharacterDatabaseConnection::CharacterDatabaseConnection(MySQLConnectionInfo& connInfo) : MySQLConnection(connInfo)

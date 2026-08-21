@@ -50,6 +50,7 @@ class TC_GAME_API AgentRegistry
         bool Add(AgentRecord record);
 
         AgentRecord* Find(AgentId id);
+        AgentRecord const* Find(AgentId id) const;
         AgentRecord* FindBySpawn(uint32 mapId, uint64 spawnId);
 
         void BindCreature(AgentId id, Creature const& creature);
