@@ -3476,6 +3476,17 @@ AIWorld.PerceptionSightRange = 40
 AIWorld.NearbyPerceptionIntervalMs = 1000
 
 #
+#    AIWorld.ShortTermMemoryTtlMs
+#        Description: Time (in milliseconds) a ShortTermMemory record survives, from the agent's
+#                     most recent Observation of it, before being expired. Repeated Observations of
+#                     the same underlying thing (same WorldEvent, same seen Player, same seen
+#                     Creature) refresh the same record instead of creating a new one each time.
+#        Important:   Values below 1000 are clamped to 1000.
+#        Default:     30000
+
+AIWorld.ShortTermMemoryTtlMs = 30000
+
+#
 ###################################################################################################
 
 ###################################################################################################

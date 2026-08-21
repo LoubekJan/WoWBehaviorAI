@@ -19,14 +19,25 @@
 #include "Agent/AgentSnapshot.h"
 #include "Config.h"
 #include "Creature.h"
+#include "GameTime.h"
 #include "IoContext.h"
 #include "Log.h"
 #include "Map.h"
 #include "MapManager.h"
 #include "Player.h"
+#include <chrono>
 #include <optional>
 #include <string>
 #include <vector>
+
+namespace
+{
+    uint64 CurrentTimeMs()
+    {
+        return uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
+            GameTime::GetSystemTime().time_since_epoch()).count());
+    }
+}
 
 AIWorldMgr* AIWorldMgr::instance()
 {
@@ -90,6 +101,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _nearbyPerceptionIntervalMs = uint32(nearbyPerceptionIntervalMs);
     _nearbyPerceptionTimer = 0;
+
+    int32 shortTermMemoryTtlMs = sConfigMgr->GetIntDefault("AIWorld.ShortTermMemoryTtlMs", 30000);
+    if (shortTermMemoryTtlMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.ShortTermMemoryTtlMs ({}) is invalid or too low, clamping to 1000ms", shortTermMemoryTtlMs);
+        shortTermMemoryTtlMs = 1000;
+    }
+    _shortTermMemoryTtlMs = uint32(shortTermMemoryTtlMs);
+    _memoryMaintenanceTimer = 0;
 
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
@@ -174,6 +194,13 @@ void AIWorldMgr::Update(uint32 diff)
     {
         _nearbyPerceptionTimer = 0;
         ScanNearbyEntities();
+    }
+
+    _memoryMaintenanceTimer += diff;
+    if (_memoryMaintenanceTimer >= 1000)
+    {
+        _memoryMaintenanceTimer = 0;
+        _shortTermMemory.Expire(CurrentTimeMs());
     }
 
     _healthTimer += diff;
@@ -455,8 +482,10 @@ void AIWorldMgr::ScanNearbyEntities()
     }
 }
 
-// World thread only. Milestone 2.4A/2.4B: still just a debug log - no
-// Memory, no decision context, no agent reaction.
+// World thread only. Milestone 2.4A/2.4B/2.4C: log, then hand the
+// Observation to ShortTermMemory. Still no decision context, no agent
+// reaction - Remember() only turns a raw perception stream into a
+// deduplicated, TTL'd memory record; nothing here acts on it yet.
 void AIWorldMgr::ProcessObservation(Observation const& observation)
 {
     char const* sourceEventType = observation.SourceEventType ? ToString(*observation.SourceEventType) : "NONE";
@@ -467,6 +496,11 @@ void AIWorldMgr::ProcessObservation(Observation const& observation)
         ToString(observation.Channel), observation.Distance, observation.LineOfSight,
         observation.Actor.Guid.ToString(), observation.Actor.Agent.Value,
         observation.Target.Guid.ToString(), observation.Target.Entry, observation.Target.Agent.Value);
+
+    // Return value unused - ShortTermMemory already logs its own
+    // Added/Refreshed transition, the same way AgentRegistry and EventBus
+    // log their own state changes rather than making the caller do it.
+    _shortTermMemory.Remember(observation, _shortTermMemoryTtlMs);
 }
 
 void AIWorldMgr::Shutdown()

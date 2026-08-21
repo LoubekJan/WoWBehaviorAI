@@ -24,6 +24,7 @@
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
 #include "Inference/AIClient.h"
+#include "Memory/ShortTermMemory.h"
 #include "Perception/PerceptionSystem.h"
 #include "Persistence/AgentPersistence.h"
 #include <atomic>
@@ -136,6 +137,17 @@ class TC_GAME_API AIWorldMgr
         // record->WorldState.
         uint32 _nearbyPerceptionIntervalMs = 1000;
         uint32 _nearbyPerceptionTimer = 0;
+
+        // Milestone 2.5A: deduplicated, TTL'd summary of every Observation
+        // ProcessObservation() sees. Not persisted, not importance-scored,
+        // not read by any decision context yet - only proves raw
+        // perception can turn into a bounded memory stream.
+        ShortTermMemory _shortTermMemory;
+        uint32 _shortTermMemoryTtlMs = 30000;
+
+        // Expiry doesn't need to run every tick - its own ~1s cadence,
+        // independent of every other timer here.
+        uint32 _memoryMaintenanceTimer = 0;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()
