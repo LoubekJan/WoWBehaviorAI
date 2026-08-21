@@ -73,6 +73,14 @@ class TC_GAME_API ShortTermMemory
 
         std::vector<MemoryRecord> GetForAgent(AgentId id) const;
 
+        // Same as GetForAgent(), but excludes anything already past its
+        // ExpiresAtMs. Expire() only runs on its own ~1s maintenance
+        // cadence, so a record can briefly sit expired-but-not-yet-swept;
+        // retrieval must never surface one of those. Use this, never the
+        // unfiltered GetForAgent(), for anything that feeds a decision or
+        // ranking (see MemoryRetrieval).
+        std::vector<MemoryRecord> GetActiveForAgent(AgentId id, uint64 nowMs) const;
+
     private:
         static constexpr std::size_t MaxEntriesPerAgent = 128;
 

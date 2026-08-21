@@ -116,6 +116,19 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _longTermMemoryMinImportance = std::clamp(
         sConfigMgr->GetFloatDefault("AIWorld.LongTermMemoryMinImportance", 0.75f), 0.0f, 1.0f);
 
+    int32 memoryRetrievalTopN = sConfigMgr->GetIntDefault("AIWorld.MemoryRetrievalTopN", 5);
+    if (memoryRetrievalTopN < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.MemoryRetrievalTopN ({}) is invalid or too low, clamping to 1", memoryRetrievalTopN);
+        memoryRetrievalTopN = 1;
+    }
+    else if (memoryRetrievalTopN > 20)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.MemoryRetrievalTopN ({}) is too high, clamping to 20", memoryRetrievalTopN);
+        memoryRetrievalTopN = 20;
+    }
+    _memoryRetrievalTopN = uint32(memoryRetrievalTopN);
+
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
@@ -333,6 +346,37 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
         snapshot.Health, snapshot.MaxHealth,
         snapshot.X, snapshot.Y, snapshot.Z,
         snapshot.InCombat);
+
+    // Milestone 2.5C: deterministic retrieval over this agent's memories,
+    // scoped to "now" and the snapshot's own position/map. Logged only -
+    // nothing consumes _relevant yet, AIRequest below is unchanged.
+    MemoryQueryContext memoryContext;
+    memoryContext.Agent = snapshot.Agent;
+    memoryContext.NowMs = CurrentTimeMs();
+    memoryContext.MapId = snapshot.MapId;
+    memoryContext.X = snapshot.X;
+    memoryContext.Y = snapshot.Y;
+    memoryContext.Z = snapshot.Z;
+
+    std::vector<MemoryRecord> shortTermMemories = _shortTermMemory.GetActiveForAgent(snapshot.Agent, memoryContext.NowMs);
+    std::vector<LongTermMemoryRecord> longTermMemories = _longTermMemory.GetForAgent(snapshot.Agent);
+    std::vector<RetrievedMemory> relevantMemories = _memoryRetrieval.Retrieve(
+        memoryContext, shortTermMemories, longTermMemories, _memoryRetrievalTopN);
+
+    TC_LOG_DEBUG("ai.world",
+        "AI memory retrieval agent={} snapshot={} short={} long={} selected={}",
+        snapshot.Agent.Value, snapshot.SnapshotSequence, shortTermMemories.size(), longTermMemories.size(), relevantMemories.size());
+
+    for (std::size_t rank = 0; rank < relevantMemories.size(); ++rank)
+    {
+        RetrievedMemory const& memory = relevantMemories[rank];
+        char const* sourceEventType = memory.SourceEventType ? ToString(*memory.SourceEventType) : "NONE";
+
+        TC_LOG_DEBUG("ai.world",
+            "AI relevant memory rank={} agent={} tier={} memory={} type={} relevance={:.3f} importance={:.2f} sourceEvent={} sourceEventType={}",
+            rank, snapshot.Agent.Value, ToString(memory.Tier), memory.MemoryId, ToString(memory.Type),
+            memory.Relevance, memory.Importance, memory.SourceEventId, sourceEventType);
+    }
 
     AIRequest request;
     request.Agent = id;

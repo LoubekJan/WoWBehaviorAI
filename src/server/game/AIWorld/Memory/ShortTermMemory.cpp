@@ -165,3 +165,20 @@ std::vector<MemoryRecord> ShortTermMemory::GetForAgent(AgentId id) const
 
     return it->second;
 }
+
+std::vector<MemoryRecord> ShortTermMemory::GetActiveForAgent(AgentId id, uint64 nowMs) const
+{
+    std::vector<MemoryRecord> result;
+
+    auto it = _records.find(id.Value);
+    if (it == _records.end())
+        return result;
+
+    for (MemoryRecord const& record : it->second)
+    {
+        if (record.ExpiresAtMs > nowMs)
+            result.push_back(record);
+    }
+
+    return result;
+}
