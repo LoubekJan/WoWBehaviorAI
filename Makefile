@@ -65,4 +65,5 @@ gpu-test:
 ## import a pinned TDB world-content dump: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]
 db-import-tdb:
 	@test -n "$(TDB_VERSION)" || (echo "Usage: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]"; exit 1)
+	$(COMPOSE) up -d mysql
 	$(COMPOSE) run --rm -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh

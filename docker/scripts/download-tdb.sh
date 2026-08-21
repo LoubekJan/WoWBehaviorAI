@@ -18,6 +18,21 @@ REPO="TrinityCore/TrinityCore"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
+echo "Waiting for MySQL..."
+mysql_ready=0
+for attempt in $(seq 1 60); do
+    if mysql -h"$DB_HOST" -P"$DB_PORT" -u"$TC_DB_USER" -p"$TC_DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+        mysql_ready=1
+        break
+    fi
+    sleep 2
+done
+if [ "$mysql_ready" -ne 1 ]; then
+    echo "MySQL did not become ready in time." >&2
+    exit 1
+fi
+echo "MySQL is ready."
+
 echo "Resolving release ${TDB_VERSION} from ${REPO}..."
 release_json="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${TDB_VERSION}")"
 

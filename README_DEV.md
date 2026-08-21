@@ -82,26 +82,27 @@ to a populated Elwynn Forest. Pick a tag from
 (e.g. `TDB335.25101`) and pin it:
 
 ```bash
-docker compose up -d mysql   # mysql only — the import script talks to it directly
 make db-import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<sha256 of the downloaded asset>
 ```
 
-`docker/scripts/download-tdb.sh` resolves the release's SQL/7z/zip asset via
-the GitHub API (never a hardcoded URL), verifies `TDB_SHA256` if given, and
-imports it into `world`. Import it **before** `authserver`/`worldserver`
-first start — they cache game data in memory at startup, so importing after
-they're already up needs a restart to take effect. Re-running with a newer
-`TDB_VERSION` re-imports on top of the current data.
+`db-import-tdb` brings up `mysql` itself and waits for it to accept
+connections before importing, so it's self-contained — no need to start
+`mysql` separately first. `docker/scripts/download-tdb.sh` resolves the
+release's SQL/7z/zip asset via the GitHub API (never a hardcoded URL),
+verifies `TDB_SHA256` if given, and imports it into `world`. Import it
+**before** `authserver`/`worldserver` first start — they cache game data in
+memory at startup, so importing after they're already up needs a restart to
+take effect. Re-running with a newer `TDB_VERSION` re-imports on top of the
+current data.
 
 ## Day-to-day workflow
 
 Order matters: `authserver`/`worldserver` run binaries out of the
 persistent `/build` volume, so it needs to exist before `start`; TDB import
-needs `mysql` up but should happen before `worldserver` first loads.
+should happen before `worldserver` first loads.
 
 ```bash
 make bootstrap                     # .env, runtime/ dirs, build the dev image
-docker compose up -d mysql         # mysql only, for the TDB import below
 make db-import-tdb TDB_VERSION=... # see "World content (TDB)" above
 make build                         # compile TrinityCore into the build-data volume (throwaway tc-dev container)
 make start                         # bring up mysql, authserver, worldserver, ai-server
