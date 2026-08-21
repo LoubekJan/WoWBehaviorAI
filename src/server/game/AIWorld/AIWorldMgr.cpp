@@ -38,7 +38,13 @@ void AIWorldMgr::Initialize()
         return;
     }
 
-    _snapshotIntervalMs = uint32(sConfigMgr->GetIntDefault("AIWorld.SnapshotIntervalMs", 5000));
+    int32 configuredIntervalMs = sConfigMgr->GetIntDefault("AIWorld.SnapshotIntervalMs", 5000);
+    if (configuredIntervalMs < 100)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.SnapshotIntervalMs ({}) is invalid or too low, clamping to 100ms", configuredIntervalMs);
+        configuredIntervalMs = 100;
+    }
+    _snapshotIntervalMs = uint32(configuredIntervalMs);
     _testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     _testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
     _snapshotTimer = 0;

@@ -334,6 +334,15 @@ int main(int argc, char** argv)
         sMapMgr->UnloadAll();                      // unload all grids (including locked in memory)
     });
 
+    // Destroyed before mapManagementHandle (reverse construction order), so
+    // AIWorld stops reading Creature/Map state before maps are torn down.
+    // Runs on every exit path out of this function, including the early
+    // returns below - not just after WorldUpdateLoop() completes normally.
+    std::shared_ptr<void> aiWorldMgrHandle(nullptr, [](void*)
+    {
+        sAIWorldMgr->Shutdown();
+    });
+
     // Start the Remote Access port (acceptor) if enabled
     std::unique_ptr<Trinity::Net::AsyncAcceptor> raAcceptor;
     if (sConfigMgr->GetBoolDefault("Ra.Enable", false))
@@ -414,8 +423,6 @@ int main(int argc, char** argv)
     WorldUpdateLoop();
 
     // Shutdown starts here
-    sAIWorldMgr->Shutdown();
-
     ioContextStopHandle.reset();
 
     threadPool.reset();
