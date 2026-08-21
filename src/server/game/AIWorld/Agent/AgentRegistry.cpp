@@ -61,17 +61,33 @@ AgentRecord* AgentRegistry::FindBySpawn(uint32 mapId, uint64 spawnId)
     return nullptr;
 }
 
+// Idempotent - safe (and expected) to call every tick a Creature is found
+// for this agent, not just on the Abstract -> Materialized transition. A
+// SpawnId identifies a TrinityCore spawn, not a runtime object: if the old
+// Creature despawns and a new one for the same spawn appears between two
+// polls, WorldState never passes through Abstract, so a plain
+// "was it Abstract" check would leave RuntimeGuid pointing at a Creature
+// that no longer exists. Comparing GUIDs on every call catches that.
 void AgentRegistry::BindCreature(AgentId id, Creature const& creature)
 {
     AgentRecord* record = Find(id);
     if (!record)
         return;
 
-    record->RuntimeGuid = creature.GetGUID();
-    record->WorldState = AgentWorldState::Materialized;
+    ObjectGuid newGuid = creature.GetGUID();
 
-    TC_LOG_INFO("ai.world", "AI agent id={} materialized spawn={} guid={}",
-        id.Value, record->SpawnId, record->RuntimeGuid.ToString());
+    if (record->WorldState == AgentWorldState::Materialized && record->RuntimeGuid == newGuid)
+        return; // already correctly bound
+
+    if (record->WorldState == AgentWorldState::Materialized)
+        TC_LOG_INFO("ai.world", "AI agent id={} rebound spawn={} oldGuid={} newGuid={}",
+            id.Value, record->SpawnId, record->RuntimeGuid.ToString(), newGuid.ToString());
+    else
+        TC_LOG_INFO("ai.world", "AI agent id={} materialized spawn={} guid={}",
+            id.Value, record->SpawnId, newGuid.ToString());
+
+    record->RuntimeGuid = newGuid;
+    record->WorldState = AgentWorldState::Materialized;
 }
 
 void AgentRegistry::UnbindCreature(AgentId id)

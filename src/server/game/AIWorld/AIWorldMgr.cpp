@@ -131,6 +131,19 @@ void AIWorldMgr::Update(uint32 diff)
             continue;
         }
 
+        // A response can still be for the right snapshot sequence and
+        // arrive after the agent already dematerialized (e.g. the Creature
+        // despawned while the request was in flight). Nothing here mutates
+        // world state yet, so this is currently just correctness hygiene -
+        // it stops mattering only once decisions never do anything either
+        // way, which won't stay true once a real Action API exists.
+        if (record->WorldState != AgentWorldState::Materialized)
+        {
+            TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} discarded: agent is no longer materialized",
+                response.RequestId, response.Agent.Value, response.SnapshotSequence);
+            continue;
+        }
+
         // Not just "<": a response claiming a snapshot sequence newer than
         // anything this agent has actually captured is just as wrong as an
         // old one, and must not be accepted either. Sequence is per-agent
@@ -155,6 +168,13 @@ void AIWorldMgr::Update(uint32 diff)
 // (Materialized -> Abstract) the tick it stops being found - the agent
 // itself, and its SnapshotSequence, live in _registry across either
 // transition. Never forces a grid to load.
+//
+// BindCreature() is called unconditionally (not just out of Abstract): a
+// SpawnId identifies a TrinityCore spawn, not a runtime object, so the old
+// Creature can despawn and a new one for the same spawn appear between two
+// polls without WorldState ever passing through Abstract in between.
+// BindCreature() is idempotent and only actually changes anything when the
+// runtime GUID doesn't already match.
 void AIWorldMgr::ProcessAgent(AgentId id)
 {
     AgentRecord* record = _registry.Find(id);
@@ -171,8 +191,7 @@ void AIWorldMgr::ProcessAgent(AgentId id)
         return;
     }
 
-    if (record->WorldState == AgentWorldState::Abstract)
-        _registry.BindCreature(id, *creature);
+    _registry.BindCreature(id, *creature);
 
     CaptureAndSubmitSnapshot(id, *record, *creature);
 }
