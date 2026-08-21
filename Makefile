@@ -1,4 +1,4 @@
-.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb
+.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb configure-realm
 
 COMPOSE := docker compose -f compose.yml -f compose.dev.yml
 BUILD_DIR := /build
@@ -67,3 +67,8 @@ db-import-tdb:
 	@test -n "$(TDB_VERSION)" || (echo "Usage: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]"; exit 1)
 	$(COMPOSE) up -d mysql
 	$(COMPOSE) run --rm -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh
+
+## configure auth.realmlist address/port from REALM_* in .env (versioned alternative to a manual UPDATE realmlist)
+configure-realm:
+	$(COMPOSE) up -d mysql
+	$(COMPOSE) run --rm tc-dev bash /workspace/docker/scripts/configure-realm.sh

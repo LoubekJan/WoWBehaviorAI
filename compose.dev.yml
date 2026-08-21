@@ -16,6 +16,11 @@ services:
     environment:
       TC_DB_USER: ${TC_DB_USER:-trinity}
       TC_DB_PASSWORD: ${TC_DB_PASSWORD:-trinity}
+      REALM_NAME: ${REALM_NAME:-Trinity}
+      REALM_ADDRESS: ${REALM_ADDRESS:-127.0.0.1}
+      REALM_LOCAL_ADDRESS: ${REALM_LOCAL_ADDRESS:-127.0.0.1}
+      REALM_LOCAL_SUBNET_MASK: ${REALM_LOCAL_SUBNET_MASK:-255.255.255.0}
+      REALM_PORT: ${REALM_PORT:-8085}
     volumes:
       - .:/workspace
       - build-data:/build

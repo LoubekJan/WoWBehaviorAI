@@ -95,6 +95,24 @@ memory at startup, so importing after they're already up needs a restart to
 take effect. Re-running with a newer `TDB_VERSION` re-imports on top of the
 current data.
 
+### Realm address (realmlist)
+
+TrinityCore's DB auto-setup creates `auth.realmlist` the first time
+`authserver` starts, with the schema default `127.0.0.1` as address — fine
+for a client on the same machine, not reachable from elsewhere on the LAN.
+Set `REALM_NAME`/`REALM_ADDRESS`/`REALM_LOCAL_ADDRESS`/
+`REALM_LOCAL_SUBNET_MASK`/`REALM_PORT` in `.env`, then:
+
+```bash
+make configure-realm
+```
+
+`docker/scripts/configure-realm.sh` waits for `auth.realmlist` to exist (so
+it doesn't matter whether this runs before or after the first `authserver`
+start) and upserts that row from the environment — a versioned alternative
+to a one-off manual `UPDATE realmlist` against the DB. Re-run it any time
+the REALM_* values in `.env` change; it's idempotent.
+
 ## Day-to-day workflow
 
 Order matters: `authserver`/`worldserver` run binaries out of the
