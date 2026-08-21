@@ -18,11 +18,11 @@ bootstrap:
 
 ## incremental TrinityCore build — runs in a throwaway tc-dev container
 build:
-	$(COMPOSE) run --rm tc-dev bash -c "$(CMAKE_CONFIGURE) && cmake --build $(BUILD_DIR)"
+	$(COMPOSE) run --rm tc-dev bash -c "$(CMAKE_CONFIGURE) && cmake --build $(BUILD_DIR) && cmake --install $(BUILD_DIR) --config $(BUILD_TYPE)"
 
 ## reconfigure + build without wiping the build/ccache volumes
 rebuild:
-	$(COMPOSE) run --rm tc-dev bash -c "$(CMAKE_CONFIGURE) && cmake --build $(BUILD_DIR) --clean-first"
+	$(COMPOSE) run --rm tc-dev bash -c "$(CMAKE_CONFIGURE) && cmake --build $(BUILD_DIR) --clean-first && cmake --install $(BUILD_DIR) --config $(BUILD_TYPE)"
 
 ## start mysql, authserver, worldserver, ai-server (requires `make build` first)
 start:
