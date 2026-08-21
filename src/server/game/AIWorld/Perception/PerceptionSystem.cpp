@@ -44,8 +44,15 @@ std::optional<Observation> PerceptionSystem::ObserveEvent(AgentId observerId, Cr
 
     observation.SourceEventId = event.EventId;
     observation.CorrelationId = event.CorrelationId;
-    observation.ObservedAtMs = event.OccurredAtMs;
+    observation.SourceOccurredAtMs = event.OccurredAtMs;
     observation.SourceEventType = event.Type;
+
+    // Real wall-clock time this Observation was built, not event.OccurredAtMs:
+    // a WorldEvent can sit in EventBus for a tick or more before being
+    // witnessed, and Memory's TTL must be anchored to when the agent actually
+    // perceived it, not to when the underlying fact happened.
+    observation.ObservedAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
+        GameTime::GetSystemTime().time_since_epoch()).count());
 
     observation.Location = event.Location;
     observation.Actor = event.Actor;
@@ -79,12 +86,12 @@ std::optional<Observation> PerceptionSystem::ObserveNearbyPlayer(AgentId observe
     observation.Type = ObservationType::PlayerSeen;
 
     // No underlying WorldEvent: this is a periodic nearby-entity scan, not
-    // a reaction to something that happened. SourceEventId/CorrelationId
-    // stay 0, SourceEventType stays nullopt, and ObservedAtMs is stamped
-    // to now rather than copied from an OccurredAtMs that doesn't exist
-    // here.
+    // a reaction to something that happened. SourceEventId/CorrelationId/
+    // SourceOccurredAtMs stay 0, SourceEventType stays nullopt, and
+    // ObservedAtMs is stamped to now - there is no OccurredAtMs to copy.
     observation.SourceEventId = 0;
     observation.CorrelationId = 0;
+    observation.SourceOccurredAtMs = 0;
     observation.ObservedAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
         GameTime::GetSystemTime().time_since_epoch()).count());
 
@@ -138,6 +145,7 @@ std::optional<Observation> PerceptionSystem::ObserveNearbyCreature(AgentId obser
     // No underlying WorldEvent, same as ObserveNearbyPlayer.
     observation.SourceEventId = 0;
     observation.CorrelationId = 0;
+    observation.SourceOccurredAtMs = 0;
     observation.ObservedAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
         GameTime::GetSystemTime().time_since_epoch()).count());
 

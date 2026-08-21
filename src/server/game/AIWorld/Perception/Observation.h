@@ -37,7 +37,16 @@
 // set (to the causing WorldEvent's Type) when Type == ObservationType::
 // WorldEvent. PlayerSeen/CreatureSeen observations - from a periodic
 // nearby-entity scan, not a witnessed WorldEvent - leave it nullopt and
-// SourceEventId/CorrelationId at 0.
+// SourceEventId/CorrelationId/SourceOccurredAtMs at 0.
+//
+// SourceOccurredAtMs and ObservedAtMs are deliberately not the same field:
+// the former is when the underlying fact happened (copied from a
+// WorldEvent's OccurredAtMs, 0 if there isn't one), the latter is when
+// this specific agent actually perceived it (always real wall-clock time
+// this Observation was built, never copied from anything). Memory's TTL
+// has to be anchored to ObservedAtMs - a WorldEvent that already sat in
+// the queue for a while before being witnessed must not get a head start
+// toward expiry it didn't earn.
 struct Observation
 {
     AgentId Observer;
@@ -46,6 +55,7 @@ struct Observation
 
     uint64 SourceEventId = 0;
     uint64 CorrelationId = 0;
+    uint64 SourceOccurredAtMs = 0;
     uint64 ObservedAtMs = 0;
 
     std::optional<WorldEventType> SourceEventType;
