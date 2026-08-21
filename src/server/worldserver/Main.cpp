@@ -43,6 +43,7 @@
 #include "ScriptLoader.h"
 #include "ScriptMgr.h"
 #include "ScriptReloadMgr.h"
+#include "AIWorldMgr.h"
 #include "SecretMgr.h"
 #include "SharedDefines.h"
 #include "TCSoap.h"
@@ -321,6 +322,8 @@ int main(int argc, char** argv)
     sSecretMgr->Initialize();
     sWorld->SetInitialWorldSettings();
 
+    sAIWorldMgr->Initialize();
+
     std::shared_ptr<void> mapManagementHandle(nullptr, [](void*)
     {
         // unload battleground templates before different singletons destroyed
@@ -411,6 +414,8 @@ int main(int argc, char** argv)
     WorldUpdateLoop();
 
     // Shutdown starts here
+    sAIWorldMgr->Shutdown();
+
     ioContextStopHandle.reset();
 
     threadPool.reset();

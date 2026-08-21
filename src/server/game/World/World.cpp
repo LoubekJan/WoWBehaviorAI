@@ -22,6 +22,7 @@
 #include "World.h"
 #include "AccountMgr.h"
 #include "AchievementMgr.h"
+#include "AIWorldMgr.h"
 #include "AddonMgr.h"
 #include "ArenaTeamMgr.h"
 #include "AuctionHouseBot.h"
@@ -2507,6 +2508,7 @@ void World::Update(uint32 diff)
     {
         TC_METRIC_TIMER("world_update_time", TC_METRIC_TAG("type", "Update maps"));
         sMapMgr->Update(diff);
+        sAIWorldMgr->Update(diff);
     }
 
     if (sWorld->getBoolConfig(CONFIG_AUTOBROADCAST))

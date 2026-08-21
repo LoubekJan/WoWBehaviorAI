@@ -31,6 +31,7 @@
 #    CONSOLE AND REMOTE ACCESS
 #    CHARACTER DELETE OPTIONS
 #    CUSTOM SERVER OPTIONS
+#    AI WORLD SETTINGS
 #    AUCTION HOUSE BOT SETTINGS
 #    AUCTION HOUSE BOT ITEM FINE TUNING
 #    AUCTION HOUSE BOT BUYER CONFIG
@@ -3386,6 +3387,41 @@ NoGrayAggro.Below = 0
 #
 
 PreventRenameCharacterOnCustomization = 0
+
+#
+###################################################################################################
+
+###################################################################################################
+# AI WORLD SETTINGS
+#
+#    AIWorld.Enable
+#        Description: Enable the AIWorld subsystem (read-only agent snapshotting, and later,
+#                     inference integration). When disabled, no AIWorld code runs at all and
+#                     behavior is identical to vanilla TrinityCore.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+AIWorld.Enable = 0
+
+#
+#    AIWorld.SnapshotIntervalMs
+#        Description: Time (in milliseconds) between AgentSnapshot captures for tracked agents.
+#        Default:     5000
+
+AIWorld.SnapshotIntervalMs = 5000
+
+#
+#    AIWorld.TestMapId
+#    AIWorld.TestSpawnId
+#        Description: Map ID and creature spawn ID (creature.guid in the world database) of a
+#                     single test agent to track for development. Ignored if AIWorld.TestSpawnId
+#                     is 0. The snapshot is skipped (and logged) whenever the map or the spawn's
+#                     grid is not currently loaded.
+#        Default:     0 - (AIWorld.TestMapId)
+#                     0 - (AIWorld.TestSpawnId, Disabled)
+
+AIWorld.TestMapId = 0
+AIWorld.TestSpawnId = 0
 
 #
 ###################################################################################################
