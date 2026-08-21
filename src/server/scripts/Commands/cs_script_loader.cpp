@@ -3,8 +3,7 @@
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.
+ * Free Software Foundation; either version 2 of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -30,6 +29,7 @@ void AddSC_debug_commandscript();
 void AddSC_deserter_commandscript();
 void AddSC_disable_commandscript();
 void AddSC_event_commandscript();
+void AddSC_factionrep_commandscript();
 void AddSC_gm_commandscript();
 void AddSC_go_commandscript();
 void AddSC_gobject_commandscript();
@@ -76,6 +76,7 @@ void AddCommandsScripts()
     AddSC_deserter_commandscript();
     AddSC_disable_commandscript();
     AddSC_event_commandscript();
+    AddSC_factionrep_commandscript();
     AddSC_gm_commandscript();
     AddSC_go_commandscript();
     AddSC_gobject_commandscript();
