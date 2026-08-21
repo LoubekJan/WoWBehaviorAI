@@ -102,9 +102,16 @@ class TC_GAME_API AIWorldMgr
         // PublishWorldEvent() reads before touching _eventBus; it has to be
         // atomic because, unlike every other member here, it's read from
         // threads other than the world thread. Set true at the end of
-        // Initialize(), false at the very start of Shutdown() - before
-        // anything else - so a map worker can't publish into a
-        // half-torn-down manager.
+        // Initialize(), false at the very first line of Shutdown(), to
+        // narrow the window a worker could publish into a half-constructed
+        // or tearing-down manager - not a hard barrier: a worker can still
+        // read true, get preempted before Publish() takes _eventBus's
+        // mutex, and only reach it after Shutdown() has already flipped
+        // the flag. Harmless today (EventBus is a plain process-lifetime
+        // member and Publish() never touches anything else on AIWorldMgr),
+        // but don't treat this as a real teardown barrier once one is
+        // needed - that'll want an EventBus::Close() serialized on its own
+        // mutex instead.
         EventBus _eventBus;
         std::atomic<bool> _acceptEvents{ false };
 };

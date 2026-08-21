@@ -18,15 +18,16 @@
 #include "EventBus.h"
 #include "GameTime.h"
 #include "Log.h"
+#include <chrono>
 
 bool EventBus::Publish(WorldEvent event)
 {
-    uint64 id = _nextEventId.fetch_add(1, std::memory_order_relaxed);
-    event.EventId = id;
-    if (event.CorrelationId == 0)
-        event.CorrelationId = id;
-
-    event.OccurredAtMs = uint64(GameTime::GetGameTime()) * 1000;
+    // Real millisecond-resolution wall-clock time, not GameTime::GetGameTime()
+    // (whole seconds) - OccurredAtMs promises more precision than that would
+    // actually deliver, which matters once ordering/replay ever needs to
+    // compare timestamps across events published in the same second.
+    event.OccurredAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
+        GameTime::GetSystemTime().time_since_epoch()).count());
 
     std::lock_guard<std::mutex> lock(_mutex);
 
@@ -36,6 +37,16 @@ bool EventBus::Publish(WorldEvent event)
         TC_LOG_WARN("ai.world", "AI EventBus queue full, dropping event type={}", ToString(event.Type));
         return false;
     }
+
+    // EventId is assigned here, under the same lock as the push, not
+    // before it: two publishers can otherwise get their ids in one order
+    // (via fetch_add) and race the lock in the other, so the queue's order
+    // - and therefore Drain()'s - would stop matching EventId order. Also
+    // means a dropped event never consumes an id.
+    uint64 id = _nextEventId++;
+    event.EventId = id;
+    if (event.CorrelationId == 0)
+        event.CorrelationId = id;
 
     _pending.push_back(std::move(event));
     return true;

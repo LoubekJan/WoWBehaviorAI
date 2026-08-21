@@ -37,15 +37,19 @@
 class TC_GAME_API EventBus
 {
     public:
-        // Assigns EventId, and CorrelationId too if the caller left it at 0
-        // (a root event), then enqueues. Returns false and drops the event
-        // (logging once per drop, counted in GetDroppedEventCount()) if the
-        // queue is already at MaxPendingEvents - never blocks or grows
-        // without bound waiting for the world thread to drain.
+        // Assigns EventId under the same lock as the enqueue (not before
+        // it), and CorrelationId too if the caller left it at 0 (a root
+        // event). Returns false and drops the event without assigning it
+        // an id (logging once per drop, counted in
+        // GetDroppedEventCount()) if the queue is already at
+        // MaxPendingEvents - never blocks or grows without bound waiting
+        // for the world thread to drain. Guarantees queue order == EventId
+        // order, which correlation/cause chains, audit, and replay all
+        // depend on later.
         bool Publish(WorldEvent event);
 
         // World thread only. Empties the queue and returns everything that
-        // was pending, in publish order.
+        // was pending, in publish (== EventId) order.
         std::vector<WorldEvent> Drain();
 
         uint64 GetDroppedEventCount() const { return _droppedEvents.load(std::memory_order_relaxed); }
@@ -53,7 +57,14 @@ class TC_GAME_API EventBus
     private:
         static constexpr std::size_t MaxPendingEvents = 4096;
 
-        std::atomic<uint64> _nextEventId{ 1 };
+        // Only ever touched while holding _mutex, from inside Publish() -
+        // not an atomic, the lock is what makes it safe (and is what makes
+        // "assign under the same lock as the push" possible at all).
+        uint64 _nextEventId = 1;
+
+        // Unlike _nextEventId, this is read from GetDroppedEventCount()
+        // without the lock (any thread), so it has to stay atomic even
+        // though it's only ever written while _mutex is already held.
         std::atomic<uint64> _droppedEvents{ 0 };
 
         std::mutex _mutex;

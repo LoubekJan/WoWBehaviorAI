@@ -328,9 +328,10 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 
 void AIWorldMgr::Shutdown()
 {
-    // Unconditional and first, even if !_enabled: stops a map worker from
-    // publishing into a manager that's mid-teardown. Cheap and idempotent
-    // either way.
+    // Unconditional and first, even if !_enabled: narrows (does not close -
+    // see the _acceptEvents comment in AIWorldMgr.h) the window a map
+    // worker could publish into a manager that's mid-teardown. Cheap and
+    // idempotent either way.
     _acceptEvents.store(false, std::memory_order_release);
 
     if (!_enabled)
