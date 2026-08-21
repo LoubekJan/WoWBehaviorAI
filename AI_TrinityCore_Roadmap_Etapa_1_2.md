@@ -2,12 +2,12 @@
 
 > **Výchozí stav:** TrinityCore `3.3.5` + Ubuntu Server + NVIDIA GPU  
 > **Rozsah dokumentu:** Etapa 1 — Development Infrastructure, Etapa 2 — AI World Foundation  
-> **Aktualizováno:** 2026-08-21  
+> **Aktualizováno:** 2026-08-22  
 > **Aktivní větev:** `ai-world`
 
 ## Stav projektu
 
-**Etapa 1 má splněný runtime gate a neblokuje zahájení Etapy 2.**
+**Etapa 1 má splněný runtime gate. Etapa 2 je aktivně rozpracovaná.**
 
 Na reálném Ubuntu/GPU hostu bylo ověřeno:
 
@@ -20,7 +20,22 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro zahájení AI vrstvy.
+Etapa 2 má runtime ověřený základ až po Memory System:
+
+- `AIWorldMgr` lifecycle + read-only snapshot.
+- async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
+- `AgentRegistry` + stabilní `AgentId` + materialized/abstract binding.
+- persistence identity agenta přes `characters` DB.
+- `WorldEvent` + `EventBus` + první TrinityCore producer.
+- witnessed-event, nearby-player a nearby-creature perception.
+- `ShortTermMemory` s dedupe/TTL/expiry.
+- deterministic importance + persistentní `LongTermMemory`.
+- restart/load long-term memory.
+- deterministic retrieval short-term + long-term memories s relevance rankingem a Top-N omezením.
+
+**Aktuální NEXT:** `2.6 Needs System`.
+
+Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
 ---
 
@@ -94,7 +109,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | ▶ **NEXT** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6 NEEDS** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -289,16 +304,16 @@ worldserver  <---- async network / IPC ---->  ai-server  ---->  GPU
 
 ## 1.11 AI service skeleton
 
-Etapa 1 potřebuje pouze izolovanou AI službu a healthcheck. **Skutečný async bridge z `worldserver` je součást vstupu do Etapy 2**, protože bez `AIWorldMgr/AIClient` zatím v TrinityCore není konzument rozhodovacího API.
+Etapa 1 potřebuje pouze izolovanou AI službu a healthcheck. Async bridge z `worldserver` byl následně implementován a runtime ověřen v Etapě 2.
 
 - [x] `ai-server` běží jako samostatný container.
 - [x] FastAPI `/health` endpoint.
 - [x] Compose healthcheck potvrzuje dostupnost služby.
 - [x] AI služba je na interní Docker síti a její HTTP port není standardně publikovaný na hosta.
 - [x] `worldserver` není procesově ani GPU-runtime svázán s `ai-server`.
-- [ ] `worldserver` → `ai-server` neblokující health request — **Etapa 2 / první milestone**.
-- [ ] Timeout/reconnect/fallback metriky — **Etapa 2**.
-- [ ] Runtime fault test: vypnout `ai-server` a prokázat, že aktivní svět pokračuje — provést po přidání prvního bridge.
+- [x] `worldserver` → `ai-server` neblokující health request — **Etapa 2 / runtime PASS**.
+- [ ] Timeout/reconnect/fallback metriky — observability hardening.
+- [x] Runtime fault test: vypnout `ai-server` a prokázat, že aktivní svět pokračuje bez blokace/crashe.
 
 ## Etapa 1 — Definition of Done
 
@@ -316,7 +331,7 @@ Etapa 1 potřebuje pouze izolovanou AI službu a healthcheck. **Skutečný async
 - [x] GPU je dostupné uvnitř Dockeru.
 - [x] Prázdný `ai-server` běží healthy jako samostatná služba.
 
-**Verdikt:** Etapa 2 může začít.
+**Verdikt:** Etapa 2 byla zahájena a její foundation část je průběžně runtime ověřována.
 
 ## Etapa 1 — neblokující hardening backlog
 
@@ -343,6 +358,8 @@ Nezačínat persistence tabulkami ani LLM plánováním. První změna musí bý
 
 ### Milestone 2A — lifecycle + log-only agent snapshot
 
+**Stav: DONE / runtime PASS**
+
 Navrhovaná struktura:
 
 ```text
@@ -356,17 +373,19 @@ src/server/game/AIWorld/
 └── Debug/
 ```
 
-- [ ] Přidat `AIWorldMgr` singleton/subsystem bez zásahu do existující CreatureAI hierarchie.
-- [ ] Inicializovat `AIWorldMgr` při startu `worldserver`.
-- [ ] Korektně ho ukončit při shutdownu.
-- [ ] Přidat config flag, kterým lze celý AIWorld vypnout.
-- [ ] S vypnutým AIWorld musí běžet vanilla TrinityCore chování beze změny.
-- [ ] Vybrat jedno stabilní testovací NPC, například guard v Goldshire.
-- [ ] Jednou za bezpečný interval vytvořit malý read-only snapshot jeho stavu.
-- [ ] Snapshot pouze zalogovat; **žádná AI akce zatím nesmí měnit svět**.
-- [ ] Ověřit start → login → běžná hra → restart worldserveru s aktivním `AIWorldMgr`.
+- [x] Přidat `AIWorldMgr` singleton/subsystem bez zásahu do existující CreatureAI hierarchie.
+- [x] Inicializovat `AIWorldMgr` při startu `worldserver`.
+- [x] Korektně ho ukončit při shutdownu.
+- [x] Přidat config flag, kterým lze celý AIWorld vypnout.
+- [x] S vypnutým AIWorld musí běžet vanilla TrinityCore chování beze změny.
+- [x] Vybrat jedno stabilní testovací NPC.
+- [x] Jednou za bezpečný interval vytvořit malý read-only snapshot jeho stavu.
+- [x] Snapshot pouze zalogovat; **žádná AI akce zatím nesmí měnit svět**.
+- [x] Ověřit start → login → běžná hra → restart worldserveru s aktivním `AIWorldMgr`.
 
 ### Milestone 2B — první async bridge
+
+**Stav: DONE / runtime PASS; detailní metriky zůstávají observability hardening.**
 
 Teprve po 2A:
 
@@ -377,16 +396,16 @@ AIWorldMgr
                           <-- response
 ```
 
-- [ ] Implementovat neblokující klienta z `worldserver` do `ai-server`.
-- [ ] Nikdy nečekat na síť/inference v world update hot path.
-- [ ] Přidat timeout a deterministic fallback.
-- [ ] Zahodit stale response, který dorazí po deadline nebo po změně relevantního agent state.
-- [ ] Zalogovat `request_id`, latency, timeout a response status.
-- [ ] Vypnout `ai-server` během běžícího světa a ověřit, že `worldserver` pokračuje bez blokace/crashe.
+- [x] Implementovat neblokující klienta z `worldserver` do `ai-server`.
+- [x] Nikdy nečekat na síť/inference v world update hot path.
+- [x] Přidat timeout a deterministic fallback.
+- [x] Zahodit stale response, který dorazí po deadline nebo po změně relevantního agent state.
+- [ ] Kompletní observability: `request_id`, latency, timeout a response status jako strukturované metriky.
+- [x] Vypnout `ai-server` během běžícího světa a ověřit, že `worldserver` pokračuje bez blokace/crashe.
 
 ### Gate pro další práci
 
-Dokud 2A + 2B nejsou stabilní, nezačínat velké persistentní NPC systémy.
+**SPLNĚNO:** 2A + 2B jsou runtime ověřené; práce pokračovala přes persistence, events, perception a memory.
 
 ---
 
@@ -409,13 +428,15 @@ TrinityCore
     └── AIClient  -------------------->  ai-server  ---> GPU
 ```
 
-- [ ] Vytvořit subsystem `src/server/game/AIWorld/`.
-- [ ] `AIWorld` se inicializuje při startu `worldserver` a korektně se ukončí při shutdownu.
-- [ ] Normální TrinityCore gameplay funguje i při vypnutém `AIWorld`.
-- [ ] Všechny AI/network requesty jsou asynchronní vůči world update loopu.
-- [ ] Každá externí decision odpověď má deadline a kontrolu freshness.
+- [x] Vytvořit subsystem `src/server/game/AIWorld/`.
+- [x] `AIWorld` se inicializuje při startu `worldserver` a korektně se ukončí při shutdownu.
+- [x] Normální TrinityCore gameplay funguje i při vypnutém `AIWorld`.
+- [x] Všechny AI/network requesty jsou asynchronní vůči world update loopu.
+- [x] Každá externí decision odpověď má deadline a kontrolu freshness.
 
 ## 2.1 Persistentní agent
+
+**Stav: core registry/binding DONE / runtime PASS**
 
 Oddělit dočasný TrinityCore objekt od dlouhodobé identity agenta. `Creature` může zmizet z aktivní mapy, ale agent stále existuje v simulaci.
 
@@ -433,12 +454,12 @@ AIAgent
 └── RuntimeState
 ```
 
-- [ ] Zavést stabilní `AgentId`.
-- [ ] Vytvořit `AgentRegistry`.
-- [ ] Umět propojit `AgentId` s aktuálním `Creature/ObjectGuid`.
-- [ ] Umět agenta odpojit od `Creature` a ponechat jej jako abstraktní stav.
-- [ ] Umět agenta znovu materializovat do světa.
-- [ ] Připravit typy agentů minimálně:
+- [x] Zavést stabilní `AgentId`.
+- [x] Vytvořit `AgentRegistry`.
+- [x] Umět propojit `AgentId` s aktuálním `Creature/ObjectGuid`.
+- [x] Umět agenta odpojit od `Creature` a ponechat jej jako abstraktní stav.
+- [x] Umět agenta znovu materializovat do světa.
+- [x] Připravit typy agentů minimálně:
   - `CIVILIAN`
   - `GUARD`
   - `MERCHANT`
@@ -448,26 +469,30 @@ AIAgent
 
 AI stav musí přežít restart `worldserver`.
 
-Navrhované tabulky:
+Aktuálně implementované tabulky používají `characters` DB (`ai_agents`, `ai_long_term_memories`). Další tabulky vzniknou až s jejich skutečným subsystemem.
+
+Navrhované/logické oblasti persistence:
 
 ```text
 ai_agents
-ai_agent_memory
+ai_long_term_memories
 ai_agent_relationships
 ai_agent_goals
 ai_events
 ai_locations
 ```
 
-- [ ] Navrhnout DB schema s verzováním/migracemi.
-- [ ] Persistovat identitu, základní stav a vazbu na svět.
-- [ ] Persistovat dlouhodobou paměť.
+- [x] Navrhnout DB schema s verzováním/migracemi pro aktuálně implementovaný agent/memory scope.
+- [x] Persistovat identitu, základní stav a vazbu na svět.
+- [x] Persistovat dlouhodobou paměť.
 - [ ] Persistovat vztahy mezi agenty a hráči.
 - [ ] Persistovat aktivní cíle.
 - [ ] Persistovat důležité world events pro audit a replay/debug.
-- [ ] Ověřit save → restart → load jednoho agenta.
+- [x] Ověřit save → restart → load jednoho agenta.
 
 ## 2.3 World Event System
+
+**Stav: první event producer + EventBus DONE / runtime PASS**
 
 Události jsou základ kauzality. AI nemá dostávat náhodný příběh; má reagovat na skutečné změny stavu světa.
 
@@ -485,24 +510,30 @@ FoodShortage
 NPCDied
 ```
 
-- [ ] Definovat `WorldEvent` s typem, časem, lokací, aktorem, cílem a payloadem.
-- [ ] Vytvořit `EventBus` uvnitř `AIWorld`.
-- [ ] Napojit první TrinityCore hooky na vznik událostí.
+- [x] Definovat `WorldEvent` s typem, časem, lokací, aktorem, cílem a payloadem.
+- [x] Vytvořit `EventBus` uvnitř `AIWorld`.
+- [x] Napojit první TrinityCore hooky na vznik událostí.
 - [ ] Oddělit transient event od persistentní historické události.
-- [ ] Přidat `correlation/cause id`, aby šlo sledovat řetězec příčina → následek.
-- [ ] Přidat debug log událostí.
+- [x] Přidat `correlation/cause id`, aby šlo sledovat řetězec příčina → následek.
+- [x] Přidat debug log událostí.
 
 ## 2.4 Perception System
 
-- [ ] Agent nesmí automaticky vědět globální stav světa.
-- [ ] Přidat nearby entity perception.
-- [ ] Přidat základní range check.
-- [ ] Tam, kde je vhodné, respektovat line-of-sight.
-- [ ] Přidat perception událostí, kterých byl agent svědkem.
-- [ ] Přidat přípravu pro informace z rozhovorů/rumorů v pozdější etapě.
-- [ ] Z perception vytvářet `Observation` objekty použitelné pro memory a decision context.
+**Stav: core sight perception DONE / runtime PASS**
+
+- [x] Agent nesmí automaticky vědět globální stav světa.
+- [x] Přidat nearby entity perception.
+- [x] Přidat základní range check.
+- [x] Tam, kde je vhodné, respektovat line-of-sight.
+- [x] Přidat perception událostí, kterých byl agent svědkem.
+- [x] Přidat přípravu pro informace z rozhovorů/rumorů v pozdější etapě.
+- [x] Z perception vytvářet `Observation` objekty použitelné pro memory a decision context.
+
+> `Sight` je aktuálně runtime použitý kanál; `Hearing/Rumor` jsou připravené jako pozdější rozšíření, nikoli hotová rumor propagation.
 
 ## 2.5 Memory System
+
+**Stav: core memory pipeline DONE / runtime PASS**
 
 ```text
 ShortTermMemory
@@ -511,15 +542,49 @@ Knowledge
 Relationships
 ```
 
-- [ ] Implementovat krátkodobou paměť s expirací.
-- [ ] Implementovat dlouhodobou paměť pro důležité události.
-- [ ] Přidat importance score.
-- [ ] Přidat čas a zdroj informace.
-- [ ] Přidat vazbu na osoby, lokaci a událost.
-- [ ] Připravit retrieval relevantních vzpomínek podle aktuální situace.
-- [ ] LLM nikdy neposílat celou historii; posílat pouze vybrané relevantní záznamy.
+- [x] Implementovat krátkodobou paměť s expirací.
+- [x] Implementovat dlouhodobou paměť pro důležité události.
+- [x] Přidat importance score.
+- [x] Přidat čas a zdroj informace.
+- [x] Přidat vazbu na osoby, lokaci a událost.
+- [x] Připravit retrieval relevantních vzpomínek podle aktuální situace.
+- [ ] LLM nikdy neposílat celou historii; posílat pouze vybrané relevantní záznamy — **retrieval Top-N je připraven, ale decision request jej zatím nepřenáší**.
+
+### Implementovaný stav 2.5
+
+```text
+Observation
+    ↓
+deterministic importance
+    ↓
+ShortTermMemory (dedupe + TTL + expiry)
+    ↓ importance threshold
+LongTermMemory
+    ↓
+async characters DB persistence
+    ↓ restart/load
+deterministic relevance retrieval
+    ↓
+Top N relevant memories
+```
+
+Runtime ověřeno:
+
+- `PlayerSeen`, `CreatureSeen` a witnessed `WorldEvent` → memory.
+- opakovaná observation refreshuje stejné short-term memory ID a `ObservationCount`.
+- short-term memory expiruje podle TTL a po novém encounteru vznikne nové ID.
+- `CREATURE_KILLED` dostane importance `0.85`, překročí threshold a promuje se do long-term memory.
+- runtime DB INSERT je asynchronní vůči world threadu.
+- persistentní long-term memory se po restartu načte se stejným DB `memory_id`.
+- retrieval kombinuje aktivní short-term + long-term records.
+- relevance používá deterministic importance/freshness/locality scoring.
+- stejný semantic fact v short-term a long-term se ve výsledku deduplikuje.
+- výsledky mají deterministic pořadí a `AIWorld.MemoryRetrievalTopN` limit.
+- `/decision` request zatím zůstává beze změny; retrieval je zatím diagnostický vstup pro další Needs/Goals/DecisionContext práci.
 
 ## 2.6 Needs System
+
+**NEXT**
 
 - [ ] Zavést minimální potřeby:
   - `health`
@@ -602,16 +667,18 @@ Decision
 Action validation
 ```
 
-- [ ] Definovat verzovaný request/response kontrakt.
+- [ ] Definovat finální verzovaný request/response kontrakt pro plný `AgentContext`.
 - [ ] Posílat jen informace, které agent smí znát.
 - [ ] Posílat dostupné akce explicitně.
-- [ ] Rozhodování volat asynchronně.
-- [ ] `worldserver` nesmí čekat na inference.
-- [ ] Přidat `request_id`, `agent_id`, deadline a model/version metadata.
-- [ ] Přidat state/version token pro detekci stale inference odpovědi.
-- [ ] Měřit latency, queue time, timeout rate a invalid decision rate.
+- [x] Rozhodování volat asynchronně — současný deterministic `/decision` stub.
+- [x] `worldserver` nesmí čekat na inference.
+- [x] Přidat `request_id`, `agent_id` a state/snapshot token pro korelaci a stale kontrolu současného stubu.
+- [x] Přidat state/version token pro detekci stale inference odpovědi v současném snapshot flow.
+- [ ] Měřit latency, queue time, timeout rate a invalid decision rate jako skutečné metriky.
 - [ ] Připravit API pro batching více agentů.
-- [ ] Při nedostupnosti AI služby použít deterministic fallback.
+- [x] Při nedostupnosti AI služby použít deterministic fallback / zachovat běžící svět.
+
+> Současný `/decision` je bezpečný no-op stub (`NONE`) a neprovádí world mutation. Finální DecisionContext s Needs/Goals/Top-N memories přijde až po příslušných subsystemech.
 
 ## 2.10 Scheduler a úrovně simulace
 
@@ -625,9 +692,11 @@ Action validation
 
 - [ ] Implementovat scheduler tak, aby AI neměla jeden globální tick pro všechny entity.
 - [ ] Prioritizovat agenty poblíž reálného hráče.
-- [ ] Drahou inference nikdy nepouštět v combat hot path.
+- [x] Drahou inference nikdy nepouštět v combat hot path — současná inference cesta je async a oddělená od gameplay execution.
 - [ ] Připravit backpressure při přetížení AI queue.
-- [ ] Umět přesunout agenta mezi `ACTIVE`, `NEARBY`, `BACKGROUND` a `ABSTRACT` stavem.
+- [ ] Umět přesunout agenta mezi `ACTIVE`, `NEARBY`, `BACKGROUND` a `ABSTRACT` simulačním tierem.
+
+> Agent registry už rozlišuje materialized vs. abstract world binding bez force-load gridů; plný scheduler/background simulation cadence je ale stále otevřený milestone.
 
 ## 2.11 První experiment — persistentní farmář
 
@@ -640,7 +709,7 @@ Vybrat jedno NPC v malé testovací oblasti a dát mu jednoduchý, pozorovateln�
 - [ ] Ráno jde pracovat.
 - [ ] Při nebezpečí uteče nebo požádá o pomoc.
 - [ ] Večer se vrátí domů a odpočívá.
-- [ ] Pamatuje si jednu důležitou událost i po restartu serveru.
+- [x] Pamatuje si jednu důležitou událost i po restartu serveru — mechanismus long-term memory runtime ověřen na testovacím agentovi.
 
 ## 2.12 První experiment — wolf pack
 
@@ -715,18 +784,18 @@ validated TrinityCore action
 
 ## Etapa 2 — Definition of Done
 
-- [ ] `AIWorldMgr` se stabilně inicializuje a ukončuje s `worldserver`.
-- [ ] `AIWorldMgr` lze vypnout a vanilla gameplay funguje beze změny.
-- [ ] Async `AIClient` nikdy neblokuje world update loop a má timeout/fallback/stale-response ochranu.
-- [ ] Existuje persistentní `AgentId` a `AgentRegistry`.
-- [ ] Minimálně jeden NPC agent přežije restart se zachovanou pamětí a stavem.
-- [ ] `WorldEvent` system zachytí vybranou událost z TrinityCore.
-- [ ] Perception určí, který agent událost viděl.
-- [ ] `MemorySystem` z události vytvoří relevantní vzpomínku.
+- [x] `AIWorldMgr` se stabilně inicializuje a ukončuje s `worldserver`.
+- [x] `AIWorldMgr` lze vypnout a vanilla gameplay funguje beze změny.
+- [x] Async `AIClient` nikdy neblokuje world update loop a má timeout/fallback/stale-response ochranu.
+- [x] Existuje persistentní `AgentId` a `AgentRegistry`.
+- [x] Minimálně jeden NPC agent přežije restart se zachovanou persistentní identitou a long-term pamětí.
+- [x] `WorldEvent` system zachytí vybranou událost z TrinityCore.
+- [x] Perception určí, který agent událost viděl.
+- [x] `MemorySystem` z události vytvoří a retrievuje relevantní vzpomínku.
 - [ ] Needs/Goal system vytvoří nebo upraví cíl.
-- [ ] AI server obdrží `AgentContext` asynchronně a vrátí rozhodnutí.
+- [ ] AI server obdrží plný `AgentContext` (Top-N memories + Needs + Goals) asynchronně a vrátí rozhodnutí.
 - [ ] `ActionSystem` rozhodnutí validuje a provede pouze povolenou akci.
-- [ ] Výpadek AI serveru nezablokuje `worldserver`.
+- [x] Výpadek AI serveru nezablokuje `worldserver`.
 - [ ] Scheduler umí různé update cadence a abstraktní agent state.
 - [ ] Wolf pack → livestock attack → farmer memory → protect goal → request help funguje end-to-end.
 
@@ -747,21 +816,29 @@ validated TrinityCore action
 6. [x] WoW game data mount a worldserver startup
 7. [x] Realm/LAN networking + vzdálený klient
 8. [x] Restart/persistence smoke test
+9. [x] AIWorldMgr lifecycle + log-only snapshot jednoho NPC
+10. [x] Async AIClient health/decision smoke + timeout/fallback/stale protection
+11. [x] `AgentRegistry` + stabilní `AgentId`
+12. [x] Persistence jednoho agenta
+13. [x] World Event System — první runtime producer
+14. [x] Perception System — witnessed event + nearby Player/Creature
+15. [x] ShortTermMemory — dedupe + TTL + expiry
+16. [x] Importance + persistent LongTermMemory
+17. [x] Relevant-memory retrieval — deterministic ST/LT Top N
 
 ## Teď
 
-9. [ ] **AIWorldMgr lifecycle + log-only snapshot jednoho NPC**
-10. [ ] **Async AIClient health/decision smoke + timeout/fallback**
-11. [ ] `AgentRegistry` + stabilní `AgentId`
-12. [ ] Persistence jednoho agenta
-13. [ ] World Events
-14. [ ] Perception + Memory
-15. [ ] Needs + Goals
-16. [ ] Bezpečné Action API
-17. [ ] Decision protocol + scheduler
-18. [ ] Persistentní farmář
-19. [ ] Wolf pack
-20. [ ] End-to-end emergentní událost
+18. [ ] **Needs System**
+
+## Následuje
+
+19. [ ] Goal System
+20. [ ] Bezpečné Action API
+21. [ ] Decision context/protocol — Top-N memories + Needs + Goals
+22. [ ] Scheduler / simulation tiers
+23. [ ] Persistentní farmář
+24. [ ] Wolf pack
+25. [ ] End-to-end emergentní událost
 
 ## Paralelní hardening
 
@@ -769,6 +846,8 @@ validated TrinityCore action
 - [ ] Přesný extraction dokument.
 - [ ] CUDA compute smoke test.
 - [ ] Aktualizovat zastaralý status v `README_DEV.md`.
+- [ ] Observability metriky pro inference/decision path.
+- [ ] Centralizovat semantic identity helper pro širší multi-agent memory scénáře, až bude potřeba.
 
 ## Co bude následovat
 
