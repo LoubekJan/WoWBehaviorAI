@@ -49,7 +49,7 @@ db-shell:
 
 ## deliberate, explicit clean build — wipes the persistent build volume
 clean-build:
-	$(COMPOSE) run --rm tc-dev rm -rf $(BUILD_DIR)
+	$(COMPOSE) run --rm tc-dev bash -c 'find $(BUILD_DIR) -mindepth 1 -delete'
 	$(MAKE) build
 
 ## deliberate, explicit destructive reset of the development database
