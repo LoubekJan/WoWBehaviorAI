@@ -92,10 +92,14 @@ std::optional<Observation> PerceptionSystem::ObserveNearbyPlayer(AgentId observe
     observation.Location.Y = player.GetPositionY();
     observation.Location.Z = player.GetPositionZ();
 
-    observation.Actor.Guid = player.GetGUID();
-    observation.Actor.Entry = player.GetEntry();
-    // Target left unset: a PlayerSeen observation has one subject (the
-    // player seen), not an actor/target pair.
+    // Target, not Actor: consistent with CreatureKilled's Actor=did-it/
+    // Target=had-it-done-to-them split, the seen player is the one being
+    // perceived, not the one performing an action. Every future unary
+    // observation (nothing "done", just "there") should follow the same
+    // rule, so Memory never needs type-specific cases to answer "who did I
+    // see?". Actor left unset.
+    observation.Target.Guid = player.GetGUID();
+    observation.Target.Entry = player.GetEntry();
 
     observation.Channel = PerceptionChannel::Sight;
     observation.Distance = distance;

@@ -49,9 +49,12 @@ class TC_GAME_API PerceptionSystem
         // Player's current position rather than a WorldEvent's recorded
         // one, and with no underlying WorldEvent to inherit identity from:
         // the resulting Observation always has SourceEventId=0,
-        // CorrelationId=0, EventType=PlayerSeen, Actor=the seen player,
-        // Target left unset, and ObservedAtMs stamped to the current
-        // wall-clock time (there is no OccurredAtMs to copy).
+        // CorrelationId=0, EventType=PlayerSeen, Target=the seen player
+        // (Actor left unset - consistent with CreatureKilled's Actor=
+        // did-it/Target=had-it-done-to-them split: the seen player isn't
+        // performing an action, just being perceived), and ObservedAtMs
+        // stamped to the current wall-clock time (there is no OccurredAtMs
+        // to copy).
         std::optional<Observation> ObserveNearbyPlayer(AgentId observerId, Creature const& observer,
             Player const& player, float sightRange) const;
 };
