@@ -65,6 +65,7 @@ class TC_GAME_API AIWorldMgr
         void CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creature& creature);
         void ProcessWorldEvent(WorldEvent& event);
         void ProcessObservation(Observation const& observation);
+        void ScanNearbyPlayers();
 
         bool _enabled = false;
 
@@ -117,13 +118,22 @@ class TC_GAME_API AIWorldMgr
         EventBus _eventBus;
         std::atomic<bool> _acceptEvents{ false };
 
-        // World-thread-only: turns a witnessed WorldEvent into an
-        // Observation per Materialized agent (range + LOS against the
-        // event's location). Never called from a map/combat worker - only
-        // from ProcessWorldEvent(), after this manager has already
-        // resolved the observer's live Creature itself.
+        // World-thread-only: turns a witnessed WorldEvent (or, since
+        // Milestone 2.4B, a nearby Player - see ScanNearbyPlayers()) into
+        // an Observation per Materialized agent (range + LOS). Never
+        // called from a map/combat worker - only after this manager has
+        // already resolved the observer's live Creature itself.
         PerceptionSystem _perception;
         uint32 _perceptionSightRange = 40;
+
+        // Milestone 2.4B: periodic PlayerSeen perception, independent of
+        // any WorldEvent. Deliberately its own (faster, ~1s) cadence
+        // rather than piggybacking on _snapshotIntervalMs - like
+        // ProcessWorldEvent()'s perception loop, ScanNearbyPlayers()
+        // treats live Creature existence as the authority for whether an
+        // agent can perceive anything, not record->WorldState.
+        uint32 _nearbyPerceptionIntervalMs = 1000;
+        uint32 _nearbyPerceptionTimer = 0;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()

@@ -23,8 +23,10 @@
 #include "Log.h"
 #include "Map.h"
 #include "MapManager.h"
+#include "Player.h"
 #include <optional>
 #include <string>
+#include <vector>
 
 AIWorldMgr* AIWorldMgr::instance()
 {
@@ -79,6 +81,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         sightRange = 1;
     }
     _perceptionSightRange = uint32(sightRange);
+
+    int32 nearbyPerceptionIntervalMs = sConfigMgr->GetIntDefault("AIWorld.NearbyPerceptionIntervalMs", 1000);
+    if (nearbyPerceptionIntervalMs < 100)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.NearbyPerceptionIntervalMs ({}) is invalid or too low, clamping to 100ms", nearbyPerceptionIntervalMs);
+        nearbyPerceptionIntervalMs = 100;
+    }
+    _nearbyPerceptionIntervalMs = uint32(nearbyPerceptionIntervalMs);
+    _nearbyPerceptionTimer = 0;
 
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
@@ -156,6 +167,13 @@ void AIWorldMgr::Update(uint32 diff)
             _snapshotTimer = 0;
             ProcessAgent(_testAgentId);
         }
+    }
+
+    _nearbyPerceptionTimer += diff;
+    if (_nearbyPerceptionTimer >= _nearbyPerceptionIntervalMs)
+    {
+        _nearbyPerceptionTimer = 0;
+        ScanNearbyPlayers();
     }
 
     _healthTimer += diff;
@@ -375,15 +393,52 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
     }
 }
 
-// World thread only. Milestone 2.4A: still just a debug log - no Memory,
-// no decision context, no agent reaction.
+// World thread only, on its own ~1s cadence (_nearbyPerceptionIntervalMs),
+// independent of any WorldEvent - Milestone 2.4B. Same "live Creature
+// existence is the authority, not record->WorldState" rule as
+// ProcessWorldEvent()'s perception loop, for the same reason: this runs
+// faster than _snapshotIntervalMs, so trusting WorldState here would
+// reintroduce the exact false-negative gap that was just closed there.
+void AIWorldMgr::ScanNearbyPlayers()
+{
+    for (AgentId id : _registry.GetAgents())
+    {
+        AgentRecord* record = _registry.Find(id);
+        if (!record)
+            continue;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        Creature* observer = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+
+        if (!observer)
+        {
+            if (record->WorldState == AgentWorldState::Materialized)
+                _registry.UnbindCreature(id);
+            continue;
+        }
+
+        _registry.BindCreature(id, *observer);
+
+        std::vector<Player*> players;
+        observer->GetPlayerListInGrid(players, float(_perceptionSightRange));
+
+        for (Player* player : players)
+        {
+            if (std::optional<Observation> observation = _perception.ObserveNearbyPlayer(id, *observer, *player, float(_perceptionSightRange)))
+                ProcessObservation(*observation);
+        }
+    }
+}
+
+// World thread only. Milestone 2.4A/2.4B: still just a debug log - no
+// Memory, no decision context, no agent reaction.
 void AIWorldMgr::ProcessObservation(Observation const& observation)
 {
     TC_LOG_DEBUG("ai.world",
-        "AI observation observer={} sourceEvent={} type={} channel={} distance={:.1f} los={} actorAgent={} targetEntry={} targetAgent={}",
+        "AI observation observer={} sourceEvent={} type={} channel={} distance={:.1f} los={} actorGuid={} actorAgent={} targetEntry={} targetAgent={}",
         observation.Observer.Value, observation.SourceEventId, ToString(observation.EventType),
         ToString(observation.Channel), observation.Distance, observation.LineOfSight,
-        observation.Actor.Agent.Value, observation.Target.Entry, observation.Target.Agent.Value);
+        observation.Actor.Guid.ToString(), observation.Actor.Agent.Value, observation.Target.Entry, observation.Target.Agent.Value);
 }
 
 void AIWorldMgr::Shutdown()

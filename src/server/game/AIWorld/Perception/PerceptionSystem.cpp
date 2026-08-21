@@ -17,6 +17,9 @@
 
 #include "PerceptionSystem.h"
 #include "Creature.h"
+#include "GameTime.h"
+#include "Player.h"
+#include <chrono>
 
 std::optional<Observation> PerceptionSystem::ObserveEvent(AgentId observerId, Creature const& observer,
     WorldEvent const& event, float sightRange) const
@@ -46,6 +49,53 @@ std::optional<Observation> PerceptionSystem::ObserveEvent(AgentId observerId, Cr
     observation.Location = event.Location;
     observation.Actor = event.Actor;
     observation.Target = event.Target;
+
+    observation.Channel = PerceptionChannel::Sight;
+    observation.Distance = distance;
+    observation.LineOfSight = true;
+
+    return observation;
+}
+
+std::optional<Observation> PerceptionSystem::ObserveNearbyPlayer(AgentId observerId, Creature const& observer,
+    Player const& player, float sightRange) const
+{
+    if (!observer.IsAlive())
+        return std::nullopt;
+
+    if (observer.GetMapId() != player.GetMapId())
+        return std::nullopt;
+
+    float distance = observer.GetDistance(player.GetPositionX(), player.GetPositionY(), player.GetPositionZ());
+    if (distance > sightRange)
+        return std::nullopt;
+
+    if (!observer.IsWithinLOS(player.GetPositionX(), player.GetPositionY(), player.GetPositionZ()))
+        return std::nullopt;
+
+    Observation observation;
+    observation.Observer = observerId;
+
+    // No underlying WorldEvent: this is a periodic nearby-entity scan, not
+    // a reaction to something that happened. SourceEventId/CorrelationId
+    // stay 0, and ObservedAtMs is stamped to now rather than copied from
+    // an OccurredAtMs that doesn't exist here.
+    observation.SourceEventId = 0;
+    observation.CorrelationId = 0;
+    observation.ObservedAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
+        GameTime::GetSystemTime().time_since_epoch()).count());
+
+    observation.EventType = WorldEventType::PlayerSeen;
+
+    observation.Location.MapId = player.GetMapId();
+    observation.Location.X = player.GetPositionX();
+    observation.Location.Y = player.GetPositionY();
+    observation.Location.Z = player.GetPositionZ();
+
+    observation.Actor.Guid = player.GetGUID();
+    observation.Actor.Entry = player.GetEntry();
+    // Target left unset: a PlayerSeen observation has one subject (the
+    // player seen), not an actor/target pair.
 
     observation.Channel = PerceptionChannel::Sight;
     observation.Distance = distance;

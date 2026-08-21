@@ -25,13 +25,16 @@
 #include <optional>
 
 class Creature;
+class Player;
 
-// Turns an objective WorldEvent into a subjective Observation for one
-// specific agent - or nothing, if that agent couldn't actually have
-// witnessed it. Deliberately takes a live Creature&, so it must only ever
-// be called from the world thread, after AIWorldMgr has already resolved
-// the observer's Creature (never from a map/combat worker, never from
-// anything that only has a value-only AgentRecord).
+// Turns an objective fact - a WorldEvent, or (Milestone 2.4B) simply a
+// Player currently near an agent - into a subjective Observation for one
+// specific agent, or nothing if that agent couldn't actually have
+// perceived it. Deliberately takes a live Creature&/Player const&, so it
+// must only ever be called from the world thread, after AIWorldMgr has
+// already resolved the observer's (and, for ObserveNearbyPlayer, the seen
+// player's) live object - never from a map/combat worker, never from
+// anything that only has a value-only AgentRecord.
 class TC_GAME_API PerceptionSystem
 {
     public:
@@ -41,6 +44,16 @@ class TC_GAME_API PerceptionSystem
         // Hearing/Rumor have no logic yet.
         std::optional<Observation> ObserveEvent(AgentId observerId, Creature const& observer,
             WorldEvent const& event, float sightRange) const;
+
+        // Same gating as ObserveEvent (dead/map/range/LOS), but against a
+        // Player's current position rather than a WorldEvent's recorded
+        // one, and with no underlying WorldEvent to inherit identity from:
+        // the resulting Observation always has SourceEventId=0,
+        // CorrelationId=0, EventType=PlayerSeen, Actor=the seen player,
+        // Target left unset, and ObservedAtMs stamped to the current
+        // wall-clock time (there is no OccurredAtMs to copy).
+        std::optional<Observation> ObserveNearbyPlayer(AgentId observerId, Creature const& observer,
+            Player const& player, float sightRange) const;
 };
 
 #endif // AIWORLD_PERCEPTIONSYSTEM_H
