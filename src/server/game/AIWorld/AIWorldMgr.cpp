@@ -567,8 +567,12 @@ void AIWorldMgr::ScanNearbyEntities()
 // independent of _snapshotIntervalMs - Milestone 2.6A. Only Materialized
 // agents drift; Abstract agents are frozen rather than dead-reckoned, so
 // this deliberately does not become background simulation before that's
-// its own milestone. No new Map*/Creature* lookups - just NeedsSystem
-// advancing the NeedsState already sitting in AgentRecord.
+// its own milestone. record->WorldState is only as fresh as the last poll
+// that touched this agent (ProcessAgent()/ProcessWorldEvent()/
+// ScanNearbyEntities()) - same live-Creature-existence-is-the-authority
+// rule as those, so a live lookup is required here too rather than
+// trusting the flag. The lookup itself stays in AIWorldMgr on the world
+// thread; NeedsSystem never sees a Creature*.
 void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 {
     for (AgentId id : _registry.GetAgents())
@@ -577,8 +581,17 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         if (!record)
             continue;
 
-        if (record->WorldState != AgentWorldState::Materialized)
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+
+        if (!creature)
+        {
+            if (record->WorldState == AgentWorldState::Materialized)
+                _registry.UnbindCreature(id);
             continue;
+        }
+
+        _registry.BindCreature(id, *creature);
 
         _needsSystem.Update(record->Needs, elapsedMs, _needsRates);
 
