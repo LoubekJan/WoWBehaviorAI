@@ -90,6 +90,20 @@ ActionResult ActionExecutor::ExecuteMoveTo(ActionRequest const& request, Creatur
         return result;
     }
 
+    // Defensive mirror of ValidateMoveTo()'s HasActiveMovement check (2.8D
+    // P2 fix): the world-thread caller should already have rejected this
+    // request via ActionSystem::Validate() before ever reaching here, but
+    // MOTION_SLOT_ACTIVE could in principle have changed between that
+    // check and this call. MoveTo may only start from an idle actor -
+    // adding into an already-occupied active slot could either replace a
+    // movement this class doesn't own or queue silently behind it.
+    if (actor.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE))
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::EngineRejected;
+        return result;
+    }
+
     actor.GetMotionMaster()->MovePoint(AIWorldMovePointId,
         request.Destination->X, request.Destination->Y, request.Destination->Z);
 

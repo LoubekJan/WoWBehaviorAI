@@ -111,5 +111,15 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     if (distanceSq > MaxMoveToRangeYards * MaxMoveToRangeYards)
         return { false, ActionRejectReason::DestinationTooFar };
 
+    // MoveTo may only start from an idle actor. Without this, a new
+    // MoveTo added to MOTION_SLOT_ACTIVE could either replace an existing
+    // same-priority movement it doesn't own, or queue silently behind a
+    // higher-priority one (e.g. an in-progress FLEE) and only actually
+    // start once that unrelated movement ends - by which point the
+    // destination's map/range validation just performed may no longer be
+    // true (the actor could be anywhere after a 20-30s flee).
+    if (context.HasActiveMovement)
+        return { false, ActionRejectReason::ActorMovementBusy };
+
     return { true, ActionRejectReason::None };
 }

@@ -25,6 +25,8 @@
 #include "Map.h"
 #include "MapManager.h"
 #include "Memory/MemoryImportance.h"
+#include "MotionMaster.h"
+#include "MovementDefines.h"
 #include "Player.h"
 #include <algorithm>
 #include <chrono>
@@ -850,6 +852,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             moveContext.X = creature->GetPositionX();
             moveContext.Y = creature->GetPositionY();
             moveContext.Z = creature->GetPositionZ();
+            moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
 
             ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
 

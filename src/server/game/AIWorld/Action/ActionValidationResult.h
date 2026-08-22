@@ -33,7 +33,8 @@ enum class ActionRejectReason : uint8
     NoDestination,
     DestinationMapMismatch,
     DestinationNotFinite,
-    DestinationTooFar
+    DestinationTooFar,
+    ActorMovementBusy
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -52,6 +53,7 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::DestinationMapMismatch: return "DESTINATION_MAP_MISMATCH";
         case ActionRejectReason::DestinationNotFinite:   return "DESTINATION_NOT_FINITE";
         case ActionRejectReason::DestinationTooFar:      return "DESTINATION_TOO_FAR";
+        case ActionRejectReason::ActorMovementBusy:      return "ACTOR_MOVEMENT_BUSY";
         default:                                         return "UNKNOWN";
     }
 }

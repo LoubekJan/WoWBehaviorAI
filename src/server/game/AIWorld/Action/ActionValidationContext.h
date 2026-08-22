@@ -50,6 +50,16 @@ struct ActionValidationContext
     float X = 0.0f;
     float Y = 0.0f;
     float Z = 0.0f;
+
+    // Milestone 2.8D P2 fix: whether the actor's MOTION_SLOT_ACTIVE
+    // already has a movement generator running (GetCurrentMovementGenerator
+    // (MOTION_SLOT_ACTIVE) != nullptr) - e.g. an in-progress FLEE.
+    // ValidateMoveTo() rejects rather than let a new MoveTo either replace
+    // a movement it doesn't own or queue silently behind one and only
+    // actually start once that unrelated movement ends, by which point the
+    // destination's range/map validation may no longer be true. MoveTo may
+    // only start from an idle actor.
+    bool HasActiveMovement = false;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H
