@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený základ až po Needs threshold events (2.6C):
+Etapa 2 má runtime ověřený základ až po deterministic Goal Candidate generation (2.7A):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -36,8 +36,9 @@ Etapa 2 má runtime ověřený základ až po Needs threshold events (2.6C):
 - `NeedsState` live world-state coupling (2.6B1): `HealthPressure` z HP ratio, `SafetyPressure` z `InCombat`, hunger/fatigue/resource zmrazené při smrti.
 - `NeedsState` recent-memory-driven safety (2.6B2): `SafetyPressure` po skončení combatu odvozená z čerstvých dangerous memories, deterministický decay přes `AIWorld.ShortTermMemoryTtlMs`.
 - Needs threshold events (2.6C): edge-triggered `HUNGER_CRITICAL`/`DANGER_HIGH` s hysteresis latch, audit/debug log only.
+- deterministic Goal Candidate generation (2.7A): `NeedsState` → `GoalCandidate[]` (`GET_FOOD`/`FLEE_DANGER`), level-triggered, audit/debug log only.
 
-**Aktuální NEXT:** `2.7A — deterministic Goal Candidate generation` (předstupeň před `2.7 Goal System`).
+**Aktuální NEXT:** `2.7B — deterministic goal selection and ActiveGoal`.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -113,7 +114,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.7A** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.7B** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -707,6 +708,8 @@ Runtime ověřeno:
 
 ## 2.7 Goal System
 
+**Stav: 2.7A (deterministic Goal Candidate generation) DONE / runtime PASS; zbytek sekce je 2.7B+**
+
 První katalog cílů:
 
 ```text
@@ -722,12 +725,40 @@ INVESTIGATE
 REQUEST_HELP
 ```
 
-- [ ] Definovat `Goal` objekt s prioritou/utility, zdrojem, timeoutem a success condition.
-- [ ] Implementovat základní Utility AI pro volbu mezi jednoduchými cíli.
-- [ ] Oddělit volbu cíle od konkrétní akce.
-- [ ] Přidat možnost cíl přerušit při nouzové situaci.
-- [ ] Přidat success/failure stav.
+> 2.7A generuje kandidáty jen pro dva z nich (`GET_FOOD`, `FLEE_DANGER`) - zbytek katalogu čeká na runtime-ověřený mechanismus.
+
+- [ ] Definovat `Goal` objekt s prioritou/utility, zdrojem, timeoutem a success condition — **`GoalCandidate` (2.7A) má prioritu/utility/zdroj, ale žádný timeout/success condition; to je `ActiveGoal` v 2.7B**.
+- [ ] Implementovat základní Utility AI pro volbu mezi jednoduchými cíli — **2.7B**.
+- [ ] Oddělit volbu cíle od konkrétní akce — **`GoalSystem` (2.7A) už je oddělený od Action API (2.8); samotná volba mezi kandidáty je 2.7B**.
+- [ ] Přidat možnost cíl přerušit při nouzové situaci — **`GoalPriority::Emergency` existuje od 2.7A, ale nic ji ještě nevyhodnocuje proti aktivnímu cíli; interruption logika je 2.7B**.
+- [ ] Přidat success/failure stav — **2.7B+, až existuje `ActiveGoal`**.
 - [ ] LLM/GPU použít až pro komplexnější plánování nebo výběr mezi nestrukturovanými variantami.
+
+### Implementovaný stav 2.7A
+
+```text
+NeedsState (Hunger, SafetyPressure)
+    ↓ level-triggered (>= 0.80, žádná candidate-side hysteresis)
+GoalSystem::GenerateCandidates
+    ↓
+GoalCandidate[] (Type, Priority, Source, Utility) - pure value
+    ↓
+audit/debug log (žádný ActiveGoal, žádná selekce, žádný Action API, žádná /decision změna)
+```
+
+Implementation: `e34ab2f9` feat(ai-world): generate deterministic goal candidates (2.7A)
+
+Runtime ověřeno:
+
+- `Hunger < 0.80` a `SafetyPressure < 0.80` → žádný candidate.
+- `SafetyPressure >= 0.80` (combat nebo recent-memory danger) → `FLEE_DANGER`, `priority=EMERGENCY`, `utility` odpovídá `SafetyPressure`.
+- memory decay pod 0.80 → `FLEE_DANGER` zmizí (level-triggered podle aktuálního stavu, ne latched).
+- `Hunger >= 0.80` → `GET_FOOD`, `priority=NORMAL`, `utility` odpovídá `Hunger`.
+- oba Needs současně nad threshold → oba candidates zároveň (`GET_FOOD NORMAL` + `FLEE_DANGER EMERGENCY`).
+- candidate se generuje z aktuálního `NeedsState`, ne z `NeedsThresholdEvent` - zůstává i přes více ticků, kdy threshold event už znovu nevznikne.
+- žádný `ActiveGoal`, žádná selekce mezi kandidáty, žádný Action API, žádná `/decision` změna.
+
+**Další implementace:** `2.7B — deterministic goal selection and ActiveGoal` (výběr jednoho cíle, `ActiveGoal`, hysteresis/stability, emergency interruption - stále bez Action API a bez LLM).
 
 ## 2.8 Bezpečné Action API
 
