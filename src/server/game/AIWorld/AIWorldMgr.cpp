@@ -733,6 +733,23 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} from={} to={} priority={} utility={:.4f}",
                     record->Id.Value, ToString(selection.Transition), ToString(previousGoal->Type), ToString(selection.Goal->Type),
                     ToString(selection.Goal->Priority), selection.Goal->Utility);
+
+                // Milestone 2.8D P2 fix: MoveTo uses MOTION_PRIORITY_NORMAL,
+                // lower than FLEE - TrinityCore deactivates rather than
+                // removes a lower-priority generator when a higher-priority
+                // one is added, so an interrupted-away GET_FOOD's MOVE_TO
+                // would otherwise sit dormant under FLEE and resume once
+                // FLEE ends, sending the actor to a destination from an
+                // already-ended goal attempt. Cancel it before FLEE starts.
+                // StopMoveTo() is already correctly scoped (own point id
+                // only) and a no-op if MOVE_TO already finished naturally.
+                if (selection.Goal->Type == GoalType::FleeDanger)
+                {
+                    _actionExecutor.StopMoveTo(*creature);
+
+                    TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=GOAL_INTERRUPTED",
+                        record->Id.Value, ToString(ActionType::MoveTo));
+                }
                 break;
             case GoalTransition::Succeeded:
             case GoalTransition::Failed:
