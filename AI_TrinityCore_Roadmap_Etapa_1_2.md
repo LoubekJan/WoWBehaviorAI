@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený základ až po Needs drift (2.6A):
+Etapa 2 má runtime ověřený základ až po live world-state coupling Needs (2.6B1):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -33,8 +33,9 @@ Etapa 2 má runtime ověřený základ až po Needs drift (2.6A):
 - restart/load long-term memory.
 - deterministic retrieval short-term + long-term memories s relevance rankingem a Top-N omezením.
 - per-agent `NeedsState` (2.6A): deterministic hunger/fatigue/resource pressure drift, vlastní cadence, clamp 0.0–1.0, live Creature existence jako authority.
+- `NeedsState` live world-state coupling (2.6B1): `HealthPressure` z HP ratio, `SafetyPressure` z `InCombat`, hunger/fatigue/resource zmrazené při smrti.
 
-**Aktuální NEXT:** `2.6B1 — live world-state coupling (health/safety pressure)`.
+**Aktuální NEXT:** `2.6B2 — recent-memory-driven SafetyPressure`.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -110,7 +111,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6B1** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6B2** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -585,9 +586,9 @@ Runtime ověřeno:
 
 ## 2.6 Needs System
 
-**Stav: 2.6A (NeedsState + deterministic drift + clamp) DONE / runtime PASS**
+**Stav: 2.6A + 2.6B1 (NeedsState + deterministic drift + live world-state coupling) DONE / runtime PASS**
 
-- [x] Zavést minimální potřeby: `health`, `hunger`, `fatigue`, `safety`, `money/resource pressure` — **`NeedsState` zavedena se všemi pěti poli; `health`/`safety` pressure zatím zůstávají `0.0`, world-state coupling je 2.6B1**.
+- [x] Zavést minimální potřeby: `health`, `hunger`, `fatigue`, `safety`, `money/resource pressure` — **`NeedsState` zavedena se všemi pěti poli; `health`/`safety` pressure jsou od 2.6B1 odvozené z live Creature stavu (recent-memory-driven safety po skončení combatu je 2.6B2)**.
 - [x] Potřeby aktualizovat deterministicky v simulation ticku — `hunger`/`fatigue`/`resource pressure` drift na vlastní ~1s cadence, nezávislé na snapshot cadence.
 - [x] Potřeby omezit do definovaného rozsahu `0.0–1.0`.
 - [ ] Přidat threshold events, například `HUNGER_CRITICAL` nebo `DANGER_HIGH` — **2.6C**.
@@ -620,7 +621,35 @@ Runtime ověřeno:
 - žádná world mutation.
 - `/decision` beze změny.
 
-**Další implementace:** `2.6B1 — live world-state coupling` (health pressure z HP ratio, safety pressure z `InCombat`, hunger/fatigue/resource zmrazené při smrti).
+### Implementovaný stav 2.6B1
+
+```text
+live Creature (Health, MaxHealth, Alive, InCombat)
+    ↓
+NeedsUpdateContext (plain values, žádný Creature*)
+    ↓
+NeedsSystem::Update (stále pure value transform)
+    ↓
+HealthPressure = 1 - HP/MaxHP  (1.0 když dead nebo MaxHealth == 0)
+SafetyPressure  = InCombat ? 1.0 : 0.0
+```
+
+Implementation: `d120e1d8` feat(ai-world): derive needs from live world state (2.6B1)
+
+Runtime ověřeno:
+
+- `HealthPressure = 1 - HP/MaxHP`.
+- `InCombat` → `SafetyPressure = 1`.
+- konec combatu → `SafetyPressure = 0`.
+- `dead` → `HealthPressure = 1`.
+- `dead` → hunger/fatigue/resource zmrazené (nedriftují).
+- respawn → drift pokračuje z předchozí hodnoty.
+- `NeedsSystem` stále pure-value (jen `NeedsUpdateContext`, žádný `Creature*`).
+- žádná world mutation / DB / `/decision` změna.
+
+> Otevřená sémantická otázka pro 2.7: při `dead` zůstává `SafetyPressure` zmražená na poslední hodnotě (ne resetovaná na 0). Neblokující pro 2.6B1/2.6B2, ale je potřeba ji definitivně rozhodnout, než Goals začnou `SafetyPressure` číst.
+
+**Další implementace:** `2.6B2 — recent-memory-driven SafetyPressure` (danger pressure z `RetrievedMemory` po skončení combatu, deterministický decay přes `AIWorld.ShortTermMemoryTtlMs` window).
 
 ## 2.7 Goal System
 
