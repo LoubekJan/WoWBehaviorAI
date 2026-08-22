@@ -648,6 +648,28 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 record->Id.Value, ToString(event.Type), event.Value);
         }
 
+        // Milestone 2.7B1 P2 fix: a dead agent must not have a Goal.
+        // HealthPressure/SafetyPressure/Hunger freeze at whatever value
+        // they held at the moment of death (NeedsSystem::Update()'s early
+        // return - see the roadmap's 2.6B1 open question), so without this
+        // check a frozen SafetyPressure=1.0/Hunger=1.0 would keep
+        // generating FLEE_DANGER/GET_FOOD candidates - and an already-
+        // active goal would just sit there - for a corpse. Skip candidate
+        // generation and goal selection entirely for this tick; any
+        // ActiveGoal is released outright rather than left to decay
+        // through the normal retention check.
+        if (!context.Alive)
+        {
+            if (record->ActiveGoalState)
+            {
+                TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={} reason=DEAD",
+                    record->Id.Value, ToString(GoalTransition::Released), ToString(record->ActiveGoalState->Type));
+                record->ActiveGoalState.reset();
+            }
+
+            continue;
+        }
+
         // Milestone 2.7A: level-triggered, not derived from the edge-
         // triggered NeedsThresholdEvent above - a candidate must exist for
         // as long as its Need stays at/above threshold, not just on the
