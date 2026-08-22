@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený základ až po live world-state coupling Needs (2.6B1):
+Etapa 2 má runtime ověřený základ až po recent-memory-driven Needs safety (2.6B2):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -34,8 +34,9 @@ Etapa 2 má runtime ověřený základ až po live world-state coupling Needs (2
 - deterministic retrieval short-term + long-term memories s relevance rankingem a Top-N omezením.
 - per-agent `NeedsState` (2.6A): deterministic hunger/fatigue/resource pressure drift, vlastní cadence, clamp 0.0–1.0, live Creature existence jako authority.
 - `NeedsState` live world-state coupling (2.6B1): `HealthPressure` z HP ratio, `SafetyPressure` z `InCombat`, hunger/fatigue/resource zmrazené při smrti.
+- `NeedsState` recent-memory-driven safety (2.6B2): `SafetyPressure` po skončení combatu odvozená z čerstvých dangerous memories, deterministický decay přes `AIWorld.ShortTermMemoryTtlMs`.
 
-**Aktuální NEXT:** `2.6B2 — recent-memory-driven SafetyPressure`.
+**Aktuální NEXT:** `2.6C — Needs threshold events`.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -111,7 +112,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6B2** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6C** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -586,9 +587,9 @@ Runtime ověřeno:
 
 ## 2.6 Needs System
 
-**Stav: 2.6A + 2.6B1 (NeedsState + deterministic drift + live world-state coupling) DONE / runtime PASS**
+**Stav: 2.6A + 2.6B1 + 2.6B2 (NeedsState + deterministic drift + live world-state coupling + recent-memory safety) DONE / runtime PASS**
 
-- [x] Zavést minimální potřeby: `health`, `hunger`, `fatigue`, `safety`, `money/resource pressure` — **`NeedsState` zavedena se všemi pěti poli; `health`/`safety` pressure jsou od 2.6B1 odvozené z live Creature stavu (recent-memory-driven safety po skončení combatu je 2.6B2)**.
+- [x] Zavést minimální potřeby: `health`, `hunger`, `fatigue`, `safety`, `money/resource pressure` — **`NeedsState` zavedena se všemi pěti poli; `health`/`safety` pressure jsou odvozené z live Creature stavu (2.6B1) s recent-memory-driven fallback po skončení combatu (2.6B2)**.
 - [x] Potřeby aktualizovat deterministicky v simulation ticku — `hunger`/`fatigue`/`resource pressure` drift na vlastní ~1s cadence, nezávislé na snapshot cadence.
 - [x] Potřeby omezit do definovaného rozsahu `0.0–1.0`.
 - [ ] Přidat threshold events, například `HUNGER_CRITICAL` nebo `DANGER_HIGH` — **2.6C**.
@@ -649,7 +650,33 @@ Runtime ověřeno:
 
 > Otevřená sémantická otázka pro 2.7: při `dead` zůstává `SafetyPressure` zmražená na poslední hodnotě (ne resetovaná na 0). Neblokující pro 2.6B1/2.6B2, ale je potřeba ji definitivně rozhodnout, než Goals začnou `SafetyPressure` číst.
 
-**Další implementace:** `2.6B2 — recent-memory-driven SafetyPressure` (danger pressure z `RetrievedMemory` po skončení combatu, deterministický decay přes `AIWorld.ShortTermMemoryTtlMs` window).
+### Implementovaný stav 2.6B2
+
+```text
+RetrievedMemory (bez _memoryRetrievalTopN truncation)
+    ↓
+NeedsSystem::EvaluateMemorySafety (whitelist: CreatureKilled/NPCInjured/LivestockKilled/WolfPackMoved/NPCDied)
+    ↓ lineární decay přes AIWorld.ShortTermMemoryTtlMs od LastObservedAtMs
+MemorySafetyPressure
+    ↓
+SafetyPressure = InCombat ? 1.0 : MemorySafetyPressure
+```
+
+Implementation: `0155b507` feat(ai-world): derive safety pressure from recent memory (2.6B2)
+Hardening: `f29923a5` fix(ai-world): don't truncate safety-relevant memories to MemoryRetrievalTopN (P2)
+
+Runtime ověřeno:
+
+- combat končí, ale existuje čerstvá dangerous memory → `SafetyPressure > 0` bez combatu.
+- `MemorySafetyPressure` deterministicky klesá k 0 v rámci `AIWorld.ShortTermMemoryTtlMs` window.
+- po vypršení window → `MemorySafetyPressure = 0`, `SafetyPressure = 0`.
+- staré/persistentní long-term dangerous memory mimo recent window nedrží agenta permanentně "v nebezpečí".
+- non-dangerous typy (`PlayerSeen`, `TradeCompleted`, ...) nepřispívají do `MemorySafetyPressure`.
+- combat má vždy přednost před memory (`SafetyPressure = 1.0` bez ohledu na memory).
+- safety retrieval už není omezen `AIWorld.MemoryRetrievalTopN` (P2 fix) - ten limit zůstává jen pro decision-context retrieval.
+- žádný nový config; žádná world mutation / DB / `/decision` změna.
+
+**Další implementace:** `2.6C — Needs threshold events` (edge-triggered `HUNGER_CRITICAL`/`DANGER_HIGH` s hysteresis latch, audit/debug log only - žádný Goal System, žádný EventBus publish).
 
 ## 2.7 Goal System
 
