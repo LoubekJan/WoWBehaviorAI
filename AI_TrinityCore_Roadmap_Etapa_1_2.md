@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený deterministický Goal System základ (2.7A + 2.7B1 + 2.7B2):
+Etapa 2 má runtime ověřenou první kompletní Needs → Goal → Action → TrinityCore pipeline (2.8A + 2.8A.5 + 2.8B, pro `FLEE`):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -39,8 +39,11 @@ Etapa 2 má runtime ověřený deterministický Goal System základ (2.7A + 2.7B
 - deterministic Goal Candidate generation (2.7A): `NeedsState` → `GoalCandidate[]` (`GET_FOOD`/`FLEE_DANGER`), level-triggered, audit/debug log only.
 - deterministic goal selection a `ActiveGoal` (2.7B1): jeden aktivní cíl, deterministický `SelectBest`, retention `>= 0.60` proti activation `>= 0.80`, emergency interruption, dead agent nemá candidate ani `ActiveGoal`.
 - `ActiveGoal` lifecycle outcomes (2.7B2): retention threshold = success condition (`SUCCEEDED reason=NEED_SATISFIED`), fixní 30s `TimeoutMs` bez uspokojení Need → `FAILED reason=TIMEOUT`, interrupt má přednost před oběma.
+- safe Action API scaffold (2.8A): `ActionRequest`/`ActionSystem::Validate()`, pure-value validation boundary, zatím jen `FLEE`.
+- AIWorld creature control takeover (2.8A.5): `AIWorldCreatureAI` potlačuje default auto-aggro/chase/melee/DB movement jen pro `OwnsSpawn()` shodu; TrinityCore combat/threat/damage/death beze změny.
+- první skutečná FLEE execution (2.8B): `ActionExecutor::ExecuteFlee`/`StopFlee` přes `MoveFleeing`/`MotionMaster`, TrinityCore pathfinding, scoped stop movement.
 
-**Aktuální NEXT:** checkpoint review Goal → Action boundary, poté `2.8 Bezpečné Action API`.
+**Aktuální NEXT:** checkpoint - další bezpečný Action API primitiv (pravděpodobně `MOVE_TO`).
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -116,7 +119,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT: Goal→Action checkpoint review, pak 2.8** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT: Action API checkpoint (MOVE_TO?)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -825,6 +828,8 @@ Runtime ověřeno:
 
 ## 2.8 Bezpečné Action API
 
+**Stav: 2.8A + 2.8A.5 + 2.8B (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + first real FLEE execution) DONE / runtime PASS pro `FLEE` - katalog je zatím jednoprvkový**
+
 AI nemá přístup k libovolnému C++ ani k přímým zápisům do světa. Smí pouze požádat o akci z povoleného katalogu.
 
 ```text
@@ -841,15 +846,59 @@ INVESTIGATE
 REQUEST_HELP
 ```
 
-- [ ] Definovat `ActionRequest` a `ActionResult`.
-- [ ] Pro každou akci implementovat serverovou validaci.
-- [ ] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce.
-- [ ] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru.
-- [ ] Přidat timeout a cancel pro dlouhé akce.
-- [ ] Přidat fallback behavior při chybě AI služby.
-- [ ] Každá provedená AI akce musí být auditovatelná: kdo ji navrhl, proč, s jakým contextem a výsledkem validace.
+> Runtime ověřeno je zatím jen `FLEE`. Zbytek katalogu čeká na `MOVE_TO` jako obecný pohybový primitiv (viz "Další implementace" níže) - žádný další action type se nepřidává naslepo.
+
+- [x] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A) hotová; validation verdict je `ActionValidationResult` (ne `ActionResult`), execution verdict je zatím jen bool + log, ne vlastní DTO**.
+- [x] Pro každou akci implementovat serverovou validaci — **hotovo pro jediný existující action type (`FLEE`); až přibude druhý, ověří se, že se vzor opravdu opakuje**.
+- [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) a existence cíle (`NoFleeSource`/`FleeSourceMismatch`, 2.8B) validuje `ActionSystem`; pathing/range/LoS pro `FLEE` deleguje `FleeingMovementGenerator` (TrinityCore), AIWorld ho neduplikuje**.
+- [x] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru — **`ActionExecutor` se volá jen po `Validate() == Allowed`; REJECTED nikdy nedosáhne engine kódu**.
+- [x] Přidat timeout a cancel pro dlouhé akce — **goal-level `TimeoutMs` (2.7B2) → `FAILED` → `ActionExecutor::StopFlee()` (2.8B), ne samostatný per-action timeout mechanismus**.
+- [ ] Přidat fallback behavior při chybě AI služby — **mimo scope: tato deterministic `FLEE_DANGER` pipeline nikdy nevolá ai-server; týká se budoucí LLM-driven decision cesty**.
+- [x] Každá provedená AI akce musí být auditovatelná: kdo ji navrhl, proč, s jakým contextem a výsledkem validace — **debug log na každém kroku (request/validation/execution/stop) s agent id, goal source, reason, výsledkem**.
 
 > **Pravidlo:** AI navrhuje. `ActionSystem` validuje. TrinityCore provádí.
+
+### Implementovaný stav 2.8A + 2.8A.5 + 2.8B
+
+```text
+FLEE_DANGER Activated/Interrupted
+    ↓
+ActionRequest (pure value: Actor, Type, SourceGoal, GoalStartedAtMs, FleeFromGuid)
+    ↓
+ActionSystem::Validate (pure value: Materialized, Alive, ActiveGoal identity, FleeSource identity)
+    ↓
+ALLOWED
+    ↓
+ActionExecutor::ExecuteFlee (world thread, live Creature&/Unit&, nikdy uložené)
+    ↓
+Creature::GetMotionMaster()->MoveFleeing (TrinityCore pathfinding, ne AIWorld)
+    ↓
+FLEE_DANGER Succeeded/Failed
+    ↓
+ActionExecutor::StopFlee (jen FLEEING_MOTION_TYPE, jen když je skutečně aktivní)
+```
+
+Souběžně (2.8A.5): `FactorySelector::SelectAI()` vrací `AIWorldCreatureAI` jen pro `sAIWorldMgr->OwnsSpawn()` shodu - default `CreatureAI` auto-aggro/chase/melee/DB movement je pro tyto NPC potlačené, aby AIWorld pipeline nesoutěžila s TrinityCore default AI o stejné rozhodnutí. Combat/threat/damage/death bookkeeping v TrinityCore zůstává nedotčené.
+
+Implementation: `231f42f0` feat(ai-world): add safe action request validation scaffold (2.8A)
+Implementation: `08fe8ace1` feat(ai-world): isolate controlled creatures from default AI behavior (2.8A.5)
+Implementation: `752edcca3` feat(ai-world): execute validated flee actions through TrinityCore (2.8B)
+Hardening: `8808a105d` fix(ai-world): stop only active flee movement (2.8B P2)
+
+Runtime ověřeno:
+
+- takeover je scoped přes `OwnsSpawn(MapId, SpawnId)`; ostatní NPC pokračují původní cestou přes pet/script/AIName/Permissible beze změny.
+- `AIWorldCreatureAI`: žádný auto-aggro/chase/melee/DB movement; combat/threat/damage/death v TrinityCore beze změny.
+- `ACTIVATED`/`INTERRUPTED` do `FLEE_DANGER` → `ActionRequest FLEE` → `ALLOWED` → `EXECUTED` → NPC se fyzicky rozběhne pryč od `fleeSource`, ne k němu.
+- `inCombat=true` zůstává pravda po celou dobu útěku.
+- `SafetyPressure < 0.60` → `SUCCEEDED FLEE_DANGER` → `AI action stop ... reason=GOAL_SUCCEEDED` → NPC přestane utíkat a zůstane idle.
+- `SafetyPressure` zůstane vysoká ~30s beze změny → `FAILED FLEE_DANGER reason=TIMEOUT` → flee movement odstraněn.
+- `StopFlee()` maže pouze `FLEEING_MOTION_TYPE` a `StopMoving()` volá jen když byl FLEE skutečně aktuálním generátorem (P2 fix) - jiný movement (knockback, charge efekt, ...) se nepřeruší.
+- žádný `MOVE_TO`/`ATTACK`/`EAT`, žádná action queue, žádný async executor, žádný LLM, žádné AIWorld-počítané flee souřadnice, žádná threat/combat mutace.
+
+**Otevřené P3 z review, neblokující:** (1) `request.FleeFromGuid`/`context.FleeSourceGuid` se dnes staví ze stejné proměnné na stejném call-site, takže `FleeSourceMismatch` je momentálně tautologicky nedosažitelný - stane se to skutečnou hranicí až se request creation a validation oddělí (např. queue/async executor). (2) `FLEE_DANGER` aktivovaný jen z recent-memory (bez current threat victim) dostane `NO_FLEE_SOURCE` a v rámci stejného goal attempt se znovu nepokusí - budoucí flee source z perception/memory nebo retry policy je otevřená otázka.
+
+**Další implementace:** checkpoint - jaký je další bezpečný Action API primitiv. Pravděpodobně `MOVE_TO` jako obecný pohybový primitiv, ne rovnou `EAT` nebo `ATTACK`.
 
 ## 2.9 AI server — decision protocol
 
