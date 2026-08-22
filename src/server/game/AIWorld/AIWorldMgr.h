@@ -23,6 +23,7 @@
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
+#include "Goal/GoalSystem.h"
 #include "Inference/AIClient.h"
 #include "Memory/LongTermMemory.h"
 #include "Memory/MemoryRetrieval.h"
@@ -181,6 +182,14 @@ class TC_GAME_API AIWorldMgr
         NeedsUpdateRates _needsRates;
         uint32 _needsUpdateIntervalMs = 1000;
         uint32 _needsUpdateTimer = 0;
+
+        // Milestone 2.7A: deterministic, level-triggered goal candidate
+        // generation from NeedsState, run right after UpdateNeeds() so it
+        // always sees this tick's freshly-updated Needs. Logged only - no
+        // ActiveGoal, no selection, no Action API (that's 2.7B/2.8). Pure
+        // value transform: GoalSystem itself never touches AgentId/
+        // Creature/Map/AgentRecord/DB.
+        GoalSystem _goalSystem;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()

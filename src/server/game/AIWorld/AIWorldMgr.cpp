@@ -647,6 +647,18 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             TC_LOG_DEBUG("ai.world", "AI needs threshold agent={} type={} value={:.4f}",
                 record->Id.Value, ToString(event.Type), event.Value);
         }
+
+        // Milestone 2.7A: level-triggered, not derived from the edge-
+        // triggered NeedsThresholdEvent above - a candidate must exist for
+        // as long as its Need stays at/above threshold, not just on the
+        // tick it crosses. Debug log only - no ActiveGoal, no selection,
+        // no Action API.
+        for (GoalCandidate const& candidate : _goalSystem.GenerateCandidates(record->Needs))
+        {
+            TC_LOG_DEBUG("ai.world", "AI goal candidate agent={} type={} priority={} utility={:.4f} source={}",
+                record->Id.Value, ToString(candidate.Type), ToString(candidate.Priority),
+                candidate.Utility, ToString(candidate.Source));
+        }
     }
 }
 
