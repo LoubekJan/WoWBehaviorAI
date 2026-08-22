@@ -35,6 +35,17 @@ bool ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, 
 
 void ActionExecutor::StopFlee(Creature& actor) const
 {
-    actor.GetMotionMaster()->Remove(FLEEING_MOTION_TYPE);
-    actor.StopMoving();
+    MotionMaster* motion = actor.GetMotionMaster();
+
+    // StopMoving() halts whatever spline is currently running, unscoped by
+    // generator type - if something else (knockback, a charge effect, ...)
+    // has since taken over as the active movement generator, FLEE is no
+    // longer running and StopMoving() must not touch that unrelated
+    // movement. Only call it when FLEE was actually the one still active.
+    bool wasActiveFlee = motion->GetCurrentMovementGeneratorType() == FLEEING_MOTION_TYPE;
+
+    motion->Remove(FLEEING_MOTION_TYPE);
+
+    if (wasActiveFlee)
+        actor.StopMoving();
 }

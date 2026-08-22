@@ -52,8 +52,13 @@ class TC_GAME_API ActionExecutor
 
         // Ends a flee started by ExecuteFlee() - removes only the
         // FLEEING_MOTION_TYPE generator (never MotionMaster::Clear(),
-        // which could later delete an unrelated Action's movement) and
-        // stops the actor in place. Called once the goal that started the
+        // which could later delete an unrelated Action's movement), and
+        // only halts the actor's current spline (StopMoving()) if FLEE was
+        // actually still the active movement generator when this is
+        // called - if something else (knockback, a charge effect, ...) had
+        // already taken over as active, StopMoving() must not touch that
+        // unrelated movement just because our own FLEE also happened to
+        // end around the same time. Called once the goal that started the
         // flee reaches a terminal outcome (Succeeded/Failed) - not for
         // death, which TrinityCore's own MotionMaster lifecycle already
         // handles without help.
