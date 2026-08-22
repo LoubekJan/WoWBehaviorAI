@@ -73,6 +73,19 @@ namespace
 
         return uint8(a.Type) < uint8(b.Type);
     }
+
+    // Milestone 2.7B2: a fixed per-GoalType default - no config knob yet.
+    // 30s exists mainly so the FAILED path is actually runtime-observable
+    // within this milestone's gate; it is not a tuned gameplay value.
+    uint32 TimeoutFor(GoalType type)
+    {
+        switch (type)
+        {
+            case GoalType::GetFood:    return 30000;
+            case GoalType::FleeDanger: return 30000;
+            default:                   return 30000;
+        }
+    }
 }
 
 std::vector<GoalCandidate> GoalSystem::GenerateCandidates(NeedsState const& needs) const
@@ -101,6 +114,18 @@ GoalCandidate const* GoalSystem::SelectBest(std::vector<GoalCandidate> const& ca
     return best;
 }
 
+ActiveGoal GoalSystem::MakeActiveGoal(GoalCandidate const& candidate, uint64 nowMs) const
+{
+    ActiveGoal goal;
+    goal.Type = candidate.Type;
+    goal.Priority = candidate.Priority;
+    goal.Source = candidate.Source;
+    goal.Utility = candidate.Utility;
+    goal.StartedAtMs = nowMs;
+    goal.TimeoutMs = TimeoutFor(candidate.Type);
+    return goal;
+}
+
 GoalSelectionResult GoalSystem::UpdateActiveGoal(std::optional<ActiveGoal> const& current, NeedsState const& needs,
     std::vector<GoalCandidate> const& candidates, uint64 nowMs) const
 {
@@ -110,37 +135,57 @@ GoalSelectionResult GoalSystem::UpdateActiveGoal(std::optional<ActiveGoal> const
         if (!best)
             return {};
 
-        ActiveGoal goal;
-        goal.Type = best->Type;
-        goal.Priority = best->Priority;
-        goal.Source = best->Source;
-        goal.Utility = best->Utility;
-        goal.StartedAtMs = nowMs;
-
-        return { goal, GoalTransition::Activated };
+        return { MakeActiveGoal(*best, nowMs), GoalTransition::Activated };
     }
 
     // A strictly higher-priority candidate always takes over immediately,
-    // regardless of whether current's own Need has dropped - this is what
-    // lets an EMERGENCY FLEE_DANGER interrupt an active NORMAL GET_FOOD.
-    // The reverse never happens: a Normal candidate, however high its
-    // Utility, cannot interrupt an active Emergency goal - only that
-    // goal's own Need dropping below GoalRetentionThreshold releases it.
+    // regardless of whether current's own Need has dropped or its timeout
+    // has elapsed - checked before success/timeout below specifically so
+    // an emerging Emergency candidate never waits a tick just because
+    // current also happens to satisfy its own success/timeout condition
+    // this same tick. This is what lets an EMERGENCY FLEE_DANGER interrupt
+    // an active NORMAL GET_FOOD. The reverse never happens: a Normal
+    // candidate, however high its Utility, cannot interrupt an active
+    // Emergency goal - only that goal's own Need dropping below
+    // GoalRetentionThreshold (Succeeded) or its timeout elapsing (Failed)
+    // ends it.
     GoalCandidate const* best = SelectBest(candidates);
     if (best && PriorityRank(best->Priority) > PriorityRank(current->Priority))
-    {
-        ActiveGoal goal;
-        goal.Type = best->Type;
-        goal.Priority = best->Priority;
-        goal.Source = best->Source;
-        goal.Utility = best->Utility;
-        goal.StartedAtMs = nowMs;
+        return { MakeActiveGoal(*best, nowMs), GoalTransition::Interrupted };
 
-        return { goal, GoalTransition::Interrupted };
+    // Success condition is exactly the 2.7B1 retention threshold, just
+    // renamed: the Need that justified this goal has dropped enough that
+    // the goal is considered satisfied. Checked before timeout so a Need
+    // that crosses below threshold on the very tick the timeout would also
+    // fire counts as a success, not a failure.
+    if (NeedValueFor(current->Type, needs) < GoalRetentionThreshold)
+    {
+        GoalCompletion completion;
+        completion.Type = current->Type;
+        completion.Status = GoalStatus::Succeeded;
+        completion.Reason = GoalCompletionReason::NeedSatisfied;
+        completion.StartedAtMs = current->StartedAtMs;
+        completion.CompletedAtMs = nowMs;
+
+        return { std::nullopt, GoalTransition::Succeeded, completion };
     }
 
-    if (NeedValueFor(current->Type, needs) < GoalRetentionThreshold)
-        return { std::nullopt, GoalTransition::Released };
+    // nowMs >= StartedAtMs guards against StartedAtMs + TimeoutMs
+    // overflowing past nowMs and comparing as "not yet timed out" - GameTime
+    // is monotonic here in practice, but the subtraction form below is safe
+    // regardless.
+    bool timedOut = nowMs >= current->StartedAtMs && (nowMs - current->StartedAtMs) >= current->TimeoutMs;
+    if (timedOut)
+    {
+        GoalCompletion completion;
+        completion.Type = current->Type;
+        completion.Status = GoalStatus::Failed;
+        completion.Reason = GoalCompletionReason::Timeout;
+        completion.StartedAtMs = current->StartedAtMs;
+        completion.CompletedAtMs = nowMs;
+
+        return { std::nullopt, GoalTransition::Failed, completion };
+    }
 
     return { current, GoalTransition::None };
 }

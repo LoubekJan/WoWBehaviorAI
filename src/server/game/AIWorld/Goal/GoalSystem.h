@@ -42,24 +42,33 @@ class TC_GAME_API GoalSystem
     public:
         std::vector<GoalCandidate> GenerateCandidates(NeedsState const& needs) const;
 
-        // Milestone 2.7B1: current is the agent's existing ActiveGoal (or
-        // empty if it has none); candidates is this tick's
+        // Milestone 2.7B1/2.7B2: current is the agent's existing ActiveGoal
+        // (or empty if it has none); candidates is this tick's
         // GenerateCandidates() output. Deterministic, one transition per
-        // call:
-        //   - no current goal -> selects the best candidate (Emergency
-        //     outranks Normal, then higher Utility, then a fixed GoalType
-        //     tie-break) and Activates it, or does nothing if there are no
-        //     candidates.
-        //   - a higher-priority candidate exists than current ->
-        //     Interrupts current with it, regardless of whether current's
-        //     own Need has dropped.
-        //   - otherwise, if current's own Need has dropped below the
-        //     retention threshold -> Releases it.
-        //   - otherwise -> keeps current unchanged (Transition::None).
-        // Retention is deliberately looser than activation (candidates
-        // need >= 0.80 to appear, but an already-active goal is only
-        // released once its Need drops < 0.60) so a goal doesn't flap
+        // call, checked in this fixed order:
+        //   1. no current goal -> selects the best candidate (Emergency
+        //      outranks Normal, then higher Utility, then a fixed GoalType
+        //      tie-break) and Activates it, or does nothing if there are
+        //      no candidates.
+        //   2. a higher-priority candidate exists than current ->
+        //      Interrupts current with it immediately - checked before
+        //      success/timeout below specifically so an emerging
+        //      Emergency candidate never waits a tick just because current
+        //      also happens to have satisfied its own success condition
+        //      this same tick.
+        //   3. current's own Need has dropped below the retention
+        //      threshold -> Succeeded (goal satisfied), with a
+        //      GoalCompletion attached.
+        //   4. current has run for >= its TimeoutMs -> Failed (goal
+        //      attempt expired, Need never dropped), with a
+        //      GoalCompletion attached.
+        //   5. otherwise -> keeps current unchanged (Transition::None).
+        // Retention/success is deliberately looser than activation
+        // (candidates need >= 0.80 to appear, but an already-active goal
+        // only succeeds once its Need drops < 0.60) so a goal doesn't flap
         // every tick its Need dips a hair below the activation threshold.
+        // Released is NOT a transition this function ever returns - that's
+        // reserved for an external cancellation (see GoalTransition.h).
         // Pure value in, pure value out - never touches AgentRecord
         // itself; the caller is responsible for storing the result.
         GoalSelectionResult UpdateActiveGoal(std::optional<ActiveGoal> const& current, NeedsState const& needs,
@@ -67,6 +76,7 @@ class TC_GAME_API GoalSystem
 
     private:
         GoalCandidate const* SelectBest(std::vector<GoalCandidate> const& candidates) const;
+        ActiveGoal MakeActiveGoal(GoalCandidate const& candidate, uint64 nowMs) const;
 };
 
 #endif // AIWORLD_GOALSYSTEM_H

@@ -21,12 +21,13 @@
 #include "Define.h"
 #include "GoalType.h"
 
-// Milestone 2.7B1: the one goal an agent is currently pursuing, selected
-// deterministically from GoalCandidate[] and retained with its own
-// hysteresis (see GoalSystem::UpdateActiveGoal()) so it doesn't flap every
-// tick a Need dips a hair below its candidate threshold. Deliberately no
-// status/timeout/success condition yet - without an Action API driving it,
-// that lifecycle would be artificial; that's 2.7B2. Pure value: no
+// Milestone 2.7B1/2.7B2: the one goal an agent is currently pursuing,
+// selected deterministically from GoalCandidate[] and retained with its
+// own hysteresis (see GoalSystem::UpdateActiveGoal()) so it doesn't flap
+// every tick a Need dips a hair below its candidate threshold. No status
+// field - a terminal outcome (GoalStatus, via GoalCompletion) ends this
+// goal's existence rather than being a state it sits in; while this
+// struct exists at all, the goal is active by definition. Pure value: no
 // AgentId, Creature*, Map*, or DB.
 struct ActiveGoal
 {
@@ -37,6 +38,12 @@ struct ActiveGoal
     float Utility = 0.0f;
 
     uint64 StartedAtMs = 0;
+
+    // Milestone 2.7B2: how long this goal attempt gets before it's
+    // considered FAILED if its Need still hasn't dropped below the
+    // retention threshold. Set once at Activate/Interrupt time from
+    // GoalSystem's fixed per-GoalType default - no config knob yet.
+    uint32 TimeoutMs = 0;
 };
 
 #endif // AIWORLD_ACTIVEGOAL_H

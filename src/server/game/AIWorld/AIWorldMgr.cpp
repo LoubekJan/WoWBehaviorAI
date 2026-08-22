@@ -682,9 +682,10 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 candidate.Utility, ToString(candidate.Source));
         }
 
-        // Milestone 2.7B1: select/retain/interrupt/release the agent's
-        // single ActiveGoal. Still no Action API, no /decision change, no
-        // world mutation - transitions are logged, nothing acts on them.
+        // Milestone 2.7B1/2.7B2: select/retain/interrupt/complete the
+        // agent's single ActiveGoal. Still no Action API, no /decision
+        // change, no world mutation - transitions are logged, nothing
+        // acts on them.
         std::optional<ActiveGoal> previousGoal = record->ActiveGoalState;
         GoalSelectionResult selection = _goalSystem.UpdateActiveGoal(record->ActiveGoalState, record->Needs, candidates, nowMs);
         record->ActiveGoalState = selection.Goal;
@@ -700,6 +701,12 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} from={} to={} priority={} utility={:.4f}",
                     record->Id.Value, ToString(selection.Transition), ToString(previousGoal->Type), ToString(selection.Goal->Type),
                     ToString(selection.Goal->Priority), selection.Goal->Utility);
+                break;
+            case GoalTransition::Succeeded:
+            case GoalTransition::Failed:
+                TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={} reason={} durationMs={}",
+                    record->Id.Value, ToString(selection.Transition), ToString(selection.Completion->Type),
+                    ToString(selection.Completion->Reason), selection.Completion->CompletedAtMs - selection.Completion->StartedAtMs);
                 break;
             case GoalTransition::Released:
                 TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={}",
