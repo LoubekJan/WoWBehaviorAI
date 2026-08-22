@@ -617,10 +617,18 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
         std::vector<MemoryRecord> shortTermMemories = _shortTermMemory.GetActiveForAgent(id, nowMs);
         std::vector<LongTermMemoryRecord> longTermMemories = _longTermMemory.GetForAgent(id);
-        std::vector<RetrievedMemory> relevantMemories = _memoryRetrieval.Retrieve(
-            memoryContext, shortTermMemories, longTermMemories, _memoryRetrievalTopN);
 
-        context.MemorySafetyPressure = _needsSystem.EvaluateMemorySafety(relevantMemories, nowMs, _shortTermMemoryTtlMs);
+        // Deliberately NOT _memoryRetrievalTopN: that limit exists to keep
+        // a decision context small, and truncating to it here could rank a
+        // recent dangerous memory below the cut (general relevance, not
+        // danger, decides the ranking) and hide it from
+        // EvaluateMemorySafety() entirely. Safety must see every retained
+        // memory, so the limit is sized to never truncate.
+        std::size_t safetyMemoryLimit = shortTermMemories.size() + longTermMemories.size();
+        std::vector<RetrievedMemory> safetyMemories = _memoryRetrieval.Retrieve(
+            memoryContext, shortTermMemories, longTermMemories, safetyMemoryLimit);
+
+        context.MemorySafetyPressure = _needsSystem.EvaluateMemorySafety(safetyMemories, nowMs, _shortTermMemoryTtlMs);
 
         _needsSystem.Update(record->Needs, context, elapsedMs, _needsRates);
 
