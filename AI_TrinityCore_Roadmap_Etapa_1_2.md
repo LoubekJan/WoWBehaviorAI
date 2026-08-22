@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený základ až po recent-memory-driven Needs safety (2.6B2):
+Etapa 2 má runtime ověřený základ až po Needs threshold events (2.6C):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -35,8 +35,9 @@ Etapa 2 má runtime ověřený základ až po recent-memory-driven Needs safety 
 - per-agent `NeedsState` (2.6A): deterministic hunger/fatigue/resource pressure drift, vlastní cadence, clamp 0.0–1.0, live Creature existence jako authority.
 - `NeedsState` live world-state coupling (2.6B1): `HealthPressure` z HP ratio, `SafetyPressure` z `InCombat`, hunger/fatigue/resource zmrazené při smrti.
 - `NeedsState` recent-memory-driven safety (2.6B2): `SafetyPressure` po skončení combatu odvozená z čerstvých dangerous memories, deterministický decay přes `AIWorld.ShortTermMemoryTtlMs`.
+- Needs threshold events (2.6C): edge-triggered `HUNGER_CRITICAL`/`DANGER_HIGH` s hysteresis latch, audit/debug log only.
 
-**Aktuální NEXT:** `2.6C — Needs threshold events`.
+**Aktuální NEXT:** `2.7A — deterministic Goal Candidate generation` (předstupeň před `2.7 Goal System`).
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -112,7 +113,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6C** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.7A** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -587,13 +588,13 @@ Runtime ověřeno:
 
 ## 2.6 Needs System
 
-**Stav: 2.6A + 2.6B1 + 2.6B2 (NeedsState + deterministic drift + live world-state coupling + recent-memory safety) DONE / runtime PASS**
+**Stav: 2.6A + 2.6B1 + 2.6B2 + 2.6C (NeedsState + deterministic drift + live world-state coupling + recent-memory safety + threshold events) DONE / runtime PASS**
 
 - [x] Zavést minimální potřeby: `health`, `hunger`, `fatigue`, `safety`, `money/resource pressure` — **`NeedsState` zavedena se všemi pěti poli; `health`/`safety` pressure jsou odvozené z live Creature stavu (2.6B1) s recent-memory-driven fallback po skončení combatu (2.6B2)**.
 - [x] Potřeby aktualizovat deterministicky v simulation ticku — `hunger`/`fatigue`/`resource pressure` drift na vlastní ~1s cadence, nezávislé na snapshot cadence.
 - [x] Potřeby omezit do definovaného rozsahu `0.0–1.0`.
-- [ ] Přidat threshold events, například `HUNGER_CRITICAL` nebo `DANGER_HIGH` — **2.6C**.
-- [ ] Nechat potřeby generovat kandidáty na cíle bez LLM — **2.7**.
+- [x] Přidat threshold events, například `HUNGER_CRITICAL` nebo `DANGER_HIGH` — **edge-triggered, hysteresis latch, audit/debug log only (2.6C); katalog zatím jen `HUNGER_CRITICAL`/`DANGER_HIGH`**.
+- [ ] Nechat potřeby generovat kandidáty na cíle bez LLM — **2.7A (deterministic Goal Candidate generation, plánovaný předstupeň před plným 2.7 Utility AI)**.
 
 ### Implementovaný stav 2.6A
 
@@ -676,7 +677,32 @@ Runtime ověřeno:
 - safety retrieval už není omezen `AIWorld.MemoryRetrievalTopN` (P2 fix) - ten limit zůstává jen pro decision-context retrieval.
 - žádný nový config; žádná world mutation / DB / `/decision` změna.
 
-**Další implementace:** `2.6C — Needs threshold events` (edge-triggered `HUNGER_CRITICAL`/`DANGER_HIGH` s hysteresis latch, audit/debug log only - žádný Goal System, žádný EventBus publish).
+### Implementovaný stav 2.6C
+
+```text
+NeedsState (Hunger, SafetyPressure)
+    ↓
+NeedsSystem::EvaluateThresholds (per-agent NeedsThresholdState latch)
+    ↓ enter >= 0.80 (jednou), reset < 0.60 (rearm)
+NeedsThresholdEvent (HUNGER_CRITICAL / DANGER_HIGH) - pure value, ne WorldEvent
+    ↓
+audit/debug log (žádný EventBus, žádný Goal System, žádná /decision změna)
+```
+
+Implementation: `52b46ff7` feat(ai-world): emit needs threshold events (2.6C)
+
+Runtime ověřeno:
+
+- `Hunger`/`SafetyPressure >= 0.80` → přesně jeden `HUNGER_CRITICAL`/`DANGER_HIGH` event.
+- hodnota setrvává nad 0.80 → žádný další event (latch ACTIVE).
+- hodnota klesne pod 0.60 → latch se rearms.
+- další přechod přes 0.80 → nový event.
+- `NeedsThresholdState` přežije Creature unload/reload (owned v `AgentRecord` vedle `Needs`).
+- žádný `WorldEvent`/`EventBus` publish - agentova vlastní potřeba není automaticky pozorovatelná ostatními.
+- žádný Goal System, žádný Action API, žádná `/decision` změna.
+- žádná threshold persistence, žádné nové config knoby.
+
+**Další implementace:** `2.7A — deterministic Goal Candidate generation` (Needs/thresholds → kandidáti cílů, zatím bez LLM a bez Action API; předstupeň před plným `2.7 Goal System`/Utility AI).
 
 ## 2.7 Goal System
 
