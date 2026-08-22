@@ -697,12 +697,13 @@ Runtime ověřeno:
 - hodnota setrvává nad 0.80 → žádný další event (latch ACTIVE).
 - hodnota klesne pod 0.60 → latch se rearms.
 - další přechod přes 0.80 → nový event.
-- `NeedsThresholdState` přežije Creature unload/reload (owned v `AgentRecord` vedle `Needs`).
 - žádný `WorldEvent`/`EventBus` publish - agentova vlastní potřeba není automaticky pozorovatelná ostatními.
 - žádný Goal System, žádný Action API, žádná `/decision` změna.
 - žádná threshold persistence, žádné nové config knoby.
 
-**Další implementace:** `2.7A — deterministic Goal Candidate generation` (Needs/thresholds → kandidáti cílů, zatím bez LLM a bez Action API; předstupeň před plným `2.7 Goal System`/Utility AI).
+> `NeedsThresholdState` je owned v `AgentRecord` vedle `NeedsState`, takže staticky přežije Creature unload/reload stejným mechanismem - tohle konkrétně jsme ale samostatným runtime testem (unload → reload → ověřit latch) neprošli, jen jsme ho odvodili z ownershipu.
+
+**Další implementace:** `2.7A — deterministic Goal Candidate generation` (`NeedsState` → `GoalCandidate[]`, zatím bez LLM a bez Action API; předstupeň před plným `2.7 Goal System`/Utility AI).
 
 ## 2.7 Goal System
 
