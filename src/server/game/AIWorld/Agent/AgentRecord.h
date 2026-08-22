@@ -21,6 +21,7 @@
 #include "AgentId.h"
 #include "AgentType.h"
 #include "Define.h"
+#include "Needs/NeedsState.h"
 #include "ObjectGuid.h"
 
 // One persistent agent's registry-owned state. SpawnId/MapId is the stable
@@ -40,6 +41,12 @@ struct AgentRecord
     AgentWorldState WorldState = AgentWorldState::Abstract;
 
     uint64 SnapshotSequence = 0;
+
+    // Milestone 2.6A: owned here, not by NeedsSystem - AgentRecord is
+    // already the registry-owned home for an agent's runtime state, and
+    // Needs must survive Creature unload/reload the same way everything
+    // else here does. Frozen (not updated) while WorldState == Abstract.
+    NeedsState Needs;
 };
 
 #endif // AIWORLD_AGENTRECORD_H

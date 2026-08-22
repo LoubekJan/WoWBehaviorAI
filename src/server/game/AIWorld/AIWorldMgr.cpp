@@ -129,6 +129,25 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _memoryRetrievalTopN = uint32(memoryRetrievalTopN);
 
+    int32 needsUpdateIntervalMs = sConfigMgr->GetIntDefault("AIWorld.NeedsUpdateIntervalMs", 1000);
+    if (needsUpdateIntervalMs < 100)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.NeedsUpdateIntervalMs ({}) is invalid or too low, clamping to 100ms", needsUpdateIntervalMs);
+        needsUpdateIntervalMs = 100;
+    }
+    _needsUpdateIntervalMs = uint32(needsUpdateIntervalMs);
+    _needsUpdateTimer = 0;
+
+    _needsRates.HungerPerSecond = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.NeedsHungerRatePerSecond", 0.0002f), 0.0f, 1.0f);
+    _needsRates.FatiguePerSecond = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.NeedsFatigueRatePerSecond", 0.0001f), 0.0f, 1.0f);
+    _needsRates.ResourcePressurePerSecond = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.NeedsResourcePressureRatePerSecond", 0.00005f), 0.0f, 1.0f);
+
+    TC_LOG_INFO("ai.world", "AI needs configured interval={}ms hungerRate={:.6f} fatigueRate={:.6f} resourceRate={:.6f}",
+        _needsUpdateIntervalMs, _needsRates.HungerPerSecond, _needsRates.FatiguePerSecond, _needsRates.ResourcePressurePerSecond);
+
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
@@ -224,6 +243,14 @@ void AIWorldMgr::Update(uint32 diff)
     {
         _memoryMaintenanceTimer = 0;
         _shortTermMemory.Expire(CurrentTimeMs());
+    }
+
+    _needsUpdateTimer += diff;
+    if (_needsUpdateTimer >= _needsUpdateIntervalMs)
+    {
+        uint32 elapsedMs = _needsUpdateTimer;
+        _needsUpdateTimer = 0;
+        UpdateNeeds(elapsedMs);
     }
 
     _healthTimer += diff;
@@ -533,6 +560,33 @@ void AIWorldMgr::ScanNearbyEntities()
 
             ProcessObservation(*observation);
         }
+    }
+}
+
+// World thread only, on its own ~1s cadence (_needsUpdateIntervalMs),
+// independent of _snapshotIntervalMs - Milestone 2.6A. Only Materialized
+// agents drift; Abstract agents are frozen rather than dead-reckoned, so
+// this deliberately does not become background simulation before that's
+// its own milestone. No new Map*/Creature* lookups - just NeedsSystem
+// advancing the NeedsState already sitting in AgentRecord.
+void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
+{
+    for (AgentId id : _registry.GetAgents())
+    {
+        AgentRecord* record = _registry.Find(id);
+        if (!record)
+            continue;
+
+        if (record->WorldState != AgentWorldState::Materialized)
+            continue;
+
+        _needsSystem.Update(record->Needs, elapsedMs, _needsRates);
+
+        TC_LOG_DEBUG("ai.world",
+            "AI needs agent={} dt={}ms healthPressure={:.4f} hunger={:.4f} fatigue={:.4f} safetyPressure={:.4f} resourcePressure={:.4f}",
+            record->Id.Value, elapsedMs,
+            record->Needs.HealthPressure, record->Needs.Hunger, record->Needs.Fatigue,
+            record->Needs.SafetyPressure, record->Needs.ResourcePressure);
     }
 }
 

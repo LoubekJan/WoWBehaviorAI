@@ -27,6 +27,7 @@
 #include "Memory/LongTermMemory.h"
 #include "Memory/MemoryRetrieval.h"
 #include "Memory/ShortTermMemory.h"
+#include "Needs/NeedsSystem.h"
 #include "Perception/PerceptionSystem.h"
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
@@ -70,6 +71,7 @@ class TC_GAME_API AIWorldMgr
         void ProcessWorldEvent(WorldEvent& event);
         void ProcessObservation(Observation const& observation);
         void ScanNearbyEntities();
+        void UpdateNeeds(uint32 elapsedMs);
 
         bool _enabled = false;
 
@@ -169,6 +171,16 @@ class TC_GAME_API AIWorldMgr
         // consumes the result yet, AIRequest is untouched.
         MemoryRetrieval _memoryRetrieval;
         uint32 _memoryRetrievalTopN = 5;
+
+        // Milestone 2.6A: deterministic per-agent NeedsState drift, run only
+        // for Materialized agents (see UpdateNeeds()) on its own ~1s cadence,
+        // independent of _snapshotIntervalMs - Needs is a simulation
+        // subsystem, not part of the snapshot/decision cadence. Pure value
+        // transform: NeedsSystem itself never touches AgentId/Creature/Map.
+        NeedsSystem _needsSystem;
+        NeedsUpdateRates _needsRates;
+        uint32 _needsUpdateIntervalMs = 1000;
+        uint32 _needsUpdateTimer = 0;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()

@@ -3508,6 +3508,32 @@ AIWorld.LongTermMemoryMinImportance = 0.75
 AIWorld.MemoryRetrievalTopN = 5
 
 #
+#    AIWorld.NeedsUpdateIntervalMs
+#        Description: Time (in milliseconds) between NeedsState updates for each Materialized
+#                     agent. Independent of AIWorld.SnapshotIntervalMs - Needs is a simulation
+#                     subsystem, not part of the snapshot/decision cadence.
+#        Important:   Values below 100 are clamped to 100.
+#        Default:     1000
+
+AIWorld.NeedsUpdateIntervalMs = 1000
+
+#
+#    AIWorld.NeedsHungerRatePerSecond
+#    AIWorld.NeedsFatigueRatePerSecond
+#    AIWorld.NeedsResourcePressureRatePerSecond
+#        Description: Per-second drift rate (0.0-1.0) applied to a Materialized agent's Hunger,
+#                     Fatigue, and ResourcePressure NeedsState fields respectively. HealthPressure
+#                     and SafetyPressure do not drift in Milestone 2.6A.
+#        Important:   Clamped to the 0.0-1.0 range.
+#        Default:     0.0002  - (AIWorld.NeedsHungerRatePerSecond)
+#                     0.0001  - (AIWorld.NeedsFatigueRatePerSecond)
+#                     0.00005 - (AIWorld.NeedsResourcePressureRatePerSecond)
+
+AIWorld.NeedsHungerRatePerSecond = 0.0002
+AIWorld.NeedsFatigueRatePerSecond = 0.0001
+AIWorld.NeedsResourcePressureRatePerSecond = 0.00005
+
+#
 ###################################################################################################
 
 ###################################################################################################
