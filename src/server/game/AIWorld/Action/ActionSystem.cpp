@@ -33,15 +33,33 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
     if (request.SourceGoal != *context.ActiveGoalType)
         return { false, ActionRejectReason::GoalMismatch };
 
+    // Not just the same GoalType - the same goal attempt. Irrelevant while
+    // request/validate/execute all happen synchronously in one world-thread
+    // pass (2.8B), but this is exactly the identity a future queued/async
+    // ActionRequest would need to guard: the actor could otherwise release
+    // this goal and activate a new FleeDanger attempt before a stale
+    // request gets validated.
+    if (request.GoalStartedAtMs != context.ActiveGoalStartedAtMs)
+        return { false, ActionRejectReason::GoalMismatch };
+
     if (request.Type != ActionType::Flee)
         return { false, ActionRejectReason::UnsupportedAction };
 
-    // 2.8A only knows how to validate a Flee request sourced from
+    // 2.8A/2.8B only know how to validate a Flee request sourced from
     // FleeDanger - deliberately not folded into the SourceGoal check
     // above, which only proves the request is honest, not that the actual
-    // goal is one 2.8A supports.
+    // goal is one this system supports.
     if (*context.ActiveGoalType != GoalType::FleeDanger)
         return { false, ActionRejectReason::GoalMismatch };
+
+    // Milestone 2.8B: Flee needs somewhere to flee from, and the request
+    // must honestly name it - the same pattern as SourceGoal above, applied
+    // to the actor's actual current threat victim rather than its goal.
+    if (context.FleeSourceGuid.IsEmpty())
+        return { false, ActionRejectReason::NoFleeSource };
+
+    if (request.FleeFromGuid != context.FleeSourceGuid)
+        return { false, ActionRejectReason::FleeSourceMismatch };
 
     return { true, ActionRejectReason::None };
 }

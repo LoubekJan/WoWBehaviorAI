@@ -20,13 +20,15 @@
 
 #include "Define.h"
 #include "Goal/GoalType.h"
+#include "ObjectGuid.h"
 #include <optional>
 
-// Milestone 2.8A: the world-thread facts ActionSystem::Validate() is
+// Milestone 2.8A/2.8B: the world-thread facts ActionSystem::Validate() is
 // allowed to see, as plain values - AIWorldMgr resolves Materialized/
-// Alive/the actor's current ActiveGoal itself (it already has the live
-// Creature and AgentRecord at the call site) and hands over only this.
-// ActionSystem never sees a Creature*, AgentRecord*, or the registry.
+// Alive/the actor's current ActiveGoal/current threat victim itself (it
+// already has the live Creature and AgentRecord at the call site) and
+// hands over only this. ActionSystem never sees a Creature*, AgentRecord*,
+// Unit*, or the registry.
 struct ActionValidationContext
 {
     bool Materialized = false;
@@ -34,6 +36,12 @@ struct ActionValidationContext
 
     std::optional<GoalType> ActiveGoalType;
     uint64 ActiveGoalStartedAtMs = 0;
+
+    // Milestone 2.8B: the actor's actual current threat victim GUID
+    // (ThreatManager::GetCurrentVictim()), empty if it has none. Compared
+    // against ActionRequest::FleeFromGuid for a Flee request - reality,
+    // not the request's claim.
+    ObjectGuid FleeSourceGuid;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

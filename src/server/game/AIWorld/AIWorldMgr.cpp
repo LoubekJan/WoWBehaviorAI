@@ -727,6 +727,20 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={} reason={} durationMs={}",
                     record->Id.Value, ToString(selection.Transition), ToString(selection.Completion->Type),
                     ToString(selection.Completion->Reason), selection.Completion->CompletedAtMs - selection.Completion->StartedAtMs);
+
+                // Milestone 2.8B: only FleeDanger ever has a live
+                // TrinityCore movement generator to stop - GetFood never
+                // executed anything (see ActionType.h). Ends only the
+                // FLEEING_MOTION_TYPE generator ExecuteFlee() started, not
+                // MotionMaster::Clear().
+                if (selection.Completion->Type == GoalType::FleeDanger)
+                {
+                    _actionExecutor.StopFlee(*creature);
+
+                    TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={}",
+                        record->Id.Value, ToString(ActionType::Flee),
+                        selection.Transition == GoalTransition::Succeeded ? "GOAL_SUCCEEDED" : "GOAL_FAILED");
+                }
                 break;
             case GoalTransition::Released:
                 TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={}",
@@ -736,35 +750,56 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 break;
         }
 
-        // Milestone 2.8A: propose (never execute) a FLEE ActionRequest the
-        // tick FLEE_DANGER is Activated or Interrupted-into - not every
-        // tick it stays active. ActionSystem::Validate() only judges
-        // ALLOWED/REJECTED; nothing here calls into TrinityCore's
-        // movement/combat API (that's 2.8B). GET_FOOD deliberately maps to
-        // no action yet - see ActionType.h for why.
+        // Milestone 2.8A/2.8B: propose, validate, and (on ALLOWED) execute
+        // a FLEE ActionRequest the tick FLEE_DANGER is Activated or
+        // Interrupted-into - not every tick it stays active. GET_FOOD
+        // deliberately maps to no action yet - see ActionType.h for why.
         if ((selection.Transition == GoalTransition::Activated || selection.Transition == GoalTransition::Interrupted)
             && selection.Goal->Type == GoalType::FleeDanger)
         {
+            // Resolved once here and reused for both the request's claimed
+            // FleeFromGuid and the validation context's actual
+            // FleeSourceGuid - trivially the same value in 2.8B since both
+            // come from this one live lookup in this one synchronous pass,
+            // but this is exactly the engine-authoritative source
+            // ActionSystem::Validate() checks the request's honesty
+            // against.
+            Unit* fleeSource = creature->GetThreatManager().GetCurrentVictim();
+
             ActionRequest request;
             request.Actor = id;
             request.Type = ActionType::Flee;
             request.SourceGoal = selection.Goal->Type;
             request.GoalStartedAtMs = selection.Goal->StartedAtMs;
+            request.FleeFromGuid = fleeSource ? fleeSource->GetGUID() : ObjectGuid::Empty;
 
-            TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={}",
-                record->Id.Value, ToString(request.Type), ToString(request.SourceGoal));
+            TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} fleeFrom={}",
+                record->Id.Value, ToString(request.Type), ToString(request.SourceGoal), request.FleeFromGuid.ToString());
 
             ActionValidationContext validationContext;
             validationContext.Materialized = record->WorldState == AgentWorldState::Materialized;
             validationContext.Alive = context.Alive;
             validationContext.ActiveGoalType = record->ActiveGoalState->Type;
             validationContext.ActiveGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
+            validationContext.FleeSourceGuid = request.FleeFromGuid;
 
             ActionValidationResult validation = _actionSystem.Validate(request, validationContext);
 
             TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
                 record->Id.Value, ToString(request.Type), validation.Allowed ? "ALLOWED" : "REJECTED",
                 ToString(validation.Reason));
+
+            // No fleeSource means Validate() already rejected with
+            // NoFleeSource above, so this dereference is safe - Allowed is
+            // never true without a resolved threat victim.
+            if (validation.Allowed)
+            {
+                bool executed = _actionExecutor.ExecuteFlee(request, *creature, *fleeSource);
+
+                TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} result={} targetGuid={}",
+                    record->Id.Value, ToString(request.Type), executed ? "EXECUTED" : "FAILED",
+                    request.FleeFromGuid.ToString());
+            }
         }
     }
 }

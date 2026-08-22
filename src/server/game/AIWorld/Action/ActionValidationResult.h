@@ -27,7 +27,9 @@ enum class ActionRejectReason : uint8
     ActorDead,
     NoActiveGoal,
     GoalMismatch,
-    UnsupportedAction
+    UnsupportedAction,
+    NoFleeSource,
+    FleeSourceMismatch
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -40,13 +42,16 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::NoActiveGoal:         return "NO_ACTIVE_GOAL";
         case ActionRejectReason::GoalMismatch:         return "GOAL_MISMATCH";
         case ActionRejectReason::UnsupportedAction:    return "UNSUPPORTED_ACTION";
+        case ActionRejectReason::NoFleeSource:         return "NO_FLEE_SOURCE";
+        case ActionRejectReason::FleeSourceMismatch:   return "FLEE_SOURCE_MISMATCH";
         default:                                       return "UNKNOWN";
     }
 }
 
-// Milestone 2.8A: ActionSystem::Validate()'s verdict - never itself a
+// Milestone 2.8A/2.8B: ActionSystem::Validate()'s verdict - never itself a
 // permission to mutate the world, just a pure ALLOWED/REJECTED judgment.
-// 2.8A never acts on Allowed == true; that's 2.8B.
+// Only ActionExecutor (2.8B), and only on Allowed == true, actually
+// touches TrinityCore.
 struct ActionValidationResult
 {
     bool Allowed = false;
