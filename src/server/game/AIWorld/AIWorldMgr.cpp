@@ -434,6 +434,26 @@ void AIWorldMgr::PublishWorldEvent(WorldEvent event)
     _eventBus.Publish(std::move(event));
 }
 
+// Safe to call from a map-updater thread - see the declaration comment in
+// AIWorldMgr.h for why. Read-only: never mutates _registry, never touches
+// Creature/Map, never calls ai-server. _enabled is a plain (non-atomic)
+// bool that, unlike _acceptEvents, is normally only ever touched from the
+// world thread - this is its one exception. In practice Initialize()'s
+// write happens before the update loop (and therefore before any
+// map-updater thread exists) and Shutdown()'s write happens as maps are
+// torn down, so there is effectively no window where this races a
+// concurrent write; even in the unverified worst case, a stale read here
+// is harmless the same way a stale _acceptEvents read is (see Shutdown()'s
+// comment) - it either falls through to normal AI selection or does one
+// extra harmless registry lookup, never a crash or a mutation.
+bool AIWorldMgr::OwnsSpawn(uint32 mapId, uint64 spawnId) const
+{
+    if (!_enabled)
+        return false;
+
+    return _registry.FindBySpawn(mapId, spawnId) != nullptr;
+}
+
 // World thread only (called from Update(), right after EventBus::Drain()).
 // Enriches Actor/Target with whatever AgentId _registry currently has for
 // their SpawnId - this is the earliest point that lookup is safe to do,

@@ -16,6 +16,8 @@
  */
 
 #include "AIException.h"
+#include "AIWorldCreatureAI.h"
+#include "AIWorldMgr.h"
 #include "Creature.h"
 #include "CreatureAISelector.h"
 #include "CreatureAIFactory.h"
@@ -80,6 +82,16 @@ namespace FactorySelector
 
     CreatureAI* SelectAI(Creature* creature)
     {
+        // Milestone 2.8A.5: an AIWorld-controlled agent always gets
+        // AIWorldCreatureAI, ahead of every path below (pet/scripted/
+        // AIName/Permissible). An AIWorld agent's spawn row isn't expected
+        // to carry a conflicting ScriptName/AIName anyway, but checking
+        // this first makes that a non-issue by construction rather than by
+        // convention - see AIWorldMgr::OwnsSpawn() for why this call is
+        // safe here, on a map-updater thread during grid loading.
+        if (sAIWorldMgr->OwnsSpawn(creature->GetMapId(), creature->GetSpawnId()))
+            return new AIWorldCreatureAI(creature);
+
         // special pet case, if a tamed creature uses AIName (example SmartAI) we need to override it
         if (creature->IsPet())
             return ASSERT_NOTNULL(sCreatureAIRegistry->GetRegistryItem("PetAI"))->Create(creature);

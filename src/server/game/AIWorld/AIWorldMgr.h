@@ -62,6 +62,24 @@ class TC_GAME_API AIWorldMgr
         // story.
         void PublishWorldEvent(WorldEvent event);
 
+        // Milestone 2.8A.5: consulted from FactorySelector::SelectAI()
+        // (CreatureAISelector.cpp), ahead of pet/scripted/AIName/
+        // Permissible-based AI selection, to decide whether a Creature
+        // gets AIWorldCreatureAI instead of its normal default AI. Safe to
+        // call from a map-updater thread during grid loading even though
+        // AgentRegistry's mutating calls are world-thread-only:
+        // MapManager::Update() (MapManager.cpp) blocks on m_updater.wait()
+        // before returning, and AIWorldMgr::Update() (which is the only
+        // thing that ever mutates _registry once Initialize() has run) is
+        // called strictly after sMapMgr->Update() returns in World::Update()
+        // - so no map-updater thread executing FactorySelector::SelectAI()
+        // is ever concurrent with anything that mutates _registry.
+        // Multiple map-updater threads calling this concurrently with each
+        // other, for different maps, is fine too: this and everything it
+        // calls (AgentRegistry::FindBySpawn() const) are read-only. Never
+        // touches Creature/Map, never calls ai-server.
+        bool OwnsSpawn(uint32 mapId, uint64 spawnId) const;
+
     private:
         AIWorldMgr() = default;
         ~AIWorldMgr() = default;

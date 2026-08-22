@@ -74,6 +74,16 @@ AgentRecord* AgentRegistry::FindBySpawn(uint32 mapId, uint64 spawnId)
     return nullptr;
 }
 
+AgentRecord const* AgentRegistry::FindBySpawn(uint32 mapId, uint64 spawnId) const
+{
+    for (auto const& entry : _agents)
+    {
+        if (entry.second.MapId == mapId && entry.second.SpawnId == spawnId)
+            return &entry.second;
+    }
+    return nullptr;
+}
+
 // Idempotent - safe (and expected) to call every tick a Creature is found
 // for this agent, not just on the Abstract -> Materialized transition. A
 // SpawnId identifies a TrinityCore spawn, not a runtime object: if the old

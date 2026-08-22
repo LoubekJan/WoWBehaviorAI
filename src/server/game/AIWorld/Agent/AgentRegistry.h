@@ -37,8 +37,11 @@ class Creature;
 // Purely in-memory: does not generate AgentIds and does not talk to any
 // database. AgentPersistence (Milestone 2.2A) is the authority for minting
 // and loading AgentIds - this class only ever receives already-assigned
-// ones through Add(). Not thread-safe: like AIWorldMgr itself, only ever
-// touched from the world update thread.
+// ones through Add(). Not thread-safe in general: mutating calls
+// (Add/BindCreature/UnbindCreature) are world-thread-only, like AIWorldMgr
+// itself. The one documented exception is the const FindBySpawn() overload
+// - see AIWorldMgr::OwnsSpawn() for why a read-only lookup through it is
+// safe to call from a map-updater thread during grid loading.
 class TC_GAME_API AgentRegistry
 {
     public:
@@ -52,6 +55,7 @@ class TC_GAME_API AgentRegistry
         AgentRecord* Find(AgentId id);
         AgentRecord const* Find(AgentId id) const;
         AgentRecord* FindBySpawn(uint32 mapId, uint64 spawnId);
+        AgentRecord const* FindBySpawn(uint32 mapId, uint64 spawnId) const;
 
         void BindCreature(AgentId id, Creature const& creature);
         void UnbindCreature(AgentId id);
