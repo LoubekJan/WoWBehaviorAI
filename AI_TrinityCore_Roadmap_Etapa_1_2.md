@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený základ až po deterministic goal selection/ActiveGoal (2.7B1):
+Etapa 2 má runtime ověřený deterministický Goal System základ (2.7A + 2.7B1 + 2.7B2):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -38,8 +38,9 @@ Etapa 2 má runtime ověřený základ až po deterministic goal selection/Activ
 - Needs threshold events (2.6C): edge-triggered `HUNGER_CRITICAL`/`DANGER_HIGH` s hysteresis latch, audit/debug log only.
 - deterministic Goal Candidate generation (2.7A): `NeedsState` → `GoalCandidate[]` (`GET_FOOD`/`FLEE_DANGER`), level-triggered, audit/debug log only.
 - deterministic goal selection a `ActiveGoal` (2.7B1): jeden aktivní cíl, deterministický `SelectBest`, retention `>= 0.60` proti activation `>= 0.80`, emergency interruption, dead agent nemá candidate ani `ActiveGoal`.
+- `ActiveGoal` lifecycle outcomes (2.7B2): retention threshold = success condition (`SUCCEEDED reason=NEED_SATISFIED`), fixní 30s `TimeoutMs` bez uspokojení Need → `FAILED reason=TIMEOUT`, interrupt má přednost před oběma.
 
-**Aktuální NEXT:** `2.7B2 — ActiveGoal lifecycle` (timeout + success/failure semantics, stále bez Action API).
+**Aktuální NEXT:** checkpoint review Goal → Action boundary, poté `2.8 Bezpečné Action API`.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -115,7 +116,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.7B2** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT: Goal→Action checkpoint review, pak 2.8** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -709,7 +710,7 @@ Runtime ověřeno:
 
 ## 2.7 Goal System
 
-**Stav: 2.7A + 2.7B1 (deterministic Goal Candidate generation + goal selection/ActiveGoal) DONE / runtime PASS; zbytek sekce je 2.7B2+**
+**Stav: 2.7A + 2.7B1 + 2.7B2 (deterministic Goal Candidate generation + selection/ActiveGoal + lifecycle outcomes) DONE / runtime PASS - deterministický Goal System základ je hotový**
 
 První katalog cílů:
 
@@ -728,12 +729,12 @@ REQUEST_HELP
 
 > 2.7A generuje kandidáty jen pro dva z nich (`GET_FOOD`, `FLEE_DANGER`) - zbytek katalogu čeká na runtime-ověřený mechanismus.
 
-- [x] Definovat `Goal` objekt s prioritou/utility, zdrojem, timeoutem a success condition — **`ActiveGoal` (2.7B1) má Type/Priority/Source/Utility/StartedAtMs; timeout a success/failure stav je 2.7B2, protože bez Action API by jejich lifecycle byl umělý**.
+- [x] Definovat `Goal` objekt s prioritou/utility, zdrojem, timeoutem a success condition — **`ActiveGoal` má Type/Priority/Source/Utility/StartedAtMs/`TimeoutMs` (2.7B1 + `TimeoutMs` v 2.7B2); success/failure je terminal `GoalCompletion`/`GoalStatus` (2.7B2), ne pole na `ActiveGoal` samotném**.
 - [x] Implementovat základní Utility AI pro volbu mezi jednoduchými cíli — **`GoalSystem::UpdateActiveGoal()` (2.7B1): deterministický `SelectBest` (priority rank → utility → fixed tie-break), nezávislý na pořadí vectoru**.
 - [x] Oddělit volbu cíle od konkrétní akce — **`GoalSystem` zůstává oddělený od Action API (2.8); volba mezi kandidáty je 2.7B1 hotová, ale nic zatím z `ActiveGoal` nevytváří akci**.
-- [x] Přidat možnost cíl přerušit při nouzové situaci — **emergency interruption (2.7B1): striktně vyšší priorita okamžitě přeruší aktivní goal, obráceně nikdy**.
-- [ ] Přidat success/failure stav — **2.7B2**.
-- [ ] LLM/GPU použít až pro komplexnější plánování nebo výběr mezi nestrukturovanými variantami.
+- [x] Přidat možnost cíl přerušit při nouzové situaci — **emergency interruption (2.7B1): striktně vyšší priorita okamžitě přeruší aktivní goal, obráceně nikdy; kontrolováno před success/timeout (2.7B2), aby emergency nikdy nečekal jeden tick**.
+- [x] Přidat success/failure stav — **`GoalStatus`/`GoalCompletionReason`/`GoalCompletion` (2.7B2): Need pod retention threshold → `SUCCEEDED reason=NEED_SATISFIED`; `TimeoutMs` uplynulý beze změny Need → `FAILED reason=TIMEOUT`**.
+- [ ] LLM/GPU použít až pro komplexnější plánování nebo výběr mezi nestrukturovanými variantami — **mimo scope deterministického 2.7A/2.7B1/2.7B2 základu, zůstává otevřené pro pozdější etapu**.
 
 ### Implementovaný stav 2.7A
 
@@ -791,7 +792,36 @@ Runtime ověřeno:
 - respawn → Needs/candidates/`ActiveGoal` se znovu vyhodnocují z live stavu.
 - žádný Action API, žádná `/decision` změna, žádná world mutation, žádný LLM, žádná `ActiveGoal` persistence.
 
-**Další implementace:** `2.7B2 — ActiveGoal lifecycle` (timeout + success/failure semantics, stále bez Action API).
+### Implementovaný stav 2.7B2
+
+```text
+current ActiveGoal? + NeedsState + GoalCandidate[] + nowMs
+    ↓
+1. žádný current            → Activate nejlepší candidate
+2. vyšší-priority candidate → Interrupt current okamžitě (před 3. a 4.)
+3. current Need < 0.60      → Succeeded (reason=NEED_SATISFIED)
+4. elapsed >= TimeoutMs     → Failed (reason=TIMEOUT)
+5. jinak                    → beze změny (Transition::None)
+    ↓
+AgentRecord.ActiveGoalState + debug log (SUCCEEDED/FAILED nesou reason a durationMs)
+```
+
+Implementation: `b2efbca2` feat(ai-world): add active goal lifecycle outcomes (2.7B2)
+
+Runtime ověřeno:
+
+- `FLEE_DANGER` active, `SafetyPressure` klesá na `0.61` → drží (stejné retention jako 2.7B1).
+- `SafetyPressure=0.59` → `SUCCEEDED FLEE_DANGER reason=NEED_SATISFIED` (ne už `RELEASED`).
+- `GET_FOOD` active, `Hunger=1.0` beze změny 30 s → `FAILED GET_FOOD reason=TIMEOUT`.
+- další tick, `Hunger` stále `>= 0.80` → nový `ACTIVATED GET_FOOD` s čerstvým `StartedAtMs` (očekávané - Action API zatím neexistuje, takže `GET_FOOD` fakticky nemá čím Hunger uspokojit).
+- `GET_FOOD` active + combat → `INTERRUPTED GET_FOOD → FLEE_DANGER` funguje beze změny; interrupt má přednost i kdyby `GET_FOOD` zároveň splňoval success/timeout ten samý tick.
+- death s `ActiveGoal` → `RELEASED reason=DEAD` beze změny (death guard nevolá `UpdateActiveGoal()`).
+- dead ticks → žádné candidates, beze změny.
+- žádný Action API, žádná `/decision` změna, žádná world mutation, žádný LLM, žádná `ActiveGoal` persistence.
+
+**Deterministický 2.7 Goal System základ (2.7A + 2.7B1 + 2.7B2) je tímto DONE / runtime PASS.** Před přechodem do `2.8 Bezpečné Action API` proběhne krátký checkpoint review celé hranice Goal → Action - od 2.8 už AI začne navrhovat skutečné zásahy do světa, takže tahle hranice si zaslouží samostatnou kontrolu než na ni naváže cokoliv nového.
+
+**Další implementace:** checkpoint review Goal → Action boundary, poté `2.8 Bezpečné Action API`.
 
 ## 2.8 Bezpečné Action API
 
