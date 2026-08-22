@@ -25,7 +25,7 @@
 class Creature;
 class Unit;
 
-// Milestone 2.8B/2.8C: the one place in AIWorld allowed to touch TrinityCore's
+// Milestone 2.8B/2.8C/2.8D: the one place in AIWorld allowed to touch TrinityCore's
 // engine API to actually make a Creature do something - the third step of
 // AI proposes (ActionRequest) / ActionSystem validates / ActionExecutor
 // executes. World thread only, called only after ActionSystem::Validate()
@@ -64,6 +64,34 @@ class TC_GAME_API ActionExecutor
         // death, which TrinityCore's own MotionMaster lifecycle already
         // handles without help.
         void StopFlee(Creature& actor) const;
+
+        // Milestone 2.8D: starts MoveTo via GetMotionMaster()->MovePoint()
+        // - TrinityCore's own pathfinding, not anything AIWorld computes
+        // itself. Tags the generator with a fixed AIWorld-owned point id
+        // (see ActionExecutor.cpp) so StopMoveTo() can find and remove
+        // exactly this movement later, never any other system's unrelated
+        // MovePoint() call - unlike FLEEING_MOTION_TYPE for ExecuteFlee(),
+        // POINT_MOTION_TYPE is used throughout the engine (scripts,
+        // escorts, formations, ...), not exclusively by AIWorld. Returns
+        // Failed/UnsupportedAction (and does nothing) if request.Type is
+        // not MoveTo or request.Destination is empty - defensive only;
+        // every current call site already validated this before calling.
+        ActionResult ExecuteMoveTo(ActionRequest const& request, Creature& actor) const;
+
+        // Ends a MoveTo started by ExecuteMoveTo() - finds and removes
+        // only the specific point-movement generator instance
+        // ExecuteMoveTo() created (matched by its AIWorld-owned point id,
+        // not just POINT_MOTION_TYPE), and only halts the actor's current
+        // spline (StopMoving()) if that generator was actually still the
+        // active one - same reasoning as StopFlee(). A no-op if the point
+        // movement already finished naturally (TrinityCore's own
+        // MotionMaster already removed it once the actor arrived) or was
+        // never running. Not wired to an automatic trigger in 2.8D - MoveTo
+        // isn't driven by any goal whose completion would call this yet;
+        // that wiring is 2.8E's, the same way StopFlee() only started
+        // actually firing once 2.7B2 gave FLEE_DANGER a real completion
+        // event to hook into.
+        void StopMoveTo(Creature& actor) const;
 };
 
 #endif // AIWORLD_ACTIONEXECUTOR_H

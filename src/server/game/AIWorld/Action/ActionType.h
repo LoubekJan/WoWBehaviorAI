@@ -20,23 +20,28 @@
 
 #include "Define.h"
 
-// Milestone 2.8A only supports Flee - the full MOVE_TO/FOLLOW/ATTACK/TALK/
+// Milestone 2.8A/2.8D: Flee and MoveTo only - the full FOLLOW/ATTACK/TALK/
 // TRADE/EAT/SLEEP/WORK/INVESTIGATE/REQUEST_HELP catalog (per the roadmap's
-// 2.8 Bezpečné Action API) comes later, once this one has cleared its own
-// runtime gate. Deliberately no GetFood -> Eat mapping yet either: the
-// agent doesn't know where food is, whether it owns any, or whether it can
-// reach it - that's planning, not something 2.8A should skip past.
+// 2.8 Bezpečné Action API) comes later, once these have cleared their own
+// runtime gate. MoveTo is deliberately not wired to GoalSystem/GET_FOOD in
+// 2.8D - it exists to prove the Action API isn't Flee-special, not to
+// plan where an agent should go. Deliberately no GetFood -> Eat mapping
+// either: the agent doesn't know where food is, whether it owns any, or
+// whether it can reach it - that's planning (2.8E+), not something to
+// skip past.
 enum class ActionType : uint8
 {
-    Flee
+    Flee,
+    MoveTo
 };
 
 inline char const* ToString(ActionType type)
 {
     switch (type)
     {
-        case ActionType::Flee: return "FLEE";
-        default:                return "UNKNOWN";
+        case ActionType::Flee:   return "FLEE";
+        case ActionType::MoveTo: return "MOVE_TO";
+        default:                 return "UNKNOWN";
     }
 }
 

@@ -18,19 +18,23 @@
 #ifndef AIWORLD_ACTIONREQUEST_H
 #define AIWORLD_ACTIONREQUEST_H
 
+#include "ActionPosition.h"
 #include "Agent/AgentId.h"
 #include "ActionType.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
 #include "ObjectGuid.h"
+#include <optional>
 
-// Milestone 2.8A/2.8B: what an agent's ActiveGoal proposes to do - an
+// Milestone 2.8A/2.8B/2.8D: what an agent's ActiveGoal proposes to do - an
 // intent, not a command. AIWorldMgr builds this only on ACTIVATED/
-// INTERRUPTED into GoalType::FleeDanger, never every tick.
+// INTERRUPTED into GoalType::FleeDanger for Flee, and (2.8D) from a
+// deterministic test integration point for MoveTo - never every tick, and
+// never anything GoalSystem itself produces yet for MoveTo.
 // ActionSystem::Validate() decides ALLOWED/REJECTED; only on ALLOWED does
-// ActionExecutor (2.8B) actually execute it against TrinityCore. Pure
-// value: no Creature*, Player*, Map*, or WorldObject* - FleeFromGuid is a
-// value identity (ObjectGuid), not a live reference.
+// ActionExecutor actually execute it against TrinityCore. Pure value: no
+// Creature*, Player*, Map*, or WorldObject* - FleeFromGuid/Destination are
+// value identities, not live references.
 struct ActionRequest
 {
     AgentId Actor;
@@ -53,6 +57,12 @@ struct ActionRequest
     // honesty-not-trust pattern as SourceGoal above. Only meaningful for
     // ActionType::Flee.
     ObjectGuid FleeFromGuid;
+
+    // Milestone 2.8D: where a MoveTo request wants the actor to go. Empty
+    // for every other ActionType. Validate() checks it exists, matches the
+    // actor's current map, has finite coordinates, and is within a bounded
+    // range - see ActionSystem::ValidateMoveTo().
+    std::optional<ActionPosition> Destination;
 };
 
 #endif // AIWORLD_ACTIONREQUEST_H

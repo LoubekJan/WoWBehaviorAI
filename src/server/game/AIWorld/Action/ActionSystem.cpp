@@ -16,6 +16,19 @@
  */
 
 #include "ActionSystem.h"
+#include <cmath>
+
+namespace
+{
+    // 2.8D deterministic default - not a tuned gameplay value, chosen
+    // mainly so an obviously-wrong destination (whatever AI eventually
+    // proposes one) can never send MovePoint() to an arbitrary point on
+    // the map. AIWorld.PerceptionSightRange defaults to the same
+    // magnitude, which is a reasonable scale for "somewhere this agent
+    // could plausibly already be reacting to", not a deliberate coupling
+    // between the two.
+    constexpr float MaxMoveToRangeYards = 40.0f;
+}
 
 ActionValidationResult ActionSystem::Validate(ActionRequest const& request, ActionValidationContext const& context) const
 {
@@ -35,31 +48,68 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
 
     // Not just the same GoalType - the same goal attempt. Irrelevant while
     // request/validate/execute all happen synchronously in one world-thread
-    // pass (2.8B), but this is exactly the identity a future queued/async
+    // pass, but this is exactly the identity a future queued/async
     // ActionRequest would need to guard: the actor could otherwise release
-    // this goal and activate a new FleeDanger attempt before a stale
-    // request gets validated.
+    // this goal and activate a new attempt before a stale request gets
+    // validated.
     if (request.GoalStartedAtMs != context.ActiveGoalStartedAtMs)
         return { false, ActionRejectReason::GoalMismatch };
 
-    if (request.Type != ActionType::Flee)
-        return { false, ActionRejectReason::UnsupportedAction };
+    switch (request.Type)
+    {
+        case ActionType::Flee:
+            return ValidateFlee(request, context);
+        case ActionType::MoveTo:
+            return ValidateMoveTo(request, context);
+        default:
+            return { false, ActionRejectReason::UnsupportedAction };
+    }
+}
 
+ActionValidationResult ActionSystem::ValidateFlee(ActionRequest const& request, ActionValidationContext const& context) const
+{
     // 2.8A/2.8B only know how to validate a Flee request sourced from
-    // FleeDanger - deliberately not folded into the SourceGoal check
-    // above, which only proves the request is honest, not that the actual
+    // FleeDanger - deliberately not folded into Validate()'s SourceGoal
+    // check, which only proves the request is honest, not that the actual
     // goal is one this system supports.
     if (*context.ActiveGoalType != GoalType::FleeDanger)
         return { false, ActionRejectReason::GoalMismatch };
 
-    // Milestone 2.8B: Flee needs somewhere to flee from, and the request
-    // must honestly name it - the same pattern as SourceGoal above, applied
-    // to the actor's actual current threat victim rather than its goal.
+    // Flee needs somewhere to flee from, and the request must honestly
+    // name it - the same pattern as SourceGoal above, applied to the
+    // actor's actual current threat victim rather than its goal.
     if (context.FleeSourceGuid.IsEmpty())
         return { false, ActionRejectReason::NoFleeSource };
 
     if (request.FleeFromGuid != context.FleeSourceGuid)
         return { false, ActionRejectReason::FleeSourceMismatch };
+
+    return { true, ActionRejectReason::None };
+}
+
+ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const
+{
+    if (!request.Destination)
+        return { false, ActionRejectReason::NoDestination };
+
+    if (request.Destination->MapId != context.MapId)
+        return { false, ActionRejectReason::DestinationMapMismatch };
+
+    if (!std::isfinite(request.Destination->X) || !std::isfinite(request.Destination->Y) || !std::isfinite(request.Destination->Z))
+        return { false, ActionRejectReason::DestinationNotFinite };
+
+    // AI must not be able to send MOVE_TO to an arbitrary point on the
+    // map - bounded to a fixed range from the actor's own current
+    // position, checked after the finite check so a non-finite coordinate
+    // is reported as that, not folded into an equally-failing distance
+    // comparison.
+    float dx = request.Destination->X - context.X;
+    float dy = request.Destination->Y - context.Y;
+    float dz = request.Destination->Z - context.Z;
+    float distanceSq = dx * dx + dy * dy + dz * dz;
+
+    if (distanceSq > MaxMoveToRangeYards * MaxMoveToRangeYards)
+        return { false, ActionRejectReason::DestinationTooFar };
 
     return { true, ActionRejectReason::None };
 }

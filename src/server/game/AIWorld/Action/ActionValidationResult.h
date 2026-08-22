@@ -29,28 +29,36 @@ enum class ActionRejectReason : uint8
     GoalMismatch,
     UnsupportedAction,
     NoFleeSource,
-    FleeSourceMismatch
+    FleeSourceMismatch,
+    NoDestination,
+    DestinationMapMismatch,
+    DestinationNotFinite,
+    DestinationTooFar
 };
 
 inline char const* ToString(ActionRejectReason reason)
 {
     switch (reason)
     {
-        case ActionRejectReason::None:                 return "NONE";
-        case ActionRejectReason::ActorNotMaterialized: return "ACTOR_NOT_MATERIALIZED";
-        case ActionRejectReason::ActorDead:            return "ACTOR_DEAD";
-        case ActionRejectReason::NoActiveGoal:         return "NO_ACTIVE_GOAL";
-        case ActionRejectReason::GoalMismatch:         return "GOAL_MISMATCH";
-        case ActionRejectReason::UnsupportedAction:    return "UNSUPPORTED_ACTION";
-        case ActionRejectReason::NoFleeSource:         return "NO_FLEE_SOURCE";
-        case ActionRejectReason::FleeSourceMismatch:   return "FLEE_SOURCE_MISMATCH";
-        default:                                       return "UNKNOWN";
+        case ActionRejectReason::None:                   return "NONE";
+        case ActionRejectReason::ActorNotMaterialized:   return "ACTOR_NOT_MATERIALIZED";
+        case ActionRejectReason::ActorDead:              return "ACTOR_DEAD";
+        case ActionRejectReason::NoActiveGoal:           return "NO_ACTIVE_GOAL";
+        case ActionRejectReason::GoalMismatch:           return "GOAL_MISMATCH";
+        case ActionRejectReason::UnsupportedAction:      return "UNSUPPORTED_ACTION";
+        case ActionRejectReason::NoFleeSource:           return "NO_FLEE_SOURCE";
+        case ActionRejectReason::FleeSourceMismatch:     return "FLEE_SOURCE_MISMATCH";
+        case ActionRejectReason::NoDestination:          return "NO_DESTINATION";
+        case ActionRejectReason::DestinationMapMismatch: return "DESTINATION_MAP_MISMATCH";
+        case ActionRejectReason::DestinationNotFinite:   return "DESTINATION_NOT_FINITE";
+        case ActionRejectReason::DestinationTooFar:      return "DESTINATION_TOO_FAR";
+        default:                                         return "UNKNOWN";
     }
 }
 
-// Milestone 2.8A/2.8B: ActionSystem::Validate()'s verdict - never itself a
-// permission to mutate the world, just a pure ALLOWED/REJECTED judgment.
-// Only ActionExecutor (2.8B), and only on Allowed == true, actually
+// Milestone 2.8A/2.8B/2.8D: ActionSystem::Validate()'s verdict - never
+// itself a permission to mutate the world, just a pure ALLOWED/REJECTED
+// judgment. Only ActionExecutor, and only on Allowed == true, actually
 // touches TrinityCore.
 struct ActionValidationResult
 {

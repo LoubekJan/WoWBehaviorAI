@@ -148,6 +148,16 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI needs configured interval={}ms hungerRate={:.6f} fatigueRate={:.6f} resourceRate={:.6f}",
         _needsUpdateIntervalMs, _needsRates.HungerPerSecond, _needsRates.FatiguePerSecond, _needsRates.ResourcePressurePerSecond);
 
+    // Milestone 2.8D: default off. Not wired to GoalSystem - fires once,
+    // against the test agent only, the first tick it has any active goal
+    // after this is enabled, purely to prove the MOVE_TO Action API
+    // primitive works end to end. See UpdateNeeds().
+    _testMoveToEnabled = sConfigMgr->GetBoolDefault("AIWorld.TestMoveToEnabled", false);
+    _testMoveToOffsetX = sConfigMgr->GetFloatDefault("AIWorld.TestMoveToOffsetX", 10.0f);
+    _testMoveToOffsetY = sConfigMgr->GetFloatDefault("AIWorld.TestMoveToOffsetY", 0.0f);
+    _testMoveToOffsetZ = sConfigMgr->GetFloatDefault("AIWorld.TestMoveToOffsetZ", 0.0f);
+    _testMoveToFired = false;
+
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
@@ -799,6 +809,60 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={} targetGuid={}",
                     record->Id.Value, ToString(executionResult.Type), ToString(executionResult.Status),
                     ToString(executionResult.Reason), request.FleeFromGuid.ToString());
+            }
+        }
+
+        // Milestone 2.8D: deterministic, one-shot MOVE_TO test - fires
+        // once, for _testAgentId only, the first tick it has any
+        // ActiveGoal after AIWorld.TestMoveToEnabled is turned on. Not
+        // driven by GoalSystem: the request honestly claims whatever goal
+        // is actually active (any type, not just FleeDanger the way Flee
+        // requires), purely so this exercises the same goal-identity
+        // checks every ActionRequest goes through, without inventing a
+        // MOVE_TO-specific goal. Proves the Action API isn't Flee-special.
+        if (_testMoveToEnabled && !_testMoveToFired && id == _testAgentId && record->ActiveGoalState)
+        {
+            _testMoveToFired = true;
+
+            ActionRequest moveRequest;
+            moveRequest.Actor = id;
+            moveRequest.Type = ActionType::MoveTo;
+            moveRequest.SourceGoal = record->ActiveGoalState->Type;
+            moveRequest.GoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
+
+            ActionPosition destination;
+            destination.MapId = creature->GetMapId();
+            destination.X = creature->GetPositionX() + _testMoveToOffsetX;
+            destination.Y = creature->GetPositionY() + _testMoveToOffsetY;
+            destination.Z = creature->GetPositionZ() + _testMoveToOffsetZ;
+            moveRequest.Destination = destination;
+
+            TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
+                record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
+                destination.X, destination.Y, destination.Z);
+
+            ActionValidationContext moveContext;
+            moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
+            moveContext.Alive = context.Alive;
+            moveContext.ActiveGoalType = record->ActiveGoalState->Type;
+            moveContext.ActiveGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
+            moveContext.MapId = creature->GetMapId();
+            moveContext.X = creature->GetPositionX();
+            moveContext.Y = creature->GetPositionY();
+            moveContext.Z = creature->GetPositionZ();
+
+            ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
+
+            TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+                record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
+                ToString(moveValidation.Reason));
+
+            if (moveValidation.Allowed)
+            {
+                ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+
+                TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+                    record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
             }
         }
     }

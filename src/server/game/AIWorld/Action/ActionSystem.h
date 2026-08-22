@@ -23,25 +23,40 @@
 #include "ActionValidationResult.h"
 #include "Define.h"
 
-// Milestone 2.8A/2.8B: the safety boundary between "AI proposes" and
+// Milestone 2.8A/2.8B/2.8D: the safety boundary between "AI proposes" and
 // "TrinityCore executes" - AI proposes (ActionRequest), ActionSystem
-// validates (this class), ActionExecutor (2.8B) executes only on ALLOWED.
+// validates (this class), ActionExecutor executes only on ALLOWED.
 // Validate() is a pure value transform: no Creature*, AgentRecord*, Map*,
 // Unit*, registry, or DB, and it never mutates anything - it only judges
 // whether a request is currently ALLOWED.
 class TC_GAME_API ActionSystem
 {
     public:
-        // Checked in this fixed order: actor state first (materialized,
-        // alive), then whether the actor even has a goal to act on, then
-        // whether the request honestly describes that goal - both its
-        // GoalType (SourceGoal) and the specific goal attempt
-        // (GoalStartedAtMs) - then whether the requested action type is
-        // supported at all, then whether the actual goal is one this
-        // system knows how to validate an action for, then (Flee only)
-        // whether the actor actually has a threat victim and the request
-        // honestly names it.
+        // Checks common to every ActionType, in this fixed order: actor
+        // state first (materialized, alive), then whether the actor even
+        // has a goal to act on, then whether the request honestly
+        // describes that goal - both its GoalType (SourceGoal) and the
+        // specific goal attempt (GoalStartedAtMs). Only then does it
+        // dispatch to the per-ActionType validation below (or reject
+        // UnsupportedAction for anything else).
         ActionValidationResult Validate(ActionRequest const& request, ActionValidationContext const& context) const;
+
+    private:
+        // Flee-specific, run only once the common checks above already
+        // passed: the actor's goal must actually be FleeDanger (not just
+        // any goal), the actor must actually have a threat victim, and the
+        // request must honestly name it.
+        ActionValidationResult ValidateFlee(ActionRequest const& request, ActionValidationContext const& context) const;
+
+        // MoveTo-specific, run only once the common checks above already
+        // passed. Deliberately not tied to a specific GoalType the way
+        // ValidateFlee() is to FleeDanger - MoveTo isn't semantically
+        // owned by one goal, any active goal is enough justification (the
+        // common checks above already proved there is one and the request
+        // honestly names it). Checks the destination exists, is on the
+        // actor's own map, has finite coordinates, and is within a bounded
+        // range - see ActionSystem.cpp for the exact distance.
+        ActionValidationResult ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const;
 };
 
 #endif // AIWORLD_ACTIONSYSTEM_H

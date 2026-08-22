@@ -3534,6 +3534,30 @@ AIWorld.NeedsFatigueRatePerSecond = 0.0001
 AIWorld.NeedsResourcePressureRatePerSecond = 0.00005
 
 #
+#    AIWorld.TestMoveToEnabled
+#        Description: Milestone 2.8D deterministic MOVE_TO Action API test - default off. When
+#                     enabled, fires exactly once against the AIWorld.TestSpawnId agent, on the
+#                     first tick it has any ActiveGoal, to prove the MOVE_TO Action primitive
+#                     works end to end. Not driven by GoalSystem/GET_FOOD - purely a test trigger.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestMoveToEnabled = 0
+
+#
+#    AIWorld.TestMoveToOffsetX
+#    AIWorld.TestMoveToOffsetY
+#    AIWorld.TestMoveToOffsetZ
+#        Description: Offset (in yards) from the test agent's current position, applied once when
+#                     AIWorld.TestMoveToEnabled fires, to build the MOVE_TO destination.
+#        Default:     10.0 - (AIWorld.TestMoveToOffsetX)
+#                     0.0  - (AIWorld.TestMoveToOffsetY)
+#                     0.0  - (AIWorld.TestMoveToOffsetZ)
+
+AIWorld.TestMoveToOffsetX = 10.0
+AIWorld.TestMoveToOffsetY = 0.0
+AIWorld.TestMoveToOffsetZ = 0.0
+
+#
 ###################################################################################################
 
 ###################################################################################################

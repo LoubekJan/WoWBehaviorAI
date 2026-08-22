@@ -23,12 +23,12 @@
 #include "ObjectGuid.h"
 #include <optional>
 
-// Milestone 2.8A/2.8B: the world-thread facts ActionSystem::Validate() is
-// allowed to see, as plain values - AIWorldMgr resolves Materialized/
-// Alive/the actor's current ActiveGoal/current threat victim itself (it
-// already has the live Creature and AgentRecord at the call site) and
-// hands over only this. ActionSystem never sees a Creature*, AgentRecord*,
-// Unit*, or the registry.
+// Milestone 2.8A/2.8B/2.8D: the world-thread facts ActionSystem::Validate()
+// is allowed to see, as plain values - AIWorldMgr resolves Materialized/
+// Alive/the actor's current ActiveGoal/current threat victim/current
+// position itself (it already has the live Creature and AgentRecord at
+// the call site) and hands over only this. ActionSystem never sees a
+// Creature*, AgentRecord*, Unit*, Map*, or the registry.
 struct ActionValidationContext
 {
     bool Materialized = false;
@@ -42,6 +42,14 @@ struct ActionValidationContext
     // against ActionRequest::FleeFromGuid for a Flee request - reality,
     // not the request's claim.
     ObjectGuid FleeSourceGuid;
+
+    // Milestone 2.8D: the actor's actual current position, for MoveTo's
+    // map-match and max-range checks - reality, not wherever the request
+    // claims the actor is.
+    uint32 MapId = 0;
+    float X = 0.0f;
+    float Y = 0.0f;
+    float Z = 0.0f;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

@@ -223,6 +223,19 @@ class TC_GAME_API AIWorldMgr
         // _actionSystem has already returned Allowed == true for the exact
         // request being executed.
         ActionExecutor _actionExecutor;
+
+        // Milestone 2.8D: a deterministic, one-shot test trigger for the
+        // MOVE_TO Action primitive - fires once, for _testAgentId only,
+        // the first tick it has any ActiveGoal after this is enabled.
+        // Deliberately not driven by GoalSystem/GET_FOOD; it exists to
+        // prove the Action API isn't Flee-special, not to plan where an
+        // agent should go. Default off (AIWorld.TestMoveToEnabled = 0), so
+        // this is completely inert on a normal server.
+        bool _testMoveToEnabled = false;
+        float _testMoveToOffsetX = 10.0f;
+        float _testMoveToOffsetY = 0.0f;
+        float _testMoveToOffsetZ = 0.0f;
+        bool _testMoveToFired = false;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()
