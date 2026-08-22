@@ -30,15 +30,27 @@ struct NeedsUpdateRates
     float ResourcePressurePerSecond = 0.00005f;
 };
 
-// Milestone 2.6A: a pure value transform, deliberately holding no AgentId,
-// Creature*, Map*, or MemoryRecord - Update() only knows how to advance a
-// NeedsState by an elapsed duration. HealthPressure/SafetyPressure are left
-// untouched (still clamped) until 2.6B wires them to real world/memory
-// context.
+// Milestone 2.6B1: the live-world facts NeedsSystem is allowed to see, as
+// plain values - not a Creature*. AIWorldMgr builds this from the same live
+// Creature it already resolved for the Materialized/Abstract check; the
+// pointer itself never crosses into NeedsSystem.
+struct NeedsUpdateContext
+{
+    uint32 Health = 0;
+    uint32 MaxHealth = 0;
+    bool Alive = false;
+    bool InCombat = false;
+};
+
+// Milestone 2.6A/2.6B1: a pure value transform, deliberately holding no
+// AgentId, Creature*, Map*, or MemoryRecord - Update() only knows how to
+// advance a NeedsState by an elapsed duration and a NeedsUpdateContext.
+// HealthPressure/SafetyPressure are 2.6B1's live health-ratio / in-combat
+// signals; recent-memory-driven safety is 2.6B2.
 class TC_GAME_API NeedsSystem
 {
     public:
-        void Update(NeedsState& state, uint32 elapsedMs, NeedsUpdateRates const& rates) const;
+        void Update(NeedsState& state, NeedsUpdateContext const& context, uint32 elapsedMs, NeedsUpdateRates const& rates) const;
 };
 
 #endif // AIWORLD_NEEDSSYSTEM_H

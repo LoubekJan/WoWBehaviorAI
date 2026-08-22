@@ -22,9 +22,10 @@
 // pressure to act, 1.0 is critical. This is a uniform-direction convention,
 // not a raw stat - unlike Health, higher Hunger/Fatigue is worse, so it is
 // deliberately named Hunger/Fatigue rather than something like "Satiety"
-// that would flip the direction. Milestone 2.6A only drifts
-// Hunger/Fatigue/ResourcePressure over time; HealthPressure/SafetyPressure
-// are wired to real world/memory state in 2.6B.
+// that would flip the direction. Milestone 2.6A drifts Hunger/Fatigue/
+// ResourcePressure over time; 2.6B1 derives HealthPressure from live HP
+// ratio and SafetyPressure from live InCombat state. Recent-memory-driven
+// safety (danger persisting after combat ends) is 2.6B2.
 struct NeedsState
 {
     float HealthPressure = 0.0f;

@@ -564,15 +564,16 @@ void AIWorldMgr::ScanNearbyEntities()
 }
 
 // World thread only, on its own ~1s cadence (_needsUpdateIntervalMs),
-// independent of _snapshotIntervalMs - Milestone 2.6A. Only Materialized
-// agents drift; Abstract agents are frozen rather than dead-reckoned, so
-// this deliberately does not become background simulation before that's
-// its own milestone. record->WorldState is only as fresh as the last poll
-// that touched this agent (ProcessAgent()/ProcessWorldEvent()/
-// ScanNearbyEntities()) - same live-Creature-existence-is-the-authority
-// rule as those, so a live lookup is required here too rather than
-// trusting the flag. The lookup itself stays in AIWorldMgr on the world
-// thread; NeedsSystem never sees a Creature*.
+// independent of _snapshotIntervalMs - Milestone 2.6A/2.6B1. Only
+// Materialized agents drift; Abstract agents are frozen rather than
+// dead-reckoned, so this deliberately does not become background
+// simulation before that's its own milestone. record->WorldState is only
+// as fresh as the last poll that touched this agent (ProcessAgent()/
+// ProcessWorldEvent()/ScanNearbyEntities()) - same
+// live-Creature-existence-is-the-authority rule as those, so a live lookup
+// is required here too rather than trusting the flag. The lookup itself
+// stays in AIWorldMgr on the world thread; NeedsSystem only ever sees the
+// plain-value NeedsUpdateContext built from it, never the Creature*.
 void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 {
     for (AgentId id : _registry.GetAgents())
@@ -593,11 +594,17 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
         _registry.BindCreature(id, *creature);
 
-        _needsSystem.Update(record->Needs, elapsedMs, _needsRates);
+        NeedsUpdateContext context;
+        context.Health = creature->GetHealth();
+        context.MaxHealth = creature->GetMaxHealth();
+        context.Alive = creature->IsAlive();
+        context.InCombat = creature->IsInCombat();
+
+        _needsSystem.Update(record->Needs, context, elapsedMs, _needsRates);
 
         TC_LOG_DEBUG("ai.world",
-            "AI needs agent={} dt={}ms healthPressure={:.4f} hunger={:.4f} fatigue={:.4f} safetyPressure={:.4f} resourcePressure={:.4f}",
-            record->Id.Value, elapsedMs,
+            "AI needs agent={} dt={}ms alive={} inCombat={} healthPressure={:.4f} hunger={:.4f} fatigue={:.4f} safetyPressure={:.4f} resourcePressure={:.4f}",
+            record->Id.Value, elapsedMs, context.Alive, context.InCombat,
             record->Needs.HealthPressure, record->Needs.Hunger, record->Needs.Fatigue,
             record->Needs.SafetyPressure, record->Needs.ResourcePressure);
     }
