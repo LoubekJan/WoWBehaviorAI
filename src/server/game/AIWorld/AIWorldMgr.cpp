@@ -564,7 +564,7 @@ void AIWorldMgr::ScanNearbyEntities()
 }
 
 // World thread only, on its own ~1s cadence (_needsUpdateIntervalMs),
-// independent of _snapshotIntervalMs - Milestone 2.6A/2.6B1. Only
+// independent of _snapshotIntervalMs - Milestone 2.6A/2.6B1/2.6B2. Only
 // Materialized agents drift; Abstract agents are frozen rather than
 // dead-reckoned, so this deliberately does not become background
 // simulation before that's its own milestone. record->WorldState is only
@@ -576,6 +576,8 @@ void AIWorldMgr::ScanNearbyEntities()
 // plain-value NeedsUpdateContext built from it, never the Creature*.
 void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 {
+    uint64 nowMs = CurrentTimeMs();
+
     for (AgentId id : _registry.GetAgents())
     {
         AgentRecord* record = _registry.Find(id);
@@ -600,11 +602,31 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         context.Alive = creature->IsAlive();
         context.InCombat = creature->IsInCombat();
 
+        // Same deterministic retrieval pipeline CaptureAndSubmitSnapshot()
+        // already runs at snapshot cadence - reused here at Needs cadence
+        // to turn recent dangerous memories into a danger signal that
+        // outlives combat itself (2.6B2). Retrieval::Relevance is not used
+        // here - see NeedsSystem::EvaluateMemorySafety()'s comment for why.
+        MemoryQueryContext memoryContext;
+        memoryContext.Agent = id;
+        memoryContext.NowMs = nowMs;
+        memoryContext.MapId = creature->GetMapId();
+        memoryContext.X = creature->GetPositionX();
+        memoryContext.Y = creature->GetPositionY();
+        memoryContext.Z = creature->GetPositionZ();
+
+        std::vector<MemoryRecord> shortTermMemories = _shortTermMemory.GetActiveForAgent(id, nowMs);
+        std::vector<LongTermMemoryRecord> longTermMemories = _longTermMemory.GetForAgent(id);
+        std::vector<RetrievedMemory> relevantMemories = _memoryRetrieval.Retrieve(
+            memoryContext, shortTermMemories, longTermMemories, _memoryRetrievalTopN);
+
+        context.MemorySafetyPressure = _needsSystem.EvaluateMemorySafety(relevantMemories, nowMs, _shortTermMemoryTtlMs);
+
         _needsSystem.Update(record->Needs, context, elapsedMs, _needsRates);
 
         TC_LOG_DEBUG("ai.world",
-            "AI needs agent={} dt={}ms alive={} inCombat={} healthPressure={:.4f} hunger={:.4f} fatigue={:.4f} safetyPressure={:.4f} resourcePressure={:.4f}",
-            record->Id.Value, elapsedMs, context.Alive, context.InCombat,
+            "AI needs agent={} dt={}ms alive={} inCombat={} memorySafety={:.4f} healthPressure={:.4f} hunger={:.4f} fatigue={:.4f} safetyPressure={:.4f} resourcePressure={:.4f}",
+            record->Id.Value, elapsedMs, context.Alive, context.InCombat, context.MemorySafetyPressure,
             record->Needs.HealthPressure, record->Needs.Hunger, record->Needs.Fatigue,
             record->Needs.SafetyPressure, record->Needs.ResourcePressure);
     }

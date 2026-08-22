@@ -18,6 +18,29 @@
 #include "NeedsSystem.h"
 #include <algorithm>
 
+namespace
+{
+    // 2.6B2's danger whitelist: an inherently dangerous WorldEventType.
+    // Deliberately excludes PlayerSeen/TradeCompleted/ItemStolen/
+    // FoodShortage - those aren't physical danger (FoodShortage feeds
+    // Hunger/ResourcePressure instead, ItemStolen isn't a threat to the
+    // agent itself).
+    bool IsDangerousEventType(WorldEventType type)
+    {
+        switch (type)
+        {
+            case WorldEventType::CreatureKilled:
+            case WorldEventType::NPCInjured:
+            case WorldEventType::LivestockKilled:
+            case WorldEventType::WolfPackMoved:
+            case WorldEventType::NPCDied:
+                return true;
+            default:
+                return false;
+        }
+    }
+}
+
 void NeedsSystem::Update(NeedsState& state, NeedsUpdateContext const& context, uint32 elapsedMs, NeedsUpdateRates const& rates) const
 {
     // Dead: HealthPressure pinned to critical, everything else (Hunger,
@@ -35,13 +58,39 @@ void NeedsSystem::Update(NeedsState& state, NeedsUpdateContext const& context, u
         ? 1.0f
         : 1.0f - std::clamp(float(context.Health) / float(context.MaxHealth), 0.0f, 1.0f);
 
-    // 2.6B1's minimal live safety signal: in combat is maximally unsafe,
-    // otherwise safe. No memory of recent danger yet - that's 2.6B2.
-    state.SafetyPressure = context.InCombat ? 1.0f : 0.0f;
+    // Combat is always maximal danger, taking precedence over whatever
+    // memory says; once combat itself ends, a recent dangerous memory can
+    // still keep SafetyPressure above zero (2.6B2) until it ages out.
+    state.SafetyPressure = context.InCombat
+        ? 1.0f
+        : std::clamp(context.MemorySafetyPressure, 0.0f, 1.0f);
 
     float dtSeconds = float(elapsedMs) / 1000.0f;
 
     state.Hunger = std::clamp(state.Hunger + rates.HungerPerSecond * dtSeconds, 0.0f, 1.0f);
     state.Fatigue = std::clamp(state.Fatigue + rates.FatiguePerSecond * dtSeconds, 0.0f, 1.0f);
     state.ResourcePressure = std::clamp(state.ResourcePressure + rates.ResourcePressurePerSecond * dtSeconds, 0.0f, 1.0f);
+}
+
+float NeedsSystem::EvaluateMemorySafety(std::vector<RetrievedMemory> const& memories, uint64 nowMs, uint32 recentWindowMs) const
+{
+    float pressure = 0.0f;
+
+    for (RetrievedMemory const& memory : memories)
+    {
+        if (!memory.SourceEventType || !IsDangerousEventType(*memory.SourceEventType))
+            continue;
+
+        if (memory.LastObservedAtMs > nowMs)
+            continue; // defensive: no future-dated memory should count
+
+        uint64 ageMs = nowMs - memory.LastObservedAtMs;
+        if (ageMs >= recentWindowMs)
+            continue;
+
+        float recency = 1.0f - float(ageMs) / float(recentWindowMs);
+        pressure = std::max(pressure, memory.Importance * recency);
+    }
+
+    return std::clamp(pressure, 0.0f, 1.0f);
 }
