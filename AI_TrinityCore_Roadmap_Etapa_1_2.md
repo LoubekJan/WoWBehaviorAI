@@ -848,11 +848,11 @@ REQUEST_HELP
 
 > Runtime ověřeno je zatím jen `FLEE`. Zbytek katalogu čeká na `MOVE_TO` jako obecný pohybový primitiv (viz "Další implementace" níže) - žádný další action type se nepřidává naslepo.
 
-- [x] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A) hotová; validation verdict je `ActionValidationResult` (ne `ActionResult`), execution verdict je zatím jen bool + log, ne vlastní DTO**.
+- [ ] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A) hotová; `ActionResult` jako vlastní execution DTO zatím chybí (execution verdict je jen bool + log) - `2.8C`**.
 - [x] Pro každou akci implementovat serverovou validaci — **hotovo pro jediný existující action type (`FLEE`); až přibude druhý, ověří se, že se vzor opravdu opakuje**.
 - [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) a existence cíle (`NoFleeSource`/`FleeSourceMismatch`, 2.8B) validuje `ActionSystem`; pathing/range/LoS pro `FLEE` deleguje `FleeingMovementGenerator` (TrinityCore), AIWorld ho neduplikuje**.
 - [x] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru — **`ActionExecutor` se volá jen po `Validate() == Allowed`; REJECTED nikdy nedosáhne engine kódu**.
-- [x] Přidat timeout a cancel pro dlouhé akce — **goal-level `TimeoutMs` (2.7B2) → `FAILED` → `ActionExecutor::StopFlee()` (2.8B), ne samostatný per-action timeout mechanismus**.
+- [ ] Přidat timeout a cancel pro dlouhé akce — **FLEE dnes končí přes goal-level `TimeoutMs` (2.7B2) → `FAILED` → `ActionExecutor::StopFlee()` (2.8B); obecný per-action timeout/cancel mechanismus zatím neexistuje**.
 - [ ] Přidat fallback behavior při chybě AI služby — **mimo scope: tato deterministic `FLEE_DANGER` pipeline nikdy nevolá ai-server; týká se budoucí LLM-driven decision cesty**.
 - [x] Každá provedená AI akce musí být auditovatelná: kdo ji navrhl, proč, s jakým contextem a výsledkem validace — **debug log na každém kroku (request/validation/execution/stop) s agent id, goal source, reason, výsledkem**.
 
