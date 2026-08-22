@@ -637,6 +637,16 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             record->Id.Value, elapsedMs, context.Alive, context.InCombat, context.MemorySafetyPressure,
             record->Needs.HealthPressure, record->Needs.Hunger, record->Needs.Fatigue,
             record->Needs.SafetyPressure, record->Needs.ResourcePressure);
+
+        // Milestone 2.6C: audit/debug log only - no Goal System, no
+        // ActionRequest, no EventBus publish. An agent's own hunger/danger
+        // is not automatically observable by anyone else, so this
+        // deliberately never becomes a WorldEvent.
+        for (NeedsThresholdEvent const& event : _needsSystem.EvaluateThresholds(record->Needs, record->NeedsThresholds))
+        {
+            TC_LOG_DEBUG("ai.world", "AI needs threshold agent={} type={} value={:.4f}",
+                record->Id.Value, ToString(event.Type), event.Value);
+        }
     }
 }
 

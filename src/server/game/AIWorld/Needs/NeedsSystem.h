@@ -21,6 +21,8 @@
 #include "Define.h"
 #include "Memory/RetrievedMemory.h"
 #include "NeedsState.h"
+#include "NeedsThresholdEvent.h"
+#include "NeedsThresholdState.h"
 #include <vector>
 
 // Per-second drift rates. Deliberately not part of NeedsState itself - the
@@ -72,6 +74,16 @@ class TC_GAME_API NeedsSystem
         // "in danger". Pure value in, pure value out - no Creature*/Map*/
         // registry/DB.
         float EvaluateMemorySafety(std::vector<RetrievedMemory> const& memories, uint64 nowMs, uint32 recentWindowMs) const;
+
+        // Milestone 2.6C: edge-triggered NeedsThresholdEvent, one per
+        // actual crossing rather than one per tick a Need stays above its
+        // enter threshold - thresholds mutates its latch in place so the
+        // next call sees the updated state. Hysteresis gap between enter
+        // (0.80) and reset (0.60) exists specifically so a Need oscillating
+        // around 0.80 doesn't spam an event every ~1s tick. Still pure
+        // value: no AgentId, Creature*, Map*, EventBus, or DB - the caller
+        // decides what (if anything) to do with the returned events.
+        std::vector<NeedsThresholdEvent> EvaluateThresholds(NeedsState const& state, NeedsThresholdState& thresholds) const;
 };
 
 #endif // AIWORLD_NEEDSSYSTEM_H

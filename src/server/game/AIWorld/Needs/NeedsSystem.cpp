@@ -39,6 +39,13 @@ namespace
                 return false;
         }
     }
+
+    // 2.6C hysteresis gap: a Need must reach 0.80 to latch ACTIVE (emitting
+    // one event) and must drop back below 0.60 before it can latch again -
+    // without the gap, a value oscillating around a single threshold would
+    // emit an event almost every ~1s Needs tick.
+    constexpr float CriticalEnterThreshold = 0.80f;
+    constexpr float CriticalResetThreshold = 0.60f;
 }
 
 void NeedsSystem::Update(NeedsState& state, NeedsUpdateContext const& context, uint32 elapsedMs, NeedsUpdateRates const& rates) const
@@ -93,4 +100,31 @@ float NeedsSystem::EvaluateMemorySafety(std::vector<RetrievedMemory> const& memo
     }
 
     return std::clamp(pressure, 0.0f, 1.0f);
+}
+
+std::vector<NeedsThresholdEvent> NeedsSystem::EvaluateThresholds(NeedsState const& state, NeedsThresholdState& thresholds) const
+{
+    std::vector<NeedsThresholdEvent> events;
+
+    if (!thresholds.HungerCriticalActive && state.Hunger >= CriticalEnterThreshold)
+    {
+        thresholds.HungerCriticalActive = true;
+        events.push_back({ NeedsThresholdEventType::HungerCritical, state.Hunger });
+    }
+    else if (thresholds.HungerCriticalActive && state.Hunger < CriticalResetThreshold)
+    {
+        thresholds.HungerCriticalActive = false;
+    }
+
+    if (!thresholds.DangerHighActive && state.SafetyPressure >= CriticalEnterThreshold)
+    {
+        thresholds.DangerHighActive = true;
+        events.push_back({ NeedsThresholdEventType::DangerHigh, state.SafetyPressure });
+    }
+    else if (thresholds.DangerHighActive && state.SafetyPressure < CriticalResetThreshold)
+    {
+        thresholds.DangerHighActive = false;
+    }
+
+    return events;
 }

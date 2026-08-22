@@ -22,6 +22,7 @@
 #include "AgentType.h"
 #include "Define.h"
 #include "Needs/NeedsState.h"
+#include "Needs/NeedsThresholdState.h"
 #include "ObjectGuid.h"
 
 // One persistent agent's registry-owned state. SpawnId/MapId is the stable
@@ -47,6 +48,12 @@ struct AgentRecord
     // Needs must survive Creature unload/reload the same way everything
     // else here does. Frozen (not updated) while WorldState == Abstract.
     NeedsState Needs;
+
+    // Milestone 2.6C: edge-trigger latch for NeedsThresholdEvent, owned
+    // alongside Needs for the same reason - must survive Creature
+    // unload/reload so a threshold doesn't spuriously re-fire on the next
+    // materialize.
+    NeedsThresholdState NeedsThresholds;
 };
 
 #endif // AIWORLD_AGENTRECORD_H
