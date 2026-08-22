@@ -715,6 +715,37 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             case GoalTransition::None:
                 break;
         }
+
+        // Milestone 2.8A: propose (never execute) a FLEE ActionRequest the
+        // tick FLEE_DANGER is Activated or Interrupted-into - not every
+        // tick it stays active. ActionSystem::Validate() only judges
+        // ALLOWED/REJECTED; nothing here calls into TrinityCore's
+        // movement/combat API (that's 2.8B). GET_FOOD deliberately maps to
+        // no action yet - see ActionType.h for why.
+        if ((selection.Transition == GoalTransition::Activated || selection.Transition == GoalTransition::Interrupted)
+            && selection.Goal->Type == GoalType::FleeDanger)
+        {
+            ActionRequest request;
+            request.Actor = id;
+            request.Type = ActionType::Flee;
+            request.SourceGoal = selection.Goal->Type;
+            request.GoalStartedAtMs = selection.Goal->StartedAtMs;
+
+            TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={}",
+                record->Id.Value, ToString(request.Type), ToString(request.SourceGoal));
+
+            ActionValidationContext validationContext;
+            validationContext.Materialized = record->WorldState == AgentWorldState::Materialized;
+            validationContext.Alive = context.Alive;
+            validationContext.ActiveGoalType = record->ActiveGoalState->Type;
+            validationContext.ActiveGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
+
+            ActionValidationResult validation = _actionSystem.Validate(request, validationContext);
+
+            TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+                record->Id.Value, ToString(request.Type), validation.Allowed ? "ALLOWED" : "REJECTED",
+                ToString(validation.Reason));
+        }
     }
 }
 

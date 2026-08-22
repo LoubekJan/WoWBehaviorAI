@@ -18,6 +18,7 @@
 #ifndef AIWORLD_AIWORLDMGR_H
 #define AIWORLD_AIWORLDMGR_H
 
+#include "Action/ActionSystem.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentRegistry.h"
 #include "Define.h"
@@ -190,6 +191,14 @@ class TC_GAME_API AIWorldMgr
         // value transform: GoalSystem itself never touches AgentId/
         // Creature/Map/AgentRecord/DB.
         GoalSystem _goalSystem;
+
+        // Milestone 2.8A: the safety boundary between "AI proposes" and
+        // "TrinityCore executes" - AIWorldMgr builds an ActionRequest only
+        // on FLEE_DANGER's ACTIVATED/INTERRUPTED transition (see
+        // UpdateNeeds()) and asks Validate() whether it's currently
+        // ALLOWED. Debug-logged only - nothing yet calls into TrinityCore's
+        // movement/combat API on an Allowed result; that's 2.8B.
+        ActionSystem _actionSystem;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()
