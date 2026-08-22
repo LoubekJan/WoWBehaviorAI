@@ -651,13 +651,40 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // Milestone 2.7A: level-triggered, not derived from the edge-
         // triggered NeedsThresholdEvent above - a candidate must exist for
         // as long as its Need stays at/above threshold, not just on the
-        // tick it crosses. Debug log only - no ActiveGoal, no selection,
-        // no Action API.
-        for (GoalCandidate const& candidate : _goalSystem.GenerateCandidates(record->Needs))
+        // tick it crosses.
+        std::vector<GoalCandidate> candidates = _goalSystem.GenerateCandidates(record->Needs);
+        for (GoalCandidate const& candidate : candidates)
         {
             TC_LOG_DEBUG("ai.world", "AI goal candidate agent={} type={} priority={} utility={:.4f} source={}",
                 record->Id.Value, ToString(candidate.Type), ToString(candidate.Priority),
                 candidate.Utility, ToString(candidate.Source));
+        }
+
+        // Milestone 2.7B1: select/retain/interrupt/release the agent's
+        // single ActiveGoal. Still no Action API, no /decision change, no
+        // world mutation - transitions are logged, nothing acts on them.
+        std::optional<ActiveGoal> previousGoal = record->ActiveGoalState;
+        GoalSelectionResult selection = _goalSystem.UpdateActiveGoal(record->ActiveGoalState, record->Needs, candidates, nowMs);
+        record->ActiveGoalState = selection.Goal;
+
+        switch (selection.Transition)
+        {
+            case GoalTransition::Activated:
+                TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={} priority={} utility={:.4f}",
+                    record->Id.Value, ToString(selection.Transition), ToString(selection.Goal->Type),
+                    ToString(selection.Goal->Priority), selection.Goal->Utility);
+                break;
+            case GoalTransition::Interrupted:
+                TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} from={} to={} priority={} utility={:.4f}",
+                    record->Id.Value, ToString(selection.Transition), ToString(previousGoal->Type), ToString(selection.Goal->Type),
+                    ToString(selection.Goal->Priority), selection.Goal->Utility);
+                break;
+            case GoalTransition::Released:
+                TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={}",
+                    record->Id.Value, ToString(selection.Transition), ToString(previousGoal->Type));
+                break;
+            case GoalTransition::None:
+                break;
         }
     }
 }

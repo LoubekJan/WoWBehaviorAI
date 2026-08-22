@@ -21,9 +21,11 @@
 #include "AgentId.h"
 #include "AgentType.h"
 #include "Define.h"
+#include "Goal/ActiveGoal.h"
 #include "Needs/NeedsState.h"
 #include "Needs/NeedsThresholdState.h"
 #include "ObjectGuid.h"
+#include <optional>
 
 // One persistent agent's registry-owned state. SpawnId/MapId is the stable
 // binding to a TrinityCore creature spawn; RuntimeGuid is only the current
@@ -54,6 +56,12 @@ struct AgentRecord
     // unload/reload so a threshold doesn't spuriously re-fire on the next
     // materialize.
     NeedsThresholdState NeedsThresholds;
+
+    // Milestone 2.7B1: the agent's single currently-selected goal, or
+    // empty if none is active. Owned here for the same reason as Needs -
+    // must survive Creature unload/reload within this process. Not
+    // persisted across restart yet.
+    std::optional<ActiveGoal> ActiveGoalState;
 };
 
 #endif // AIWORLD_AGENTRECORD_H
