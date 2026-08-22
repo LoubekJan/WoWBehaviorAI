@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřenou první kompletní Needs → Goal → Action → TrinityCore pipeline (2.8A + 2.8A.5 + 2.8B, pro `FLEE`):
+Etapa 2 má runtime ověřenou první kompletní Needs → Goal → Action → TrinityCore pipeline se strukturovaným ActionResult (2.8A + 2.8A.5 + 2.8B + 2.8C, pro `FLEE`):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -42,8 +42,9 @@ Etapa 2 má runtime ověřenou první kompletní Needs → Goal → Action → T
 - safe Action API scaffold (2.8A): `ActionRequest`/`ActionSystem::Validate()`, pure-value validation boundary, zatím jen `FLEE`.
 - AIWorld creature control takeover (2.8A.5): `AIWorldCreatureAI` potlačuje default auto-aggro/chase/melee/DB movement jen pro `OwnsSpawn()` shodu; TrinityCore combat/threat/damage/death beze změny.
 - první skutečná FLEE execution (2.8B): `ActionExecutor::ExecuteFlee`/`StopFlee` přes `MoveFleeing`/`MotionMaster`, TrinityCore pathfinding, scoped stop movement.
+- structured `ActionResult` (2.8C): `ExecuteFlee()` vrací `ActionResult` (Status/Reason) místo bool; `GoalCompletion`/`ActionValidationResult`/`ActionResult` jsou tři oddělené, jasně vymezené hranice.
 
-**Aktuální NEXT:** checkpoint - další bezpečný Action API primitiv (pravděpodobně `MOVE_TO`).
+**Aktuální NEXT:** `2.8D — MOVE_TO` jako druhý, úzce scoped Action primitiv (bez napojení na `GET_FOOD`).
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -119,7 +120,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT: Action API checkpoint (MOVE_TO?)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.8D (MOVE_TO)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -828,7 +829,7 @@ Runtime ověřeno:
 
 ## 2.8 Bezpečné Action API
 
-**Stav: 2.8A + 2.8A.5 + 2.8B (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + first real FLEE execution) DONE / runtime PASS pro `FLEE` - katalog je zatím jednoprvkový**
+**Stav: 2.8A + 2.8A.5 + 2.8B + 2.8C (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + first real FLEE execution + structured ActionResult) DONE / runtime PASS pro `FLEE` - katalog je zatím jednoprvkový**
 
 AI nemá přístup k libovolnému C++ ani k přímým zápisům do světa. Smí pouze požádat o akci z povoleného katalogu.
 
@@ -848,7 +849,7 @@ REQUEST_HELP
 
 > Runtime ověřeno je zatím jen `FLEE`. Zbytek katalogu čeká na `MOVE_TO` jako obecný pohybový primitiv (viz "Další implementace" níže) - žádný další action type se nepřidává naslepo.
 
-- [ ] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A) hotová; `ActionResult` jako vlastní execution DTO zatím chybí (execution verdict je jen bool + log) - `2.8C`**.
+- [x] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A); `ActionResult` jako vlastní execution DTO (`ActionExecutionStatus`/`ActionExecutionReason`, 2.8C)**.
 - [x] Pro každou akci implementovat serverovou validaci — **hotovo pro jediný existující action type (`FLEE`); až přibude druhý, ověří se, že se vzor opravdu opakuje**.
 - [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) a existence cíle (`NoFleeSource`/`FleeSourceMismatch`, 2.8B) validuje `ActionSystem`; pathing/range/LoS pro `FLEE` deleguje `FleeingMovementGenerator` (TrinityCore), AIWorld ho neduplikuje**.
 - [x] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru — **`ActionExecutor` se volá jen po `Validate() == Allowed`; REJECTED nikdy nedosáhne engine kódu**.
@@ -898,7 +899,54 @@ Runtime ověřeno:
 
 **Otevřené P3 z review, neblokující:** (1) `request.FleeFromGuid`/`context.FleeSourceGuid` se dnes staví ze stejné proměnné na stejném call-site, takže `FleeSourceMismatch` je momentálně tautologicky nedosažitelný - stane se to skutečnou hranicí až se request creation a validation oddělí (např. queue/async executor). (2) `FLEE_DANGER` aktivovaný jen z recent-memory (bez current threat victim) dostane `NO_FLEE_SOURCE` a v rámci stejného goal attempt se znovu nepokusí - budoucí flee source z perception/memory nebo retry policy je otevřená otázka.
 
-**Další implementace:** checkpoint - jaký je další bezpečný Action API primitiv. Pravděpodobně `MOVE_TO` jako obecný pohybový primitiv, ne rovnou `EAT` nebo `ATTACK`.
+### Implementovaný stav 2.8C
+
+```text
+ActionExecutor::ExecuteFlee
+    ↓ (dřív: bool)
+ActionResult (Actor, Type, Status, Reason, SourceGoal, GoalStartedAtMs) - pure value
+    ↓
+Status: STARTED (MoveFleeing() vydán) / FAILED (UnsupportedAction, dnes nedosažitelné)
+```
+
+Implementation: `e1599bf5` feat(ai-world): add structured action execution result (2.8C)
+
+Runtime ověřeno:
+
+- `AI action validation ... result=ALLOWED reason=NONE`.
+- `AI action execution ... type=FLEE status=STARTED reason=NONE`.
+- NPC se chová fyzicky identicky jako v 2.8B (útěk od `fleeSource`, `inCombat=true` po dobu útěku, `SUCCEEDED`/`FAILED` → `StopFlee()` → idle).
+- žádná nová world mutation, žádný nový `ActionType`, žádná chování změna oproti 2.8B - jen strukturovaný výsledek místo bool.
+
+**Otevřený P3, neblokující:** `ActionExecutionReason::EngineRejected` dnes nikde nevzniká (`MoveFleeing()` vrací `void`) - zatím jen future-facing hodnota enumu.
+
+**Další implementace:** `2.8D — MOVE_TO` jako druhý, úzce scoped Action primitiv (bez napojení na `GET_FOOD`), viz níže.
+
+### 2.8D — MOVE_TO (plánováno)
+
+Cíl: prokázat, že Action API není postavené speciálně jen kolem `FLEE`, ne zatím propojit Goals s movementem. `MOVE_TO` se v 2.8D nespouští z `GoalSystem` - deterministický testovací integration point / explicitní interní request, stejně jako `FLEE` v 2.8A/2.8B nikdy nebyl vyvolaný z ničeho jiného než `FLEE_DANGER`.
+
+Scope:
+
+```text
+ActionType::MoveTo
+    ↓
+ActionRequest.Destination (nový std::optional<ActionPosition> - MapId/X/Y/Z, pure value)
+    ↓
+ActionSystem validation (materialized, alive, goal identity, destination existuje,
+                          destination.MapId == actor.MapId, souřadnice finite,
+                          max range ~30-50 yd)
+    ↓
+ALLOWED
+    ↓
+ActionExecutor::ExecuteMoveTo → Creature::GetMotionMaster()->MovePoint (TrinityCore pathfinding)
+    ↓
+ActionResult
+    ↓
+stop/cancel pouze vlastního MOVE_TO movementu (vlastní stabilní point ID, ne MotionMaster::Clear(), ne bezpodmínečné StopMoving() - stejný vzor jako StopFlee() P2 fix)
+```
+
+Bez LLM, bez DB persistence, bez napojení na `GET_FOOD` - to je až `2.8E — Goal → MOVE_TO planning`.
 
 ## 2.9 AI server — decision protocol
 
