@@ -794,11 +794,11 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             // never true without a resolved threat victim.
             if (validation.Allowed)
             {
-                bool executed = _actionExecutor.ExecuteFlee(request, *creature, *fleeSource);
+                ActionResult executionResult = _actionExecutor.ExecuteFlee(request, *creature, *fleeSource);
 
-                TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} result={} targetGuid={}",
-                    record->Id.Value, ToString(request.Type), executed ? "EXECUTED" : "FAILED",
-                    request.FleeFromGuid.ToString());
+                TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={} targetGuid={}",
+                    record->Id.Value, ToString(executionResult.Type), ToString(executionResult.Status),
+                    ToString(executionResult.Reason), request.FleeFromGuid.ToString());
             }
         }
     }

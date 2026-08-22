@@ -19,12 +19,13 @@
 #define AIWORLD_ACTIONEXECUTOR_H
 
 #include "ActionRequest.h"
+#include "ActionResult.h"
 #include "Define.h"
 
 class Creature;
 class Unit;
 
-// Milestone 2.8B: the one place in AIWorld allowed to touch TrinityCore's
+// Milestone 2.8B/2.8C: the one place in AIWorld allowed to touch TrinityCore's
 // engine API to actually make a Creature do something - the third step of
 // AI proposes (ActionRequest) / ActionSystem validates / ActionExecutor
 // executes. World thread only, called only after ActionSystem::Validate()
@@ -45,10 +46,10 @@ class TC_GAME_API ActionExecutor
         // Starts an untimed flee from fleeSource via
         // GetMotionMaster()->MoveFleeing() - TrinityCore's own pathfinding
         // and collision-aware movement, not anything AIWorld computes
-        // itself. Returns false (and does nothing) if request.Type is not
-        // Flee - defensive only; every current call site already validated
-        // this before calling.
-        bool ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const;
+        // itself. Returns Failed/UnsupportedAction (and does nothing) if
+        // request.Type is not Flee - defensive only; every current call
+        // site already validated this before calling.
+        ActionResult ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const;
 
         // Ends a flee started by ExecuteFlee() - removes only the
         // FLEEING_MOTION_TYPE generator (never MotionMaster::Clear(),

@@ -20,17 +20,30 @@
 #include "MotionMaster.h"
 #include "MovementDefines.h"
 
-bool ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const
+ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const
 {
+    ActionResult result;
+    result.Actor = request.Actor;
+    result.Type = request.Type;
+    result.SourceGoal = request.SourceGoal;
+    result.GoalStartedAtMs = request.GoalStartedAtMs;
+
     if (request.Type != ActionType::Flee)
-        return false;
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::UnsupportedAction;
+        return result;
+    }
 
     // Untimed (time=0): the flee ends when AIWorld's own goal lifecycle
     // (SafetyPressure dropping below retention, or the goal timing out)
     // says it should, via StopFlee() - not on a TrinityCore-owned timer
     // this class would then have to coordinate with.
     actor.GetMotionMaster()->MoveFleeing(&fleeSource);
-    return true;
+
+    result.Status = ActionExecutionStatus::Started;
+    result.Reason = ActionExecutionReason::None;
+    return result;
 }
 
 void ActionExecutor::StopFlee(Creature& actor) const
