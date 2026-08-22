@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený základ až po Memory System:
+Etapa 2 má runtime ověřený základ až po Needs drift (2.6A):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -32,8 +32,9 @@ Etapa 2 má runtime ověřený základ až po Memory System:
 - deterministic importance + persistentní `LongTermMemory`.
 - restart/load long-term memory.
 - deterministic retrieval short-term + long-term memories s relevance rankingem a Top-N omezením.
+- per-agent `NeedsState` (2.6A): deterministic hunger/fatigue/resource pressure drift, vlastní cadence, clamp 0.0–1.0, live Creature existence jako authority.
 
-**Aktuální NEXT:** `2.6 Needs System`.
+**Aktuální NEXT:** `2.6B1 — live world-state coupling (health/safety pressure)`.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -109,7 +110,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6 NEEDS** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.6B1** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -584,18 +585,42 @@ Runtime ověřeno:
 
 ## 2.6 Needs System
 
-**NEXT**
+**Stav: 2.6A (NeedsState + deterministic drift + clamp) DONE / runtime PASS**
 
-- [ ] Zavést minimální potřeby:
-  - `health`
-  - `hunger`
-  - `fatigue`
-  - `safety`
-  - `money/resource pressure`
-- [ ] Potřeby aktualizovat deterministicky v simulation ticku.
-- [ ] Potřeby omezit do definovaného rozsahu, například `0.0–1.0`.
-- [ ] Přidat threshold events, například `HUNGER_CRITICAL` nebo `DANGER_HIGH`.
-- [ ] Nechat potřeby generovat kandidáty na cíle bez LLM.
+- [x] Zavést minimální potřeby: `health`, `hunger`, `fatigue`, `safety`, `money/resource pressure` — **`NeedsState` zavedena se všemi pěti poli; `health`/`safety` pressure zatím zůstávají `0.0`, world-state coupling je 2.6B1**.
+- [x] Potřeby aktualizovat deterministicky v simulation ticku — `hunger`/`fatigue`/`resource pressure` drift na vlastní ~1s cadence, nezávislé na snapshot cadence.
+- [x] Potřeby omezit do definovaného rozsahu `0.0–1.0`.
+- [ ] Přidat threshold events, například `HUNGER_CRITICAL` nebo `DANGER_HIGH` — **2.6C**.
+- [ ] Nechat potřeby generovat kandidáty na cíle bez LLM — **2.7**.
+
+### Implementovaný stav 2.6A
+
+```text
+AgentRecord.Needs (registry-owned, přežije Creature unload/reload)
+    ↓ vlastní ~1s cadence (AIWorld.NeedsUpdateIntervalMs)
+live Creature lookup (authority pro Materialized/Abstract)
+    ↓
+NeedsSystem::Update (pure value transform, bez AgentId/Creature/Map)
+    ↓
+hunger/fatigue/resource drift + clamp 0.0-1.0
+```
+
+Implementation: `11f1b0b7` feat(ai-world): add per-agent Needs drift (2.6A)
+Hardening: `546526a7` fix(ai-world): use live Creature lookup in UpdateNeeds, not stale WorldState (P2)
+
+Runtime ověřeno:
+
+- nezávislá ~1s Needs cadence.
+- deterministic hunger/fatigue/resource drift.
+- `HealthPressure`/`SafetyPressure` zatím `0.0`.
+- clamp `0.0–1.0` PASS.
+- `AgentRecord` drží `NeedsState` přes Creature unload/reload.
+- live Creature existence je authority pro Materialized/Abstract (ne zastaralý `WorldState`).
+- žádná Needs persistence.
+- žádná world mutation.
+- `/decision` beze změny.
+
+**Další implementace:** `2.6B1 — live world-state coupling` (health pressure z HP ratio, safety pressure z `InCombat`, hunger/fatigue/resource zmrazené při smrti).
 
 ## 2.7 Goal System
 
