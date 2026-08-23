@@ -232,6 +232,15 @@ void AIWorldMgr::Update(uint32 diff)
     for (WorldEvent& event : _eventBus.Drain())
         ProcessWorldEvent(event);
 
+    // Milestone 2.8F: same reasoning as _eventBus above - drained right
+    // after it, still before anything in this tick's UpdateNeeds() could
+    // start a new ActiveAction, so a stale event from an already-replaced
+    // ActiveAction never gets a chance to be misread as belonging to the
+    // new one. ProcessActionEngineEvent() does the actual validation;
+    // nothing here trusts the event's contents yet.
+    for (ActionEngineEvent& event : _actionEngineEventBus.Drain())
+        ProcessActionEngineEvent(event);
+
     if (_testAgentId)
     {
         _snapshotTimer += diff;
@@ -445,6 +454,20 @@ void AIWorldMgr::PublishWorldEvent(WorldEvent event)
     _eventBus.Publish(std::move(event));
 }
 
+// Safe to call from any thread - see the declaration in AIWorldMgr.h and
+// ActionEngineEventBus's own comments for why. Same _acceptEvents gate as
+// PublishWorldEvent(), for the same reason. Deliberately does nothing
+// beyond the atomic check and the publish itself: no Creature/AgentRecord
+// lookups, no ai-server calls, no world mutation. That happens later, in
+// ProcessActionEngineEvent() on the world thread.
+void AIWorldMgr::PublishActionEngineEvent(ActionEngineEvent event)
+{
+    if (!_acceptEvents.load(std::memory_order_acquire))
+        return;
+
+    _actionEngineEventBus.Publish(std::move(event));
+}
+
 // Safe to call from a map-updater thread - see the declaration comment in
 // AIWorldMgr.h for why. Read-only: never mutates _registry, never touches
 // Creature/Map, never calls ai-server. _enabled is a plain (non-atomic)
@@ -620,6 +643,20 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
         if (!creature)
         {
+            // Milestone 2.8F: whatever engine movement ActiveActionState
+            // claims is running went away along with the Creature - clear
+            // it rather than let it keep claiming a movement that no
+            // longer exists. ActiveGoalState is left alone; per existing
+            // rules it may still survive a rematerialize, but 2.8F does not
+            // automatically re-plan a new action for it on reload.
+            if (record->ActiveActionState)
+            {
+                TC_LOG_DEBUG("ai.world", "AI action completion agent={} type={} status={} reason={} sourceGoal={}",
+                    record->Id.Value, ToString(record->ActiveActionState->Type), ToString(ActionCompletionStatus::Cancelled),
+                    ToString(ActionCompletionReason::ActorDematerialized), ToString(record->ActiveActionState->SourceGoal));
+                record->ActiveActionState.reset();
+            }
+
             if (record->WorldState == AgentWorldState::Materialized)
                 _registry.UnbindCreature(id);
             continue;
@@ -745,6 +782,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 if (selection.Goal->Type == GoalType::FleeDanger)
                 {
                     _actionExecutor.StopMoveTo(*creature);
+                    record->ActiveActionState.reset();
 
                     TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=GOAL_INTERRUPTED",
                         record->Id.Value, ToString(ActionType::MoveTo));
@@ -774,6 +812,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 else if (selection.Completion->Type == GoalType::GetFood)
                 {
                     _actionExecutor.StopMoveTo(*creature);
+                    record->ActiveActionState.reset();
 
                     TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={}",
                         record->Id.Value, ToString(ActionType::MoveTo),
@@ -898,10 +937,102 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
                     TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
                         record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+
+                    // Milestone 2.8F: only after the executor actually
+                    // returned Started, never before validation and never
+                    // on a Failed result - ActiveActionState must only ever
+                    // claim a movement that is genuinely running.
+                    if (moveResult.Status == ActionExecutionStatus::Started)
+                    {
+                        ActiveAction action;
+                        action.Type = moveRequest.Type;
+                        action.SourceGoal = moveRequest.SourceGoal;
+                        action.GoalStartedAtMs = moveRequest.GoalStartedAtMs;
+                        action.StartedAtMs = nowMs;
+                        action.Destination = moveRequest.Destination;
+                        record->ActiveActionState = action;
+                    }
                 }
             }
         }
     }
+}
+
+// World thread only, drained from _actionEngineEventBus once per tick,
+// right after _eventBus's own drain (see Update()). Milestone 2.8F: the
+// event was resolved from a live Creature at publish time (a map-updater
+// thread, potentially several ticks ago) but reaches here as a pure value
+// - the agent could have unloaded, rebound to a different Creature, or had
+// the goal that started this action released/succeeded/failed/interrupted
+// before this ever runs. Every field is checked against the agent's actual
+// current AgentRecord state before being trusted as a real arrival; a
+// failed check just discards the event (debug-logged, not an error) - a
+// stale/mismatched engine callback is an expected consequence of crossing
+// an unsynchronized boundary, not a bug.
+void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
+{
+    if (event.MovementType != POINT_MOTION_TYPE || event.MovementId != ActionExecutor::MovePointId)
+    {
+        TC_LOG_DEBUG("ai.world", "AI action engine event map={} spawn={} discarded: not an AIWorld MOVE_TO (movementType={} movementId={})",
+            event.MapId, event.SpawnId, event.MovementType, event.MovementId);
+        return;
+    }
+
+    AgentRecord* record = _registry.FindBySpawn(event.MapId, event.SpawnId);
+    if (!record)
+    {
+        TC_LOG_DEBUG("ai.world", "AI action engine event map={} spawn={} discarded: no registered agent", event.MapId, event.SpawnId);
+        return;
+    }
+
+    if (record->RuntimeGuid != event.RuntimeGuid)
+    {
+        TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: stale Creature instance (recordGuid={} eventGuid={})",
+            record->Id.Value, record->RuntimeGuid.ToString(), event.RuntimeGuid.ToString());
+        return;
+    }
+
+    if (!record->ActiveActionState || record->ActiveActionState->Type != ActionType::MoveTo)
+    {
+        TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: no active MOVE_TO to complete", record->Id.Value);
+        return;
+    }
+
+    if (!record->ActiveGoalState
+        || record->ActiveGoalState->Type != record->ActiveActionState->SourceGoal
+        || record->ActiveGoalState->StartedAtMs != record->ActiveActionState->GoalStartedAtMs)
+    {
+        TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: goal attempt has already ended", record->Id.Value);
+        return;
+    }
+
+    ActionCompletion completion;
+    completion.Actor = record->Id;
+    completion.Type = record->ActiveActionState->Type;
+    completion.SourceGoal = record->ActiveActionState->SourceGoal;
+    completion.GoalStartedAtMs = record->ActiveActionState->GoalStartedAtMs;
+    completion.Status = ActionCompletionStatus::Succeeded;
+    completion.Reason = ActionCompletionReason::Arrived;
+    completion.CompletedAtMs = CurrentTimeMs();
+
+    HandleActionCompletion(*record, completion);
+}
+
+// World thread only. Milestone 2.8F: the lifecycle/logging seam a later
+// milestone hooks real planning into once an arrival should trigger a next
+// step (e.g. EAT) - for now this only closes out ActiveActionState and
+// logs. Arriving at a target is not the same as the goal that wanted it
+// being satisfied: this never touches NeedsState, never marks a goal
+// Succeeded, never calls GoalSystem.
+void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion)
+{
+    uint64 startedAtMs = record.ActiveActionState ? record.ActiveActionState->StartedAtMs : completion.CompletedAtMs;
+
+    record.ActiveActionState.reset();
+
+    TC_LOG_DEBUG("ai.world", "AI action completion agent={} type={} status={} reason={} sourceGoal={} durationMs={}",
+        record.Id.Value, ToString(completion.Type), ToString(completion.Status), ToString(completion.Reason),
+        ToString(completion.SourceGoal), completion.CompletedAtMs - startedAtMs);
 }
 
 // World thread only. Milestone 2.4A/2.4B/2.4C: log, then hand the

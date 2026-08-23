@@ -43,6 +43,15 @@ class Unit;
 class TC_GAME_API ActionExecutor
 {
     public:
+        // Milestone 2.8F: exposed (not just an ActionExecutor.cpp-local
+        // anonymous-namespace constant, as it was through 2.8D/2.8E) so
+        // AIWorldMgr::ProcessActionEngineEvent() can check an
+        // ActionEngineEvent's MovementId against the exact id ExecuteMoveTo()
+        // tagged its own PointMovementGenerator with, before ever trusting
+        // it as a real arrival. See ExecuteMoveTo()'s comment for why a
+        // fixed, distinctive id matters here.
+        static constexpr uint32 MovePointId = 0xA1700000;
+
         // Starts an untimed flee from fleeSource via
         // GetMotionMaster()->MoveFleeing() - TrinityCore's own pathfinding
         // and collision-aware movement, not anything AIWorld computes
@@ -67,12 +76,14 @@ class TC_GAME_API ActionExecutor
 
         // Milestone 2.8D: starts MoveTo via GetMotionMaster()->MovePoint()
         // - TrinityCore's own pathfinding, not anything AIWorld computes
-        // itself. Tags the generator with a fixed AIWorld-owned point id
-        // (see ActionExecutor.cpp) so StopMoveTo() can find and remove
-        // exactly this movement later, never any other system's unrelated
-        // MovePoint() call - unlike FLEEING_MOTION_TYPE for ExecuteFlee(),
-        // POINT_MOTION_TYPE is used throughout the engine (scripts,
-        // escorts, formations, ...), not exclusively by AIWorld. Returns
+        // itself. Tags the generator with MovePointId so StopMoveTo() can
+        // find and remove exactly this movement later, never any other
+        // system's unrelated MovePoint() call - unlike FLEEING_MOTION_TYPE
+        // for ExecuteFlee(), POINT_MOTION_TYPE is used throughout the
+        // engine (scripts, escorts, formations, ...), not exclusively by
+        // AIWorld. 2.8F's AIWorldCreatureAI::MovementInform() reports the
+        // same id back on natural arrival - see
+        // AIWorldMgr::ProcessActionEngineEvent(). Returns
         // Failed/UnsupportedAction (and does nothing) if request.Type is
         // not MoveTo or request.Destination is empty - defensive only;
         // every current call site already validated this before calling.

@@ -18,6 +18,7 @@
 #ifndef AIWORLD_AGENTRECORD_H
 #define AIWORLD_AGENTRECORD_H
 
+#include "Action/ActiveAction.h"
 #include "AgentId.h"
 #include "AgentType.h"
 #include "Define.h"
@@ -62,6 +63,14 @@ struct AgentRecord
     // must survive Creature unload/reload within this process. Not
     // persisted across restart yet.
     std::optional<ActiveGoal> ActiveGoalState;
+
+    // Milestone 2.8F: the Action currently actually running in TrinityCore
+    // for this agent's ActiveGoalState, if any. Set only after
+    // ActionExecutor::ExecuteX() has actually returned Started - every
+    // path that ends the underlying engine movement (interrupt, goal
+    // completion, dematerialization, natural arrival) must also clear
+    // this. Not persisted across restart.
+    std::optional<ActiveAction> ActiveActionState;
 };
 
 #endif // AIWORLD_AGENTRECORD_H

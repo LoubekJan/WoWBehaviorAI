@@ -18,6 +18,8 @@
 #ifndef AIWORLD_AIWORLDMGR_H
 #define AIWORLD_AIWORLDMGR_H
 
+#include "Action/ActionCompletion.h"
+#include "Action/ActionEngineEventBus.h"
 #include "Action/ActionExecutor.h"
 #include "Action/ActionSystem.h"
 #include "Agent/AgentId.h"
@@ -82,6 +84,15 @@ class TC_GAME_API AIWorldMgr
         // touches Creature/Map, never calls ai-server.
         bool OwnsSpawn(uint32 mapId, uint64 spawnId) const;
 
+        // Milestone 2.8F: safe to call from ANY thread TrinityCore itself
+        // calls AIWorldCreatureAI::MovementInform() from (a map-updater
+        // thread during Map::Update(), not necessarily the world thread).
+        // Same enqueue-only contract as PublishWorldEvent(): never touches
+        // Creature/AgentRegistry, never calls ai-server, never mutates
+        // world state. See ActionEngineEventBus for the thread-safety
+        // story.
+        void PublishActionEngineEvent(ActionEngineEvent event);
+
     private:
         AIWorldMgr() = default;
         ~AIWorldMgr() = default;
@@ -94,6 +105,8 @@ class TC_GAME_API AIWorldMgr
         void ProcessObservation(Observation const& observation);
         void ScanNearbyEntities();
         void UpdateNeeds(uint32 elapsedMs);
+        void ProcessActionEngineEvent(ActionEngineEvent const& event);
+        void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
 
         bool _enabled = false;
 
@@ -236,6 +249,14 @@ class TC_GAME_API AIWorldMgr
         // Creature/Map/DB.
         FoodTargetResolver _foodTargetResolver;
         FoodTargetConfig _foodTargetConfig;
+
+        // Milestone 2.8F: cross-thread ingress for ActionEngineEvents (see
+        // ActionEngineEventBus) - AIWorldCreatureAI::MovementInform()
+        // publishes into it, potentially from a map-updater thread, the
+        // world thread drains it once per tick in Update(), right after
+        // _eventBus's own Drain(). Gated by the same _acceptEvents flag as
+        // PublishWorldEvent(), for the same reason.
+        ActionEngineEventBus _actionEngineEventBus;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()

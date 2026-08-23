@@ -16,6 +16,8 @@
  */
 
 #include "AIWorldCreatureAI.h"
+#include "Action/ActionEngineEvent.h"
+#include "AIWorldMgr.h"
 #include "Creature.h"
 #include "MotionMaster.h"
 
@@ -36,4 +38,16 @@ AIWorldCreatureAI::AIWorldCreatureAI(Creature* creature) : CreatureAI(creature)
     // is responsible for anything it wants this Creature to do afterwards -
     // nothing yet, as of 2.8A (see UpdateAI()).
     me->GetMotionMaster()->MoveIdle();
+}
+
+void AIWorldCreatureAI::MovementInform(uint32 type, uint32 id)
+{
+    ActionEngineEvent event;
+    event.MapId = me->GetMapId();
+    event.SpawnId = me->GetSpawnId();
+    event.RuntimeGuid = me->GetGUID();
+    event.MovementType = type;
+    event.MovementId = id;
+
+    sAIWorldMgr->PublishActionEngineEvent(event);
 }

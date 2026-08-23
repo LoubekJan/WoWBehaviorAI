@@ -63,6 +63,22 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // not depend on the constructor's SetReactState(REACT_PASSIVE)
         // call below to actually stop aggro.
         void MoveInLineOfSight(Unit* /*who*/) override { }
+
+        // Milestone 2.8F: TrinityCore's authoritative "this movement
+        // generator reached its own natural conclusion" callback -
+        // PointMovementGenerator<Creature>::MovementInform() (called only
+        // from MotionMaster::Update()'s natural-completion path, never
+        // from an explicit Remove(), see MotionMaster.cpp's "Natural, and
+        // only, call to MovementInform" comment) calls this with
+        // (POINT_MOTION_TYPE, the point's own id) once a MOVE_TO arrives.
+        // Runs on whatever thread TrinityCore calls it from (a map-updater
+        // thread during Map::Update(), not necessarily the world thread) -
+        // must not touch AgentRegistry or any AIWorld planning state
+        // directly. Resolves only plain values from me and hands them to
+        // AIWorldMgr::PublishActionEngineEvent(), the same
+        // enqueue-and-defer-to-Drain() pattern PublishWorldEvent() already
+        // uses for perception events.
+        void MovementInform(uint32 type, uint32 id) override;
 };
 
 #endif // AIWORLD_AIWORLDCREATUREAI_H
