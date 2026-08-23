@@ -22,6 +22,7 @@
 #include "Action/ActionEngineEventBus.h"
 #include "Action/ActionExecutor.h"
 #include "Action/ActionSystem.h"
+#include "Action/PendingEatContinuation.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentRegistry.h"
 #include "Define.h"
@@ -106,9 +107,8 @@ class TC_GAME_API AIWorldMgr
         void ScanNearbyEntities();
         void UpdateNeeds(uint32 elapsedMs);
         void ProcessActionEngineEvent(ActionEngineEvent const& event);
-        void HandleActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion);
-        void PlanAfterActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion,
-            std::optional<ActionPosition> const& completedDestination);
+        void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
+        void TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs);
 
         bool _enabled = false;
 

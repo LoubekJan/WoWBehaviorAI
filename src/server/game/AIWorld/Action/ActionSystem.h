@@ -58,10 +58,14 @@ class TC_GAME_API ActionSystem
         // range - see ActionSystem.cpp for the exact distance.
         ActionValidationResult ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const;
 
-        // Milestone 2.8G: Eat-specific, run only once the common checks
-        // above already passed. Unlike MoveTo, Eat is tied to a specific
-        // GoalType - only GetFood ever justifies eating. Checks the
-        // destination exists, is on the actor's own map, has finite
+        // Milestone 2.8G/2.8G P2 fix: Eat-specific, run only once the
+        // common checks above already passed. Unlike MoveTo, Eat is tied
+        // to a specific GoalType - only GetFood ever justifies eating.
+        // Checks the destination exists, matches
+        // ActionValidationContext::ArrivedDestination/ArrivedSourceGoal/
+        // ArrivedGoalStartedAtMs exactly (the request must be an honest
+        // continuation of a MOVE_TO that actually just arrived, not merely
+        // a self-consistent claim), is on the actor's own map, has finite
         // coordinates, is within ArrivalToleranceYards of the actor's
         // actual position (the same tolerance MOVE_TO arrival uses - see
         // ArrivalTolerance.h), and that the actor isn't in combat: if

@@ -25,9 +25,10 @@
 // roadmap's 2.8 Bezpečné Action API) comes later, once these have cleared
 // their own runtime gate. GET_FOOD (2.8E) resolves a target and moves
 // there via MoveTo; MOVE_TO arrival (2.8F) only means the actor is now
-// standing at the target, so PlanAfterActionCompletion() (2.8G) proposes
-// Eat as a second, separately-validated action from that same arrived
-// position - arriving at food is not the same as having eaten it.
+// standing at the target, so AIWorldMgr::TryEat() (2.8G, run only after
+// this tick's own goal-selection pass - see PendingEatContinuation.h)
+// proposes Eat as a second, separately-validated action from that same
+// arrived position - arriving at food is not the same as having eaten it.
 // NeedsState's Hunger only ever decreases via NeedsSystem::SatisfyHunger(),
 // called after Eat itself reaches Succeeded/Consumed - never as a side
 // effect of MOVE_TO's own completion handling.

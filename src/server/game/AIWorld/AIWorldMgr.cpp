@@ -677,6 +677,12 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 record->ActiveActionState.reset();
             }
 
+            // Milestone 2.8G P2 fix: a pending Eat continuation for a
+            // Creature that no longer resolves has nothing left to
+            // validate against (TryEat() needs a live Creature&) - drop it
+            // rather than let it linger for a future re-materialize.
+            record->PendingEat.reset();
+
             if (record->WorldState == AgentWorldState::Materialized)
                 _registry.UnbindCreature(id);
             continue;
@@ -769,6 +775,10 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 record->ActiveGoalState.reset();
             }
 
+            // Milestone 2.8G P2 fix: same reasoning as ActiveGoalState
+            // above - a dead agent must not have a pending Eat either.
+            record->PendingEat.reset();
+
             continue;
         }
 
@@ -803,7 +813,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 completion.Reason = ActionCompletionReason::EngineStopped;
             }
 
-            HandleActionCompletion(*record, *creature, completion);
+            HandleActionCompletion(*record, completion);
         }
 
         // Milestone 2.7A: level-triggered, not derived from the edge-
@@ -893,6 +903,26 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 break;
             case GoalTransition::None:
                 break;
+        }
+
+        // Milestone 2.8G P2 fix: consume any pending Eat continuation only
+        // now, after this tick's own goal selection above has already run
+        // - not from inside HandleActionCompletion() at MOVE_TO arrival
+        // time, which happens before GenerateCandidates()/UpdateActiveGoal()
+        // and would let Eat commit a moment before a same-tick FLEE_DANGER
+        // emergency gets the chance to interrupt GET_FOOD. One-shot:
+        // cleared here whether or not it actually still matches the
+        // (possibly just-changed) ActiveGoalState.
+        if (record->PendingEat)
+        {
+            PendingEatContinuation pending = *record->PendingEat;
+            record->PendingEat.reset();
+
+            if (record->ActiveGoalState && record->ActiveGoalState->Type == pending.SourceGoal
+                && record->ActiveGoalState->StartedAtMs == pending.GoalStartedAtMs)
+            {
+                TryEat(*record, *creature, pending, nowMs);
+            }
         }
 
         // Milestone 2.8A/2.8B: propose, validate, and (on ALLOWED) execute
@@ -1061,20 +1091,6 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
         return;
     }
 
-    // Milestone 2.8G: PlanAfterActionCompletion() needs a live Creature& to
-    // propose/validate/execute a follow-up Eat - re-resolved fresh here
-    // rather than trusted from record->RuntimeGuid matching above, since
-    // this event could have sat in the bus queue since a previous tick and
-    // ProcessActionEngineEvent() runs before UpdateNeeds() would have had
-    // a chance to notice and unbind an unloaded Creature this tick.
-    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-    Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
-    if (!creature || creature->GetGUID() != record->RuntimeGuid)
-    {
-        TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: Creature not currently resolvable", record->Id.Value);
-        return;
-    }
-
     if (!record->ActiveActionState || record->ActiveActionState->Type != ActionType::MoveTo)
     {
         TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: no active MOVE_TO to complete", record->Id.Value);
@@ -1114,19 +1130,22 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
         completion.Reason = ActionCompletionReason::DestinationNotReached;
     }
 
-    HandleActionCompletion(*record, *creature, completion);
+    HandleActionCompletion(*record, completion);
 }
 
-// World thread only. Milestone 2.8F/2.8G: closes out ActiveActionState,
-// logs, and (2.8G) hands off to PlanAfterActionCompletion() for whatever
-// follow-up an arrived MOVE_TO might justify - captures ActiveActionState's
-// Destination before resetting it, since PlanAfterActionCompletion() needs
-// it to propose Eat from the same spot the agent actually arrived at.
-// Arriving at a target is not the same as the goal that wanted it being
-// satisfied: this itself never touches NeedsState, never marks a goal
-// Succeeded, never calls GoalSystem - only Eat's own success (via
-// PlanAfterActionCompletion() -> NeedsSystem::SatisfyHunger()) may do that.
-void AIWorldMgr::HandleActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion)
+// World thread only. Milestone 2.8F/2.8G/2.8G P2 fix: closes out
+// ActiveActionState and logs - for a MOVE_TO that Succeeded/Arrived on a
+// GET_FOOD attempt, also records the arrival as record.PendingEat rather
+// than acting on it here. Eat is deliberately not proposed/validated/
+// executed in this call: UpdateNeeds()'s own goal-selection pass
+// (GenerateCandidates()/UpdateActiveGoal()) must get to run first, so a
+// same-tick FLEE_DANGER emergency can still interrupt GET_FOOD before Eat
+// ever commits to it - see PendingEatContinuation.h and TryEat(). Arriving
+// at a target is not the same as the goal that wanted it being satisfied:
+// this itself never touches NeedsState, never marks a goal Succeeded,
+// never calls GoalSystem - only Eat's own success (via TryEat() ->
+// NeedsSystem::SatisfyHunger()) may do that.
+void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion)
 {
     uint64 startedAtMs = record.ActiveActionState ? record.ActiveActionState->StartedAtMs : completion.CompletedAtMs;
     std::optional<ActionPosition> completedDestination = record.ActiveActionState ? record.ActiveActionState->Destination : std::nullopt;
@@ -1137,44 +1156,37 @@ void AIWorldMgr::HandleActionCompletion(AgentRecord& record, Creature& creature,
         record.Id.Value, ToString(completion.Type), ToString(completion.Status), ToString(completion.Reason),
         ToString(completion.SourceGoal), completion.CompletedAtMs - startedAtMs);
 
-    PlanAfterActionCompletion(record, creature, completion, completedDestination);
+    if (completion.Type == ActionType::MoveTo && completion.Status == ActionCompletionStatus::Succeeded
+        && completion.Reason == ActionCompletionReason::Arrived && completion.SourceGoal == GoalType::GetFood
+        && completedDestination)
+    {
+        PendingEatContinuation pending;
+        pending.Destination = *completedDestination;
+        pending.SourceGoal = completion.SourceGoal;
+        pending.GoalStartedAtMs = completion.GoalStartedAtMs;
+        record.PendingEat = pending;
+    }
 }
 
-// World thread only, called only from HandleActionCompletion(). Milestone
-// 2.8G: the one place that reacts to a *specific* ActionCompletion by
-// proposing a follow-up action - today only MOVE_TO/Succeeded/Arrived for
-// a GET_FOOD attempt, proposing Eat from the exact spot the agent arrived
-// at. Deliberately not folded into HandleActionCompletion() itself, which
-// stays a generic lifecycle/logging seam for every ActionType/completion
-// combination, not just this one.
-void AIWorldMgr::PlanAfterActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion,
-    std::optional<ActionPosition> const& completedDestination)
+// World thread only, called only from UpdateNeeds(), after this same
+// tick's GenerateCandidates()/UpdateActiveGoal() pass has already run -
+// never from HandleActionCompletion() itself. Milestone 2.8G P2 fix: the
+// caller has already re-confirmed record.ActiveGoalState still matches
+// pending's SourceGoal/GoalStartedAtMs (the same goal attempt that was
+// still active when the MOVE_TO arrived) before calling this - if
+// FLEE_DANGER pre-empted GET_FOOD in the meantime, this is never called at
+// all. ActionSystem::Validate() re-checks the same identity independently
+// (ActionValidationContext::ArrivedDestination/ArrivedSourceGoal/
+// ArrivedGoalStartedAtMs) as the real safety boundary; this caller-side
+// check only avoids building a request that Validate() would reject anyway.
+void AIWorldMgr::TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs)
 {
-    if (completion.Type != ActionType::MoveTo || completion.Status != ActionCompletionStatus::Succeeded
-        || completion.Reason != ActionCompletionReason::Arrived || completion.SourceGoal != GoalType::GetFood)
-        return;
-
-    // Re-confirm goal provenance immediately before proposing Eat - the
-    // completion above was already checked against ActiveGoalState by
-    // whichever caller produced it, but that was a moment ago (at least
-    // this same HandleActionCompletion() call), and nothing between there
-    // and here re-confirms record.ActiveGoalState still matches. If
-    // FLEE_DANGER pre-empted GET_FOOD in that gap, Eat must not run - this
-    // is on top of, not instead of, ActionSystem::Validate()'s own
-    // goal-identity checks a few lines down.
-    if (!record.ActiveGoalState || record.ActiveGoalState->Type != completion.SourceGoal
-        || record.ActiveGoalState->StartedAtMs != completion.GoalStartedAtMs)
-        return;
-
-    if (!completedDestination)
-        return;
-
     ActionRequest eatRequest;
     eatRequest.Actor = record.Id;
     eatRequest.Type = ActionType::Eat;
-    eatRequest.SourceGoal = completion.SourceGoal;
-    eatRequest.GoalStartedAtMs = completion.GoalStartedAtMs;
-    eatRequest.Destination = completedDestination;
+    eatRequest.SourceGoal = pending.SourceGoal;
+    eatRequest.GoalStartedAtMs = pending.GoalStartedAtMs;
+    eatRequest.Destination = pending.Destination;
 
     TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={}",
         record.Id.Value, ToString(eatRequest.Type), ToString(eatRequest.SourceGoal));
@@ -1189,6 +1201,9 @@ void AIWorldMgr::PlanAfterActionCompletion(AgentRecord& record, Creature& creatu
     eatContext.X = creature.GetPositionX();
     eatContext.Y = creature.GetPositionY();
     eatContext.Z = creature.GetPositionZ();
+    eatContext.ArrivedDestination = pending.Destination;
+    eatContext.ArrivedSourceGoal = pending.SourceGoal;
+    eatContext.ArrivedGoalStartedAtMs = pending.GoalStartedAtMs;
 
     ActionValidationResult eatValidation = _actionSystem.Validate(eatRequest, eatContext);
 
@@ -1210,14 +1225,11 @@ void AIWorldMgr::PlanAfterActionCompletion(AgentRecord& record, Creature& creatu
     // Eat has no engine completion callback to wait for - ExecuteEat()'s
     // emote is fire-and-forget, so a Started result is treated as
     // immediately Consumed, in this same call. Routed back through
-    // HandleActionCompletion() for the same logging format and so it also
-    // flows through PlanAfterActionCompletion() - which immediately no-ops
-    // here, since completion.Type is Eat, not MoveTo - rather than
-    // duplicating the "AI action completion" log line. No ActiveActionState
-    // is ever created for Eat, so there is nothing for
-    // HandleActionCompletion() to reset here; that reentry is bounded to
-    // exactly one extra level by the type check at the top of this
-    // function.
+    // HandleActionCompletion() for the same logging format rather than
+    // duplicating the "AI action completion" log line - it is a safe
+    // single-level call there, not a re-entrant one: completion.Type is
+    // Eat, not MoveTo, so HandleActionCompletion()'s own PendingEat check
+    // above never matches, and Eat never had an ActiveActionState to reset.
     ActionCompletion eatCompletion;
     eatCompletion.Actor = record.Id;
     eatCompletion.Type = ActionType::Eat;
@@ -1225,9 +1237,9 @@ void AIWorldMgr::PlanAfterActionCompletion(AgentRecord& record, Creature& creatu
     eatCompletion.GoalStartedAtMs = eatRequest.GoalStartedAtMs;
     eatCompletion.Status = ActionCompletionStatus::Succeeded;
     eatCompletion.Reason = ActionCompletionReason::Consumed;
-    eatCompletion.CompletedAtMs = CurrentTimeMs();
+    eatCompletion.CompletedAtMs = nowMs;
 
-    HandleActionCompletion(record, creature, eatCompletion);
+    HandleActionCompletion(record, eatCompletion);
 
     // The only place Hunger is allowed to decrease, and only now - after
     // Eat itself reached Succeeded/Consumed, never as a side effect of

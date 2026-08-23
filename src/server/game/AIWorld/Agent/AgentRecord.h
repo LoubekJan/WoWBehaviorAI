@@ -19,6 +19,7 @@
 #define AIWORLD_AGENTRECORD_H
 
 #include "Action/ActiveAction.h"
+#include "Action/PendingEatContinuation.h"
 #include "AgentId.h"
 #include "AgentType.h"
 #include "Define.h"
@@ -71,6 +72,14 @@ struct AgentRecord
     // completion, dematerialization, natural arrival) must also clear
     // this. Not persisted across restart.
     std::optional<ActiveAction> ActiveActionState;
+
+    // Milestone 2.8G P2 fix: a MOVE_TO's arrival at a GET_FOOD target,
+    // set by HandleActionCompletion() but deliberately not acted on until
+    // UpdateNeeds()'s own goal-selection pass has run this same tick - see
+    // PendingEatContinuation.h for why. One-shot; consumed (whether or not
+    // it actually produces an Eat) the same tick it is first seen set. Not
+    // persisted across restart.
+    std::optional<PendingEatContinuation> PendingEat;
 };
 
 #endif // AIWORLD_AGENTRECORD_H

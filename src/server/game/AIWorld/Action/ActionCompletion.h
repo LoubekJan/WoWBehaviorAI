@@ -88,8 +88,8 @@ enum class ActionCompletionReason : uint8
     EngineStopped,
     // Milestone 2.8G: Eat's only Succeeded reason. Eat has no engine
     // completion callback to wait for - ExecuteEat()'s emote is fire-and-
-    // forget, so PlanAfterActionCompletion() treats a Started ActionResult
-    // as immediately Consumed, in the same call, with no ActiveActionState
+    // forget, so AIWorldMgr::TryEat() treats a Started ActionResult as
+    // immediately Consumed, in the same call, with no ActiveActionState
     // ever created for it.
     Consumed
 };

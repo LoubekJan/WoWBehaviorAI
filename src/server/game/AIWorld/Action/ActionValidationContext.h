@@ -18,6 +18,7 @@
 #ifndef AIWORLD_ACTIONVALIDATIONCONTEXT_H
 #define AIWORLD_ACTIONVALIDATIONCONTEXT_H
 
+#include "ActionPosition.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
 #include "ObjectGuid.h"
@@ -66,6 +67,21 @@ struct ActionValidationContext
     // arrives at a food target, it must not start eating a moment before
     // an emergency FLEE_DANGER takes over.
     bool InCombat = false;
+
+    // Milestone 2.8G P2 fix: the authoritative "a MOVE_TO just arrived
+    // here" facts for a GET_FOOD attempt - set only by AIWorldMgr, from
+    // the ActionCompletion/AgentRecord::PendingEat that actually produced
+    // them, never from the ActionRequest being validated. ValidateEat()
+    // requires the request's Destination/SourceGoal/GoalStartedAtMs to
+    // match this exactly; ArrivedDestination empty means no MOVE_TO has
+    // just arrived at all, so no Eat request can be validated regardless
+    // of what it claims. This is the boundary a future async/LLM-sourced
+    // caller must not be able to route around by proposing Eat from
+    // wherever the actor currently stands while GET_FOOD merely happens
+    // to be active.
+    std::optional<ActionPosition> ArrivedDestination;
+    GoalType ArrivedSourceGoal = GoalType::GetFood;
+    uint64 ArrivedGoalStartedAtMs = 0;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

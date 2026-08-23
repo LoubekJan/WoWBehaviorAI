@@ -137,6 +137,24 @@ ActionValidationResult ActionSystem::ValidateEat(ActionRequest const& request, A
     if (!request.Destination)
         return { false, ActionRejectReason::NoDestination };
 
+    // Milestone 2.8G P2 fix: Eat must be an honest continuation of a
+    // MOVE_TO that actually just arrived - not merely a request that
+    // happens to claim a Destination/SourceGoal/GoalStartedAtMs able to
+    // pass every check below on its own (e.g. the actor's own current
+    // position, submitted while GET_FOOD merely happens to be active).
+    // ArrivedDestination/ArrivedSourceGoal/ArrivedGoalStartedAtMs are
+    // engine-authoritative facts only AIWorldMgr sets, from the completion
+    // that actually produced them - never from the request itself. No
+    // arrival on record (ArrivedDestination empty) rejects unconditionally.
+    if (!context.ArrivedDestination
+        || request.Destination->MapId != context.ArrivedDestination->MapId
+        || request.Destination->X != context.ArrivedDestination->X
+        || request.Destination->Y != context.ArrivedDestination->Y
+        || request.Destination->Z != context.ArrivedDestination->Z
+        || request.SourceGoal != context.ArrivedSourceGoal
+        || request.GoalStartedAtMs != context.ArrivedGoalStartedAtMs)
+        return { false, ActionRejectReason::EatContinuationMismatch };
+
     if (request.Destination->MapId != context.MapId)
         return { false, ActionRejectReason::DestinationMapMismatch };
 

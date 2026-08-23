@@ -35,7 +35,13 @@ enum class ActionRejectReason : uint8
     DestinationNotFinite,
     DestinationTooFar,
     ActorMovementBusy,
-    ActorInCombat
+    ActorInCombat,
+    // Milestone 2.8G P2 fix: an Eat request's Destination/SourceGoal/
+    // GoalStartedAtMs did not match ActionValidationContext::
+    // ArrivedDestination/ArrivedSourceGoal/ArrivedGoalStartedAtMs - either
+    // no MOVE_TO just arrived at all, or the request claims a different
+    // continuation than the one that actually did.
+    EatContinuationMismatch
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -56,6 +62,7 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::DestinationTooFar:      return "DESTINATION_TOO_FAR";
         case ActionRejectReason::ActorMovementBusy:      return "ACTOR_MOVEMENT_BUSY";
         case ActionRejectReason::ActorInCombat:          return "ACTOR_IN_COMBAT";
+        case ActionRejectReason::EatContinuationMismatch: return "EAT_CONTINUATION_MISMATCH";
         default:                                         return "UNKNOWN";
     }
 }
