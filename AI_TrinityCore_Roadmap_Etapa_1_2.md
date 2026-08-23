@@ -2,7 +2,7 @@
 
 > **Výchozí stav:** TrinityCore `3.3.5` + Ubuntu Server + NVIDIA GPU  
 > **Rozsah dokumentu:** Etapa 1 — Development Infrastructure, Etapa 2 — AI World Foundation  
-> **Aktualizováno:** 2026-08-22  
+> **Aktualizováno:** 2026-08-23  
 > **Aktivní větev:** `ai-world`
 
 ## Stav projektu
@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřenou kompletní Needs → Goal → Action → TrinityCore pipeline pro dva action typy, včetně arrival/completion trackingu (2.8A–2.8F, pro `FLEE` a `MOVE_TO`; `GET_FOOD` dojde k cíli, ale `EAT` ještě neexistuje):
+Etapa 2 má runtime ověřenou kompletní Needs → Goal → Action → TrinityCore pipeline pro tři action typy, včetně arrival/completion trackingu a plného GET_FOOD feedback loopu (2.8A–2.8G, pro `FLEE`, `MOVE_TO` a `EAT`; `GET_FOOD` je dvoufázový `MOVE_TO` → `EAT` a skutečně uspokojí Hunger):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -46,8 +46,9 @@ Etapa 2 má runtime ověřenou kompletní Needs → Goal → Action → TrinityC
 - `MOVE_TO` Action primitiv (2.8D): `ActionSystem` dispatchuje `ValidateFlee`/`ValidateMoveTo` podle `ActionType`, `ActionExecutor::ExecuteMoveTo`/`StopMoveTo` scoped na vlastní `MovePointId`, prokázáno že Action API není FLEE-specific.
 - `GET_FOOD` target resolution (2.8E): `FoodTargetResolver` (fixed config zdroj) → `MOVE_TO` jen na `GET_FOOD Activated`, cleanup na interrupt/completion.
 - MOVE_TO arrival/completion tracking (2.8F): `AIWorldCreatureAI::MovementInform` → `ActionEngineEventBus` → hard-validated `ActionCompletion` (pozice v toleranci, ne jen callback), reconciliation pro dropped events. Arrival != `EAT`; `Hunger` se nemění.
+- `EAT` jako třetí Action primitiv (2.8G): `GET_FOOD` je dvoufázový `MOVE_TO` → `EAT`; `MOVE_TO ARRIVED` jen zaznamená `AgentRecord::PendingEat`, teprve `EAT SUCCEEDED/CONSUMED` zavolá `NeedsSystem::SatisfyHunger()`. Continuation provenance vynucuje `ActionSystem` přes authoritative arrival facts, ne přes důvěru v `ActionRequest`; `PendingEat` odloží `EAT` až za aktuální goal-selection pass, takže same-tick `FLEE_DANGER` emergency pořád vyhraje nad `GET_FOOD`.
 
-**Aktuální NEXT:** `2.8G — EAT` jako třetí Action primitiv, navazující na `MOVE_TO ARRIVED`; teprve úspěšný `EAT` sníží `Hunger`.
+**Aktuální NEXT:** `2.9A` — verzovaný `DecisionRequest`/`DecisionResponse` protokol s plným `AgentContext`, Top-N memories, `Needs`, `ActiveGoal` a explicitně posílanými dostupnými akcemi.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -123,7 +124,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.8G (EAT)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.9A (decision protocol)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -832,7 +833,7 @@ Runtime ověřeno:
 
 ## 2.8 Bezpečné Action API
 
-**Stav: 2.8A + 2.8A.5 + 2.8B + 2.8C + 2.8D + 2.8E + 2.8F (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + FLEE execution + structured ActionResult + MOVE_TO primitive + GET_FOOD target resolution + arrival/completion tracking) DONE / runtime PASS pro `FLEE` a `MOVE_TO` - katalog je dvouprvkový, `EAT` zatím neexistuje**
+**Stav: 2.8A + 2.8A.5 + 2.8B + 2.8C + 2.8D + 2.8E + 2.8F + 2.8G (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + FLEE execution + structured ActionResult + MOVE_TO primitive + GET_FOOD target resolution + arrival/completion tracking + EAT) DONE / runtime PASS pro `FLEE`, `MOVE_TO` a `EAT` - katalog je tříprvkový, `GET_FOOD` je plně uzavřený dvoufázový cyklus**
 
 AI nemá přístup k libovolnému C++ ani k přímým zápisům do světa. Smí pouze požádat o akci z povoleného katalogu.
 
@@ -850,11 +851,11 @@ INVESTIGATE
 REQUEST_HELP
 ```
 
-> Runtime ověřeno: `FLEE` a `MOVE_TO`. `EAT` zatím neexistuje - `GET_FOOD` (2.8E) dnes jen dojde k target souřadnicím (2.8F), nesnídá.
+> Runtime ověřeno: `FLEE`, `MOVE_TO` a `EAT`. `GET_FOOD` (2.8E) dojde k target souřadnicím (2.8F) a nyní i skutečně sní (2.8G) - `Hunger` klesne, následující tick `GET_FOOD` dokončí jako `SUCCEEDED reason=NEED_SATISFIED`.
 
 - [x] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A, rozšířena o `Destination` v 2.8D); `ActionResult` jako vlastní execution DTO (`ActionExecutionStatus`/`ActionExecutionReason`, 2.8C)**.
-- [x] Pro každou akci implementovat serverovou validaci — **hotovo pro `FLEE` (2.8A/2.8B) i `MOVE_TO` (2.8D); `ActionSystem::Validate()` dispatchuje na `ValidateFlee`/`ValidateMoveTo` podle `ActionType` - vzor se skutečně opakuje**.
-- [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) validuje `ActionSystem` pro oba typy; `FLEE` cíl (`NoFleeSource`/`FleeSourceMismatch`, 2.8B), `MOVE_TO` cíl (`NoDestination`/`DestinationMapMismatch`/`DestinationNotFinite`/`DestinationTooFar`/`ActorMovementBusy`, 2.8D); pathing pro oba deleguje TrinityCore (`FleeingMovementGenerator`/`PathGenerator` přes `MovePoint`), AIWorld ho neduplikuje**.
+- [x] Pro každou akci implementovat serverovou validaci — **hotovo pro `FLEE` (2.8A/2.8B), `MOVE_TO` (2.8D) i `EAT` (2.8G); `ActionSystem::Validate()` dispatchuje na `ValidateFlee`/`ValidateMoveTo`/`ValidateEat` podle `ActionType` - vzor se skutečně opakuje potřetí**.
+- [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) validuje `ActionSystem` pro všechny tři typy; `FLEE` cíl (`NoFleeSource`/`FleeSourceMismatch`, 2.8B), `MOVE_TO` cíl (`NoDestination`/`DestinationMapMismatch`/`DestinationNotFinite`/`DestinationTooFar`/`ActorMovementBusy`, 2.8D), `EAT` cíl (`GoalMismatch`/`NoDestination`/`EatContinuationMismatch`/`DestinationTooFar`/`ActorInCombat`, 2.8G); pathing pro `FLEE`/`MOVE_TO` deleguje TrinityCore (`FleeingMovementGenerator`/`PathGenerator` přes `MovePoint`), `EAT` je instantní a žádný pathing nepotřebuje - AIWorld pathing neduplikuje**.
 - [x] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru — **`ActionExecutor` se volá jen po `Validate() == Allowed`; REJECTED nikdy nedosáhne engine kódu**.
 - [ ] Přidat timeout a cancel pro dlouhé akce — **FLEE dnes končí přes goal-level `TimeoutMs` (2.7B2) → `FAILED` → `ActionExecutor::StopFlee()` (2.8B); obecný per-action timeout/cancel mechanismus zatím neexistuje**.
 - [ ] Přidat fallback behavior při chybě AI služby — **mimo scope: tato deterministic `FLEE_DANGER` pipeline nikdy nevolá ai-server; týká se budoucí LLM-driven decision cesty**.
@@ -1017,7 +1018,56 @@ Runtime ověřeno:
 
 **Otevřené P3 z review, neblokující:** (1) `Interrupted`/`GoalCompleted`/`ActorDematerialized`/`ActorDead` cancellation paths stále dělají `StopFlee()`/`StopMoveTo()` + `ActiveActionState.reset()` přímo, ne přes `ActionCompletion`/`HandleActionCompletion()` - funkčně správné, ale lifecycle API není ještě plně sjednocené na jeden vstupní bod.
 
-**Další implementace:** `2.8G — EAT` jako třetí Action primitiv, navazující na `MOVE_TO ARRIVED`. `GET_FOOD` se stane dvoufázový (`MOVE_TO` → `EAT`); teprve úspěšný `EAT` sníží `Hunger` - `HandleActionCompletion(MOVE_TO)` samo o sobě `Hunger` měnit nesmí, aby "dorazil jsem" a "snědl jsem" zůstaly architektonicky oddělené.
+### Implementovaný stav 2.8G
+
+```text
+MOVE_TO Succeeded/Arrived (GET_FOOD)
+    ↓
+HandleActionCompletion: zavře ActiveActionState, zaloguje - Hunger beze změny,
+                          uloží jen AgentRecord::PendingEat (pure DTO, žádný live pointer)
+    ↓
+UpdateNeeds pokračuje beze změny pořadí: GenerateCandidates → UpdateActiveGoal → apply transition
+    ↓
+PendingEat pořád odpovídá aktuálnímu ActiveGoalState (stejný GET_FOOD attempt, stejné StartedAtMs)?
+    ↓ NE (např. INTERRUPTED → FLEE_DANGER)              ↓ ANO
+PendingEat zahozen, žádný EAT                    AIWorldMgr::TryEat
+                                                          ↓
+                                          ActionRequest EAT (Destination = arrival pozice)
+                                                          ↓
+                                ActionSystem::ValidateEat (GET_FOOD active, request odpovídá
+                                authoritative ArrivedDestination/ArrivedSourceGoal/
+                                ArrivedGoalStartedAtMs, actor <= 3yd, not in combat)
+                                                          ↓
+                                                      ALLOWED
+                                                          ↓
+                                 ActionExecutor::ExecuteEat (HandleEmoteCommand, žádný state)
+                                                          ↓
+                                      EAT Succeeded/Consumed → NeedsSystem::SatisfyHunger
+                                                          ↓
+                                následující Needs tick: Hunger < 0.60 → GET_FOOD
+                                                      SUCCEEDED/NEED_SATISFIED
+```
+
+`MOVE_TO ARRIVED` samo o sobě `Hunger` nikdy neměnilo (2.8F) a nemění dodnes - `EAT` je oddělená, samostatně validovaná druhá fáze `GET_FOOD`, přesně podle zásady "dorazil jsem" != "snědl jsem" z 2.8F. `GoalSystem` se v 2.8G nemění vůbec: existující retention-threshold logika (2.7B2) přirozeně dokončí `GET_FOOD` jako `SUCCEEDED reason=NEED_SATISFIED`, jakmile `Hunger` klesne pod `0.60`.
+
+Implementation: `be081a0c` feat(ai-world): continue get-food with eat action (2.8G)
+Hardening: `1a00efa3` fix(ai-world): enforce eat continuation safety (2.8G P2)
+
+Runtime ověřeno:
+
+- `MOVE_TO ARRIVED` jen zaznamená `AgentRecord::PendingEat`; `Hunger` se v tomto kroku nemění.
+- úspěšný `EAT` dokončí jako `SUCCEEDED reason=CONSUMED` a teprve pak zavolá `NeedsSystem::SatisfyHunger()`.
+- následující Needs/Goal tick přirozeně dokončí `GET_FOOD` jako `SUCCEEDED reason=NEED_SATISFIED` - beze změny `GoalSystem`.
+- continuation provenance (P2 fix): `ActionSystem::ValidateEat()` vyžaduje shodu s authoritative `ArrivedDestination`/`ArrivedSourceGoal`/`ArrivedGoalStartedAtMs`, ne jen s tím, co si `ActionRequest` sám nárokuje - jinak `EAT_CONTINUATION_MISMATCH`.
+- emergency ordering (P2 fix): `PendingEat` odloží `EAT` až za doběhnutí aktuálního goal-selection passu, takže same-tick `FLEE_DANGER` emergency pořád vyhraje nad `GET_FOOD` - `Emergency > Normal` invariant platí i po arrivalu, `EAT` se v takovém případě vůbec nespustí.
+- `PendingEat` je one-shot a je zahozen i při death/dematerialization agenta.
+- žádný inventory, žádný GameObject consumption, žádná DB persistence, žádný LLM, žádný umělý timer - `EAT` je instantní podle návrhu.
+
+**Etapa 2 má teď `FLEE`, `MOVE_TO` a `EAT` runtime-verified přes celou `Needs → Goal → Action → TrinityCore` feedback loop.**
+
+**Otevřené P3 z review, neblokující:** (1) `ValidateEat()` používá exact float equality mezi `request.Destination` a authoritative `ArrivedDestination` - dnes bezpečné (obě hodnoty jsou kopie stejného DTO v rámci jednoho synchronního passu), ale budoucí serialize/deserialize `ActionRequest` by mohlo způsobit false reject, nikdy false allow. (2) stejný otevřený bod jako 2.8F P3 (1) - starší cancellation paths pořád nejdou přes strukturovaný `ActionCompletion`/`HandleActionCompletion()`, zůstává neuzavřené.
+
+**Další implementace:** `2.9A` — verzovaný `DecisionRequest`/`DecisionResponse` protokol s plným `AgentContext`, Top-N memories, `Needs`, `ActiveGoal` a explicitně posílanými dostupnými akcemi.
 
 ## 2.9 AI server — decision protocol
 
