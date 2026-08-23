@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřenou první kompletní Needs → Goal → Action → TrinityCore pipeline se strukturovaným ActionResult (2.8A + 2.8A.5 + 2.8B + 2.8C, pro `FLEE`):
+Etapa 2 má runtime ověřenou kompletní Needs → Goal → Action → TrinityCore pipeline pro dva action typy, včetně arrival/completion trackingu (2.8A–2.8F, pro `FLEE` a `MOVE_TO`; `GET_FOOD` dojde k cíli, ale `EAT` ještě neexistuje):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
@@ -43,8 +43,11 @@ Etapa 2 má runtime ověřenou první kompletní Needs → Goal → Action → T
 - AIWorld creature control takeover (2.8A.5): `AIWorldCreatureAI` potlačuje default auto-aggro/chase/melee/DB movement jen pro `OwnsSpawn()` shodu; TrinityCore combat/threat/damage/death beze změny.
 - první skutečná FLEE execution (2.8B): `ActionExecutor::ExecuteFlee`/`StopFlee` přes `MoveFleeing`/`MotionMaster`, TrinityCore pathfinding, scoped stop movement.
 - structured `ActionResult` (2.8C): `ExecuteFlee()` vrací `ActionResult` (Status/Reason) místo bool; `GoalCompletion`/`ActionValidationResult`/`ActionResult` jsou tři oddělené, jasně vymezené hranice.
+- `MOVE_TO` Action primitiv (2.8D): `ActionSystem` dispatchuje `ValidateFlee`/`ValidateMoveTo` podle `ActionType`, `ActionExecutor::ExecuteMoveTo`/`StopMoveTo` scoped na vlastní `MovePointId`, prokázáno že Action API není FLEE-specific.
+- `GET_FOOD` target resolution (2.8E): `FoodTargetResolver` (fixed config zdroj) → `MOVE_TO` jen na `GET_FOOD Activated`, cleanup na interrupt/completion.
+- MOVE_TO arrival/completion tracking (2.8F): `AIWorldCreatureAI::MovementInform` → `ActionEngineEventBus` → hard-validated `ActionCompletion` (pozice v toleranci, ne jen callback), reconciliation pro dropped events. Arrival != `EAT`; `Hunger` se nemění.
 
-**Aktuální NEXT:** `2.8D — MOVE_TO` jako druhý, úzce scoped Action primitiv (bez napojení na `GET_FOOD`).
+**Aktuální NEXT:** `2.8G — EAT` jako třetí Action primitiv, navazující na `MOVE_TO ARRIVED`; teprve úspěšný `EAT` sníží `Hunger`.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -120,7 +123,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.8D (MOVE_TO)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.8G (EAT)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -829,7 +832,7 @@ Runtime ověřeno:
 
 ## 2.8 Bezpečné Action API
 
-**Stav: 2.8A + 2.8A.5 + 2.8B + 2.8C (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + first real FLEE execution + structured ActionResult) DONE / runtime PASS pro `FLEE` - katalog je zatím jednoprvkový**
+**Stav: 2.8A + 2.8A.5 + 2.8B + 2.8C + 2.8D + 2.8E + 2.8F (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + FLEE execution + structured ActionResult + MOVE_TO primitive + GET_FOOD target resolution + arrival/completion tracking) DONE / runtime PASS pro `FLEE` a `MOVE_TO` - katalog je dvouprvkový, `EAT` zatím neexistuje**
 
 AI nemá přístup k libovolnému C++ ani k přímým zápisům do světa. Smí pouze požádat o akci z povoleného katalogu.
 
@@ -847,11 +850,11 @@ INVESTIGATE
 REQUEST_HELP
 ```
 
-> Runtime ověřeno je zatím jen `FLEE`. Zbytek katalogu čeká na `MOVE_TO` jako obecný pohybový primitiv (viz "Další implementace" níže) - žádný další action type se nepřidává naslepo.
+> Runtime ověřeno: `FLEE` a `MOVE_TO`. `EAT` zatím neexistuje - `GET_FOOD` (2.8E) dnes jen dojde k target souřadnicím (2.8F), nesnídá.
 
-- [x] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A); `ActionResult` jako vlastní execution DTO (`ActionExecutionStatus`/`ActionExecutionReason`, 2.8C)**.
-- [x] Pro každou akci implementovat serverovou validaci — **hotovo pro jediný existující action type (`FLEE`); až přibude druhý, ověří se, že se vzor opravdu opakuje**.
-- [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) a existence cíle (`NoFleeSource`/`FleeSourceMismatch`, 2.8B) validuje `ActionSystem`; pathing/range/LoS pro `FLEE` deleguje `FleeingMovementGenerator` (TrinityCore), AIWorld ho neduplikuje**.
+- [x] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A, rozšířena o `Destination` v 2.8D); `ActionResult` jako vlastní execution DTO (`ActionExecutionStatus`/`ActionExecutionReason`, 2.8C)**.
+- [x] Pro každou akci implementovat serverovou validaci — **hotovo pro `FLEE` (2.8A/2.8B) i `MOVE_TO` (2.8D); `ActionSystem::Validate()` dispatchuje na `ValidateFlee`/`ValidateMoveTo` podle `ActionType` - vzor se skutečně opakuje**.
+- [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) validuje `ActionSystem` pro oba typy; `FLEE` cíl (`NoFleeSource`/`FleeSourceMismatch`, 2.8B), `MOVE_TO` cíl (`NoDestination`/`DestinationMapMismatch`/`DestinationNotFinite`/`DestinationTooFar`/`ActorMovementBusy`, 2.8D); pathing pro oba deleguje TrinityCore (`FleeingMovementGenerator`/`PathGenerator` přes `MovePoint`), AIWorld ho neduplikuje**.
 - [x] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru — **`ActionExecutor` se volá jen po `Validate() == Allowed`; REJECTED nikdy nedosáhne engine kódu**.
 - [ ] Přidat timeout a cancel pro dlouhé akce — **FLEE dnes končí přes goal-level `TimeoutMs` (2.7B2) → `FAILED` → `ActionExecutor::StopFlee()` (2.8B); obecný per-action timeout/cancel mechanismus zatím neexistuje**.
 - [ ] Přidat fallback behavior při chybě AI služby — **mimo scope: tato deterministic `FLEE_DANGER` pipeline nikdy nevolá ai-server; týká se budoucí LLM-driven decision cesty**.
@@ -920,33 +923,101 @@ Runtime ověřeno:
 
 **Otevřený P3, neblokující:** `ActionExecutionReason::EngineRejected` dnes nikde nevzniká (`MoveFleeing()` vrací `void`) - zatím jen future-facing hodnota enumu.
 
-**Další implementace:** `2.8D — MOVE_TO` jako druhý, úzce scoped Action primitiv (bez napojení na `GET_FOOD`), viz níže.
-
-### 2.8D — MOVE_TO (plánováno)
-
-Cíl: prokázat, že Action API není postavené speciálně jen kolem `FLEE`, ne zatím propojit Goals s movementem. `MOVE_TO` se v 2.8D nespouští z `GoalSystem` - deterministický testovací integration point / explicitní interní request, stejně jako `FLEE` v 2.8A/2.8B nikdy nebyl vyvolaný z ničeho jiného než `FLEE_DANGER`.
-
-Scope:
+### Implementovaný stav 2.8D
 
 ```text
 ActionType::MoveTo
     ↓
-ActionRequest.Destination (nový std::optional<ActionPosition> - MapId/X/Y/Z, pure value)
+ActionRequest.Destination (std::optional<ActionPosition> - MapId/X/Y/Z, pure value)
     ↓
-ActionSystem validation (materialized, alive, goal identity, destination existuje,
-                          destination.MapId == actor.MapId, souřadnice finite,
-                          max range ~30-50 yd)
+ActionSystem::ValidateMoveTo (materialized, alive, goal identity, destination existuje,
+                               destination.MapId == actor.MapId, souřadnice finite,
+                               max range 40yd, actor.HasActiveMovement == false)
     ↓
 ALLOWED
     ↓
-ActionExecutor::ExecuteMoveTo → Creature::GetMotionMaster()->MovePoint (TrinityCore pathfinding)
+ActionExecutor::ExecuteMoveTo → Creature::GetMotionMaster()->MovePoint (TrinityCore pathfinding,
+                                  tagováno vlastním ActionExecutor::MovePointId)
     ↓
 ActionResult
     ↓
-stop/cancel pouze vlastního MOVE_TO movementu (vlastní stabilní point ID, ne MotionMaster::Clear(), ne bezpodmínečné StopMoving() - stejný vzor jako StopFlee() P2 fix)
+StopMoveTo: najde a odstraní jen generator s vlastním MovePointId (ne POINT_MOTION_TYPE obecně,
+             ten sdílí celý engine), StopMoving() jen když byl skutečně aktivní
 ```
 
-Bez LLM, bez DB persistence, bez napojení na `GET_FOOD` - to je až `2.8E — Goal → MOVE_TO planning`.
+`MOVE_TO` se v 2.8D nespustil z `GoalSystem` - deterministický testovací integration point (`AIWorld.TestMoveToEnabled`), stejně jako `FLEE` v 2.8A/2.8B nikdy nebyl vyvolaný z ničeho jiného než `FLEE_DANGER`. Test trigger byl v 2.8E nahrazen skutečnou `GET_FOOD` pipeline a odstraněn.
+
+Implementation: `3e71497a` feat(ai-world): add validated move-to action primitive (2.8D)
+Hardening: `1b183fe2` fix(ai-world): reject move-to while actor movement is busy (2.8D P2)
+Hardening: `f0b96b0b` fix(ai-world): cancel move-to on emergency goal interrupt (2.8D P2)
+
+Runtime ověřeno:
+
+- `MOVE_TO` request/validate/execute pipeline funguje nezávisle na `FLEE` - Action API není postavené speciálně kolem jednoho typu.
+- `ActorMovementBusy` (P2 fix): `MOVE_TO` se nesmí vložit do obsazeného `MOTION_SLOT_ACTIVE` - buď by nahradilo cizí movement, nebo by čekalo schované pod vyšší prioritou a spustilo se později se zastaralou destination validací.
+- interrupt do `FLEE_DANGER` zruší běžící `MOVE_TO` (`StopMoveTo()`) dřív, než `FLEE` začne (P2 fix) - jinak by `MOVE_TO` zůstalo dormant pod `FLEE` a po jeho skončení se obnovilo k cíli z už ukončeného goal attempt.
+- žádný LLM, žádná DB persistence.
+
+### Implementovaný stav 2.8E
+
+```text
+Hunger >= 0.80 → GET_FOOD Activated
+    ↓
+FoodTargetResolver::Resolve (pure value; jediný zdroj: fixed config AIWorld.TestFoodTarget*)
+    ↓
+GoalTarget (Guid/MapId/X/Y/Z) - oddělený od ActionPosition, Goal-layer koncept
+    ↓ NOT_FOUND → jen audit log, GET_FOOD zůstává aktivní beze změny
+    ↓ FOUND
+ActionRequest MOVE_TO → ActionSystem::Validate → ActionExecutor::ExecuteMoveTo
+```
+
+`MOVE_TO` request vzniká jen na `GET_FOOD`'s vlastní `Activated` tranzici (nikdy `Interrupted` - `GET_FOOD` je `Normal` priorita, v současném katalogu nic nižšího neexistuje, takže `Interrupted`-do-`GET_FOOD` je nedosažitelné). Nahradilo a odstranilo 2.8D's obecný goal-agnostic test trigger.
+
+Implementation: `8e64b907` feat(ai-world): resolve food target into move-to action (2.8E)
+Hardening: `5f41d80b` fix(ai-world): stop move-to when get-food goal completes (2.8E P2)
+
+Runtime ověřeno:
+
+- `GET_FOOD ACTIVATED` → target resolved → `MOVE_TO ALLOWED` → `MOVE_TO STARTED`.
+- `GET_FOOD SUCCEEDED`/`FAILED` zruší běžící `MOVE_TO` (P2 fix) - jinak by action přežila goal attempt, který ji vytvořil, stejná ownership zásada jako u `FLEE_DANGER` interruptu.
+- žádný `EAT`, žádná inventory/vendor/ownership logika, žádné AIWorld-počítané souřadnice mimo fixed test config, žádná DB persistence.
+
+### Implementovaný stav 2.8F
+
+```text
+MOVE_TO Started
+    ↓
+TrinityCore movement (PathGenerator, může být PATHFIND_INCOMPLETE)
+    ↓
+spline finalizes → PointMovementGenerator::MovementInform → AIWorldCreatureAI::MovementInform
+    ↓ (jen plain values, map-updater thread)
+ActionEngineEvent (MapId/SpawnId/RuntimeGuid/MovementType/MovementId/X/Y/Z)
+    ↓ ActionEngineEventBus (mutex + bounded queue, mirror EventBus)
+AIWorldMgr::ProcessActionEngineEvent (world thread)
+    ↓ hard validace: movement id, agent existuje, RuntimeGuid, ActiveActionState==MoveTo,
+    ↓                ActiveGoalState identity match, pozice v toleranci 3yd od Destination
+ActionCompletion (Succeeded/Arrived nebo Failed/DestinationNotReached)
+    ↓
+HandleActionCompletion: jen zavře ActiveActionState a zaloguje - NIKDY nemění NeedsState,
+                          NIKDY neoznačí goal Succeeded, nevolá GoalSystem
+```
+
+Runtime test odhalil, že po `ARRIVED` zůstává `Hunger` beze změny a `GET_FOOD` aktivní - to je architektonicky správné chování, ne bug: dojít k jídlu != sníst ho. `EAT` jako mechanismus, který by `Hunger` skutečně snížil, v 2.8F záměrně neexistuje.
+
+Implementation: `4414c0d8` feat(ai-world): track move-to arrival and action completion (2.8F)
+Hardening: `873b9d1f` fix(ai-world): harden move-to completion lifecycle (2.8F P2)
+Docs: `16ff6102` docs(ai-world): tighten stale action-comment references (2.8F P3)
+
+Runtime ověřeno:
+
+- `MovementInform()` sám o sobě není důkaz arrival (P2 fix) - `MoveSplineInit::MoveTo()` přijme i `PATHFIND_INCOMPLETE` path, který skončí jinde než u requested destination; pozice se ověřuje explicitně před `Succeeded/Arrived`.
+- smrt (P2 fix) uzavře `ActiveActionState` jako `Cancelled/ActorDead` dřív, než se releasne goal - TrinityCore vlastní death handling movement stejně zastaví.
+- reconciliation (P2 fix) na world threadu každý tick ověří, jestli vlastní `MovePointId` generator ještě existuje v `MOTION_SLOT_ACTIVE` - pokud ne (např. dropped event z bounded queue), rekonciliuje podle skutečné pozice (`Arrived`/`EngineStopped`), hledá celý slot, ne jen top generator (dormant `MOVE_TO` pod `FLEE` se nepovažuje omylem za skončený).
+- žádný `EAT`, žádná `NeedsState` mutace, žádné automatické `GET_FOOD SUCCEEDED` z arrival, žádný LLM, žádná DB persistence, žádná action queue.
+
+**Otevřené P3 z review, neblokující:** (1) `Interrupted`/`GoalCompleted`/`ActorDematerialized`/`ActorDead` cancellation paths stále dělají `StopFlee()`/`StopMoveTo()` + `ActiveActionState.reset()` přímo, ne přes `ActionCompletion`/`HandleActionCompletion()` - funkčně správné, ale lifecycle API není ještě plně sjednocené na jeden vstupní bod.
+
+**Další implementace:** `2.8G — EAT` jako třetí Action primitiv, navazující na `MOVE_TO ARRIVED`. `GET_FOOD` se stane dvoufázový (`MOVE_TO` → `EAT`); teprve úspěšný `EAT` sníží `Hunger` - `HandleActionCompletion(MOVE_TO)` samo o sobě `Hunger` měnit nesmí, aby "dorazil jsem" a "snědl jsem" zůstaly architektonicky oddělené.
 
 ## 2.9 AI server — decision protocol
 
