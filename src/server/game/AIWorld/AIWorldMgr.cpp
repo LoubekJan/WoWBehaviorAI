@@ -28,6 +28,7 @@
 #include "MotionMaster.h"
 #include "MovementDefines.h"
 #include "Player.h"
+#include "PointMovementGenerator.h"
 #include <algorithm>
 #include <chrono>
 #include <optional>
@@ -40,6 +41,41 @@ namespace
     {
         return uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
             GameTime::GetSystemTime().time_since_epoch()).count());
+    }
+
+    // Milestone 2.8F P2 fix: not a tuned gameplay value - wide enough to
+    // absorb minor pathfinding/positional slop, tight enough to still
+    // catch a PathGenerator PATHFIND_INCOMPLETE result (MoveSplineInit::
+    // MoveTo() accepts any path that isn't PATHFIND_NOPATH, including
+    // incomplete ones) that stopped meaningfully short of the actual
+    // destination.
+    constexpr float ArrivalToleranceYards = 3.0f;
+
+    bool IsWithinArrivalTolerance(ActionPosition const& destination, float x, float y, float z)
+    {
+        float dx = destination.X - x;
+        float dy = destination.Y - y;
+        float dz = destination.Z - z;
+        float distanceSq = dx * dx + dy * dy + dz * dz;
+        return distanceSq <= ArrivalToleranceYards * ArrivalToleranceYards;
+    }
+
+    // Milestone 2.8F P2 fix: is AIWorld's own MoveTo generator still
+    // present in actor's MOTION_SLOT_ACTIVE - searches the whole slot, not
+    // just the current/top generator, since an interrupted-but-not-yet-
+    // cleaned-up MoveTo can be buried (deactivated, not removed) under a
+    // higher-priority one. Same lookup StopMoveTo() uses to find the
+    // generator to remove; here it's only ever read, never removed.
+    bool HasOwnMoveToGenerator(Creature& actor)
+    {
+        return actor.GetMotionMaster()->GetMovementGenerator([](MovementGenerator const* gen)
+        {
+            if (gen->GetMovementGeneratorType() != POINT_MOTION_TYPE)
+                return false;
+
+            auto const* point = dynamic_cast<PointMovementGenerator<Creature> const*>(gen);
+            return point && point->GetId() == ActionExecutor::MovePointId;
+        }, MOTION_SLOT_ACTIVE) != nullptr;
     }
 }
 
@@ -728,6 +764,20 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // through the normal retention check.
         if (!context.Alive)
         {
+            // Milestone 2.8F P2 fix: TrinityCore's own death handling
+            // (MotionMaster::StopOnDeath()) already stops/clears the
+            // actor's movement, so ActiveActionState must not keep
+            // claiming a MOVE_TO that no longer exists engine-side.
+            // Checked before the ActiveGoalState release below, same
+            // ordering as the dematerialization cleanup above.
+            if (record->ActiveActionState)
+            {
+                TC_LOG_DEBUG("ai.world", "AI action completion agent={} type={} status={} reason={} sourceGoal={}",
+                    record->Id.Value, ToString(record->ActiveActionState->Type), ToString(ActionCompletionStatus::Cancelled),
+                    ToString(ActionCompletionReason::ActorDead), ToString(record->ActiveActionState->SourceGoal));
+                record->ActiveActionState.reset();
+            }
+
             if (record->ActiveGoalState)
             {
                 TC_LOG_DEBUG("ai.world", "AI goal transition agent={} transition={} goal={} reason=DEAD",
@@ -736,6 +786,40 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             }
 
             continue;
+        }
+
+        // Milestone 2.8F P2 fix: reconciliation for a completion that never
+        // arrived as an event - ActionEngineEventBus is a bounded queue and
+        // drops under overflow, which is acceptable for a perception event
+        // but not for a lifecycle transition; this also catches any other
+        // way the engine's movement state could stop matching
+        // ActiveActionState without ProcessActionEngineEvent() ever running
+        // for it. Runs before this tick's own goal/action logic below, so
+        // it only ever reconciles state left over from a previous tick,
+        // never something this tick is only just about to start.
+        if (record->ActiveActionState && record->ActiveActionState->Type == ActionType::MoveTo && !HasOwnMoveToGenerator(*creature))
+        {
+            ActionCompletion completion;
+            completion.Actor = record->Id;
+            completion.Type = record->ActiveActionState->Type;
+            completion.SourceGoal = record->ActiveActionState->SourceGoal;
+            completion.GoalStartedAtMs = record->ActiveActionState->GoalStartedAtMs;
+            completion.CompletedAtMs = nowMs;
+
+            if (record->ActiveActionState->Destination
+                && IsWithinArrivalTolerance(*record->ActiveActionState->Destination,
+                    creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ()))
+            {
+                completion.Status = ActionCompletionStatus::Succeeded;
+                completion.Reason = ActionCompletionReason::Arrived;
+            }
+            else
+            {
+                completion.Status = ActionCompletionStatus::Failed;
+                completion.Reason = ActionCompletionReason::EngineStopped;
+            }
+
+            HandleActionCompletion(*record, completion);
         }
 
         // Milestone 2.7A: level-triggered, not derived from the edge-
@@ -1011,9 +1095,25 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
     completion.Type = record->ActiveActionState->Type;
     completion.SourceGoal = record->ActiveActionState->SourceGoal;
     completion.GoalStartedAtMs = record->ActiveActionState->GoalStartedAtMs;
-    completion.Status = ActionCompletionStatus::Succeeded;
-    completion.Reason = ActionCompletionReason::Arrived;
     completion.CompletedAtMs = CurrentTimeMs();
+
+    // Milestone 2.8F P2 fix: MovementInform() firing is not itself proof of
+    // arrival - MoveSplineInit::MoveTo() accepts a PATHFIND_INCOMPLETE
+    // path, which still finalizes (and still fires this callback) short of
+    // the requested destination. Compare the actor's actual position at
+    // callback time against what was actually requested before ever
+    // reporting Succeeded.
+    if (record->ActiveActionState->Destination
+        && IsWithinArrivalTolerance(*record->ActiveActionState->Destination, event.X, event.Y, event.Z))
+    {
+        completion.Status = ActionCompletionStatus::Succeeded;
+        completion.Reason = ActionCompletionReason::Arrived;
+    }
+    else
+    {
+        completion.Status = ActionCompletionStatus::Failed;
+        completion.Reason = ActionCompletionReason::DestinationNotReached;
+    }
 
     HandleActionCompletion(*record, completion);
 }

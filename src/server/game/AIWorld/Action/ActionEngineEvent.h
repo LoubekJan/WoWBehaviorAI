@@ -41,6 +41,18 @@ struct ActionEngineEvent
     // as an arrival for a specific ActiveAction.
     uint32 MovementType = 0;
     uint32 MovementId = 0;
+
+    // Milestone 2.8F P2 fix: the actor's actual position at the moment of
+    // the callback. MovementInform() firing is not itself proof of
+    // arrival - MoveSplineInit::MoveTo() accepts any PathGenerator result
+    // that isn't PATHFIND_NOPATH, including PATHFIND_INCOMPLETE, whose
+    // endpoint can be short of the requested destination; the spline still
+    // finalizes and still fires this callback. ProcessActionEngineEvent()
+    // compares this against ActiveAction::Destination before ever
+    // reporting Succeeded/Arrived.
+    float X = 0.0f;
+    float Y = 0.0f;
+    float Z = 0.0f;
 };
 
 #endif // AIWORLD_ACTIONENGINEEVENT_H

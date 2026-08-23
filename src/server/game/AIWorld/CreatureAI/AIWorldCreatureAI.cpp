@@ -48,6 +48,9 @@ void AIWorldCreatureAI::MovementInform(uint32 type, uint32 id)
     event.RuntimeGuid = me->GetGUID();
     event.MovementType = type;
     event.MovementId = id;
+    event.X = me->GetPositionX();
+    event.Y = me->GetPositionY();
+    event.Z = me->GetPositionZ();
 
     sAIWorldMgr->PublishActionEngineEvent(event);
 }

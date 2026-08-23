@@ -52,8 +52,19 @@ inline char const* ToString(ActionCompletionStatus status)
 enum class ActionCompletionReason : uint8
 {
     // The engine-owned movement generator reached its own natural
-    // conclusion (MovementInform, 2.8F) - MoveTo's only Succeeded reason.
+    // conclusion (MovementInform, 2.8F) AND the actor's position at that
+    // moment was actually within arrival tolerance of the destination -
+    // MoveTo's only Succeeded reason. MovementInform() firing alone is not
+    // sufficient: MoveSplineInit::MoveTo() accepts a PATHFIND_INCOMPLETE
+    // path (which finalizes, and still fires this callback, short of the
+    // requested destination).
     Arrived,
+    // MovementInform() fired, but the actor's position wasn't within
+    // arrival tolerance of the destination - almost certainly a
+    // PATHFIND_INCOMPLETE path. Distinct from EngineStopped: this is a
+    // callback AIWorld actually received and checked, not a silently
+    // vanished generator.
+    DestinationNotReached,
     // An emergency goal (FleeDanger) interrupted the goal that owned this
     // action.
     GoalInterrupted,
@@ -62,9 +73,18 @@ enum class ActionCompletionReason : uint8
     GoalCompleted,
     // The actor stopped being Materialized while this action was running.
     ActorDematerialized,
-    // Not yet produced anywhere in 2.8F - reserved for a future case where
-    // TrinityCore's engine state no longer matches what ActiveAction
-    // claims (e.g. the movement generator vanished without ever informing).
+    // The actor died while this action was running - TrinityCore's own
+    // death handling (MotionMaster::StopOnDeath()) already stops the
+    // movement itself; this only reflects that in ActiveActionState.
+    ActorDead,
+    // Reconciliation (2.8F P2 fix, UpdateNeeds()): AIWorld's own
+    // MovePointId generator is no longer present in MOTION_SLOT_ACTIVE,
+    // but no ActionEngineEvent for it was ever processed - most likely a
+    // dropped event (ActionEngineEventBus's bounded queue overflowed), but
+    // covers any other way the engine's movement state could stop matching
+    // ActiveActionState without an event ever arriving. Reconciliation
+    // still checks position the same way Arrived/DestinationNotReached do;
+    // this is only the reason used when the check runs without an event.
     EngineStopped
 };
 
@@ -72,12 +92,14 @@ inline char const* ToString(ActionCompletionReason reason)
 {
     switch (reason)
     {
-        case ActionCompletionReason::Arrived:             return "ARRIVED";
-        case ActionCompletionReason::GoalInterrupted:      return "GOAL_INTERRUPTED";
-        case ActionCompletionReason::GoalCompleted:        return "GOAL_COMPLETED";
-        case ActionCompletionReason::ActorDematerialized:  return "ACTOR_DEMATERIALIZED";
-        case ActionCompletionReason::EngineStopped:        return "ENGINE_STOPPED";
-        default:                                           return "UNKNOWN";
+        case ActionCompletionReason::Arrived:               return "ARRIVED";
+        case ActionCompletionReason::DestinationNotReached: return "DESTINATION_NOT_REACHED";
+        case ActionCompletionReason::GoalInterrupted:       return "GOAL_INTERRUPTED";
+        case ActionCompletionReason::GoalCompleted:         return "GOAL_COMPLETED";
+        case ActionCompletionReason::ActorDematerialized:   return "ACTOR_DEMATERIALIZED";
+        case ActionCompletionReason::ActorDead:             return "ACTOR_DEAD";
+        case ActionCompletionReason::EngineStopped:         return "ENGINE_STOPPED";
+        default:                                            return "UNKNOWN";
     }
 }
 
