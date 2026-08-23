@@ -20,15 +20,16 @@
 
 #include "Define.h"
 
-// Milestone 2.8A/2.8D: Flee and MoveTo only - the full FOLLOW/ATTACK/TALK/
-// TRADE/EAT/SLEEP/WORK/INVESTIGATE/REQUEST_HELP catalog (per the roadmap's
-// 2.8 Bezpečné Action API) comes later, once these have cleared their own
-// runtime gate. MoveTo is deliberately not wired to GoalSystem/GET_FOOD in
-// 2.8D - it exists to prove the Action API isn't Flee-special, not to
-// plan where an agent should go. Deliberately no GetFood -> Eat mapping
-// either: the agent doesn't know where food is, whether it owns any, or
-// whether it can reach it - that's planning (2.8E+), not something to
-// skip past.
+// Milestone 2.8A/2.8D/2.8E: Flee and MoveTo only - the full FOLLOW/ATTACK/
+// TALK/TRADE/EAT/SLEEP/WORK/INVESTIGATE/REQUEST_HELP catalog (per the
+// roadmap's 2.8 Bezpečné Action API) comes later, once these have cleared
+// their own runtime gate. GET_FOOD (2.8E) resolves a target and moves
+// there via MoveTo, and MOVE_TO arrival (2.8F) only ever means the actor
+// is now standing at the target - it deliberately does not map to Eat:
+// arriving at food is not the same as having eaten it, and NeedsState's
+// Hunger has no mechanism to decrease until an actual Eat action exists
+// and succeeds. That's Eat's own milestone, not something to skip past by
+// folding a Hunger mutation into MOVE_TO's arrival handling.
 enum class ActionType : uint8
 {
     Flee,

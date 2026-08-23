@@ -25,10 +25,14 @@
 #include <optional>
 
 // Milestone 2.8F: the one Action currently actually running in TrinityCore
-// for an agent - set only after ActionExecutor::ExecuteMoveTo() (or
-// ExecuteFlee(), though Flee's own lifecycle is still driven purely by
-// GoalCompletion, not this) has actually returned Started, never before
-// validation and never on a Failed result. Owned by AgentRecord alongside
+// for an agent - as of 2.8F, only ever a MoveTo, set after
+// ActionExecutor::ExecuteMoveTo() has actually returned Started, never
+// before validation and never on a Failed result. Flee is not tracked
+// here yet - its lifecycle is still driven purely by GoalCompletion
+// (StopFlee() is called directly from FLEE_DANGER's own transitions, with
+// no ActiveActionState involved); folding Flee in too is a natural
+// extension once something needs to reason about "is any action running"
+// generically, not a 2.8F requirement. Owned by AgentRecord alongside
 // NeedsThresholds/ActiveGoalState, for the same reason: it must survive
 // Creature unload/reload, and every path that ends the underlying engine
 // movement (interrupt, goal completion, dematerialization, natural

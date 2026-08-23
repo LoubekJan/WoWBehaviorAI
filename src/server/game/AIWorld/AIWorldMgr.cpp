@@ -913,8 +913,9 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
         // Milestone 2.8A/2.8B: propose, validate, and (on ALLOWED) execute
         // a FLEE ActionRequest the tick FLEE_DANGER is Activated or
-        // Interrupted-into - not every tick it stays active. GET_FOOD
-        // deliberately maps to no action yet - see ActionType.h for why.
+        // Interrupted-into - not every tick it stays active. GET_FOOD gets
+        // its own MOVE_TO block below (2.8E) - it does not map to any
+        // action here.
         if ((selection.Transition == GoalTransition::Activated || selection.Transition == GoalTransition::Interrupted)
             && selection.Goal->Type == GoalType::FleeDanger)
         {
