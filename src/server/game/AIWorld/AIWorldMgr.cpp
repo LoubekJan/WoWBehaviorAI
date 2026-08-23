@@ -756,10 +756,12 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                     record->Id.Value, ToString(selection.Transition), ToString(selection.Completion->Type),
                     ToString(selection.Completion->Reason), selection.Completion->CompletedAtMs - selection.Completion->StartedAtMs);
 
-                // Milestone 2.8B: only FleeDanger ever has a live
-                // TrinityCore movement generator to stop - GetFood never
-                // executed anything (see ActionType.h). Ends only the
-                // FLEEING_MOTION_TYPE generator ExecuteFlee() started, not
+                // Every goal type that can own a live TrinityCore movement
+                // generator must end it on completion, the same ownership
+                // rule as the Interrupted case above - an action must never
+                // outlive the goal attempt that started it. Ends only the
+                // specific generator each ExecuteX() started (FLEEING_MOTION_TYPE
+                // for Flee, AIWorld's own point id for MoveTo), never
                 // MotionMaster::Clear().
                 if (selection.Completion->Type == GoalType::FleeDanger)
                 {
@@ -767,6 +769,14 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
                     TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={}",
                         record->Id.Value, ToString(ActionType::Flee),
+                        selection.Transition == GoalTransition::Succeeded ? "GOAL_SUCCEEDED" : "GOAL_FAILED");
+                }
+                else if (selection.Completion->Type == GoalType::GetFood)
+                {
+                    _actionExecutor.StopMoveTo(*creature);
+
+                    TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={}",
+                        record->Id.Value, ToString(ActionType::MoveTo),
                         selection.Transition == GoalTransition::Succeeded ? "GOAL_SUCCEEDED" : "GOAL_FAILED");
                 }
                 break;
