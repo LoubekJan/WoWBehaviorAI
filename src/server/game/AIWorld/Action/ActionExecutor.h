@@ -103,6 +103,22 @@ class TC_GAME_API ActionExecutor
         // actually firing once 2.7B2 gave FLEE_DANGER a real completion
         // event to hook into.
         void StopMoveTo(Creature& actor) const;
+
+        // Milestone 2.8G: purely cosmetic - HandleEmoteCommand() only
+        // broadcasts a one-shot animation packet (no UpdateField, no
+        // server-side state, nothing to undo later), since the current
+        // food target is still just a deterministic test source, not a
+        // real consumable item/GameObject. No inventory, no DB. Never
+        // touches NeedsState/Hunger - this class doesn't know AgentRecord
+        // exists; the caller applies NeedsSystem::SatisfyHunger() only
+        // after this (and the resulting ActionCompletion) reach Succeeded/
+        // Consumed. Has no engine completion callback to wait for, so the
+        // caller treats a Started result as immediately Consumed - no
+        // ActiveActionState is ever created for Eat. Returns Failed/
+        // UnsupportedAction (and does nothing) if request.Type is not Eat
+        // - defensive only; every current call site already validated
+        // this before calling.
+        ActionResult ExecuteEat(ActionRequest const& request, Creature& actor) const;
 };
 
 #endif // AIWORLD_ACTIONEXECUTOR_H

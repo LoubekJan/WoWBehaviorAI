@@ -60,6 +60,12 @@ struct ActionValidationContext
     // destination's range/map validation may no longer be true. MoveTo may
     // only start from an idle actor.
     bool HasActiveMovement = false;
+
+    // Milestone 2.8G: the actor's actual current combat state. ValidateEat()
+    // rejects while true - if danger appears the same tick the actor
+    // arrives at a food target, it must not start eating a moment before
+    // an emergency FLEE_DANGER takes over.
+    bool InCombat = false;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

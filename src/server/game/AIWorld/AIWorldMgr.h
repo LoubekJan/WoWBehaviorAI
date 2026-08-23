@@ -106,7 +106,9 @@ class TC_GAME_API AIWorldMgr
         void ScanNearbyEntities();
         void UpdateNeeds(uint32 elapsedMs);
         void ProcessActionEngineEvent(ActionEngineEvent const& event);
-        void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
+        void HandleActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion);
+        void PlanAfterActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion,
+            std::optional<ActionPosition> const& completedDestination);
 
         bool _enabled = false;
 

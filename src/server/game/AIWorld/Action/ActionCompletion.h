@@ -85,7 +85,13 @@ enum class ActionCompletionReason : uint8
     // ActiveActionState without an event ever arriving. Reconciliation
     // still checks position the same way Arrived/DestinationNotReached do;
     // this is only the reason used when the check runs without an event.
-    EngineStopped
+    EngineStopped,
+    // Milestone 2.8G: Eat's only Succeeded reason. Eat has no engine
+    // completion callback to wait for - ExecuteEat()'s emote is fire-and-
+    // forget, so PlanAfterActionCompletion() treats a Started ActionResult
+    // as immediately Consumed, in the same call, with no ActiveActionState
+    // ever created for it.
+    Consumed
 };
 
 inline char const* ToString(ActionCompletionReason reason)
@@ -99,6 +105,7 @@ inline char const* ToString(ActionCompletionReason reason)
         case ActionCompletionReason::ActorDematerialized:   return "ACTOR_DEMATERIALIZED";
         case ActionCompletionReason::ActorDead:             return "ACTOR_DEAD";
         case ActionCompletionReason::EngineStopped:         return "ENGINE_STOPPED";
+        case ActionCompletionReason::Consumed:              return "CONSUMED";
         default:                                            return "UNKNOWN";
     }
 }

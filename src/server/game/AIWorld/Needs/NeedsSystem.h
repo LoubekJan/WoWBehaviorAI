@@ -84,6 +84,16 @@ class TC_GAME_API NeedsSystem
         // value: no AgentId, Creature*, Map*, EventBus, or DB - the caller
         // decides what (if anything) to do with the returned events.
         std::vector<NeedsThresholdEvent> EvaluateThresholds(NeedsState const& state, NeedsThresholdState& thresholds) const;
+
+        // Milestone 2.8G: the only place Hunger is allowed to decrease -
+        // called by AIWorldMgr only after an Eat ActionCompletion actually
+        // reaches Succeeded/Consumed, never as a side effect of MOVE_TO's
+        // own arrival handling (arriving at food is not the same as having
+        // eaten it). Deterministic full satisfaction for this milestone,
+        // not a tuned gameplay value - the point is establishing the first
+        // action -> need feedback loop, not calibrating how much a meal is
+        // worth.
+        void SatisfyHunger(NeedsState& state) const;
 };
 
 #endif // AIWORLD_NEEDSSYSTEM_H

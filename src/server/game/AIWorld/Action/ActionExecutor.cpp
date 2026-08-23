@@ -20,6 +20,7 @@
 #include "MotionMaster.h"
 #include "MovementDefines.h"
 #include "PointMovementGenerator.h"
+#include "SharedDefines.h"
 
 ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const
 {
@@ -132,4 +133,28 @@ void ActionExecutor::StopMoveTo(Creature& actor) const
 
     if (wasActive)
         actor.StopMoving();
+}
+
+ActionResult ActionExecutor::ExecuteEat(ActionRequest const& request, Creature& actor) const
+{
+    ActionResult result;
+    result.Actor = request.Actor;
+    result.Type = request.Type;
+    result.SourceGoal = request.SourceGoal;
+    result.GoalStartedAtMs = request.GoalStartedAtMs;
+
+    if (request.Type != ActionType::Eat)
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::UnsupportedAction;
+        return result;
+    }
+
+    // One-shot animation broadcast only - no UpdateField, no server-side
+    // state, no combat/threat/movement side effect, nothing to undo later.
+    actor.HandleEmoteCommand(EMOTE_ONESHOT_EAT);
+
+    result.Status = ActionExecutionStatus::Started;
+    result.Reason = ActionExecutionReason::None;
+    return result;
 }

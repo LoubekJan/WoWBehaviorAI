@@ -128,3 +128,8 @@ std::vector<NeedsThresholdEvent> NeedsSystem::EvaluateThresholds(NeedsState cons
 
     return events;
 }
+
+void NeedsSystem::SatisfyHunger(NeedsState& state) const
+{
+    state.Hunger = 0.0f;
+}

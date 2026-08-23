@@ -20,20 +20,22 @@
 
 #include "Define.h"
 
-// Milestone 2.8A/2.8D/2.8E: Flee and MoveTo only - the full FOLLOW/ATTACK/
-// TALK/TRADE/EAT/SLEEP/WORK/INVESTIGATE/REQUEST_HELP catalog (per the
+// Milestone 2.8A/2.8D/2.8E/2.8G: Flee, MoveTo, and Eat - the full FOLLOW/
+// ATTACK/TALK/TRADE/SLEEP/WORK/INVESTIGATE/REQUEST_HELP catalog (per the
 // roadmap's 2.8 Bezpečné Action API) comes later, once these have cleared
 // their own runtime gate. GET_FOOD (2.8E) resolves a target and moves
-// there via MoveTo, and MOVE_TO arrival (2.8F) only ever means the actor
-// is now standing at the target - it deliberately does not map to Eat:
-// arriving at food is not the same as having eaten it, and NeedsState's
-// Hunger has no mechanism to decrease until an actual Eat action exists
-// and succeeds. That's Eat's own milestone, not something to skip past by
-// folding a Hunger mutation into MOVE_TO's arrival handling.
+// there via MoveTo; MOVE_TO arrival (2.8F) only means the actor is now
+// standing at the target, so PlanAfterActionCompletion() (2.8G) proposes
+// Eat as a second, separately-validated action from that same arrived
+// position - arriving at food is not the same as having eaten it.
+// NeedsState's Hunger only ever decreases via NeedsSystem::SatisfyHunger(),
+// called after Eat itself reaches Succeeded/Consumed - never as a side
+// effect of MOVE_TO's own completion handling.
 enum class ActionType : uint8
 {
     Flee,
-    MoveTo
+    MoveTo,
+    Eat
 };
 
 inline char const* ToString(ActionType type)
@@ -42,6 +44,7 @@ inline char const* ToString(ActionType type)
     {
         case ActionType::Flee:   return "FLEE";
         case ActionType::MoveTo: return "MOVE_TO";
+        case ActionType::Eat:    return "EAT";
         default:                 return "UNKNOWN";
     }
 }

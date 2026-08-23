@@ -16,6 +16,7 @@
  */
 
 #include "ActionSystem.h"
+#include "ArrivalTolerance.h"
 #include <cmath>
 
 namespace
@@ -61,6 +62,8 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
             return ValidateFlee(request, context);
         case ActionType::MoveTo:
             return ValidateMoveTo(request, context);
+        case ActionType::Eat:
+            return ValidateEat(request, context);
         default:
             return { false, ActionRejectReason::UnsupportedAction };
     }
@@ -120,6 +123,37 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     // true (the actor could be anywhere after a 20-30s flee).
     if (context.HasActiveMovement)
         return { false, ActionRejectReason::ActorMovementBusy };
+
+    return { true, ActionRejectReason::None };
+}
+
+ActionValidationResult ActionSystem::ValidateEat(ActionRequest const& request, ActionValidationContext const& context) const
+{
+    // Unlike MoveTo, Eat is tied to a specific GoalType - only a GetFood
+    // goal ever justifies eating.
+    if (*context.ActiveGoalType != GoalType::GetFood)
+        return { false, ActionRejectReason::GoalMismatch };
+
+    if (!request.Destination)
+        return { false, ActionRejectReason::NoDestination };
+
+    if (request.Destination->MapId != context.MapId)
+        return { false, ActionRejectReason::DestinationMapMismatch };
+
+    if (!std::isfinite(request.Destination->X) || !std::isfinite(request.Destination->Y) || !std::isfinite(request.Destination->Z))
+        return { false, ActionRejectReason::DestinationNotFinite };
+
+    // The same tolerance MOVE_TO arrival uses (ArrivalTolerance.h) - the
+    // actor must actually be standing at the food target, not just
+    // somewhere on the same map.
+    if (!IsWithinArrivalTolerance(*request.Destination, context.X, context.Y, context.Z))
+        return { false, ActionRejectReason::DestinationTooFar };
+
+    // Checked last: if danger appears the same tick the actor arrives at a
+    // food target, it must not start eating a moment before an emergency
+    // FLEE_DANGER takes over.
+    if (context.InCombat)
+        return { false, ActionRejectReason::ActorInCombat };
 
     return { true, ActionRejectReason::None };
 }

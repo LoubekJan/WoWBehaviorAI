@@ -23,7 +23,7 @@
 #include "ActionValidationResult.h"
 #include "Define.h"
 
-// Milestone 2.8A/2.8B/2.8D: the safety boundary between "AI proposes" and
+// Milestone 2.8A/2.8B/2.8D/2.8G: the safety boundary between "AI proposes" and
 // "TrinityCore executes" - AI proposes (ActionRequest), ActionSystem
 // validates (this class), ActionExecutor executes only on ALLOWED.
 // Validate() is a pure value transform: no Creature*, AgentRecord*, Map*,
@@ -57,6 +57,18 @@ class TC_GAME_API ActionSystem
         // actor's own map, has finite coordinates, and is within a bounded
         // range - see ActionSystem.cpp for the exact distance.
         ActionValidationResult ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const;
+
+        // Milestone 2.8G: Eat-specific, run only once the common checks
+        // above already passed. Unlike MoveTo, Eat is tied to a specific
+        // GoalType - only GetFood ever justifies eating. Checks the
+        // destination exists, is on the actor's own map, has finite
+        // coordinates, is within ArrivalToleranceYards of the actor's
+        // actual position (the same tolerance MOVE_TO arrival uses - see
+        // ArrivalTolerance.h), and that the actor isn't in combat: if
+        // danger appears the same tick the actor arrives at a food target,
+        // it must not start eating a moment before an emergency
+        // FLEE_DANGER takes over.
+        ActionValidationResult ValidateEat(ActionRequest const& request, ActionValidationContext const& context) const;
 };
 
 #endif // AIWORLD_ACTIONSYSTEM_H

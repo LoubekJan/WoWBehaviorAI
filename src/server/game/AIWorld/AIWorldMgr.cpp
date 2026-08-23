@@ -16,6 +16,7 @@
  */
 
 #include "AIWorldMgr.h"
+#include "Action/ArrivalTolerance.h"
 #include "Agent/AgentSnapshot.h"
 #include "Config.h"
 #include "Creature.h"
@@ -41,23 +42,6 @@ namespace
     {
         return uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
             GameTime::GetSystemTime().time_since_epoch()).count());
-    }
-
-    // Milestone 2.8F P2 fix: not a tuned gameplay value - wide enough to
-    // absorb minor pathfinding/positional slop, tight enough to still
-    // catch a PathGenerator PATHFIND_INCOMPLETE result (MoveSplineInit::
-    // MoveTo() accepts any path that isn't PATHFIND_NOPATH, including
-    // incomplete ones) that stopped meaningfully short of the actual
-    // destination.
-    constexpr float ArrivalToleranceYards = 3.0f;
-
-    bool IsWithinArrivalTolerance(ActionPosition const& destination, float x, float y, float z)
-    {
-        float dx = destination.X - x;
-        float dy = destination.Y - y;
-        float dz = destination.Z - z;
-        float distanceSq = dx * dx + dy * dy + dz * dz;
-        return distanceSq <= ArrivalToleranceYards * ArrivalToleranceYards;
     }
 
     // Milestone 2.8F P2 fix: is AIWorld's own MoveTo generator still
@@ -819,7 +803,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 completion.Reason = ActionCompletionReason::EngineStopped;
             }
 
-            HandleActionCompletion(*record, completion);
+            HandleActionCompletion(*record, *creature, completion);
         }
 
         // Milestone 2.7A: level-triggered, not derived from the edge-
@@ -1077,6 +1061,20 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
         return;
     }
 
+    // Milestone 2.8G: PlanAfterActionCompletion() needs a live Creature& to
+    // propose/validate/execute a follow-up Eat - re-resolved fresh here
+    // rather than trusted from record->RuntimeGuid matching above, since
+    // this event could have sat in the bus queue since a previous tick and
+    // ProcessActionEngineEvent() runs before UpdateNeeds() would have had
+    // a chance to notice and unbind an unloaded Creature this tick.
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+    Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+    if (!creature || creature->GetGUID() != record->RuntimeGuid)
+    {
+        TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: Creature not currently resolvable", record->Id.Value);
+        return;
+    }
+
     if (!record->ActiveActionState || record->ActiveActionState->Type != ActionType::MoveTo)
     {
         TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: no active MOVE_TO to complete", record->Id.Value);
@@ -1116,24 +1114,128 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
         completion.Reason = ActionCompletionReason::DestinationNotReached;
     }
 
-    HandleActionCompletion(*record, completion);
+    HandleActionCompletion(*record, *creature, completion);
 }
 
-// World thread only. Milestone 2.8F: the lifecycle/logging seam a later
-// milestone hooks real planning into once an arrival should trigger a next
-// step (e.g. EAT) - for now this only closes out ActiveActionState and
-// logs. Arriving at a target is not the same as the goal that wanted it
-// being satisfied: this never touches NeedsState, never marks a goal
-// Succeeded, never calls GoalSystem.
-void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion)
+// World thread only. Milestone 2.8F/2.8G: closes out ActiveActionState,
+// logs, and (2.8G) hands off to PlanAfterActionCompletion() for whatever
+// follow-up an arrived MOVE_TO might justify - captures ActiveActionState's
+// Destination before resetting it, since PlanAfterActionCompletion() needs
+// it to propose Eat from the same spot the agent actually arrived at.
+// Arriving at a target is not the same as the goal that wanted it being
+// satisfied: this itself never touches NeedsState, never marks a goal
+// Succeeded, never calls GoalSystem - only Eat's own success (via
+// PlanAfterActionCompletion() -> NeedsSystem::SatisfyHunger()) may do that.
+void AIWorldMgr::HandleActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion)
 {
     uint64 startedAtMs = record.ActiveActionState ? record.ActiveActionState->StartedAtMs : completion.CompletedAtMs;
+    std::optional<ActionPosition> completedDestination = record.ActiveActionState ? record.ActiveActionState->Destination : std::nullopt;
 
     record.ActiveActionState.reset();
 
     TC_LOG_DEBUG("ai.world", "AI action completion agent={} type={} status={} reason={} sourceGoal={} durationMs={}",
         record.Id.Value, ToString(completion.Type), ToString(completion.Status), ToString(completion.Reason),
         ToString(completion.SourceGoal), completion.CompletedAtMs - startedAtMs);
+
+    PlanAfterActionCompletion(record, creature, completion, completedDestination);
+}
+
+// World thread only, called only from HandleActionCompletion(). Milestone
+// 2.8G: the one place that reacts to a *specific* ActionCompletion by
+// proposing a follow-up action - today only MOVE_TO/Succeeded/Arrived for
+// a GET_FOOD attempt, proposing Eat from the exact spot the agent arrived
+// at. Deliberately not folded into HandleActionCompletion() itself, which
+// stays a generic lifecycle/logging seam for every ActionType/completion
+// combination, not just this one.
+void AIWorldMgr::PlanAfterActionCompletion(AgentRecord& record, Creature& creature, ActionCompletion const& completion,
+    std::optional<ActionPosition> const& completedDestination)
+{
+    if (completion.Type != ActionType::MoveTo || completion.Status != ActionCompletionStatus::Succeeded
+        || completion.Reason != ActionCompletionReason::Arrived || completion.SourceGoal != GoalType::GetFood)
+        return;
+
+    // Re-confirm goal provenance immediately before proposing Eat - the
+    // completion above was already checked against ActiveGoalState by
+    // whichever caller produced it, but that was a moment ago (at least
+    // this same HandleActionCompletion() call), and nothing between there
+    // and here re-confirms record.ActiveGoalState still matches. If
+    // FLEE_DANGER pre-empted GET_FOOD in that gap, Eat must not run - this
+    // is on top of, not instead of, ActionSystem::Validate()'s own
+    // goal-identity checks a few lines down.
+    if (!record.ActiveGoalState || record.ActiveGoalState->Type != completion.SourceGoal
+        || record.ActiveGoalState->StartedAtMs != completion.GoalStartedAtMs)
+        return;
+
+    if (!completedDestination)
+        return;
+
+    ActionRequest eatRequest;
+    eatRequest.Actor = record.Id;
+    eatRequest.Type = ActionType::Eat;
+    eatRequest.SourceGoal = completion.SourceGoal;
+    eatRequest.GoalStartedAtMs = completion.GoalStartedAtMs;
+    eatRequest.Destination = completedDestination;
+
+    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={}",
+        record.Id.Value, ToString(eatRequest.Type), ToString(eatRequest.SourceGoal));
+
+    ActionValidationContext eatContext;
+    eatContext.Materialized = record.WorldState == AgentWorldState::Materialized;
+    eatContext.Alive = creature.IsAlive();
+    eatContext.InCombat = creature.IsInCombat();
+    eatContext.ActiveGoalType = record.ActiveGoalState->Type;
+    eatContext.ActiveGoalStartedAtMs = record.ActiveGoalState->StartedAtMs;
+    eatContext.MapId = creature.GetMapId();
+    eatContext.X = creature.GetPositionX();
+    eatContext.Y = creature.GetPositionY();
+    eatContext.Z = creature.GetPositionZ();
+
+    ActionValidationResult eatValidation = _actionSystem.Validate(eatRequest, eatContext);
+
+    TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+        record.Id.Value, ToString(eatRequest.Type), eatValidation.Allowed ? "ALLOWED" : "REJECTED",
+        ToString(eatValidation.Reason));
+
+    if (!eatValidation.Allowed)
+        return;
+
+    ActionResult eatResult = _actionExecutor.ExecuteEat(eatRequest, creature);
+
+    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+        record.Id.Value, ToString(eatResult.Type), ToString(eatResult.Status), ToString(eatResult.Reason));
+
+    if (eatResult.Status != ActionExecutionStatus::Started)
+        return;
+
+    // Eat has no engine completion callback to wait for - ExecuteEat()'s
+    // emote is fire-and-forget, so a Started result is treated as
+    // immediately Consumed, in this same call. Routed back through
+    // HandleActionCompletion() for the same logging format and so it also
+    // flows through PlanAfterActionCompletion() - which immediately no-ops
+    // here, since completion.Type is Eat, not MoveTo - rather than
+    // duplicating the "AI action completion" log line. No ActiveActionState
+    // is ever created for Eat, so there is nothing for
+    // HandleActionCompletion() to reset here; that reentry is bounded to
+    // exactly one extra level by the type check at the top of this
+    // function.
+    ActionCompletion eatCompletion;
+    eatCompletion.Actor = record.Id;
+    eatCompletion.Type = ActionType::Eat;
+    eatCompletion.SourceGoal = eatRequest.SourceGoal;
+    eatCompletion.GoalStartedAtMs = eatRequest.GoalStartedAtMs;
+    eatCompletion.Status = ActionCompletionStatus::Succeeded;
+    eatCompletion.Reason = ActionCompletionReason::Consumed;
+    eatCompletion.CompletedAtMs = CurrentTimeMs();
+
+    HandleActionCompletion(record, creature, eatCompletion);
+
+    // The only place Hunger is allowed to decrease, and only now - after
+    // Eat itself reached Succeeded/Consumed, never as a side effect of
+    // MOVE_TO's own arrival. GoalSystem is not called here: the next Needs
+    // tick's own UpdateActiveGoal() will see Hunger < 0.60 and produce
+    // GET_FOOD's Succeeded/NeedSatisfied transition through the existing,
+    // unmodified retention-threshold logic.
+    _needsSystem.SatisfyHunger(record.Needs);
 }
 
 // World thread only. Milestone 2.4A/2.4B/2.4C: log, then hand the
