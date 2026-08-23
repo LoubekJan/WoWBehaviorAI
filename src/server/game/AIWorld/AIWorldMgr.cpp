@@ -150,15 +150,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI needs configured interval={}ms hungerRate={:.6f} fatigueRate={:.6f} resourceRate={:.6f}",
         _needsUpdateIntervalMs, _needsRates.HungerPerSecond, _needsRates.FatiguePerSecond, _needsRates.ResourcePressurePerSecond);
 
-    // Milestone 2.8D: default off. Not wired to GoalSystem - fires once,
-    // against the test agent only, the first tick it has any active goal
-    // after this is enabled, purely to prove the MOVE_TO Action API
-    // primitive works end to end. See UpdateNeeds().
-    _testMoveToEnabled = sConfigMgr->GetBoolDefault("AIWorld.TestMoveToEnabled", false);
-    _testMoveToOffsetX = sConfigMgr->GetFloatDefault("AIWorld.TestMoveToOffsetX", 10.0f);
-    _testMoveToOffsetY = sConfigMgr->GetFloatDefault("AIWorld.TestMoveToOffsetY", 0.0f);
-    _testMoveToOffsetZ = sConfigMgr->GetFloatDefault("AIWorld.TestMoveToOffsetZ", 0.0f);
-    _testMoveToFired = false;
+    // Milestone 2.8E: default off. The only food target source for now -
+    // a single fixed, config-driven world point, not per-agent or
+    // nearest-anything. See FoodTargetResolver and UpdateNeeds().
+    _foodTargetConfig.Enabled = sConfigMgr->GetBoolDefault("AIWorld.TestFoodTargetEnabled", false);
+    _foodTargetConfig.MapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestFoodTargetMapId", 0));
+    _foodTargetConfig.X = sConfigMgr->GetFloatDefault("AIWorld.TestFoodTargetX", 0.0f);
+    _foodTargetConfig.Y = sConfigMgr->GetFloatDefault("AIWorld.TestFoodTargetY", 0.0f);
+    _foodTargetConfig.Z = sConfigMgr->GetFloatDefault("AIWorld.TestFoodTargetZ", 0.0f);
 
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
 
@@ -831,58 +830,65 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             }
         }
 
-        // Milestone 2.8D: deterministic, one-shot MOVE_TO test - fires
-        // once, for _testAgentId only, the first tick it has any
-        // ActiveGoal after AIWorld.TestMoveToEnabled is turned on. Not
-        // driven by GoalSystem: the request honestly claims whatever goal
-        // is actually active (any type, not just FleeDanger the way Flee
-        // requires), purely so this exercises the same goal-identity
-        // checks every ActionRequest goes through, without inventing a
-        // MOVE_TO-specific goal. Proves the Action API isn't Flee-special.
-        if (_testMoveToEnabled && !_testMoveToFired && id == _testAgentId && record->ActiveGoalState)
+        // Milestone 2.8E: resolve a food target and propose/validate/
+        // execute a MOVE_TO ActionRequest only on GET_FOOD's own
+        // Activated transition - a brand new goal attempt, not every tick
+        // it stays active, and not Interrupted (GET_FOOD is Normal
+        // priority - nothing lower exists to interrupt into it in the
+        // current catalog, so it can only ever reach Activated). Answers
+        // only "where should a hungry agent go" - no EAT, no target
+        // ownership/economy, no automatic goal failure if nothing is
+        // found (just an audit log).
+        if (selection.Transition == GoalTransition::Activated && selection.Goal->Type == GoalType::GetFood)
         {
-            _testMoveToFired = true;
+            std::optional<GoalTarget> foodTarget = _foodTargetResolver.Resolve(_foodTargetConfig);
 
-            ActionRequest moveRequest;
-            moveRequest.Actor = id;
-            moveRequest.Type = ActionType::MoveTo;
-            moveRequest.SourceGoal = record->ActiveGoalState->Type;
-            moveRequest.GoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
+            TC_LOG_DEBUG("ai.world", "AI goal target agent={} goal={} result={}",
+                record->Id.Value, ToString(GoalType::GetFood), foodTarget ? "FOUND" : "NOT_FOUND");
 
-            ActionPosition destination;
-            destination.MapId = creature->GetMapId();
-            destination.X = creature->GetPositionX() + _testMoveToOffsetX;
-            destination.Y = creature->GetPositionY() + _testMoveToOffsetY;
-            destination.Z = creature->GetPositionZ() + _testMoveToOffsetZ;
-            moveRequest.Destination = destination;
-
-            TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
-                record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
-                destination.X, destination.Y, destination.Z);
-
-            ActionValidationContext moveContext;
-            moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
-            moveContext.Alive = context.Alive;
-            moveContext.ActiveGoalType = record->ActiveGoalState->Type;
-            moveContext.ActiveGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
-            moveContext.MapId = creature->GetMapId();
-            moveContext.X = creature->GetPositionX();
-            moveContext.Y = creature->GetPositionY();
-            moveContext.Z = creature->GetPositionZ();
-            moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
-
-            ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
-
-            TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
-                record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
-                ToString(moveValidation.Reason));
-
-            if (moveValidation.Allowed)
+            if (foodTarget)
             {
-                ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+                ActionRequest moveRequest;
+                moveRequest.Actor = id;
+                moveRequest.Type = ActionType::MoveTo;
+                moveRequest.SourceGoal = selection.Goal->Type;
+                moveRequest.GoalStartedAtMs = selection.Goal->StartedAtMs;
 
-                TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
-                    record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+                ActionPosition destination;
+                destination.MapId = foodTarget->MapId;
+                destination.X = foodTarget->X;
+                destination.Y = foodTarget->Y;
+                destination.Z = foodTarget->Z;
+                moveRequest.Destination = destination;
+
+                TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
+                    record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
+                    destination.X, destination.Y, destination.Z);
+
+                ActionValidationContext moveContext;
+                moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
+                moveContext.Alive = context.Alive;
+                moveContext.ActiveGoalType = record->ActiveGoalState->Type;
+                moveContext.ActiveGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
+                moveContext.MapId = creature->GetMapId();
+                moveContext.X = creature->GetPositionX();
+                moveContext.Y = creature->GetPositionY();
+                moveContext.Z = creature->GetPositionZ();
+                moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
+
+                ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
+
+                TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+                    record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
+                    ToString(moveValidation.Reason));
+
+                if (moveValidation.Allowed)
+                {
+                    ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+
+                    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+                        record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+                }
             }
         }
     }

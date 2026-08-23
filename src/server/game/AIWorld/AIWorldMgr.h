@@ -25,6 +25,7 @@
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
+#include "Goal/FoodTargetResolver.h"
 #include "Goal/GoalSystem.h"
 #include "Inference/AIClient.h"
 #include "Memory/LongTermMemory.h"
@@ -224,18 +225,17 @@ class TC_GAME_API AIWorldMgr
         // request being executed.
         ActionExecutor _actionExecutor;
 
-        // Milestone 2.8D: a deterministic, one-shot test trigger for the
-        // MOVE_TO Action primitive - fires once, for _testAgentId only,
-        // the first tick it has any ActiveGoal after this is enabled.
-        // Deliberately not driven by GoalSystem/GET_FOOD; it exists to
-        // prove the Action API isn't Flee-special, not to plan where an
-        // agent should go. Default off (AIWorld.TestMoveToEnabled = 0), so
-        // this is completely inert on a normal server.
-        bool _testMoveToEnabled = false;
-        float _testMoveToOffsetX = 10.0f;
-        float _testMoveToOffsetY = 0.0f;
-        float _testMoveToOffsetZ = 0.0f;
-        bool _testMoveToFired = false;
+        // Milestone 2.8E: answers "where should a hungry agent go" for
+        // GET_FOOD's ACTIVATED transition (see UpdateNeeds()) - superseding
+        // 2.8D's generic, goal-agnostic MOVE_TO test trigger, now that a
+        // real Goal -> target -> Action pipeline exists. _foodTargetConfig
+        // is shared configuration (AIWorld.TestFoodTarget*, loaded once at
+        // Initialize()), passed into Resolve() per call - the same
+        // pattern _needsRates already uses for NeedsSystem. Pure value
+        // transform: FoodTargetResolver itself never touches AgentId/
+        // Creature/Map/DB.
+        FoodTargetResolver _foodTargetResolver;
+        FoodTargetConfig _foodTargetConfig;
 };
 
 #define sAIWorldMgr AIWorldMgr::instance()
