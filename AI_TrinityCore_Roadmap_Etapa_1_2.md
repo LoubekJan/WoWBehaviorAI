@@ -2,7 +2,7 @@
 
 > **Výchozí stav:** TrinityCore `3.3.5` + Ubuntu Server + NVIDIA GPU  
 > **Rozsah dokumentu:** Etapa 1 — Development Infrastructure, Etapa 2 — AI World Foundation  
-> **Aktualizováno:** 2026-08-23  
+> **Aktualizováno:** 2026-08-24  
 > **Aktivní větev:** `ai-world`
 
 ## Stav projektu
@@ -23,7 +23,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 Etapa 2 má runtime ověřenou kompletní Needs → Goal → Action → TrinityCore pipeline pro tři action typy, včetně arrival/completion trackingu a plného GET_FOOD feedback loopu (2.8A–2.8G, pro `FLEE`, `MOVE_TO` a `EAT`; `GET_FOOD` je dvoufázový `MOVE_TO` → `EAT` a skutečně uspokojí Hunger):
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
-- async `AIClient` `/health` + `/decision` stub, timeout/fallback a stale-response ochrana.
+- async `AIClient` `/health` + verzovaný `/decision` V2, timeout/fallback, korelace a stale-response ochrana.
 - `AgentRegistry` + stabilní `AgentId` + materialized/abstract binding.
 - persistence identity agenta přes `characters` DB.
 - `WorldEvent` + `EventBus` + první TrinityCore producer.
@@ -39,7 +39,7 @@ Etapa 2 má runtime ověřenou kompletní Needs → Goal → Action → TrinityC
 - deterministic Goal Candidate generation (2.7A): `NeedsState` → `GoalCandidate[]` (`GET_FOOD`/`FLEE_DANGER`), level-triggered, audit/debug log only.
 - deterministic goal selection a `ActiveGoal` (2.7B1): jeden aktivní cíl, deterministický `SelectBest`, retention `>= 0.60` proti activation `>= 0.80`, emergency interruption, dead agent nemá candidate ani `ActiveGoal`.
 - `ActiveGoal` lifecycle outcomes (2.7B2): retention threshold = success condition (`SUCCEEDED reason=NEED_SATISFIED`), fixní 30s `TimeoutMs` bez uspokojení Need → `FAILED reason=TIMEOUT`, interrupt má přednost před oběma.
-- safe Action API scaffold (2.8A): `ActionRequest`/`ActionSystem::Validate()`, pure-value validation boundary, zatím jen `FLEE`.
+- safe Action API scaffold (2.8A): `ActionRequest`/`ActionSystem::Validate()`, pure-value validation boundary.
 - AIWorld creature control takeover (2.8A.5): `AIWorldCreatureAI` potlačuje default auto-aggro/chase/melee/DB movement jen pro `OwnsSpawn()` shodu; TrinityCore combat/threat/damage/death beze změny.
 - první skutečná FLEE execution (2.8B): `ActionExecutor::ExecuteFlee`/`StopFlee` přes `MoveFleeing`/`MotionMaster`, TrinityCore pathfinding, scoped stop movement.
 - structured `ActionResult` (2.8C): `ExecuteFlee()` vrací `ActionResult` (Status/Reason) místo bool; `GoalCompletion`/`ActionValidationResult`/`ActionResult` jsou tři oddělené, jasně vymezené hranice.
@@ -47,8 +47,9 @@ Etapa 2 má runtime ověřenou kompletní Needs → Goal → Action → TrinityC
 - `GET_FOOD` target resolution (2.8E): `FoodTargetResolver` (fixed config zdroj) → `MOVE_TO` jen na `GET_FOOD Activated`, cleanup na interrupt/completion.
 - MOVE_TO arrival/completion tracking (2.8F): `AIWorldCreatureAI::MovementInform` → `ActionEngineEventBus` → hard-validated `ActionCompletion` (pozice v toleranci, ne jen callback), reconciliation pro dropped events. Arrival != `EAT`; `Hunger` se nemění.
 - `EAT` jako třetí Action primitiv (2.8G): `GET_FOOD` je dvoufázový `MOVE_TO` → `EAT`; `MOVE_TO ARRIVED` jen zaznamená `AgentRecord::PendingEat`, teprve `EAT SUCCEEDED/CONSUMED` zavolá `NeedsSystem::SatisfyHunger()`. Continuation provenance vynucuje `ActionSystem` přes authoritative arrival facts, ne přes důvěru v `ActionRequest`; `PendingEat` odloží `EAT` až za aktuální goal-selection pass, takže same-tick `FLEE_DANGER` emergency pořád vyhraje nad `GET_FOOD`.
+- decision protocol 2.9A–2.9E: plný `AgentContext` + Top-N memories/Needs/ActiveGoal/available actions, structured `DecisionIntent`, strict V2 korelace, world-thread stale/provenance guard, authoritative FLEE translation do `ActionSystem::Validate()` jako dry-run, decision metrics a multi-agent batch-shaped submit API.
 
-**Aktuální NEXT:** `2.9A` — verzovaný `DecisionRequest`/`DecisionResponse` protokol s plným `AgentContext`, Top-N memories, `Needs`, `ActiveGoal` a explicitně posílanými dostupnými akcemi.
+**Aktuální NEXT:** `2.10A` — scheduler/admission model nad hotovým `SubmitDecisions(vector<AIRequest>)` seamem; odstranit dnešní globální single-decision bottleneck bezpečnou, bounded politikou bez blokace world threadu.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -124,7 +125,7 @@ AI nikdy nesmí přímo zapisovat libovolný stav do světa ani obcházet server
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.9A (decision protocol)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — NEXT 2.10A (scheduler/admission)** | Persistentní agenti, události, paměť, cíle, Action API a async AI bridge | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -400,7 +401,7 @@ src/server/game/AIWorld/
 
 ### Milestone 2B — první async bridge
 
-**Stav: DONE / runtime PASS; detailní metriky zůstávají observability hardening.**
+**Stav: DONE / runtime PASS; decision observability implementována v 2.9D, metrics backend runtime evidence zůstává neblokující pending.**
 
 Teprve po 2A:
 
@@ -415,12 +416,12 @@ AIWorldMgr
 - [x] Nikdy nečekat na síť/inference v world update hot path.
 - [x] Přidat timeout a deterministic fallback.
 - [x] Zahodit stale response, který dorazí po deadline nebo po změně relevantního agent state.
-- [ ] Kompletní observability: `request_id`, latency, timeout a response status jako strukturované metriky.
+- [x] Decision observability: `request_id` v audit logu; latency/queue/outcome/timeout/invalid/stale jako nízkokardinalitní metriky (2.9D). Metrics backend runtime evidence ještě nebyla samostatně ověřena.
 - [x] Vypnout `ai-server` během běžícího světa a ověřit, že `worldserver` pokračuje bez blokace/crashe.
 
 ### Gate pro další práci
 
-**SPLNĚNO:** 2A + 2B jsou runtime ověřené; práce pokračovala přes persistence, events, perception a memory.
+**SPLNĚNO:** 2A + 2B jsou runtime ověřené; práce pokračovala přes persistence, events, perception, memory, Needs, Goals, Action API a decision protocol.
 
 ---
 
@@ -447,7 +448,7 @@ TrinityCore
 - [x] `AIWorld` se inicializuje při startu `worldserver` a korektně se ukončí při shutdownu.
 - [x] Normální TrinityCore gameplay funguje i při vypnutém `AIWorld`.
 - [x] Všechny AI/network requesty jsou asynchronní vůči world update loopu.
-- [x] Každá externí decision odpověď má deadline a kontrolu freshness.
+- [x] Každá externí decision odpověď má deadline a kontrolu freshness/provenance.
 
 ## 2.1 Persistentní agent
 
@@ -563,7 +564,7 @@ Relationships
 - [x] Přidat čas a zdroj informace.
 - [x] Přidat vazbu na osoby, lokaci a událost.
 - [x] Připravit retrieval relevantních vzpomínek podle aktuální situace.
-- [ ] LLM nikdy neposílat celou historii; posílat pouze vybrané relevantní záznamy — **retrieval Top-N je připraven, ale decision request jej zatím nepřenáší**.
+- [x] LLM/inference nikdy neposílat celou historii; posílat pouze vybrané relevantní záznamy — **Top-N retrieval se od 2.9A přenáší v `AgentContext::RelevantMemories` jako sanitizované `DecisionMemory` DTO**.
 
 ### Implementovaný stav 2.5
 
@@ -595,7 +596,7 @@ Runtime ověřeno:
 - relevance používá deterministic importance/freshness/locality scoring.
 - stejný semantic fact v short-term a long-term se ve výsledku deduplikuje.
 - výsledky mají deterministic pořadí a `AIWorld.MemoryRetrievalTopN` limit.
-- `/decision` request zatím zůstává beze změny; retrieval je zatím diagnostický vstup pro další Needs/Goals/DecisionContext práci.
+- od 2.9A se retrieval Top-N mapuje na world threadu do wire-safe `DecisionMemory` a posílá v `/decision` `AgentContext`; actor/target se zužují na `Entry` + `AgentId`, bez live pointerů.
 
 ## 2.6 Needs System
 
@@ -605,7 +606,7 @@ Runtime ověřeno:
 - [x] Potřeby aktualizovat deterministicky v simulation ticku — `hunger`/`fatigue`/`resource pressure` drift na vlastní ~1s cadence, nezávislé na snapshot cadence.
 - [x] Potřeby omezit do definovaného rozsahu `0.0–1.0`.
 - [x] Přidat threshold events, například `HUNGER_CRITICAL` nebo `DANGER_HIGH` — **edge-triggered, hysteresis latch, audit/debug log only (2.6C); katalog zatím jen `HUNGER_CRITICAL`/`DANGER_HIGH`**.
-- [ ] Nechat potřeby generovat kandidáty na cíle bez LLM — **2.7A (deterministic Goal Candidate generation, plánovaný předstupeň před plným 2.7 Utility AI)**.
+- [x] Nechat potřeby generovat kandidáty na cíle bez LLM — **2.7A generuje deterministic `GET_FOOD`/`FLEE_DANGER` candidates přímo z `NeedsState`**.
 
 ### Implementovaný stav 2.6A
 
@@ -632,7 +633,7 @@ Runtime ověřeno:
 - live Creature existence je authority pro Materialized/Abstract (ne zastaralý `WorldState`).
 - žádná Needs persistence.
 - žádná world mutation.
-- `/decision` beze změny.
+- `/decision` beze změny v tomto milestone; od 2.9A se `NeedsState` posílá v `AgentContext`.
 
 ### Implementovaný stav 2.6B1
 
@@ -658,9 +659,9 @@ Runtime ověřeno:
 - `dead` → hunger/fatigue/resource zmrazené (nedriftují).
 - respawn → drift pokračuje z předchozí hodnoty.
 - `NeedsSystem` stále pure-value (jen `NeedsUpdateContext`, žádný `Creature*`).
-- žádná world mutation / DB / `/decision` změna.
+- žádná world mutation / DB změna.
 
-> Otevřená sémantická otázka pro 2.7: při `dead` zůstává `SafetyPressure` zmražená na poslední hodnotě (ne resetovaná na 0). Neblokující pro 2.6B1/2.6B2, ale je potřeba ji definitivně rozhodnout, než Goals začnou `SafetyPressure` číst.
+> Otevřená sémantická poznámka z 2.6B1: při `dead` zůstává `SafetyPressure` zmražená na poslední hodnotě. Goal layer to dnes bezpečně obchází tím, že dead agent nemá candidates ani ActiveGoal.
 
 ### Implementovaný stav 2.6B2
 
@@ -686,7 +687,7 @@ Runtime ověřeno:
 - non-dangerous typy (`PlayerSeen`, `TradeCompleted`, ...) nepřispívají do `MemorySafetyPressure`.
 - combat má vždy přednost před memory (`SafetyPressure = 1.0` bez ohledu na memory).
 - safety retrieval už není omezen `AIWorld.MemoryRetrievalTopN` (P2 fix) - ten limit zůstává jen pro decision-context retrieval.
-- žádný nový config; žádná world mutation / DB / `/decision` změna.
+- žádný nový config; žádná world mutation / DB změna.
 
 ### Implementovaný stav 2.6C
 
@@ -697,7 +698,7 @@ NeedsSystem::EvaluateThresholds (per-agent NeedsThresholdState latch)
     ↓ enter >= 0.80 (jednou), reset < 0.60 (rearm)
 NeedsThresholdEvent (HUNGER_CRITICAL / DANGER_HIGH) - pure value, ne WorldEvent
     ↓
-audit/debug log (žádný EventBus, žádný Goal System, žádná /decision změna)
+audit/debug log (žádný EventBus)
 ```
 
 Implementation: `52b46ff7` feat(ai-world): emit needs threshold events (2.6C)
@@ -709,12 +710,9 @@ Runtime ověřeno:
 - hodnota klesne pod 0.60 → latch se rearms.
 - další přechod přes 0.80 → nový event.
 - žádný `WorldEvent`/`EventBus` publish - agentova vlastní potřeba není automaticky pozorovatelná ostatními.
-- žádný Goal System, žádný Action API, žádná `/decision` změna.
 - žádná threshold persistence, žádné nové config knoby.
 
 > `NeedsThresholdState` je owned v `AgentRecord` vedle `NeedsState`, takže staticky přežije Creature unload/reload stejným mechanismem - tohle konkrétně jsme ale samostatným runtime testem (unload → reload → ověřit latch) neprošli, jen jsme ho odvodili z ownershipu.
-
-**Další implementace:** `2.7A — deterministic Goal Candidate generation` (`NeedsState` → `GoalCandidate[]`, zatím bez LLM a bez Action API; předstupeň před plným `2.7 Goal System`/Utility AI).
 
 ## 2.7 Goal System
 
@@ -739,10 +737,10 @@ REQUEST_HELP
 
 - [x] Definovat `Goal` objekt s prioritou/utility, zdrojem, timeoutem a success condition — **`ActiveGoal` má Type/Priority/Source/Utility/StartedAtMs/`TimeoutMs` (2.7B1 + `TimeoutMs` v 2.7B2); success/failure je terminal `GoalCompletion`/`GoalStatus` (2.7B2), ne pole na `ActiveGoal` samotném**.
 - [x] Implementovat základní Utility AI pro volbu mezi jednoduchými cíli — **`GoalSystem::UpdateActiveGoal()` (2.7B1): deterministický `SelectBest` (priority rank → utility → fixed tie-break), nezávislý na pořadí vectoru**.
-- [x] Oddělit volbu cíle od konkrétní akce — **`GoalSystem` zůstává oddělený od Action API (2.8); volba mezi kandidáty je 2.7B1 hotová, ale nic zatím z `ActiveGoal` nevytváří akci**.
+- [x] Oddělit volbu cíle od konkrétní akce — **GoalSystem zůstává pure-value; 2.8 nad jeho tranzicemi staví oddělené `ActionRequest` → `ActionSystem::Validate()` → `ActionExecutor` pipeline**.
 - [x] Přidat možnost cíl přerušit při nouzové situaci — **emergency interruption (2.7B1): striktně vyšší priorita okamžitě přeruší aktivní goal, obráceně nikdy; kontrolováno před success/timeout (2.7B2), aby emergency nikdy nečekal jeden tick**.
 - [x] Přidat success/failure stav — **`GoalStatus`/`GoalCompletionReason`/`GoalCompletion` (2.7B2): Need pod retention threshold → `SUCCEEDED reason=NEED_SATISFIED`; `TimeoutMs` uplynulý beze změny Need → `FAILED reason=TIMEOUT`**.
-- [ ] LLM/GPU použít až pro komplexnější plánování nebo výběr mezi nestrukturovanými variantami — **mimo scope deterministického 2.7A/2.7B1/2.7B2 základu, zůstává otevřené pro pozdější etapu**.
+- [ ] LLM/GPU použít až pro komplexnější plánování nebo výběr mezi nestrukturovanými variantami — **současný 2.9 ai-server je stále deterministic stub; skutečný model zůstává pozdější krok**.
 
 ### Implementovaný stav 2.7A
 
@@ -752,8 +750,6 @@ NeedsState (Hunger, SafetyPressure)
 GoalSystem::GenerateCandidates
     ↓
 GoalCandidate[] (Type, Priority, Source, Utility) - pure value
-    ↓
-audit/debug log (žádný ActiveGoal, žádná selekce, žádný Action API, žádná /decision změna)
 ```
 
 Implementation: `e34ab2f9` feat(ai-world): generate deterministic goal candidates (2.7A)
@@ -766,7 +762,6 @@ Runtime ověřeno:
 - `Hunger >= 0.80` → `GET_FOOD`, `priority=NORMAL`, `utility` odpovídá `Hunger`.
 - oba Needs současně nad threshold → oba candidates zároveň (`GET_FOOD NORMAL` + `FLEE_DANGER EMERGENCY`).
 - candidate se generuje z aktuálního `NeedsState`, ne z `NeedsThresholdEvent` - zůstává i přes více ticků, kdy threshold event už znovu nevznikne.
-- žádný `ActiveGoal`, žádná selekce mezi kandidáty, žádný Action API, žádná `/decision` změna.
 
 ### Implementovaný stav 2.7B1
 
@@ -796,9 +791,8 @@ Runtime ověřeno:
 - další tick, `Hunger` stále `>= 0.80` → znovu `ACTIVATED GET_FOOD` (čerstvý `StartedAtMs`).
 - selekce je deterministická a nezávislá na pořadí `GoalCandidate[]` (priority rank → utility → fixed `GoalType` tie-break).
 - `NORMAL` candidate, byť s vyšší utilitou, nikdy nepřeruší aktivní `EMERGENCY` goal.
-- **P2 fix:** dead agent nemá žádný candidate ani `ActiveGoal` - zmrazená `SafetyPressure`/`Hunger` z okamžiku smrti (2.6B1) už negeneruje `FLEE_DANGER`/`GET_FOOD` a existující `ActiveGoal` se při smrti okamžitě uvolní (`RELEASED ... reason=DEAD`), místo aby dožíval přes normální retention check.
+- **P2 fix:** dead agent nemá žádný candidate ani `ActiveGoal` - zmrazená `SafetyPressure`/`Hunger` z okamžiku smrti už negeneruje `FLEE_DANGER`/`GET_FOOD` a existující `ActiveGoal` se při smrti okamžitě uvolní (`RELEASED ... reason=DEAD`).
 - respawn → Needs/candidates/`ActiveGoal` se znovu vyhodnocují z live stavu.
-- žádný Action API, žádná `/decision` změna, žádná world mutation, žádný LLM, žádná `ActiveGoal` persistence.
 
 ### Implementovaný stav 2.7B2
 
@@ -819,21 +813,18 @@ Implementation: `b2efbca2` feat(ai-world): add active goal lifecycle outcomes (2
 Runtime ověřeno:
 
 - `FLEE_DANGER` active, `SafetyPressure` klesá na `0.61` → drží (stejné retention jako 2.7B1).
-- `SafetyPressure=0.59` → `SUCCEEDED FLEE_DANGER reason=NEED_SATISFIED` (ne už `RELEASED`).
+- `SafetyPressure=0.59` → `SUCCEEDED FLEE_DANGER reason=NEED_SATISFIED`.
 - `GET_FOOD` active, `Hunger=1.0` beze změny 30 s → `FAILED GET_FOOD reason=TIMEOUT`.
-- další tick, `Hunger` stále `>= 0.80` → nový `ACTIVATED GET_FOOD` s čerstvým `StartedAtMs` (očekávané - Action API zatím neexistuje, takže `GET_FOOD` fakticky nemá čím Hunger uspokojit).
+- další tick, `Hunger` stále `>= 0.80` → nový `ACTIVATED GET_FOOD` s čerstvým `StartedAtMs`. Historicky v 2.7B2 ještě Action API nebylo; od 2.8E–2.8G už GET_FOOD umí Hunger skutečně uspokojit přes MOVE_TO → EAT.
 - `GET_FOOD` active + combat → `INTERRUPTED GET_FOOD → FLEE_DANGER` funguje beze změny; interrupt má přednost i kdyby `GET_FOOD` zároveň splňoval success/timeout ten samý tick.
-- death s `ActiveGoal` → `RELEASED reason=DEAD` beze změny (death guard nevolá `UpdateActiveGoal()`).
-- dead ticks → žádné candidates, beze změny.
-- žádný Action API, žádná `/decision` změna, žádná world mutation, žádný LLM, žádná `ActiveGoal` persistence.
+- death s `ActiveGoal` → `RELEASED reason=DEAD` beze změny.
+- dead ticks → žádné candidates.
 
-**Deterministický 2.7 Goal System základ (2.7A + 2.7B1 + 2.7B2) je tímto DONE / runtime PASS.** Před přechodem do `2.8 Bezpečné Action API` proběhne krátký checkpoint review celé hranice Goal → Action - od 2.8 už AI začne navrhovat skutečné zásahy do světa, takže tahle hranice si zaslouží samostatnou kontrolu než na ni naváže cokoliv nového.
-
-**Další implementace:** checkpoint review Goal → Action boundary, poté `2.8 Bezpečné Action API`.
+**Deterministický 2.7 Goal System základ (2.7A + 2.7B1 + 2.7B2) je DONE / runtime PASS a dnes napájí runtime-ověřenou Action API pipeline 2.8.**
 
 ## 2.8 Bezpečné Action API
 
-**Stav: 2.8A + 2.8A.5 + 2.8B + 2.8C + 2.8D + 2.8E + 2.8F + 2.8G (ActionRequest/ActionSystem scaffold + AIWorld creature takeover + FLEE execution + structured ActionResult + MOVE_TO primitive + GET_FOOD target resolution + arrival/completion tracking + EAT) DONE / runtime PASS pro `FLEE`, `MOVE_TO` a `EAT` - katalog je tříprvkový, `GET_FOOD` je plně uzavřený dvoufázový cyklus**
+**Stav: 2.8A + 2.8A.5 + 2.8B + 2.8C + 2.8D + 2.8E + 2.8F + 2.8G DONE / runtime PASS pro `FLEE`, `MOVE_TO` a `EAT`; `GET_FOOD` je plně uzavřený dvoufázový cyklus**
 
 AI nemá přístup k libovolnému C++ ani k přímým zápisům do světa. Smí pouze požádat o akci z povoleného katalogu.
 
@@ -851,15 +842,15 @@ INVESTIGATE
 REQUEST_HELP
 ```
 
-> Runtime ověřeno: `FLEE`, `MOVE_TO` a `EAT`. `GET_FOOD` (2.8E) dojde k target souřadnicím (2.8F) a nyní i skutečně sní (2.8G) - `Hunger` klesne, následující tick `GET_FOOD` dokončí jako `SUCCEEDED reason=NEED_SATISFIED`.
+> Runtime ověřeno: `FLEE`, `MOVE_TO` a `EAT`. `GET_FOOD` (2.8E) dojde k target souřadnicím (2.8F) a skutečně sní (2.8G) - `Hunger` klesne, následující tick `GET_FOOD` dokončí jako `SUCCEEDED reason=NEED_SATISFIED`.
 
 - [x] Definovat `ActionRequest` a `ActionResult` — **`ActionRequest` (2.8A, rozšířena o `Destination` v 2.8D); `ActionResult` jako vlastní execution DTO (`ActionExecutionStatus`/`ActionExecutionReason`, 2.8C)**.
-- [x] Pro každou akci implementovat serverovou validaci — **hotovo pro `FLEE` (2.8A/2.8B), `MOVE_TO` (2.8D) i `EAT` (2.8G); `ActionSystem::Validate()` dispatchuje na `ValidateFlee`/`ValidateMoveTo`/`ValidateEat` podle `ActionType` - vzor se skutečně opakuje potřetí**.
-- [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) validuje `ActionSystem` pro všechny tři typy; `FLEE` cíl (`NoFleeSource`/`FleeSourceMismatch`, 2.8B), `MOVE_TO` cíl (`NoDestination`/`DestinationMapMismatch`/`DestinationNotFinite`/`DestinationTooFar`/`ActorMovementBusy`, 2.8D), `EAT` cíl (`GoalMismatch`/`NoDestination`/`EatContinuationMismatch`/`DestinationTooFar`/`ActorInCombat`, 2.8G); pathing pro `FLEE`/`MOVE_TO` deleguje TrinityCore (`FleeingMovementGenerator`/`PathGenerator` přes `MovePoint`), `EAT` je instantní a žádný pathing nepotřebuje - AIWorld pathing neduplikuje**.
-- [x] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru — **`ActionExecutor` se volá jen po `Validate() == Allowed`; REJECTED nikdy nedosáhne engine kódu**.
-- [ ] Přidat timeout a cancel pro dlouhé akce — **FLEE dnes končí přes goal-level `TimeoutMs` (2.7B2) → `FAILED` → `ActionExecutor::StopFlee()` (2.8B); obecný per-action timeout/cancel mechanismus zatím neexistuje**.
-- [ ] Přidat fallback behavior při chybě AI služby — **mimo scope: tato deterministic `FLEE_DANGER` pipeline nikdy nevolá ai-server; týká se budoucí LLM-driven decision cesty**.
-- [x] Každá provedená AI akce musí být auditovatelná: kdo ji navrhl, proč, s jakým contextem a výsledkem validace — **debug log na každém kroku (request/validation/execution/stop) s agent id, goal source, reason, výsledkem**.
+- [x] Pro každou implementovanou akci serverová validace — **hotovo pro `FLEE`, `MOVE_TO`, `EAT`; další katalogové typy zatím nejsou implementované**.
+- [x] Ověřit existenci cíle, stav agenta, pathing/range/LoS podle typu akce — **stav agenta (`Materialized`/`Alive`) validuje `ActionSystem`; FLEE/MOVE_TO/EAT mají vlastní target/provenance/range pravidla; pathing deleguje TrinityCore**.
+- [x] Nevalidní AI odpověď nikdy nesmí rozbít stav serveru — **REJECTED nikdy nedosáhne engine execution; 2.9C navíc remote FLEE intent překládá z authoritative world-thread dat a validuje pouze dry-run**.
+- [ ] Přidat obecný timeout/cancel mechanismus pro dlouhé akce — **FLEE dnes končí přes goal-level timeout; MOVE_TO má lifecycle/reconciliation; jednotný per-action timeout/cancel stále neexistuje**.
+- [x] Fallback při chybě AI služby — **async `/decision` je advisory/dry-run a stávající deterministic Goal→Action pipeline pokračuje bez AI služby; runtime fault test potvrzen**.
+- [x] Každá provedená AI akce musí být auditovatelná: kdo ji navrhl, proč, s jakým contextem a výsledkem validace — **debug log na request/validation/execution/completion/stop hranicích**.
 
 > **Pravidlo:** AI navrhuje. `ActionSystem` validuje. TrinityCore provádí.
 
@@ -870,17 +861,13 @@ FLEE_DANGER Activated/Interrupted
     ↓
 ActionRequest (pure value: Actor, Type, SourceGoal, GoalStartedAtMs, FleeFromGuid)
     ↓
-ActionSystem::Validate (pure value: Materialized, Alive, ActiveGoal identity, FleeSource identity)
+ActionSystem::Validate
     ↓
 ALLOWED
     ↓
-ActionExecutor::ExecuteFlee (world thread, live Creature&/Unit&, nikdy uložené)
+ActionExecutor::ExecuteFlee (world thread)
     ↓
-Creature::GetMotionMaster()->MoveFleeing (TrinityCore pathfinding, ne AIWorld)
-    ↓
-FLEE_DANGER Succeeded/Failed
-    ↓
-ActionExecutor::StopFlee (jen FLEEING_MOTION_TYPE, jen když je skutečně aktivní)
+Creature::GetMotionMaster()->MoveFleeing
 ```
 
 Souběžně (2.8A.5): `FactorySelector::SelectAI()` vrací `AIWorldCreatureAI` jen pro `sAIWorldMgr->OwnsSpawn()` shodu - default `CreatureAI` auto-aggro/chase/melee/DB movement je pro tyto NPC potlačené, aby AIWorld pipeline nesoutěžila s TrinityCore default AI o stejné rozhodnutí. Combat/threat/damage/death bookkeeping v TrinityCore zůstává nedotčené.
@@ -892,215 +879,209 @@ Hardening: `8808a105d` fix(ai-world): stop only active flee movement (2.8B P2)
 
 Runtime ověřeno:
 
-- takeover je scoped přes `OwnsSpawn(MapId, SpawnId)`; ostatní NPC pokračují původní cestou přes pet/script/AIName/Permissible beze změny.
-- `AIWorldCreatureAI`: žádný auto-aggro/chase/melee/DB movement; combat/threat/damage/death v TrinityCore beze změny.
-- `ACTIVATED`/`INTERRUPTED` do `FLEE_DANGER` → `ActionRequest FLEE` → `ALLOWED` → `EXECUTED` → NPC se fyzicky rozběhne pryč od `fleeSource`, ne k němu.
-- `inCombat=true` zůstává pravda po celou dobu útěku.
-- `SafetyPressure < 0.60` → `SUCCEEDED FLEE_DANGER` → `AI action stop ... reason=GOAL_SUCCEEDED` → NPC přestane utíkat a zůstane idle.
-- `SafetyPressure` zůstane vysoká ~30s beze změny → `FAILED FLEE_DANGER reason=TIMEOUT` → flee movement odstraněn.
-- `StopFlee()` maže pouze `FLEEING_MOTION_TYPE` a `StopMoving()` volá jen když byl FLEE skutečně aktuálním generátorem (P2 fix) - jiný movement (knockback, charge efekt, ...) se nepřeruší.
-- žádný `MOVE_TO`/`ATTACK`/`EAT`, žádná action queue, žádný async executor, žádný LLM, žádné AIWorld-počítané flee souřadnice, žádná threat/combat mutace.
+- takeover je scoped přes `OwnsSpawn(MapId, SpawnId)`; ostatní NPC pokračují původní cestou.
+- `ACTIVATED`/`INTERRUPTED` do `FLEE_DANGER` → `ActionRequest FLEE` → `ALLOWED` → `EXECUTED` → NPC se fyzicky rozběhne pryč od `fleeSource`.
+- `inCombat=true` zůstává pravda po dobu útěku.
+- `SafetyPressure < 0.60` → `SUCCEEDED FLEE_DANGER` → scoped stop → NPC idle.
+- timeout goalu → flee movement odstraněn.
+- `StopFlee()` maže pouze vlastní FLEE movement a neruší cizí movement.
 
-**Otevřené P3 z review, neblokující:** (1) `request.FleeFromGuid`/`context.FleeSourceGuid` se dnes staví ze stejné proměnné na stejném call-site, takže `FleeSourceMismatch` je momentálně tautologicky nedosažitelný - stane se to skutečnou hranicí až se request creation a validation oddělí (např. queue/async executor). (2) `FLEE_DANGER` aktivovaný jen z recent-memory (bez current threat victim) dostane `NO_FLEE_SOURCE` a v rámci stejného goal attempt se znovu nepokusí - budoucí flee source z perception/memory nebo retry policy je otevřená otázka.
+**Otevřené P3 z review, neblokující:** `FleeSourceMismatch` je na současných deterministic call-sitech stále prakticky tautologický; memory-only `FLEE_DANGER` bez current threat victim může skončit `NO_FLEE_SOURCE` bez retry v témže goal attempt.
 
 ### Implementovaný stav 2.8C
 
-```text
-ActionExecutor::ExecuteFlee
-    ↓ (dřív: bool)
-ActionResult (Actor, Type, Status, Reason, SourceGoal, GoalStartedAtMs) - pure value
-    ↓
-Status: STARTED (MoveFleeing() vydán) / FAILED (UnsupportedAction, dnes nedosažitelné)
-```
+`ActionExecutor::ExecuteFlee` vrací pure-value `ActionResult` místo bool.
 
 Implementation: `e1599bf5` feat(ai-world): add structured action execution result (2.8C)
 
-Runtime ověřeno:
-
-- `AI action validation ... result=ALLOWED reason=NONE`.
-- `AI action execution ... type=FLEE status=STARTED reason=NONE`.
-- NPC se chová fyzicky identicky jako v 2.8B (útěk od `fleeSource`, `inCombat=true` po dobu útěku, `SUCCEEDED`/`FAILED` → `StopFlee()` → idle).
-- žádná nová world mutation, žádný nový `ActionType`, žádná chování změna oproti 2.8B - jen strukturovaný výsledek místo bool.
-
-**Otevřený P3, neblokující:** `ActionExecutionReason::EngineRejected` dnes nikde nevzniká (`MoveFleeing()` vrací `void`) - zatím jen future-facing hodnota enumu.
-
 ### Implementovaný stav 2.8D
 
-```text
-ActionType::MoveTo
-    ↓
-ActionRequest.Destination (std::optional<ActionPosition> - MapId/X/Y/Z, pure value)
-    ↓
-ActionSystem::ValidateMoveTo (materialized, alive, goal identity, destination existuje,
-                               destination.MapId == actor.MapId, souřadnice finite,
-                               max range 40yd, actor.HasActiveMovement == false)
-    ↓
-ALLOWED
-    ↓
-ActionExecutor::ExecuteMoveTo → Creature::GetMotionMaster()->MovePoint (TrinityCore pathfinding,
-                                  tagováno vlastním ActionExecutor::MovePointId)
-    ↓
-ActionResult
-    ↓
-StopMoveTo: najde a odstraní jen generator s vlastním MovePointId (ne POINT_MOTION_TYPE obecně,
-             ten sdílí celý engine), StopMoving() jen když byl skutečně aktivní
-```
-
-`MOVE_TO` se v 2.8D nespustil z `GoalSystem` - deterministický testovací integration point (`AIWorld.TestMoveToEnabled`), stejně jako `FLEE` v 2.8A/2.8B nikdy nebyl vyvolaný z ničeho jiného než `FLEE_DANGER`. Test trigger byl v 2.8E nahrazen skutečnou `GET_FOOD` pipeline a odstraněn.
+`MOVE_TO` používá `ActionRequest.Destination`, `ValidateMoveTo`, TrinityCore `MovePoint`, vlastní `MovePointId` a scoped `StopMoveTo`.
 
 Implementation: `3e71497a` feat(ai-world): add validated move-to action primitive (2.8D)
 Hardening: `1b183fe2` fix(ai-world): reject move-to while actor movement is busy (2.8D P2)
 Hardening: `f0b96b0b` fix(ai-world): cancel move-to on emergency goal interrupt (2.8D P2)
 
-Runtime ověřeno:
-
-- `MOVE_TO` request/validate/execute pipeline funguje nezávisle na `FLEE` - Action API není postavené speciálně kolem jednoho typu.
-- `ActorMovementBusy` (P2 fix): `MOVE_TO` se nesmí vložit do obsazeného `MOTION_SLOT_ACTIVE` - buď by nahradilo cizí movement, nebo by čekalo schované pod vyšší prioritou a spustilo se později se zastaralou destination validací.
-- interrupt do `FLEE_DANGER` zruší běžící `MOVE_TO` (`StopMoveTo()`) dřív, než `FLEE` začne (P2 fix) - jinak by `MOVE_TO` zůstalo dormant pod `FLEE` a po jeho skončení se obnovilo k cíli z už ukončeného goal attempt.
-- žádný LLM, žádná DB persistence.
-
 ### Implementovaný stav 2.8E
 
-```text
-Hunger >= 0.80 → GET_FOOD Activated
-    ↓
-FoodTargetResolver::Resolve (pure value; jediný zdroj: fixed config AIWorld.TestFoodTarget*)
-    ↓
-GoalTarget (Guid/MapId/X/Y/Z) - oddělený od ActionPosition, Goal-layer koncept
-    ↓ NOT_FOUND → jen audit log, GET_FOOD zůstává aktivní beze změny
-    ↓ FOUND
-ActionRequest MOVE_TO → ActionSystem::Validate → ActionExecutor::ExecuteMoveTo
-```
-
-`MOVE_TO` request vzniká jen na `GET_FOOD`'s vlastní `Activated` tranzici (nikdy `Interrupted` - `GET_FOOD` je `Normal` priorita, v současném katalogu nic nižšího neexistuje, takže `Interrupted`-do-`GET_FOOD` je nedosažitelné). Nahradilo a odstranilo 2.8D's obecný goal-agnostic test trigger.
+`GET_FOOD Activated` → `FoodTargetResolver` → `GoalTarget` → `ActionRequest MOVE_TO` → validate → execute. Fixed test target je jediný source; generic TestMoveTo trigger byl odstraněn.
 
 Implementation: `8e64b907` feat(ai-world): resolve food target into move-to action (2.8E)
 Hardening: `5f41d80b` fix(ai-world): stop move-to when get-food goal completes (2.8E P2)
-
-Runtime ověřeno:
-
-- `GET_FOOD ACTIVATED` → target resolved → `MOVE_TO ALLOWED` → `MOVE_TO STARTED`.
-- `GET_FOOD SUCCEEDED`/`FAILED` zruší běžící `MOVE_TO` (P2 fix) - jinak by action přežila goal attempt, který ji vytvořil, stejná ownership zásada jako u `FLEE_DANGER` interruptu.
-- žádný `EAT`, žádná inventory/vendor/ownership logika, žádné AIWorld-počítané souřadnice mimo fixed test config, žádná DB persistence.
 
 ### Implementovaný stav 2.8F
 
 ```text
 MOVE_TO Started
     ↓
-TrinityCore movement (PathGenerator, může být PATHFIND_INCOMPLETE)
+TrinityCore movement
     ↓
-spline finalizes → PointMovementGenerator::MovementInform → AIWorldCreatureAI::MovementInform
-    ↓ (jen plain values, map-updater thread)
-ActionEngineEvent (MapId/SpawnId/RuntimeGuid/MovementType/MovementId/X/Y/Z)
-    ↓ ActionEngineEventBus (mutex + bounded queue, mirror EventBus)
-AIWorldMgr::ProcessActionEngineEvent (world thread)
-    ↓ hard validace: movement id, agent existuje, RuntimeGuid, ActiveActionState==MoveTo,
-    ↓                ActiveGoalState identity match, pozice v toleranci 3yd od Destination
-ActionCompletion (Succeeded/Arrived nebo Failed/DestinationNotReached)
+MovementInform → ActionEngineEventBus
     ↓
-HandleActionCompletion: jen zavře ActiveActionState a zaloguje - NIKDY nemění NeedsState,
-                          NIKDY neoznačí goal Succeeded, nevolá GoalSystem
+world-thread hard validation + arrival tolerance/reconciliation
+    ↓
+ActionCompletion
 ```
-
-Runtime test odhalil, že po `ARRIVED` zůstává `Hunger` beze změny a `GET_FOOD` aktivní - to je architektonicky správné chování, ne bug: dojít k jídlu != sníst ho. `EAT` jako mechanismus, který by `Hunger` skutečně snížil, v 2.8F záměrně neexistuje.
 
 Implementation: `4414c0d8` feat(ai-world): track move-to arrival and action completion (2.8F)
 Hardening: `873b9d1f` fix(ai-world): harden move-to completion lifecycle (2.8F P2)
 Docs: `16ff6102` docs(ai-world): tighten stale action-comment references (2.8F P3)
 
-Runtime ověřeno:
-
-- `MovementInform()` sám o sobě není důkaz arrival (P2 fix) - `MoveSplineInit::MoveTo()` přijme i `PATHFIND_INCOMPLETE` path, který skončí jinde než u requested destination; pozice se ověřuje explicitně před `Succeeded/Arrived`.
-- smrt (P2 fix) uzavře `ActiveActionState` jako `Cancelled/ActorDead` dřív, než se releasne goal - TrinityCore vlastní death handling movement stejně zastaví.
-- reconciliation (P2 fix) na world threadu každý tick ověří, jestli vlastní `MovePointId` generator ještě existuje v `MOTION_SLOT_ACTIVE` - pokud ne (např. dropped event z bounded queue), rekonciliuje podle skutečné pozice (`Arrived`/`EngineStopped`), hledá celý slot, ne jen top generator (dormant `MOVE_TO` pod `FLEE` se nepovažuje omylem za skončený).
-- žádný `EAT`, žádná `NeedsState` mutace, žádné automatické `GET_FOOD SUCCEEDED` z arrival, žádný LLM, žádná DB persistence, žádná action queue.
-
-**Otevřené P3 z review, neblokující:** (1) `Interrupted`/`GoalCompleted`/`ActorDematerialized`/`ActorDead` cancellation paths stále dělají `StopFlee()`/`StopMoveTo()` + `ActiveActionState.reset()` přímo, ne přes `ActionCompletion`/`HandleActionCompletion()` - funkčně správné, ale lifecycle API není ještě plně sjednocené na jeden vstupní bod.
+Runtime ověřeno: arrival je ověřená podle skutečné pozice, death zavře active action, reconciliation pokrývá dropped event/engine stop. Arrival samo o sobě nemění Hunger.
 
 ### Implementovaný stav 2.8G
 
 ```text
-MOVE_TO Succeeded/Arrived (GET_FOOD)
+MOVE_TO ARRIVED (GET_FOOD)
     ↓
-HandleActionCompletion: zavře ActiveActionState, zaloguje - Hunger beze změny,
-                          uloží jen AgentRecord::PendingEat (pure DTO, žádný live pointer)
+PendingEat (pure DTO)
     ↓
-UpdateNeeds pokračuje beze změny pořadí: GenerateCandidates → UpdateActiveGoal → apply transition
+aktuální goal-selection pass
     ↓
-PendingEat pořád odpovídá aktuálnímu ActiveGoalState (stejný GET_FOOD attempt, stejné StartedAtMs)?
-    ↓ NE (např. INTERRUPTED → FLEE_DANGER)              ↓ ANO
-PendingEat zahozen, žádný EAT                    AIWorldMgr::TryEat
-                                                          ↓
-                                          ActionRequest EAT (Destination = arrival pozice)
-                                                          ↓
-                                ActionSystem::ValidateEat (GET_FOOD active, request odpovídá
-                                authoritative ArrivedDestination/ArrivedSourceGoal/
-                                ArrivedGoalStartedAtMs, actor <= 3yd, not in combat)
-                                                          ↓
-                                                      ALLOWED
-                                                          ↓
-                                 ActionExecutor::ExecuteEat (HandleEmoteCommand, žádný state)
-                                                          ↓
-                                      EAT Succeeded/Consumed → NeedsSystem::SatisfyHunger
-                                                          ↓
-                                následující Needs tick: Hunger < 0.60 → GET_FOOD
-                                                      SUCCEEDED/NEED_SATISFIED
+exact provenance stále platí?
+    ↓ ano
+EAT validate → execute → CONSUMED
+    ↓
+NeedsSystem::SatisfyHunger
+    ↓
+GET_FOOD SUCCEEDED/NEED_SATISFIED
 ```
-
-`MOVE_TO ARRIVED` samo o sobě `Hunger` nikdy neměnilo (2.8F) a nemění dodnes - `EAT` je oddělená, samostatně validovaná druhá fáze `GET_FOOD`, přesně podle zásady "dorazil jsem" != "snědl jsem" z 2.8F. `GoalSystem` se v 2.8G nemění vůbec: existující retention-threshold logika (2.7B2) přirozeně dokončí `GET_FOOD` jako `SUCCEEDED reason=NEED_SATISFIED`, jakmile `Hunger` klesne pod `0.60`.
 
 Implementation: `be081a0c` feat(ai-world): continue get-food with eat action (2.8G)
 Hardening: `1a00efa3` fix(ai-world): enforce eat continuation safety (2.8G P2)
 
-Runtime ověřeno:
+Runtime ověřeno včetně emergency regression: same-tick FLEE_DANGER interruption zruší PendingEat a emergency vždy vyhraje.
 
-- `MOVE_TO ARRIVED` jen zaznamená `AgentRecord::PendingEat`; `Hunger` se v tomto kroku nemění.
-- úspěšný `EAT` dokončí jako `SUCCEEDED reason=CONSUMED` a teprve pak zavolá `NeedsSystem::SatisfyHunger()`.
-- následující Needs/Goal tick přirozeně dokončí `GET_FOOD` jako `SUCCEEDED reason=NEED_SATISFIED` - beze změny `GoalSystem`.
-- continuation provenance (P2 fix): `ActionSystem::ValidateEat()` vyžaduje shodu s authoritative `ArrivedDestination`/`ArrivedSourceGoal`/`ArrivedGoalStartedAtMs`, ne jen s tím, co si `ActionRequest` sám nárokuje - jinak `EAT_CONTINUATION_MISMATCH`.
-- emergency ordering (P2 fix): `PendingEat` odloží `EAT` až za doběhnutí aktuálního goal-selection passu, takže same-tick `FLEE_DANGER` emergency pořád vyhraje nad `GET_FOOD` - `Emergency > Normal` invariant platí i po arrivalu, `EAT` se v takovém případě vůbec nespustí.
-- `PendingEat` je one-shot a je zahozen i při death/dematerialization agenta.
-- žádný inventory, žádný GameObject consumption, žádná DB persistence, žádný LLM, žádný umělý timer - `EAT` je instantní podle návrhu.
+**Etapa 2 má `FLEE`, `MOVE_TO` a `EAT` runtime-verified přes celou `Needs → Goal → Action → TrinityCore` feedback loop.**
 
-**Etapa 2 má teď `FLEE`, `MOVE_TO` a `EAT` runtime-verified přes celou `Needs → Goal → Action → TrinityCore` feedback loop.**
-
-**Otevřené P3 z review, neblokující:** (1) `ValidateEat()` používá exact float equality mezi `request.Destination` a authoritative `ArrivedDestination` - dnes bezpečné (obě hodnoty jsou kopie stejného DTO v rámci jednoho synchronního passu), ale budoucí serialize/deserialize `ActionRequest` by mohlo způsobit false reject, nikdy false allow. (2) stejný otevřený bod jako 2.8F P3 (1) - starší cancellation paths pořád nejdou přes strukturovaný `ActionCompletion`/`HandleActionCompletion()`, zůstává neuzavřené.
-
-**Další implementace:** `2.9A` — verzovaný `DecisionRequest`/`DecisionResponse` protokol s plným `AgentContext`, Top-N memories, `Needs`, `ActiveGoal` a explicitně posílanými dostupnými akcemi.
+**Otevřené P3:** exact float equality v EAT continuation je dnes bezpečná kvůli stejné DTO kopii, ale budoucí serialize/deserialize by mohlo false-rejectnout; starší cancellation paths nejsou všechny sjednocené přes jeden `ActionCompletion` entry point.
 
 ## 2.9 AI server — decision protocol
+
+**Stav: 2.9A + 2.9B + 2.9C + 2.9D + 2.9E DONE. 2.9A/2.9B/2.9E runtime PASS; 2.9C translation/validation je staticky PASS a transport runtime PASS, detailní DEBUG evidence validačního seam nebyla samostatně zachycena; 2.9D metrics kód je static PASS + runtime pipeline PASS, ale Influx/metrics backend evidence je neblokující pending.**
 
 ```text
 AgentContext
     │
     ▼
-DecisionRequest
+DecisionRequest V2
+    │ async
+    ▼
+ai-server deterministic policy
     │
     ▼
-ai-server / GPU
+structured DecisionIntent
     │
     ▼
-Decision
+world-thread stale/provenance checks
     │
     ▼
-Action validation
+authoritative ActionRequest translation
+    │
+    ▼
+ActionSystem::Validate
+    │
+    └── remote decision path je zatím dry-run; ActionExecutor se zde nevolá
 ```
 
-- [ ] Definovat finální verzovaný request/response kontrakt pro plný `AgentContext`.
-- [ ] Posílat jen informace, které agent smí znát.
-- [ ] Posílat dostupné akce explicitně.
-- [x] Rozhodování volat asynchronně — současný deterministic `/decision` stub.
+- [x] Definovat verzovaný request/response kontrakt pro plný `AgentContext` — **V2; `DecisionRequest`/`DecisionResponse`, strict protocol gate a korelace**.
+- [ ] Posílat jen informace, které agent smí znát — **memory DTO jsou sanitizované (`Entry` + `AgentId`, bez live pointerů/raw memory actor GUIDů), ale `Self` wire context stále obsahuje interní `spawn_id`; před externím/LLM providerem znovu projít privacy/minimal-knowledge boundary**.
+- [x] Posílat dostupné akce explicitně — `AvailableActions` je capability catalog, nikdy ne náhrada za `ActionSystem::Validate()`.
+- [x] Rozhodování volat asynchronně — deterministic `/decision` V2 stub.
 - [x] `worldserver` nesmí čekat na inference.
-- [x] Přidat `request_id`, `agent_id` a state/snapshot token pro korelaci a stale kontrolu současného stubu.
-- [x] Přidat state/version token pro detekci stale inference odpovědi v současném snapshot flow.
-- [ ] Měřit latency, queue time, timeout rate a invalid decision rate jako skutečné metriky.
-- [ ] Připravit API pro batching více agentů.
-- [x] Při nedostupnosti AI služby použít deterministic fallback / zachovat běžící svět.
+- [x] Přidat `request_id`, `agent_id` a snapshot sequence pro korelaci.
+- [x] Přidat stale/context provenance ochranu — exact response correlation + request-time Goal/GoalStartedAtMs/RuntimeGuid provenance; nový runtime Creature incarnation nebo změněný goal attempt odpověď zahodí.
+- [x] Měřit latency, queue time, timeout/outcome a invalid decision rate jako skutečné low-cardinality metriky — **2.9D; backend runtime evidence pending**.
+- [x] Připravit API pro batching více agentů — **2.9E `SubmitDecisions(vector<AIRequest>) -> vector<DecisionSubmitResult>`; transport zatím stále single `/decision`, skutečné batching/backpressure přijde v 2.10**.
+- [x] Při nedostupnosti AI služby zachovat běžící svět/deterministic fallback.
 
-> Současný `/decision` je bezpečný no-op stub (`NONE`) a neprovádí world mutation. Finální DecisionContext s Needs/Goals/Top-N memories přijde až po příslušných subsystemech.
+### Implementovaný stav 2.9A — full AgentContext protocol
+
+`DecisionRequest` nese versioned `AgentContext`: Self snapshot, Needs, ActiveGoal, Top-N `DecisionMemory`, explicitní available actions. Mapping probíhá na world threadu do pure DTO; žádný live `Creature*`/`Map*`/`Unit*` nepřechází async hranici.
+
+Implementation: `a0775724` feat(ai-world): add versioned decision context protocol (2.9A)
+Hardening: `fac8b2ac` fix(ai-world): harden decision context protocol (2.9A P2)
+
+P2 hardening doplnil plnou memory semantic lokaci/actor/target wire informaci a strict server/current protocol gate.
+
+### Implementovaný stav 2.9B — structured deterministic DecisionResponse
+
+V2 response:
+
+```json
+{
+  "protocol_version": 2,
+  "request_id": 42,
+  "agent_id": 1,
+  "snapshot_sequence": 8,
+  "decision": { "type": "FLEE" }
+}
+```
+
+Policy: `FLEE` jen když request-time ActiveGoal je `FLEE_DANGER` a FLEE je v `AvailableActions`; jinak `NONE`. `GET_FOOD` zůstává deterministic worldserver-owned MOVE_TO → EAT pipeline.
+
+Implementation: `520b87cf` feat(ai-world): return structured deterministic decisions (2.9B)
+Hardening: `f20a0f0e` fix(ai-world): fix decision protocol compatibility (2.9B P2)
+
+P2 fix odstranil Boost.JSON dependency nekompatibilní s Ubuntu 22.04/Boost 1.74 a bumpnul nekompatibilní wire shape na Protocol V2.
+
+**Známý P3:** současný C++ response parser je ručně psaný strict parser, ne obecný JSON parser. Před skutečným external/LLM execution trust boundary ho nahradit/hardenovat. Python `DecisionIntent.type` je zatím `str`; C++ neznámý typ fail-closed odmítá.
+
+### Implementovaný stav 2.9C — world-thread DecisionIntent validation seam
+
+`DecisionIntent::FLEE` se na world threadu přeloží do `ActionRequest` výhradně z authoritative aktuálních dat: ActiveGoal/StartedAtMs + fresh current threat victim. Request-time provenance navíc chrání proti změně goal attempt i proti despawn/respawn nové runtime Creature instance stejného SpawnId.
+
+Implementation: `590577af` feat(ai-world): validate decision intents on world thread (2.9C)
+Hardening: `c2d053a4` fix(ai-world): reject stale creature decision provenance (2.9C P2)
+
+`NONE` je no-op; remote `MOVE_TO`/`EAT` jsou fail-closed unsupported. FLEE response path končí na `ActionSystem::Validate()` + audit log. **ActionExecutor se zde záměrně nevolá**, protože skutečný FLEE stále vlastní deterministic Goal→Action pipeline; tím nevznikají dva vlastníci stejného movementu.
+
+### Implementovaný stav 2.9D — decision metrics
+
+Používá existující TrinityCore `Metric.h`/`TC_METRIC_VALUE`, žádnou paralelní telemetry vrstvu.
+
+Series:
+
+```text
+ai.world.decision.submit
+ai.world.decision.queue_ms
+ai.world.decision.latency_ms
+ai.world.decision.result
+ai.world.decision.discard
+ai.world.decision.validation
+ai.world.decision.validity
+```
+
+`validity` sjednocuje skutečný invalid-decision denominator: fresh NONE/FLEE ALLOWED = valid; malformed/unsupported/FLEE REJECTED = invalid; stale/discard ani čisté transport chyby do denominatoru nevstupují.
+
+Implementation: `2f357a2b` feat(ai-world): add decision pipeline metrics (2.9D)
+Hardening: `b149cc06` fix(ai-world): unify decision validity metrics (2.9D P2)
+
+**Runtime poznámka:** instrumentovaná decision pipeline běží, ale TrinityCore metrics jsou defaultně vypnuté a posílají se přes `Metric.ConnectionInfo` do InfluxDB; samostatný backend evidence test zatím neproběhl.
+
+### Implementovaný stav 2.9E — multi-agent submit API scaffold
+
+```text
+vector<AIRequest>
+    ↓
+AIWorldMgr::SubmitDecisionContexts
+    ↓
+AIClient::SubmitDecisions
+    ↓
+vector<DecisionSubmitResult { Agent, RequestId, Status }>
+```
+
+Implementation: `7de5daee` feat(ai-world): add multi-agent decision submit API (2.9E)
+
+API je batch-shaped, ale záměrně stále deleguje jednotlivé položky do existujícího `SubmitDecision()` a zachovává globální `DecisionInFlight`. Žádný `/decision/batch`, žádný Protocol V3, žádný scheduler. Runtime single-agent smoke PASS přes nový seam.
+
+**Otevřený P3 pro 2.10:** `AIWorldMgr::SubmitDecisionContexts()` dnes vrací `void` a zahazuje per-agent `DecisionSubmitResult`; scheduler by měl admission outcome skutečně spotřebovat. Globální `DecisionInFlight` je současný bottleneck, který má 2.10 nahradit bounded politikou.
+
+**Další implementace:** `2.10A — scheduler/admission model`.
 
 ## 2.10 Scheduler a úrovně simulace
+
+**Stav: NEXT — 2.10A scheduler/admission model. 2.9E už poskytuje batch-shaped caller API a 2.9D baseline metriky `submitted/skipped_in_flight`; skutečná scheduler cadence, per-agent priority a bounded backpressure zatím nejsou implementované.**
 
 | Stav agenta | Orientační cadence | Účel |
 |---|---:|---|
@@ -1113,10 +1094,10 @@ Action validation
 - [ ] Implementovat scheduler tak, aby AI neměla jeden globální tick pro všechny entity.
 - [ ] Prioritizovat agenty poblíž reálného hráče.
 - [x] Drahou inference nikdy nepouštět v combat hot path — současná inference cesta je async a oddělená od gameplay execution.
-- [ ] Připravit backpressure při přetížení AI queue.
+- [ ] Připravit bounded backpressure/admission při přetížení AI queue — **dnešní globální `DecisionInFlight` je jen bezpečný baseline, ne cílová politika**.
 - [ ] Umět přesunout agenta mezi `ACTIVE`, `NEARBY`, `BACKGROUND` a `ABSTRACT` simulačním tierem.
 
-> Agent registry už rozlišuje materialized vs. abstract world binding bez force-load gridů; plný scheduler/background simulation cadence je ale stále otevřený milestone.
+> Agent registry už rozlišuje materialized vs. abstract world binding bez force-load gridů. Scheduler musí pracovat jen s registry/value stavem a live TrinityCore objekty resolveovat pouze lokálně na world threadu pro konkrétní materialized práci.
 
 ## 2.11 První experiment — persistentní farmář
 
@@ -1125,9 +1106,9 @@ Vybrat jedno NPC v malé testovací oblasti a dát mu jednoduchý, pozorovateln�
 - [ ] Agent má home lokaci.
 - [ ] Agent má working lokaci.
 - [ ] Agent má money/food/resource stav.
-- [ ] Agent má potřeby a základní cíle.
+- [x] Agent má potřeby a základní cíle — **Needs + GET_FOOD/FLEE_DANGER mechanismus existuje; farmer-specific WORK/REST/home model ještě ne**.
 - [ ] Ráno jde pracovat.
-- [ ] Při nebezpečí uteče nebo požádá o pomoc.
+- [x] Při nebezpečí umí utéct — **FLEE_DANGER → validated FLEE runtime PASS; REQUEST_HELP ještě ne**.
 - [ ] Večer se vrátí domů a odpočívá.
 - [x] Pamatuje si jednu důležitou událost i po restartu serveru — mechanismus long-term memory runtime ověřen na testovacím agentovi.
 
@@ -1190,17 +1171,16 @@ validated TrinityCore action
 - [ ] Unit testy serializace/persistence agenta.
 - [ ] Integration test AI request → mock response → action result.
 - [ ] Integration test timeout/stale response → deterministic fallback.
-- [ ] Integration test restart → reload memory.
-- [ ] Structured log pro každé AI decision.
+- [x] Integration/runtime restart → reload memory.
+- [x] Structured/audit log pro decision request/response a Action validation seam.
 - [ ] Možnost vypsat debug snapshot jednoho agenta podle `AgentId`.
-- [ ] Metrics:
+- [ ] Metrics backend/dashboard runtime verification pro již emitované 2.9D decision series.
+- [ ] Další metrics:
   - agent count podle tieru,
   - event rate,
-  - inference queue,
-  - latency,
-  - timeouts,
-  - stale responses,
-  - invalid actions.
+  - scheduler/inference queue depth,
+  - stale/discard breakdown dashboard,
+  - invalid actions dashboard.
 
 ## Etapa 2 — Definition of Done
 
@@ -1212,15 +1192,16 @@ validated TrinityCore action
 - [x] `WorldEvent` system zachytí vybranou událost z TrinityCore.
 - [x] Perception určí, který agent událost viděl.
 - [x] `MemorySystem` z události vytvoří a retrievuje relevantní vzpomínku.
-- [ ] Needs/Goal system vytvoří nebo upraví cíl.
-- [ ] AI server obdrží plný `AgentContext` (Top-N memories + Needs + Goals) asynchronně a vrátí rozhodnutí.
-- [ ] `ActionSystem` rozhodnutí validuje a provede pouze povolenou akci.
+- [x] Needs/Goal system vytvoří/upraví cíl (`GET_FOOD`, `FLEE_DANGER`) a lifecycle je runtime ověřený.
+- [x] AI server obdrží plný aktuální `AgentContext` (Top-N memories + Needs + ActiveGoal + available actions) asynchronně a vrátí structured deterministic decision V2.
+- [ ] Remote AI decision převezme execution ownership bezpečně přes `ActionSystem` — **dnes se FLEE intent authoritative překládá a validuje dry-run; skutečný FLEE dál vlastní deterministic Goal→Action pipeline, aby nebyli dva vlastníci**.
+- [x] Deterministic Goal→Action pipeline validuje a provádí pouze povolené FLEE/MOVE_TO/EAT akce přes TrinityCore.
 - [x] Výpadek AI serveru nezablokuje `worldserver`.
-- [ ] Scheduler umí různé update cadence a abstraktní agent state.
+- [ ] Scheduler umí různé update cadence, bounded admission/backpressure a abstraktní agent state.
 - [ ] Wolf pack → livestock attack → farmer memory → protect goal → request help funguje end-to-end.
 
 > **Gate:** po Etapě 2 máme skutečnou smyčku  
-> `WORLD STATE → EVENT → PERCEPTION → MEMORY → GOAL → DECISION → ACTION → WORLD STATE`.
+> `WORLD STATE → EVENT → PERCEPTION → MEMORY → NEED → GOAL → DECISION → ACTION → WORLD STATE`.
 
 ---
 
@@ -1245,20 +1226,21 @@ validated TrinityCore action
 15. [x] ShortTermMemory — dedupe + TTL + expiry
 16. [x] Importance + persistent LongTermMemory
 17. [x] Relevant-memory retrieval — deterministic ST/LT Top N
+18. [x] Needs System 2.6A–2.6C
+19. [x] Goal System 2.7A–2.7B2
+20. [x] Bezpečné Action API 2.8A–2.8G — FLEE/MOVE_TO/EAT runtime loop
+21. [x] Decision protocol 2.9A–2.9E — AgentContext V2, structured intent, stale/provenance validation, metrics, multi-agent submit API
 
 ## Teď
 
-18. [ ] **Needs System**
+22. [ ] **2.10A Scheduler / admission / bounded backpressure**
 
 ## Následuje
 
-19. [ ] Goal System
-20. [ ] Bezpečné Action API
-21. [ ] Decision context/protocol — Top-N memories + Needs + Goals
-22. [ ] Scheduler / simulation tiers
-23. [ ] Persistentní farmář
-24. [ ] Wolf pack
-25. [ ] End-to-end emergentní událost
+23. [ ] Scheduler simulation tiers (`ACTIVE`/`NEARBY`/`BACKGROUND`/`ABSTRACT`)
+24. [ ] Persistentní farmář
+25. [ ] Wolf pack
+26. [ ] End-to-end emergentní událost
 
 ## Paralelní hardening
 
@@ -1266,8 +1248,11 @@ validated TrinityCore action
 - [ ] Přesný extraction dokument.
 - [ ] CUDA compute smoke test.
 - [ ] Aktualizovat zastaralý status v `README_DEV.md`.
-- [ ] Observability metriky pro inference/decision path.
+- [ ] Metrics backend/dashboard runtime evidence pro 2.9D.
+- [ ] Nahradit/hardenovat ruční V2 JSON response parser před skutečným external/LLM execution.
+- [ ] Zúžit externí DecisionContext privacy boundary (zejména interní `spawn_id`) před external/LLM providerem.
 - [ ] Centralizovat semantic identity helper pro širší multi-agent memory scénáře, až bude potřeba.
+- [ ] Sjednotit starší action cancellation paths přes strukturovaný `ActionCompletion`, až to přinese praktický benefit.
 
 ## Co bude následovat
 
