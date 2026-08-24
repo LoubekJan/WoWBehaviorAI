@@ -20,6 +20,7 @@
 
 #include "Agent/AgentId.h"
 #include "AIRequest.h"
+#include "DecisionProvenance.h"
 #include "DecisionResponse.h"
 #include "Define.h"
 #include <optional>
@@ -27,18 +28,21 @@
 // Delivered back to the world thread through AIClient::TryPopResponse().
 // Success=false covers a network/HTTP failure, a timeout, and a non-2xx
 // HTTP status alike; AIClient itself already logs which one happened at
-// completion time. Agent/SnapshotSequence are the client's own echo of
-// what was requested (used for the stale-response check regardless of
-// parse outcome), not anything ai-server sent back. Decision is only
-// populated for a Type == Decision response that both succeeded and
-// parsed cleanly - see DecisionResponse for the actual decision content;
-// it is never populated for Health.
+// completion time. Agent/SnapshotSequence/Provenance are all the client's
+// own echo of what was requested (used for the stale-response/provenance
+// checks regardless of parse outcome), never anything ai-server sent
+// back - Provenance specifically is set from the *request's* own
+// AgentContext::Goal (see DecisionProvenance.h), not parsed from the
+// response body. Decision is only populated for a Type == Decision
+// response that both succeeded and parsed cleanly - see DecisionResponse
+// for the actual decision content; it is never populated for Health.
 struct AIResponse
 {
     uint64 RequestId = 0;
     AIRequestType Type = AIRequestType::Health;
     AgentId Agent;
     uint64 SnapshotSequence = 0;
+    DecisionProvenance Provenance;
 
     bool Success = false;
     uint32 StatusCode = 0;

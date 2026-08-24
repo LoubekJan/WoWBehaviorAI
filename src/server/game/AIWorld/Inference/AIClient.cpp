@@ -617,6 +617,16 @@ namespace
                 response->Type = AIRequestType::Decision;
                 response->Agent = requestAgent;
                 response->SnapshotSequence = requestSnapshotSequence;
+
+                // Milestone 2.9C: echoed from the request's own
+                // AgentContext::Goal, never from anything ai-server sent
+                // back - see DecisionProvenance.h.
+                if (_request.Decision.Context.Goal)
+                {
+                    response->Provenance.Goal = _request.Decision.Context.Goal->Type;
+                    response->Provenance.GoalStartedAtMs = _request.Decision.Context.Goal->StartedAtMs;
+                }
+
                 response->Success = success;
                 response->StatusCode = statusCode;
                 response->LatencyMs = latencyMs;

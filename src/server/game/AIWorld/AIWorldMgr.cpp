@@ -356,25 +356,123 @@ void AIWorldMgr::Update(uint32 diff)
             continue;
         }
 
-        // Milestone 2.9B: ai-server's deterministic policy now answers with
-        // a structured DecisionIntent (FLEE, gated on this agent's
-        // ActiveGoalState already being FLEE_DANGER and FLEE already being
-        // one of the AvailableActions this same request offered - GET_FOOD
-        // still always gets NONE back, so this never becomes a second
-        // owner of the existing MOVE_TO -> EAT lifecycle) instead of an
-        // opaque string - but this is STILL only an audit log, never a
-        // second path into TrinityCore. Nothing here builds an
-        // ActionRequest, calls ActionSystem::Validate(), touches
-        // ActionExecutor/MotionMaster, or mutates Needs - that stays a
-        // later milestone's job, once a DecisionIntent -> ActionRequest
-        // translation exists that is built from world-thread authoritative
-        // data (this record's actual current goal/threat victim), never
-        // from trusting ai-server's own claim. If this agent actually
-        // flees right now, that came from AIWorldMgr's own deterministic
-        // Goal/Action pipeline (see UpdateNeeds()), not from this response.
-        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent={} accepted (audit-only, no ActionRequest built)",
-            response.RequestId, response.Agent.Value, response.SnapshotSequence, ToString(response.Decision->Intent.Type));
+        // Milestone 2.9C: DecisionIntent -> authoritative ActionRequest ->
+        // ActionSystem::Validate() - see ValidateDecisionIntent() for why
+        // this still never calls ActionExecutor.
+        ValidateDecisionIntent(response.Agent, *record, response);
     }
+}
+
+// Milestone 2.9C: translates a structured DecisionIntent into an
+// authoritative ActionRequest and runs it through ActionSystem::Validate()
+// - the AI-proposes/TrinityCore-decides boundary applied to the async
+// decision path for the first time, not just the deterministic Goal/Action
+// pipeline. Called only once Update()'s own generic gating (agent still
+// registered, still Materialized as of this tick's snapshot, snapshot
+// fresh, decision payload present) has already passed. Deliberately still
+// never calls ActionExecutor: for FLEE, UpdateNeeds() already builds,
+// validates, AND executes a FLEE ActionRequest of its own the tick
+// FLEE_DANGER is Activated/Interrupted, through its own fully
+// deterministic Goal/Action pipeline (see UpdateNeeds()). If this path
+// also executed, a materialized FLEE_DANGER agent would have two
+// independent owners racing to drive the same TrinityCore movement -
+// exactly what must not happen. This stays a dry run - propose, validate,
+// log - until a later milestone actually retires (or otherwise reconciles
+// with) the deterministic path for whichever ActionType it takes over.
+void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response)
+{
+    DecisionIntent const& intent = response.Decision->Intent;
+
+    if (intent.Type == DecisionIntentType::None)
+    {
+        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=NONE (no-op)",
+            response.RequestId, id.Value, response.SnapshotSequence);
+        return;
+    }
+
+    if (intent.Type != DecisionIntentType::Flee)
+    {
+        // MOVE_TO/EAT are deliberately not translated in 2.9C: GET_FOOD
+        // already owns an authoritative target-resolution and Eat
+        // provenance mechanism of its own (FoodTargetResolver,
+        // PendingEatContinuation/ActionValidationContext::ArrivedDestination) -
+        // accepting a remote MOVE_TO/EAT here would create a second,
+        // competing owner of the same action. Fail-closed: reject rather
+        // than guess at a translation.
+        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent={} rejected: unsupported remote intent",
+            response.RequestId, id.Value, response.SnapshotSequence, ToString(intent.Type));
+        return;
+    }
+
+    // The response's own SnapshotSequence match (already checked by the
+    // caller before this is ever reached) only proves this agent's
+    // AgentSnapshot hasn't moved on - Needs/ActiveGoal/GoalStartedAtMs/the
+    // actor's threat victim can all change between two snapshot captures
+    // without SnapshotSequence itself advancing (Needs/Goal update on
+    // their own ~1s cadence, independent of the snapshot/decision
+    // cadence). Provenance is what the world thread actually asked about
+    // when this decision was requested (see DecisionProvenance.h) - if the
+    // agent's goal, or this specific goal attempt, has since moved on,
+    // this decision no longer answers a question that's still being
+    // asked and must be discarded outright, never translated into a
+    // request naming whatever goal happens to be active now (that would
+    // silently launder a stale decision onto an unrelated goal attempt).
+    if (!response.Provenance.Goal || !record.ActiveGoalState ||
+        *response.Provenance.Goal != record.ActiveGoalState->Type ||
+        response.Provenance.GoalStartedAtMs != record.ActiveGoalState->StartedAtMs)
+    {
+        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=FLEE discarded: STALE_CONTEXT (goal attempt changed since request)",
+            response.RequestId, id.Value, response.SnapshotSequence);
+        return;
+    }
+
+    // Re-resolve the actual live Creature* rather than trusting the
+    // WorldState==Materialized flag Update() already checked - that flag
+    // can be a tick stale, and FLEE's own request needs a real
+    // ThreatManager to ask about the actor's current threat victim. Same
+    // pattern as ProcessAgent(): never force a grid to load, and no
+    // pointer from here is ever stored anywhere past this call.
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
+    Creature* creature = map ? map->GetCreatureBySpawnId(record.SpawnId) : nullptr;
+    if (!creature)
+    {
+        if (record.WorldState == AgentWorldState::Materialized)
+            _registry.UnbindCreature(id);
+
+        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=FLEE discarded: no live Creature resolved",
+            response.RequestId, id.Value, response.SnapshotSequence);
+        return;
+    }
+
+    // Resolved once here and reused for both the request's claimed
+    // FleeFromGuid and the validation context's actual FleeSourceGuid -
+    // the same "honesty, not trust" pattern UpdateNeeds()'s own
+    // deterministic FLEE build already uses (see there for why).
+    Unit* fleeSource = creature->GetThreatManager().GetCurrentVictim();
+
+    ActionRequest request;
+    request.Actor = id;
+    request.Type = ActionType::Flee;
+    request.SourceGoal = record.ActiveGoalState->Type;
+    request.GoalStartedAtMs = record.ActiveGoalState->StartedAtMs;
+    request.FleeFromGuid = fleeSource ? fleeSource->GetGUID() : ObjectGuid::Empty;
+
+    TC_LOG_DEBUG("ai.world", "AI decision action request agent={} intent=FLEE sourceGoal={} goalStartedAt={} fleeFrom={}",
+        id.Value, ToString(request.SourceGoal), request.GoalStartedAtMs, request.FleeFromGuid.ToString());
+
+    ActionValidationContext validationContext;
+    validationContext.Materialized = true;
+    validationContext.Alive = creature->IsAlive();
+    validationContext.ActiveGoalType = record.ActiveGoalState->Type;
+    validationContext.ActiveGoalStartedAtMs = record.ActiveGoalState->StartedAtMs;
+    validationContext.FleeSourceGuid = request.FleeFromGuid;
+
+    ActionValidationResult validation = _actionSystem.Validate(request, validationContext);
+
+    // Dry run only - see this function's own header comment for why
+    // ActionExecutor is never called here.
+    TC_LOG_DEBUG("ai.world", "AI decision action validation agent={} intent=FLEE result={} reason={} execution=SUPPRESSED_EXISTING_OWNER (dry-run, deterministic pipeline owns execution)",
+        id.Value, validation.Allowed ? "ALLOWED" : "REJECTED", ToString(validation.Reason));
 }
 
 // Bridges a registered agent to whatever its Creature is doing right now,

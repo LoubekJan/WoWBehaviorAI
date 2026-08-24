@@ -109,6 +109,7 @@ class TC_GAME_API AIWorldMgr
         void ProcessActionEngineEvent(ActionEngineEvent const& event);
         void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
         void TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs);
+        void ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response);
 
         bool _enabled = false;
 
