@@ -29,10 +29,17 @@
 // shape changes in a way an older/newer peer can't just ignore.
 enum class ProtocolVersion : uint32
 {
-    V1 = 1
+    V1 = 1,
+
+    // Milestone 2.9B: DecisionResponse's Action string became a nested
+    // {"decision":{"type":...}} object (see DecisionIntent) - a V1 peer's
+    // parser (which only ever looked for a top-level "action" string)
+    // can't just ignore this shape change, so it's a new version rather
+    // than a silent extension of V1.
+    V2 = 2
 };
 
-constexpr ProtocolVersion CurrentProtocolVersion = ProtocolVersion::V1;
+constexpr ProtocolVersion CurrentProtocolVersion = ProtocolVersion::V2;
 
 inline uint32 ToUnderlying(ProtocolVersion version)
 {

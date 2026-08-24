@@ -37,7 +37,7 @@
 // logged, never turned into an ActionRequest or executed.
 struct DecisionResponse
 {
-    ProtocolVersion Version = ProtocolVersion::V1;
+    ProtocolVersion Version = CurrentProtocolVersion;
     uint64 RequestId = 0;
     AgentId Agent;
     uint64 SnapshotSequence = 0;

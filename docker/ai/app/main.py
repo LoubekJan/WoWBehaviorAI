@@ -16,10 +16,14 @@ own CURRENT_PROTOCOL_VERSION rather than parroting back whatever the
 request claimed.
 
 Milestone 2.9B replaced the response's opaque action string with a
-structured decision.type, and gave this stub its first (still fully
-deterministic, still no model) policy: propose FLEE only when the agent's
-own ActiveGoal already is FLEE_DANGER and FLEE is one of the
-AvailableActions this same request offered, else propose NONE.
+structured decision.type - an incompatible wire-shape change a V1 peer's
+parser can't just ignore, hence CURRENT_PROTOCOL_VERSION bumping to 2
+alongside it (2.9B P2 fix; no backward compatibility with V1 is needed, a
+mismatched version is simply rejected, see the check below) - and gave
+this stub its first (still fully deterministic, still no model) policy:
+propose FLEE only when the agent's own ActiveGoal already is FLEE_DANGER
+and FLEE is one of the AvailableActions this same request offered, else
+propose NONE.
 GET_FOOD/hunger deliberately always gets NONE back too - worldserver
 already owns a verified deterministic MOVE_TO -> EAT lifecycle for it (see
 AIWorldMgr::TryEat()), and 2.9B must not introduce a second, competing
@@ -34,7 +38,7 @@ from pydantic import BaseModel
 
 app = FastAPI(title="ai-server", version="0.1.0")
 
-CURRENT_PROTOCOL_VERSION = 1
+CURRENT_PROTOCOL_VERSION = 2
 
 
 @app.get("/health")

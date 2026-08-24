@@ -28,23 +28,14 @@
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
-// Milestone 2.9B: pulled in via header-only "compile the source into this
-// one TU" mode (see Boost.JSON's own docs) - AIClient.cpp is the only
-// AIWorld translation unit that needs JSON at all, so there's no reason to
-// pay for a separately-linked boost_json component; every other AIWorld
-// file just passes around the already-parsed/already-built pure DTOs.
-// Replaces 2.9A's hand-rolled string search/concatenation, which was never
-// meant to survive past a fixed, flat, escaping-free schema.
-#include <boost/json/src.hpp>
 
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <sstream>
-#include <string_view>
 
 namespace beast = boost::beast;
 namespace http = boost::beast::http;
-namespace json = boost::json;
 namespace net = boost::asio;
 using tcp = boost::asio::ip::tcp;
 
@@ -196,174 +187,255 @@ namespace
             std::atomic<bool> _completed { false };
     };
 
-    json::object BuildNeedsJson(NeedsState const& needs)
+    // Deliberately not a general JSON library - this project's actual
+    // build environment (docker/trinitycore/Dockerfile.dev/.runtime, both
+    // Ubuntu 22.04 + libboost-all-dev) is pinned to Boost 1.74, one
+    // release short of Boost.JSON (added in 1.75). A first pass at 2.9B
+    // reached for <boost/json/src.hpp> anyway, on the mistaken assumption
+    // that whatever Boost this file's existing Beast/Asio usage needed
+    // would also have JSON - it wouldn't have compiled on this project's
+    // own image. Hand assembly stays: just this one fixed, versioned
+    // schema (see DecisionRequest/AgentContext), all numeric/bool/
+    // enum-ToString() fields with nothing that needs escaping (no
+    // freeform strings ever cross this boundary).
+    std::string BuildNeedsJson(NeedsState const& needs)
     {
-        json::object obj;
-        obj["health_pressure"] = needs.HealthPressure;
-        obj["hunger"] = needs.Hunger;
-        obj["fatigue"] = needs.Fatigue;
-        obj["safety_pressure"] = needs.SafetyPressure;
-        obj["resource_pressure"] = needs.ResourcePressure;
-        return obj;
+        std::ostringstream body;
+        body << "{\"health_pressure\":" << needs.HealthPressure
+             << ",\"hunger\":" << needs.Hunger
+             << ",\"fatigue\":" << needs.Fatigue
+             << ",\"safety_pressure\":" << needs.SafetyPressure
+             << ",\"resource_pressure\":" << needs.ResourcePressure
+             << "}";
+        return body.str();
     }
 
-    json::value BuildActiveGoalJson(std::optional<ActiveGoal> const& goal)
+    std::string BuildActiveGoalJson(std::optional<ActiveGoal> const& goal)
     {
         if (!goal)
-            return nullptr;
+            return "null";
 
-        json::object obj;
-        obj["type"] = ToString(goal->Type);
-        obj["priority"] = ToString(goal->Priority);
-        obj["source"] = ToString(goal->Source);
-        obj["utility"] = goal->Utility;
-        obj["started_at_ms"] = goal->StartedAtMs;
-        obj["timeout_ms"] = goal->TimeoutMs;
-        return obj;
+        std::ostringstream body;
+        body << "{\"type\":\"" << ToString(goal->Type) << "\""
+             << ",\"priority\":\"" << ToString(goal->Priority) << "\""
+             << ",\"source\":\"" << ToString(goal->Source) << "\""
+             << ",\"utility\":" << goal->Utility
+             << ",\"started_at_ms\":" << goal->StartedAtMs
+             << ",\"timeout_ms\":" << goal->TimeoutMs
+             << "}";
+        return body.str();
     }
 
-    json::object BuildDecisionEntityJson(DecisionEntity const& entity)
+    std::string BuildDecisionEntityJson(DecisionEntity const& entity)
     {
-        json::object obj;
-        obj["entry"] = entity.Entry;
-        obj["agent_id"] = entity.Agent.Value;
-        return obj;
+        std::ostringstream body;
+        body << "{\"entry\":" << entity.Entry
+             << ",\"agent_id\":" << entity.Agent.Value
+             << "}";
+        return body.str();
     }
 
-    json::object BuildDecisionMemoryJson(DecisionMemory const& memory)
+    std::string BuildDecisionMemoryJson(DecisionMemory const& memory)
     {
-        json::object obj;
-        obj["tier"] = ToString(memory.Tier);
-        obj["memory_id"] = memory.MemoryId;
-        obj["type"] = ToString(memory.Type);
-        obj["importance"] = memory.Importance;
-        obj["relevance"] = memory.Relevance;
-        obj["source_event_id"] = memory.SourceEventId;
-        obj["source_occurred_at_ms"] = memory.SourceOccurredAtMs;
-        obj["source_event_type"] = memory.SourceEventType ? json::value(ToString(*memory.SourceEventType)) : json::value(nullptr);
-        obj["first_observed_at_ms"] = memory.FirstObservedAtMs;
-        obj["last_observed_at_ms"] = memory.LastObservedAtMs;
-
-        json::object location;
-        location["map_id"] = memory.Location.MapId;
-        location["x"] = memory.Location.X;
-        location["y"] = memory.Location.Y;
-        location["z"] = memory.Location.Z;
-        obj["location"] = std::move(location);
-
-        obj["actor"] = BuildDecisionEntityJson(memory.Actor);
-        obj["target"] = BuildDecisionEntityJson(memory.Target);
-        return obj;
+        std::ostringstream body;
+        body << "{\"tier\":\"" << ToString(memory.Tier) << "\""
+             << ",\"memory_id\":" << memory.MemoryId
+             << ",\"type\":\"" << ToString(memory.Type) << "\""
+             << ",\"importance\":" << memory.Importance
+             << ",\"relevance\":" << memory.Relevance
+             << ",\"source_event_id\":" << memory.SourceEventId
+             << ",\"source_occurred_at_ms\":" << memory.SourceOccurredAtMs
+             << ",\"source_event_type\":" << (memory.SourceEventType ? (std::string("\"") + ToString(*memory.SourceEventType) + "\"") : "null")
+             << ",\"first_observed_at_ms\":" << memory.FirstObservedAtMs
+             << ",\"last_observed_at_ms\":" << memory.LastObservedAtMs
+             << ",\"location\":{\"map_id\":" << memory.Location.MapId
+             << ",\"x\":" << memory.Location.X << ",\"y\":" << memory.Location.Y << ",\"z\":" << memory.Location.Z << "}"
+             << ",\"actor\":" << BuildDecisionEntityJson(memory.Actor)
+             << ",\"target\":" << BuildDecisionEntityJson(memory.Target)
+             << "}";
+        return body.str();
     }
 
-    json::object BuildAgentContextJson(AgentContext const& context)
+    std::string BuildAgentContextJson(AgentContext const& context)
     {
         AgentSnapshot const& self = context.Self;
 
-        json::object obj;
-        obj["agent_id"] = self.Agent.Value;
-        obj["snapshot_sequence"] = self.SnapshotSequence;
-        obj["spawn_id"] = self.SpawnId;
-        obj["entry"] = self.Entry;
-        obj["map_id"] = self.MapId;
+        std::ostringstream body;
+        body << "{\"agent_id\":" << self.Agent.Value
+             << ",\"snapshot_sequence\":" << self.SnapshotSequence
+             << ",\"spawn_id\":" << self.SpawnId
+             << ",\"entry\":" << self.Entry
+             << ",\"map_id\":" << self.MapId
+             << ",\"position\":{\"x\":" << self.X << ",\"y\":" << self.Y << ",\"z\":" << self.Z << ",\"orientation\":" << self.Orientation << "}"
+             << ",\"health\":" << self.Health
+             << ",\"max_health\":" << self.MaxHealth
+             << ",\"alive\":" << (self.Alive ? "true" : "false")
+             << ",\"in_combat\":" << (self.InCombat ? "true" : "false")
+             << ",\"needs\":" << BuildNeedsJson(context.Needs)
+             << ",\"active_goal\":" << BuildActiveGoalJson(context.Goal)
+             << ",\"relevant_memories\":[";
 
-        json::object position;
-        position["x"] = self.X;
-        position["y"] = self.Y;
-        position["z"] = self.Z;
-        position["orientation"] = self.Orientation;
-        obj["position"] = std::move(position);
+        for (std::size_t i = 0; i < context.RelevantMemories.size(); ++i)
+        {
+            if (i > 0)
+                body << ",";
+            body << BuildDecisionMemoryJson(context.RelevantMemories[i]);
+        }
 
-        obj["health"] = self.Health;
-        obj["max_health"] = self.MaxHealth;
-        obj["alive"] = self.Alive;
-        obj["in_combat"] = self.InCombat;
-        obj["needs"] = BuildNeedsJson(context.Needs);
-        obj["active_goal"] = BuildActiveGoalJson(context.Goal);
+        body << "],\"available_actions\":[";
 
-        json::array memories;
-        memories.reserve(context.RelevantMemories.size());
-        for (DecisionMemory const& memory : context.RelevantMemories)
-            memories.push_back(BuildDecisionMemoryJson(memory));
-        obj["relevant_memories"] = std::move(memories);
+        for (std::size_t i = 0; i < context.AvailableActions.size(); ++i)
+        {
+            if (i > 0)
+                body << ",";
+            body << "\"" << ToString(context.AvailableActions[i]) << "\"";
+        }
 
-        json::array actions;
-        actions.reserve(context.AvailableActions.size());
-        for (ActionType action : context.AvailableActions)
-            actions.push_back(json::value(ToString(action)));
-        obj["available_actions"] = std::move(actions);
-
-        return obj;
+        body << "]}";
+        return body.str();
     }
 
     // Builds the versioned /decision request body: protocol_version,
-    // request_id, and the full agent_context - see DecisionRequest. Uses
-    // Boost.JSON rather than hand assembly - this is already a dependency
-    // of this exact file (Boost.Beast/Asio), so this isn't a new external
-    // dependency, just another header from one already required.
+    // request_id, and the full agent_context - see DecisionRequest.
     std::string BuildDecisionRequestBody(AIRequest const& request)
     {
-        json::object root;
-        root["protocol_version"] = ToUnderlying(request.Decision.Version);
-        root["request_id"] = request.Decision.RequestId;
-        root["agent_context"] = BuildAgentContextJson(request.Decision.Context);
-        return json::serialize(root);
+        std::ostringstream body;
+        body << "{\"protocol_version\":" << ToUnderlying(request.Decision.Version)
+             << ",\"request_id\":" << request.Decision.RequestId
+             << ",\"agent_context\":" << BuildAgentContextJson(request.Decision.Context)
+             << "}";
+        return body.str();
     }
 
-    // Parses the fixed
+    // Finds the (whitespace-only-preceded) '{'...'}' object value of `key`
+    // and returns the substring spanning both braces, tracking brace depth
+    // so a nested object doesn't end the search early. Safe for this exact,
+    // fully self-controlled response schema, where no string value between
+    // the braces can itself contain a literal '{' or '}' (decision.type is
+    // always one of a small fixed set of plain identifiers - see
+    // ParseDecisionResponseBody) - not a general-purpose JSON object
+    // finder. Returns false if the key is missing, its value isn't an
+    // object, or the object is unterminated.
+    bool FindObjectField(std::string const& body, std::string const& key, std::string& out)
+    {
+        std::string needle = "\"" + key + "\"";
+        size_t keyPos = body.find(needle);
+        if (keyPos == std::string::npos)
+            return false;
+
+        size_t colonPos = body.find(':', keyPos + needle.size());
+        if (colonPos == std::string::npos)
+            return false;
+
+        size_t braceStart = colonPos + 1;
+        while (braceStart < body.size() && std::isspace(static_cast<unsigned char>(body[braceStart])))
+            ++braceStart;
+
+        if (braceStart >= body.size() || body[braceStart] != '{')
+            return false;
+
+        int depth = 0;
+        size_t i = braceStart;
+        for (; i < body.size(); ++i)
+        {
+            if (body[i] == '{')
+                ++depth;
+            else if (body[i] == '}')
+            {
+                --depth;
+                if (depth == 0)
+                    break;
+            }
+        }
+        if (depth != 0)
+            return false;
+
+        out = body.substr(braceStart, i - braceStart + 1);
+        return true;
+    }
+
+    bool FindUintField(std::string const& body, std::string const& key, uint64& out)
+    {
+        std::string needle = "\"" + key + "\"";
+        size_t keyPos = body.find(needle);
+        if (keyPos == std::string::npos)
+            return false;
+
+        size_t colonPos = body.find(':', keyPos + needle.size());
+        if (colonPos == std::string::npos)
+            return false;
+
+        size_t valueStart = colonPos + 1;
+        while (valueStart < body.size() && std::isspace(static_cast<unsigned char>(body[valueStart])))
+            ++valueStart;
+
+        size_t valueEnd = valueStart;
+        while (valueEnd < body.size() && std::isdigit(static_cast<unsigned char>(body[valueEnd])))
+            ++valueEnd;
+
+        if (valueEnd == valueStart)
+            return false;
+
+        try
+        {
+            out = std::stoull(body.substr(valueStart, valueEnd - valueStart));
+        }
+        catch (std::exception const&)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool FindStringField(std::string const& body, std::string const& key, std::string& out)
+    {
+        std::string needle = "\"" + key + "\"";
+        size_t keyPos = body.find(needle);
+        if (keyPos == std::string::npos)
+            return false;
+
+        size_t colonPos = body.find(':', keyPos + needle.size());
+        if (colonPos == std::string::npos)
+            return false;
+
+        size_t quoteStart = body.find('"', colonPos + 1);
+        if (quoteStart == std::string::npos)
+            return false;
+
+        size_t quoteEnd = body.find('"', quoteStart + 1);
+        if (quoteEnd == std::string::npos)
+            return false;
+
+        out = body.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+        return true;
+    }
+
+    // Defensive, minimal extraction for the fixed
     // {"protocol_version":N,"agent_id":N,"request_id":N,"snapshot_sequence":N,"decision":{"type":"STR"}}
-    // response shape via Boost.JSON rather than searching the raw text for
-    // field names (2.9A's approach, replaced here now that the response is
-    // structured rather than a single opaque string) - handles escaping,
-    // whitespace, nesting, and malformed/truncated bodies correctly by
-    // construction instead of by ad hoc scanning. Never throws; returns
-    // false (never partial output) if the body isn't valid JSON, isn't
-    // shaped as expected, or names an intent type this build doesn't know.
-    // Callers must still check protocolVersion/agentId/requestId/
-    // snapshotSequence against what was actually sent - parsing
-    // successfully only means the body was well-formed, not that it
-    // answers this request.
+    // response shape - not a general JSON parser (see the comment above
+    // BuildNeedsJson for why). Tolerant of key order, whitespace, and
+    // unknown extra keys; never throws; returns false (never partial
+    // output) if a required field is missing, malformed, or names an
+    // intent type this build doesn't know. Callers must still check
+    // protocolVersion/agentId/requestId/snapshotSequence against what was
+    // actually sent - parsing successfully only means the body was
+    // well-formed, not that it answers this request.
     bool ParseDecisionResponseBody(std::string const& body, uint64& protocolVersion, uint64& agentId, uint64& requestId, uint64& snapshotSequence, DecisionIntent& intent)
     {
-        json::error_code ec;
-        json::value parsed = json::parse(body, ec);
-        if (ec || !parsed.is_object())
+        if (!FindUintField(body, "protocol_version", protocolVersion) ||
+            !FindUintField(body, "agent_id", agentId) ||
+            !FindUintField(body, "request_id", requestId) ||
+            !FindUintField(body, "snapshot_sequence", snapshotSequence))
             return false;
 
-        json::object const& root = parsed.as_object();
-
-        auto readUint64 = [&root](char const* key, uint64& out) -> bool
-        {
-            json::value const* value = root.if_contains(key);
-            if (!value)
-                return false;
-
-            if (value->is_uint64())
-            {
-                out = value->as_uint64();
-                return true;
-            }
-            if (value->is_int64() && value->as_int64() >= 0)
-            {
-                out = uint64(value->as_int64());
-                return true;
-            }
-            return false;
-        };
-
-        if (!readUint64("protocol_version", protocolVersion) || !readUint64("agent_id", agentId) ||
-            !readUint64("request_id", requestId) || !readUint64("snapshot_sequence", snapshotSequence))
+        std::string decisionObject;
+        if (!FindObjectField(body, "decision", decisionObject))
             return false;
 
-        json::value const* decisionValue = root.if_contains("decision");
-        if (!decisionValue || !decisionValue->is_object())
+        std::string typeString;
+        if (!FindStringField(decisionObject, "type", typeString))
             return false;
 
-        json::value const* typeValue = decisionValue->as_object().if_contains("type");
-        if (!typeValue || !typeValue->is_string())
-            return false;
-
-        std::string_view typeString = typeValue->as_string();
         if (typeString == "NONE")
             intent.Type = DecisionIntentType::None;
         else if (typeString == "FLEE")
