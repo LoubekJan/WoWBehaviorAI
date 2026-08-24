@@ -444,6 +444,27 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
         return;
     }
 
+    // 2.9C P2 fix: a SpawnId identifies a spawn, not a runtime object (see
+    // AgentRegistry::BindCreature()) - the Creature this decision was
+    // actually requested about can despawn and a new Creature for the same
+    // SpawnId (a different runtime incarnation, new ObjectGuid) can take
+    // over the same AgentRecord/WorldState==Materialized/even the same
+    // ActiveGoalState attempt, all without SnapshotSequence advancing
+    // either. Goal/GoalStartedAtMs provenance above doesn't catch this -
+    // RuntimeGuid (the client's own echo of the request-time
+    // AgentContext::Self.Guid, see DecisionProvenance.h) must match both
+    // the Creature just re-resolved and AgentRecord's own current
+    // RuntimeGuid, or this decision would otherwise get validated against
+    // a Creature it was never actually asked about.
+    if (response.Provenance.RuntimeGuid.IsEmpty() ||
+        creature->GetGUID() != response.Provenance.RuntimeGuid ||
+        record.RuntimeGuid != response.Provenance.RuntimeGuid)
+    {
+        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=FLEE discarded: STALE_CREATURE_INSTANCE",
+            response.RequestId, id.Value, response.SnapshotSequence);
+        return;
+    }
+
     // Resolved once here and reused for both the request's claimed
     // FleeFromGuid and the validation context's actual FleeSourceGuid -
     // the same "honesty, not trust" pattern UpdateNeeds()'s own

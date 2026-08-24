@@ -618,14 +618,15 @@ namespace
                 response->Agent = requestAgent;
                 response->SnapshotSequence = requestSnapshotSequence;
 
-                // Milestone 2.9C: echoed from the request's own
-                // AgentContext::Goal, never from anything ai-server sent
-                // back - see DecisionProvenance.h.
+                // Milestone 2.9C/2.9C P2 fix: echoed from the request's own
+                // AgentContext, never from anything ai-server sent back -
+                // see DecisionProvenance.h.
                 if (_request.Decision.Context.Goal)
                 {
                     response->Provenance.Goal = _request.Decision.Context.Goal->Type;
                     response->Provenance.GoalStartedAtMs = _request.Decision.Context.Goal->StartedAtMs;
                 }
+                response->Provenance.RuntimeGuid = _request.Decision.Context.Self.Guid;
 
                 response->Success = success;
                 response->StatusCode = statusCode;
