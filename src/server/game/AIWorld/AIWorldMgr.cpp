@@ -395,6 +395,16 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
     {
         TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=NONE (no-op)",
             response.RequestId, id.Value, response.SnapshotSequence);
+
+        // Milestone 2.9D P2 fix: ai.world.decision.validity is the one
+        // series "invalid decision rate" is meant to be computed from -
+        // INVALID/(VALID+INVALID) - and it must count every decision that
+        // actually reached this point, not just the ones with an
+        // ActionSystem::Validate() call behind them (see the comment above
+        // the FLEE validation metric below for why ai.world.decision.
+        // validation alone can't answer this). A fresh NONE is a valid
+        // decision - ai-server correctly proposed doing nothing.
+        TC_METRIC_VALUE("ai.world.decision.validity", uint64(1), TC_METRIC_TAG("validity", "valid"));
         return;
     }
 
@@ -410,19 +420,24 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
         TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent={} rejected: unsupported remote intent",
             response.RequestId, id.Value, response.SnapshotSequence, ToString(intent.Type));
 
-        // Milestone 2.9D: an invalid decision (see the "invalid decision"
-        // definition on ai.world.decision.validation below), reported
-        // through the same metric ActionSystem::Validate() itself reports
-        // through - reused rather than a separate "unsupported" metric so
-        // "invalid decision rate" is one filter (result=REJECTED) away
-        // instead of needing two series combined. UNSUPPORTED_ACTION is
-        // ActionRejectReason's own string for this - ActionSystem was
-        // never actually called (there is no ActionRequest to validate for
-        // an intent this build doesn't translate), but it is the same
-        // rejection category.
+        // ai.world.decision.validation is kept as a detailed diagnostic
+        // series (intent + ALLOWED/REJECTED + reason, reusing
+        // ActionRejectReason::UnsupportedAction's own string even though
+        // ActionSystem was never actually called - there is no
+        // ActionRequest to validate for an intent this build doesn't
+        // translate, but it's the same rejection category). It is NOT
+        // where "invalid decision rate" should be computed from, though -
+        // see ai.world.decision.validity below.
         TC_METRIC_VALUE("ai.world.decision.validation", uint64(1),
             TC_METRIC_TAG("intent", ToString(intent.Type)), TC_METRIC_TAG("result", "REJECTED"),
             TC_METRIC_TAG("validation_reason", ToString(ActionRejectReason::UnsupportedAction)));
+
+        // Milestone 2.9D P2 fix: an unsupported remote intent is an
+        // invalid decision by the roadmap's own definition (alongside
+        // malformed/unknown responses and an ActionSystem REJECTED) - see
+        // the FLEE validation metric below for the full series.
+        TC_METRIC_VALUE("ai.world.decision.validity", uint64(1),
+            TC_METRIC_TAG("validity", "invalid"), TC_METRIC_TAG("reason", "unsupported_intent"));
         return;
     }
 
@@ -520,15 +535,37 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
     TC_LOG_DEBUG("ai.world", "AI decision action validation agent={} intent=FLEE result={} reason={} execution=SUPPRESSED_EXISTING_OWNER (dry-run, deterministic pipeline owns execution)",
         id.Value, validation.Allowed ? "ALLOWED" : "REJECTED", ToString(validation.Reason));
 
-    // Milestone 2.9D: an ActionSystem::Validate() REJECTED here is an
-    // invalid decision (ai-server proposed FLEE for a situation
-    // ActionSystem doesn't agree justifies it, e.g. NO_FLEE_SOURCE) -
-    // unlike every discard_reason above, which are all valid decisions
-    // that simply aged out in flight. "invalid decision rate" is
-    // count(result=REJECTED)/count(total) on this series.
+    // ai.world.decision.validation stays the detailed diagnostic series
+    // for FLEE specifically (intent + ALLOWED/REJECTED + the exact
+    // ActionRejectReason).
     TC_METRIC_VALUE("ai.world.decision.validation", uint64(1),
         TC_METRIC_TAG("intent", "FLEE"), TC_METRIC_TAG("result", validation.Allowed ? "ALLOWED" : "REJECTED"),
         TC_METRIC_TAG("validation_reason", ToString(validation.Reason)));
+
+    // Milestone 2.9D P2 fix: ai.world.decision.validation alone
+    // undercounts "invalid decision rate" - its denominator is only
+    // decisions that reached an ActionSystem::Validate() call, which
+    // excludes every fresh NONE (never invalid, but never counted either)
+    // and every unsupported remote intent/malformed response (both
+    // invalid, but validation's own denominator never sees them - the
+    // malformed case never even reaches AIWorldMgr, and unsupported
+    // intents skip ActionSystem entirely). ai.world.decision.validity is
+    // the single series meant to answer "what fraction of decisions that
+    // could be judged were invalid": every fresh NONE, every FLEE
+    // ALLOWED/REJECTED, every unsupported remote intent, and every
+    // malformed/unknown response (see AIClient.cpp's DecisionSession::
+    // Complete()) all land in exactly one of VALID or INVALID here -
+    // "invalid decision rate" = INVALID/(VALID+INVALID) on this series
+    // alone. Stale/discard cases (stale_snapshot/stale_context/
+    // stale_creature/not_materialized) and pure transport outcomes
+    // (timeout/transport_error/http_error/protocol_mismatch) deliberately
+    // never appear here at all - there is no decision content to judge
+    // the quality of in either case.
+    if (validation.Allowed)
+        TC_METRIC_VALUE("ai.world.decision.validity", uint64(1), TC_METRIC_TAG("validity", "valid"));
+    else
+        TC_METRIC_VALUE("ai.world.decision.validity", uint64(1),
+            TC_METRIC_TAG("validity", "invalid"), TC_METRIC_TAG("reason", ToString(validation.Reason)));
 }
 
 // Bridges a registered agent to whatever its Creature is doing right now,

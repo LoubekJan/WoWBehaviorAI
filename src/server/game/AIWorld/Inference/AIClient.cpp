@@ -646,6 +646,7 @@ namespace
                 // spawn_id/RuntimeGuid - those belong in the TC_LOG lines
                 // above, not in low-cardinality metric tags).
                 char const* resultTag;
+                bool malformedResponse = false;
                 if (ec == beast::error::timeout)
                     resultTag = "timeout";
                 else if (ec)
@@ -653,7 +654,10 @@ namespace
                 else if (protocolMismatch)
                     resultTag = "protocol_mismatch";
                 else if (!rejectReason.empty())
+                {
                     resultTag = "malformed_response";
+                    malformedResponse = true;
+                }
                 else if (!success)
                     resultTag = "http_error";
                 else
@@ -662,6 +666,23 @@ namespace
                 TC_METRIC_VALUE("ai.world.decision.result", uint64(1), TC_METRIC_TAG("result", resultTag));
                 TC_METRIC_VALUE("ai.world.decision.queue_ms", _queueMs, TC_METRIC_TAG("result", resultTag));
                 TC_METRIC_VALUE("ai.world.decision.latency_ms", latencyMs, TC_METRIC_TAG("result", resultTag));
+
+                // 2.9D P2 fix: ai.world.decision.result's "success" only
+                // means transport/protocol succeeded, not that the
+                // decision itself was usable - and a timeout/transport_error/
+                // http_error/protocol_mismatch means there was no decision
+                // content to judge the quality of at all. malformed_response
+                // is different: the world thread DID receive something
+                // claiming to be a decision, it just wasn't a usable one -
+                // that's the one transport-layer outcome that also belongs
+                // in ai.world.decision.validity's invalid count (see
+                // AIWorldMgr::ValidateDecisionIntent() for the rest of that
+                // series - NONE/FLEE ALLOWED are valid, unsupported remote
+                // intents and FLEE REJECTED are invalid, and none of the
+                // stale/discard cases count in either direction).
+                if (malformedResponse)
+                    TC_METRIC_VALUE("ai.world.decision.validity", uint64(1),
+                        TC_METRIC_TAG("validity", "invalid"), TC_METRIC_TAG("reason", "malformed_response"));
 
                 AIResponse* response = new AIResponse();
                 response->RequestId = _request.RequestId;
