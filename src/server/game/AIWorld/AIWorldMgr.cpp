@@ -349,10 +349,22 @@ void AIWorldMgr::Update(uint32 diff)
             continue;
         }
 
-        // Milestone 2C: still just a stub - action is always NONE and
-        // nothing is applied to the game world yet.
+        if (!response.Decision)
+        {
+            TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} succeeded but carries no decision payload, discarding",
+                response.RequestId, response.Agent.Value, response.SnapshotSequence);
+            continue;
+        }
+
+        // Milestone 2.9A: ai-server now answers over the versioned
+        // DecisionRequest/DecisionResponse protocol with a full
+        // AgentContext behind it, but action is still always NONE from a
+        // deterministic stub, and this is still just a log - the response
+        // is deliberately NOT converted into an ActionRequest or executed.
+        // That stays a later milestone's job, once Action validation can
+        // decide whether ai-server's proposed action is ALLOWED.
         TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} action={} accepted (no-op)",
-            response.RequestId, response.Agent.Value, response.SnapshotSequence, response.Action);
+            response.RequestId, response.Agent.Value, response.SnapshotSequence, response.Decision->Action);
     }
 }
 
@@ -414,9 +426,9 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
         snapshot.X, snapshot.Y, snapshot.Z,
         snapshot.InCombat);
 
-    // Milestone 2.5C: deterministic retrieval over this agent's memories,
-    // scoped to "now" and the snapshot's own position/map. Logged only -
-    // nothing consumes _relevant yet, AIRequest below is unchanged.
+    // Milestone 2.5C/2.9A: deterministic retrieval over this agent's
+    // memories, scoped to "now" and the snapshot's own position/map -
+    // feeds AgentContext::RelevantMemories below.
     MemoryQueryContext memoryContext;
     memoryContext.Agent = snapshot.Agent;
     memoryContext.NowMs = CurrentTimeMs();
@@ -445,20 +457,21 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
             memory.Relevance, memory.Importance, memory.SourceEventId, sourceEventType);
     }
 
+    // Milestone 2.9A: everything this agent is allowed to know, as one
+    // pure AgentContext - Self already carries Agent/SnapshotSequence (see
+    // AgentContext.h), so they aren't set again here. AvailableActions is
+    // today's full ActionType catalog (see ActionType.h) - not yet
+    // filtered down to what's actually valid for this agent right now.
+    AgentContext context;
+    context.Self = snapshot;
+    context.Needs = record.Needs;
+    context.Goal = record.ActiveGoalState;
+    context.RelevantMemories = relevantMemories;
+    context.AvailableActions = { ActionType::Flee, ActionType::MoveTo, ActionType::Eat };
+
     AIRequest request;
-    request.Agent = id;
-    request.SnapshotSequence = snapshot.SnapshotSequence;
-    request.SpawnId = snapshot.SpawnId;
-    request.Entry = snapshot.Entry;
-    request.Health = snapshot.Health;
-    request.MaxHealth = snapshot.MaxHealth;
-    request.Alive = snapshot.Alive;
-    request.InCombat = snapshot.InCombat;
-    request.MapId = snapshot.MapId;
-    request.X = snapshot.X;
-    request.Y = snapshot.Y;
-    request.Z = snapshot.Z;
-    _aiClient->SubmitDecision(request);
+    request.Decision.Context = std::move(context);
+    _aiClient->SubmitDecision(std::move(request));
 }
 
 // Safe to call from any thread - see the declaration in AIWorldMgr.h and

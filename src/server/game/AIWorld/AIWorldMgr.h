@@ -202,10 +202,10 @@ class TC_GAME_API AIWorldMgr
         MemoryPersistence _memoryPersistence;
         float _longTermMemoryMinImportance = 0.75f;
 
-        // Milestone 2.5C: deterministic relevance scoring over
+        // Milestone 2.5C/2.9A: deterministic relevance scoring over
         // _shortTermMemory/_longTermMemory, run once per CaptureAndSubmitSnapshot()
-        // right after the AgentSnapshot is built. Logged only for now - nothing
-        // consumes the result yet, AIRequest is untouched.
+        // right after the AgentSnapshot is built - its Top-N result feeds
+        // AgentContext::RelevantMemories.
         MemoryRetrieval _memoryRetrieval;
         uint32 _memoryRetrievalTopN = 5;
 

@@ -15,31 +15,24 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AIWORLD_AIREQUEST_H
-#define AIWORLD_AIREQUEST_H
+#ifndef AIWORLD_DECISIONREQUEST_H
+#define AIWORLD_DECISIONREQUEST_H
 
-#include "DecisionRequest.h"
+#include "AgentContext.h"
 #include "Define.h"
+#include "ProtocolVersion.h"
 
-enum class AIRequestType : uint8
+// Milestone 2.9A: the versioned /decision request body - a ProtocolVersion
+// plus one agent's full AgentContext, and nothing else. Self-contained on
+// purpose (RequestId mirrors the owning AIRequest's RequestId, both
+// stamped together by AIClient::SubmitDecision()) so this struct - and the
+// JSON it serializes to - stays meaningful on its own instead of only
+// inside AIRequest's transport envelope.
+struct DecisionRequest
 {
-    Health = 0,
-    Decision = 1
-};
-
-// Plain data handed to AIClient::SubmitDecision(). Never carries a
-// Creature*/Player*/Map* - AIClient and everything below it only ever
-// sees values, never live game objects. Decision is only meaningful (and
-// only sent) for Type == Decision - SubmitHealthCheck() takes no AIRequest
-// at all. RequestId, Type, and Decision.RequestId/Version are all stamped
-// internally by SubmitDecision() (any value the caller set is
-// overwritten), so callers only need to fill in Decision.Context.
-struct AIRequest
-{
+    ProtocolVersion Version = CurrentProtocolVersion;
     uint64 RequestId = 0;
-    AIRequestType Type = AIRequestType::Health;
-
-    DecisionRequest Decision;
+    AgentContext Context;
 };
 
-#endif // AIWORLD_AIREQUEST_H
+#endif // AIWORLD_DECISIONREQUEST_H

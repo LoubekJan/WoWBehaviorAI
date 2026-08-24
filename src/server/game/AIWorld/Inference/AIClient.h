@@ -55,13 +55,13 @@ class TC_GAME_API AIClient
         // concurrent in-flight requests.
         uint64 SubmitHealthCheck();
 
-        // Builds and POSTs a /decision request from the given snapshot data.
-        // RequestId and Type are stamped internally (any value the caller
-        // set is overwritten), so only SnapshotSequence/SpawnId/Entry/
-        // Health/MaxHealth/Alive/InCombat/MapId/X/Y/Z need to be filled in.
-        // Same non-blocking contract and same "0 means skipped, a previous
-        // decision is still in flight" return convention as
-        // SubmitHealthCheck().
+        // Builds and POSTs a versioned /decision request (Milestone 2.9A -
+        // see DecisionRequest/AgentContext) from the given AgentContext.
+        // RequestId, Type, Decision.RequestId, and Decision.Version are all
+        // stamped internally (any value the caller set is overwritten), so
+        // only Decision.Context needs to be filled in. Same non-blocking
+        // contract and same "0 means skipped, a previous decision is still
+        // in flight" return convention as SubmitHealthCheck().
         uint64 SubmitDecision(AIRequest request);
 
         // Non-blocking pop of one completed response. Returns false if none

@@ -187,38 +187,115 @@ namespace
             std::atomic<bool> _completed { false };
     };
 
-    // Builds the fixed-shape /decision request body. Deliberately not a
-    // general JSON serializer - just this one flat schema, all
-    // numeric/bool fields with nothing that needs escaping.
+    // Deliberately not a general JSON serializer - just this one fixed,
+    // versioned schema (see DecisionRequest/AgentContext), all
+    // numeric/bool/enum-ToString() fields with nothing that needs
+    // escaping (no freeform strings ever cross this boundary).
+    std::string BuildNeedsJson(NeedsState const& needs)
+    {
+        std::ostringstream body;
+        body << "{\"health_pressure\":" << needs.HealthPressure
+             << ",\"hunger\":" << needs.Hunger
+             << ",\"fatigue\":" << needs.Fatigue
+             << ",\"safety_pressure\":" << needs.SafetyPressure
+             << ",\"resource_pressure\":" << needs.ResourcePressure
+             << "}";
+        return body.str();
+    }
+
+    std::string BuildActiveGoalJson(std::optional<ActiveGoal> const& goal)
+    {
+        if (!goal)
+            return "null";
+
+        std::ostringstream body;
+        body << "{\"type\":\"" << ToString(goal->Type) << "\""
+             << ",\"priority\":\"" << ToString(goal->Priority) << "\""
+             << ",\"source\":\"" << ToString(goal->Source) << "\""
+             << ",\"utility\":" << goal->Utility
+             << ",\"started_at_ms\":" << goal->StartedAtMs
+             << ",\"timeout_ms\":" << goal->TimeoutMs
+             << "}";
+        return body.str();
+    }
+
+    std::string BuildRetrievedMemoryJson(RetrievedMemory const& memory)
+    {
+        std::ostringstream body;
+        body << "{\"tier\":\"" << ToString(memory.Tier) << "\""
+             << ",\"memory_id\":" << memory.MemoryId
+             << ",\"type\":\"" << ToString(memory.Type) << "\""
+             << ",\"importance\":" << memory.Importance
+             << ",\"relevance\":" << memory.Relevance
+             << ",\"source_event_id\":" << memory.SourceEventId
+             << ",\"source_occurred_at_ms\":" << memory.SourceOccurredAtMs
+             << ",\"source_event_type\":" << (memory.SourceEventType ? (std::string("\"") + ToString(*memory.SourceEventType) + "\"") : "null")
+             << ",\"first_observed_at_ms\":" << memory.FirstObservedAtMs
+             << ",\"last_observed_at_ms\":" << memory.LastObservedAtMs
+             << "}";
+        return body.str();
+    }
+
+    std::string BuildAgentContextJson(AgentContext const& context)
+    {
+        AgentSnapshot const& self = context.Self;
+
+        std::ostringstream body;
+        body << "{\"agent_id\":" << self.Agent.Value
+             << ",\"snapshot_sequence\":" << self.SnapshotSequence
+             << ",\"spawn_id\":" << self.SpawnId
+             << ",\"entry\":" << self.Entry
+             << ",\"map_id\":" << self.MapId
+             << ",\"position\":{\"x\":" << self.X << ",\"y\":" << self.Y << ",\"z\":" << self.Z << ",\"orientation\":" << self.Orientation << "}"
+             << ",\"health\":" << self.Health
+             << ",\"max_health\":" << self.MaxHealth
+             << ",\"alive\":" << (self.Alive ? "true" : "false")
+             << ",\"in_combat\":" << (self.InCombat ? "true" : "false")
+             << ",\"needs\":" << BuildNeedsJson(context.Needs)
+             << ",\"active_goal\":" << BuildActiveGoalJson(context.Goal)
+             << ",\"relevant_memories\":[";
+
+        for (std::size_t i = 0; i < context.RelevantMemories.size(); ++i)
+        {
+            if (i > 0)
+                body << ",";
+            body << BuildRetrievedMemoryJson(context.RelevantMemories[i]);
+        }
+
+        body << "],\"available_actions\":[";
+
+        for (std::size_t i = 0; i < context.AvailableActions.size(); ++i)
+        {
+            if (i > 0)
+                body << ",";
+            body << "\"" << ToString(context.AvailableActions[i]) << "\"";
+        }
+
+        body << "]}";
+        return body.str();
+    }
+
+    // Builds the versioned /decision request body: protocol_version,
+    // request_id, and the full agent_context - see DecisionRequest.
     std::string BuildDecisionRequestBody(AIRequest const& request)
     {
         std::ostringstream body;
-        body << "{\"agent_id\":" << request.Agent.Value
-             << ",\"request_id\":" << request.RequestId
-             << ",\"snapshot_sequence\":" << request.SnapshotSequence
-             << ",\"spawn_id\":" << request.SpawnId
-             << ",\"entry\":" << request.Entry
-             << ",\"health\":" << request.Health
-             << ",\"max_health\":" << request.MaxHealth
-             << ",\"alive\":" << (request.Alive ? "true" : "false")
-             << ",\"in_combat\":" << (request.InCombat ? "true" : "false")
-             << ",\"map_id\":" << request.MapId
-             << ",\"position\":{\"x\":" << request.X
-             << ",\"y\":" << request.Y
-             << ",\"z\":" << request.Z
-             << "}}";
+        body << "{\"protocol_version\":" << ToUnderlying(request.Decision.Version)
+             << ",\"request_id\":" << request.Decision.RequestId
+             << ",\"agent_context\":" << BuildAgentContextJson(request.Decision.Context)
+             << "}";
         return body.str();
     }
 
     // Defensive, minimal extraction for the fixed
-    // {"agent_id":N,"request_id":N,"snapshot_sequence":N,"action":"STR"}
+    // {"protocol_version":N,"agent_id":N,"request_id":N,"snapshot_sequence":N,"action":"STR"}
     // response shape - not a general JSON parser. Tolerant of key order and
     // whitespace and unknown extra keys; never throws; returns false (never
     // partial output) if a required field is missing or malformed. Callers
-    // must still check agentId/requestId/snapshotSequence against what was
-    // actually sent - parsing successfully only means the body was
-    // well-formed, not that it answers this request.
-    bool ParseDecisionResponseBody(std::string const& body, uint64& agentId, uint64& requestId, uint64& snapshotSequence, std::string& action)
+    // must still check protocolVersion/agentId/requestId/snapshotSequence
+    // against what was actually sent - parsing successfully only means the
+    // body was well-formed, not that it answers this request.
+    bool ParseDecisionResponseBody(std::string const& body, uint64& protocolVersion, uint64& agentId, uint64& requestId, uint64& snapshotSequence, std::string& action)
     {
         auto findUintField = [&body](std::string const& key, uint64& out) -> bool
         {
@@ -276,7 +353,8 @@ namespace
             return true;
         };
 
-        return findUintField("agent_id", agentId) &&
+        return findUintField("protocol_version", protocolVersion) &&
+               findUintField("agent_id", agentId) &&
                findUintField("request_id", requestId) &&
                findUintField("snapshot_sequence", snapshotSequence) &&
                findStringField("action", action);
@@ -309,8 +387,9 @@ namespace
                 _httpRequest.body() = BuildDecisionRequestBody(_request);
                 _httpRequest.prepare_payload();
 
-                TC_LOG_INFO("ai.world", "AI decision request id={} agent={} snapshot={} spawn={} submitted",
-                    _request.RequestId, _request.Agent.Value, _request.SnapshotSequence, _request.SpawnId);
+                TC_LOG_INFO("ai.world", "AI decision request id={} version={} agent={} snapshot={} spawn={} submitted",
+                    _request.RequestId, ToUnderlying(_request.Decision.Version), _request.Decision.Context.Self.Agent.Value,
+                    _request.Decision.Context.Self.SnapshotSequence, _request.Decision.Context.Self.SpawnId);
 
                 _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
                 _resolveTimer.async_wait(
@@ -378,10 +457,11 @@ namespace
                 std::string rejectReason;
                 if (success)
                 {
+                    uint64 responseProtocolVersion = 0;
                     uint64 responseAgentId = 0;
                     uint64 responseRequestId = 0;
                     uint64 responseSnapshotSequence = 0;
-                    if (!ParseDecisionResponseBody(_httpResponse.body(), responseAgentId, responseRequestId, responseSnapshotSequence, action))
+                    if (!ParseDecisionResponseBody(_httpResponse.body(), responseProtocolVersion, responseAgentId, responseRequestId, responseSnapshotSequence, action))
                     {
                         success = false;
                         rejectReason = "parse failure";
@@ -389,14 +469,18 @@ namespace
                     // A well-formed body isn't enough on its own - verify it
                     // actually answers the request we sent, not just any
                     // request/response the queue happened to pull off HTTP
-                    // pipelining, a proxy, or a future protocol bug.
-                    else if (responseAgentId != _request.Agent.Value || responseRequestId != _request.RequestId ||
-                        responseSnapshotSequence != _request.SnapshotSequence)
+                    // pipelining, a proxy, or a future protocol bug - and,
+                    // new in 2.9A, that it speaks the same protocol version
+                    // this request was sent as.
+                    else if (responseProtocolVersion != ToUnderlying(_request.Decision.Version) ||
+                        responseAgentId != _request.Decision.Context.Self.Agent.Value || responseRequestId != _request.RequestId ||
+                        responseSnapshotSequence != _request.Decision.Context.Self.SnapshotSequence)
                     {
                         success = false;
                         std::ostringstream detail;
-                        detail << "protocol mismatch (server replied agent=" << responseAgentId
-                               << " id=" << responseRequestId << " snapshot=" << responseSnapshotSequence << ")";
+                        detail << "protocol mismatch (server replied version=" << responseProtocolVersion
+                               << " agent=" << responseAgentId << " id=" << responseRequestId
+                               << " snapshot=" << responseSnapshotSequence << ")";
                         rejectReason = detail.str();
                     }
                 }
@@ -419,31 +503,44 @@ namespace
                 uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - _startTime).count());
 
+                AgentId requestAgent = _request.Decision.Context.Self.Agent;
+                uint64 requestSnapshotSequence = _request.Decision.Context.Self.SnapshotSequence;
+
                 if (ec == beast::error::timeout)
                     TC_LOG_WARN("ai.world", "AI decision request id={} agent={} timed out after {}ms",
-                        _request.RequestId, _request.Agent.Value, _timeoutMs);
+                        _request.RequestId, requestAgent.Value, _timeoutMs);
                 else if (ec)
                     TC_LOG_WARN("ai.world", "AI decision request id={} agent={} failed: {}",
-                        _request.RequestId, _request.Agent.Value, ec.message());
+                        _request.RequestId, requestAgent.Value, ec.message());
                 else if (!rejectReason.empty())
                     TC_LOG_WARN("ai.world", "AI decision response id={} agent={} {} status={} latency={}ms",
-                        _request.RequestId, _request.Agent.Value, rejectReason, statusCode, latencyMs);
+                        _request.RequestId, requestAgent.Value, rejectReason, statusCode, latencyMs);
                 else if (!success)
                     TC_LOG_WARN("ai.world", "AI decision request id={} agent={} completed with non-2xx status={} latency={}ms",
-                        _request.RequestId, _request.Agent.Value, statusCode, latencyMs);
+                        _request.RequestId, requestAgent.Value, statusCode, latencyMs);
                 else
                     TC_LOG_INFO("ai.world", "AI decision response id={} agent={} snapshot={} action={} latency={}ms",
-                        _request.RequestId, _request.Agent.Value, _request.SnapshotSequence, action, latencyMs);
+                        _request.RequestId, requestAgent.Value, requestSnapshotSequence, action, latencyMs);
 
                 AIResponse* response = new AIResponse();
                 response->RequestId = _request.RequestId;
                 response->Type = AIRequestType::Decision;
-                response->Agent = _request.Agent;
-                response->SnapshotSequence = _request.SnapshotSequence;
+                response->Agent = requestAgent;
+                response->SnapshotSequence = requestSnapshotSequence;
                 response->Success = success;
                 response->StatusCode = statusCode;
                 response->LatencyMs = latencyMs;
-                response->Action = success ? action : std::string();
+
+                if (success)
+                {
+                    DecisionResponse decision;
+                    decision.Version = _request.Decision.Version;
+                    decision.RequestId = _request.RequestId;
+                    decision.Agent = requestAgent;
+                    decision.SnapshotSequence = requestSnapshotSequence;
+                    decision.Action = action;
+                    response->Decision = std::move(decision);
+                }
 
                 _responseQueue->Enqueue(response);
             }
@@ -536,6 +633,8 @@ uint64 AIClient::SubmitDecision(AIRequest request)
     uint64 requestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
     request.RequestId = requestId;
     request.Type = AIRequestType::Decision;
+    request.Decision.RequestId = requestId;
+    request.Decision.Version = CurrentProtocolVersion;
 
     net::io_context& rawIoContext = _impl->IoContextRef;
     std::string const& host = _impl->Host;

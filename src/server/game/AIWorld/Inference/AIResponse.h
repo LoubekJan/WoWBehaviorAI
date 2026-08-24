@@ -18,15 +18,21 @@
 #ifndef AIWORLD_AIRESPONSE_H
 #define AIWORLD_AIRESPONSE_H
 
+#include "Agent/AgentId.h"
 #include "AIRequest.h"
+#include "DecisionResponse.h"
 #include "Define.h"
-#include <string>
+#include <optional>
 
 // Delivered back to the world thread through AIClient::TryPopResponse().
 // Success=false covers a network/HTTP failure, a timeout, and a non-2xx
 // HTTP status alike; AIClient itself already logs which one happened at
-// completion time. Agent and Action are only populated (and only
-// meaningful) for Type == Decision responses that succeeded.
+// completion time. Agent/SnapshotSequence are the client's own echo of
+// what was requested (used for the stale-response check regardless of
+// parse outcome), not anything ai-server sent back. Decision is only
+// populated for a Type == Decision response that both succeeded and
+// parsed cleanly - see DecisionResponse for the actual decision content;
+// it is never populated for Health.
 struct AIResponse
 {
     uint64 RequestId = 0;
@@ -38,7 +44,7 @@ struct AIResponse
     uint32 StatusCode = 0;
     uint32 LatencyMs = 0;
 
-    std::string Action;
+    std::optional<DecisionResponse> Decision;
 };
 
 #endif // AIWORLD_AIRESPONSE_H
