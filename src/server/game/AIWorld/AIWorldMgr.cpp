@@ -26,6 +26,7 @@
 #include "Map.h"
 #include "MapManager.h"
 #include "Memory/MemoryImportance.h"
+#include "Metric.h"
 #include "MotionMaster.h"
 #include "MovementDefines.h"
 #include "Player.h"
@@ -322,6 +323,11 @@ void AIWorldMgr::Update(uint32 diff)
         {
             TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} is no longer registered, discarding",
                 response.RequestId, response.Agent.Value);
+            // Milestone 2.9D: a discard, not an invalid decision - the
+            // response itself was a perfectly valid answer to a question
+            // that simply stopped being current while it was in flight.
+            // See ValidateDecisionIntent() for the discard_reason vocabulary.
+            TC_METRIC_VALUE("ai.world.decision.discard", uint64(1), TC_METRIC_TAG("discard_reason", "not_materialized"));
             continue;
         }
 
@@ -335,6 +341,7 @@ void AIWorldMgr::Update(uint32 diff)
         {
             TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} discarded: agent is no longer materialized",
                 response.RequestId, response.Agent.Value, response.SnapshotSequence);
+            TC_METRIC_VALUE("ai.world.decision.discard", uint64(1), TC_METRIC_TAG("discard_reason", "not_materialized"));
             continue;
         }
 
@@ -346,6 +353,7 @@ void AIWorldMgr::Update(uint32 diff)
         {
             TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} is STALE (latest snapshot={}), discarding",
                 response.RequestId, response.Agent.Value, response.SnapshotSequence, record->SnapshotSequence);
+            TC_METRIC_VALUE("ai.world.decision.discard", uint64(1), TC_METRIC_TAG("discard_reason", "stale_snapshot"));
             continue;
         }
 
@@ -401,6 +409,20 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
         // than guess at a translation.
         TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent={} rejected: unsupported remote intent",
             response.RequestId, id.Value, response.SnapshotSequence, ToString(intent.Type));
+
+        // Milestone 2.9D: an invalid decision (see the "invalid decision"
+        // definition on ai.world.decision.validation below), reported
+        // through the same metric ActionSystem::Validate() itself reports
+        // through - reused rather than a separate "unsupported" metric so
+        // "invalid decision rate" is one filter (result=REJECTED) away
+        // instead of needing two series combined. UNSUPPORTED_ACTION is
+        // ActionRejectReason's own string for this - ActionSystem was
+        // never actually called (there is no ActionRequest to validate for
+        // an intent this build doesn't translate), but it is the same
+        // rejection category.
+        TC_METRIC_VALUE("ai.world.decision.validation", uint64(1),
+            TC_METRIC_TAG("intent", ToString(intent.Type)), TC_METRIC_TAG("result", "REJECTED"),
+            TC_METRIC_TAG("validation_reason", ToString(ActionRejectReason::UnsupportedAction)));
         return;
     }
 
@@ -423,6 +445,7 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
     {
         TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=FLEE discarded: STALE_CONTEXT (goal attempt changed since request)",
             response.RequestId, id.Value, response.SnapshotSequence);
+        TC_METRIC_VALUE("ai.world.decision.discard", uint64(1), TC_METRIC_TAG("discard_reason", "stale_context"));
         return;
     }
 
@@ -441,6 +464,7 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
 
         TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=FLEE discarded: no live Creature resolved",
             response.RequestId, id.Value, response.SnapshotSequence);
+        TC_METRIC_VALUE("ai.world.decision.discard", uint64(1), TC_METRIC_TAG("discard_reason", "not_materialized"));
         return;
     }
 
@@ -462,6 +486,7 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
     {
         TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent=FLEE discarded: STALE_CREATURE_INSTANCE",
             response.RequestId, id.Value, response.SnapshotSequence);
+        TC_METRIC_VALUE("ai.world.decision.discard", uint64(1), TC_METRIC_TAG("discard_reason", "stale_creature"));
         return;
     }
 
@@ -494,6 +519,16 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
     // ActionExecutor is never called here.
     TC_LOG_DEBUG("ai.world", "AI decision action validation agent={} intent=FLEE result={} reason={} execution=SUPPRESSED_EXISTING_OWNER (dry-run, deterministic pipeline owns execution)",
         id.Value, validation.Allowed ? "ALLOWED" : "REJECTED", ToString(validation.Reason));
+
+    // Milestone 2.9D: an ActionSystem::Validate() REJECTED here is an
+    // invalid decision (ai-server proposed FLEE for a situation
+    // ActionSystem doesn't agree justifies it, e.g. NO_FLEE_SOURCE) -
+    // unlike every discard_reason above, which are all valid decisions
+    // that simply aged out in flight. "invalid decision rate" is
+    // count(result=REJECTED)/count(total) on this series.
+    TC_METRIC_VALUE("ai.world.decision.validation", uint64(1),
+        TC_METRIC_TAG("intent", "FLEE"), TC_METRIC_TAG("result", validation.Allowed ? "ALLOWED" : "REJECTED"),
+        TC_METRIC_TAG("validation_reason", ToString(validation.Reason)));
 }
 
 // Bridges a registered agent to whatever its Creature is doing right now,

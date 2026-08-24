@@ -18,6 +18,7 @@
 #include "AIClient.h"
 #include "IoContext.h"
 #include "Log.h"
+#include "Metric.h"
 #include "MPSCQueue.h"
 
 #include <boost/asio/connect.hpp>
@@ -464,6 +465,16 @@ namespace
                   _responseQueue(responseQueue), _inFlightFlag(inFlightFlag),
                   _startTime(std::chrono::steady_clock::now())
             {
+                // Milestone 2.9D: how long this request actually sat
+                // between AIClient::SubmitDecision() posting it and this
+                // session beginning to run on an asio worker thread - both
+                // construction and Run() happen here, on the worker, once
+                // the posted task is actually picked up. Deliberately not
+                // HTTP/session latency (that's _startTime, used for
+                // LatencyMs below) - a healthy queue_ms with a high
+                // latency_ms means slow ai-server/network, not a
+                // backed-up transport.
+                _queueMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(_startTime - _request.SubmittedAt).count());
             }
 
             void Run()
@@ -496,7 +507,7 @@ namespace
                     return; // resolve finished first and cancelled this timer
 
                 _resolver.cancel();
-                Complete(false, 0, beast::error::timeout, DecisionIntent(), std::string());
+                Complete(false, 0, beast::error::timeout, DecisionIntent(), std::string(), false);
             }
 
             void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
@@ -504,7 +515,7 @@ namespace
                 _resolveTimer.cancel();
 
                 if (ec)
-                    return Complete(false, 0, ec, DecisionIntent(), std::string());
+                    return Complete(false, 0, ec, DecisionIntent(), std::string(), false);
 
                 if (_completed.load(std::memory_order_acquire))
                     return; // resolve timeout already completed this request
@@ -517,7 +528,7 @@ namespace
             void OnConnect(beast::error_code ec, tcp::resolver::results_type::endpoint_type)
             {
                 if (ec)
-                    return Complete(false, 0, ec, DecisionIntent(), std::string());
+                    return Complete(false, 0, ec, DecisionIntent(), std::string(), false);
 
                 _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
                 http::async_write(_stream, _httpRequest,
@@ -527,7 +538,7 @@ namespace
             void OnWrite(beast::error_code ec, std::size_t /*bytesTransferred*/)
             {
                 if (ec)
-                    return Complete(false, 0, ec, DecisionIntent(), std::string());
+                    return Complete(false, 0, ec, DecisionIntent(), std::string(), false);
 
                 http::async_read(_stream, _buffer, _httpResponse,
                     beast::bind_front_handler(&DecisionSession::OnRead, shared_from_this()));
@@ -536,7 +547,7 @@ namespace
             void OnRead(beast::error_code ec, std::size_t /*bytesTransferred*/)
             {
                 if (ec)
-                    return Complete(false, 0, ec, DecisionIntent(), std::string());
+                    return Complete(false, 0, ec, DecisionIntent(), std::string(), false);
 
                 uint32 statusCode = _httpResponse.result_int();
                 bool success = statusCode >= 200 && statusCode < 300;
@@ -545,6 +556,14 @@ namespace
                 // the response unusable - lets Complete() tell that apart
                 // from a genuine non-2xx status instead of mislabeling it.
                 std::string rejectReason;
+                // Milestone 2.9D: distinguishes the two ways rejectReason
+                // can end up non-empty, for the ai.world.decision.result
+                // metric's result tag - malformed_response vs
+                // protocol_mismatch are different failure modes (a broken
+                // response body vs a well-formed one that answers the
+                // wrong request) worth telling apart in metrics, even
+                // though today's TC_LOG line below treats them the same.
+                bool protocolMismatch = false;
                 if (success)
                 {
                     uint64 responseProtocolVersion = 0;
@@ -567,6 +586,7 @@ namespace
                         responseSnapshotSequence != _request.Decision.Context.Self.SnapshotSequence)
                     {
                         success = false;
+                        protocolMismatch = true;
                         std::ostringstream detail;
                         detail << "protocol mismatch (server replied version=" << responseProtocolVersion
                                << " agent=" << responseAgentId << " id=" << responseRequestId
@@ -574,14 +594,18 @@ namespace
                         rejectReason = detail.str();
                     }
                 }
-                Complete(success, statusCode, ec, intent, rejectReason);
+                Complete(success, statusCode, ec, intent, rejectReason, protocolMismatch);
             }
 
             // Guarded by _completed - see HealthCheckSession::Complete().
             // rejectReason is only non-empty when statusCode was 2xx but the
             // body itself made the response unusable (see OnRead) - without
             // it, this would otherwise log a 2xx response as "non-2xx".
-            void Complete(bool success, uint32 statusCode, beast::error_code ec, DecisionIntent const& intent, std::string const& rejectReason)
+            // protocolMismatch (2.9D) only ever distinguishes the metric's
+            // result tag between two rejectReason causes; it doesn't change
+            // the TC_LOG branch taken below, which treats both as the same
+            // "response ... {rejectReason}" case.
+            void Complete(bool success, uint32 statusCode, beast::error_code ec, DecisionIntent const& intent, std::string const& rejectReason, bool protocolMismatch)
             {
                 if (_completed.exchange(true, std::memory_order_acq_rel))
                     return;
@@ -611,6 +635,33 @@ namespace
                 else
                     TC_LOG_INFO("ai.world", "AI decision response id={} agent={} snapshot={} intent={} latency={}ms",
                         _request.RequestId, requestAgent.Value, requestSnapshotSequence, ToString(intent.Type), latencyMs);
+
+                // Milestone 2.9D: one value per completed decision request,
+                // tagged by exactly how it turned out - timeout rate,
+                // transport-error rate, malformed-response rate, and
+                // protocol-mismatch rate are then just
+                // count(result=X)/count(total) on this one series, no
+                // separate hand-maintained counters needed. result and
+                // outcome-derived tags only (no request_id/agent_id/
+                // spawn_id/RuntimeGuid - those belong in the TC_LOG lines
+                // above, not in low-cardinality metric tags).
+                char const* resultTag;
+                if (ec == beast::error::timeout)
+                    resultTag = "timeout";
+                else if (ec)
+                    resultTag = "transport_error";
+                else if (protocolMismatch)
+                    resultTag = "protocol_mismatch";
+                else if (!rejectReason.empty())
+                    resultTag = "malformed_response";
+                else if (!success)
+                    resultTag = "http_error";
+                else
+                    resultTag = "success";
+
+                TC_METRIC_VALUE("ai.world.decision.result", uint64(1), TC_METRIC_TAG("result", resultTag));
+                TC_METRIC_VALUE("ai.world.decision.queue_ms", _queueMs, TC_METRIC_TAG("result", resultTag));
+                TC_METRIC_VALUE("ai.world.decision.latency_ms", latencyMs, TC_METRIC_TAG("result", resultTag));
 
                 AIResponse* response = new AIResponse();
                 response->RequestId = _request.RequestId;
@@ -660,6 +711,7 @@ namespace
             MPSCQueue<AIResponse>* _responseQueue;
             std::atomic<bool>* _inFlightFlag;
             std::chrono::steady_clock::time_point _startTime;
+            uint32 _queueMs = 0;
             std::atomic<bool> _completed { false };
     };
 }
@@ -728,6 +780,13 @@ uint64 AIClient::SubmitDecision(AIRequest request)
     if (_impl->DecisionInFlight.exchange(true, std::memory_order_acq_rel))
     {
         TC_LOG_DEBUG("ai.world", "AI decision skipped: previous request still in flight");
+
+        // Milestone 2.9D: without this, ai.world.decision.queue_ms could
+        // look perfectly healthy while the global DecisionInFlight guard
+        // was silently dropping half of every attempted decision - this is
+        // the baseline a later batching/backpressure milestone needs
+        // before it can claim an improvement.
+        TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "skipped_in_flight"));
         return 0;
     }
 
@@ -736,6 +795,7 @@ uint64 AIClient::SubmitDecision(AIRequest request)
     request.Type = AIRequestType::Decision;
     request.Decision.RequestId = requestId;
     request.Decision.Version = CurrentProtocolVersion;
+    request.SubmittedAt = std::chrono::steady_clock::now();
 
     net::io_context& rawIoContext = _impl->IoContextRef;
     std::string const& host = _impl->Host;
@@ -748,6 +808,8 @@ uint64 AIClient::SubmitDecision(AIRequest request)
     {
         std::make_shared<DecisionSession>(rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightFlag)->Run();
     });
+
+    TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "submitted"));
 
     return requestId;
 }

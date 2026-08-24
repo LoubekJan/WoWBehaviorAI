@@ -20,6 +20,7 @@
 
 #include "DecisionRequest.h"
 #include "Define.h"
+#include <chrono>
 
 enum class AIRequestType : uint8
 {
@@ -31,13 +32,22 @@ enum class AIRequestType : uint8
 // Creature*/Player*/Map* - AIClient and everything below it only ever
 // sees values, never live game objects. Decision is only meaningful (and
 // only sent) for Type == Decision - SubmitHealthCheck() takes no AIRequest
-// at all. RequestId, Type, and Decision.RequestId/Version are all stamped
-// internally by SubmitDecision() (any value the caller set is
+// at all. RequestId, Type, SubmittedAt, and Decision.RequestId/Version are
+// all stamped internally by SubmitDecision() (any value the caller set is
 // overwritten), so callers only need to fill in Decision.Context.
 struct AIRequest
 {
     uint64 RequestId = 0;
     AIRequestType Type = AIRequestType::Health;
+
+    // Milestone 2.9D: world-thread timestamp captured immediately before
+    // net::post() - purely internal transport metadata for the
+    // ai.world.decision.queue_ms metric (time between SubmitDecision() and
+    // DecisionSession actually starting on an asio worker thread), never
+    // serialized into the /decision JSON body. Not HTTP latency - that's
+    // AIResponse::LatencyMs, measured separately from where the session
+    // itself starts.
+    std::chrono::steady_clock::time_point SubmittedAt;
 
     DecisionRequest Decision;
 };
