@@ -466,8 +466,14 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
     context.Self = snapshot;
     context.Needs = record.Needs;
     context.Goal = record.ActiveGoalState;
-    context.RelevantMemories = relevantMemories;
     context.AvailableActions = { ActionType::Flee, ActionType::MoveTo, ActionType::Eat };
+
+    // 2.9A P2 fix: sanitize each RetrievedMemory down to DecisionMemory
+    // here, at the same world-thread boundary that builds the rest of
+    // AgentContext, rather than leaving it to AIClient's JSON builder.
+    context.RelevantMemories.reserve(relevantMemories.size());
+    for (RetrievedMemory const& memory : relevantMemories)
+        context.RelevantMemories.push_back(ToDecisionMemory(memory));
 
     AIRequest request;
     request.Decision.Context = std::move(context);

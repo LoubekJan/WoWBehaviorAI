@@ -8,13 +8,21 @@ involved. Milestone 2.9A widened the request body from a flat snapshot into
 a versioned DecisionRequest carrying the agent's full AgentContext (Needs,
 ActiveGoal, Top-N RelevantMemories, explicit AvailableActions) - this stub
 still ignores all of it and answers deterministically.
+
+CURRENT_PROTOCOL_VERSION is an actual compatibility gate (2.9A P2 fix), not
+just an echo: a request naming any other protocol_version is rejected
+before its body is trusted, and the response always reports the server's
+own CURRENT_PROTOCOL_VERSION rather than parroting back whatever the
+request claimed.
 """
 from typing import List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 app = FastAPI(title="ai-server", version="0.1.0")
+
+CURRENT_PROTOCOL_VERSION = 1
 
 
 @app.get("/health")
@@ -46,6 +54,24 @@ class ActiveGoal(BaseModel):
     timeout_ms: int
 
 
+class DecisionLocation(BaseModel):
+    map_id: int
+    x: float
+    y: float
+    z: float
+
+
+class DecisionEntity(BaseModel):
+    """Wire-safe stand-in for a memory's Actor/Target - entry (public game
+    data) and agent_id (0 if not itself a tracked AIWorld agent) only, same
+    boundary worldserver's DecisionEntity enforces: never a raw
+    ObjectGuid/SpawnId, those are internal engine/DB identity.
+    """
+
+    entry: int
+    agent_id: int
+
+
 class RetrievedMemory(BaseModel):
     tier: str
     memory_id: int
@@ -57,6 +83,9 @@ class RetrievedMemory(BaseModel):
     source_event_type: Optional[str] = None
     first_observed_at_ms: int
     last_observed_at_ms: int
+    location: DecisionLocation
+    actor: DecisionEntity
+    target: DecisionEntity
 
 
 class AgentContext(BaseModel):
@@ -92,8 +121,14 @@ class DecisionResponse(BaseModel):
 
 @app.post("/decision", response_model=DecisionResponse)
 def decision(request: DecisionRequest) -> DecisionResponse:
+    if request.protocol_version != CURRENT_PROTOCOL_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported protocol_version {request.protocol_version}, expected {CURRENT_PROTOCOL_VERSION}",
+        )
+
     return DecisionResponse(
-        protocol_version=request.protocol_version,
+        protocol_version=CURRENT_PROTOCOL_VERSION,
         request_id=request.request_id,
         agent_id=request.agent_context.agent_id,
         snapshot_sequence=request.agent_context.snapshot_sequence,

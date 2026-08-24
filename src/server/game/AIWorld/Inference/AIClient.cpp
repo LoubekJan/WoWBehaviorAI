@@ -219,7 +219,16 @@ namespace
         return body.str();
     }
 
-    std::string BuildRetrievedMemoryJson(RetrievedMemory const& memory)
+    std::string BuildDecisionEntityJson(DecisionEntity const& entity)
+    {
+        std::ostringstream body;
+        body << "{\"entry\":" << entity.Entry
+             << ",\"agent_id\":" << entity.Agent.Value
+             << "}";
+        return body.str();
+    }
+
+    std::string BuildDecisionMemoryJson(DecisionMemory const& memory)
     {
         std::ostringstream body;
         body << "{\"tier\":\"" << ToString(memory.Tier) << "\""
@@ -232,6 +241,10 @@ namespace
              << ",\"source_event_type\":" << (memory.SourceEventType ? (std::string("\"") + ToString(*memory.SourceEventType) + "\"") : "null")
              << ",\"first_observed_at_ms\":" << memory.FirstObservedAtMs
              << ",\"last_observed_at_ms\":" << memory.LastObservedAtMs
+             << ",\"location\":{\"map_id\":" << memory.Location.MapId
+             << ",\"x\":" << memory.Location.X << ",\"y\":" << memory.Location.Y << ",\"z\":" << memory.Location.Z << "}"
+             << ",\"actor\":" << BuildDecisionEntityJson(memory.Actor)
+             << ",\"target\":" << BuildDecisionEntityJson(memory.Target)
              << "}";
         return body.str();
     }
@@ -259,7 +272,7 @@ namespace
         {
             if (i > 0)
                 body << ",";
-            body << BuildRetrievedMemoryJson(context.RelevantMemories[i]);
+            body << BuildDecisionMemoryJson(context.RelevantMemories[i]);
         }
 
         body << "],\"available_actions\":[";

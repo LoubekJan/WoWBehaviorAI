@@ -20,9 +20,9 @@
 
 #include "Action/ActionType.h"
 #include "Agent/AgentSnapshot.h"
+#include "DecisionMemory.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
-#include "Memory/RetrievedMemory.h"
 #include "Needs/NeedsState.h"
 #include <optional>
 #include <vector>
@@ -46,10 +46,13 @@ struct AgentContext
     // Milestone 2.7B1: empty when the agent currently has no ActiveGoal.
     std::optional<ActiveGoal> Goal;
 
-    // Milestone 2.5C: this tick's Top-N MemoryRetrieval::Retrieve() result,
-    // already relevance-sorted and truncated - ai-server gets exactly what
-    // was selected, never the full short/long-term memory pool.
-    std::vector<RetrievedMemory> RelevantMemories;
+    // Milestone 2.5C/2.9A P2 fix: this tick's Top-N MemoryRetrieval::Retrieve()
+    // result, already relevance-sorted, truncated, and sanitized down to
+    // DecisionMemory (see DecisionMemory.h for why RetrievedMemory itself
+    // isn't wire-safe as-is) - ai-server gets exactly what was selected,
+    // never the full short/long-term memory pool, and never a raw
+    // ObjectGuid/SpawnId.
+    std::vector<DecisionMemory> RelevantMemories;
 
     // Explicitly enumerated by the world thread rather than left for
     // ai-server to assume - today the full ActionType catalog AIWorld
