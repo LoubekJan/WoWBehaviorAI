@@ -20,9 +20,11 @@
 
 #include "AIRequest.h"
 #include "AIResponse.h"
+#include "DecisionSubmitResult.h"
 #include "Define.h"
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace Trinity::Asio { class IoContext; }
 
@@ -63,6 +65,25 @@ class TC_GAME_API AIClient
         // contract and same "0 means skipped, a previous decision is still
         // in flight" return convention as SubmitHealthCheck().
         uint64 SubmitDecision(AIRequest request);
+
+        // Milestone 2.9E: caller-facing batch entry point - internally
+        // still just calls SubmitDecision() once per request in order, so
+        // today's admission behavior (one global DecisionInFlight guard
+        // for the whole AIWorld, see SubmitDecision()) is unchanged: a
+        // later request in the same batch can legitimately come back
+        // SkippedInFlight even though nothing about it individually was
+        // wrong - that is the current admission policy, not a bug here.
+        // Exists so a caller (AIWorldMgr, and eventually a real scheduler)
+        // can already code against a stable vector<AIRequest> ->
+        // vector<DecisionSubmitResult> shape; a later milestone's real
+        // per-agent/bounded admission policy changes what happens inside
+        // this call, not the interface built against it. Results are
+        // returned in request order, but callers must correlate by
+        // DecisionSubmitResult::Agent, never by vector position alone -
+        // see DecisionSubmitResult.h. Emits no metrics of its own:
+        // SubmitDecision() already logs ai.world.decision.submit once per
+        // request, and this must never double-count it.
+        std::vector<DecisionSubmitResult> SubmitDecisions(std::vector<AIRequest> requests);
 
         // Non-blocking pop of one completed response. Returns false if none
         // is queued yet.

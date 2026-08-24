@@ -835,6 +835,41 @@ uint64 AIClient::SubmitDecision(AIRequest request)
     return requestId;
 }
 
+std::vector<DecisionSubmitResult> AIClient::SubmitDecisions(std::vector<AIRequest> requests)
+{
+    // Milestone 2.9E: pure delegation to the existing single-request
+    // primitive, in order - no new admission policy, no new wire format,
+    // no batching at the transport level. Every request still goes through
+    // SubmitDecision()'s own DecisionInFlight guard and already-existing
+    // ai.world.decision.submit metric individually; this only adds a
+    // caller-facing shape on top, and a single aggregate debug log for
+    // this one batch.
+    std::vector<DecisionSubmitResult> results;
+    results.reserve(requests.size());
+
+    uint32 submitted = 0;
+    uint32 skipped = 0;
+
+    for (AIRequest& request : requests)
+    {
+        AgentId agent = request.Decision.Context.Self.Agent;
+        uint64 requestId = SubmitDecision(std::move(request));
+
+        DecisionSubmitStatus status = requestId != 0 ? DecisionSubmitStatus::Submitted : DecisionSubmitStatus::SkippedInFlight;
+        if (status == DecisionSubmitStatus::Submitted)
+            ++submitted;
+        else
+            ++skipped;
+
+        results.push_back({ agent, requestId, status });
+    }
+
+    TC_LOG_DEBUG("ai.world", "AI decision batch submitted requested={} submitted={} skipped={}",
+        requests.size(), submitted, skipped);
+
+    return results;
+}
+
 bool AIClient::TryPopResponse(AIResponse& response)
 {
     AIResponse* raw = nullptr;

@@ -40,6 +40,7 @@
 #include "Persistence/MemoryPersistence.h"
 #include <atomic>
 #include <memory>
+#include <vector>
 
 namespace Trinity::Asio { class IoContext; }
 class Creature;
@@ -110,6 +111,7 @@ class TC_GAME_API AIWorldMgr
         void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
         void TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs);
         void ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response);
+        void SubmitDecisionContexts(std::vector<AIRequest> requests);
 
         bool _enabled = false;
 

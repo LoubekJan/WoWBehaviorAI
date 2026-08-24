@@ -677,7 +677,29 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
 
     AIRequest request;
     request.Decision.Context = std::move(context);
-    _aiClient->SubmitDecision(std::move(request));
+
+    // Milestone 2.9E: routed through the batch-shaped entry point even
+    // though there is only ever one request today - a single test agent,
+    // one capture per tick, same cadence as before. Proves the
+    // vector<AIRequest> -> SubmitDecisionContexts() -> AIClient::
+    // SubmitDecisions() seam end-to-end so a later multi-agent capture
+    // pass (2.10) has a working call site to extend, not a new one to
+    // build from scratch.
+    std::vector<AIRequest> requests;
+    requests.push_back(std::move(request));
+    SubmitDecisionContexts(std::move(requests));
+}
+
+// Milestone 2.9E: thin batch boundary between AIWorldMgr's own capture
+// logic and AIClient::SubmitDecisions() - today always called with exactly
+// one request (see CaptureAndSubmitSnapshot()), since AIWorldMgr has no
+// multi-agent scheduler yet. Pure passthrough: no admission policy, no
+// wire format, no ActionExecutor, and requests is already the same
+// Creature*/Player*/Map*/Unit*-free value transport AIRequest always was -
+// this never resolves a TrinityCore entity, just moves DTOs along.
+void AIWorldMgr::SubmitDecisionContexts(std::vector<AIRequest> requests)
+{
+    _aiClient->SubmitDecisions(std::move(requests));
 }
 
 // Safe to call from any thread - see the declaration in AIWorldMgr.h and
