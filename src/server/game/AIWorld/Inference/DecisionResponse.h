@@ -19,29 +19,29 @@
 #define AIWORLD_DECISIONRESPONSE_H
 
 #include "Agent/AgentId.h"
+#include "DecisionIntent.h"
 #include "Define.h"
 #include "ProtocolVersion.h"
-#include <string>
 
-// Milestone 2.9A: the versioned /decision response body, parsed straight
-// off ai-server's JSON - separate from AIResponse's transport-level
-// Success/StatusCode/LatencyMs, which apply identically to Health and
-// describe network/HTTP outcome rather than decision content. Agent/
-// SnapshotSequence/Version here are ai-server's own echo, already checked
-// against the request by AIClient's DecisionSession before this is ever
-// constructed (see AIClient.cpp's "protocol mismatch" check) - by the time
-// a caller sees one, it is known to answer the exact request that was
-// sent. Action is deliberately still just a string: 2.9A only gets a
-// versioned AgentContext in front of ai-server - it must NOT be turned
-// into an ActionRequest or executed, see AIWorldMgr::Update()'s handling
-// of this.
+// Milestone 2.9A/2.9B: the versioned /decision response body, parsed
+// straight off ai-server's JSON - separate from AIResponse's
+// transport-level Success/StatusCode/LatencyMs, which apply identically to
+// Health and describe network/HTTP outcome rather than decision content.
+// Agent/SnapshotSequence/Version here are ai-server's own echo, already
+// checked against the request by AIClient's DecisionSession before this is
+// ever constructed (see AIClient.cpp's "protocol mismatch" check) - by the
+// time a caller sees one, it is known to answer the exact request that was
+// sent. Milestone 2.9B replaced the original opaque Action string with a
+// structured DecisionIntent - see DecisionIntent.h for why it still only
+// carries a Type, and AIWorldMgr::Update() for why this is still only
+// logged, never turned into an ActionRequest or executed.
 struct DecisionResponse
 {
     ProtocolVersion Version = ProtocolVersion::V1;
     uint64 RequestId = 0;
     AgentId Agent;
     uint64 SnapshotSequence = 0;
-    std::string Action;
+    DecisionIntent Intent;
 };
 
 #endif // AIWORLD_DECISIONRESPONSE_H

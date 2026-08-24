@@ -356,15 +356,24 @@ void AIWorldMgr::Update(uint32 diff)
             continue;
         }
 
-        // Milestone 2.9A: ai-server now answers over the versioned
-        // DecisionRequest/DecisionResponse protocol with a full
-        // AgentContext behind it, but action is still always NONE from a
-        // deterministic stub, and this is still just a log - the response
-        // is deliberately NOT converted into an ActionRequest or executed.
-        // That stays a later milestone's job, once Action validation can
-        // decide whether ai-server's proposed action is ALLOWED.
-        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} action={} accepted (no-op)",
-            response.RequestId, response.Agent.Value, response.SnapshotSequence, response.Decision->Action);
+        // Milestone 2.9B: ai-server's deterministic policy now answers with
+        // a structured DecisionIntent (FLEE, gated on this agent's
+        // ActiveGoalState already being FLEE_DANGER and FLEE already being
+        // one of the AvailableActions this same request offered - GET_FOOD
+        // still always gets NONE back, so this never becomes a second
+        // owner of the existing MOVE_TO -> EAT lifecycle) instead of an
+        // opaque string - but this is STILL only an audit log, never a
+        // second path into TrinityCore. Nothing here builds an
+        // ActionRequest, calls ActionSystem::Validate(), touches
+        // ActionExecutor/MotionMaster, or mutates Needs - that stays a
+        // later milestone's job, once a DecisionIntent -> ActionRequest
+        // translation exists that is built from world-thread authoritative
+        // data (this record's actual current goal/threat victim), never
+        // from trusting ai-server's own claim. If this agent actually
+        // flees right now, that came from AIWorldMgr's own deterministic
+        // Goal/Action pipeline (see UpdateNeeds()), not from this response.
+        TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} snapshot={} intent={} accepted (audit-only, no ActionRequest built)",
+            response.RequestId, response.Agent.Value, response.SnapshotSequence, ToString(response.Decision->Intent.Type));
     }
 }
 
