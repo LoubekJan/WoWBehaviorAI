@@ -97,6 +97,21 @@ void AgentRegistry::BindCreature(AgentId id, Creature const& creature)
     if (!record)
         return;
 
+    // Milestone 2.12A P3 fix: defense-in-depth, not the primary guarantee -
+    // every call site AIWorldMgr.cpp actually has already goes through
+    // ResolveLiveCreature(), which never resolves a Creature* for
+    // AgentType::CreatureGroup in the first place (see AgentRecord.h's own
+    // comment on why a group is non-bindable by construction). This is
+    // what keeps that true even for a caller that does not go through
+    // ResolveLiveCreature() - the one thing that actually makes it Type-
+    // safe against every future caller, not just today's.
+    if (record->Type == AgentType::CreatureGroup)
+    {
+        TC_LOG_ERROR("ai.world", "AgentRegistry::BindCreature: refusing to bind agent id={} - AgentType::CreatureGroup never binds to a live Creature",
+            id.Value);
+        return;
+    }
+
     ObjectGuid newGuid = creature.GetGUID();
 
     if (record->WorldState == AgentWorldState::Materialized && record->RuntimeGuid == newGuid)

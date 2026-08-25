@@ -49,12 +49,14 @@
 // comment) - but that convention is not itself what keeps a CreatureGroup
 // unbindable. Nothing at the DB level rules out a genuine collision with
 // a real creature.guid, so a CreatureGroup is non-bindable BY
-// CONSTRUCTION instead (2.12A P2 fix): every live-Creature-resolution and
-// live-spawn-enrichment call site in AIWorldMgr.cpp goes through
-// ResolveLiveCreature()/FindLiveAgentBySpawn(), which exclude
-// AgentType::CreatureGroup unconditionally, regardless of what SpawnId
-// value it holds or what it might collide with. MapId is the group's
-// territory map - see CreatureGroupState.h. This is what lets a
+// CONSTRUCTION instead: every live-Creature-resolution and live-spawn-
+// enrichment call site in AIWorldMgr.cpp goes through ResolveLiveCreature()/
+// FindLiveAgentBySpawn() (2.12A P2 fix), which exclude AgentType::
+// CreatureGroup unconditionally, regardless of what SpawnId value it holds
+// or what it might collide with - and AgentRegistry::BindCreature() itself
+// refuses the same way (2.12A P3 fix), so this holds for any future
+// caller too, not only today's. MapId is the group's territory map - see
+// CreatureGroupState.h. This is what lets a
 // CreatureGroup agent reuse the exact same AgentRegistry/
 // AgentPersistence (map_id, spawn_id) identity model as everything else,
 // with no schema/registry change of its own - see SimulationTier.h's own
