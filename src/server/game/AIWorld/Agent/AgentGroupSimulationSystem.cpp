@@ -18,12 +18,20 @@
 #include "AgentGroupSimulationSystem.h"
 #include <algorithm>
 
-void AgentGroupSimulationSystem::Update(AgentGroupRecord& record, uint64 dtMs, AgentGroupSimulationRates const& rates) const
+bool AgentGroupSimulationSystem::Update(AgentGroupRecord& record, uint64 dtMs, AgentGroupSimulationRates const& rates) const
 {
     float dtSeconds = float(dtMs) / 1000.0f;
 
     // Same clamp(value + rate * dtSeconds, 0, 1) shape NeedsSystem::Update()
     // already uses for Hunger/Fatigue/ResourcePressure - Resources falls,
     // so its rate is subtracted.
+    float previousResources = record.Resources;
     record.Resources = std::clamp(record.Resources - rates.ResourcesPerSecond * dtSeconds, 0.0f, 1.0f);
+
+    // std::clamp() of an already-clamped value returns the identical
+    // float, bit-for-bit - safe to compare with != here, this is not a
+    // "floats drift" comparison. See this class's own header comment for
+    // why the caller trusts this return value rather than re-deriving
+    // "did anything change" itself.
+    return record.Resources != previousResources;
 }

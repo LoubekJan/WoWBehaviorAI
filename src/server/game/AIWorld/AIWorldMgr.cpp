@@ -1165,25 +1165,26 @@ void AIWorldMgr::RunDecisionScheduler()
         // Milestone 2.12D P3 fix (confirmed from a live log - resources
         // sitting at its 0.0 floor across many consecutive ticks, version
         // still climbing every pass): once Resources has settled at either
-        // clamp bound, AgentGroupSimulationSystem::Update() is a no-op
-        // (std::clamp() of an already-clamped value returns the identical
-        // float, bit-for-bit - safe to compare with ==, this is not a
-        // "floats drift" comparison), so persisting again would only bump
-        // Version and issue an async DB write for a row that is otherwise
-        // byte-identical to what is already stored. With one group this is
-        // noise; with many (dynamic LOOSE coalitions - see
-        // GroupCoarseSimulationScheduler.h) it is permanent, unbounded
-        // per-group DB churn for no observable state change. Only
-        // SaveGroupState() (and its own Version bump) is skipped -
-        // LastTickAtMs/NextTickAtMs below still advance on the normal
-        // cadence either way, so a group that starts changing again (a
-        // future consumption/replenishment mechanic) resumes persisting
-        // on its very next due tick, nothing here latches "never check
-        // again".
-        float previousResources = group->Resources;
-        _agentGroupSimulationSystem.Update(*group, dtMs, _agentGroupSimulationRates);
+        // clamp bound, AgentGroupSimulationSystem::Update() is a no-op, so
+        // persisting again would only bump Version and issue an async DB
+        // write for a row that is otherwise byte-identical to what is
+        // already stored. With one group this is noise; with many (dynamic
+        // LOOSE coalitions - see GroupCoarseSimulationScheduler.h) it is
+        // permanent, unbounded per-group DB churn for no observable state
+        // change. Only SaveGroupState() (and its own Version bump) is
+        // skipped - LastTickAtMs/NextTickAtMs below still advance on the
+        // normal cadence either way, so a group that starts changing again
+        // resumes persisting on its very next due tick, nothing here
+        // latches "never check again".
+        //
+        // Milestone 2.12D P3 fix (STATIC review, round 2): "did it change"
+        // comes from Update()'s own return value, not a Resources-only
+        // comparison kept here - this class has no business knowing which
+        // AgentGroupRecord fields AgentGroupSimulationSystem does or does
+        // not touch; see that class's own header comment for why.
+        bool changed = _agentGroupSimulationSystem.Update(*group, dtMs, _agentGroupSimulationRates);
 
-        if (group->Resources != previousResources)
+        if (changed)
         {
             // Version bump happens inside SaveGroupState() itself (2.11E2
             // P3's "bump lives in the persistence API, not the caller"

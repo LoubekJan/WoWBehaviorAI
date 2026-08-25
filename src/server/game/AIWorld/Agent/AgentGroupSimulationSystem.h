@@ -40,10 +40,22 @@
 // was meant to remove. Only Resources moves - Territory stays exactly
 // what was loaded. Widening what a coarse tick simulates (cohesion,
 // territory pressure, shared group intent, ...) is later roadmap work.
+//
+// Milestone 2.12D P3 fix (STATIC review): Update() returns whether it
+// actually changed record - the caller (AIWorldMgr::RunDecisionScheduler())
+// uses this, not a manually-maintained "did Resources change" comparison
+// of its own, to decide whether AgentGroupPersistence::SaveGroupState() is
+// worth calling at all (once Resources settles at a clamp bound, further
+// ticks are no-ops, and persisting an unchanged snapshot just to bump
+// Version is pure DB churn). This is what keeps that dirty-check correct
+// as this class grows to mutate more of AgentGroupRecord than Resources
+// alone (Kind/territory/cohesion/... - later roadmap work) - the caller
+// never needs its own list of "which fields does this system touch", only
+// this class's own honest answer.
 class TC_GAME_API AgentGroupSimulationSystem
 {
     public:
-        void Update(AgentGroupRecord& record, uint64 dtMs, AgentGroupSimulationRates const& rates) const;
+        bool Update(AgentGroupRecord& record, uint64 dtMs, AgentGroupSimulationRates const& rates) const;
 };
 
 #endif // AIWORLD_AGENTGROUPSIMULATIONSYSTEM_H
