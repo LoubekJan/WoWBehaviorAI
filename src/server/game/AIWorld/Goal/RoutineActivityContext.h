@@ -53,6 +53,17 @@ struct RoutineActivityContext
     // RoutineGoalState alone. An agent halfway through its commute must
     // never read as WORK/REST just because routine already wants it there.
     bool AtRoutineTarget = false;
+
+    // 2.11D P3 fix: GetMotionMaster()->GetCurrentMovementGenerator
+    // (MOTION_SLOT_ACTIVE) != nullptr - the same authoritative engine fact
+    // ActionValidationContext::HasActiveMovement already checks for
+    // MOVE_TO. HasActiveAction only reflects AIWorld's OWN bookkeeping
+    // (ActiveActionState); this catches any other TrinityCore mechanism
+    // that could be moving the actor while it happens to still be within
+    // ArrivalToleranceYards of the target - WORK/REST must not read as
+    // "arrived and settled" while the actor is still physically being
+    // moved by something else.
+    bool ActorMoving = false;
 };
 
 #endif // AIWORLD_ROUTINEACTIVITYCONTEXT_H

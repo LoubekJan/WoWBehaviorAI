@@ -1787,6 +1787,11 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         activityContext.HasActiveGoal = record->ActiveGoalState.has_value();
         activityContext.HasActiveAction = record->ActiveActionState.has_value();
 
+        // 2.11D P3 fix: authoritative engine fact, independent of whatever
+        // ActiveActionState happens to claim - the same expression
+        // moveContext.HasActiveMovement above already uses.
+        activityContext.ActorMoving = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
+
         if (record->RoutineGoalState)
         {
             ActionPosition routineTarget;
@@ -1817,11 +1822,19 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             }
             else
             {
-                // Single-owner takeover (ActiveGoalState/ActiveActionState
-                // just appeared) reads distinctly from "still traveling,
-                // not there yet" - both end WORK/REST, but for a different
-                // reason worth telling apart in the log.
-                char const* reason = (activityContext.HasActiveGoal || activityContext.HasActiveAction) ? "GOAL_OWNERSHIP" : "TRAVEL";
+                // 2.11D P3 fix: a routine-owned MOVE_TO (IsRoutineSourceGoal)
+                // just starting is still routine's own doing, not a
+                // takeover - the earlier version classified this as
+                // GOAL_OWNERSHIP simply because ActiveActionState had
+                // already been set by the MOVE_TO block above this same
+                // tick, misreporting the ordinary "phase flipped, commute
+                // starting" case. Only an actual ActiveGoalState, or some
+                // other (non-routine) ActiveActionState, is a genuine
+                // takeover; a routine-owned action, or no action at all
+                // (mid-transition/rejected move), reads as TRAVEL.
+                bool takenOverByGoal = activityContext.HasActiveGoal
+                    || (record->ActiveActionState && !IsRoutineSourceGoal(record->ActiveActionState->SourceGoal));
+                char const* reason = takenOverByGoal ? "GOAL_OWNERSHIP" : "TRAVEL";
 
                 TC_LOG_DEBUG("ai.world", "AI routine activity agent={} from={} to=NONE reason={}",
                     record->Id.Value, ToString(*previousActivity), reason);

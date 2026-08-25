@@ -43,11 +43,13 @@ class TC_GAME_API RoutineActivitySystem
     public:
         // std::nullopt whenever WORK/REST is not currently justified:
         // unmaterialized, dead, ActiveGoalState/ActiveActionState owns the
-        // actor, no RoutineGoalState at all, or not actually standing at
-        // its target yet (still traveling). Otherwise GoalType::GoToWork ->
-        // Work, GoalType::GoHome -> Rest - deterministic, no state of its
-        // own, so calling this twice with the same context always produces
-        // the same answer.
+        // actor, the actor is physically moving right now for any reason
+        // (ActorMoving - not just AIWorld's own tracked MOVE_TO), no
+        // RoutineGoalState at all, or not actually standing at its target
+        // yet (still traveling). Otherwise GoalType::GoToWork -> Work,
+        // GoalType::GoHome -> Rest - deterministic, no state of its own,
+        // so calling this twice with the same context always produces the
+        // same answer.
         std::optional<RoutineActivityType> DeriveActivity(RoutineActivityContext const& context) const;
 };
 

@@ -28,6 +28,13 @@ std::optional<RoutineActivityType> RoutineActivitySystem::DeriveActivity(Routine
     if (context.HasActiveGoal || context.HasActiveAction)
         return std::nullopt;
 
+    // 2.11D P3 fix: ArrivalToleranceYards alone only proves position, not
+    // stillness - ActorMoving is the authoritative engine fact for that,
+    // independent of whatever AIWorld's own ActiveActionState happens to
+    // claim (see RoutineActivityContext.h).
+    if (context.ActorMoving)
+        return std::nullopt;
+
     if (!context.AtRoutineTarget || !context.CurrentRoutineGoal)
         return std::nullopt;
 
