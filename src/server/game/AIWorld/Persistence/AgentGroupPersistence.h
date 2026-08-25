@@ -75,16 +75,24 @@ class AgentRegistry;
 class TC_GAME_API AgentGroupPersistence
 {
     public:
-        // Milestone 2.12E1 P2 fix (STATIC review, round 3): reads the
+        // Milestone 2.12E1 P2 fix (STATIC review, rounds 3-4): reads the
         // single row from ai_agent_group_id_sequence into _nextGroupId and
-        // marks the allocator valid - fail-closed if the row is missing
-        // (a schema that never ran the 2.12E1 P2 migration, or a
-        // hand-edited table): logs an error and leaves the allocator
-        // invalid, which CreateGroup() checks first and refuses to mint
-        // against. Call once at startup, before the first CreateGroup() of
-        // the process (order relative to LoadGroups()/LoadGroupMembers()
-        // does not matter - the sequence table is independent of which
-        // groups currently exist).
+        // marks the allocator valid - fail-closed if the row is missing (a
+        // schema that never ran the 2.12E1 P2 migration, or a hand-edited
+        // table) OR if it is not a trustworthy high-water mark: it must be
+        // nonzero and strictly greater than the highest group_id
+        // physically present in ai_agent_groups right now (checked against
+        // the raw table, not the registry - a row LoadGroups() itself
+        // would later reject, e.g. for an invalid kind, still occupies
+        // that id and must still be protected against). Without that
+        // check, CreateGroup() could mint an id that collides with an
+        // existing, unrelated group - and its own read-back could
+        // misread that existing row as confirming its own INSERT. Any
+        // failure logs an error and leaves the allocator invalid, which
+        // CreateGroup() checks first and refuses to mint against. Call
+        // once at startup, before the first CreateGroup() of the process
+        // (order relative to LoadGroups()/LoadGroupMembers() does not
+        // matter - both checks here query ai_agent_groups directly).
         void LoadGroupIdSequence();
 
         // Loads every row from ai_agent_groups into registry. Returns the

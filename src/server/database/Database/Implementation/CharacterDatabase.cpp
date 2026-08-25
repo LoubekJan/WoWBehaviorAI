@@ -644,6 +644,17 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE, "SELECT next_group_id FROM ai_agent_group_id_sequence WHERE id = 1", CONNECTION_SYNCH);
     PrepareStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE, "UPDATE ai_agent_group_id_sequence SET next_group_id = ? WHERE id = 1", CONNECTION_SYNCH);
 
+    // Milestone 2.12E1 P2 fix (STATIC review, round 4): AgentGroupPersistence::
+    // LoadGroupIdSequence()'s own high-water-mark sanity check - a
+    // next_group_id that is 0 or does not exceed the highest group_id
+    // physically present in ai_agent_groups (including a row LoadGroups()
+    // itself would reject, e.g. for an invalid kind - this query applies
+    // no such filter) is not a trustworthy allocator state, and
+    // LoadGroupIdSequence() refuses to trust it. NULL (an empty
+    // ai_agent_groups table) reads back as no result, the same
+    // "MAX() over zero rows" shape CHAR_SEL_PVPSTATS_MAXID already has.
+    PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_MAX_ID, "SELECT MAX(group_id) FROM ai_agent_groups", CONNECTION_SYNCH);
+
     // Milestone 2.12D (STATIC review P2 fix): AgentGroup identity/state now
     // lives in its own table, ai_agent_groups, not in ai_agents any more -
     // see GroupId.h/AgentGroupRecord.h/AgentGroupPersistence.h for why.

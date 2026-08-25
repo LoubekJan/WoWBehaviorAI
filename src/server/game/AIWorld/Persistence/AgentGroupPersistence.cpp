@@ -36,8 +36,30 @@ void AgentGroupPersistence::LoadGroupIdSequence()
         return;
     }
 
-    Field* fields = result->Fetch();
-    _nextGroupId = fields[0].GetUInt64();
+    uint64 nextGroupId = result->Fetch()[0].GetUInt64();
+
+    // Milestone 2.12E1 P2 fix (STATIC review, round 4): a nonzero row alone
+    // is not enough to trust - it must also exceed the highest group_id
+    // actually present in ai_agent_groups right now, including a row
+    // LoadGroups() itself would later reject (e.g. for an invalid kind) -
+    // this query applies no such filter, so it sees exactly what physically
+    // exists. Without this check, a sequence value that was never advanced
+    // past an existing group's own id would let CreateGroup() mint a
+    // "fresh" GroupId that collides with (and, via its own read-back,
+    // could be misread as confirming) a real, unrelated existing group.
+    CharacterDatabasePreparedStatement* maxStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_MAX_ID);
+    PreparedQueryResult maxResult = CharacterDatabase.Query(maxStmt);
+    uint64 maxExistingGroupId = maxResult ? maxResult->Fetch()[0].GetUInt64() : 0;
+
+    if (nextGroupId == 0 || nextGroupId <= maxExistingGroupId)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: ai_agent_group_id_sequence.next_group_id={} is not a trustworthy high-water mark "
+            "(must be nonzero and greater than MAX(ai_agent_groups.group_id)={}) - GroupId allocator left invalid; CreateGroup() will refuse to mint until this is fixed.",
+            nextGroupId, maxExistingGroupId);
+        return;
+    }
+
+    _nextGroupId = nextGroupId;
     _groupIdAllocatorValid = true;
 
     TC_LOG_INFO("ai.world", "AI persistence loaded group id sequence, next group id={}", _nextGroupId);
