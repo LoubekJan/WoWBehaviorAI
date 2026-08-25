@@ -82,35 +82,43 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
         record.EconomyState.Version = fields[18].GetUInt64();
 
-        // Milestone 2.12A P3 fix: population/territory_x/y/z are four
-        // independently nullable columns - Field::GetFloat() silently
-        // returns 0.0f for SQL NULL, so trusting a single presence bit
-        // (population alone) the way home_map_id/work_map_id can for their
-        // pairs would let a partially-NULL row (a corrupt/hand-edited row,
-        // never one AgentPersistence itself produces) load as a
-        // legitimate-looking Territory=(0,0,0) instead of being caught.
-        // All four must agree - either all NULL (no group) or all set.
+        // Milestone 2.12A/2.12B P3 fix: population/territory_x/y/z/hunger/
+        // resources are six independently nullable columns -
+        // Field::GetFloat() silently returns 0.0f for SQL NULL, so
+        // trusting a single presence bit (population alone) the way
+        // home_map_id/work_map_id can for their pairs would let a
+        // partially-NULL row (a corrupt/hand-edited row, never one
+        // AgentPersistence itself produces) load as a legitimate-looking
+        // Territory=(0,0,0)/Hunger=0/Resources=0 instead of being caught.
+        // All six must agree - either all NULL (no group) or all set.
         bool populationNull = fields[19].IsNull();
         bool territoryXNull = fields[20].IsNull();
         bool territoryYNull = fields[21].IsNull();
         bool territoryZNull = fields[22].IsNull();
+        bool hungerNull = fields[23].IsNull();
+        bool resourcesNull = fields[24].IsNull();
 
-        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull)
+        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull && !hungerNull && !resourcesNull)
         {
             CreatureGroupState group;
             group.Population = fields[19].GetUInt32();
             group.TerritoryX = fields[20].GetFloat();
             group.TerritoryY = fields[21].GetFloat();
             group.TerritoryZ = fields[22].GetFloat();
+            group.Hunger = fields[23].GetFloat();
+            group.Resources = fields[24].GetFloat();
+            group.Version = fields[25].GetUInt64();
             record.GroupState = group;
         }
-        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull)
+        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull
+            || populationNull != hungerNull || populationNull != resourcesNull)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} has a partially NULL population/territory_x/y/z row (present: population={} territory_x={} territory_y={} territory_z={}) - ignoring malformed CreatureGroupState",
-                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull);
+                "AgentPersistence: agent id={} has a partially NULL population/territory_x/y/z/hunger/resources row "
+                "(present: population={} territory_x={} territory_y={} territory_z={} hunger={} resources={}) - ignoring malformed CreatureGroupState",
+                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull, !hungerNull, !resourcesNull);
         }
-        // else: all four NULL - no CreatureGroupState, the ordinary case
+        // else: all six NULL - no CreatureGroupState, the ordinary case
         // for every non-CreatureGroup agent.
 
         // Milestone 2.12A P3 fix: the AgentType <-> GroupState invariant
@@ -139,12 +147,14 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={} group={} population={}",
+        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={} group={} population={} hunger={:.4f} resources={:.4f} groupVersion={}",
             record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId,
             record.HomeLocation.has_value(), record.WorkLocation.has_value(),
             record.EconomyState.Money, record.EconomyState.Food, record.EconomyState.Resource,
             record.EconomyState.LastRewardedWorkWindowId, record.EconomyState.Version,
-            record.GroupState.has_value(), record.GroupState ? record.GroupState->Population : 0);
+            record.GroupState.has_value(), record.GroupState ? record.GroupState->Population : 0,
+            record.GroupState ? record.GroupState->Hunger : 0.0f, record.GroupState ? record.GroupState->Resources : 0.0f,
+            record.GroupState ? record.GroupState->Version : 0);
 
         ++loaded;
     } while (result->NextRow());
@@ -211,6 +221,32 @@ void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState& state)
     // "AND economy_version < ?" guard - see AgentEconomyState::Version and
     // CHAR_UPD_AI_AGENT_ECONOMY's own comment for why.
     stmt->setUInt64(6, state.Version);
+
+    // Fire-and-forget by design - see the class comment. The world update
+    // thread must never wait on this.
+    CharacterDatabase.Execute(stmt);
+}
+
+void AgentPersistence::SaveCreatureGroupState(AgentId id, CreatureGroupState& state)
+{
+    // 2.12B, same reasoning as SaveEconomyState()'s own P3 fix: unconditional,
+    // first thing, regardless of what the caller already did.
+    ++state.Version;
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_CREATURE_GROUP);
+    stmt->setUInt32(0, state.Population);
+    stmt->setFloat(1, state.TerritoryX);
+    stmt->setFloat(2, state.TerritoryY);
+    stmt->setFloat(3, state.TerritoryZ);
+    stmt->setFloat(4, state.Hunger);
+    stmt->setFloat(5, state.Resources);
+    stmt->setUInt64(6, state.Version);
+    stmt->setUInt64(7, id.Value);
+
+    // Bound again for the statement's own "AND group_version < ?" guard -
+    // see CreatureGroupState::Version and CHAR_UPD_AI_CREATURE_GROUP's own
+    // comment for why.
+    stmt->setUInt64(8, state.Version);
 
     // Fire-and-forget by design - see the class comment. The world update
     // thread must never wait on this.

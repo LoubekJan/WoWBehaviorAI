@@ -195,6 +195,16 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _coarseSimulationMaxPerPass = uint32(coarseSimulationMaxPerPass);
 
+    // Milestone 2.12B: not tuned gameplay values - see
+    // CreatureGroupSimulationRates.h for why.
+    _creatureGroupSimulationRates.HungerPerSecond = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.CreatureGroupHungerRatePerSecond", 0.001f), 0.0f, 1.0f);
+    _creatureGroupSimulationRates.ResourcesPerSecond = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.CreatureGroupResourcesRatePerSecond", 0.0005f), 0.0f, 1.0f);
+
+    TC_LOG_INFO("ai.world", "AI creature group simulation configured hungerRate={:.6f} resourcesRate={:.6f}",
+        _creatureGroupSimulationRates.HungerPerSecond, _creatureGroupSimulationRates.ResourcesPerSecond);
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -1050,6 +1060,36 @@ void AIWorldMgr::RunDecisionScheduler()
         SimulationTier tier = tierIt != _agentSimulationTier.end() ? tierIt->second : SimulationTier::Background;
 
         TC_LOG_DEBUG("ai.world", "AI simulation tick agent={} tier={} dt={}ms", id.Value, ToString(tier), dtMs);
+
+        // Milestone 2.12B: the only simulation any coarse tick runs -
+        // BACKGROUND (an individual agent with no live Creature right now)
+        // stays observability-only, exactly as 2.10D left it. Checks
+        // AgentType::CreatureGroup explicitly, not just SimulationTier::
+        // Abstract, even though today only a CreatureGroup ever derives
+        // Abstract (see SimulationTier.h) - the same "never let a coarse
+        // tick imply something it doesn't actually check" discipline
+        // 2.12A's own P2/P3 fixes already hold this file to. No Creature*/
+        // Map* anywhere in this branch, no /decision, no ActionRequest, no
+        // materialization, and no Population/Territory mutation - only
+        // Hunger/Resources move (see CreatureGroupSimulationSystem.h).
+        if (tier == SimulationTier::Abstract)
+        {
+            AgentRecord* record = _registry.Find(id);
+            if (record && record->Type == AgentType::CreatureGroup && record->GroupState)
+            {
+                _creatureGroupSimulationSystem.Update(*record->GroupState, dtMs, _creatureGroupSimulationRates);
+
+                // Version bump happens inside SaveCreatureGroupState()
+                // itself (2.11E2 P3's "bump lives in the persistence API,
+                // not the caller" precedent) - logged after, not before,
+                // so this reflects the value actually being persisted.
+                _persistence.SaveCreatureGroupState(id, *record->GroupState);
+
+                TC_LOG_DEBUG("ai.world", "AI creature group simulation agent={} population={} hunger={:.4f} resources={:.4f} version={}",
+                    id.Value, record->GroupState->Population, record->GroupState->Hunger,
+                    record->GroupState->Resources, record->GroupState->Version);
+            }
+        }
 
         // Runtime review P2 fix: a real tick always resumes the plain
         // "+interval" cadence - no phase offset here, that is applied only

@@ -25,6 +25,7 @@
 #include "Action/PendingEatContinuation.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentRegistry.h"
+#include "Agent/CreatureGroupSimulationSystem.h"
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
@@ -216,6 +217,16 @@ class TC_GAME_API AIWorldMgr
         // SimulationScheduleState.h. Keyed by AgentId::Value; never
         // touched for a Materialized (Active/Nearby) agent.
         std::unordered_map<uint64, SimulationScheduleState> _simulationSchedule;
+
+        // Milestone 2.12B: the only simulation any coarse tick runs -
+        // called from the same coarse-tick loop above, only for
+        // SimulationTier::Abstract + AgentType::CreatureGroup (see
+        // RunDecisionScheduler()'s own comment). No config of its own
+        // beyond _creatureGroupSimulationRates - dtMs comes from
+        // _simulationSchedule the same way the tick's own dt log already
+        // does.
+        CreatureGroupSimulationSystem _creatureGroupSimulationSystem;
+        CreatureGroupSimulationRates _creatureGroupSimulationRates;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in
