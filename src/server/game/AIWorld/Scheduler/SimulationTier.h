@@ -33,17 +33,23 @@
 // Only Active and Nearby are decision-eligible - see
 // AIWorldMgr::RunDecisionScheduler(), which never builds a candidate (and
 // therefore never resolves a live Creature or calls AIClient) for a
-// Background or Abstract agent. Background/Abstract do not yet run any
-// simulation of their own in 2.10C - this milestone only makes the tier
-// and its transitions explicit and observable. It does not add background
-// Needs drift, population/economy simulation, or anything else for an
-// agent sitting in either of those tiers - that is later roadmap work,
-// deliberately out of scope here.
+// Background agent. Background does not yet run any simulation of its own
+// in 2.10C - this milestone only makes the tier and its transitions
+// explicit and observable. It does not add background Needs drift,
+// economy simulation, or anything else for an agent sitting in that tier -
+// that is later roadmap work, deliberately out of scope here.
+//
+// Milestone 2.12D P2 fix (STATIC review): the Abstract tier (formerly used
+// for AgentType::AgentGroup, back when a group was modeled as a fake
+// AgentRecord) is gone - every AgentRecord now names a real, individually-
+// bindable agent, so every one of them is unambiguously either
+// Background/Active/Nearby. An AgentGroup's own coarse tick runs entirely
+// outside this per-agent tier system - see GroupId.h/AgentGroupRegistry.h
+// and AIWorldMgr::RunDecisionScheduler()'s own group coarse-tick loop.
 enum class SimulationTier : uint8
 {
-    // No live Creature right now for an otherwise ordinary (non-group)
-    // agent - grid/Creature unloaded, or not yet spawned. Same underlying
-    // fact as AgentWorldState::Abstract for AgentType != AgentGroup.
+    // No live Creature right now - grid/Creature unloaded, or not yet
+    // spawned. Same underlying fact as AgentWorldState::Abstract.
     Background,
 
     // A live Creature is bound, and no Player is currently within
@@ -52,14 +58,7 @@ enum class SimulationTier : uint8
 
     // A live Creature is bound, and at least one real Player is within
     // AIWorld.DecisionNearbyPlayerRange of it right now.
-    Nearby,
-
-    // Milestone 2.10C/2.12C: for AgentType::AgentGroup - a social layer
-    // over independent member agents, not meant to ever bind 1:1 to a
-    // single Creature the way an individual agent does (see
-    // AgentGroupState.h). The roadmap's own ABSTRACT -> ACTIVE/NEARBY
-    // transition needs a tier to name that state.
-    Abstract
+    Nearby
 };
 
 inline char const* ToString(SimulationTier tier)
@@ -69,26 +68,26 @@ inline char const* ToString(SimulationTier tier)
         case SimulationTier::Background: return "BACKGROUND";
         case SimulationTier::Active:      return "ACTIVE";
         case SimulationTier::Nearby:      return "NEARBY";
-        case SimulationTier::Abstract:    return "ABSTRACT";
         default:                          return "UNKNOWN";
     }
 }
 
-// Milestone 2.10C: pure derivation - no AgentRecord*, Creature*, Map*, or
-// registry. The caller (AIWorldMgr::RunDecisionScheduler()) resolves
-// worldState (AgentRegistry's own WorldState flag, already kept current by
-// the usual bind/unbind bookkeeping) and nearPlayer (a live
+// Milestone 2.10C/2.12D: pure derivation - no AgentRecord*, Creature*,
+// Map*, or registry. The caller (AIWorldMgr::RunDecisionScheduler())
+// resolves worldState (AgentRegistry's own WorldState flag, already kept
+// current by the usual bind/unbind bookkeeping) and nearPlayer (a live
 // GetPlayerListInGrid() check, only meaningful - and only ever performed -
-// once a live Creature was actually found) itself; this only ever
-// combines the two already-known facts into one tier. Total over every
-// (AgentType, AgentWorldState, bool) combination - every registered agent
-// has an unambiguously derivable tier.
-inline SimulationTier DeriveSimulationTier(AgentType type, AgentWorldState worldState, bool nearPlayer)
+// once a live Creature was actually found) itself; this only ever combines
+// the two already-known facts into one tier. No AgentType parameter any
+// more (2.12D P2 fix) - every AgentType now derives its tier the exact
+// same way, so there is nothing left for it to branch on. Total over every
+// (AgentWorldState, bool) combination.
+inline SimulationTier DeriveSimulationTier(AgentWorldState worldState, bool nearPlayer)
 {
     if (worldState == AgentWorldState::Materialized)
         return nearPlayer ? SimulationTier::Nearby : SimulationTier::Active;
 
-    return type == AgentType::AgentGroup ? SimulationTier::Abstract : SimulationTier::Background;
+    return SimulationTier::Background;
 }
 
 // Milestone 2.10C: which of the fixed, small reason vocabulary explains a

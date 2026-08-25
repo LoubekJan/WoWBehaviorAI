@@ -21,19 +21,21 @@
 #include "Define.h"
 
 // Milestone 2.10D/2.10D P2 fixes: per-agent, world-thread-only bookkeeping
-// for the coarse Background/Abstract simulation tick - deliberately not
-// part of AgentRecord/AgentRegistry, the same reasoning as
-// DecisionScheduleState.h and AIWorldMgr's own _agentSimulationTier: this
-// is scheduling bookkeeping, not gameplay state. 2.10D's tick itself does
-// nothing but log - no Needs/goal/memory change, so there is nothing here
-// for a tier transition to disturb either way.
+// for the coarse Background simulation tick - deliberately not part of
+// AgentRecord/AgentRegistry, the same reasoning as DecisionScheduleState.h
+// and AIWorldMgr's own _agentSimulationTier: this is scheduling
+// bookkeeping, not gameplay state. 2.10D's tick itself does nothing but
+// log - no Needs/goal/memory change, so there is nothing here for a tier
+// transition to disturb either way.
 //
-// Both fields are reused for both Background and Abstract - which
-// interval (AIWorld.BackgroundSimulationIntervalMs/
-// AbstractSimulationIntervalMs) applies is resolved by the caller
-// (AIWorldMgr::RunDecisionScheduler()) from the agent's current
-// SimulationTier whenever it writes NextTickAtMs, not stored here as its
-// own field.
+// Milestone 2.12D: also reused, unmodified, for AIWorldMgr's group coarse
+// tick (keyed by GroupId::Value instead of AgentId::Value, in its own
+// _groupSimulationSchedule map) - the two fields here are ID-agnostic, and
+// a group's coarse-tick bookkeeping needs exactly the same shape a
+// Background agent's already has. Which interval (AIWorld.
+// BackgroundSimulationIntervalMs/GroupSimulationIntervalMs) applies is
+// resolved by the caller (AIWorldMgr::RunDecisionScheduler()), not stored
+// here as its own field.
 //
 // NextTickAtMs (runtime review P2 fix) is the authoritative due time
 // CoarseSimulationScheduler::SelectDue() sorts and admits by - unlike
@@ -55,9 +57,18 @@
 //
 // LastTickAtMs is also what keeps a coarse dt from ever reaching back
 // across a stretch spent Materialized (Active/Nearby) in between two
-// Background/Abstract stints, or across the moment the agent was first
-// ever observed - it is reset to "now", not left stale, on every entry
-// into the tier, the same as NextTickAtMs.
+// Background stints, or across the moment the agent was first ever
+// observed - it is reset to "now", not left stale, on every entry into the
+// tier, the same as NextTickAtMs.
+//
+// Milestone 2.12D: the group coarse tick (see this file's own class
+// comment above) does NOT go through CoarseSimulationScheduler::
+// SelectDue() - it checks LastTickAtMs == 0 && NextTickAtMs == 0 directly
+// to detect "never ticked before" (equivalent to a Background agent's tier
+// entry) and a plain NextTickAtMs > nowMs comparison to decide whether a
+// group is due, rather than relying on SelectDue()'s "0 sorts first"
+// admission-ordering convention - see AIWorldMgr::RunDecisionScheduler()'s
+// own group coarse-tick loop for why that bound is not needed there.
 struct SimulationScheduleState
 {
     uint64 LastTickAtMs = 0;

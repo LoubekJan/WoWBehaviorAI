@@ -17,6 +17,7 @@
 
 #include "AIWorldMgr.h"
 #include "Action/ArrivalTolerance.h"
+#include "Agent/AgentGroupRecord.h"
 #include "Agent/AgentGroupRuntimeView.h"
 #include "Agent/AgentSnapshot.h"
 #include "Config.h"
@@ -76,60 +77,45 @@ namespace
         return type == GoalType::GoToWork || type == GoalType::GoHome;
     }
 
-    // Milestone 2.12A/2.12C P2 fix: an AgentType::AgentGroup never binds
-    // 1:1 to a live Creature - see AgentRecord.h's own comment on what
-    // SpawnId means for this AgentType (an opaque, caller-assigned group
-    // id, not a TrinityCore spawn). Centralizing the exclusion here,
-    // rather than trusting every call site to remember it, is what makes
-    // an AgentGroup non-bindable BY CONSTRUCTION: even a genuine SpawnId
-    // collision with a real creature.guid (nothing at the DB level rules
-    // that out) can no longer materialize one, because nothing in this
-    // file ever calls Map::GetCreatureBySpawnId() with an AgentGroup's own
-    // SpawnId in the first place. Every live-Creature-resolution call site
-    // in this file must go through this, never
-    // Map::GetCreatureBySpawnId() directly.
+    // Milestone 2.12D P2 fix (STATIC review): every AgentRecord now names a
+    // real, individually-bindable creature spawn - an AgentGroup is no
+    // longer an AgentRecord at all (see GroupId.h), so there is nothing
+    // left for this to exclude. Kept as a named wrapper (rather than
+    // inlining Map::GetCreatureBySpawnId() at every call site) purely for
+    // the null-map convenience every call site already relies on.
     Creature* ResolveLiveCreature(AgentRecord const& record, Map* map)
     {
-        if (record.Type == AgentType::AgentGroup)
-            return nullptr;
-
         return map ? map->GetCreatureBySpawnId(record.SpawnId) : nullptr;
     }
 
-    // Milestone 2.12A/2.12C P2 fix: the other half of ResolveLiveCreature()'s
-    // guarantee. A real Creature's own spawn id could in principle
-    // collide with an AgentGroup's reserved-range one (again, nothing at
-    // the DB level rules it out), so AgentRegistry::FindBySpawn() alone
-    // cannot tell "this (map, spawn) genuinely names a live Creature"
-    // apart from "this happens to match an AgentGroup's opaque group id".
-    // Anything that uses a real spawn id to enrich a live-entity fact (a
-    // WorldEvent's Actor/Target, a perceived creature, an engine movement
-    // callback) must go through this instead of calling
-    // AgentRegistry::FindBySpawn() directly - a match against an
-    // AgentGroup is treated the same as no match at all.
+    // Milestone 2.12D P2 fix (STATIC review): same reasoning as
+    // ResolveLiveCreature() above - AgentRegistry::FindBySpawn() alone is
+    // now sufficient, there is no AgentGroup identity left in this
+    // (map_id, spawn_id) space to accidentally match against. Kept as a
+    // named wrapper for symmetry with ResolveLiveCreature() and to keep
+    // every live-spawn-enrichment call site going through one place.
     AgentRecord* FindLiveAgentBySpawn(AgentRegistry& registry, uint32 mapId, uint64 spawnId)
     {
-        AgentRecord* record = registry.FindBySpawn(mapId, spawnId);
-        return (record && record->Type != AgentType::AgentGroup) ? record : nullptr;
+        return registry.FindBySpawn(mapId, spawnId);
     }
 
-    // Milestone 2.12C: a fresh, transient snapshot of an AgentGroup's
+    // Milestone 2.12C/2.12D: a fresh, transient snapshot of an AgentGroup's
     // membership - one plain AgentRegistry::Find() lookup per
-    // AgentGroupMembership, never cached anywhere past this call. Unlike
-    // the old CreatureGroupRuntimeView (back when members were raw
-    // creature spawns, not independent agents), this never touches Map*/
-    // Creature* itself - each member's own individual-agent WorldState is
-    // already the authority for whether it is currently materialized,
-    // kept current by that member's own bind/unbind bookkeeping wherever
-    // it is processed as an ordinary agent. Never forces anything to
-    // load: an unresolvable or still-Abstract member simply reads as not
-    // loaded.
-    AgentGroupRuntimeView ResolveAgentGroupRuntimeView(AgentRegistry& registry, AgentRecord const& record)
+    // AgentGroupMembership, never cached anywhere past this call. Never
+    // touches Map*/Creature* itself - each member's own individual-agent
+    // WorldState is already the authority for whether it is currently
+    // materialized, kept current by that member's own bind/unbind
+    // bookkeeping wherever it is processed as an ordinary agent. Never
+    // forces anything to load: an unresolvable or still-Abstract member
+    // simply reads as not loaded. Observability only (2.12D P2 fix) -
+    // LoadedMembers no longer gates AgentGroupSimulationSystem::Update(),
+    // see AgentGroupRecord.h.
+    AgentGroupRuntimeView ResolveAgentGroupRuntimeView(AgentRegistry& registry, AgentGroupRecord const& group)
     {
         AgentGroupRuntimeView view;
-        view.TotalMembers = uint32(record.GroupMembers.size());
+        view.TotalMembers = uint32(group.Members.size());
 
-        for (AgentGroupMembership const& membership : record.GroupMembers)
+        for (AgentGroupMembership const& membership : group.Members)
         {
             AgentRecord const* member = registry.Find(membership.Member);
             if (member && member->WorldState == AgentWorldState::Materialized)
@@ -191,8 +177,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _decisionNearbyPlayerRange = decisionNearbyPlayerRange;
 
-    // Milestone 2.10D: coarse Background/Abstract tick cadence - not a
-    // decision cadence at all, see RunDecisionScheduler()'s own comment.
+    // Milestone 2.10D: coarse Background tick cadence - not a decision
+    // cadence at all, see RunDecisionScheduler()'s own comment.
     int32 backgroundSimulationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.BackgroundSimulationIntervalMs", 60000);
     if (backgroundSimulationIntervalMs < 1000)
     {
@@ -201,19 +187,25 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _backgroundSimulationIntervalMs = uint32(backgroundSimulationIntervalMs);
 
-    int32 abstractSimulationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.AbstractSimulationIntervalMs", 300000);
-    if (abstractSimulationIntervalMs < 1000)
+    // Milestone 2.12D P2 fix (STATIC review): renamed from
+    // AIWorld.AbstractSimulationIntervalMs now that AgentGroups no longer
+    // go through SimulationTier::Abstract at all (that tier is gone - see
+    // SimulationTier.h) - this governs RunDecisionScheduler()'s own group
+    // coarse-tick loop instead.
+    int32 groupSimulationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.GroupSimulationIntervalMs", 300000);
+    if (groupSimulationIntervalMs < 1000)
     {
-        TC_LOG_WARN("ai.world", "AIWorld.AbstractSimulationIntervalMs ({}) is invalid or too low, clamping to 1000ms", abstractSimulationIntervalMs);
-        abstractSimulationIntervalMs = 1000;
+        TC_LOG_WARN("ai.world", "AIWorld.GroupSimulationIntervalMs ({}) is invalid or too low, clamping to 1000ms", groupSimulationIntervalMs);
+        groupSimulationIntervalMs = 1000;
     }
-    _abstractSimulationIntervalMs = uint32(abstractSimulationIntervalMs);
+    _groupSimulationIntervalMs = uint32(groupSimulationIntervalMs);
 
     // Milestone 2.10D P2 fix: the hard per-pass bound
     // CoarseSimulationScheduler admits against - see its own header
     // comment for why an unbounded coarse tick would both spike
-    // world-thread work and permanently phase-lock every Background/
-    // Abstract agent onto the same tick pass.
+    // world-thread work and permanently phase-lock every Background agent
+    // onto the same tick pass. AgentGroups do not use this bound - see
+    // RunDecisionScheduler()'s own group coarse-tick loop comment for why.
     int32 coarseSimulationMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.CoarseSimulationMaxPerPass", 50);
     if (coarseSimulationMaxPerPass < 1)
     {
@@ -222,15 +214,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _coarseSimulationMaxPerPass = uint32(coarseSimulationMaxPerPass);
 
-    // Milestone 2.12B: not tuned gameplay values - see
-    // AgentGroupSimulationRates.h for why.
-    _agentGroupSimulationRates.HungerPerSecond = std::clamp(
-        sConfigMgr->GetFloatDefault("AIWorld.AgentGroupHungerRatePerSecond", 0.001f), 0.0f, 1.0f);
+    // Milestone 2.12B/2.12D: not a tuned gameplay value - see
+    // AgentGroupSimulationRates.h for why. No HungerPerSecond any more
+    // (2.12D P2 fix) - see AgentGroupRecord.h.
     _agentGroupSimulationRates.ResourcesPerSecond = std::clamp(
         sConfigMgr->GetFloatDefault("AIWorld.AgentGroupResourcesRatePerSecond", 0.0005f), 0.0f, 1.0f);
 
-    TC_LOG_INFO("ai.world", "AI agent group simulation configured hungerRate={:.6f} resourcesRate={:.6f}",
-        _agentGroupSimulationRates.HungerPerSecond, _agentGroupSimulationRates.ResourcesPerSecond);
+    TC_LOG_INFO("ai.world", "AI agent group simulation configured resourcesRate={:.6f}",
+        _agentGroupSimulationRates.ResourcesPerSecond);
 
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
@@ -390,12 +381,18 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // empty RuntimeGuid regardless of what it was before shutdown.
     _persistence.LoadAgents(_registry);
 
-    // Milestone 2.12C: must come after LoadAgents() - a membership row
-    // needs an already-registered group_agent_id to attach to. Purely
-    // identity (which independent member agents belong to which AgentGroup)
-    // - RunDecisionScheduler() resolves live presence from this fresh
-    // every coarse tick, never cached here past this load.
-    _persistence.LoadAgentGroupMembers(_registry);
+    // Milestone 2.12D (STATIC review P2 fix): AgentGroup identity/state is
+    // its own registry/table now (see GroupId.h/AgentGroupRegistry.h/
+    // AgentGroupPersistence.h) - LoadGroups() has no dependency on
+    // _registry, but LoadGroupMembers() must come after both LoadGroups()
+    // (a membership row needs an already-registered group to attach to)
+    // and _persistence.LoadAgents() above (a membership row's member must
+    // already resolve to a registered AgentRecord - no forward-reference
+    // tolerance any more, see AgentGroupMembership.h). Purely identity -
+    // RunDecisionScheduler() resolves live member presence from this fresh
+    // every group coarse tick, never cached here past this load.
+    _groupPersistence.LoadGroups(_groupRegistry);
+    _groupPersistence.LoadGroupMembers(_groupRegistry, _registry);
 
     // Same idea as _registry, for long-term memory: rebuilt from the DB
     // every startup. Must come after LoadAgents() - it needs _registry
@@ -443,10 +440,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
-        "background interval={}ms, abstract interval={}ms, coarse max/pass={})",
+        "background interval={}ms, group interval={}ms, coarse max/pass={})",
         aiHost, aiPort, requestTimeoutMs, _healthIntervalMs, _decisionMaxInFlight,
         _decisionSchedulerIntervalMs, _decisionNearbyIntervalMs, _decisionActiveIntervalMs, _decisionNearbyPlayerRange,
-        _backgroundSimulationIntervalMs, _abstractSimulationIntervalMs, _coarseSimulationMaxPerPass);
+        _backgroundSimulationIntervalMs, _groupSimulationIntervalMs, _coarseSimulationMaxPerPass);
 
     // Last step: only from here on can PublishWorldEvent() actually enqueue
     // anything. Ordered after everything above so a map worker can't race
@@ -952,17 +949,15 @@ std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector
 //
 // Milestone 2.10C: also the one place SimulationTier (see SimulationTier.h)
 // gets computed and logged for every registered agent, decision-eligible
-// or not - Background/Abstract agents are observable via
-// UpdateSimulationTier() the same as Active/Nearby ones, they just never
-// become a DecisionScheduler::Candidate. This does not add any simulation
-// of its own for Background/Abstract agents (no Needs drift, no
-// population/economy) - purely lifecycle observability on top of the
-// existing Materialized/Abstract bind/unbind bookkeeping this loop was
-// already doing.
+// or not - Background agents are observable via UpdateSimulationTier() the
+// same as Active/Nearby ones, they just never become a
+// DecisionScheduler::Candidate. This does not add any simulation of its
+// own for Background agents (no Needs drift, no economy) - purely
+// lifecycle observability on top of the existing Materialized/Abstract
+// bind/unbind bookkeeping this loop was already doing.
 //
-// Milestone 2.10D: Background/Abstract agents now also get their own
-// coarse tick (AIWorld.BackgroundSimulationIntervalMs/
-// AbstractSimulationIntervalMs, default 60s/5min) on top of the tier
+// Milestone 2.10D: Background agents now also get their own coarse tick
+// (AIWorld.BackgroundSimulationIntervalMs, default 60s) on top of the tier
 // logging above - still purely observability ("AI simulation tick
 // agent=... tier=... dt=...ms"), not a second simulation path: no
 // Map/Creature lookup beyond the one this loop already performs to find
@@ -976,15 +971,21 @@ std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector
 // ordered the same way the decision scheduler already is
 // (CoarseSimulationScheduler::SelectDue(), admitted up to
 // AIWorld.CoarseSimulationMaxPerPass per pass) - an earlier version ticked
-// every due Background/Abstract agent in the same pass with no cap, which
-// both spikes world-thread work at scale and, since every one of them
-// would then share the exact same LastTickAtMs, permanently phase-locks
-// them into ticking together forever afterwards. UpdateSimulationTier()'s
+// every due Background agent in the same pass with no cap, which both
+// spikes world-thread work at scale and, since every one of them would
+// then share the exact same LastTickAtMs, permanently phase-locks them
+// into ticking together forever afterwards. UpdateSimulationTier()'s
 // return value also drives a second fix here: SimulationScheduleState::
 // LastTickAtMs is reset to "now" (not left at whatever it was) the moment
-// an agent (re-)enters Background/Abstract, so a coarse dt/due-time can
-// never reach back across a stretch spent Materialized in between two
-// Background stints, or across the moment the agent was first observed.
+// an agent (re-)enters Background, so a coarse dt/due-time can never reach
+// back across a stretch spent Materialized in between two Background
+// stints, or across the moment the agent was first observed.
+//
+// Milestone 2.12D P2 fix (STATIC review): AgentGroups no longer take part
+// in any of the above - see this function's own group coarse-tick loop,
+// entirely separate from the per-agent SimulationTier/CoarseSimulationScheduler
+// machinery this comment describes (a group is not an AgentRecord any
+// more, see GroupId.h).
 void AIWorldMgr::RunDecisionScheduler()
 {
     uint64 nowMs = CurrentTimeMs();
@@ -1015,15 +1016,14 @@ void AIWorldMgr::RunDecisionScheduler()
             if (record->WorldState == AgentWorldState::Materialized)
                 _registry.UnbindCreature(id);
 
-            // Milestone 2.10C: BACKGROUND (or, for a future
-            // AgentType::AgentGroup agent, ABSTRACT) - no live Creature
-            // at all, so this agent is never a decision candidate: no
-            // ProcessAgent(), no AIClient call, no grid force-load.
-            SimulationTier tier = DeriveSimulationTier(record->Type, AgentWorldState::Abstract, false);
+            // Milestone 2.10C: BACKGROUND - no live Creature at all, so
+            // this agent is never a decision candidate: no ProcessAgent(),
+            // no AIClient call, no grid force-load.
+            SimulationTier tier = DeriveSimulationTier(AgentWorldState::Abstract, false);
             bool tierChanged = UpdateSimulationTier(id, tier);
 
             // Milestone 2.10D P2 fixes: reset the coarse-tick epoch
-            // exactly when this agent (re-)enters Background/Abstract -
+            // exactly when this agent (re-)enters Background -
             // from any other tier, or from never having a tier recorded
             // at all - so LastTickAtMs (and therefore any dt computed from
             // it) never reaches back across a stretch spent Materialized
@@ -1042,8 +1042,7 @@ void AIWorldMgr::RunDecisionScheduler()
             // loop.
             if (tierChanged)
             {
-                uint32 intervalMs = tier == SimulationTier::Abstract ? _abstractSimulationIntervalMs : _backgroundSimulationIntervalMs;
-                uint64 phaseMs = StableAgentHash(id.Value) % intervalMs;
+                uint64 phaseMs = StableAgentHash(id.Value) % _backgroundSimulationIntervalMs;
 
                 SimulationScheduleState& scheduleState = _simulationSchedule[id.Value];
                 scheduleState.LastTickAtMs = nowMs;
@@ -1064,7 +1063,7 @@ void AIWorldMgr::RunDecisionScheduler()
         // decision-eligible, and DecisionCadenceClass's own two values
         // (used purely for scheduler admission ranking, see
         // DecisionScheduler.h) map onto them 1:1.
-        UpdateSimulationTier(id, DeriveSimulationTier(record->Type, AgentWorldState::Materialized, isNearby));
+        UpdateSimulationTier(id, DeriveSimulationTier(AgentWorldState::Materialized, isNearby));
 
         DecisionCadenceClass cadenceClass = isNearby ? DecisionCadenceClass::Nearby : DecisionCadenceClass::Active;
         candidates.push_back({ id, cadenceClass });
@@ -1073,7 +1072,7 @@ void AIWorldMgr::RunDecisionScheduler()
     // Milestone 2.10D P2 fixes: bounded, deterministic admission for the
     // coarse tick - see CoarseSimulationScheduler.h for why an unbounded
     // "every due agent ticks this pass" design both spikes world-thread
-    // work with enough Background/Abstract agents and permanently
+    // work with enough Background agents and permanently
     // phase-locks them onto the same pass once they do. A
     // capacity-skipped agent's NextTickAtMs is left untouched, so it stays
     // at the front of the due set next pass rather than losing its turn -
@@ -1095,65 +1094,67 @@ void AIWorldMgr::RunDecisionScheduler()
 
         TC_LOG_DEBUG("ai.world", "AI simulation tick agent={} tier={} dt={}ms", id.Value, ToString(tier), dtMs);
 
-        // Milestone 2.12B: the only simulation any coarse tick runs -
-        // BACKGROUND (an individual agent with no live Creature right now)
-        // stays observability-only, exactly as 2.10D left it. Checks
-        // AgentType::AgentGroup explicitly, not just SimulationTier::
-        // Abstract, even though today only an AgentGroup ever derives
-        // Abstract (see SimulationTier.h) - the same "never let a coarse
-        // tick imply something it doesn't actually check" discipline
-        // 2.12A's own P2/P3 fixes already hold this file to. No Creature*/
-        // Map* anywhere in this branch, no /decision, no ActionRequest, no
-        // materialization, and no member/Territory mutation - only
-        // Hunger/Resources move (see AgentGroupSimulationSystem.h).
-        if (tier == SimulationTier::Abstract)
-        {
-            AgentRecord* record = _registry.Find(id);
-            if (record && record->Type == AgentType::AgentGroup && record->GroupState)
-            {
-                // Milestone 2.12C: real member agents, if any are
-                // naturally loaded right now, are the authority - the
-                // aggregate coarse drift pauses for as long as that holds,
-                // resuming on its own the next coarse tick where it finds
-                // zero loaded members again (grid unload, or the group
-                // simply has no members yet). Still never forces a grid to
-                // load, never spawns/despawns anything, no movement/combat -
-                // this only reads whether members already happen to be
-                // loaded, via each member's own AgentRegistry bind state.
-                AgentGroupRuntimeView runtimeView = ResolveAgentGroupRuntimeView(_registry, *record);
-
-                TC_LOG_DEBUG("ai.world", "AI agent group presence agent={} totalMembers={} loadedMembers={}",
-                    id.Value, runtimeView.TotalMembers, runtimeView.LoadedMembers);
-
-                if (runtimeView.LoadedMembers == 0)
-                {
-                    _agentGroupSimulationSystem.Update(*record->GroupState, dtMs, _agentGroupSimulationRates);
-
-                    // Version bump happens inside SaveAgentGroupState()
-                    // itself (2.11E2 P3's "bump lives in the persistence
-                    // API, not the caller" precedent) - logged after, not
-                    // before, so this reflects the value actually being
-                    // persisted.
-                    _persistence.SaveAgentGroupState(id, *record->GroupState);
-
-                    TC_LOG_DEBUG("ai.world", "AI agent group simulation agent={} kind={} members={} hunger={:.4f} resources={:.4f} version={}",
-                        id.Value, ToString(record->GroupState->Kind), runtimeView.TotalMembers,
-                        record->GroupState->Hunger, record->GroupState->Resources, record->GroupState->Version);
-                }
-                else
-                {
-                    TC_LOG_DEBUG("ai.world", "AI agent group simulation agent={} paused: {} member(s) naturally loaded",
-                        id.Value, runtimeView.LoadedMembers);
-                }
-            }
-        }
-
         // Runtime review P2 fix: a real tick always resumes the plain
         // "+interval" cadence - no phase offset here, that is applied only
         // once, on tier entry above, via StableAgentHash.
-        uint32 intervalMs = tier == SimulationTier::Abstract ? _abstractSimulationIntervalMs : _backgroundSimulationIntervalMs;
         tickState.LastTickAtMs = nowMs;
-        tickState.NextTickAtMs = nowMs + intervalMs;
+        tickState.NextTickAtMs = nowMs + _backgroundSimulationIntervalMs;
+    }
+
+    // Milestone 2.12D P2 fix (STATIC review): AgentGroups get their own
+    // coarse tick here, entirely separate from the per-agent loop above -
+    // a group is no longer an AgentRecord/SimulationTier candidate at all
+    // (see GroupId.h). Deliberately NOT routed through
+    // CoarseSimulationScheduler/_simulationSchedule: that bound exists to
+    // protect against potentially thousands of Background individual
+    // agents ticking in the same pass, a cardinality concern groups do not
+    // share (a handful of packs, not thousands of creatures) - so every
+    // due group just ticks directly here, no admission cap needed. Still
+    // phase-offset on first sight (StableAgentHash, same reasoning as the
+    // per-agent loop above) so a batch of groups loaded at startup does
+    // not all pile onto the same due time forever afterwards. Runs
+    // unconditionally for every due group (2.12D P2 fix) - no longer
+    // gated on whether any member happens to be materialized right now,
+    // see AgentGroupRecord.h for why that pausing was itself a symptom of
+    // the aggregate-replaces-members model this rename was meant to
+    // remove.
+    for (GroupId groupId : _groupRegistry.GetGroups())
+    {
+        AgentGroupRecord* group = _groupRegistry.Find(groupId);
+        if (!group)
+            continue;
+
+        SimulationScheduleState& scheduleState = _groupSimulationSchedule[groupId.Value];
+        if (scheduleState.LastTickAtMs == 0 && scheduleState.NextTickAtMs == 0)
+        {
+            uint64 phaseMs = StableAgentHash(groupId.Value) % _groupSimulationIntervalMs;
+            scheduleState.LastTickAtMs = nowMs;
+            scheduleState.NextTickAtMs = nowMs + phaseMs;
+        }
+
+        if (scheduleState.NextTickAtMs > nowMs)
+            continue;
+
+        uint64 dtMs = nowMs - scheduleState.LastTickAtMs;
+
+        AgentGroupRuntimeView runtimeView = ResolveAgentGroupRuntimeView(_registry, *group);
+
+        TC_LOG_DEBUG("ai.world", "AI agent group presence group={} totalMembers={} loadedMembers={}",
+            groupId.Value, runtimeView.TotalMembers, runtimeView.LoadedMembers);
+
+        _agentGroupSimulationSystem.Update(*group, dtMs, _agentGroupSimulationRates);
+
+        // Version bump happens inside SaveGroupState() itself (2.11E2 P3's
+        // "bump lives in the persistence API, not the caller" precedent) -
+        // logged after, not before, so this reflects the value actually
+        // being persisted.
+        _groupPersistence.SaveGroupState(groupId, *group);
+
+        TC_LOG_DEBUG("ai.world", "AI agent group simulation group={} kind={} members={} resources={:.4f} version={}",
+            groupId.Value, ToString(group->Kind), runtimeView.TotalMembers, group->Resources, group->Version);
+
+        scheduleState.LastTickAtMs = nowMs;
+        scheduleState.NextTickAtMs = nowMs + _groupSimulationIntervalMs;
     }
 
     uint32 inFlight = 0;
@@ -1237,7 +1238,7 @@ void AIWorldMgr::RunDecisionScheduler()
 // SimulationTier and logs iff that is actually a change (or the first
 // tier ever observed for it) - called once per RunDecisionScheduler()
 // pass for every registered agent, regardless of whether it ends up
-// decision-eligible, so Background/Abstract agents are just as observable
+// decision-eligible, so Background agents are just as observable
 // as Active/Nearby ones. Never touches AgentRecord/AgentRegistry -
 // _agentSimulationTier is its own bookkeeping, same reasoning as
 // _decisionSchedule. Returns whether this call actually produced a new or
@@ -1310,13 +1311,12 @@ bool AIWorldMgr::OwnsSpawn(uint32 mapId, uint64 spawnId) const
     if (!_enabled)
         return false;
 
-    // Milestone 2.12A P2 fix: a real creature's spawn id could in
-    // principle collide with an AgentGroup's reserved-range one (see
-    // FindLiveAgentBySpawn()'s own comment) - this answers "does AI own
-    // this live spawn", so a match against an AgentGroup (which never
-    // owns a live spawn at all) must not count as ownership.
+    // Milestone 2.12D P2 fix (STATIC review): every AgentRecord now names
+    // a real, individually-bindable creature spawn - an AgentGroup is not
+    // an AgentRecord any more (see GroupId.h), so there is no exclusion
+    // left to apply here.
     AgentRecord const* record = _registry.FindBySpawn(mapId, spawnId);
-    return record && record->Type != AgentType::AgentGroup;
+    return record != nullptr;
 }
 
 // World thread only (called from Update(), right after EventBus::Drain()).

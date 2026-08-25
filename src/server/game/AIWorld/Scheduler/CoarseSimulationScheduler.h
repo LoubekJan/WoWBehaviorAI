@@ -25,11 +25,19 @@
 #include <vector>
 
 // Milestone 2.10D P2 fixes: deterministic bounded admission for the coarse
-// Background/Abstract tick - the same "pure value transform, caller
-// resolves every live fact" rule DecisionScheduler already follows for the
-// decision-eligible tiers. Without a bound, every due Background/Abstract
-// agent would tick in the very same scheduler pass (thousands at once, at
-// a shared 250ms poll cadence far finer than their own 60s/5min interval).
+// Background tick - the same "pure value transform, caller resolves every
+// live fact" rule DecisionScheduler already follows for the
+// decision-eligible tiers. Without a bound, every due Background agent
+// would tick in the very same scheduler pass (thousands at once, at a
+// shared 250ms poll cadence far finer than their own 60s interval).
+//
+// Milestone 2.12D: AgentType::AgentGroup (formerly the other tier this
+// class bounded) no longer exists - a group is not an AgentRecord/
+// AgentId-keyed candidate any more (see GroupId.h), and its own coarse
+// tick (AIWorldMgr::RunDecisionScheduler()'s group loop) deliberately does
+// not reuse this class at all, since the cardinality concern this class
+// exists for (potentially thousands of individual agents) does not apply
+// to groups (a handful of packs, not thousands of creatures).
 //
 // Unlike DecisionScheduler, this class never computes a due time itself -
 // SimulationScheduleState::NextTickAtMs is already the authoritative due

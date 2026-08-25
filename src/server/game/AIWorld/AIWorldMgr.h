@@ -23,9 +23,11 @@
 #include "Action/ActionExecutor.h"
 #include "Action/ActionSystem.h"
 #include "Action/PendingEatContinuation.h"
+#include "Agent/AgentGroupRegistry.h"
 #include "Agent/AgentGroupSimulationSystem.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentRegistry.h"
+#include "Agent/GroupId.h"
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
@@ -39,6 +41,7 @@
 #include "Memory/ShortTermMemory.h"
 #include "Needs/NeedsSystem.h"
 #include "Perception/PerceptionSystem.h"
+#include "Persistence/AgentGroupPersistence.h"
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
@@ -170,6 +173,20 @@ class TC_GAME_API AIWorldMgr
         // by this. Used exclusively during Initialize(), never per-tick.
         AgentPersistence _persistence;
 
+        // Milestone 2.12D (STATIC review P2 fix): registry of persistent
+        // AgentGroups - deliberately its own registry/GroupId identity
+        // space, not part of _registry/AgentId any more (see GroupId.h for
+        // why the old shared-identity model was wrong). Purely in-memory;
+        // rebuilt from _groupPersistence every startup, after _registry
+        // itself (LoadGroupMembers() needs both already populated).
+        AgentGroupRegistry _groupRegistry;
+
+        // characters-DB authority for GroupId - the group-side counterpart
+        // to _persistence, see AgentGroupPersistence's own class comment
+        // for why this is a separate class rather than folded into
+        // AgentPersistence.
+        AgentGroupPersistence _groupPersistence;
+
         // Milestone 2.10A: deterministic admission ranking over every
         // registered+Materialized agent - see DecisionScheduler.h. Pure
         // value transform, like _needsSystem/_goalSystem/_actionSystem;
@@ -192,40 +209,55 @@ class TC_GAME_API AIWorldMgr
         // yet is logged as an initial assignment, not a "from" transition.
         std::unordered_map<uint64, SimulationTier> _agentSimulationTier;
 
-        // Milestone 2.10D: coarse Background/Abstract tick cadence - not a
-        // decision cadence, and deliberately much coarser than either:
-        // AIWorld.BackgroundSimulationIntervalMs (default 60s) for
-        // SimulationTier::Background, AIWorld.AbstractSimulationIntervalMs
-        // (default 5min) for SimulationTier::Abstract. See
+        // Milestone 2.10D: coarse Background tick cadence
+        // (AIWorld.BackgroundSimulationIntervalMs, default 60s) - not a
+        // decision cadence, deliberately much coarser. See
         // RunDecisionScheduler()'s own comment for why this stays a pure
         // observability scaffold in 2.10D - no live Creature/Map lookup,
         // no /decision, no ActionExecutor, no gameplay state change.
         uint32 _backgroundSimulationIntervalMs = 60000;
-        uint32 _abstractSimulationIntervalMs = 300000;
+
+        // Milestone 2.12D P2 fix (STATIC review): the group coarse-tick
+        // cadence (AIWorld.GroupSimulationIntervalMs, default 5min) -
+        // renamed from _abstractSimulationIntervalMs now that groups no
+        // longer go through SimulationTier::Abstract at all (that tier is
+        // gone - see SimulationTier.h). Governs how often
+        // RunDecisionScheduler()'s own group coarse-tick loop below
+        // simulates each AgentGroup.
+        uint32 _groupSimulationIntervalMs = 300000;
 
         // Milestone 2.10D P2 fix: deterministic bounded admission for the
-        // coarse tick, the exact same reason _decisionScheduler/
+        // Background coarse tick, the exact same reason _decisionScheduler/
         // _decisionMaxInFlight exist for the decision-eligible tiers - see
         // CoarseSimulationScheduler.h for why an unbounded coarse tick
         // would both spike world-thread work and permanently phase-lock
-        // every Background/Abstract agent onto the same tick pass.
+        // every Background agent onto the same tick pass. Deliberately
+        // AgentId-only (never reused for the group coarse tick below,
+        // which is GroupId-keyed and does not need this bound - see
+        // RunDecisionScheduler()'s own comment for why).
         CoarseSimulationScheduler _coarseSimulationScheduler;
         uint32 _coarseSimulationMaxPerPass = 50;
 
-        // Per-agent bookkeeping for the coarse tick above - deliberately
-        // not part of AgentRecord/AgentRegistry, see
+        // Per-agent bookkeeping for the Background coarse tick above -
+        // deliberately not part of AgentRecord/AgentRegistry, see
         // SimulationScheduleState.h. Keyed by AgentId::Value; never
         // touched for a Materialized (Active/Nearby) agent.
         std::unordered_map<uint64, SimulationScheduleState> _simulationSchedule;
 
-        // Milestone 2.12B/2.12C: the only simulation any coarse tick runs -
-        // called from the same coarse-tick loop above, only for
-        // SimulationTier::Abstract + AgentType::AgentGroup, and only while
-        // AgentGroupRuntimeView reports zero naturally materialized
-        // members right now (see RunDecisionScheduler()'s own comment). No
-        // config of its own beyond _agentGroupSimulationRates - dtMs comes
-        // from _simulationSchedule the same way the tick's own dt log
-        // already does.
+        // Milestone 2.12D P2 fix (STATIC review): per-group bookkeeping for
+        // the group coarse tick - same SimulationScheduleState shape as
+        // _simulationSchedule above (it is ID-agnostic, just two uint64
+        // timestamps), but keyed by GroupId::Value and iterated
+        // separately, since a group is no longer an AgentRecord/candidate
+        // in the per-agent loop above at all.
+        std::unordered_map<uint64, SimulationScheduleState> _groupSimulationSchedule;
+
+        // Milestone 2.12B/2.12D: the only simulation the group coarse tick
+        // runs - called from RunDecisionScheduler()'s own group coarse-tick
+        // loop, unconditionally for every due AgentGroup (2.12D P2 fix:
+        // no longer gated on whether any member happens to be materialized
+        // right now - see AgentGroupRecord.h). No config of its own beyond
+        // _agentGroupSimulationRates.
         AgentGroupSimulationSystem _agentGroupSimulationSystem;
         AgentGroupSimulationRates _agentGroupSimulationRates;
 

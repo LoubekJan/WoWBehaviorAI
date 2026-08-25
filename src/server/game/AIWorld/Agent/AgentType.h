@@ -24,16 +24,19 @@ enum class AgentType : uint8
 {
     Civilian = 0,
     Guard = 1,
-    Merchant = 2,
+    Merchant = 2
 
-    // Milestone 2.12C: renamed from CreatureGroup - a social layer over
-    // independent member agents (each with its own AgentId/identity/
-    // memory/needs/goal/decision/actions/Creature lifecycle - see
-    // AgentGroupState.h/AgentGroupMembership.h), never an aggregate that
-    // stands in for its members. Value 3 kept unchanged across the rename
-    // - only ever a persisted uint8 (ai_agents.agent_type), not a wire
-    // protocol value anything external parses.
-    AgentGroup = 3
+    // Milestone 2.12D P2 fix (STATIC review): value 3 (formerly
+    // CreatureGroup, briefly AgentGroup) is retired, not reused - a group
+    // is no longer represented as an AgentType/AgentRecord at all. See
+    // GroupId.h/AgentGroupRecord.h/AgentGroupRegistry.h: a group is a
+    // social layer over independent member agents (each a real AgentType
+    // above, with its own AgentId/identity/memory/needs/goal/decision/
+    // actions/Creature lifecycle), never an aggregate sharing this
+    // enum's/AgentRecord's identity space with them. Deliberately left as
+    // a gap rather than renumbering Civilian/Guard/Merchant, so a stray
+    // agent_type = 3 row from before this migration reads as unknown
+    // rather than silently as something else.
 };
 
 // Materialized: bound to a currently-loaded Creature (RuntimeGuid valid).
@@ -49,11 +52,10 @@ inline char const* ToString(AgentType type)
 {
     switch (type)
     {
-        case AgentType::Civilian:   return "CIVILIAN";
-        case AgentType::Guard:      return "GUARD";
-        case AgentType::Merchant:   return "MERCHANT";
-        case AgentType::AgentGroup: return "AGENT_GROUP";
-        default:                    return "UNKNOWN";
+        case AgentType::Civilian: return "CIVILIAN";
+        case AgentType::Guard:    return "GUARD";
+        case AgentType::Merchant: return "MERCHANT";
+        default:                  return "UNKNOWN";
     }
 }
 

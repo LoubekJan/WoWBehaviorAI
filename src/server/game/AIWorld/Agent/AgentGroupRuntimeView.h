@@ -20,18 +20,22 @@
 
 #include "Define.h"
 
-// Milestone 2.12C: a transient, per-tick snapshot of how many of an
+// Milestone 2.12C/2.12D: a transient, per-tick snapshot of how many of an
 // AgentGroup's persistent members are naturally materialized right now -
 // built fresh every coarse tick from a plain AgentRegistry::Find() lookup
 // per AgentGroupMembership (each member's own individual-agent
 // materialization bookkeeping is already the authority - this never
 // touches Map*/Creature* itself, unlike the old CreatureGroupRuntimeView,
 // which had to resolve raw creature spawns directly since members were
-// not yet independent agents). Never cached on AgentRecord itself.
-// LoadedMembers > 0 is the whole invariant AIWorldMgr::
-// RunDecisionScheduler() acts on: real members become the authority and
-// it stops calling AgentGroupSimulationSystem::Update() for as long as
-// it holds. Pure value: no Creature*/Map*/ObjectGuid.
+// not yet independent agents). Never cached on AgentGroupRecord itself.
+//
+// Milestone 2.12D P2 fix (STATIC review): observability only - unlike the
+// superseded model, LoadedMembers no longer gates whether
+// AgentGroupSimulationSystem::Update() runs. A group's own Resources drift
+// represents its territory's shared/environmental state, not a stand-in
+// for materialized members' own Needs, so it has no reason to pause just
+// because a member happens to be materialized right now - see
+// AgentGroupRecord.h. Pure value: no Creature*/Map*/ObjectGuid.
 struct AgentGroupRuntimeView
 {
     uint32 TotalMembers = 0;

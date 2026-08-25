@@ -19,7 +19,6 @@
 #define AIWORLD_AGENTPERSISTENCE_H
 
 #include "Agent/AgentEconomyState.h"
-#include "Agent/AgentGroupState.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentType.h"
 #include "Define.h"
@@ -47,9 +46,13 @@ class AgentRegistry;
 //
 // Synchronous by design: LoadAgents() and CreateCreatureAgent() are only
 // ever meant to be called during AIWorldMgr::Initialize(), never from the
-// world update loop. SaveEconomyState() (2.11E2) and SaveAgentGroupState()
-// (2.12B) are the two exceptions - see their own comments for why they are
-// safe from there.
+// world update loop. SaveEconomyState() (2.11E2) is the one exception -
+// see its own comment for why it is safe from there.
+//
+// Milestone 2.12D: AgentGroup persistence (ai_agent_groups/
+// ai_agent_group_members) is no longer this class's job - see
+// AgentGroupPersistence, its own dedicated class, now that a group is not
+// an ai_agents row at all (see GroupId.h).
 class TC_GAME_API AgentPersistence
 {
     public:
@@ -57,20 +60,6 @@ class TC_GAME_API AgentPersistence
         // Abstract, RuntimeGuid = Empty, SnapshotSequence = 0). Returns the
         // number of agents loaded.
         uint32 LoadAgents(AgentRegistry& registry);
-
-        // Milestone 2.12C: loads every row from ai_agent_group_members
-        // into the matching AgentRecord::GroupMembers - must be called
-        // after LoadAgents() (a membership row needs an already-registered
-        // group_agent_id to attach to). A row whose group_agent_id does
-        // not resolve to a registered AgentType::AgentGroup agent is
-        // logged and skipped (an orphan - no FK enforces this at the DB
-        // level, the same tolerance ai_long_term_memories already has),
-        // never treated as fatal. member_agent_id does NOT need to already
-        // resolve to a registered agent - a forward reference to a not-
-        // yet-created individual member is legitimate (see
-        // AgentGroupMembership.h). Returns the number of memberships
-        // loaded.
-        uint32 LoadAgentGroupMembers(AgentRegistry& registry);
 
         // Idempotent against ai_agents itself (not just against what
         // LoadAgents() already saw): if a row for (mapId, spawnId) already
@@ -103,22 +92,6 @@ class TC_GAME_API AgentPersistence
         // caller that actually persists gets it for free - there is no
         // path to a real DB write that skips it.
         void SaveEconomyState(AgentId id, AgentEconomyState& state);
-
-        // Milestone 2.12B/2.12C: same shape as SaveEconomyState() - fire-
-        // and-forget CONNECTION_ASYNC/Execute(), meant to be called from
-        // the world update loop (right after AIWorldMgr::
-        // AgentGroupSimulationSystem::Update() mutates AgentRecord::
-        // GroupState in memory), and state is a mutable reference for the
-        // same reason: this function increments state.Version itself,
-        // unconditionally, as its first step, before persisting - never
-        // trusted to the caller, so nothing that actually reaches the DB
-        // can forget it. Writes the whole group row (Kind/Territory*
-        // included, not just Hunger/Resources) every time, even though
-        // 2.12B's own simulation never changes Kind/Territory - the same
-        // "persist the whole snapshot" shape SaveEconomyState() already
-        // uses for money/food/resource. No Population - see
-        // AgentGroupState.h.
-        void SaveAgentGroupState(AgentId id, AgentGroupState& state);
 
     private:
         AgentId FindBinding(uint32 mapId, uint64 spawnId);

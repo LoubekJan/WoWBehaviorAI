@@ -597,19 +597,16 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // Milestone 2.11E2: money/food/resource/last_rewarded_work_window_id/
     // economy_version are NOT NULL (default 0, never "unset" the way
     // home_*/work_* can be).
-    // Milestone 2.12A: territory_* are nullable like home_*/work_* - part
-    // of the group presence check below.
-    // Milestone 2.12B: hunger/resources are nullable too, part of the same
-    // all-or-nothing group presence check; group_version is NOT NULL like
-    // economy_version.
-    // Milestone 2.12C: population is gone (member count is never stored,
-    // only ever derived from membership at read time - see
-    // AgentGroupState.h); kind joins territory_*/hunger/resources in the
-    // same nullable all-or-nothing group presence check.
+    // Milestone 2.12D (STATIC review P2 fix): the territory_*/hunger/
+    // resources/kind/group_version columns 2.12A/2.12B/2.12C added here are
+    // gone - an AgentGroup is no longer an ai_agents row at all (see
+    // GroupId.h/AgentGroupRecord.h), so this is back to plain individual-
+    // agent identity/economy columns only, the same shape it had before
+    // 2.12A. See CHAR_SEL_AI_AGENT_GROUPS below for where that state lives
+    // now.
     PrepareStatement(CHAR_SEL_AI_AGENTS, "SELECT agent_id, agent_type, map_id, spawn_id, "
         "home_map_id, home_x, home_y, home_z, home_o, work_map_id, work_x, work_y, work_z, work_o, "
-        "money, food, resource, last_rewarded_work_window_id, economy_version, "
-        "territory_x, territory_y, territory_z, hunger, resources, kind, group_version FROM ai_agents", CONNECTION_SYNCH);
+        "money, food, resource, last_rewarded_work_window_id, economy_version FROM ai_agents", CONNECTION_SYNCH);
     PrepareStatement(CHAR_SEL_AI_AGENT_BY_BINDING, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE map_id = ? AND spawn_id = ?", CONNECTION_SYNCH);
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_type, map_id, spawn_id) VALUES (?, ?, ?)", CONNECTION_SYNCH);
 
@@ -636,22 +633,31 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_UPD_AI_AGENT_ECONOMY, "UPDATE ai_agents SET money = ?, food = ?, resource = ?, "
         "last_rewarded_work_window_id = ?, economy_version = ? WHERE agent_id = ? AND economy_version < ?", CONNECTION_ASYNC);
 
-    // Milestone 2.12B/2.12C: same shape as CHAR_UPD_AI_AGENT_ECONOMY above -
-    // used from the world update thread every coarse ABSTRACT tick an
-    // AgentGroup actually simulates (CONNECTION_ASYNC/Execute() only), and
-    // "AND group_version < ?" makes it monotonic for the same reason (the
-    // async queue does not itself guarantee execution order across worker
-    // threads) - see AgentPersistence::SaveAgentGroupState(). No
-    // population - see AgentGroupState.h.
-    PrepareStatement(CHAR_UPD_AI_AGENT_GROUP, "UPDATE ai_agents SET territory_x = ?, territory_y = ?, "
-        "territory_z = ?, hunger = ?, resources = ?, kind = ?, group_version = ? WHERE agent_id = ? AND group_version < ?", CONNECTION_ASYNC);
+    // Milestone 2.12D (STATIC review P2 fix): AgentGroup identity/state now
+    // lives in its own table, ai_agent_groups, not in ai_agents any more -
+    // see GroupId.h/AgentGroupRecord.h/AgentGroupPersistence.h for why.
+    // Startup-only (synchronous load), same as CHAR_SEL_AI_AGENTS - called
+    // once from AIWorldMgr::Initialize(), never from the world update loop.
+    PrepareStatement(CHAR_SEL_AI_AGENT_GROUPS, "SELECT group_id, kind, territory_map_id, territory_x, territory_y, territory_z, "
+        "resources, version FROM ai_agent_groups", CONNECTION_SYNCH);
 
-    // Milestone 2.12C: startup-only (synchronous load), same as
+    // Milestone 2.12B/2.12D: same shape as CHAR_UPD_AI_AGENT_ECONOMY above -
+    // used from the world update thread every group coarse tick
+    // (CONNECTION_ASYNC/Execute() only), and "AND version < ?" makes it
+    // monotonic for the same reason (the async queue does not itself
+    // guarantee execution order across worker threads) - see
+    // AgentGroupPersistence::SaveGroupState(). No Hunger any more (2.12D
+    // P2 fix) - see AgentGroupRecord.h.
+    PrepareStatement(CHAR_UPD_AI_AGENT_GROUP, "UPDATE ai_agent_groups SET kind = ?, territory_map_id = ?, territory_x = ?, "
+        "territory_y = ?, territory_z = ?, resources = ?, version = ? WHERE group_id = ? AND version < ?", CONNECTION_ASYNC);
+
+    // Milestone 2.12C/2.12D: startup-only (synchronous load), same as
     // CHAR_SEL_AI_AGENTS - called once from AIWorldMgr::Initialize(),
-    // never from the world update loop. member_agent_id, not (map_id,
-    // spawn_id) - membership is by AgentId now, see
-    // AgentGroupMembership.h.
-    PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBERS, "SELECT group_agent_id, member_agent_id, joined_at_ms FROM ai_agent_group_members", CONNECTION_SYNCH);
+    // never from the world update loop. group_id (not group_agent_id any
+    // more - a group's identity is its own GroupId now, not an AgentId,
+    // see GroupId.h) and member_agent_id are two different id spaces, both
+    // validated by AgentGroupPersistence::LoadGroupMembers() at load time.
+    PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBERS, "SELECT group_id, member_agent_id, joined_at_ms FROM ai_agent_group_members", CONNECTION_SYNCH);
 
     // AIWorld (Milestone 2.5B) - CHAR_SEL_AI_LONG_TERM_MEMORIES is startup-only (synchronous
     // load, same as CHAR_SEL_AI_AGENTS). CHAR_INS_AI_LONG_TERM_MEMORY is used from the world

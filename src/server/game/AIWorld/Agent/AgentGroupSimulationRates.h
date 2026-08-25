@@ -20,16 +20,20 @@
 
 #include "Define.h"
 
-// Milestone 2.12B: per-second drift rates for AgentGroupSimulationSystem::
+// Milestone 2.12B/2.12D: per-second drift rate for AgentGroupSimulationSystem::
 // Update() - shared configuration, not per-group state, the same
 // config-struct-passed-per-call pattern NeedsUpdateRates already uses for
-// NeedsSystem::Update(). Not tuned gameplay values - chosen only to be
-// deterministically observable over a coarse ABSTRACT tick interval
-// (AIWorld.AbstractSimulationIntervalMs), the same "first experiment"
-// scope NeedsSystem's own defaults started from.
+// NeedsSystem::Update(). Not a tuned gameplay value - chosen only to be
+// deterministically observable over the group coarse-tick interval
+// (AIWorld.GroupSimulationIntervalMs), the same "first experiment" scope
+// NeedsSystem's own defaults started from.
+//
+// Milestone 2.12D P2 fix (STATIC review): HungerPerSecond is gone along
+// with AgentGroupRecord's own Hunger field - see its comment for why a
+// group-level Hunger modeled the exact aggregate-replaces-members shape
+// this rename was meant to remove.
 struct AgentGroupSimulationRates
 {
-    float HungerPerSecond = 0.001f;
     float ResourcesPerSecond = 0.0005f;
 };
 

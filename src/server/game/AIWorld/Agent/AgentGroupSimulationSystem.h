@@ -18,30 +18,32 @@
 #ifndef AIWORLD_AGENTGROUPSIMULATIONSYSTEM_H
 #define AIWORLD_AGENTGROUPSIMULATIONSYSTEM_H
 
+#include "AgentGroupRecord.h"
 #include "AgentGroupSimulationRates.h"
-#include "AgentGroupState.h"
 #include "Define.h"
 
-// Milestone 2.12B/2.12C: the first real ABSTRACT background simulation -
-// deliberately the same shape as NeedsSystem::Update(): a pure value
-// transform advancing AgentGroupState by an elapsed duration and a shared
-// rates struct. No AgentId, Creature*, Map*, registry, or DB - the caller
-// (AIWorldMgr::RunDecisionScheduler(), in its existing coarse-tick loop)
-// resolves dtMs from SimulationScheduleState itself and calls this only
-// for SimulationTier::Abstract + AgentType::AgentGroup, and only while
-// AgentGroupRuntimeView reports zero naturally materialized members
-// (2.12C - real members are the authority once any are present). Never
-// materializes anything, never touches ActionSystem/ActionExecutor, and
-// persists the result itself afterward via AgentPersistence::
-// SaveAgentGroupState().
+// Milestone 2.12B/2.12D: the group coarse-tick simulation - deliberately
+// the same shape as NeedsSystem::Update(): a pure value transform advancing
+// AgentGroupRecord by an elapsed duration and a shared rates struct. No
+// AgentId, Creature*, Map*, registry, or DB - the caller
+// (AIWorldMgr::RunDecisionScheduler(), in its own group coarse-tick loop -
+// see GroupId.h for why this no longer shares AgentRecord's
+// SimulationTier/AgentType machinery) resolves dtMs itself and persists
+// the result afterward via AgentGroupPersistence::SaveGroupState(). Never
+// materializes anything, never touches ActionSystem/ActionExecutor.
 //
-// Only Hunger/Resources move - Territory stays exactly what was loaded.
-// Widening what a coarse tick simulates (cohesion, territory pressure,
-// shared group intent, ...) is later roadmap work, not this milestone's.
+// Milestone 2.12D P2 fix (STATIC review): runs unconditionally every due
+// group coarse tick now, regardless of whether any member happens to be
+// materialized right now - see AgentGroupRecord.h for why Resources (a
+// shared/environmental territory fact) pausing for member presence was
+// itself a symptom of the aggregate-replaces-members model this rename
+// was meant to remove. Only Resources moves - Territory stays exactly
+// what was loaded. Widening what a coarse tick simulates (cohesion,
+// territory pressure, shared group intent, ...) is later roadmap work.
 class TC_GAME_API AgentGroupSimulationSystem
 {
     public:
-        void Update(AgentGroupState& state, uint64 dtMs, AgentGroupSimulationRates const& rates) const;
+        void Update(AgentGroupRecord& record, uint64 dtMs, AgentGroupSimulationRates const& rates) const;
 };
 
 #endif // AIWORLD_AGENTGROUPSIMULATIONSYSTEM_H

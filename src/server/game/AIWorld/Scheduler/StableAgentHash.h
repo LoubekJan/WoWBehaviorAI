@@ -24,13 +24,17 @@
 // 64-bit hash - deliberately NOT a raw AgentId::Value modulo, which would
 // put consecutive AgentIds (1, 2, 3, ...) only a few milliseconds apart
 // and defeat the entire point of phase-staggering them across the coarse
-// tick interval (see AIWorldMgr::RunDecisionScheduler()'s
-// Background/Abstract tier-entry handling - this is what
-// StableAgentHash(id) % intervalMs is for). Uses the well-known
-// MurmurHash3 64-bit finalizer (fmix64) purely for its avalanche property
-// - every input bit affects every output bit, so nearby AgentIds land at
-// unrelated phases - not for any cryptographic purpose. Pure, stateless,
-// deterministic: the same AgentId always maps to the same phase.
+// tick interval (see AIWorldMgr::RunDecisionScheduler()'s Background
+// tier-entry handling - this is what StableAgentHash(id) % intervalMs is
+// for). Uses the well-known MurmurHash3 64-bit finalizer (fmix64) purely
+// for its avalanche property - every input bit affects every output bit,
+// so nearby ids land at unrelated phases - not for any cryptographic
+// purpose. Pure, stateless, deterministic: the same input always maps to
+// the same phase.
+//
+// Milestone 2.12D: also reused, unmodified, for GroupId's own first-tick
+// phase offset in the group coarse-tick loop - takes a plain uint64, so it
+// works identically for either id type.
 inline uint64 StableAgentHash(uint64 value)
 {
     value ^= value >> 33;
