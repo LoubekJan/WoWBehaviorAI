@@ -157,9 +157,10 @@ class TC_GAME_API AIWorldMgr
         // Creatures/AgentRecords and drives it.
         DecisionScheduler _decisionScheduler;
 
-        // Per-agent scheduling bookkeeping (NextDecisionAtMs/AwaitingResponse)
-        // for _decisionScheduler - deliberately not part of AgentRecord/
-        // AgentRegistry, see DecisionScheduleState.h. Keyed by AgentId::Value.
+        // Per-agent scheduling bookkeeping (LastDecisionSubmittedAtMs/
+        // AwaitingResponse) for _decisionScheduler - deliberately not part
+        // of AgentRecord/AgentRegistry, see DecisionScheduleState.h. Keyed
+        // by AgentId::Value.
         std::unordered_map<uint64, DecisionScheduleState> _decisionSchedule;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()

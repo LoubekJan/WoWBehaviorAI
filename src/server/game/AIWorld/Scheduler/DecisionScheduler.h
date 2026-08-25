@@ -32,9 +32,11 @@
 // AgentRecord*, Creature*, Map*, registry, or DB. The caller (AIWorldMgr)
 // is responsible for candidates already being registered, Materialized,
 // and classified (a live-Creature GetPlayerListInGrid() proximity check,
-// see RunDecisionScheduler()) - this only ever judges due-ness, the
-// per-agent AwaitingResponse guard, priority between the two cadence
-// classes, and the capacity bound. It never resolves proximity itself.
+// see RunDecisionScheduler()) - this only ever judges due-ness (recomputed
+// fresh every call from DecisionScheduleState::LastDecisionSubmittedAtMs
+// and each candidate's current CadenceClass - see SelectDue()'s own
+// comment), the per-agent AwaitingResponse guard, priority among due
+// candidates, and the capacity bound. It never resolves proximity itself.
 class TC_GAME_API DecisionScheduler
 {
     public:
@@ -50,35 +52,47 @@ class TC_GAME_API DecisionScheduler
 
         struct SelectionResult
         {
-            // Milestone 2.10B: carries CadenceClass too (not just
-            // AgentId), since the caller needs it to pick the right
-            // NextDecisionAtMs interval - Nearby vs Active - once a
-            // request actually gets submitted for this agent.
-            std::vector<Candidate> Admitted;
+            std::vector<AgentId> Admitted;
             std::vector<AgentId> SkippedCapacity;
         };
 
-        // Deterministic ordering, in this fixed priority: Nearby before
-        // Active, then NextDecisionAtMs ascending, then AgentId ascending
-        // tie-break - reproducible, no random starvation between agents of
-        // the same class. An agent with AwaitingResponse already true, or
-        // whose NextDecisionAtMs is still in the future, is not a
-        // candidate for either Admitted or SkippedCapacity at all - it
-        // simply is not due yet. Everything else due is Admitted up to
-        // maxAdmit, in that priority order; the remainder (if any) is
-        // SkippedCapacity, left with its NextDecisionAtMs untouched by
-        // this call so it stays at the front of the due set next pass
-        // instead of being pushed back behind agents that already got a
-        // turn - the caller is the one that actually advances
-        // NextDecisionAtMs, only for what it goes on to submit. Nearby
-        // always outranking Active, regardless of how overdue an Active
-        // agent already is, is a deliberate, documented limitation for
-        // this milestone (see RunDecisionScheduler()) - sustained Nearby
-        // pressure at or above capacity could starve Active agents; a
-        // later milestone's job to add real aging/fairness if that proves
-        // to matter in practice.
+        // Milestone 2.10B P2 fix: an agent's due-ness is never read
+        // straight off a stored deadline - it is recomputed every call as
+        // effectiveDueAtMs = LastDecisionSubmittedAtMs +
+        // interval(candidate's CadenceClass this pass), using
+        // nearbyIntervalMs/activeIntervalMs (mirroring AIWorld.
+        // DecisionNearbyIntervalMs/DecisionActiveIntervalMs). A class
+        // change therefore taps in within one scheduler poll in either
+        // direction: ACTIVE -> NEARBY pulls the deadline earlier, NEARBY
+        // -> ACTIVE pushes it later - never locked in at the class that
+        // happened to be true at the last submission. LastDecisionSubmittedAtMs
+        // == 0 ("never submitted/attempted") is always immediately due,
+        // regardless of class.
+        //
+        // Deterministic ordering, in this fixed priority: effectiveDueAtMs
+        // ascending first (an agent that has been overdue longer always
+        // outranks one that only just became due, regardless of class -
+        // this is what keeps an ACTIVE agent from starving under
+        // sustained NEARBY contention: its own effectiveDueAtMs stays
+        // fixed while it is skipped, so it only gets relatively more
+        // overdue every pass it loses, while a repeatedly-admitted NEARBY
+        // agent's effectiveDueAtMs keeps refreshing to "just now" - the
+        // ACTIVE agent's priority strictly increases over time until it
+        // wins a slot), then CadenceClass (Nearby before Active) only as
+        // a tie-break between two candidates equally overdue, then
+        // AgentId ascending as the final tie-break - reproducible, no
+        // random starvation.
+        //
+        // An agent with AwaitingResponse already true, or not yet due, is
+        // not a candidate for either Admitted or SkippedCapacity at all.
+        // Everything else due is Admitted up to maxAdmit, in priority
+        // order; the remainder (if any) is SkippedCapacity. Neither list
+        // updates DecisionScheduleState itself - the caller is the one
+        // that stamps LastDecisionSubmittedAtMs, only for what it actually
+        // goes on to attempt/submit (see RunDecisionScheduler()).
         SelectionResult SelectDue(std::unordered_map<uint64, DecisionScheduleState> const& state,
-            std::vector<Candidate> const& candidates, uint64 nowMs, uint32 maxAdmit) const;
+            std::vector<Candidate> const& candidates, uint64 nowMs, uint32 maxAdmit,
+            uint32 nearbyIntervalMs, uint32 activeIntervalMs) const;
 };
 
 #endif // AIWORLD_DECISIONSCHEDULER_H

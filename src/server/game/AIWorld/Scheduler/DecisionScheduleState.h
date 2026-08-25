@@ -20,18 +20,30 @@
 
 #include "Define.h"
 
-// Milestone 2.10A: per-agent, world-thread-only scheduling bookkeeping -
-// deliberately not part of AgentRecord/AgentRegistry (see AIWorldMgr's own
-// _decisionSchedule map keyed by AgentId) - this is admission/scheduling
-// state, not simulation state, and AgentRegistry stays untouched.
+// Milestone 2.10A/2.10B P2 fix: per-agent, world-thread-only scheduling
+// bookkeeping - deliberately not part of AgentRecord/AgentRegistry (see
+// AIWorldMgr's own _decisionSchedule map keyed by AgentId) - this is
+// admission/scheduling state, not simulation state, and AgentRegistry
+// stays untouched.
 //
-// NextDecisionAtMs only ever advances when this agent is actually admitted
-// and submitted (see AIWorldMgr::RunDecisionScheduler()) - an agent skipped
-// for capacity keeps its old NextDecisionAtMs, so it naturally stays at the
-// front of the next pass's deterministic ordering (NextDecisionAtMs
-// ascending, AgentId ascending - see DecisionScheduler::SelectDue())
-// instead of being pushed back behind agents that already got a turn. A
-// freshly-seen agent (no entry yet) defaults to due immediately.
+// LastDecisionSubmittedAtMs replaces 2.10A/B's original NextDecisionAtMs:
+// storing a locked-in absolute deadline meant it was computed once, from
+// whatever DecisionCadenceClass happened to be true at the moment of that
+// submission, and stayed wrong until the next submission - an agent that
+// went ACTIVE -> NEARBY right after being admitted would still wait out
+// its old, much longer ACTIVE-cadence deadline. Storing only the
+// timestamp instead lets DecisionScheduler::SelectDue() recompute
+// "effective due" fresh every pass as LastDecisionSubmittedAtMs +
+// interval(this pass's CadenceClass) - so a class change taps in within
+// one scheduler poll in either direction, faster (ACTIVE -> NEARBY) or
+// slower (NEARBY -> ACTIVE). 0 means "never submitted (or never
+// attempted)" - always immediately due, regardless of class. Stamped on
+// every admitted attempt, not just a successful AIClient submission (see
+// RunDecisionScheduler()) - a locally-failed resolution attempt (the
+// agent turned out not to be materialized after all) still needs to move
+// this forward, or the agent would be re-attempted again the very next
+// (much shorter, 2.10B) scheduler pass instead of waiting a normal
+// interval.
 //
 // AwaitingResponse is the per-agent duplicate guard: never true for more
 // than one concurrently in-flight decision request for the same agent at
@@ -43,7 +55,7 @@
 // bounds how long that can take).
 struct DecisionScheduleState
 {
-    uint64 NextDecisionAtMs = 0;
+    uint64 LastDecisionSubmittedAtMs = 0;
     bool AwaitingResponse = false;
 };
 

@@ -824,7 +824,13 @@ void AIWorldMgr::RunDecisionScheduler()
 
     uint32 available = _decisionMaxInFlight > inFlight ? _decisionMaxInFlight - inFlight : 0;
 
-    DecisionScheduler::SelectionResult selection = _decisionScheduler.SelectDue(_decisionSchedule, candidates, nowMs, available);
+    // Milestone 2.10B P2 fix: nearbyIntervalMs/activeIntervalMs are passed
+    // in so SelectDue() can recompute each candidate's effective due time
+    // from its CURRENT class every call, rather than trusting a deadline
+    // locked in at whatever class was true the last time it was admitted -
+    // see DecisionScheduleState.h/DecisionScheduler.h for why.
+    DecisionScheduler::SelectionResult selection = _decisionScheduler.SelectDue(_decisionSchedule, candidates, nowMs,
+        available, _decisionNearbyIntervalMs, _decisionActiveIntervalMs);
 
     // Milestone 2.9D-style observability: a capacity skip is visible
     // through the same ai.world.decision.submit series SubmitDecision()
@@ -836,30 +842,25 @@ void AIWorldMgr::RunDecisionScheduler()
     for (std::size_t i = 0; i < selection.SkippedCapacity.size(); ++i)
         TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "skipped_capacity"));
 
-    // Milestone 2.10B: which cadence class each admitted agent was given
-    // this pass, so the interval used to advance NextDecisionAtMs below
-    // (once a request is actually confirmed Submitted) matches what it
-    // was actually classified as - DecisionSubmitResult itself only
-    // carries AgentId, not CadenceClass.
-    std::unordered_map<uint64, DecisionCadenceClass> admittedClass;
-    admittedClass.reserve(selection.Admitted.size());
-
     std::vector<AIRequest> requests;
     requests.reserve(selection.Admitted.size());
 
-    for (DecisionScheduler::Candidate const& candidate : selection.Admitted)
+    for (AgentId id : selection.Admitted)
     {
-        admittedClass[candidate.Agent.Value] = candidate.CadenceClass;
-
-        std::optional<AIRequest> request = ProcessAgent(candidate.Agent);
+        std::optional<AIRequest> request = ProcessAgent(id);
         if (!request)
         {
             // AgentRegistry's WorldState flag was already stale by the
             // time ProcessAgent() actually tried to resolve a live
-            // Creature for it - retry at this agent's own normal cadence
-            // rather than busy-looping on it every pass.
-            uint32 retryIntervalMs = candidate.CadenceClass == DecisionCadenceClass::Nearby ? _decisionNearbyIntervalMs : _decisionActiveIntervalMs;
-            _decisionSchedule[candidate.Agent.Value].NextDecisionAtMs = nowMs + retryIntervalMs;
+            // Creature for it. Still stamps LastDecisionSubmittedAtMs
+            // (2.10B P2 fix) even though nothing was actually submitted -
+            // otherwise this agent would be immediately due again (0 means
+            // "never attempted") on the very next, much shorter (2.10B)
+            // scheduler pass instead of waiting a normal interval; the
+            // effective-due recompute in SelectDue() means it still gets
+            // retried sooner if it becomes Nearby in the meantime, just
+            // not on literally every single poll.
+            _decisionSchedule[id.Value].LastDecisionSubmittedAtMs = nowMs;
             continue;
         }
 
@@ -877,17 +878,14 @@ void AIWorldMgr::RunDecisionScheduler()
         // gates admission, so it should already agree with AIClient's own
         // counter. Handled anyway (AIClient's admission is authoritative,
         // never just trusted from this pass's own estimate): leaves
-        // NextDecisionAtMs untouched, same as SkippedCapacity above, so
-        // this agent is retried next pass rather than losing its turn.
+        // LastDecisionSubmittedAtMs untouched, so this agent's existing
+        // effective-due time (whatever last got it admitted) still applies
+        // next pass rather than losing its turn.
         if (result.Status != DecisionSubmitStatus::Submitted)
             continue;
 
-        uint32 intervalMs = _decisionActiveIntervalMs;
-        if (auto it = admittedClass.find(result.Agent.Value); it != admittedClass.end() && it->second == DecisionCadenceClass::Nearby)
-            intervalMs = _decisionNearbyIntervalMs;
-
         DecisionScheduleState& state = _decisionSchedule[result.Agent.Value];
-        state.NextDecisionAtMs = nowMs + intervalMs;
+        state.LastDecisionSubmittedAtMs = nowMs;
         state.AwaitingResponse = true;
         ++submitted;
     }
