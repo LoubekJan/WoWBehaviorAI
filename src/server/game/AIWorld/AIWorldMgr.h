@@ -46,6 +46,7 @@
 #include "Persistence/MemoryPersistence.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
+#include "Scheduler/GroupCoarseSimulationScheduler.h"
 #include "Scheduler/SimulationScheduleState.h"
 #include "Scheduler/SimulationTier.h"
 #include "Scheduler/StableAgentHash.h"
@@ -231,10 +232,9 @@ class TC_GAME_API AIWorldMgr
         // _decisionMaxInFlight exist for the decision-eligible tiers - see
         // CoarseSimulationScheduler.h for why an unbounded coarse tick
         // would both spike world-thread work and permanently phase-lock
-        // every Background agent onto the same tick pass. Deliberately
-        // AgentId-only (never reused for the group coarse tick below,
-        // which is GroupId-keyed and does not need this bound - see
-        // RunDecisionScheduler()'s own comment for why).
+        // every Background agent onto the same tick pass. AgentId-only -
+        // the group coarse tick below has its own GroupId-keyed sibling
+        // instead, see _groupCoarseSimulationScheduler.
         CoarseSimulationScheduler _coarseSimulationScheduler;
         uint32 _coarseSimulationMaxPerPass = 50;
 
@@ -244,12 +244,22 @@ class TC_GAME_API AIWorldMgr
         // touched for a Materialized (Active/Nearby) agent.
         std::unordered_map<uint64, SimulationScheduleState> _simulationSchedule;
 
-        // Milestone 2.12D P2 fix (STATIC review): per-group bookkeeping for
-        // the group coarse tick - same SimulationScheduleState shape as
-        // _simulationSchedule above (it is ID-agnostic, just two uint64
-        // timestamps), but keyed by GroupId::Value and iterated
-        // separately, since a group is no longer an AgentRecord/candidate
-        // in the per-agent loop above at all.
+        // Milestone 2.12D P2 fix (STATIC review): the group coarse tick's
+        // own bounded admission, GroupId's sibling to
+        // _coarseSimulationScheduler/_coarseSimulationMaxPerPass above - an
+        // earlier version of this same milestone ticked every due
+        // AgentGroup unconditionally on the assumption that group
+        // cardinality would stay small; rejected by review once dynamic
+        // LOOSE coalitions (which do not have a fixed, small population
+        // the way scripted/STABLE groups do) entered the picture. See
+        // GroupCoarseSimulationScheduler.h for the full reasoning.
+        GroupCoarseSimulationScheduler _groupCoarseSimulationScheduler;
+        uint32 _groupSimulationMaxPerPass = 50;
+
+        // Per-group bookkeeping for the group coarse tick above -
+        // deliberately not part of AgentGroupRecord/AgentGroupRegistry, see
+        // SimulationScheduleState.h (its own comment on why it is reused
+        // unmodified here). Keyed by GroupId::Value.
         std::unordered_map<uint64, SimulationScheduleState> _groupSimulationSchedule;
 
         // Milestone 2.12B/2.12D: the only simulation the group coarse tick

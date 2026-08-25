@@ -204,8 +204,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // CoarseSimulationScheduler admits against - see its own header
     // comment for why an unbounded coarse tick would both spike
     // world-thread work and permanently phase-lock every Background agent
-    // onto the same tick pass. AgentGroups do not use this bound - see
-    // RunDecisionScheduler()'s own group coarse-tick loop comment for why.
+    // onto the same tick pass.
     int32 coarseSimulationMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.CoarseSimulationMaxPerPass", 50);
     if (coarseSimulationMaxPerPass < 1)
     {
@@ -213,6 +212,20 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         coarseSimulationMaxPerPass = 1;
     }
     _coarseSimulationMaxPerPass = uint32(coarseSimulationMaxPerPass);
+
+    // Milestone 2.12D P2 fix (STATIC review): the group coarse tick's own
+    // hard per-pass bound, GroupCoarseSimulationScheduler's sibling to
+    // AIWorld.CoarseSimulationMaxPerPass above - see its own header comment
+    // for why groups need this too, now that dynamic LOOSE coalitions mean
+    // group cardinality is not fixed the way a small set of scripted
+    // groups would be.
+    int32 groupSimulationMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.GroupSimulationMaxPerPass", 50);
+    if (groupSimulationMaxPerPass < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.GroupSimulationMaxPerPass ({}) is invalid or too low, clamping to 1", groupSimulationMaxPerPass);
+        groupSimulationMaxPerPass = 1;
+    }
+    _groupSimulationMaxPerPass = uint32(groupSimulationMaxPerPass);
 
     // Milestone 2.12B/2.12D: not a tuned gameplay value - see
     // AgentGroupSimulationRates.h for why. No HungerPerSecond any more
@@ -1104,26 +1117,25 @@ void AIWorldMgr::RunDecisionScheduler()
     // Milestone 2.12D P2 fix (STATIC review): AgentGroups get their own
     // coarse tick here, entirely separate from the per-agent loop above -
     // a group is no longer an AgentRecord/SimulationTier candidate at all
-    // (see GroupId.h). Deliberately NOT routed through
-    // CoarseSimulationScheduler/_simulationSchedule: that bound exists to
-    // protect against potentially thousands of Background individual
-    // agents ticking in the same pass, a cardinality concern groups do not
-    // share (a handful of packs, not thousands of creatures) - so every
-    // due group just ticks directly here, no admission cap needed. Still
-    // phase-offset on first sight (StableAgentHash, same reasoning as the
-    // per-agent loop above) so a batch of groups loaded at startup does
-    // not all pile onto the same due time forever afterwards. Runs
-    // unconditionally for every due group (2.12D P2 fix) - no longer
-    // gated on whether any member happens to be materialized right now,
-    // see AgentGroupRecord.h for why that pausing was itself a symptom of
-    // the aggregate-replaces-members model this rename was meant to
-    // remove.
-    for (GroupId groupId : _groupRegistry.GetGroups())
+    // (see GroupId.h). Bounded and deterministically ordered via
+    // GroupCoarseSimulationScheduler - its own GroupId-keyed sibling to
+    // CoarseSimulationScheduler above, not a reuse of it (see its header
+    // comment for why an earlier, unbounded version of this same loop was
+    // rejected by review once dynamic LOOSE coalitions - not a small fixed
+    // set of scripted groups - entered the picture). Phase-offset on first
+    // sight (StableAgentHash, same reasoning as the per-agent loop above)
+    // so a batch of groups loaded at startup does not all pile onto the
+    // same due time forever afterwards, computed for every candidate
+    // before admission so a capacity-skipped group still gets its one-time
+    // offset this pass rather than being reconsidered "never scheduled"
+    // again next pass. Runs unconditionally for every admitted group
+    // (2.12D P2 fix) - no longer gated on whether any member happens to be
+    // materialized right now, see AgentGroupRecord.h for why that pausing
+    // was itself a symptom of the aggregate-replaces-members model this
+    // rename was meant to remove.
+    std::vector<GroupId> groupCandidates = _groupRegistry.GetGroups();
+    for (GroupId groupId : groupCandidates)
     {
-        AgentGroupRecord* group = _groupRegistry.Find(groupId);
-        if (!group)
-            continue;
-
         SimulationScheduleState& scheduleState = _groupSimulationSchedule[groupId.Value];
         if (scheduleState.LastTickAtMs == 0 && scheduleState.NextTickAtMs == 0)
         {
@@ -1131,11 +1143,19 @@ void AIWorldMgr::RunDecisionScheduler()
             scheduleState.LastTickAtMs = nowMs;
             scheduleState.NextTickAtMs = nowMs + phaseMs;
         }
+    }
 
-        if (scheduleState.NextTickAtMs > nowMs)
+    GroupCoarseSimulationScheduler::SelectionResult groupSelection = _groupCoarseSimulationScheduler.SelectDue(
+        _groupSimulationSchedule, groupCandidates, nowMs, _groupSimulationMaxPerPass);
+
+    for (GroupId groupId : groupSelection.Admitted)
+    {
+        AgentGroupRecord* group = _groupRegistry.Find(groupId);
+        if (!group)
             continue;
 
-        uint64 dtMs = nowMs - scheduleState.LastTickAtMs;
+        SimulationScheduleState& scheduleState = _groupSimulationSchedule[groupId.Value];
+        uint64 dtMs = scheduleState.LastTickAtMs != 0 ? nowMs - scheduleState.LastTickAtMs : 0;
 
         AgentGroupRuntimeView runtimeView = ResolveAgentGroupRuntimeView(_registry, *group);
 
@@ -1153,6 +1173,10 @@ void AIWorldMgr::RunDecisionScheduler()
         TC_LOG_DEBUG("ai.world", "AI agent group simulation group={} kind={} members={} resources={:.4f} version={}",
             groupId.Value, ToString(group->Kind), runtimeView.TotalMembers, group->Resources, group->Version);
 
+        // Runtime review P2 fix precedent (see the per-agent loop above):
+        // a real tick always resumes the plain "+interval" cadence - no
+        // phase offset here, that is applied only once, on first sight,
+        // above.
         scheduleState.LastTickAtMs = nowMs;
         scheduleState.NextTickAtMs = nowMs + _groupSimulationIntervalMs;
     }

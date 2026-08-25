@@ -21,6 +21,7 @@
 #include "AgentGroupKind.h"
 #include "AgentGroupMembership.h"
 #include "Define.h"
+#include "GroupId.h"
 #include <vector>
 
 // Milestone 2.12D: AgentGroupRegistry's own owned state for one AgentGroup -

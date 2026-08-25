@@ -3474,9 +3474,7 @@ AIWorld.GroupSimulationIntervalMs = 300000
 #
 #    AIWorld.CoarseSimulationMaxPerPass
 #        Description: Hard cap on how many Background agents may receive their coarse
-#                     simulation tick in a single decision scheduler pass (AgentGroups are not
-#                     bounded by this - their own coarse tick is deliberately uncapped, see
-#                     AIWorldMgr::RunDecisionScheduler()'s own comment for why). Without a bound,
+#                     simulation tick in a single decision scheduler pass. Without a bound,
 #                     every Background agent due for a coarse tick would take it in the same
 #                     pass - a burst of
 #                     work at scale, and since they would then all share the same tick timestamp,
@@ -3488,6 +3486,23 @@ AIWorld.GroupSimulationIntervalMs = 300000
 #        Default:     50
 
 AIWorld.CoarseSimulationMaxPerPass = 50
+
+#
+#    AIWorld.GroupSimulationMaxPerPass
+#        Description: Hard cap on how many AgentGroups may receive their coarse simulation tick
+#                     in a single decision scheduler pass - GroupCoarseSimulationScheduler's own
+#                     bound, the GroupId-keyed sibling to AIWorld.CoarseSimulationMaxPerPass above
+#                     (Milestone 2.12D, STATIC review P2 fix: an earlier version of this same
+#                     milestone ticked every due group unconditionally, on the assumption group
+#                     cardinality would stay small - rejected once dynamic LOOSE coalitions, which
+#                     do not have a fixed small population, entered the picture). Same behavior as
+#                     the Background cap above: groups beyond it stay due and are picked up on a
+#                     later pass, in deterministic (oldest due time, then GroupId) order - never
+#                     queued, never dropped.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     50
+
+AIWorld.GroupSimulationMaxPerPass = 50
 
 #
 #    AIWorld.AgentGroupResourcesRatePerSecond

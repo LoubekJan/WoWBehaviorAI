@@ -33,11 +33,14 @@
 //
 // Milestone 2.12D: AgentType::AgentGroup (formerly the other tier this
 // class bounded) no longer exists - a group is not an AgentRecord/
-// AgentId-keyed candidate any more (see GroupId.h), and its own coarse
-// tick (AIWorldMgr::RunDecisionScheduler()'s group loop) deliberately does
-// not reuse this class at all, since the cardinality concern this class
-// exists for (potentially thousands of individual agents) does not apply
-// to groups (a handful of packs, not thousands of creatures).
+// AgentId-keyed candidate any more (see GroupId.h). A STATIC review of an
+// earlier version of this rename (2.12D P2 fix) rejected the assumption
+// that groups would stay few enough to tick unbounded: dynamic LOOSE
+// coalitions mean group cardinality is not fixed the way "a handful of
+// scripted packs" would be, so groups get the exact same deterministic
+// bounded-admission protection this class gives Background agents - just
+// via GroupCoarseSimulationScheduler, its own GroupId-keyed sibling class,
+// not by reusing this AgentId-typed one directly.
 //
 // Unlike DecisionScheduler, this class never computes a due time itself -
 // SimulationScheduleState::NextTickAtMs is already the authoritative due

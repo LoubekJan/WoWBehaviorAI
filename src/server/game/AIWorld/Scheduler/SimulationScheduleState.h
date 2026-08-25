@@ -61,14 +61,16 @@
 // observed - it is reset to "now", not left stale, on every entry into the
 // tier, the same as NextTickAtMs.
 //
-// Milestone 2.12D: the group coarse tick (see this file's own class
-// comment above) does NOT go through CoarseSimulationScheduler::
-// SelectDue() - it checks LastTickAtMs == 0 && NextTickAtMs == 0 directly
-// to detect "never ticked before" (equivalent to a Background agent's tier
-// entry) and a plain NextTickAtMs > nowMs comparison to decide whether a
-// group is due, rather than relying on SelectDue()'s "0 sorts first"
-// admission-ordering convention - see AIWorldMgr::RunDecisionScheduler()'s
-// own group coarse-tick loop for why that bound is not needed there.
+// Milestone 2.12D: the group coarse tick goes through
+// GroupCoarseSimulationScheduler::SelectDue() - GroupId's own sibling to
+// CoarseSimulationScheduler, not that class itself (see its own comment
+// for why groups need the identical bounded-admission guarantee
+// Background agents already have, once dynamic LOOSE coalitions are
+// factored in). AIWorldMgr::RunDecisionScheduler() still checks
+// LastTickAtMs == 0 && NextTickAtMs == 0 directly for a group's one-time
+// phase-offset on first sight (equivalent to a Background agent's tier
+// entry), the same way it does for individual agents, before ever handing
+// the batch to SelectDue().
 struct SimulationScheduleState
 {
     uint64 LastTickAtMs = 0;
