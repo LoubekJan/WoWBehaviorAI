@@ -39,6 +39,7 @@
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
 #include "Scheduler/DecisionScheduler.h"
+#include "Scheduler/SimulationScheduleState.h"
 #include "Scheduler/SimulationTier.h"
 #include <atomic>
 #include <memory>
@@ -173,6 +174,23 @@ class TC_GAME_API AIWorldMgr
         // unchanged tier. Keyed by AgentId::Value; an agent with no entry
         // yet is logged as an initial assignment, not a "from" transition.
         std::unordered_map<uint64, SimulationTier> _agentSimulationTier;
+
+        // Milestone 2.10D: coarse Background/Abstract tick cadence - not a
+        // decision cadence, and deliberately much coarser than either:
+        // AIWorld.BackgroundSimulationIntervalMs (default 60s) for
+        // SimulationTier::Background, AIWorld.AbstractSimulationIntervalMs
+        // (default 5min) for SimulationTier::Abstract. See
+        // RunDecisionScheduler()'s own comment for why this stays a pure
+        // observability scaffold in 2.10D - no live Creature/Map lookup,
+        // no /decision, no ActionExecutor, no gameplay state change.
+        uint32 _backgroundSimulationIntervalMs = 60000;
+        uint32 _abstractSimulationIntervalMs = 300000;
+
+        // Per-agent bookkeeping for the coarse tick above - deliberately
+        // not part of AgentRecord/AgentRegistry, see
+        // SimulationScheduleState.h. Keyed by AgentId::Value; never
+        // touched for a Materialized (Active/Nearby) agent.
+        std::unordered_map<uint64, SimulationScheduleState> _simulationSchedule;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in

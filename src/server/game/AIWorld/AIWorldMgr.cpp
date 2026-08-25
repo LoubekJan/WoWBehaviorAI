@@ -115,6 +115,24 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _decisionNearbyPlayerRange = decisionNearbyPlayerRange;
 
+    // Milestone 2.10D: coarse Background/Abstract tick cadence - not a
+    // decision cadence at all, see RunDecisionScheduler()'s own comment.
+    int32 backgroundSimulationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.BackgroundSimulationIntervalMs", 60000);
+    if (backgroundSimulationIntervalMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.BackgroundSimulationIntervalMs ({}) is invalid or too low, clamping to 1000ms", backgroundSimulationIntervalMs);
+        backgroundSimulationIntervalMs = 1000;
+    }
+    _backgroundSimulationIntervalMs = uint32(backgroundSimulationIntervalMs);
+
+    int32 abstractSimulationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.AbstractSimulationIntervalMs", 300000);
+    if (abstractSimulationIntervalMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.AbstractSimulationIntervalMs ({}) is invalid or too low, clamping to 1000ms", abstractSimulationIntervalMs);
+        abstractSimulationIntervalMs = 1000;
+    }
+    _abstractSimulationIntervalMs = uint32(abstractSimulationIntervalMs);
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -272,9 +290,11 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
-        "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f})",
+        "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
+        "background interval={}ms, abstract interval={}ms)",
         aiHost, aiPort, requestTimeoutMs, _healthIntervalMs, _decisionMaxInFlight,
-        _decisionSchedulerIntervalMs, _decisionNearbyIntervalMs, _decisionActiveIntervalMs, _decisionNearbyPlayerRange);
+        _decisionSchedulerIntervalMs, _decisionNearbyIntervalMs, _decisionActiveIntervalMs, _decisionNearbyPlayerRange,
+        _backgroundSimulationIntervalMs, _abstractSimulationIntervalMs);
 
     // Last step: only from here on can PublishWorldEvent() actually enqueue
     // anything. Ordered after everything above so a map worker can't race
@@ -787,6 +807,18 @@ std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector
 // population/economy) - purely lifecycle observability on top of the
 // existing Materialized/Abstract bind/unbind bookkeeping this loop was
 // already doing.
+//
+// Milestone 2.10D: Background/Abstract agents now also get their own
+// coarse tick (AIWorld.BackgroundSimulationIntervalMs/
+// AbstractSimulationIntervalMs, default 60s/5min) on top of the tier
+// logging above - still purely observability ("AI simulation tick
+// agent=... tier=... dt=...ms"), not a second simulation path: no
+// Map/Creature lookup beyond the one this loop already performs to find
+// out an agent has no live Creature in the first place, no /decision, no
+// ActionExecutor, no Needs/goal/memory change. Materialized (Active/
+// Nearby) agents never touch this - they already have the real decision
+// scheduler above. The seam later background-simulation milestones are
+// meant to build on, not the simulation itself.
 void AIWorldMgr::RunDecisionScheduler()
 {
     uint64 nowMs = CurrentTimeMs();
@@ -820,7 +852,29 @@ void AIWorldMgr::RunDecisionScheduler()
             // AgentType::CreatureGroup agent, ABSTRACT) - no live Creature
             // at all, so this agent is never a decision candidate: no
             // ProcessAgent(), no AIClient call, no grid force-load.
-            UpdateSimulationTier(id, DeriveSimulationTier(record->Type, AgentWorldState::Abstract, false));
+            SimulationTier tier = DeriveSimulationTier(record->Type, AgentWorldState::Abstract, false);
+            UpdateSimulationTier(id, tier);
+
+            // Milestone 2.10D: coarse tick - pure observability scaffold
+            // for a later background-simulation milestone to build on top
+            // of, nothing more. No Map/Creature lookup beyond the one
+            // already just done above (which found nothing - that is
+            // exactly why this agent is here), no /decision, no
+            // ActionExecutor, no Needs/goal/memory change. At most one tick
+            // per scheduler pass regardless of how long this agent went
+            // unchecked - dtMs reports however much time actually passed,
+            // but nothing here loops to "catch up" missed ticks.
+            uint32 tickIntervalMs = tier == SimulationTier::Abstract ? _abstractSimulationIntervalMs : _backgroundSimulationIntervalMs;
+            SimulationScheduleState& tickState = _simulationSchedule[id.Value];
+            bool everTicked = tickState.LastBackgroundTickAtMs != 0;
+            uint64 dtMs = everTicked ? nowMs - tickState.LastBackgroundTickAtMs : 0;
+
+            if (!everTicked || dtMs >= tickIntervalMs)
+            {
+                TC_LOG_DEBUG("ai.world", "AI simulation tick agent={} tier={} dt={}ms", id.Value, ToString(tier), dtMs);
+                tickState.LastBackgroundTickAtMs = nowMs;
+            }
+
             continue;
         }
 
