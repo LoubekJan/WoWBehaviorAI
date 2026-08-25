@@ -1162,16 +1162,43 @@ void AIWorldMgr::RunDecisionScheduler()
         TC_LOG_DEBUG("ai.world", "AI agent group presence group={} totalMembers={} loadedMembers={}",
             groupId.Value, runtimeView.TotalMembers, runtimeView.LoadedMembers);
 
+        // Milestone 2.12D P3 fix (confirmed from a live log - resources
+        // sitting at its 0.0 floor across many consecutive ticks, version
+        // still climbing every pass): once Resources has settled at either
+        // clamp bound, AgentGroupSimulationSystem::Update() is a no-op
+        // (std::clamp() of an already-clamped value returns the identical
+        // float, bit-for-bit - safe to compare with ==, this is not a
+        // "floats drift" comparison), so persisting again would only bump
+        // Version and issue an async DB write for a row that is otherwise
+        // byte-identical to what is already stored. With one group this is
+        // noise; with many (dynamic LOOSE coalitions - see
+        // GroupCoarseSimulationScheduler.h) it is permanent, unbounded
+        // per-group DB churn for no observable state change. Only
+        // SaveGroupState() (and its own Version bump) is skipped -
+        // LastTickAtMs/NextTickAtMs below still advance on the normal
+        // cadence either way, so a group that starts changing again (a
+        // future consumption/replenishment mechanic) resumes persisting
+        // on its very next due tick, nothing here latches "never check
+        // again".
+        float previousResources = group->Resources;
         _agentGroupSimulationSystem.Update(*group, dtMs, _agentGroupSimulationRates);
 
-        // Version bump happens inside SaveGroupState() itself (2.11E2 P3's
-        // "bump lives in the persistence API, not the caller" precedent) -
-        // logged after, not before, so this reflects the value actually
-        // being persisted.
-        _groupPersistence.SaveGroupState(groupId, *group);
+        if (group->Resources != previousResources)
+        {
+            // Version bump happens inside SaveGroupState() itself (2.11E2
+            // P3's "bump lives in the persistence API, not the caller"
+            // precedent) - logged after, not before, so this reflects the
+            // value actually being persisted.
+            _groupPersistence.SaveGroupState(groupId, *group);
 
-        TC_LOG_DEBUG("ai.world", "AI agent group simulation group={} kind={} members={} resources={:.4f} version={}",
-            groupId.Value, ToString(group->Kind), runtimeView.TotalMembers, group->Resources, group->Version);
+            TC_LOG_DEBUG("ai.world", "AI agent group simulation group={} kind={} members={} resources={:.4f} version={}",
+                groupId.Value, ToString(group->Kind), runtimeView.TotalMembers, group->Resources, group->Version);
+        }
+        else
+        {
+            TC_LOG_DEBUG("ai.world", "AI agent group simulation group={} kind={} members={} resources={:.4f} unchanged, not persisted",
+                groupId.Value, ToString(group->Kind), runtimeView.TotalMembers, group->Resources);
+        }
 
         // Runtime review P2 fix precedent (see the per-agent loop above):
         // a real tick always resumes the plain "+interval" cadence - no
