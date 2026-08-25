@@ -50,6 +50,20 @@ class AgentRegistry;
 // own migration comment. CreateGroup() persists the reservation there
 // before it ever inserts the group row itself.
 //
+// Milestone 2.12E1 P2 fix (STATIC review, round 3): the allocator is
+// fail-closed, not best-effort. _groupIdAllocatorValid tracks whether
+// LoadGroupIdSequence() actually found a trustworthy sequence row - if it
+// didn't, CreateGroup() refuses to mint anything at all (returns GroupId{}
+// immediately) rather than falling back to guessing at _nextGroupId's
+// class-default. And within CreateGroup() itself, the reservation write
+// is followed by its own read-back, confirming the sequence row now reads
+// exactly the value just written, before _nextGroupId is ever advanced in
+// memory or a group row is ever inserted - an unconfirmed
+// DirectExecute() alone was not enough: a reservation write that silently
+// failed would leave the DB's next_group_id unchanged while the runtime
+// had already moved on, reintroducing the exact "restart repeats the same
+// id" bug this table exists to prevent.
+//
 // Every create/join/leave/dissolve write below is followed by (or, for
 // DeleteGroup(), wrapped together with) a read-back that confirms the
 // write actually landed - DirectExecute() alone never reports success or
@@ -61,17 +75,16 @@ class AgentRegistry;
 class TC_GAME_API AgentGroupPersistence
 {
     public:
-        // Milestone 2.12E1 P2 fix (STATIC review): reads the single row
-        // from ai_agent_group_id_sequence into _nextGroupId. Call once at
-        // startup, before the first CreateGroup() of the process (order
-        // relative to LoadGroups()/LoadGroupMembers() does not matter - the
-        // sequence table is independent of which groups currently exist).
-        // If the row is somehow missing (a schema that never ran the
-        // 2.12E1 P2 migration, or a hand-edited table), logs an error and
-        // leaves _nextGroupId at its class-default of 1 - not a crash, but
-        // a real risk of colliding with an existing group_id, the same
-        // "malformed schema state" category AgentPersistence::LoadAgents()
-        // already treats as reportable rather than silently tolerated.
+        // Milestone 2.12E1 P2 fix (STATIC review, round 3): reads the
+        // single row from ai_agent_group_id_sequence into _nextGroupId and
+        // marks the allocator valid - fail-closed if the row is missing
+        // (a schema that never ran the 2.12E1 P2 migration, or a
+        // hand-edited table): logs an error and leaves the allocator
+        // invalid, which CreateGroup() checks first and refuses to mint
+        // against. Call once at startup, before the first CreateGroup() of
+        // the process (order relative to LoadGroups()/LoadGroupMembers()
+        // does not matter - the sequence table is independent of which
+        // groups currently exist).
         void LoadGroupIdSequence();
 
         // Loads every row from ai_agent_groups into registry. Returns the
@@ -127,18 +140,25 @@ class TC_GAME_API AgentGroupPersistence
         // this must be reconsidered before any automatic/policy-driven
         // caller exists.
         //
-        // Milestone 2.12E1 P2 fix (STATIC review, round 2): the reservation
-        // (CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE) is persisted, and
-        // _nextGroupId advanced in memory to match, BEFORE the group row
-        // itself is ever inserted - so a process that crashes between the
-        // two just burns the reserved id forever (the same accepted
-        // tradeoff GuildMgr::GenerateGuildId() already makes), rather than
-        // risking two different CreateGroup() calls - across a restart -
-        // ever computing the same id. Returns GroupId{} (Value == 0, never
-        // a valid id) if the group-row read-back doesn't find the row - the
-        // caller (AgentGroupLifecycleSystem::CreateGroup()) must not add
-        // anything to AgentGroupRegistry in that case. The reserved id
-        // itself is never reused either way, confirmed or not.
+        // Milestone 2.12E1 P2 fix (STATIC review, round 3): fail-closed if
+        // the allocator is not valid (see LoadGroupIdSequence()) -
+        // returns GroupId{} immediately, mints nothing. Otherwise the
+        // reservation (CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE, an absolute
+        // SET, not a relative increment - safe to retry) is written, then
+        // read back (CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE) to confirm the
+        // row now reads exactly the reserved value, BEFORE _nextGroupId is
+        // ever advanced in memory or a group row is ever inserted. If that
+        // confirmation fails, _nextGroupId is left untouched (the next
+        // CreateGroup() call retries the identical reservation - safe,
+        // since the write is idempotent) and this returns GroupId{}
+        // without inserting anything. Only once the reservation is
+        // confirmed does this insert the group row itself and read THAT
+        // back (CHAR_SEL_AI_AGENT_GROUP_BY_ID) before returning the id -
+        // so a process that crashes between a confirmed reservation and
+        // the group-row insert just burns that one id forever (the same
+        // accepted tradeoff GuildMgr::GenerateGuildId() already makes),
+        // never risking two different CreateGroup() calls - across a
+        // restart - ever computing the same id.
         GroupId CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources);
 
         // Milestone 2.12E1 P2 fix (STATIC review, round 2): CONNECTION_SYNCH/
@@ -181,12 +201,21 @@ class TC_GAME_API AgentGroupPersistence
     private:
         // Milestone 2.12E1/2.12E1 P2 fix: seeded by LoadGroupIdSequence()
         // at startup from the persistent ai_agent_group_id_sequence row,
-        // advanced by one - and immediately re-persisted - per
-        // CreateGroup() call thereafter. Never reset, never reused once
-        // issued, even across a dissolve+restart (that is the whole point
-        // of the sequence table - see this class's own comment).
-        // World-thread-only, like everything else here.
+        // advanced by one - only after a confirmed reservation write, see
+        // CreateGroup() - per successful CreateGroup() call thereafter.
+        // Never reset, never reused once issued, even across a
+        // dissolve+restart (that is the whole point of the sequence table
+        // - see this class's own comment). World-thread-only, like
+        // everything else here. Meaningless unless _groupIdAllocatorValid
+        // is true - CreateGroup() checks that first.
         uint64 _nextGroupId = 1;
+
+        // Milestone 2.12E1 P2 fix (STATIC review, round 3): true only once
+        // LoadGroupIdSequence() has actually found and read the
+        // ai_agent_group_id_sequence row - fail-closed: CreateGroup()
+        // refuses to mint anything while this is false, rather than
+        // falling back to _nextGroupId's untrustworthy class-default.
+        bool _groupIdAllocatorValid = false;
 };
 
 #endif // AIWORLD_AGENTGROUPPERSISTENCE_H

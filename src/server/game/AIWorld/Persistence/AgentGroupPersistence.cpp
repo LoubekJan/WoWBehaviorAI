@@ -27,13 +27,18 @@ void AgentGroupPersistence::LoadGroupIdSequence()
     PreparedQueryResult result = CharacterDatabase.Query(stmt);
     if (!result)
     {
+        // Milestone 2.12E1 P2 fix (STATIC review, round 3): fail-closed -
+        // _groupIdAllocatorValid stays false, so CreateGroup() refuses to
+        // mint anything rather than guessing at _nextGroupId's
+        // untrustworthy class-default.
         TC_LOG_ERROR("ai.world", "AgentGroupPersistence: ai_agent_group_id_sequence has no row (expected exactly one, id=1) - "
-            "did the 2.12E1 P2 migration run? Leaving the GroupId allocator at its default of 1, which risks colliding with an existing group id.");
+            "did the 2.12E1 P2 migration run? GroupId allocator left invalid; CreateGroup() will refuse to mint until this is fixed.");
         return;
     }
 
     Field* fields = result->Fetch();
     _nextGroupId = fields[0].GetUInt64();
+    _groupIdAllocatorValid = true;
 
     TC_LOG_INFO("ai.world", "AI persistence loaded group id sequence, next group id={}", _nextGroupId);
 }
@@ -189,17 +194,46 @@ void AgentGroupPersistence::SaveGroupState(GroupId id, AgentGroupRecord& record)
 
 GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources)
 {
-    GroupId newId{ _nextGroupId };
+    // Milestone 2.12E1 P2 fix (STATIC review, round 3): fail-closed - never
+    // mint against an allocator LoadGroupIdSequence() could not confirm.
+    if (!_groupIdAllocatorValid)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence::CreateGroup: refusing to mint a GroupId - the allocator is not valid "
+            "(LoadGroupIdSequence() never confirmed ai_agent_group_id_sequence), group was not created");
+        return GroupId{};
+    }
 
-    // Milestone 2.12E1 P2 fix (STATIC review, round 2): persist the
-    // reservation BEFORE the group row itself is ever inserted - see this
-    // method's own header comment for why that ordering, not the reverse,
-    // is what actually prevents the same id from ever being computed
-    // twice across a restart.
-    CharacterDatabasePreparedStatement* seqStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE);
-    seqStmt->setUInt64(0, _nextGroupId + 1);
-    CharacterDatabase.DirectExecute(seqStmt);
-    ++_nextGroupId;
+    uint64 candidateId = _nextGroupId;
+    uint64 reservedNext = candidateId + 1;
+
+    // Milestone 2.12E1 P2 fix (STATIC review, round 3): the reservation
+    // write is itself confirmed by read-back, exactly like every other
+    // write in this class, before _nextGroupId is ever advanced in memory
+    // or a group row is ever inserted - an earlier version trusted
+    // DirectExecute() alone here, which could silently fail while the
+    // runtime had already moved on, reintroducing the exact "restart
+    // repeats the same id" bug this table exists to prevent. The write
+    // itself is an absolute SET (not a relative increment), so retrying
+    // this same reservation on a future call - which is exactly what
+    // happens below if the read-back fails - is safe and idempotent.
+    CharacterDatabasePreparedStatement* seqUpdateStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE);
+    seqUpdateStmt->setUInt64(0, reservedNext);
+    CharacterDatabase.DirectExecute(seqUpdateStmt);
+
+    CharacterDatabasePreparedStatement* seqSelectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE);
+    PreparedQueryResult seqResult = CharacterDatabase.Query(seqSelectStmt);
+    if (!seqResult || seqResult->Fetch()[0].GetUInt64() != reservedNext)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence::CreateGroup: reservation of group id={} could not be confirmed "
+            "(ai_agent_group_id_sequence does not read back as {}), group was not created - _nextGroupId left unchanged for retry",
+            candidateId, reservedNext);
+        return GroupId{};
+    }
+
+    // Only now, with the reservation itself confirmed, does _nextGroupId
+    // move and candidateId become real.
+    _nextGroupId = reservedNext;
+    GroupId newId{ candidateId };
 
     CharacterDatabasePreparedStatement* insertStmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT_GROUP);
     insertStmt->setUInt64(0, newId.Value);
@@ -215,8 +249,9 @@ GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territory
     // know whether the row actually landed is to read it back - the same
     // discipline AgentPersistence::CreateCreatureAgent() already holds
     // AgentId to via its own (map_id, spawn_id) binding. The reservation
-    // above already advanced _nextGroupId regardless of what happens here
-    // - newId is never handed out again either way.
+    // above is already confirmed and _nextGroupId already advanced
+    // regardless of what happens here - newId is never handed out again
+    // either way.
     CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_BY_ID);
     selectStmt->setUInt64(0, newId.Value);
     PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
