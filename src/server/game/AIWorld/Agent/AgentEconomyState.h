@@ -35,6 +35,20 @@ struct AgentEconomyState
     uint32 Money = 0;
     uint32 Food = 0;
     uint32 Resource = 0;
+
+    // Milestone 2.11E2 P2 fix: idempotency key for the WORK reward -
+    // AgentRecord::RoutineActivityState (and its StartedAtMs) is runtime-
+    // only and gets cleared on every dematerialize/restart, so it cannot
+    // by itself tell "already paid for this work window" apart from "a
+    // brand new WORK attempt" once the agent rematerializes still inside
+    // the same synthetic work window (see AIWorldMgr::UpdateNeeds() for
+    // how the window id is derived from RoutineScheduleConfig, independent
+    // of any runtime state). Persisted alongside Money in the same
+    // SaveEconomyState() call - both change together, in one UPDATE, or
+    // neither does; a reward that persisted Money but not this marker
+    // (or vice versa) would let a restart either repeat or silently lose
+    // the payment.
+    uint64 LastRewardedWorkWindowId = 0;
 };
 
 #endif // AIWORLD_AGENTECONOMYSTATE_H

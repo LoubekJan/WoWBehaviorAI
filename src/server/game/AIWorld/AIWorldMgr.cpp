@@ -1934,11 +1934,43 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                             && activityCompletion.Status == ActionCompletionStatus::Succeeded
                             && activityCompletion.Reason == ActionCompletionReason::Performed)
                         {
-                            record->EconomyState.Money += _workMoneyReward;
-                            _persistence.SaveEconomyState(record->Id, record->EconomyState);
+                            // 2.11E2 P2 fix: RoutineActivityState (and this
+                            // whole transition block) is runtime-only,
+                            // cleared on every dematerialize/restart - so
+                            // "this is a fresh WORK attempt" is not by
+                            // itself proof "this work window hasn't been
+                            // paid yet". workWindowId identifies the
+                            // current synthetic work window independent of
+                            // any runtime state: dayStartMs is this
+                            // synthetic day's own start (nowMs with its
+                            // within-day remainder subtracted off, the same
+                            // epoch RoutineSystem::DeriveGoal() already
+                            // uses), offset by WorkStartMs so it changes
+                            // exactly once per day/work-phase, not every
+                            // tick. A rematerialize or restart landing back
+                            // inside the same window recomputes the same
+                            // id and is correctly skipped.
+                            uint64 dayStartMs = nowMs - (nowMs % _routineScheduleConfig.DayLengthMs);
+                            uint64 workWindowId = dayStartMs + _routineScheduleConfig.WorkStartMs;
 
-                            TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={}",
-                                record->Id.Value, record->EconomyState.Money, record->EconomyState.Food, record->EconomyState.Resource);
+                            if (record->EconomyState.LastRewardedWorkWindowId != workWindowId)
+                            {
+                                record->EconomyState.Money += _workMoneyReward;
+                                record->EconomyState.LastRewardedWorkWindowId = workWindowId;
+
+                                // Money and the idempotency marker are
+                                // written together in this one call/one DB
+                                // UPDATE - never as two separate async
+                                // writes, which could otherwise persist
+                                // only one of the two and let a restart
+                                // either repeat or silently lose the
+                                // payment.
+                                _persistence.SaveEconomyState(record->Id, record->EconomyState);
+
+                                TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={} workWindowId={}",
+                                    record->Id.Value, record->EconomyState.Money, record->EconomyState.Food,
+                                    record->EconomyState.Resource, workWindowId);
+                            }
                         }
                     }
                 }
