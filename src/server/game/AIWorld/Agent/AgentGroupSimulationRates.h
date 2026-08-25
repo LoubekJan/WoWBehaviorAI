@@ -15,22 +15,22 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AIWORLD_CREATUREGROUPSIMULATIONRATES_H
-#define AIWORLD_CREATUREGROUPSIMULATIONRATES_H
+#ifndef AIWORLD_AGENTGROUPSIMULATIONRATES_H
+#define AIWORLD_AGENTGROUPSIMULATIONRATES_H
 
 #include "Define.h"
 
-// Milestone 2.12B: per-second drift rates for CreatureGroupSimulationSystem::
+// Milestone 2.12B: per-second drift rates for AgentGroupSimulationSystem::
 // Update() - shared configuration, not per-group state, the same
 // config-struct-passed-per-call pattern NeedsUpdateRates already uses for
 // NeedsSystem::Update(). Not tuned gameplay values - chosen only to be
 // deterministically observable over a coarse ABSTRACT tick interval
 // (AIWorld.AbstractSimulationIntervalMs), the same "first experiment"
 // scope NeedsSystem's own defaults started from.
-struct CreatureGroupSimulationRates
+struct AgentGroupSimulationRates
 {
     float HungerPerSecond = 0.001f;
     float ResourcesPerSecond = 0.0005f;
 };
 
-#endif // AIWORLD_CREATUREGROUPSIMULATIONRATES_H
+#endif // AIWORLD_AGENTGROUPSIMULATIONRATES_H

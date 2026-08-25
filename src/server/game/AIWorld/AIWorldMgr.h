@@ -23,9 +23,9 @@
 #include "Action/ActionExecutor.h"
 #include "Action/ActionSystem.h"
 #include "Action/PendingEatContinuation.h"
+#include "Agent/AgentGroupSimulationSystem.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentRegistry.h"
-#include "Agent/CreatureGroupSimulationSystem.h"
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
@@ -218,15 +218,16 @@ class TC_GAME_API AIWorldMgr
         // touched for a Materialized (Active/Nearby) agent.
         std::unordered_map<uint64, SimulationScheduleState> _simulationSchedule;
 
-        // Milestone 2.12B: the only simulation any coarse tick runs -
+        // Milestone 2.12B/2.12C: the only simulation any coarse tick runs -
         // called from the same coarse-tick loop above, only for
-        // SimulationTier::Abstract + AgentType::CreatureGroup (see
-        // RunDecisionScheduler()'s own comment). No config of its own
-        // beyond _creatureGroupSimulationRates - dtMs comes from
-        // _simulationSchedule the same way the tick's own dt log already
-        // does.
-        CreatureGroupSimulationSystem _creatureGroupSimulationSystem;
-        CreatureGroupSimulationRates _creatureGroupSimulationRates;
+        // SimulationTier::Abstract + AgentType::AgentGroup, and only while
+        // AgentGroupRuntimeView reports zero naturally materialized
+        // members right now (see RunDecisionScheduler()'s own comment). No
+        // config of its own beyond _agentGroupSimulationRates - dtMs comes
+        // from _simulationSchedule the same way the tick's own dt log
+        // already does.
+        AgentGroupSimulationSystem _agentGroupSimulationSystem;
+        AgentGroupSimulationRates _agentGroupSimulationRates;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in

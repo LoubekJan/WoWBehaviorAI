@@ -58,7 +58,7 @@ class TC_GAME_API AgentRegistry
         AgentRecord const* FindBySpawn(uint32 mapId, uint64 spawnId) const;
 
         // Milestone 2.12A P3 fix: refuses (logs and returns, does not
-        // mutate the record) for AgentType::CreatureGroup - a group never
+        // mutate the record) for AgentType::AgentGroup - a group never
         // binds 1:1 to a live Creature, and this is the one place that
         // enforces it unconditionally, regardless of what any future
         // caller does or doesn't check first. See AgentRecord.h's own

@@ -16,10 +16,9 @@
  */
 
 #include "AgentPersistence.h"
+#include "Agent/AgentGroupMembership.h"
 #include "Agent/AgentLocation.h"
 #include "Agent/AgentRegistry.h"
-#include "Agent/CreatureGroupMember.h"
-#include "Agent/CreatureGroupState.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
 
@@ -83,71 +82,71 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
         record.EconomyState.Version = fields[18].GetUInt64();
 
-        // Milestone 2.12A/2.12B P2 fix: population/territory_x/y/z/hunger/
-        // resources are six independently nullable columns -
+        // Milestone 2.12A/2.12B/2.12C P2 fix: territory_x/y/z/hunger/
+        // resources/kind are six independently nullable columns -
         // Field::GetFloat() silently returns 0.0f for SQL NULL, so
-        // trusting a subset of the presence bits (as an earlier merge of
-        // this file briefly did - only population/territory_*, dropping
-        // hunger/resources) would let a partially-NULL row (a corrupt/
-        // hand-edited row, never one AgentPersistence itself produces)
-        // load as a legitimate-looking Hunger=0/Resources=0 - no longer
-        // inert once CreatureGroupSimulationSystem actually mutates and
-        // persists it. All six must agree - either all NULL (no group) or
-        // all set; a partial row is rejected outright (continue, like the
+        // trusting a subset of the presence bits would let a partially-
+        // NULL row (a corrupt/hand-edited row, never one AgentPersistence
+        // itself produces) load as a legitimate-looking Hunger=0/
+        // Resources=0/Kind=LOOSE - no longer inert once
+        // AgentGroupSimulationSystem actually mutates and persists it.
+        // All six must agree - either all NULL (no group) or all set; a
+        // partial row is rejected outright (continue, like the
         // AgentType <-> GroupState check below), not silently degraded to
-        // "no CreatureGroupState".
-        bool populationNull = fields[19].IsNull();
-        bool territoryXNull = fields[20].IsNull();
-        bool territoryYNull = fields[21].IsNull();
-        bool territoryZNull = fields[22].IsNull();
-        bool hungerNull = fields[23].IsNull();
-        bool resourcesNull = fields[24].IsNull();
+        // "no AgentGroupState". No population column any more - member
+        // count is never stored, only ever derived from GroupMembers.
+        bool territoryXNull = fields[19].IsNull();
+        bool territoryYNull = fields[20].IsNull();
+        bool territoryZNull = fields[21].IsNull();
+        bool hungerNull = fields[22].IsNull();
+        bool resourcesNull = fields[23].IsNull();
+        bool kindNull = fields[24].IsNull();
 
-        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull && !hungerNull && !resourcesNull)
+        if (!territoryXNull && !territoryYNull && !territoryZNull && !hungerNull && !resourcesNull && !kindNull)
         {
-            CreatureGroupState group;
-            group.Population = fields[19].GetUInt32();
-            group.TerritoryX = fields[20].GetFloat();
-            group.TerritoryY = fields[21].GetFloat();
-            group.TerritoryZ = fields[22].GetFloat();
-            group.Hunger = fields[23].GetFloat();
-            group.Resources = fields[24].GetFloat();
+            AgentGroupState group;
+            group.TerritoryX = fields[19].GetFloat();
+            group.TerritoryY = fields[20].GetFloat();
+            group.TerritoryZ = fields[21].GetFloat();
+            group.Hunger = fields[22].GetFloat();
+            group.Resources = fields[23].GetFloat();
+            group.Kind = AgentGroupKind(fields[24].GetUInt8());
             group.Version = fields[25].GetUInt64();
             record.GroupState = group;
         }
-        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull
-            || populationNull != hungerNull || populationNull != resourcesNull)
+        else if (territoryXNull != territoryYNull || territoryXNull != territoryZNull || territoryXNull != hungerNull
+            || territoryXNull != resourcesNull || territoryXNull != kindNull)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: refusing to load agent id={} with a partially NULL population/territory_x/y/z/hunger/resources row "
-                "(present: population={} territory_x={} territory_y={} territory_z={} hunger={} resources={})",
-                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull, !hungerNull, !resourcesNull);
+                "AgentPersistence: refusing to load agent id={} with a partially NULL territory_x/y/z/hunger/resources/kind row "
+                "(present: territory_x={} territory_y={} territory_z={} hunger={} resources={} kind={})",
+                record.Id.Value, !territoryXNull, !territoryYNull, !territoryZNull, !hungerNull, !resourcesNull, !kindNull);
             continue;
         }
-        // else: all six NULL - no CreatureGroupState, the ordinary case
-        // for every non-CreatureGroup agent.
+        // else: all six NULL - no AgentGroupState, the ordinary case for
+        // every non-AgentGroup agent.
 
-        // Milestone 2.12A/2.12B P2 fix: the AgentType <-> GroupState
-        // invariant (CreatureGroup => GroupState required, anything else
-        // => absent) is not enforced anywhere upstream (nothing stops a
+        // Milestone 2.12A/2.12B/2.12C P2 fix: the AgentType <-> GroupState
+        // invariant (AgentGroup => GroupState required, anything else =>
+        // absent) is not enforced anywhere upstream (nothing stops a
         // hand-edited row from violating it), so both directions are
         // rejected outright here - fail-closed, not just logged, now that
-        // CreatureGroupSimulationSystem actually mutates and persists
-        // GroupState (2.12B); a validly-registered CreatureGroup with no
-        // GroupState would otherwise sit at SimulationTier::Abstract
-        // forever, never simulating, with nothing surfacing why.
-        if (record.GroupState && record.Type != AgentType::CreatureGroup)
+        // AgentGroupSimulationSystem actually mutates and persists
+        // GroupState; a validly-registered AgentGroup with no GroupState
+        // would otherwise sit at SimulationTier::Abstract forever, never
+        // simulating, with nothing surfacing why.
+        if (record.GroupState && record.Type != AgentType::AgentGroup)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: refusing to load agent id={} type={} because it has a CreatureGroupState but is not AgentType::CreatureGroup",
+                "AgentPersistence: refusing to load agent id={} type={} because it has an AgentGroupState but is not AgentType::AgentGroup",
                 record.Id.Value, ToString(record.Type));
             continue;
         }
 
-        if (!record.GroupState && record.Type == AgentType::CreatureGroup)
+        if (!record.GroupState && record.Type == AgentType::AgentGroup)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: refusing to load agent id={} because it is AgentType::CreatureGroup but has no CreatureGroupState",
+                "AgentPersistence: refusing to load agent id={} because it is AgentType::AgentGroup but has no AgentGroupState",
                 record.Id.Value);
             continue;
         }
@@ -155,12 +154,12 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={} group={} population={} hunger={:.4f} resources={:.4f} groupVersion={}",
+        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={} group={} kind={} hunger={:.4f} resources={:.4f} groupVersion={}",
             record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId,
             record.HomeLocation.has_value(), record.WorkLocation.has_value(),
             record.EconomyState.Money, record.EconomyState.Food, record.EconomyState.Resource,
             record.EconomyState.LastRewardedWorkWindowId, record.EconomyState.Version,
-            record.GroupState.has_value(), record.GroupState ? record.GroupState->Population : 0,
+            record.GroupState.has_value(), record.GroupState ? ToString(record.GroupState->Kind) : "NONE",
             record.GroupState ? record.GroupState->Hunger : 0.0f, record.GroupState ? record.GroupState->Resources : 0.0f,
             record.GroupState ? record.GroupState->Version : 0);
 
@@ -171,15 +170,15 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
     return loaded;
 }
 
-uint32 AgentPersistence::LoadCreatureGroupMembers(AgentRegistry& registry)
+uint32 AgentPersistence::LoadAgentGroupMembers(AgentRegistry& registry)
 {
     uint32 loaded = 0;
 
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_CREATURE_GROUP_MEMBERS);
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBERS);
     PreparedQueryResult result = CharacterDatabase.Query(stmt);
     if (!result)
     {
-        TC_LOG_INFO("ai.world", "AI persistence loaded 0 creature group members");
+        TC_LOG_INFO("ai.world", "AI persistence loaded 0 agent group members");
         return 0;
     }
 
@@ -188,41 +187,44 @@ uint32 AgentPersistence::LoadCreatureGroupMembers(AgentRegistry& registry)
         Field* fields = result->Fetch();
 
         AgentId groupId{ fields[0].GetUInt64() };
-        uint32 mapId = fields[1].GetUInt32();
-        uint64 spawnId = fields[2].GetUInt64();
+        AgentId memberId{ fields[1].GetUInt64() };
+        uint64 joinedAtMs = fields[2].GetUInt64();
 
         // Milestone 2.12C: no FK to ai_agents - a membership row whose
         // group_agent_id does not resolve to a registered, correctly-typed
-        // CreatureGroup is an orphan (a deleted/never-created agent, a
-        // hand-edited row, ...), logged and skipped, the same tolerance
+        // AgentGroup is an orphan (a deleted/never-created agent, a hand-
+        // edited row, ...), logged and skipped, the same tolerance
         // ai_long_term_memories' own orphan handling already has. Never
-        // fatal to the rest of this load.
+        // fatal to the rest of this load. member_agent_id is NOT
+        // validated the same way - it does not need to already resolve to
+        // a registered agent (see AgentGroupMembership.h for why a
+        // forward reference is legitimate).
         AgentRecord* record = registry.Find(groupId);
         if (!record)
         {
-            TC_LOG_ERROR("ai.world", "AgentPersistence: ai_creature_group_members row for group_agent_id={} map={} spawn={} references an unregistered agent, skipping",
-                groupId.Value, mapId, spawnId);
+            TC_LOG_ERROR("ai.world", "AgentPersistence: ai_agent_group_members row for group_agent_id={} member_agent_id={} references an unregistered group agent, skipping",
+                groupId.Value, memberId.Value);
             continue;
         }
 
-        if (record->Type != AgentType::CreatureGroup)
+        if (record->Type != AgentType::AgentGroup)
         {
-            TC_LOG_ERROR("ai.world", "AgentPersistence: ai_creature_group_members row for group_agent_id={} map={} spawn={} references agent type={}, not AgentType::CreatureGroup, skipping",
-                groupId.Value, mapId, spawnId, ToString(record->Type));
+            TC_LOG_ERROR("ai.world", "AgentPersistence: ai_agent_group_members row for group_agent_id={} member_agent_id={} references agent type={}, not AgentType::AgentGroup, skipping",
+                groupId.Value, memberId.Value, ToString(record->Type));
             continue;
         }
 
-        CreatureGroupMember member;
-        member.MapId = mapId;
-        member.SpawnId = spawnId;
-        record->GroupMembers.push_back(member);
+        AgentGroupMembership membership;
+        membership.Member = memberId;
+        membership.JoinedAtMs = joinedAtMs;
+        record->GroupMembers.push_back(membership);
 
-        TC_LOG_INFO("ai.world", "AI creature group member loaded group={} map={} spawn={}", groupId.Value, mapId, spawnId);
+        TC_LOG_INFO("ai.world", "AI agent group member loaded group={} member={} joinedAtMs={}", groupId.Value, memberId.Value, joinedAtMs);
 
         ++loaded;
     } while (result->NextRow());
 
-    TC_LOG_INFO("ai.world", "AI persistence loaded {} creature group members", loaded);
+    TC_LOG_INFO("ai.world", "AI persistence loaded {} agent group members", loaded);
     return loaded;
 }
 
@@ -290,24 +292,24 @@ void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState& state)
     CharacterDatabase.Execute(stmt);
 }
 
-void AgentPersistence::SaveCreatureGroupState(AgentId id, CreatureGroupState& state)
+void AgentPersistence::SaveAgentGroupState(AgentId id, AgentGroupState& state)
 {
     // 2.12B, same reasoning as SaveEconomyState()'s own P3 fix: unconditional,
     // first thing, regardless of what the caller already did.
     ++state.Version;
 
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_CREATURE_GROUP);
-    stmt->setUInt32(0, state.Population);
-    stmt->setFloat(1, state.TerritoryX);
-    stmt->setFloat(2, state.TerritoryY);
-    stmt->setFloat(3, state.TerritoryZ);
-    stmt->setFloat(4, state.Hunger);
-    stmt->setFloat(5, state.Resources);
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP);
+    stmt->setFloat(0, state.TerritoryX);
+    stmt->setFloat(1, state.TerritoryY);
+    stmt->setFloat(2, state.TerritoryZ);
+    stmt->setFloat(3, state.Hunger);
+    stmt->setFloat(4, state.Resources);
+    stmt->setUInt8(5, uint8(state.Kind));
     stmt->setUInt64(6, state.Version);
     stmt->setUInt64(7, id.Value);
 
     // Bound again for the statement's own "AND group_version < ?" guard -
-    // see CreatureGroupState::Version and CHAR_UPD_AI_CREATURE_GROUP's own
+    // see AgentGroupState::Version and CHAR_UPD_AI_AGENT_GROUP's own
     // comment for why.
     stmt->setUInt64(8, state.Version);
 

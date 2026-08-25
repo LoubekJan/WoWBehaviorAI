@@ -25,7 +25,15 @@ enum class AgentType : uint8
     Civilian = 0,
     Guard = 1,
     Merchant = 2,
-    CreatureGroup = 3
+
+    // Milestone 2.12C: renamed from CreatureGroup - a social layer over
+    // independent member agents (each with its own AgentId/identity/
+    // memory/needs/goal/decision/actions/Creature lifecycle - see
+    // AgentGroupState.h/AgentGroupMembership.h), never an aggregate that
+    // stands in for its members. Value 3 kept unchanged across the rename
+    // - only ever a persisted uint8 (ai_agents.agent_type), not a wire
+    // protocol value anything external parses.
+    AgentGroup = 3
 };
 
 // Materialized: bound to a currently-loaded Creature (RuntimeGuid valid).
@@ -41,11 +49,11 @@ inline char const* ToString(AgentType type)
 {
     switch (type)
     {
-        case AgentType::Civilian:      return "CIVILIAN";
-        case AgentType::Guard:         return "GUARD";
-        case AgentType::Merchant:      return "MERCHANT";
-        case AgentType::CreatureGroup: return "CREATURE_GROUP";
-        default:                       return "UNKNOWN";
+        case AgentType::Civilian:   return "CIVILIAN";
+        case AgentType::Guard:      return "GUARD";
+        case AgentType::Merchant:   return "MERCHANT";
+        case AgentType::AgentGroup: return "AGENT_GROUP";
+        default:                    return "UNKNOWN";
     }
 }
 

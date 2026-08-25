@@ -17,8 +17,8 @@
 
 #include "AIWorldMgr.h"
 #include "Action/ArrivalTolerance.h"
+#include "Agent/AgentGroupRuntimeView.h"
 #include "Agent/AgentSnapshot.h"
-#include "Agent/CreatureGroupRuntimeView.h"
 #include "Config.h"
 #include "Creature.h"
 #include "GameTime.h"
@@ -76,66 +76,64 @@ namespace
         return type == GoalType::GoToWork || type == GoalType::GoHome;
     }
 
-    // Milestone 2.12A P2 fix: an AgentType::CreatureGroup never binds 1:1
-    // to a live Creature - see AgentRecord.h's own comment on what
+    // Milestone 2.12A/2.12C P2 fix: an AgentType::AgentGroup never binds
+    // 1:1 to a live Creature - see AgentRecord.h's own comment on what
     // SpawnId means for this AgentType (an opaque, caller-assigned group
     // id, not a TrinityCore spawn). Centralizing the exclusion here,
     // rather than trusting every call site to remember it, is what makes
-    // a CreatureGroup non-bindable BY CONSTRUCTION: even a genuine
-    // SpawnId collision with a real creature.guid (nothing at the DB
-    // level rules that out) can no longer materialize one, because
-    // nothing in this file ever calls Map::GetCreatureBySpawnId() with a
-    // CreatureGroup's own SpawnId in the first place. Every live-
-    // Creature-resolution call site in this file must go through this,
-    // never Map::GetCreatureBySpawnId() directly.
+    // an AgentGroup non-bindable BY CONSTRUCTION: even a genuine SpawnId
+    // collision with a real creature.guid (nothing at the DB level rules
+    // that out) can no longer materialize one, because nothing in this
+    // file ever calls Map::GetCreatureBySpawnId() with an AgentGroup's own
+    // SpawnId in the first place. Every live-Creature-resolution call site
+    // in this file must go through this, never
+    // Map::GetCreatureBySpawnId() directly.
     Creature* ResolveLiveCreature(AgentRecord const& record, Map* map)
     {
-        if (record.Type == AgentType::CreatureGroup)
+        if (record.Type == AgentType::AgentGroup)
             return nullptr;
 
         return map ? map->GetCreatureBySpawnId(record.SpawnId) : nullptr;
     }
 
-    // Milestone 2.12A P2 fix: the other half of ResolveLiveCreature()'s
+    // Milestone 2.12A/2.12C P2 fix: the other half of ResolveLiveCreature()'s
     // guarantee. A real Creature's own spawn id could in principle
-    // collide with a CreatureGroup's reserved-range one (again, nothing
-    // at the DB level rules it out), so AgentRegistry::FindBySpawn()
-    // alone cannot tell "this (map, spawn) genuinely names a live
-    // Creature" apart from "this happens to match a CreatureGroup's
-    // opaque group id". Anything that uses a real spawn id to enrich a
-    // live-entity fact (a WorldEvent's Actor/Target, a perceived
-    // creature, an engine movement callback) must go through this
-    // instead of calling AgentRegistry::FindBySpawn() directly - a match
-    // against a CreatureGroup is treated the same as no match at all.
+    // collide with an AgentGroup's reserved-range one (again, nothing at
+    // the DB level rules it out), so AgentRegistry::FindBySpawn() alone
+    // cannot tell "this (map, spawn) genuinely names a live Creature"
+    // apart from "this happens to match an AgentGroup's opaque group id".
+    // Anything that uses a real spawn id to enrich a live-entity fact (a
+    // WorldEvent's Actor/Target, a perceived creature, an engine movement
+    // callback) must go through this instead of calling
+    // AgentRegistry::FindBySpawn() directly - a match against an
+    // AgentGroup is treated the same as no match at all.
     AgentRecord* FindLiveAgentBySpawn(AgentRegistry& registry, uint32 mapId, uint64 spawnId)
     {
         AgentRecord* record = registry.FindBySpawn(mapId, spawnId);
-        return (record && record->Type != AgentType::CreatureGroup) ? record : nullptr;
+        return (record && record->Type != AgentType::AgentGroup) ? record : nullptr;
     }
 
-    // Milestone 2.12C: a fresh, transient snapshot of a CreatureGroup's
-    // membership - one Map::GetCreatureBySpawnId() lookup per
-    // CreatureGroupMember, never cached anywhere past this call, and never
-    // forcing a grid to load (a member simply reads as not-loaded, exactly
-    // like an individual agent's own live-resolution already treats an
-    // unloaded grid). Members are not required to share the group's own
-    // MapId, though in practice a territory-bound pack's members typically
-    // will - each is resolved on its own recorded map.
-    CreatureGroupRuntimeView ResolveCreatureGroupRuntimeView(AgentRecord const& record)
+    // Milestone 2.12C: a fresh, transient snapshot of an AgentGroup's
+    // membership - one plain AgentRegistry::Find() lookup per
+    // AgentGroupMembership, never cached anywhere past this call. Unlike
+    // the old CreatureGroupRuntimeView (back when members were raw
+    // creature spawns, not independent agents), this never touches Map*/
+    // Creature* itself - each member's own individual-agent WorldState is
+    // already the authority for whether it is currently materialized,
+    // kept current by that member's own bind/unbind bookkeeping wherever
+    // it is processed as an ordinary agent. Never forces anything to
+    // load: an unresolvable or still-Abstract member simply reads as not
+    // loaded.
+    AgentGroupRuntimeView ResolveAgentGroupRuntimeView(AgentRegistry& registry, AgentRecord const& record)
     {
-        CreatureGroupRuntimeView view;
+        AgentGroupRuntimeView view;
         view.TotalMembers = uint32(record.GroupMembers.size());
 
-        for (CreatureGroupMember const& member : record.GroupMembers)
+        for (AgentGroupMembership const& membership : record.GroupMembers)
         {
-            Map* map = sMapMgr->FindBaseNonInstanceMap(member.MapId);
-            Creature* creature = map ? map->GetCreatureBySpawnId(member.SpawnId) : nullptr;
-            if (!creature)
-                continue;
-
-            ++view.LoadedMembers;
-            if (creature->IsAlive())
-                ++view.AliveLoadedMembers;
+            AgentRecord const* member = registry.Find(membership.Member);
+            if (member && member->WorldState == AgentWorldState::Materialized)
+                ++view.LoadedMembers;
         }
 
         return view;
@@ -225,14 +223,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _coarseSimulationMaxPerPass = uint32(coarseSimulationMaxPerPass);
 
     // Milestone 2.12B: not tuned gameplay values - see
-    // CreatureGroupSimulationRates.h for why.
-    _creatureGroupSimulationRates.HungerPerSecond = std::clamp(
-        sConfigMgr->GetFloatDefault("AIWorld.CreatureGroupHungerRatePerSecond", 0.001f), 0.0f, 1.0f);
-    _creatureGroupSimulationRates.ResourcesPerSecond = std::clamp(
-        sConfigMgr->GetFloatDefault("AIWorld.CreatureGroupResourcesRatePerSecond", 0.0005f), 0.0f, 1.0f);
+    // AgentGroupSimulationRates.h for why.
+    _agentGroupSimulationRates.HungerPerSecond = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.AgentGroupHungerRatePerSecond", 0.001f), 0.0f, 1.0f);
+    _agentGroupSimulationRates.ResourcesPerSecond = std::clamp(
+        sConfigMgr->GetFloatDefault("AIWorld.AgentGroupResourcesRatePerSecond", 0.0005f), 0.0f, 1.0f);
 
-    TC_LOG_INFO("ai.world", "AI creature group simulation configured hungerRate={:.6f} resourcesRate={:.6f}",
-        _creatureGroupSimulationRates.HungerPerSecond, _creatureGroupSimulationRates.ResourcesPerSecond);
+    TC_LOG_INFO("ai.world", "AI agent group simulation configured hungerRate={:.6f} resourcesRate={:.6f}",
+        _agentGroupSimulationRates.HungerPerSecond, _agentGroupSimulationRates.ResourcesPerSecond);
 
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
@@ -394,10 +392,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     // Milestone 2.12C: must come after LoadAgents() - a membership row
     // needs an already-registered group_agent_id to attach to. Purely
-    // identity (which real creature spawns belong to which CreatureGroup)
+    // identity (which independent member agents belong to which AgentGroup)
     // - RunDecisionScheduler() resolves live presence from this fresh
     // every coarse tick, never cached here past this load.
-    _persistence.LoadCreatureGroupMembers(_registry);
+    _persistence.LoadAgentGroupMembers(_registry);
 
     // Same idea as _registry, for long-term memory: rebuilt from the DB
     // every startup. Must come after LoadAgents() - it needs _registry
@@ -1018,7 +1016,7 @@ void AIWorldMgr::RunDecisionScheduler()
                 _registry.UnbindCreature(id);
 
             // Milestone 2.10C: BACKGROUND (or, for a future
-            // AgentType::CreatureGroup agent, ABSTRACT) - no live Creature
+            // AgentType::AgentGroup agent, ABSTRACT) - no live Creature
             // at all, so this agent is never a decision candidate: no
             // ProcessAgent(), no AIClient call, no grid force-load.
             SimulationTier tier = DeriveSimulationTier(record->Type, AgentWorldState::Abstract, false);
@@ -1100,20 +1098,20 @@ void AIWorldMgr::RunDecisionScheduler()
         // Milestone 2.12B: the only simulation any coarse tick runs -
         // BACKGROUND (an individual agent with no live Creature right now)
         // stays observability-only, exactly as 2.10D left it. Checks
-        // AgentType::CreatureGroup explicitly, not just SimulationTier::
-        // Abstract, even though today only a CreatureGroup ever derives
+        // AgentType::AgentGroup explicitly, not just SimulationTier::
+        // Abstract, even though today only an AgentGroup ever derives
         // Abstract (see SimulationTier.h) - the same "never let a coarse
         // tick imply something it doesn't actually check" discipline
         // 2.12A's own P2/P3 fixes already hold this file to. No Creature*/
         // Map* anywhere in this branch, no /decision, no ActionRequest, no
-        // materialization, and no Population/Territory mutation - only
-        // Hunger/Resources move (see CreatureGroupSimulationSystem.h).
+        // materialization, and no member/Territory mutation - only
+        // Hunger/Resources move (see AgentGroupSimulationSystem.h).
         if (tier == SimulationTier::Abstract)
         {
             AgentRecord* record = _registry.Find(id);
-            if (record && record->Type == AgentType::CreatureGroup && record->GroupState)
+            if (record && record->Type == AgentType::AgentGroup && record->GroupState)
             {
-                // Milestone 2.12C: real TrinityCore wolves, if any are
+                // Milestone 2.12C: real member agents, if any are
                 // naturally loaded right now, are the authority - the
                 // aggregate coarse drift pauses for as long as that holds,
                 // resuming on its own the next coarse tick where it finds
@@ -1121,30 +1119,30 @@ void AIWorldMgr::RunDecisionScheduler()
                 // simply has no members yet). Still never forces a grid to
                 // load, never spawns/despawns anything, no movement/combat -
                 // this only reads whether members already happen to be
-                // loaded.
-                CreatureGroupRuntimeView runtimeView = ResolveCreatureGroupRuntimeView(*record);
+                // loaded, via each member's own AgentRegistry bind state.
+                AgentGroupRuntimeView runtimeView = ResolveAgentGroupRuntimeView(_registry, *record);
 
-                TC_LOG_DEBUG("ai.world", "AI creature group presence agent={} totalMembers={} loadedMembers={} aliveLoadedMembers={}",
-                    id.Value, runtimeView.TotalMembers, runtimeView.LoadedMembers, runtimeView.AliveLoadedMembers);
+                TC_LOG_DEBUG("ai.world", "AI agent group presence agent={} totalMembers={} loadedMembers={}",
+                    id.Value, runtimeView.TotalMembers, runtimeView.LoadedMembers);
 
                 if (runtimeView.LoadedMembers == 0)
                 {
-                    _creatureGroupSimulationSystem.Update(*record->GroupState, dtMs, _creatureGroupSimulationRates);
+                    _agentGroupSimulationSystem.Update(*record->GroupState, dtMs, _agentGroupSimulationRates);
 
-                    // Version bump happens inside SaveCreatureGroupState()
+                    // Version bump happens inside SaveAgentGroupState()
                     // itself (2.11E2 P3's "bump lives in the persistence
                     // API, not the caller" precedent) - logged after, not
                     // before, so this reflects the value actually being
                     // persisted.
-                    _persistence.SaveCreatureGroupState(id, *record->GroupState);
+                    _persistence.SaveAgentGroupState(id, *record->GroupState);
 
-                    TC_LOG_DEBUG("ai.world", "AI creature group simulation agent={} population={} hunger={:.4f} resources={:.4f} version={}",
-                        id.Value, record->GroupState->Population, record->GroupState->Hunger,
-                        record->GroupState->Resources, record->GroupState->Version);
+                    TC_LOG_DEBUG("ai.world", "AI agent group simulation agent={} kind={} members={} hunger={:.4f} resources={:.4f} version={}",
+                        id.Value, ToString(record->GroupState->Kind), runtimeView.TotalMembers,
+                        record->GroupState->Hunger, record->GroupState->Resources, record->GroupState->Version);
                 }
                 else
                 {
-                    TC_LOG_DEBUG("ai.world", "AI creature group simulation agent={} paused: {} member(s) naturally loaded",
+                    TC_LOG_DEBUG("ai.world", "AI agent group simulation agent={} paused: {} member(s) naturally loaded",
                         id.Value, runtimeView.LoadedMembers);
                 }
             }
@@ -1313,12 +1311,12 @@ bool AIWorldMgr::OwnsSpawn(uint32 mapId, uint64 spawnId) const
         return false;
 
     // Milestone 2.12A P2 fix: a real creature's spawn id could in
-    // principle collide with a CreatureGroup's reserved-range one (see
+    // principle collide with an AgentGroup's reserved-range one (see
     // FindLiveAgentBySpawn()'s own comment) - this answers "does AI own
-    // this live spawn", so a match against a CreatureGroup (which never
+    // this live spawn", so a match against an AgentGroup (which never
     // owns a live spawn at all) must not count as ownership.
     AgentRecord const* record = _registry.FindBySpawn(mapId, spawnId);
-    return record && record->Type != AgentType::CreatureGroup;
+    return record && record->Type != AgentType::AgentGroup;
 }
 
 // World thread only (called from Update(), right after EventBus::Drain()).

@@ -15,10 +15,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "CreatureGroupSimulationSystem.h"
+#include "AgentGroupSimulationSystem.h"
 #include <algorithm>
 
-void CreatureGroupSimulationSystem::Update(CreatureGroupState& state, uint64 dtMs, CreatureGroupSimulationRates const& rates) const
+void AgentGroupSimulationSystem::Update(AgentGroupState& state, uint64 dtMs, AgentGroupSimulationRates const& rates) const
 {
     float dtSeconds = float(dtMs) / 1000.0f;
 

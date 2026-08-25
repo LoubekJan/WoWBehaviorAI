@@ -43,7 +43,7 @@ enum class SimulationTier : uint8
 {
     // No live Creature right now for an otherwise ordinary (non-group)
     // agent - grid/Creature unloaded, or not yet spawned. Same underlying
-    // fact as AgentWorldState::Abstract for AgentType != CreatureGroup.
+    // fact as AgentWorldState::Abstract for AgentType != AgentGroup.
     Background,
 
     // A live Creature is bound, and no Player is currently within
@@ -54,12 +54,11 @@ enum class SimulationTier : uint8
     // AIWorld.DecisionNearbyPlayerRange of it right now.
     Nearby,
 
-    // Milestone 2.10C: reserved for a future group/population agent
-    // (AgentType::CreatureGroup) that is not meant to ever bind 1:1 to a
-    // single Creature the way an individual agent does - unreachable
-    // today, since nothing yet creates a CreatureGroup agent, but the
-    // roadmap's own ABSTRACT -> ACTIVE/NEARBY transition needs a tier to
-    // name that state once one exists.
+    // Milestone 2.10C/2.12C: for AgentType::AgentGroup - a social layer
+    // over independent member agents, not meant to ever bind 1:1 to a
+    // single Creature the way an individual agent does (see
+    // AgentGroupState.h). The roadmap's own ABSTRACT -> ACTIVE/NEARBY
+    // transition needs a tier to name that state.
     Abstract
 };
 
@@ -89,7 +88,7 @@ inline SimulationTier DeriveSimulationTier(AgentType type, AgentWorldState world
     if (worldState == AgentWorldState::Materialized)
         return nearPlayer ? SimulationTier::Nearby : SimulationTier::Active;
 
-    return type == AgentType::CreatureGroup ? SimulationTier::Abstract : SimulationTier::Background;
+    return type == AgentType::AgentGroup ? SimulationTier::Abstract : SimulationTier::Background;
 }
 
 // Milestone 2.10C: which of the fixed, small reason vocabulary explains a
