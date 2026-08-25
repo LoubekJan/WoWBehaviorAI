@@ -597,9 +597,14 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // Milestone 2.11E2: money/food/resource/last_rewarded_work_window_id/
     // economy_version are NOT NULL (default 0, never "unset" the way
     // home_*/work_* can be).
+    // Milestone 2.12A: population/territory_* are nullable like home_*/
+    // work_* - population IS NULL is the presence check for the whole
+    // group (population = 0 is a legitimate empty-group state, distinct
+    // from "no CreatureGroupState at all").
     PrepareStatement(CHAR_SEL_AI_AGENTS, "SELECT agent_id, agent_type, map_id, spawn_id, "
         "home_map_id, home_x, home_y, home_z, home_o, work_map_id, work_x, work_y, work_z, work_o, "
-        "money, food, resource, last_rewarded_work_window_id, economy_version FROM ai_agents", CONNECTION_SYNCH);
+        "money, food, resource, last_rewarded_work_window_id, economy_version, "
+        "population, territory_x, territory_y, territory_z FROM ai_agents", CONNECTION_SYNCH);
     PrepareStatement(CHAR_SEL_AI_AGENT_BY_BINDING, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE map_id = ? AND spawn_id = ?", CONNECTION_SYNCH);
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_type, map_id, spawn_id) VALUES (?, ?, ?)", CONNECTION_SYNCH);
 

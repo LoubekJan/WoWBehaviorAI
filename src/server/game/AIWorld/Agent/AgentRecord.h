@@ -24,6 +24,7 @@
 #include "AgentId.h"
 #include "AgentLocation.h"
 #include "AgentType.h"
+#include "CreatureGroupState.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
 #include "Goal/RoutineActivity.h"
@@ -38,6 +39,21 @@
 // Creature this agent happens to be bound to right now (meaningful only
 // while WorldState == Materialized) - never the agent's identity, and never
 // a substitute for AgentId. Deliberately holds no Creature*/Map*.
+//
+// Milestone 2.12A: for AgentType::CreatureGroup, SpawnId does NOT name a
+// TrinityCore creature spawn the way it does for every other AgentType -
+// a group never binds 1:1 to one Creature. It is instead an opaque,
+// caller-assigned identifier, unique per MapId the same way a real
+// spawn_id is, chosen from a range reserved well above any real
+// creature.guid in the world DB (see the 2.12A migration's own comment)
+// so map->GetCreatureBySpawnId(SpawnId) can never accidentally resolve an
+// unrelated real creature. MapId is the group's territory map - see
+// CreatureGroupState.h. This is what lets a CreatureGroup agent reuse the
+// exact same AgentRegistry/AgentPersistence (map_id, spawn_id) identity
+// model as everything else, with no schema/registry change of its own:
+// the ordinary "no Creature found for this (map, spawn)" path every
+// agent already goes through is what keeps it correctly Abstract - see
+// SimulationTier.h's own DeriveSimulationTier().
 struct AgentRecord
 {
     AgentId Id;
@@ -55,6 +71,16 @@ struct AgentRecord
     // eligible; nothing gates on AgentType::Civilian anywhere in that path.
     std::optional<AgentLocation> HomeLocation;
     std::optional<AgentLocation> WorkLocation;
+
+    // Milestone 2.12A: persistent, optional - set only for an
+    // AgentType::CreatureGroup aggregate agent (see CreatureGroupState.h
+    // and this struct's own SpawnId comment above). Everything else
+    // (individual Civilian/Guard/Merchant agents) leaves this empty, the
+    // same optional-by-capability pattern HomeLocation/WorkLocation
+    // already use. Load-only in 2.12A - nothing mutates it yet (no
+    // hunger/combat/materialization-policy simulation exists for a group
+    // until 2.12B), so there is no save path to wire up here either.
+    std::optional<CreatureGroupState> GroupState;
 
     // Milestone 2.11E2: persistent, not optional - every agent has one
     // (defaulting to zero), unlike HomeLocation/WorkLocation. Only ever

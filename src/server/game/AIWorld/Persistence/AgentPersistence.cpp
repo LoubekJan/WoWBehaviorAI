@@ -18,6 +18,7 @@
 #include "AgentPersistence.h"
 #include "Agent/AgentLocation.h"
 #include "Agent/AgentRegistry.h"
+#include "Agent/CreatureGroupState.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
 
@@ -81,14 +82,28 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
         record.EconomyState.Version = fields[18].GetUInt64();
 
+        // Milestone 2.12A: population IS NULL is the presence check for
+        // the whole group - see CreatureGroupState.h and ai_agents' own
+        // migration comment.
+        if (!fields[19].IsNull())
+        {
+            CreatureGroupState group;
+            group.Population = fields[19].GetUInt32();
+            group.TerritoryX = fields[20].GetFloat();
+            group.TerritoryY = fields[21].GetFloat();
+            group.TerritoryZ = fields[22].GetFloat();
+            record.GroupState = group;
+        }
+
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={}",
+        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={} group={} population={}",
             record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId,
             record.HomeLocation.has_value(), record.WorkLocation.has_value(),
             record.EconomyState.Money, record.EconomyState.Food, record.EconomyState.Resource,
-            record.EconomyState.LastRewardedWorkWindowId, record.EconomyState.Version);
+            record.EconomyState.LastRewardedWorkWindowId, record.EconomyState.Version,
+            record.GroupState.has_value(), record.GroupState ? record.GroupState->Population : 0);
 
         ++loaded;
     } while (result->NextRow());
