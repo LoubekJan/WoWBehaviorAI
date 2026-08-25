@@ -1,46 +1,59 @@
 # AI TrinityCore — Development Setup
 
-Implements Etapa 1 (Development Infrastructure) of
-[AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md).
+Development guide for the WoWBehaviorAI fork of TrinityCore `3.3.5`.
+
+For architecture and milestone history see [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md).
+
+## Current status
+
+The development stack has been exercised on a real Ubuntu/NVIDIA host. The old README status that said Docker/GPU runtime was untested is no longer true.
+
+Runtime-verified infrastructure includes:
+
+- TrinityCore build/install in Docker with persistent `/build` and `ccache` volumes;
+- MySQL bootstrap and TDB import;
+- `authserver`, `worldserver`, MySQL and `ai-server` through Compose;
+- mounted `dbc/maps/vmaps/mmaps` game data;
+- LAN WoW 3.3.5a client login;
+- versioned realm configuration via `make configure-realm`;
+- worldserver restart without losing DB state;
+- NVIDIA Container Toolkit visibility from Docker.
+
+AIWorld development has progressed through the scheduler/tier foundation. 2.10A–2.10C are closed; 2.10D implementation/static review and deterministic phase staggering are verified, with one final steady-state coarse cadence sample still pending before formal 2.10 closure.
 
 ## Origin
 
 - Base: `TrinityCore/TrinityCore`, branch `3.3.5`.
-- Upstream commit this project started from: `2a64b72689cc8d797e4c93a0c96dfa2dc06f64c8`
-  ("Core/Misc: Reduce differences between branches", 2026-08-11).
-- `origin` is a real GitHub **fork** of `TrinityCore/TrinityCore`
-  (`https://github.com/LoubekJan/WoWBehaviorAI.git`), created via GitHub's
-  Fork button — not a fresh repo populated with `git push`. TrinityCore's
-  history contains old SVN-import commits with malformed committer emails
-  that GitHub's push-time `fsck` rejects unconditionally, so a plain
-  `git push` of the full history to a brand-new repo cannot work; forking
-  is a server-side copy and doesn't go through that check.
-- Git remotes:
-  - `origin` → `https://github.com/LoubekJan/WoWBehaviorAI.git` (our fork; `3.3.5`, `master`, etc. mirror upstream, `ai-world` carries our scaffold)
-  - `upstream` → `https://github.com/TrinityCore/TrinityCore.git` (pull only, for merging upstream `3.3.5` fixes)
-- Development branch: `ai-world`, branched from `3.3.5` at the commit above.
-  `git fetch upstream && git merge upstream/3.3.5` works as a normal merge
-  since `ai-world` shares real history with `upstream/3.3.5`.
+- Upstream starting commit: `2a64b72689cc8d797e4c93a0c96dfa2dc06f64c8`.
+- `origin`: `https://github.com/LoubekJan/WoWBehaviorAI.git`.
+- `upstream`: `https://github.com/TrinityCore/TrinityCore.git`.
+- Development branch: `ai-world`.
 
-## Prerequisites (host)
+The repository keeps TrinityCore history, so normal upstream merges remain possible.
+
+## Prerequisites
+
+Host requirements:
 
 - Git
-- Docker Engine + Docker Compose plugin
-- NVIDIA driver + NVIDIA Container Toolkit (for `make gpu-test` and the future `ai-server` GPU workload)
+- Docker Engine
+- Docker Compose plugin
+- NVIDIA driver + NVIDIA Container Toolkit for GPU checks/future inference
+- legally obtained WoW 3.3.5a client data for `dbc/maps/vmaps/mmaps`
 
 ## First-time setup
 
 ```bash
-make bootstrap   # creates .env from .env.example, runtime/ dirs, builds dev image
+make bootstrap
 ```
 
-Edit `.env` if you need non-default ports or credentials.
+This creates `.env` from `.env.example` when needed, prepares runtime directories and builds the development image.
 
-## WoW game data (one-time, not committed)
+Edit `.env` before first real startup. DB credentials and realm/network settings should come from `.env`, not hand-edited deployment files.
 
-`worldserver` needs `dbc`, `maps`, `vmaps` and `mmaps` extracted from your own
-licensed 3.3.5a client using TrinityCore's map/vmap/mmap extractors (built as
-part of `tools/` in this source tree). Place the results under:
+## WoW game data
+
+Place extracted client data under:
 
 ```text
 runtime/data/dbc
@@ -49,122 +62,188 @@ runtime/data/vmaps
 runtime/data/mmaps
 ```
 
-This directory is gitignored and never copied into any image; it's mounted
-into `worldserver` at runtime via `WOW_DATA_DIR` (see `.env.example`).
+`runtime/` is host-only, gitignored state and is mounted into `worldserver`.
+
+A precise step-by-step extraction document is still a hardening backlog item.
 
 ## Database bootstrap
 
-`deploy/mysql/01-init-users.sh` creates the `auth`/`characters`/`world`
-databases and the `TC_DB_USER`/`TC_DB_PASSWORD` application user (from
-`.env`) on first `mysql` start. From there, TrinityCore's own updater
-applies the base schema and SQL updates on `authserver`/`worldserver`
-startup (`Updates.EnableDatabases` + `Updates.AutoSetup = 1` in
-`deploy/*.conf`) — that's the empty-schema bootstrap.
+`deploy/mysql/01-init-users.sh` creates the TrinityCore databases and application DB user on first MySQL start. TrinityCore's own updater applies schema updates from the mounted `sql/` tree.
 
-The updater reads its SQL from `SourceDirectory` (empty in `deploy/*.conf`,
-so it falls back to the build-time `/workspace`, i.e. the source tree
-`worldserver`/`authserver` were compiled against). The runtime containers
-don't have the full source mounted, only `./sql:/workspace/sql:ro` — that's
-the one directory the updater actually needs.
-
-Schema alone is not a playable server: **`TC_DB_USER`/`TC_DB_PASSWORD` are
-the single source of truth for DB credentials** — set them in `.env`, never
-edit them directly in `deploy/*.conf` (those files use
-`__TC_DB_USER__`/`__TC_DB_PASSWORD__` placeholders, rendered at container
-start by `docker/scripts/render-conf-and-run.sh`).
-
-### World content (TDB)
-
-`world`'s schema has no creatures, quests, or items until you import a TDB
-dataset — the empty-schema bootstrap above is not enough to get from login
-to a populated Elwynn Forest. Pick a tag from
-[TrinityCore's releases](https://github.com/TrinityCore/TrinityCore/releases)
-(e.g. `TDB335.25101`) and pin it:
+Import a pinned TDB world dataset before first useful worldserver startup:
 
 ```bash
-make db-import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<sha256 of the downloaded asset>
+make db-import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<sha256>
 ```
 
-`db-import-tdb` brings up `mysql` itself and waits for it to accept
-connections before importing, so it's self-contained — no need to start
-`mysql` separately first. `docker/scripts/download-tdb.sh` resolves the
-release's SQL/7z/zip asset via the GitHub API (never a hardcoded URL),
-verifies `TDB_SHA256` if given, and imports it into `world`. Import it
-**before** `authserver`/`worldserver` first start — they cache game data in
-memory at startup, so importing after they're already up needs a restart to
-take effect. Re-running with a newer `TDB_VERSION` re-imports on top of the
-current data.
+The import helper waits for MySQL and verifies the checksum when provided.
 
-### Realm address (realmlist)
+### Realm address
 
-TrinityCore's DB auto-setup creates `auth.realmlist` the first time
-`authserver` starts, with the schema default `127.0.0.1` as address — fine
-for a client on the same machine, not reachable from elsewhere on the LAN.
-Set `REALM_NAME`/`REALM_ADDRESS`/`REALM_LOCAL_ADDRESS`/
-`REALM_LOCAL_SUBNET_MASK`/`REALM_PORT` in `.env`, then:
+Set the realm values in `.env`, then run:
 
 ```bash
 make configure-realm
 ```
 
-`docker/scripts/configure-realm.sh` waits for `auth.realmlist` to exist (so
-it doesn't matter whether this runs before or after the first `authserver`
-start) and upserts that row from the environment — a versioned alternative
-to a one-off manual `UPDATE realmlist` against the DB. Re-run it any time
-the REALM_* values in `.env` change; it's idempotent.
+For a client on another machine, `REALM_ADDRESS` must be a reachable server address, not `127.0.0.1`.
 
 ## Day-to-day workflow
 
-Order matters: `authserver`/`worldserver` run binaries out of the
-persistent `/build` volume, so it needs to exist before `start`; TDB import
-should happen before `worldserver` first loads.
+Typical C++ workflow:
 
 ```bash
-make bootstrap                     # .env, runtime/ dirs, build the dev image
-make db-import-tdb TDB_VERSION=... # see "World content (TDB)" above
-make build                         # compile TrinityCore into the build-data volume (throwaway tc-dev container)
-make start                         # bring up mysql, authserver, worldserver, ai-server
-make restart-world                 # restart only worldserver after a rebuild
-make world-logs                    # tail worldserver logs
-make shell                         # throwaway interactive shell in the dev container
-make db-shell                      # mysql shell as the TC_DB_USER application user
+git checkout ai-world
+git pull --ff-only origin ai-world
+git log -1 --oneline
+make build
+make restart-world
+make world-logs
 ```
 
-Clean build and DB reset are explicit and destructive by design:
+Useful targets:
+
+| Command | Purpose |
+|---|---|
+| `make bootstrap` | prepare `.env`, runtime dirs and dev image |
+| `make build` | incremental configure/build/install |
+| `make rebuild` | clean-first rebuild without deleting DB state |
+| `make start` | start the Compose stack |
+| `make stop` | stop the stack |
+| `make restart-world` | restart only worldserver |
+| `make logs` | follow all services |
+| `make world-logs` | follow worldserver container stdout/stderr |
+| `make shell` | development container shell |
+| `make db-shell` | MySQL shell as application user |
+| `make gpu-test` | run `nvidia-smi` through the GPU profile |
+| `make db-import-tdb` | import pinned TDB |
+| `make configure-realm` | update `auth.realmlist` from `.env` |
+
+`make clean-build` and `make reset-db` are intentionally destructive. Use them only when a clean build or DB reset is explicitly intended.
+
+## Python ai-server workflow
+
+When Python decision-service code changes, rebuild that service:
 
 ```bash
-make clean-build   # wipe /build and rebuild from scratch
-make reset-db       # drop and recreate the mysql volume
+docker compose -f compose.yml -f compose.dev.yml up -d --build ai-server
+make restart-world
+make logs
 ```
 
-## GPU check
+There is no separate `make restart-ai` workflow.
+
+## AIWorld configuration
+
+AIWorld settings are versioned in `deploy/worldserver.conf` and mirrored in `src/server/worldserver/worldserver.conf.dist`.
+
+The subsystem can be disabled:
+
+```ini
+AIWorld.Enable = 0
+```
+
+Current scheduler controls include:
+
+```ini
+AIWorld.DecisionSchedulerIntervalMs = 250
+AIWorld.DecisionNearbyIntervalMs = 1000
+AIWorld.DecisionActiveIntervalMs = 5000
+AIWorld.DecisionNearbyPlayerRange = 60.0
+AIWorld.DecisionMaxInFlight = 4
+AIWorld.BackgroundSimulationIntervalMs = 60000
+AIWorld.AbstractSimulationIntervalMs = 300000
+AIWorld.CoarseSimulationMaxPerPass = 50
+```
+
+Semantics:
+
+```text
+NEARBY     → materialized, player near, ~1 s decision cadence
+ACTIVE     → materialized, no nearby player, ~5 s decision cadence
+BACKGROUND → unloaded ordinary agent, coarse scheduler seam
+ABSTRACT   → future aggregate/group agent, coarse scheduler seam
+```
+
+`BACKGROUND/ABSTRACT` never send `/decision`, execute actions or force-load grids in the current 2.10D scope.
+
+## Logging
+
+Primary categories used by the current AIWorld implementation include:
+
+```text
+ai.world
+ai.agent
+```
+
+`make world-logs` follows the worldserver container console. Detailed AIWorld DEBUG records are normally written to the file appender at:
+
+```text
+runtime/logs/Server.log
+```
+
+Useful runtime checks:
 
 ```bash
-make gpu-test
+grep "AI simulation tier" runtime/logs/Server.log
+grep "AI simulation tick" runtime/logs/Server.log
 ```
 
-Runs `nvidia-smi` inside a throwaway container via the `gpu-check` Compose
-profile to confirm the host driver + NVIDIA Container Toolkit are wired up
-correctly. `ai-server` is the only service intended to touch the GPU —
-`worldserver` never runs inference directly (see roadmap section 1.10).
+The console appender may filter DEBUG messages even when the `ai.world` logger itself is configured at DEBUG level, so `Server.log` is the preferred source for detailed tier/scheduler evidence.
 
-## Repository layout
+## Current scheduler runtime handoff
 
-See section [1.2](AI_TrinityCore_Roadmap_Etapa_1_2.md#12-struktura-repozitáře)
-of the roadmap. `src/`, `sql/`, `cmake/` etc. are the unmodified TrinityCore
-tree; `docker/`, `deploy/`, `compose*.yml`, `.env.example` and this file are
-the additions for this project. `runtime/` is host-only, gitignored state.
+2.10D deterministic entry staggering is runtime verified. For the three current test guards the first Background ticks were observed at different phases:
 
-## Status
+```text
+agent=3 tier=BACKGROUND dt=14253ms
+agent=2 tier=BACKGROUND dt=21504ms
+agent=1 tier=BACKGROUND dt=46762ms
+```
 
-This scaffold covers the repository/Compose/Makefile shape from Etapa 1,
-with real shared history against `upstream/3.3.5`, working DB credential
-plumbing, a `/workspace/sql` mount so the schema updater can actually find
-its SQL, a pinned/checksummed TDB import path, and mysql/ai-server kept off
-the host network by default. None of it has been run yet — `make bootstrap
-&& make build && make start` is untested against an actual Docker/GPU host.
+The remaining final gate is to observe the next tick for each agent with approximately:
 
-Still open: end-to-end verification against a real container run (client
-login → character → Elwynn with mobs/quests), game data extraction docs,
-debugging/observability (section 1.9), the async AI health bridge (1.11),
-and all of Etapa 2.
+```text
+dt≈60000ms
+```
+
+After that, 2.10 can be marked CLOSED/PASS and development moves to 2.11 persistent farmer.
+
+## Debugging and metrics hardening
+
+Still open:
+
+- exact game-data extraction walkthrough;
+- convenient Debug build target;
+- measured no-op/incremental rebuild smoke;
+- `gdb` attach/breakpoint workflow;
+- core dump/crash artifact workflow;
+- CUDA/PyTorch compute smoke;
+- Influx/metrics backend runtime evidence;
+- scaling improvements for the fast registry/materialization scan and full-sort coarse due selection.
+
+## Persistence
+
+Project-specific persistent state currently uses the `characters` database.
+
+Implemented tables include:
+
+```text
+ai_agents
+ai_long_term_memories
+```
+
+Persistent `AgentId` is separate from runtime `ObjectGuid`. A spawn can unload/reload or produce a new runtime Creature incarnation while the logical agent persists.
+
+## Safety invariants for development
+
+When changing AIWorld code, preserve these rules:
+
+- no live TrinityCore pointer across async boundaries;
+- no blocking network/DB work on the world thread;
+- no force-loading grids to simulate agents;
+- async responses are consumed on the world thread;
+- `RuntimeGuid` provenance must protect runtime Creature incarnation changes;
+- AI proposes, `ActionSystem` validates, TrinityCore executes;
+- do not create duplicate execution ownership between deterministic and remote decision paths;
+- prefer deterministic logic and use LLM/inference only when it adds real value.

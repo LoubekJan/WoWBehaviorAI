@@ -4,15 +4,15 @@ Experimental **persistent AI world layer for TrinityCore 3.3.5**.
 
 The project extends TrinityCore with long-lived agents that can perceive the world, remember events, develop needs and goals, propose actions, and eventually participate in a larger simulated world without bypassing TrinityCore's authoritative gameplay rules.
 
-The long-term goal is not to replace TrinityCore AI with a language model. The goal is to build a safe simulation layer where deterministic systems handle common behavior and external AI/inference is used only where it adds value.
+The long-term goal is not to replace TrinityCore AI with a language model. Deterministic systems handle common behavior; external AI/inference is used only where it adds value.
 
 > Development branch: `ai-world`
 >
-> Current milestone: **Etapa 2 / 2.9E complete**
+> Current milestone: **Etapa 2 / 2.10D final runtime closure**
 >
-> Next: **2.10A — scheduler, admission and bounded backpressure**
+> Next after closure: **2.11 — persistent farmer**
 
-For the detailed implementation roadmap see [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md).
+For detailed milestone history see [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md).
 
 ---
 
@@ -22,48 +22,36 @@ For the detailed implementation roadmap see [AI_TrinityCore_Roadmap_Etapa_1_2.md
 
 ```text
 WORLD STATE
-    │
-    ▼
+    ↓
 EVENT
-    │
-    ▼
+    ↓
 PERCEPTION
-    │
-    ▼
+    ↓
 MEMORY
-    │
-    ▼
+    ↓
 NEEDS
-    │
-    ▼
+    ↓
 GOALS
-    │
-    ▼
+    ↓
 DECISION / PLANNING
-    │
-    ▼
+    ↓
 ActionRequest
-    │
-    ▼
+    ↓
 ActionSystem::Validate
-    │
-    ▼
+    ↓
 TrinityCore gameplay execution
-    │
     └──────────────► WORLD STATE
 ```
 
-AIWorld is intentionally not allowed to mutate arbitrary game state. Movement, combat, damage, death, pathfinding and other engine behavior stay owned by TrinityCore.
+Safety/threading invariants:
 
-### Safety and threading invariants
-
-- No live `Creature*`, `Player*`, `Map*` or `Unit*` crosses the async inference boundary.
-- Async/network workers operate only on value DTOs.
-- Inference responses are consumed and validated on the world thread.
-- AIWorld never force-loads grids just to simulate an agent.
-- A loaded agent may be backed by a live `Creature`; an unloaded agent may continue to exist only as persistent/abstract state.
-- Remote decisions are treated as untrusted intent, never as permission to mutate the world.
-- Deterministic behavior is preferred where it is sufficient; LLM/GPU inference is a later layer, not the foundation.
+- no live `Creature*`, `Player*`, `Map*` or `Unit*` crosses the async inference boundary;
+- async/network workers receive only value DTOs;
+- responses are consumed and validated on the world thread;
+- AIWorld never force-loads grids just to simulate an agent;
+- `AgentWorldState` (materialized/abstract binding) is separate from `SimulationTier` (`NEARBY`/`ACTIVE`/`BACKGROUND`/`ABSTRACT` policy);
+- remote decisions are untrusted intent, never permission to mutate world state;
+- deterministic behavior is preferred where sufficient.
 
 ---
 
@@ -71,263 +59,132 @@ AIWorld is intentionally not allowed to mutate arbitrary game state. Movement, c
 
 ### Infrastructure — runtime verified
 
-The development environment is Docker-based and has been exercised on a real Ubuntu/NVIDIA host:
+The Docker development environment has been exercised on a real Ubuntu/NVIDIA host:
 
-- TrinityCore `3.3.5` builds in a development container.
-- Incremental builds use persistent `/build` and `ccache` volumes.
-- MySQL, `authserver`, `worldserver` and `ai-server` run through Docker Compose.
-- TDB world data can be imported through the versioned Make workflow.
-- `dbc`, `maps`, `vmaps` and `mmaps` are mounted from host runtime storage and are not committed.
-- LAN client login to the realm has been runtime verified.
-- NVIDIA Container Toolkit is wired into the development stack; GPU inference itself is not yet the active decision engine.
+- TrinityCore `3.3.5` builds in a development container;
+- persistent `/build` and `ccache` volumes support incremental work;
+- MySQL, `authserver`, `worldserver` and `ai-server` run through Compose;
+- pinned TDB import works through the Make workflow;
+- `dbc/maps/vmaps/mmaps` are mounted from host runtime storage;
+- LAN client login is runtime verified;
+- NVIDIA Container Toolkit is wired into the stack.
 
-### Persistent agent foundation
+### AIWorld foundation
 
 Implemented and runtime exercised:
 
-- `AIWorldMgr` lifecycle integrated into `worldserver`.
-- Stable `AgentId` and `AgentRegistry`.
-- Materialized ↔ abstract agent binding without forcing grids to load.
-- Persistent agent identity in the `characters` database.
-- Long-term memory persistence and reload after `worldserver` restart.
-
-### Events, perception and memory
-
-Implemented:
-
-- `WorldEvent` + internal event bus.
-- TrinityCore event producers.
-- Nearby player/creature perception.
-- Witnessed world-event perception.
-- Short-term memory with dedupe, TTL and expiry.
-- Deterministic importance scoring.
-- Persistent long-term memories.
-- Deterministic relevant-memory retrieval with Top-N limiting.
-- Decision-safe memory DTOs containing only selected semantic data.
-
-### Needs and goals
-
-The current deterministic behavior stack supports:
-
-- `HealthPressure`
-- `Hunger`
-- `Fatigue`
-- `SafetyPressure`
-- `ResourcePressure`
-
-Safety can be derived from both live combat state and recent dangerous memories.
-
-Implemented goals:
-
-- `GET_FOOD`
-- `FLEE_DANGER`
-
-Goal selection includes deterministic utility ranking, emergency priority, retention, interruption, success and timeout handling.
-
-### Safe Action API
-
-Currently runtime-verified action primitives:
-
-- `FLEE`
-- `MOVE_TO`
-- `EAT`
-
-The `GET_FOOD` loop is fully connected:
-
-```text
-Hunger high
-    ↓
-GET_FOOD activated
-    ↓
-Food target resolved
-    ↓
-MOVE_TO validated
-    ↓
-TrinityCore MovePoint/pathfinding
-    ↓
-arrival verified
-    ↓
-EAT validated
-    ↓
-Hunger satisfied
-    ↓
-GET_FOOD succeeded
-```
-
-`FLEE_DANGER` uses the same Action API boundary and executes through TrinityCore `MotionMaster::MoveFleeing()` rather than AIWorld inventing its own movement system.
+- `AIWorldMgr` lifecycle and disable switch;
+- stable `AgentId` + `AgentRegistry`;
+- materialized ↔ abstract binding without force-loading grids;
+- persistent agent identity and long-term memory;
+- world events, perception and short/long-term memory;
+- deterministic relevant-memory Top-N retrieval;
+- Needs System with health/hunger/fatigue/safety/resource pressure;
+- deterministic Goal System for `GET_FOOD` and `FLEE_DANGER`;
+- safe Action API primitives `FLEE`, `MOVE_TO`, `EAT`;
+- full `GET_FOOD → MOVE_TO → ARRIVED → EAT → CONSUMED → NEED_SATISFIED` feedback loop.
 
 ### Async decision protocol — 2.9A through 2.9E
 
-The project now has a versioned async decision path:
+The versioned async decision path carries a full value-only `AgentContext` over Protocol V2 and returns structured `DecisionIntent`.
+
+Safeguards include:
+
+- request/agent/snapshot correlation;
+- goal-attempt and RuntimeGuid provenance;
+- stale response rejection;
+- fail-closed unsupported intents;
+- world-thread authoritative `ActionRequest` translation;
+- `ActionSystem::Validate()` before any execution ownership could be transferred.
+
+Remote decision execution is still intentionally dry-run. The deterministic Goal→Action pipeline owns real FLEE execution so there are not two movement owners racing each other.
+
+### Scheduler and simulation tiers — 2.10
+
+2.10A–2.10C are closed. 2.10D implementation has static PASS and runtime-verified deterministic phase staggering; one final steady-state cadence sample remains before formal closure.
+
+Materialized decision tiers:
 
 ```text
-AgentContext
-    ↓
-DecisionRequest V2
-    ↓ async HTTP
-ai-server
-    ↓
-DecisionResponse V2
-    ↓
-world-thread correlation + stale/provenance checks
-    ↓
-authoritative ActionRequest translation
-    ↓
-ActionSystem::Validate
+NEARBY → ~1 s decision cadence
+ACTIVE → ~5 s decision cadence
 ```
 
-The current `ai-server` policy is deliberately deterministic. It can propose `FLEE` when the current request context already contains an active `FLEE_DANGER` goal; otherwise it returns `NONE`.
+Decision admission is bounded by `AIWorld.DecisionMaxInFlight`. Capacity-skipped agents stay due rather than entering an unbounded request queue. Effective due-time ordering preserves fairness and allows live `ACTIVE ↔ NEARBY` cadence changes without stale deadlines.
 
-Implemented safeguards include:
-
-- protocol version validation,
-- `request_id`, `agent_id` and snapshot correlation,
-- request-time goal-attempt provenance,
-- request-time runtime `Creature` incarnation provenance,
-- stale response rejection,
-- unsupported intent rejection,
-- fresh world-thread `ActionSystem` validation.
-
-**Remote decision execution is still intentionally dry-run.** The response path validates the proposed FLEE intent but does not call `ActionExecutor`, because the deterministic Goal → Action pipeline currently owns real FLEE execution. This prevents two independent owners from racing the same movement.
-
-### Decision observability
-
-Decision instrumentation uses TrinityCore's existing metrics system and emits low-cardinality series for:
-
-- submissions / skipped-in-flight,
-- queue time,
-- request latency,
-- transport outcomes,
-- stale/discard reasons,
-- validation results,
-- unified valid/invalid decision rate.
-
-The instrumented runtime path is exercised, but the external Influx/metrics backend has not yet received a dedicated runtime verification pass.
-
-### Multi-agent submit API
-
-`AIClient` exposes a batch-shaped caller API:
+Non-materialized simulation tiers:
 
 ```text
-vector<AIRequest>
-    ↓
-SubmitDecisions(...)
-    ↓
-vector<DecisionSubmitResult>
+BACKGROUND → default coarse interval 60 s
+ABSTRACT   → default coarse interval 5 min
 ```
 
-This is an API seam for the upcoming scheduler. It is **not** HTTP batching yet: each item still delegates to the existing `/decision` request path and the current global `DecisionInFlight` guard remains in place.
+The current coarse tick is **observability/scheduling only**. It does not call `/decision`, `ActionExecutor`, mutate Needs/goals/memory or force-load grids.
+
+`AIWorld.CoarseSimulationMaxPerPass` bounds coarse work per scheduler pass. A per-agent authoritative `NextTickAtMs` plus deterministic `StableAgentHash(AgentId)` entry phase avoids phase-locking agents that enter Background together.
+
+Runtime first-phase evidence for the three test guards:
+
+```text
+agent=3 tier=BACKGROUND dt=14253ms
+agent=2 tier=BACKGROUND dt=21504ms
+agent=1 tier=BACKGROUND dt=46762ms
+```
+
+The final 2.10D gate is to observe each agent's next Background tick at approximately `dt=60000ms`. After that, the project moves to **2.11 persistent farmer**.
 
 ---
 
 ## What is not implemented yet
 
-The project is still an active prototype. Major open areas include:
+Major open areas include:
 
-- multi-agent scheduler and simulation tiers,
-- bounded inference admission/backpressure,
-- actual GPU/LLM decision inference,
-- safe transfer of execution ownership from deterministic behavior to selected remote decisions,
-- richer action catalog (`WORK`, `REST`, `REQUEST_HELP`, trade/economy, etc.),
-- relationships and social state,
-- persistent active goals,
-- farmer daily-life simulation,
-- abstract wolf-pack simulation,
-- the final emergent world-event loop described in the roadmap.
+- actual gameplay/state simulation on the Background/Abstract coarse seam;
+- persistent farmer daily-life behavior (`WORK`, home/working locations, rest/resources);
+- actual GPU/LLM decision inference;
+- safe transfer of execution ownership from deterministic behavior to selected remote decisions;
+- richer actions such as `WORK`, `REST`, `REQUEST_HELP`, trade/economy;
+- relationships/social state and persistent active goals;
+- a real aggregate `CREATURE_GROUP` wolf-pack agent;
+- the emergent wolf-pack → farm → memory → protect/request-help loop.
 
-The current C++ V2 response parser is also a deliberately small hand-written parser for the controlled deterministic service. It should be replaced or hardened before a real external/LLM provider becomes an execution-relevant trust boundary.
+Before a real external/LLM provider becomes execution-relevant, the hand-written C++ V2 response parser and external DecisionContext privacy boundary should be hardened.
+
+Known non-blocking scheduler scaling work: the fast scheduler still probes the registered population for live materialization, and coarse selection sorts the whole due set before taking the bounded admitted prefix.
 
 ---
 
 ## Repository layout
 
-The repository is a real fork of TrinityCore and keeps upstream history.
-
 ```text
 WoWBehaviorAI/
-├── src/
-│   └── server/game/AIWorld/       # persistent AI world subsystem
+├── src/server/game/AIWorld/       # persistent AI world subsystem
 ├── sql/                           # TrinityCore + project DB updates
-├── docker/
-│   ├── trinitycore/               # development build image
-│   ├── ai/                        # FastAPI decision service
-│   └── scripts/
-├── deploy/                        # versioned server configuration
-├── runtime/                       # local runtime state, gitignored
-│   ├── data/                      # dbc/maps/vmaps/mmaps
-│   └── logs/
+├── docker/                        # development/inference images and scripts
+├── deploy/                        # versioned runtime configuration
+├── runtime/                       # host-only runtime state, gitignored
 ├── compose.yml
 ├── compose.dev.yml
 ├── .env.example
 ├── Makefile
-├── README_DEV.md                  # detailed environment/bootstrap notes
+├── README_DEV.md
 └── AI_TrinityCore_Roadmap_Etapa_1_2.md
 ```
 
-Upstream base:
-
-```text
-TrinityCore/TrinityCore
-branch: 3.3.5
-```
-
-The active project branch is `ai-world`.
-
----
-
-## Requirements
-
-Host requirements:
-
-- Linux development host (the current environment is Ubuntu)
-- Git
-- Docker Engine
-- Docker Compose plugin
-- extracted World of Warcraft 3.3.5a `dbc/maps/vmaps/mmaps` data
-- NVIDIA driver + NVIDIA Container Toolkit only if using the GPU development checks / future inference workload
-
-No game client data, DB runtime volumes, secrets or AI model files belong in Git.
+The repository is a real fork of TrinityCore and keeps upstream history. Active development happens on `ai-world`.
 
 ---
 
 ## Quick start
 
-Clone the repository and use the `ai-world` branch:
-
 ```bash
 git clone https://github.com/LoubekJan/WoWBehaviorAI.git
 cd WoWBehaviorAI
 git checkout ai-world
-```
-
-Create the local environment and build the development images:
-
-```bash
 make bootstrap
 ```
 
-`make bootstrap` creates `.env` from `.env.example` if it does not exist and creates the expected runtime directories.
-
-Edit `.env` before first real startup. Important values include:
-
-```text
-TC_DB_USER
-TC_DB_PASSWORD
-WORLDSERVER_PORT
-AUTHSERVER_PORT
-WOW_DATA_DIR
-REALM_NAME
-REALM_ADDRESS
-REALM_LOCAL_ADDRESS
-REALM_LOCAL_SUBNET_MASK
-REALM_PORT
-```
-
-For a client on another machine, `REALM_ADDRESS` must point at the server's reachable LAN address, not `127.0.0.1`.
-
-### Add WoW 3.3.5a data
-
-Place extracted client data under the path configured by `WOW_DATA_DIR` (default `./runtime/data`):
+Place extracted WoW 3.3.5a data under the configured `WOW_DATA_DIR` (default `runtime/data`):
 
 ```text
 runtime/data/dbc
@@ -336,34 +193,17 @@ runtime/data/vmaps
 runtime/data/mmaps
 ```
 
-These files are intentionally gitignored.
-
-### Import world content
-
-Import a pinned TrinityCore Database release, for example:
+Import world content and start:
 
 ```bash
 make db-import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<sha256>
-```
-
-### Build and start
-
-```bash
 make build
 make start
-```
-
-Configure the realm row from `.env`:
-
-```bash
 make configure-realm
-```
-
-Then follow the worldserver log:
-
-```bash
 make world-logs
 ```
+
+For a LAN client, configure a reachable `REALM_ADDRESS` in `.env`, not `127.0.0.1`.
 
 ---
 
@@ -374,63 +214,13 @@ Typical C++ workflow:
 ```bash
 git checkout ai-world
 git pull --ff-only origin ai-world
+git log -1 --oneline
 make build
 make restart-world
 make world-logs
 ```
 
-Useful Make targets:
-
-| Command | Purpose |
-|---|---|
-| `make bootstrap` | create `.env`, runtime dirs and build dev images |
-| `make build` | incremental configure/build/install into persistent `/build` |
-| `make rebuild` | clean-first rebuild without deleting the build volume |
-| `make start` | start MySQL, authserver, worldserver and ai-server |
-| `make stop` | stop the Compose stack |
-| `make restart-world` | restart only worldserver |
-| `make logs` | follow all service logs |
-| `make world-logs` | follow worldserver logs |
-| `make shell` | interactive development container |
-| `make db-shell` | MySQL shell as the application DB user |
-| `make gpu-test` | run `nvidia-smi` through the GPU Compose profile |
-| `make db-import-tdb` | import a pinned TDB world database |
-| `make configure-realm` | update `auth.realmlist` from `.env` |
-
-`make clean-build` and `make reset-db` are deliberately destructive operations. They should only be used when a clean build or database reset is explicitly intended.
-
----
-
-## AIWorld configuration
-
-AIWorld settings live in the versioned `deploy/worldserver.conf` under the **AI WORLD SETTINGS** section.
-
-The subsystem can be disabled entirely:
-
-```ini
-AIWorld.Enable = 0
-```
-
-When disabled, the custom AIWorld subsystem does not run and normal TrinityCore behavior remains available.
-
-The development configuration also contains cadence, test-agent, memory, needs and test-target settings used by the current milestones. Treat these as development controls rather than a final production configuration surface.
-
----
-
-## AI service
-
-`docker/ai/app/main.py` is currently a small FastAPI service used to exercise the async protocol and safety boundaries.
-
-It provides:
-
-```text
-GET  /health
-POST /decision
-```
-
-The service currently uses protocol V2 and a deterministic policy. It is intentionally not a real LLM implementation yet.
-
-When Python `ai-server` code changes, rebuild that service rather than only restarting worldserver:
+When Python `ai-server` code changes:
 
 ```bash
 docker compose -f compose.yml -f compose.dev.yml up -d --build ai-server
@@ -438,65 +228,69 @@ make restart-world
 make logs
 ```
 
+`make clean-build` and `make reset-db` are destructive operations and should be used only deliberately.
+
 ---
 
-## Persistence
+## AIWorld configuration
 
-Project-specific persistent state currently uses the TrinityCore `characters` database.
+AIWorld settings are versioned in `deploy/worldserver.conf`.
 
-Implemented areas include:
-
-```text
-ai_agents
-ai_long_term_memories
+```ini
+AIWorld.Enable = 1
+AIWorld.DecisionSchedulerIntervalMs = 250
+AIWorld.DecisionNearbyIntervalMs = 1000
+AIWorld.DecisionActiveIntervalMs = 5000
+AIWorld.DecisionNearbyPlayerRange = 60.0
+AIWorld.DecisionMaxInFlight = 4
+AIWorld.BackgroundSimulationIntervalMs = 60000
+AIWorld.AbstractSimulationIntervalMs = 300000
+AIWorld.CoarseSimulationMaxPerPass = 50
 ```
 
-The system keeps the persistent `AgentId` separate from any particular runtime `Creature` instance. A spawn can unload/reload or be represented by a new runtime GUID while the logical agent continues to exist.
+Set `AIWorld.Enable = 0` to disable the custom subsystem.
 
 ---
 
 ## Debugging and metrics
 
-Primary development logging category:
+Detailed AIWorld DEBUG traces are written to the file appender under:
 
 ```text
-ai.world
+runtime/logs/Server.log
 ```
 
-Most detailed AIWorld lifecycle/action/decision traces are DEBUG-level logs, so a normal worldserver console may not show every validation line unless that category is configured accordingly.
+Useful checks:
 
-Decision metrics use TrinityCore `Metric.h`. TrinityCore metrics are disabled by default and require `Metric.Enable` plus a valid `Metric.ConnectionInfo` to send data to the configured InfluxDB-compatible backend.
+```bash
+grep "AI simulation tier" runtime/logs/Server.log
+grep "AI simulation tick" runtime/logs/Server.log
+```
+
+`make world-logs` follows container stdout/stderr, whose console threshold may hide DEBUG lines even when the `ai.world` logger is at DEBUG level.
+
+Decision metrics use TrinityCore's existing `Metric.h` infrastructure. Dedicated Influx/backend runtime verification remains a hardening item.
 
 ---
 
-## Roadmap
-
-The authoritative project status and milestone history live in:
-
-[AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md)
-
-Current handoff:
+## Roadmap handoff
 
 ```text
-2.8  Safe Action API                     DONE
-2.9A Full AgentContext protocol          DONE
-2.9B Structured deterministic response  DONE
-2.9C World-thread validation seam        DONE
-2.9D Decision metrics                    DONE
-2.9E Multi-agent submit API              DONE
-2.10A Scheduler/admission                NEXT
+2.8   Safe Action API                         DONE
+2.9A  Full AgentContext protocol              DONE
+2.9B  Structured deterministic response      DONE
+2.9C  World-thread validation seam            DONE
+2.9D  Decision metrics                        DONE
+2.9E  Multi-agent submit API                  DONE
+2.10A Bounded multi-agent admission           DONE
+2.10B Proximity-aware decision cadence        DONE
+2.10C Explicit simulation tier transitions    DONE
+2.10D Coarse Background/Abstract scheduling   FINAL RUNTIME GATE
+2.11  Persistent farmer                       NEXT
 ```
 
-The next architecture step is to replace the current global single-decision bottleneck with scheduler-driven, bounded admission while preserving the existing world-thread, DTO and stale-provenance safety rules.
-
----
-
-## Relationship to TrinityCore
-
-WoWBehaviorAI is built as a fork of [TrinityCore](https://github.com/TrinityCore/TrinityCore) and retains its upstream history. TrinityCore remains the authoritative MMORPG server framework underneath the experimental AIWorld layer.
-
-This repository is not a replacement distribution of World of Warcraft client data. You must supply your own compatible client data and follow the legal requirements applicable to your environment.
+See [README_DEV.md](README_DEV.md) for environment details and [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md) for milestone history.
 
 ## License
 
-The underlying TrinityCore project is licensed under **GPL-2.0**. See [COPYING](COPYING) and [AUTHORS](AUTHORS) for the inherited license and attribution information.
+The underlying TrinityCore project is licensed under **GPL-2.0**. See [COPYING](COPYING) and [AUTHORS](AUTHORS).
