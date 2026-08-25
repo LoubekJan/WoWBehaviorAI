@@ -41,7 +41,13 @@ enum class ActionRejectReason : uint8
     // ArrivedDestination/ArrivedSourceGoal/ArrivedGoalStartedAtMs - either
     // no MOVE_TO just arrived at all, or the request claims a different
     // continuation than the one that actually did.
-    EatContinuationMismatch
+    EatContinuationMismatch,
+    // Milestone 2.11E1 P3 fix: a Work/Rest request's SourceGoal/
+    // GoalStartedAtMs did not match ActionValidationContext::
+    // ExpectedRoutineActivity/RoutineActivityStartedAtMs - the same
+    // "independent authoritative fields, not just the generic ActiveGoal
+    // pair" pattern EatContinuationMismatch already uses.
+    RoutineActivityMismatch
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -63,6 +69,7 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::ActorMovementBusy:      return "ACTOR_MOVEMENT_BUSY";
         case ActionRejectReason::ActorInCombat:          return "ACTOR_IN_COMBAT";
         case ActionRejectReason::EatContinuationMismatch: return "EAT_CONTINUATION_MISMATCH";
+        case ActionRejectReason::RoutineActivityMismatch: return "ROUTINE_ACTIVITY_MISMATCH";
         default:                                         return "UNKNOWN";
     }
 }

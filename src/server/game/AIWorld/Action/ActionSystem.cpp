@@ -204,6 +204,14 @@ ActionValidationResult ActionSystem::ValidateWork(ActionRequest const& request, 
     if (*context.ActiveGoalType != GoalType::GoToWork)
         return { false, ActionRejectReason::GoalMismatch };
 
+    // Milestone 2.11E1 P3 fix: independent authoritative check against
+    // AgentRecord::RoutineActivityState itself - see
+    // ActionValidationContext::ExpectedRoutineActivity for why this is not
+    // just the generic ActiveGoalType/ActiveGoalStartedAtMs check above.
+    if (context.ExpectedRoutineActivity != RoutineActivityType::Work
+        || request.GoalStartedAtMs != context.RoutineActivityStartedAtMs)
+        return { false, ActionRejectReason::RoutineActivityMismatch };
+
     return ValidateAtRoutineTarget(request, context);
 }
 
@@ -211,6 +219,10 @@ ActionValidationResult ActionSystem::ValidateRest(ActionRequest const& request, 
 {
     if (*context.ActiveGoalType != GoalType::GoHome)
         return { false, ActionRejectReason::GoalMismatch };
+
+    if (context.ExpectedRoutineActivity != RoutineActivityType::Rest
+        || request.GoalStartedAtMs != context.RoutineActivityStartedAtMs)
+        return { false, ActionRejectReason::RoutineActivityMismatch };
 
     return ValidateAtRoutineTarget(request, context);
 }

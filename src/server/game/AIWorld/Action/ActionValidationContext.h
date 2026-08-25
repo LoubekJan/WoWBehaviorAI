@@ -21,6 +21,7 @@
 #include "ActionPosition.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
+#include "Goal/RoutineActivityType.h"
 #include "ObjectGuid.h"
 #include <optional>
 
@@ -88,6 +89,24 @@ struct ActionValidationContext
     std::optional<ActionPosition> ArrivedDestination;
     GoalType ArrivedSourceGoal = GoalType::GetFood;
     uint64 ArrivedGoalStartedAtMs = 0;
+
+    // Milestone 2.11E1 P3 fix: independent of ActiveGoalType/
+    // ActiveGoalStartedAtMs above - for Work/Rest, AIWorldMgr currently
+    // populates both of those from this same RoutineActivityState in the
+    // same synchronous call, which makes Validate()'s generic honesty
+    // check tautological (a request built from a queued/stale/external
+    // source could satisfy it purely because both sides were copied from
+    // whatever the caller currently holds). Set only from AgentRecord::
+    // RoutineActivityState, never from the ActionRequest being validated -
+    // ValidateWork()/ValidateRest() cross-check the request's SourceGoal/
+    // GoalStartedAtMs against this authoritative pair too, the same
+    // "two independent copies, checked for equality" pattern
+    // ArrivedDestination/ArrivedSourceGoal/ArrivedGoalStartedAtMs above
+    // already uses for Eat. Unset (nullopt) means no RoutineActivityState
+    // exists at all, so no Work/Rest request can be validated regardless
+    // of what it claims.
+    std::optional<RoutineActivityType> ExpectedRoutineActivity;
+    uint64 RoutineActivityStartedAtMs = 0;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

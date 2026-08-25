@@ -1865,6 +1865,13 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 activityValidationContext.Z = creature->GetPositionZ();
                 activityValidationContext.HasActiveMovement = activityContext.ActorMoving;
 
+                // 2.11E1 P3 fix: read independently from AgentRecord::
+                // RoutineActivityState (just set above), not echoed from
+                // the request being validated - see
+                // ActionValidationContext::ExpectedRoutineActivity.
+                activityValidationContext.ExpectedRoutineActivity = record->RoutineActivityState->Type;
+                activityValidationContext.RoutineActivityStartedAtMs = record->RoutineActivityState->StartedAtMs;
+
                 ActionValidationResult activityValidation = _actionSystem.Validate(activityRequest, activityValidationContext);
 
                 TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
@@ -1879,6 +1886,29 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
                     TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
                         record->Id.Value, ToString(activityResult.Type), ToString(activityResult.Status), ToString(activityResult.Reason));
+
+                    // 2.11E1 P3 fix: same "no engine completion callback,
+                    // Started treated as immediately done, routed through
+                    // HandleActionCompletion() for consistent logging"
+                    // shape TryEat() already uses for Eat - a future
+                    // economy mutation (2.11E2) must gate on this
+                    // Succeeded/Performed completion, never on Started
+                    // alone. No ActiveActionState was ever set for this
+                    // action, so HandleActionCompletion()'s own reset()
+                    // is a harmless no-op here.
+                    if (activityResult.Status == ActionExecutionStatus::Started)
+                    {
+                        ActionCompletion activityCompletion;
+                        activityCompletion.Actor = record->Id;
+                        activityCompletion.Type = activityRequest.Type;
+                        activityCompletion.SourceGoal = activityRequest.SourceGoal;
+                        activityCompletion.GoalStartedAtMs = activityRequest.GoalStartedAtMs;
+                        activityCompletion.Status = ActionCompletionStatus::Succeeded;
+                        activityCompletion.Reason = ActionCompletionReason::Performed;
+                        activityCompletion.CompletedAtMs = nowMs;
+
+                        HandleActionCompletion(*record, activityCompletion);
+                    }
                 }
             }
             else

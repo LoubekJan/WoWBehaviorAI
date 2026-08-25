@@ -91,7 +91,14 @@ enum class ActionCompletionReason : uint8
     // forget, so AIWorldMgr::TryEat() treats a Started ActionResult as
     // immediately Consumed, in the same call, with no ActiveActionState
     // ever created for it.
-    Consumed
+    Consumed,
+    // Milestone 2.11E1 P3 fix: Work/Rest's only Succeeded reason - the same
+    // "no engine completion callback, Started treated as immediately done,
+    // in the same call, no ActiveActionState" shape as Consumed, just not
+    // literally eating. Kept distinct from Consumed rather than reused, so
+    // a future 2.11E2 economy mutation can gate specifically on this
+    // reason without also matching Eat completions.
+    Performed
 };
 
 inline char const* ToString(ActionCompletionReason reason)
@@ -106,6 +113,7 @@ inline char const* ToString(ActionCompletionReason reason)
         case ActionCompletionReason::ActorDead:             return "ACTOR_DEAD";
         case ActionCompletionReason::EngineStopped:         return "ENGINE_STOPPED";
         case ActionCompletionReason::Consumed:              return "CONSUMED";
+        case ActionCompletionReason::Performed:             return "PERFORMED";
         default:                                            return "UNKNOWN";
     }
 }
