@@ -158,3 +158,57 @@ ActionResult ActionExecutor::ExecuteEat(ActionRequest const& request, Creature& 
     result.Reason = ActionExecutionReason::None;
     return result;
 }
+
+ActionResult ActionExecutor::ExecuteWork(ActionRequest const& request, Creature& actor) const
+{
+    ActionResult result;
+    result.Actor = request.Actor;
+    result.Type = request.Type;
+    result.SourceGoal = request.SourceGoal;
+    result.GoalStartedAtMs = request.GoalStartedAtMs;
+
+    if (request.Type != ActionType::Work)
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::UnsupportedAction;
+        return result;
+    }
+
+    // One-shot animation broadcast only, same as ExecuteEat() - nothing to
+    // undo later. EMOTE_ONESHOT_WORK_CHOPWOOD is a generic manual-labor
+    // gesture, a reasonable first pick for any GoToWork destination; a
+    // later milestone could vary it per workplace/profession.
+    actor.HandleEmoteCommand(EMOTE_ONESHOT_WORK_CHOPWOOD);
+
+    result.Status = ActionExecutionStatus::Started;
+    result.Reason = ActionExecutionReason::None;
+    return result;
+}
+
+ActionResult ActionExecutor::ExecuteRest(ActionRequest const& request, Creature& actor) const
+{
+    ActionResult result;
+    result.Actor = request.Actor;
+    result.Type = request.Type;
+    result.SourceGoal = request.SourceGoal;
+    result.GoalStartedAtMs = request.GoalStartedAtMs;
+
+    if (request.Type != ActionType::Rest)
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::UnsupportedAction;
+        return result;
+    }
+
+    // One-shot animation broadcast only, same as ExecuteEat()/ExecuteWork().
+    // No dedicated one-shot "rest"/"sleep" emote exists in 3.3.5 -
+    // EMOTE_ONESHOT_USE_STANDING is the closest generic "settling into an
+    // idle standing action" gesture; a later milestone could pick something
+    // more specific (or a persistent EMOTE_STATE_SIT/SLEEP, which is a
+    // different, stateful mechanism this one-shot-only class does not use).
+    actor.HandleEmoteCommand(EMOTE_ONESHOT_USE_STANDING);
+
+    result.Status = ActionExecutionStatus::Started;
+    result.Reason = ActionExecutionReason::None;
+    return result;
+}

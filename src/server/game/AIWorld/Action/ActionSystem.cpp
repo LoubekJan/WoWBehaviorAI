@@ -75,6 +75,10 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
             return ValidateMoveTo(request, context);
         case ActionType::Eat:
             return ValidateEat(request, context);
+        case ActionType::Work:
+            return ValidateWork(request, context);
+        case ActionType::Rest:
+            return ValidateRest(request, context);
         default:
             return { false, ActionRejectReason::UnsupportedAction };
     }
@@ -188,6 +192,56 @@ ActionValidationResult ActionSystem::ValidateEat(ActionRequest const& request, A
     // FLEE_DANGER takes over.
     if (context.InCombat)
         return { false, ActionRejectReason::ActorInCombat };
+
+    return { true, ActionRejectReason::None };
+}
+
+ActionValidationResult ActionSystem::ValidateWork(ActionRequest const& request, ActionValidationContext const& context) const
+{
+    // Unlike MoveTo, Work is tied to a specific GoalType - only a
+    // GoToWork routine goal ever justifies it, the same rule ValidateEat()
+    // already applies to GetFood/Eat.
+    if (*context.ActiveGoalType != GoalType::GoToWork)
+        return { false, ActionRejectReason::GoalMismatch };
+
+    return ValidateAtRoutineTarget(request, context);
+}
+
+ActionValidationResult ActionSystem::ValidateRest(ActionRequest const& request, ActionValidationContext const& context) const
+{
+    if (*context.ActiveGoalType != GoalType::GoHome)
+        return { false, ActionRejectReason::GoalMismatch };
+
+    return ValidateAtRoutineTarget(request, context);
+}
+
+ActionValidationResult ActionSystem::ValidateAtRoutineTarget(ActionRequest const& request, ActionValidationContext const& context) const
+{
+    if (!request.Destination)
+        return { false, ActionRejectReason::NoDestination };
+
+    if (request.Destination->MapId != context.MapId)
+        return { false, ActionRejectReason::DestinationMapMismatch };
+
+    if (!std::isfinite(request.Destination->X) || !std::isfinite(request.Destination->Y) || !std::isfinite(request.Destination->Z))
+        return { false, ActionRejectReason::DestinationNotFinite };
+
+    // Unlike ValidateEat(), this is a live "is the actor still there right
+    // now" check against the actor's actual current position - not a
+    // one-time continuation of a specific MOVE_TO arrival event. Work/Rest
+    // is an ongoing state, re-derived fresh every tick by
+    // RoutineActivitySystem (see AIWorldMgr::UpdateNeeds()'s 2.11D
+    // activity block), so there is no "Arrived*" snapshot to check against
+    // the way Eat has one.
+    if (!IsWithinArrivalTolerance(*request.Destination, context.X, context.Y, context.Z))
+        return { false, ActionRejectReason::DestinationTooFar };
+
+    // Same rule ValidateMoveTo() enforces the other direction (may only
+    // start moving from an idle actor) - here it means the actor must
+    // actually be standing still, not merely within tolerance of the
+    // target while something is still physically moving it.
+    if (context.HasActiveMovement)
+        return { false, ActionRejectReason::ActorMovementBusy };
 
     return { true, ActionRejectReason::None };
 }

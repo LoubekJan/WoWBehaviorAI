@@ -75,6 +75,20 @@ class TC_GAME_API ActionSystem
         // it must not start eating a moment before an emergency
         // FLEE_DANGER takes over.
         ActionValidationResult ValidateEat(ActionRequest const& request, ActionValidationContext const& context) const;
+
+        // Milestone 2.11E1: Work/Rest-specific, run only once the common
+        // checks above already passed. Each is tied to a specific GoalType
+        // the same way ValidateEat() is to GetFood - Work only ever
+        // justified by GoToWork, Rest only ever by GoHome - then both defer
+        // to the shared ValidateAtRoutineTarget() below, since what makes
+        // either one currently allowed is otherwise identical: the actor
+        // must actually be standing at the request's own Destination right
+        // now (live position, not a stale arrival snapshot the way Eat
+        // uses - Work/Rest are an ongoing "still there" check, not a one-
+        // time continuation), and not moving.
+        ActionValidationResult ValidateWork(ActionRequest const& request, ActionValidationContext const& context) const;
+        ActionValidationResult ValidateRest(ActionRequest const& request, ActionValidationContext const& context) const;
+        ActionValidationResult ValidateAtRoutineTarget(ActionRequest const& request, ActionValidationContext const& context) const;
 };
 
 #endif // AIWORLD_ACTIONSYSTEM_H

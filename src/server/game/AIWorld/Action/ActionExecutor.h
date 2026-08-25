@@ -119,6 +119,15 @@ class TC_GAME_API ActionExecutor
         // - defensive only; every current call site already validated
         // this before calling.
         ActionResult ExecuteEat(ActionRequest const& request, Creature& actor) const;
+
+        // Milestone 2.11E1: same "purely cosmetic one-shot emote" shape as
+        // ExecuteEat() - no UpdateField, no server-side state, nothing to
+        // undo later, no ActiveActionState. Returns Failed/UnsupportedAction
+        // (and does nothing) if request.Type is not Work/Rest respectively
+        // - defensive only; every current call site already validated this
+        // before calling.
+        ActionResult ExecuteWork(ActionRequest const& request, Creature& actor) const;
+        ActionResult ExecuteRest(ActionRequest const& request, Creature& actor) const;
 };
 
 #endif // AIWORLD_ACTIONEXECUTOR_H

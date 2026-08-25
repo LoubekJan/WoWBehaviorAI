@@ -1819,6 +1819,67 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 activity.Type = *derivedActivity;
                 activity.StartedAtMs = nowMs;
                 record->RoutineActivityState = activity;
+
+                // Milestone 2.11E1: exactly one ActionRequest, right here
+                // on the transition edge into Work/Rest - this whole
+                // "if (derivedActivity)" body only ever runs once per
+                // activity attempt (derivedActivity == previousActivity on
+                // every following tick the same activity holds, so the
+                // outer "if (derivedActivity != previousActivity)" simply
+                // does not fire again), which is what gives "one request
+                // per RoutineActivity::StartedAtMs" for free, with no
+                // separate one-shot latch needed. Deliberately never sets
+                // ActiveActionState afterwards, win or lose - unlike
+                // MOVE_TO/GET_FOOD, Work/Rest must not claim the action
+                // slot RoutineActivitySystem's own HasActiveAction check
+                // reads, or the activity that just started it would be
+                // suppressed again the very next tick. RoutineGoalState is
+                // guaranteed set here - DeriveActivity() only ever returns
+                // non-nullopt when activityContext.CurrentRoutineGoal (and
+                // therefore record->RoutineGoalState) was already set above.
+                ActionRequest activityRequest;
+                activityRequest.Actor = id;
+                activityRequest.Type = *derivedActivity == RoutineActivityType::Work ? ActionType::Work : ActionType::Rest;
+                activityRequest.SourceGoal = record->RoutineGoalState->Type;
+                activityRequest.GoalStartedAtMs = activity.StartedAtMs;
+
+                ActionPosition activityDestination;
+                activityDestination.MapId = record->RoutineGoalState->Target.MapId;
+                activityDestination.X = record->RoutineGoalState->Target.X;
+                activityDestination.Y = record->RoutineGoalState->Target.Y;
+                activityDestination.Z = record->RoutineGoalState->Target.Z;
+                activityRequest.Destination = activityDestination;
+
+                TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
+                    record->Id.Value, ToString(activityRequest.Type), ToString(activityRequest.SourceGoal),
+                    activityDestination.X, activityDestination.Y, activityDestination.Z);
+
+                ActionValidationContext activityValidationContext;
+                activityValidationContext.Materialized = activityContext.Materialized;
+                activityValidationContext.Alive = activityContext.Alive;
+                activityValidationContext.ActiveGoalType = record->RoutineGoalState->Type;
+                activityValidationContext.ActiveGoalStartedAtMs = activity.StartedAtMs;
+                activityValidationContext.MapId = creature->GetMapId();
+                activityValidationContext.X = creature->GetPositionX();
+                activityValidationContext.Y = creature->GetPositionY();
+                activityValidationContext.Z = creature->GetPositionZ();
+                activityValidationContext.HasActiveMovement = activityContext.ActorMoving;
+
+                ActionValidationResult activityValidation = _actionSystem.Validate(activityRequest, activityValidationContext);
+
+                TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+                    record->Id.Value, ToString(activityRequest.Type), activityValidation.Allowed ? "ALLOWED" : "REJECTED",
+                    ToString(activityValidation.Reason));
+
+                if (activityValidation.Allowed)
+                {
+                    ActionResult activityResult = *derivedActivity == RoutineActivityType::Work
+                        ? _actionExecutor.ExecuteWork(activityRequest, *creature)
+                        : _actionExecutor.ExecuteRest(activityRequest, *creature);
+
+                    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+                        record->Id.Value, ToString(activityResult.Type), ToString(activityResult.Status), ToString(activityResult.Reason));
+                }
             }
             else
             {
