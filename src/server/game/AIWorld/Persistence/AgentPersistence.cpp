@@ -71,21 +71,22 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
             record.WorkLocation = work;
         }
 
-        // Milestone 2.11E2/2.11E2 P2 fix: NOT NULL columns (default 0) - no
-        // presence check needed, unlike home_*/work_* above.
+        // Milestone 2.11E2/2.11E2 P2/P3 fix: NOT NULL columns (default 0) -
+        // no presence check needed, unlike home_*/work_* above.
         record.EconomyState.Money = fields[14].GetUInt32();
         record.EconomyState.Food = fields[15].GetUInt32();
         record.EconomyState.Resource = fields[16].GetUInt32();
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
+        record.EconomyState.Version = fields[18].GetUInt64();
 
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={}",
+        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={}",
             record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId,
             record.HomeLocation.has_value(), record.WorkLocation.has_value(),
             record.EconomyState.Money, record.EconomyState.Food, record.EconomyState.Resource,
-            record.EconomyState.LastRewardedWorkWindowId);
+            record.EconomyState.LastRewardedWorkWindowId, record.EconomyState.Version);
 
         ++loaded;
     } while (result->NextRow());
@@ -140,7 +141,13 @@ void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState const& sta
     stmt->setUInt32(1, state.Food);
     stmt->setUInt32(2, state.Resource);
     stmt->setUInt64(3, state.LastRewardedWorkWindowId);
-    stmt->setUInt64(4, id.Value);
+    stmt->setUInt64(4, state.Version);
+    stmt->setUInt64(5, id.Value);
+
+    // Milestone 2.11E2 P3 fix: bound again for the statement's own
+    // "AND economy_version < ?" guard - see AgentEconomyState::Version and
+    // CHAR_UPD_AI_AGENT_ECONOMY's own comment for why.
+    stmt->setUInt64(6, state.Version);
 
     // Fire-and-forget by design - see the class comment. The world update
     // thread must never wait on this.

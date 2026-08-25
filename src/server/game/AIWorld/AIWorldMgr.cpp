@@ -1958,6 +1958,14 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                                 record->EconomyState.Money += _workMoneyReward;
                                 record->EconomyState.LastRewardedWorkWindowId = workWindowId;
 
+                                // 2.11E2 P3 fix: bumped every time, right
+                                // before the write it accompanies - this is
+                                // what lets SaveEconomyState()'s UPDATE stay
+                                // monotonic despite the async queue not
+                                // itself guaranteeing execution order. See
+                                // AgentEconomyState::Version.
+                                ++record->EconomyState.Version;
+
                                 // Money and the idempotency marker are
                                 // written together in this one call/one DB
                                 // UPDATE - never as two separate async
@@ -1967,9 +1975,9 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                                 // payment.
                                 _persistence.SaveEconomyState(record->Id, record->EconomyState);
 
-                                TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={} workWindowId={}",
+                                TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={} workWindowId={} version={}",
                                     record->Id.Value, record->EconomyState.Money, record->EconomyState.Food,
-                                    record->EconomyState.Resource, workWindowId);
+                                    record->EconomyState.Resource, workWindowId, record->EconomyState.Version);
                             }
                         }
                     }

@@ -594,11 +594,12 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // AIWorld (Milestone 2.2A) - startup-only, never used from the world update loop
     // Milestone 2.11A: home_*/work_* are nullable and always NULL or set
     // together in pairs - see ai_agents' own migration comment.
-    // Milestone 2.11E2: money/food/resource/last_rewarded_work_window_id
-    // are NOT NULL (default 0, never "unset" the way home_*/work_* can be).
+    // Milestone 2.11E2: money/food/resource/last_rewarded_work_window_id/
+    // economy_version are NOT NULL (default 0, never "unset" the way
+    // home_*/work_* can be).
     PrepareStatement(CHAR_SEL_AI_AGENTS, "SELECT agent_id, agent_type, map_id, spawn_id, "
         "home_map_id, home_x, home_y, home_z, home_o, work_map_id, work_x, work_y, work_z, work_o, "
-        "money, food, resource, last_rewarded_work_window_id FROM ai_agents", CONNECTION_SYNCH);
+        "money, food, resource, last_rewarded_work_window_id, economy_version FROM ai_agents", CONNECTION_SYNCH);
     PrepareStatement(CHAR_SEL_AI_AGENT_BY_BINDING, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE map_id = ? AND spawn_id = ?", CONNECTION_SYNCH);
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_type, map_id, spawn_id) VALUES (?, ?, ?)", CONNECTION_SYNCH);
 
@@ -614,8 +615,16 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // see AgentEconomyState::LastRewardedWorkWindowId for why a reward
     // that persisted only one of the two would let a restart either
     // repeat or silently lose the payment.
+    // Milestone 2.11E2 P3 fix: "AND economy_version < ?" makes this
+    // monotonic - the async queue does not itself guarantee execution
+    // order across worker threads, so without this an older snapshot
+    // finishing after a newer one could otherwise silently revert it. A
+    // no-op (matches zero rows) whenever the row already holds a version
+    // >= the one being written; AgentPersistence::SaveEconomyState() does
+    // not need to check for that, since it is already fire-and-forget with
+    // no result to act on either way.
     PrepareStatement(CHAR_UPD_AI_AGENT_ECONOMY, "UPDATE ai_agents SET money = ?, food = ?, resource = ?, "
-        "last_rewarded_work_window_id = ? WHERE agent_id = ?", CONNECTION_ASYNC);
+        "last_rewarded_work_window_id = ?, economy_version = ? WHERE agent_id = ? AND economy_version < ?", CONNECTION_ASYNC);
 
     // AIWorld (Milestone 2.5B) - CHAR_SEL_AI_LONG_TERM_MEMORIES is startup-only (synchronous
     // load, same as CHAR_SEL_AI_AGENTS). CHAR_INS_AI_LONG_TERM_MEMORY is used from the world
