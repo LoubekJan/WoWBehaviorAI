@@ -46,10 +46,11 @@ struct AgentRecord
 
     // Milestone 2.11A: persistent, optional - most agents (e.g. GUARD) have
     // neither. Behavior/capability layer (profession, daily cycle, ...) is
-    // deliberately not modeled as its own AgentType; a CIVILIAN with both
-    // set is how "this agent has a home and a workplace" is expressed for
-    // now. Not yet read by any goal/action/scheduler - 2.11A only persists
-    // and loads these, nothing acts on them.
+    // deliberately not modeled as its own AgentType - "has a home and a
+    // workplace" is expressed purely by both being set here, regardless of
+    // AgentType. Pa Maclure happens to be a CIVILIAN, but that is only his
+    // identity, not what makes RoutineSystem (2.11B) treat him as routine-
+    // eligible; nothing gates on AgentType::Civilian anywhere in that path.
     std::optional<AgentLocation> HomeLocation;
     std::optional<AgentLocation> WorkLocation;
 

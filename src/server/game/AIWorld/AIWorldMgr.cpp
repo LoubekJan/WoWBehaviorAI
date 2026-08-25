@@ -267,8 +267,13 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     {
         TC_LOG_WARN("ai.world", "AIWorld.RoutineWorkStartMs/RoutineWorkEndMs ({}, {}) is invalid for day length {}ms, clamping to 1/3 and 2/3 of day length",
             routineWorkStartMs, routineWorkEndMs, routineDayLengthMs);
-        routineWorkStartMs = routineDayLengthMs / 3;
-        routineWorkEndMs = (routineDayLengthMs * 2) / 3;
+
+        // int64 intermediates: routineDayLengthMs * 2 would overflow int32
+        // above roughly INT32_MAX / 2 - unreachable with the default
+        // 1200000ms, but this path is also what a bad config value falls
+        // through to, so it must stay correct at any int32 input.
+        routineWorkStartMs = int32(int64(routineDayLengthMs) / 3);
+        routineWorkEndMs = int32((int64(routineDayLengthMs) * 2) / 3);
     }
 
     _routineScheduleConfig.DayLengthMs = uint32(routineDayLengthMs);

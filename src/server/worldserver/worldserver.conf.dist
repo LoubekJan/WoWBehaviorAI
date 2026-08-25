@@ -3653,9 +3653,10 @@ AIWorld.RoutineDayLengthMs = 1200000
 #
 #    AIWorld.RoutineWorkStartMs
 #    AIWorld.RoutineWorkEndMs
-#        Description: Offsets in milliseconds within AIWorld.RoutineDayLengthMs during which a
-#                     CIVILIAN with both HomeLocation and WorkLocation set (see AgentRecord.h) has
-#                     GO_TO_WORK as its RoutineGoalState; GO_HOME the rest of the day.
+#        Description: Offsets in milliseconds within AIWorld.RoutineDayLengthMs during which an
+#                     agent with both HomeLocation and WorkLocation set (see AgentRecord.h, not
+#                     gated on AgentType) has GO_TO_WORK as its RoutineGoalState; GO_HOME the rest
+#                     of the day.
 #        Important:   Must satisfy 0 <= WorkStartMs < WorkEndMs <= DayLengthMs, otherwise both are
 #                     clamped to 1/3 and 2/3 of the day length.
 #        Default:     400000 - (AIWorld.RoutineWorkStartMs)

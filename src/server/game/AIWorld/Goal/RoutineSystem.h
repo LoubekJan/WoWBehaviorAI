@@ -43,7 +43,8 @@ class TC_GAME_API RoutineSystem
 {
     public:
         // std::nullopt when: home or work is unset (not a routine-eligible
-        // agent - only a CIVILIAN with both set is, see AgentRecord.h), or
+        // agent - eligibility is purely "has both HomeLocation and
+        // WorkLocation", never AgentType, see AgentRecord.h), or
         // currentGoal is currently Emergency priority (e.g. an active
         // FLEE_DANGER) - the emergency override the roadmap's DoD asks
         // for. Otherwise deterministically GoToWork or GoHome, decided by
