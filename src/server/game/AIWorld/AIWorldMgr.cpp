@@ -777,6 +777,16 @@ std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector
 // lets a player walking up to an agent get that agent onto the faster
 // Nearby cadence within one poll interval, instead of waiting for
 // whatever the previous (possibly much longer) interval happened to be.
+//
+// Milestone 2.10C: also the one place SimulationTier (see SimulationTier.h)
+// gets computed and logged for every registered agent, decision-eligible
+// or not - Background/Abstract agents are observable via
+// UpdateSimulationTier() the same as Active/Nearby ones, they just never
+// become a DecisionScheduler::Candidate. This does not add any simulation
+// of its own for Background/Abstract agents (no Needs drift, no
+// population/economy) - purely lifecycle observability on top of the
+// existing Materialized/Abstract bind/unbind bookkeeping this loop was
+// already doing.
 void AIWorldMgr::RunDecisionScheduler()
 {
     uint64 nowMs = CurrentTimeMs();
@@ -805,6 +815,12 @@ void AIWorldMgr::RunDecisionScheduler()
         {
             if (record->WorldState == AgentWorldState::Materialized)
                 _registry.UnbindCreature(id);
+
+            // Milestone 2.10C: BACKGROUND (or, for a future
+            // AgentType::CreatureGroup agent, ABSTRACT) - no live Creature
+            // at all, so this agent is never a decision candidate: no
+            // ProcessAgent(), no AIClient call, no grid force-load.
+            UpdateSimulationTier(id, DeriveSimulationTier(record->Type, AgentWorldState::Abstract, false));
             continue;
         }
 
@@ -812,8 +828,15 @@ void AIWorldMgr::RunDecisionScheduler()
 
         std::vector<Player*> nearbyPlayers;
         creature->GetPlayerListInGrid(nearbyPlayers, _decisionNearbyPlayerRange);
+        bool isNearby = !nearbyPlayers.empty();
 
-        DecisionCadenceClass cadenceClass = nearbyPlayers.empty() ? DecisionCadenceClass::Active : DecisionCadenceClass::Nearby;
+        // Milestone 2.10C: ACTIVE/NEARBY - only these two tiers are ever
+        // decision-eligible, and DecisionCadenceClass's own two values
+        // (used purely for scheduler admission ranking, see
+        // DecisionScheduler.h) map onto them 1:1.
+        UpdateSimulationTier(id, DeriveSimulationTier(record->Type, AgentWorldState::Materialized, isNearby));
+
+        DecisionCadenceClass cadenceClass = isNearby ? DecisionCadenceClass::Nearby : DecisionCadenceClass::Active;
         candidates.push_back({ id, cadenceClass });
     }
 
@@ -892,6 +915,33 @@ void AIWorldMgr::RunDecisionScheduler()
 
     TC_LOG_DEBUG("ai.world", "AI decision batch eligible={} admitted={} capacity_skipped={} in_flight={}",
         selection.Admitted.size() + selection.SkippedCapacity.size(), submitted, selection.SkippedCapacity.size(), inFlight + submitted);
+}
+
+// Milestone 2.10C: records tier as this agent's current SimulationTier and
+// logs iff that is actually a change (or the first tier ever observed for
+// it) - called once per RunDecisionScheduler() pass for every registered
+// agent, regardless of whether it ends up decision-eligible, so
+// Background/Abstract agents are just as observable as Active/Nearby ones.
+// Never touches AgentRecord/AgentRegistry - _agentSimulationTier is its
+// own bookkeeping, same reasoning as _decisionSchedule.
+void AIWorldMgr::UpdateSimulationTier(AgentId id, SimulationTier tier)
+{
+    auto it = _agentSimulationTier.find(id.Value);
+    if (it == _agentSimulationTier.end())
+    {
+        _agentSimulationTier.emplace(id.Value, tier);
+        TC_LOG_DEBUG("ai.world", "AI simulation tier agent={} initial tier={}", id.Value, ToString(tier));
+        return;
+    }
+
+    if (it->second == tier)
+        return;
+
+    SimulationTier previous = it->second;
+    it->second = tier;
+
+    TC_LOG_DEBUG("ai.world", "AI simulation tier agent={} from={} to={} reason={}",
+        id.Value, ToString(previous), ToString(tier), DeriveTransitionReason(previous, tier));
 }
 
 // Safe to call from any thread - see the declaration in AIWorldMgr.h and

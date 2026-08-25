@@ -39,6 +39,7 @@
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
 #include "Scheduler/DecisionScheduler.h"
+#include "Scheduler/SimulationTier.h"
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -116,6 +117,7 @@ class TC_GAME_API AIWorldMgr
         void ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response);
         std::vector<DecisionSubmitResult> SubmitDecisionContexts(std::vector<AIRequest> requests);
         void RunDecisionScheduler();
+        void UpdateSimulationTier(AgentId id, SimulationTier tier);
 
         bool _enabled = false;
 
@@ -162,6 +164,15 @@ class TC_GAME_API AIWorldMgr
         // of AgentRecord/AgentRegistry, see DecisionScheduleState.h. Keyed
         // by AgentId::Value.
         std::unordered_map<uint64, DecisionScheduleState> _decisionSchedule;
+
+        // Milestone 2.10C: last SimulationTier observed for each registered
+        // agent - deliberately not part of AgentRecord/AgentRegistry either
+        // (a tier transition must never disturb AgentId/Needs/memories/
+        // goal state, only ever log against it), purely so
+        // UpdateSimulationTier() can tell a real transition apart from an
+        // unchanged tier. Keyed by AgentId::Value; an agent with no entry
+        // yet is logged as an initial assignment, not a "from" transition.
+        std::unordered_map<uint64, SimulationTier> _agentSimulationTier;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in
