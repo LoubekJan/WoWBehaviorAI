@@ -38,6 +38,7 @@
 #include "Perception/PerceptionSystem.h"
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
+#include "Scheduler/CoarseSimulationScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
 #include "Scheduler/SimulationScheduleState.h"
 #include "Scheduler/SimulationTier.h"
@@ -118,7 +119,7 @@ class TC_GAME_API AIWorldMgr
         void ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response);
         std::vector<DecisionSubmitResult> SubmitDecisionContexts(std::vector<AIRequest> requests);
         void RunDecisionScheduler();
-        void UpdateSimulationTier(AgentId id, SimulationTier tier);
+        bool UpdateSimulationTier(AgentId id, SimulationTier tier);
 
         bool _enabled = false;
 
@@ -185,6 +186,15 @@ class TC_GAME_API AIWorldMgr
         // no /decision, no ActionExecutor, no gameplay state change.
         uint32 _backgroundSimulationIntervalMs = 60000;
         uint32 _abstractSimulationIntervalMs = 300000;
+
+        // Milestone 2.10D P2 fix: deterministic bounded admission for the
+        // coarse tick, the exact same reason _decisionScheduler/
+        // _decisionMaxInFlight exist for the decision-eligible tiers - see
+        // CoarseSimulationScheduler.h for why an unbounded coarse tick
+        // would both spike world-thread work and permanently phase-lock
+        // every Background/Abstract agent onto the same tick pass.
+        CoarseSimulationScheduler _coarseSimulationScheduler;
+        uint32 _coarseSimulationMaxPerPass = 50;
 
         // Per-agent bookkeeping for the coarse tick above - deliberately
         // not part of AgentRecord/AgentRegistry, see

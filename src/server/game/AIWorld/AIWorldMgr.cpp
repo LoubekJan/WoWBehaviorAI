@@ -133,6 +133,19 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _abstractSimulationIntervalMs = uint32(abstractSimulationIntervalMs);
 
+    // Milestone 2.10D P2 fix: the hard per-pass bound
+    // CoarseSimulationScheduler admits against - see its own header
+    // comment for why an unbounded coarse tick would both spike
+    // world-thread work and permanently phase-lock every Background/
+    // Abstract agent onto the same tick pass.
+    int32 coarseSimulationMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.CoarseSimulationMaxPerPass", 50);
+    if (coarseSimulationMaxPerPass < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.CoarseSimulationMaxPerPass ({}) is invalid or too low, clamping to 1", coarseSimulationMaxPerPass);
+        coarseSimulationMaxPerPass = 1;
+    }
+    _coarseSimulationMaxPerPass = uint32(coarseSimulationMaxPerPass);
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -291,10 +304,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
-        "background interval={}ms, abstract interval={}ms)",
+        "background interval={}ms, abstract interval={}ms, coarse max/pass={})",
         aiHost, aiPort, requestTimeoutMs, _healthIntervalMs, _decisionMaxInFlight,
         _decisionSchedulerIntervalMs, _decisionNearbyIntervalMs, _decisionActiveIntervalMs, _decisionNearbyPlayerRange,
-        _backgroundSimulationIntervalMs, _abstractSimulationIntervalMs);
+        _backgroundSimulationIntervalMs, _abstractSimulationIntervalMs, _coarseSimulationMaxPerPass);
 
     // Last step: only from here on can PublishWorldEvent() actually enqueue
     // anything. Ordered after everything above so a map worker can't race
@@ -819,6 +832,20 @@ std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector
 // Nearby) agents never touch this - they already have the real decision
 // scheduler above. The seam later background-simulation milestones are
 // meant to build on, not the simulation itself.
+//
+// Milestone 2.10D P2 fix: the coarse tick is bounded and deterministically
+// ordered the same way the decision scheduler already is
+// (CoarseSimulationScheduler::SelectDue(), admitted up to
+// AIWorld.CoarseSimulationMaxPerPass per pass) - an earlier version ticked
+// every due Background/Abstract agent in the same pass with no cap, which
+// both spikes world-thread work at scale and, since every one of them
+// would then share the exact same LastTickAtMs, permanently phase-locks
+// them into ticking together forever afterwards. UpdateSimulationTier()'s
+// return value also drives a second fix here: SimulationScheduleState::
+// LastTickAtMs is reset to "now" (not left at whatever it was) the moment
+// an agent (re-)enters Background/Abstract, so a coarse dt/due-time can
+// never reach back across a stretch spent Materialized in between two
+// Background stints, or across the moment the agent was first observed.
 void AIWorldMgr::RunDecisionScheduler()
 {
     uint64 nowMs = CurrentTimeMs();
@@ -834,6 +861,7 @@ void AIWorldMgr::RunDecisionScheduler()
     // cadence, the very next scheduler pass, with no agent-side state to
     // migrate and no restart required.
     std::vector<DecisionScheduler::Candidate> candidates;
+    std::vector<CoarseSimulationScheduler::Candidate> coarseCandidates;
     for (AgentId id : _registry.GetAgents())
     {
         AgentRecord* record = _registry.Find(id);
@@ -853,28 +881,21 @@ void AIWorldMgr::RunDecisionScheduler()
             // at all, so this agent is never a decision candidate: no
             // ProcessAgent(), no AIClient call, no grid force-load.
             SimulationTier tier = DeriveSimulationTier(record->Type, AgentWorldState::Abstract, false);
-            UpdateSimulationTier(id, tier);
+            bool tierChanged = UpdateSimulationTier(id, tier);
 
-            // Milestone 2.10D: coarse tick - pure observability scaffold
-            // for a later background-simulation milestone to build on top
-            // of, nothing more. No Map/Creature lookup beyond the one
-            // already just done above (which found nothing - that is
-            // exactly why this agent is here), no /decision, no
-            // ActionExecutor, no Needs/goal/memory change. At most one tick
-            // per scheduler pass regardless of how long this agent went
-            // unchecked - dtMs reports however much time actually passed,
-            // but nothing here loops to "catch up" missed ticks.
-            uint32 tickIntervalMs = tier == SimulationTier::Abstract ? _abstractSimulationIntervalMs : _backgroundSimulationIntervalMs;
-            SimulationScheduleState& tickState = _simulationSchedule[id.Value];
-            bool everTicked = tickState.LastBackgroundTickAtMs != 0;
-            uint64 dtMs = everTicked ? nowMs - tickState.LastBackgroundTickAtMs : 0;
+            // Milestone 2.10D P2 fix: reset the coarse-tick epoch exactly
+            // when this agent (re-)enters Background/Abstract - from any
+            // other tier, or from never having a tier recorded at all -
+            // so LastTickAtMs (and therefore any due-time/dt computed from
+            // it) never reaches back across a stretch spent Materialized
+            // in between, or across the moment this agent was first ever
+            // observed. See SimulationScheduleState.h for the full
+            // reasoning. Only ever collected as a candidate here - the
+            // actual tick (bounded, deterministic) happens after this loop.
+            if (tierChanged)
+                _simulationSchedule[id.Value].LastTickAtMs = nowMs;
 
-            if (!everTicked || dtMs >= tickIntervalMs)
-            {
-                TC_LOG_DEBUG("ai.world", "AI simulation tick agent={} tier={} dt={}ms", id.Value, ToString(tier), dtMs);
-                tickState.LastBackgroundTickAtMs = nowMs;
-            }
-
+            coarseCandidates.push_back({ id, tier });
             continue;
         }
 
@@ -892,6 +913,34 @@ void AIWorldMgr::RunDecisionScheduler()
 
         DecisionCadenceClass cadenceClass = isNearby ? DecisionCadenceClass::Nearby : DecisionCadenceClass::Active;
         candidates.push_back({ id, cadenceClass });
+    }
+
+    // Milestone 2.10D P2 fix: bounded, deterministic admission for the
+    // coarse tick - see CoarseSimulationScheduler.h for why an unbounded
+    // "every due agent ticks this pass" design both spikes world-thread
+    // work with enough Background/Abstract agents and permanently
+    // phase-locks them onto the same pass once they do. A
+    // capacity-skipped agent's LastTickAtMs is left untouched, so it stays
+    // at the front of the due set next pass rather than losing its turn -
+    // the same no-unbounded-queue guarantee the decision scheduler already
+    // gives Nearby/Active agents.
+    CoarseSimulationScheduler::SelectionResult coarseSelection = _coarseSimulationScheduler.SelectDue(
+        _simulationSchedule, coarseCandidates, nowMs, _coarseSimulationMaxPerPass,
+        _backgroundSimulationIntervalMs, _abstractSimulationIntervalMs);
+
+    for (AgentId id : coarseSelection.Admitted)
+    {
+        SimulationScheduleState& tickState = _simulationSchedule[id.Value];
+        uint64 dtMs = tickState.LastTickAtMs != 0 ? nowMs - tickState.LastTickAtMs : 0;
+
+        // _agentSimulationTier was already updated for every candidate in
+        // the loop above, in this same pass - safe to look up directly
+        // rather than re-deriving it.
+        auto tierIt = _agentSimulationTier.find(id.Value);
+        SimulationTier tier = tierIt != _agentSimulationTier.end() ? tierIt->second : SimulationTier::Background;
+
+        TC_LOG_DEBUG("ai.world", "AI simulation tick agent={} tier={} dt={}ms", id.Value, ToString(tier), dtMs);
+        tickState.LastTickAtMs = nowMs;
     }
 
     uint32 inFlight = 0;
@@ -971,31 +1020,37 @@ void AIWorldMgr::RunDecisionScheduler()
         selection.Admitted.size() + selection.SkippedCapacity.size(), submitted, selection.SkippedCapacity.size(), inFlight + submitted);
 }
 
-// Milestone 2.10C: records tier as this agent's current SimulationTier and
-// logs iff that is actually a change (or the first tier ever observed for
-// it) - called once per RunDecisionScheduler() pass for every registered
-// agent, regardless of whether it ends up decision-eligible, so
-// Background/Abstract agents are just as observable as Active/Nearby ones.
-// Never touches AgentRecord/AgentRegistry - _agentSimulationTier is its
-// own bookkeeping, same reasoning as _decisionSchedule.
-void AIWorldMgr::UpdateSimulationTier(AgentId id, SimulationTier tier)
+// Milestone 2.10C/2.10D P2 fix: records tier as this agent's current
+// SimulationTier and logs iff that is actually a change (or the first
+// tier ever observed for it) - called once per RunDecisionScheduler()
+// pass for every registered agent, regardless of whether it ends up
+// decision-eligible, so Background/Abstract agents are just as observable
+// as Active/Nearby ones. Never touches AgentRecord/AgentRegistry -
+// _agentSimulationTier is its own bookkeeping, same reasoning as
+// _decisionSchedule. Returns whether this call actually produced a new or
+// changed tier assignment (initial or real transition alike) - the
+// caller uses that to know when to reset the coarse-tick epoch in
+// _simulationSchedule (see RunDecisionScheduler()'s own comment), which
+// this function itself never touches.
+bool AIWorldMgr::UpdateSimulationTier(AgentId id, SimulationTier tier)
 {
     auto it = _agentSimulationTier.find(id.Value);
     if (it == _agentSimulationTier.end())
     {
         _agentSimulationTier.emplace(id.Value, tier);
         TC_LOG_DEBUG("ai.world", "AI simulation tier agent={} initial tier={}", id.Value, ToString(tier));
-        return;
+        return true;
     }
 
     if (it->second == tier)
-        return;
+        return false;
 
     SimulationTier previous = it->second;
     it->second = tier;
 
     TC_LOG_DEBUG("ai.world", "AI simulation tier agent={} from={} to={} reason={}",
         id.Value, ToString(previous), ToString(tier), DeriveTransitionReason(previous, tier));
+    return true;
 }
 
 // Safe to call from any thread - see the declaration in AIWorldMgr.h and
