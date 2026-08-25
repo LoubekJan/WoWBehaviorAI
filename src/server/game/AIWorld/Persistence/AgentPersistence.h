@@ -18,6 +18,7 @@
 #ifndef AIWORLD_AGENTPERSISTENCE_H
 #define AIWORLD_AGENTPERSISTENCE_H
 
+#include "Agent/AgentEconomyState.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentType.h"
 #include "Define.h"
@@ -45,7 +46,8 @@ class AgentRegistry;
 //
 // Synchronous by design: LoadAgents() and CreateCreatureAgent() are only
 // ever meant to be called during AIWorldMgr::Initialize(), never from the
-// world update loop.
+// world update loop. SaveEconomyState() (2.11E2) is the one exception -
+// see its own comment for why it is safe from there.
 class TC_GAME_API AgentPersistence
 {
     public:
@@ -63,6 +65,17 @@ class TC_GAME_API AgentPersistence
         // not add anything to an AgentRegistry in that case, since there is
         // then no way to know whether the insert actually happened.
         AgentId CreateCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId);
+
+        // Milestone 2.11E2: fire-and-forget async UPDATE (CONNECTION_ASYNC/
+        // Execute(), never CONNECTION_SYNCH/DirectExecute()) - unlike
+        // LoadAgents()/CreateCreatureAgent(), this is meant to be called
+        // from the world update loop (right after AIWorldMgr mutates
+        // AgentRecord::EconomyState in memory) and must never block it on
+        // the DB. No read-back/result to report: the in-memory
+        // AgentRecord::EconomyState the caller already updated is
+        // authoritative for this process's remaining lifetime regardless
+        // of whether/when the write actually lands.
+        void SaveEconomyState(AgentId id, AgentEconomyState const& state);
 
     private:
         AgentId FindBinding(uint32 mapId, uint64 spawnId);

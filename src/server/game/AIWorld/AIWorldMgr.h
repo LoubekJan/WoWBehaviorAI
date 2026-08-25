@@ -352,6 +352,12 @@ class TC_GAME_API AIWorldMgr
         // MOVE_TO arrival/Eat) is reused, not duplicated.
         RoutineActivitySystem _routineActivitySystem;
 
+        // Milestone 2.11E2: how much AgentRecord::EconomyState::Money a WORK
+        // ActionCompletion reaching Succeeded/Performed adds - see
+        // UpdateNeeds()'s activity block. Loaded once at Initialize() from
+        // AIWorld.WorkMoneyReward.
+        uint32 _workMoneyReward = 1;
+
         // Milestone 2.8F: cross-thread ingress for ActionEngineEvents (see
         // ActionEngineEventBus) - AIWorldCreatureAI::MovementInform()
         // publishes into it, potentially from a map-updater thread, the

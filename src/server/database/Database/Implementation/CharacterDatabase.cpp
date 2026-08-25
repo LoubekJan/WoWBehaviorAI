@@ -594,10 +594,21 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // AIWorld (Milestone 2.2A) - startup-only, never used from the world update loop
     // Milestone 2.11A: home_*/work_* are nullable and always NULL or set
     // together in pairs - see ai_agents' own migration comment.
+    // Milestone 2.11E2: money/food/resource are NOT NULL (default 0, never
+    // "unset" the way home_*/work_* can be).
     PrepareStatement(CHAR_SEL_AI_AGENTS, "SELECT agent_id, agent_type, map_id, spawn_id, "
-        "home_map_id, home_x, home_y, home_z, home_o, work_map_id, work_x, work_y, work_z, work_o FROM ai_agents", CONNECTION_SYNCH);
+        "home_map_id, home_x, home_y, home_z, home_o, work_map_id, work_x, work_y, work_z, work_o, "
+        "money, food, resource FROM ai_agents", CONNECTION_SYNCH);
     PrepareStatement(CHAR_SEL_AI_AGENT_BY_BINDING, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE map_id = ? AND spawn_id = ?", CONNECTION_SYNCH);
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_type, map_id, spawn_id) VALUES (?, ?, ?)", CONNECTION_SYNCH);
+
+    // Milestone 2.11E2: unlike CHAR_SEL_AI_AGENTS/CHAR_INS_AI_AGENT above
+    // (startup-only), this is used from the world update thread every time
+    // a WORK ActionCompletion reaches Succeeded/Performed - CONNECTION_ASYNC/
+    // Execute() only, the same rule CHAR_INS_AI_LONG_TERM_MEMORY below
+    // already follows, never CONNECTION_SYNCH/DirectExecute(), which would
+    // block that thread on the DB.
+    PrepareStatement(CHAR_UPD_AI_AGENT_ECONOMY, "UPDATE ai_agents SET money = ?, food = ?, resource = ? WHERE agent_id = ?", CONNECTION_ASYNC);
 
     // AIWorld (Milestone 2.5B) - CHAR_SEL_AI_LONG_TERM_MEMORIES is startup-only (synchronous
     // load, same as CHAR_SEL_AI_AGENTS). CHAR_INS_AI_LONG_TERM_MEMORY is used from the world

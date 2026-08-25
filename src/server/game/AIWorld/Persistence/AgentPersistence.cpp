@@ -71,12 +71,19 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
             record.WorkLocation = work;
         }
 
+        // Milestone 2.11E2: NOT NULL columns (default 0) - no presence
+        // check needed, unlike home_*/work_* above.
+        record.EconomyState.Money = fields[14].GetUInt32();
+        record.EconomyState.Food = fields[15].GetUInt32();
+        record.EconomyState.Resource = fields[16].GetUInt32();
+
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={}",
+        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={}",
             record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId,
-            record.HomeLocation.has_value(), record.WorkLocation.has_value());
+            record.HomeLocation.has_value(), record.WorkLocation.has_value(),
+            record.EconomyState.Money, record.EconomyState.Food, record.EconomyState.Resource);
 
         ++loaded;
     } while (result->NextRow());
@@ -122,4 +129,17 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
         TC_LOG_ERROR("ai.world", "AgentPersistence: INSERT for map={} spawn={} did not produce a readable row, agent was not created", mapId, spawnId);
 
     return newId;
+}
+
+void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState const& state)
+{
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_ECONOMY);
+    stmt->setUInt32(0, state.Money);
+    stmt->setUInt32(1, state.Food);
+    stmt->setUInt32(2, state.Resource);
+    stmt->setUInt64(3, id.Value);
+
+    // Fire-and-forget by design - see the class comment. The world update
+    // thread must never wait on this.
+    CharacterDatabase.Execute(stmt);
 }

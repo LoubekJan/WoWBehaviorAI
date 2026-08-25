@@ -20,6 +20,7 @@
 
 #include "Action/ActiveAction.h"
 #include "Action/PendingEatContinuation.h"
+#include "AgentEconomyState.h"
 #include "AgentId.h"
 #include "AgentLocation.h"
 #include "AgentType.h"
@@ -54,6 +55,17 @@ struct AgentRecord
     // eligible; nothing gates on AgentType::Civilian anywhere in that path.
     std::optional<AgentLocation> HomeLocation;
     std::optional<AgentLocation> WorkLocation;
+
+    // Milestone 2.11E2: persistent, not optional - every agent has one
+    // (defaulting to zero), unlike HomeLocation/WorkLocation. Only ever
+    // mutated by AIWorldMgr::UpdateNeeds() on a WORK ActionCompletion
+    // reaching Succeeded/Performed (see ActionCompletion.h) - never on
+    // Started alone, and never for REST. Written back to ai_agents via
+    // AgentPersistence::SaveEconomyState() (fire-and-forget async, the
+    // same pattern MemoryPersistence uses) immediately after the in-memory
+    // mutation, so it survives a restart without the world thread ever
+    // blocking on the DB.
+    AgentEconomyState EconomyState;
 
     ObjectGuid RuntimeGuid;
     AgentWorldState WorldState = AgentWorldState::Abstract;

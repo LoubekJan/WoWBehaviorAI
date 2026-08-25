@@ -295,6 +295,18 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI routine configured dayLength={}ms workStart={}ms workEnd={}ms",
         _routineScheduleConfig.DayLengthMs, _routineScheduleConfig.WorkStartMs, _routineScheduleConfig.WorkEndMs);
 
+    // Milestone 2.11E2: the only economy mutation that exists yet - applied
+    // once per WORK ActionCompletion reaching Succeeded/Performed (see
+    // UpdateNeeds()'s 2.11E1/2.11E2 activity block), never on Started
+    // alone and never for REST.
+    int32 workMoneyReward = sConfigMgr->GetIntDefault("AIWorld.WorkMoneyReward", 1);
+    if (workMoneyReward < 0)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WorkMoneyReward ({}) is invalid, clamping to 0", workMoneyReward);
+        workMoneyReward = 0;
+    }
+    _workMoneyReward = uint32(workMoneyReward);
+
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight);
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
@@ -1890,12 +1902,12 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                     // 2.11E1 P3 fix: same "no engine completion callback,
                     // Started treated as immediately done, routed through
                     // HandleActionCompletion() for consistent logging"
-                    // shape TryEat() already uses for Eat - a future
-                    // economy mutation (2.11E2) must gate on this
-                    // Succeeded/Performed completion, never on Started
-                    // alone. No ActiveActionState was ever set for this
-                    // action, so HandleActionCompletion()'s own reset()
-                    // is a harmless no-op here.
+                    // shape TryEat() already uses for Eat - the 2.11E2
+                    // economy mutation below gates on this Succeeded/
+                    // Performed completion, never on Started alone. No
+                    // ActiveActionState was ever set for this action, so
+                    // HandleActionCompletion()'s own reset() is a harmless
+                    // no-op here.
                     if (activityResult.Status == ActionExecutionStatus::Started)
                     {
                         ActionCompletion activityCompletion;
@@ -1908,6 +1920,26 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                         activityCompletion.CompletedAtMs = nowMs;
 
                         HandleActionCompletion(*record, activityCompletion);
+
+                        // Milestone 2.11E2: the only economy mutation that
+                        // exists yet, and its only gate - Work's own
+                        // Succeeded/Performed completion, applied here and
+                        // nowhere else. REST reaches this same call with
+                        // Type == ActionType::Rest and earns nothing; a
+                        // rejected/failed Work request never reaches this
+                        // block at all (activityResult.Status ==
+                        // ActionExecutionStatus::Started already gates it
+                        // above).
+                        if (activityCompletion.Type == ActionType::Work
+                            && activityCompletion.Status == ActionCompletionStatus::Succeeded
+                            && activityCompletion.Reason == ActionCompletionReason::Performed)
+                        {
+                            record->EconomyState.Money += _workMoneyReward;
+                            _persistence.SaveEconomyState(record->Id, record->EconomyState);
+
+                            TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={}",
+                                record->Id.Value, record->EconomyState.Money, record->EconomyState.Food, record->EconomyState.Resource);
+                        }
                     }
                 }
             }

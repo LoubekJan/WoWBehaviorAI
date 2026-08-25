@@ -3666,6 +3666,16 @@ AIWorld.RoutineWorkStartMs = 400000
 AIWorld.RoutineWorkEndMs = 800000
 
 #
+#    AIWorld.WorkMoneyReward
+#        Description: Milestone 2.11E2 - how much AgentRecord::EconomyState::Money a WORK
+#                     ActionCompletion reaching Succeeded/Performed adds. REST never earns
+#                     anything; a rejected/failed WORK request never reaches this either.
+#        Important:   Clamped to a minimum of 0.
+#        Default:     1
+
+AIWorld.WorkMoneyReward = 1
+
+#
 ###################################################################################################
 
 ###################################################################################################
