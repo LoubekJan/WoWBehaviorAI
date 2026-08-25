@@ -1955,25 +1955,23 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
                             if (record->EconomyState.LastRewardedWorkWindowId != workWindowId)
                             {
-                                record->EconomyState.Money += _workMoneyReward;
-                                record->EconomyState.LastRewardedWorkWindowId = workWindowId;
+                                uint32 workMoneyReward = _workMoneyReward;
 
-                                // 2.11E2 P3 fix: bumped every time, right
-                                // before the write it accompanies - this is
-                                // what lets SaveEconomyState()'s UPDATE stay
-                                // monotonic despite the async queue not
-                                // itself guaranteeing execution order. See
-                                // AgentEconomyState::Version.
-                                ++record->EconomyState.Version;
-
-                                // Money and the idempotency marker are
-                                // written together in this one call/one DB
-                                // UPDATE - never as two separate async
-                                // writes, which could otherwise persist
-                                // only one of the two and let a restart
-                                // either repeat or silently lose the
-                                // payment.
-                                _persistence.SaveEconomyState(record->Id, record->EconomyState);
+                                // 2.11E2 P3 fix: the only place allowed to
+                                // touch EconomyState - bumps Version and
+                                // persists the whole row itself, so this
+                                // site cannot forget either the way a
+                                // direct Money +=/SaveEconomyState() call
+                                // could. Money and the idempotency marker
+                                // still land in the same UPDATE either way
+                                // - MutateEconomyAndPersist() only ever
+                                // does one SaveEconomyState() call per
+                                // invocation.
+                                MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId](AgentEconomyState& economy)
+                                {
+                                    economy.Money += workMoneyReward;
+                                    economy.LastRewardedWorkWindowId = workWindowId;
+                                });
 
                                 TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={} workWindowId={} version={}",
                                     record->Id.Value, record->EconomyState.Money, record->EconomyState.Food,
@@ -2283,6 +2281,21 @@ void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion co
         pending.GoalStartedAtMs = completion.GoalStartedAtMs;
         record.PendingEat = pending;
     }
+}
+
+// World thread only. Milestone 2.11E2 P3 fix: the only place
+// AgentRecord::EconomyState is allowed to change - see this method's own
+// header comment for why. Fixed order, every call: apply mutate, bump
+// Version, persist the whole row - a caller cannot reach EconomyState's
+// fields without going through this and therefore cannot forget the
+// Version bump AgentPersistence::SaveEconomyState()'s monotonic guard
+// depends on.
+void AIWorldMgr::MutateEconomyAndPersist(AgentRecord& record, std::function<void(AgentEconomyState&)> const& mutate)
+{
+    mutate(record.EconomyState);
+    ++record.EconomyState.Version;
+
+    _persistence.SaveEconomyState(record.Id, record.EconomyState);
 }
 
 // World thread only, called only from UpdateNeeds(), after this same

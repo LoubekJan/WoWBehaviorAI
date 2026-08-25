@@ -46,6 +46,7 @@
 #include "Scheduler/SimulationTier.h"
 #include "Scheduler/StableAgentHash.h"
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -119,6 +120,17 @@ class TC_GAME_API AIWorldMgr
         void ProcessActionEngineEvent(ActionEngineEvent const& event);
         void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
         void TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs);
+
+        // Milestone 2.11E2 P3 fix: the only way AgentRecord::EconomyState is
+        // allowed to change - centralizes the "bump Version, then persist"
+        // invariant AgentPersistence::SaveEconomyState()'s monotonic
+        // "AND economy_version < ?" guard depends on (see
+        // AgentEconomyState::Version), so a future Food/Resource mutation
+        // cannot forget it by calling SaveEconomyState() directly. mutate
+        // is applied to record.EconomyState first, then Version is
+        // incremented, then the whole row is persisted - in that fixed
+        // order, every time, regardless of what mutate actually changes.
+        void MutateEconomyAndPersist(AgentRecord& record, std::function<void(AgentEconomyState&)> const& mutate);
         void ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response);
         std::vector<DecisionSubmitResult> SubmitDecisionContexts(std::vector<AIRequest> requests);
         void RunDecisionScheduler();
