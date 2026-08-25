@@ -82,15 +82,14 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
         record.EconomyState.Version = fields[18].GetUInt64();
 
-        // Milestone 2.12A/2.12B P3 fix: population/territory_x/y/z/hunger/
-        // resources are six independently nullable columns -
-        // Field::GetFloat() silently returns 0.0f for SQL NULL, so
-        // trusting a single presence bit (population alone) the way
-        // home_map_id/work_map_id can for their pairs would let a
-        // partially-NULL row (a corrupt/hand-edited row, never one
-        // AgentPersistence itself produces) load as a legitimate-looking
-        // Territory=(0,0,0)/Hunger=0/Resources=0 instead of being caught.
-        // All six must agree - either all NULL (no group) or all set.
+        // Milestone 2.12A P3 fix: population/territory_x/y/z are four
+        // independently nullable columns - Field::GetFloat() silently
+        // returns 0.0f for SQL NULL, so trusting a single presence bit
+        // (population alone) the way home_map_id/work_map_id can for their
+        // pairs would let a partially-NULL row (a corrupt/hand-edited row,
+        // never one AgentPersistence itself produces) load as a
+        // legitimate-looking Territory=(0,0,0) instead of being caught.
+        // All four must agree - either all NULL (no group) or all set.
         bool populationNull = fields[19].IsNull();
         bool territoryXNull = fields[20].IsNull();
         bool territoryYNull = fields[21].IsNull();
@@ -98,7 +97,7 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         bool hungerNull = fields[23].IsNull();
         bool resourcesNull = fields[24].IsNull();
 
-        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull && !hungerNull && !resourcesNull)
+        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull)
         {
             CreatureGroupState group;
             group.Population = fields[19].GetUInt32();
@@ -110,15 +109,13 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
             group.Version = fields[25].GetUInt64();
             record.GroupState = group;
         }
-        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull
-            || populationNull != hungerNull || populationNull != resourcesNull)
+        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} has a partially NULL population/territory_x/y/z/hunger/resources row "
-                "(present: population={} territory_x={} territory_y={} territory_z={} hunger={} resources={}) - ignoring malformed CreatureGroupState",
-                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull, !hungerNull, !resourcesNull);
+                "AgentPersistence: agent id={} has a partially NULL population/territory_x/y/z row (present: population={} territory_x={} territory_y={} territory_z={}) - ignoring malformed CreatureGroupState",
+                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull);
         }
-        // else: all six NULL - no CreatureGroupState, the ordinary case
+        // else: all four NULL - no CreatureGroupState, the ordinary case
         // for every non-CreatureGroup agent.
 
         // Milestone 2.12A P3 fix: the AgentType <-> GroupState invariant
@@ -134,14 +131,9 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         if (record.GroupState && record.Type != AgentType::CreatureGroup)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} type={} has a CreatureGroupState but is not AgentType::CreatureGroup - loading it anyway, but this invariant should never be violated",
-                record.Id.Value, ToString(record.Type));
-        }
-        else if (!record.GroupState && record.Type == AgentType::CreatureGroup)
-        {
-            TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} is AgentType::CreatureGroup but has no CreatureGroupState - loading it anyway as an empty aggregate with no group data",
-                record.Id.Value);
+                "AgentPersistence: refusing to load agent id={} type={} because CreatureGroup/GroupState invariant is violated (groupState={})",
+                record.Id.Value, ToString(record.Type), record.GroupState.has_value());
+            continue;
         }
 
         if (!registry.Add(record))
