@@ -18,6 +18,7 @@
 #include "AgentPersistence.h"
 #include "Agent/AgentLocation.h"
 #include "Agent/AgentRegistry.h"
+#include "Agent/CreatureGroupMember.h"
 #include "Agent/CreatureGroupState.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
@@ -167,6 +168,61 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
     } while (result->NextRow());
 
     TC_LOG_INFO("ai.world", "AI persistence loaded {} agents", loaded);
+    return loaded;
+}
+
+uint32 AgentPersistence::LoadCreatureGroupMembers(AgentRegistry& registry)
+{
+    uint32 loaded = 0;
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_CREATURE_GROUP_MEMBERS);
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+    {
+        TC_LOG_INFO("ai.world", "AI persistence loaded 0 creature group members");
+        return 0;
+    }
+
+    do
+    {
+        Field* fields = result->Fetch();
+
+        AgentId groupId{ fields[0].GetUInt64() };
+        uint32 mapId = fields[1].GetUInt32();
+        uint64 spawnId = fields[2].GetUInt64();
+
+        // Milestone 2.12C: no FK to ai_agents - a membership row whose
+        // group_agent_id does not resolve to a registered, correctly-typed
+        // CreatureGroup is an orphan (a deleted/never-created agent, a
+        // hand-edited row, ...), logged and skipped, the same tolerance
+        // ai_long_term_memories' own orphan handling already has. Never
+        // fatal to the rest of this load.
+        AgentRecord* record = registry.Find(groupId);
+        if (!record)
+        {
+            TC_LOG_ERROR("ai.world", "AgentPersistence: ai_creature_group_members row for group_agent_id={} map={} spawn={} references an unregistered agent, skipping",
+                groupId.Value, mapId, spawnId);
+            continue;
+        }
+
+        if (record->Type != AgentType::CreatureGroup)
+        {
+            TC_LOG_ERROR("ai.world", "AgentPersistence: ai_creature_group_members row for group_agent_id={} map={} spawn={} references agent type={}, not AgentType::CreatureGroup, skipping",
+                groupId.Value, mapId, spawnId, ToString(record->Type));
+            continue;
+        }
+
+        CreatureGroupMember member;
+        member.MapId = mapId;
+        member.SpawnId = spawnId;
+        record->GroupMembers.push_back(member);
+
+        TC_LOG_INFO("ai.world", "AI creature group member loaded group={} map={} spawn={}", groupId.Value, mapId, spawnId);
+
+        ++loaded;
+    } while (result->NextRow());
+
+    TC_LOG_INFO("ai.world", "AI persistence loaded {} creature group members", loaded);
     return loaded;
 }
 

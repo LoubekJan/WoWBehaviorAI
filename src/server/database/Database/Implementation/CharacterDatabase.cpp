@@ -643,6 +643,11 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_UPD_AI_CREATURE_GROUP, "UPDATE ai_agents SET population = ?, territory_x = ?, territory_y = ?, "
         "territory_z = ?, hunger = ?, resources = ?, group_version = ? WHERE agent_id = ? AND group_version < ?", CONNECTION_ASYNC);
 
+    // Milestone 2.12C: startup-only (synchronous load), same as
+    // CHAR_SEL_AI_AGENTS - called once from AIWorldMgr::Initialize(),
+    // never from the world update loop.
+    PrepareStatement(CHAR_SEL_AI_CREATURE_GROUP_MEMBERS, "SELECT group_agent_id, map_id, spawn_id FROM ai_creature_group_members", CONNECTION_SYNCH);
+
     // AIWorld (Milestone 2.5B) - CHAR_SEL_AI_LONG_TERM_MEMORIES is startup-only (synchronous
     // load, same as CHAR_SEL_AI_AGENTS). CHAR_INS_AI_LONG_TERM_MEMORY is used from the world
     // update thread when a memory is promoted, so it must stay CONNECTION_ASYNC/Execute() -

@@ -58,6 +58,17 @@ class TC_GAME_API AgentPersistence
         // number of agents loaded.
         uint32 LoadAgents(AgentRegistry& registry);
 
+        // Milestone 2.12C: loads every row from ai_creature_group_members
+        // into the matching AgentRecord::GroupMembers - must be called
+        // after LoadAgents() (a membership row needs an already-registered
+        // group_agent_id to attach to). A row whose group_agent_id does
+        // not resolve to a registered AgentType::CreatureGroup agent is
+        // logged and skipped (an orphan - no FK enforces this at the DB
+        // level, the same tolerance ai_long_term_memories already has),
+        // never treated as fatal. Returns the number of memberships
+        // loaded.
+        uint32 LoadCreatureGroupMembers(AgentRegistry& registry);
+
         // Idempotent against ai_agents itself (not just against what
         // LoadAgents() already saw): if a row for (mapId, spawnId) already
         // exists, its AgentId is reused instead of inserting a duplicate.

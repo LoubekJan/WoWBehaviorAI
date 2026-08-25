@@ -18,6 +18,7 @@
 #include "AIWorldMgr.h"
 #include "Action/ArrivalTolerance.h"
 #include "Agent/AgentSnapshot.h"
+#include "Agent/CreatureGroupRuntimeView.h"
 #include "Config.h"
 #include "Creature.h"
 #include "GameTime.h"
@@ -110,6 +111,34 @@ namespace
     {
         AgentRecord* record = registry.FindBySpawn(mapId, spawnId);
         return (record && record->Type != AgentType::CreatureGroup) ? record : nullptr;
+    }
+
+    // Milestone 2.12C: a fresh, transient snapshot of a CreatureGroup's
+    // membership - one Map::GetCreatureBySpawnId() lookup per
+    // CreatureGroupMember, never cached anywhere past this call, and never
+    // forcing a grid to load (a member simply reads as not-loaded, exactly
+    // like an individual agent's own live-resolution already treats an
+    // unloaded grid). Members are not required to share the group's own
+    // MapId, though in practice a territory-bound pack's members typically
+    // will - each is resolved on its own recorded map.
+    CreatureGroupRuntimeView ResolveCreatureGroupRuntimeView(AgentRecord const& record)
+    {
+        CreatureGroupRuntimeView view;
+        view.TotalMembers = uint32(record.GroupMembers.size());
+
+        for (CreatureGroupMember const& member : record.GroupMembers)
+        {
+            Map* map = sMapMgr->FindBaseNonInstanceMap(member.MapId);
+            Creature* creature = map ? map->GetCreatureBySpawnId(member.SpawnId) : nullptr;
+            if (!creature)
+                continue;
+
+            ++view.LoadedMembers;
+            if (creature->IsAlive())
+                ++view.AliveLoadedMembers;
+        }
+
+        return view;
     }
 }
 
@@ -362,6 +391,13 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // spawn-specific below - every agent this produces is Abstract with an
     // empty RuntimeGuid regardless of what it was before shutdown.
     _persistence.LoadAgents(_registry);
+
+    // Milestone 2.12C: must come after LoadAgents() - a membership row
+    // needs an already-registered group_agent_id to attach to. Purely
+    // identity (which real creature spawns belong to which CreatureGroup)
+    // - RunDecisionScheduler() resolves live presence from this fresh
+    // every coarse tick, never cached here past this load.
+    _persistence.LoadCreatureGroupMembers(_registry);
 
     // Same idea as _registry, for long-term memory: rebuilt from the DB
     // every startup. Must come after LoadAgents() - it needs _registry
@@ -1077,17 +1113,40 @@ void AIWorldMgr::RunDecisionScheduler()
             AgentRecord* record = _registry.Find(id);
             if (record && record->Type == AgentType::CreatureGroup && record->GroupState)
             {
-                _creatureGroupSimulationSystem.Update(*record->GroupState, dtMs, _creatureGroupSimulationRates);
+                // Milestone 2.12C: real TrinityCore wolves, if any are
+                // naturally loaded right now, are the authority - the
+                // aggregate coarse drift pauses for as long as that holds,
+                // resuming on its own the next coarse tick where it finds
+                // zero loaded members again (grid unload, or the group
+                // simply has no members yet). Still never forces a grid to
+                // load, never spawns/despawns anything, no movement/combat -
+                // this only reads whether members already happen to be
+                // loaded.
+                CreatureGroupRuntimeView runtimeView = ResolveCreatureGroupRuntimeView(*record);
 
-                // Version bump happens inside SaveCreatureGroupState()
-                // itself (2.11E2 P3's "bump lives in the persistence API,
-                // not the caller" precedent) - logged after, not before,
-                // so this reflects the value actually being persisted.
-                _persistence.SaveCreatureGroupState(id, *record->GroupState);
+                TC_LOG_DEBUG("ai.world", "AI creature group presence agent={} totalMembers={} loadedMembers={} aliveLoadedMembers={}",
+                    id.Value, runtimeView.TotalMembers, runtimeView.LoadedMembers, runtimeView.AliveLoadedMembers);
 
-                TC_LOG_DEBUG("ai.world", "AI creature group simulation agent={} population={} hunger={:.4f} resources={:.4f} version={}",
-                    id.Value, record->GroupState->Population, record->GroupState->Hunger,
-                    record->GroupState->Resources, record->GroupState->Version);
+                if (runtimeView.LoadedMembers == 0)
+                {
+                    _creatureGroupSimulationSystem.Update(*record->GroupState, dtMs, _creatureGroupSimulationRates);
+
+                    // Version bump happens inside SaveCreatureGroupState()
+                    // itself (2.11E2 P3's "bump lives in the persistence
+                    // API, not the caller" precedent) - logged after, not
+                    // before, so this reflects the value actually being
+                    // persisted.
+                    _persistence.SaveCreatureGroupState(id, *record->GroupState);
+
+                    TC_LOG_DEBUG("ai.world", "AI creature group simulation agent={} population={} hunger={:.4f} resources={:.4f} version={}",
+                        id.Value, record->GroupState->Population, record->GroupState->Hunger,
+                        record->GroupState->Resources, record->GroupState->Version);
+                }
+                else
+                {
+                    TC_LOG_DEBUG("ai.world", "AI creature group simulation agent={} paused: {} member(s) naturally loaded",
+                        id.Value, runtimeView.LoadedMembers);
+                }
             }
         }
 

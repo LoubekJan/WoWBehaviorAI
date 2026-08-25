@@ -24,6 +24,7 @@
 #include "AgentId.h"
 #include "AgentLocation.h"
 #include "AgentType.h"
+#include "CreatureGroupMember.h"
 #include "CreatureGroupState.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
@@ -33,6 +34,7 @@
 #include "Needs/NeedsThresholdState.h"
 #include "ObjectGuid.h"
 #include <optional>
+#include <vector>
 
 // One persistent agent's registry-owned state. SpawnId/MapId is the stable
 // binding to a TrinityCore creature spawn; RuntimeGuid is only the current
@@ -79,15 +81,33 @@ struct AgentRecord
     std::optional<AgentLocation> HomeLocation;
     std::optional<AgentLocation> WorkLocation;
 
-    // Milestone 2.12A: persistent, optional - set only for an
+    // Milestone 2.12A/2.12B: persistent, optional - set only for an
     // AgentType::CreatureGroup aggregate agent (see CreatureGroupState.h
-    // and this struct's own SpawnId comment above). Everything else
+    // and this struct's own SpawnId comment above), enforced both
+    // directions at load time (AgentPersistence::LoadAgents() refuses a
+    // row that violates the invariant either way). Everything else
     // (individual Civilian/Guard/Merchant agents) leaves this empty, the
     // same optional-by-capability pattern HomeLocation/WorkLocation
-    // already use. Load-only in 2.12A - nothing mutates it yet (no
-    // hunger/combat/materialization-policy simulation exists for a group
-    // until 2.12B), so there is no save path to wire up here either.
+    // already use. Hunger/Resources are mutated and persisted by
+    // AIWorldMgr::RunDecisionScheduler()'s coarse ABSTRACT tick (2.12B) -
+    // but only while GroupMembers below has zero naturally loaded
+    // creatures right now (2.12C); Population/Territory stay whatever
+    // AgentPersistence loaded them as.
     std::optional<CreatureGroupState> GroupState;
+
+    // Milestone 2.12C: persistent membership - which real TrinityCore
+    // creature spawns belong to this CreatureGroup, loaded once at
+    // startup (AgentPersistence::LoadCreatureGroupMembers(), called after
+    // LoadAgents() since a membership row needs an already-registered
+    // group_agent_id to attach to) from ai_creature_group_members. Empty
+    // for every non-CreatureGroup agent - no presence-check ambiguity the
+    // way GroupState needs one, an empty membership list is already
+    // unambiguous. Never mutated at runtime in this milestone (no spawn/
+    // despawn from AI), so there is no save path for it either -
+    // AIWorldMgr::RunDecisionScheduler() only ever reads it, once per
+    // coarse tick, to build a fresh CreatureGroupRuntimeView; nothing
+    // about a member is ever cached past that one call.
+    std::vector<CreatureGroupMember> GroupMembers;
 
     // Milestone 2.11E2: persistent, not optional - every agent has one
     // (defaulting to zero), unlike HomeLocation/WorkLocation. Only ever
