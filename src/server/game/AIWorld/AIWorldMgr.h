@@ -119,15 +119,25 @@ class TC_GAME_API AIWorldMgr
 
         bool _enabled = false;
 
-        // Milestone 2.10A: no longer just a single test-agent poll gate -
-        // now the cadence RunDecisionScheduler() itself runs on, once per
-        // interval rather than every tick (GetAgents() allocates, so this
-        // avoids paying that cost on every single world tick the way
-        // _needsUpdateTimer/_nearbyPerceptionTimer already don't either).
-        // Also still each admitted agent's own per-decision interval - see
-        // DecisionScheduleState::NextDecisionAtMs.
-        uint32 _snapshotIntervalMs = 5000;
-        uint32 _snapshotTimer = 0;
+        // Milestone 2.10A/2.10B: how often RunDecisionScheduler() itself
+        // runs - not every tick (GetAgents() allocates, so this avoids
+        // paying that cost every single world tick the way
+        // _needsUpdateTimer/_nearbyPerceptionTimer already don't either),
+        // and deliberately faster than either per-agent decision interval
+        // below (AIWorld.DecisionSchedulerIntervalMs, default 250ms) - see
+        // RunDecisionScheduler()'s own comment for why scheduler-poll
+        // cadence and per-agent decision cadence are two different things.
+        uint32 _decisionSchedulerIntervalMs = 250;
+        uint32 _decisionSchedulerTimer = 0;
+
+        // Milestone 2.10B: per-agent decision interval, chosen fresh each
+        // pass by DecisionCadenceClass (see RunDecisionScheduler()) rather
+        // than one interval for every agent - Nearby (a real Player within
+        // _decisionNearbyPlayerRange right now) gets faster decisions than
+        // Active (everyone else materialized).
+        uint32 _decisionNearbyIntervalMs = 1000;
+        uint32 _decisionActiveIntervalMs = 5000;
+        float _decisionNearbyPlayerRange = 60.0f;
 
         // Registry of persistent agents - survives its Creature being
         // unloaded/reloaded; only ProcessAgent()'s Bind/UnbindCreature calls
@@ -198,8 +208,8 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.4B/2.4C: periodic PlayerSeen/CreatureSeen
         // perception, independent of any WorldEvent. Deliberately its own
-        // (faster, ~1s) cadence rather than piggybacking on
-        // _snapshotIntervalMs - like ProcessWorldEvent()'s perception
+        // (faster, ~1s) cadence rather than piggybacking on the decision
+        // scheduler's own cadence - like ProcessWorldEvent()'s perception
         // loop, ScanNearbyEntities() treats live Creature existence as the
         // authority for whether an agent can perceive anything, not
         // record->WorldState.
@@ -237,9 +247,10 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.6A: deterministic per-agent NeedsState drift, run only
         // for Materialized agents (see UpdateNeeds()) on its own ~1s cadence,
-        // independent of _snapshotIntervalMs - Needs is a simulation
-        // subsystem, not part of the snapshot/decision cadence. Pure value
-        // transform: NeedsSystem itself never touches AgentId/Creature/Map.
+        // independent of the decision scheduler's cadence - Needs is a
+        // simulation subsystem, not part of the snapshot/decision cadence.
+        // Pure value transform: NeedsSystem itself never touches AgentId/
+        // Creature/Map.
         NeedsSystem _needsSystem;
         NeedsUpdateRates _needsRates;
         uint32 _needsUpdateIntervalMs = 1000;

@@ -79,14 +79,41 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         return;
     }
 
-    int32 configuredIntervalMs = sConfigMgr->GetIntDefault("AIWorld.SnapshotIntervalMs", 5000);
-    if (configuredIntervalMs < 100)
+    // Milestone 2.10B: scheduler-poll cadence (how often RunDecisionScheduler()
+    // even looks for due agents) is deliberately its own, faster knob than
+    // either per-agent decision interval below - see RunDecisionScheduler().
+    int32 decisionSchedulerIntervalMs = sConfigMgr->GetIntDefault("AIWorld.DecisionSchedulerIntervalMs", 250);
+    if (decisionSchedulerIntervalMs < 50)
     {
-        TC_LOG_WARN("ai.world", "AIWorld.SnapshotIntervalMs ({}) is invalid or too low, clamping to 100ms", configuredIntervalMs);
-        configuredIntervalMs = 100;
+        TC_LOG_WARN("ai.world", "AIWorld.DecisionSchedulerIntervalMs ({}) is invalid or too low, clamping to 50ms", decisionSchedulerIntervalMs);
+        decisionSchedulerIntervalMs = 50;
     }
-    _snapshotIntervalMs = uint32(configuredIntervalMs);
-    _snapshotTimer = 0;
+    _decisionSchedulerIntervalMs = uint32(decisionSchedulerIntervalMs);
+    _decisionSchedulerTimer = 0;
+
+    int32 decisionNearbyIntervalMs = sConfigMgr->GetIntDefault("AIWorld.DecisionNearbyIntervalMs", 1000);
+    if (decisionNearbyIntervalMs < 100)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DecisionNearbyIntervalMs ({}) is invalid or too low, clamping to 100ms", decisionNearbyIntervalMs);
+        decisionNearbyIntervalMs = 100;
+    }
+    _decisionNearbyIntervalMs = uint32(decisionNearbyIntervalMs);
+
+    int32 decisionActiveIntervalMs = sConfigMgr->GetIntDefault("AIWorld.DecisionActiveIntervalMs", 5000);
+    if (decisionActiveIntervalMs < 100)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DecisionActiveIntervalMs ({}) is invalid or too low, clamping to 100ms", decisionActiveIntervalMs);
+        decisionActiveIntervalMs = 100;
+    }
+    _decisionActiveIntervalMs = uint32(decisionActiveIntervalMs);
+
+    float decisionNearbyPlayerRange = sConfigMgr->GetFloatDefault("AIWorld.DecisionNearbyPlayerRange", 60.0f);
+    if (decisionNearbyPlayerRange < 1.0f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DecisionNearbyPlayerRange ({}) is invalid or too low, clamping to 1.0", decisionNearbyPlayerRange);
+        decisionNearbyPlayerRange = 1.0f;
+    }
+    _decisionNearbyPlayerRange = decisionNearbyPlayerRange;
 
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
@@ -244,8 +271,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         }
     }
 
-    TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={})",
-        aiHost, aiPort, requestTimeoutMs, _healthIntervalMs, _decisionMaxInFlight);
+    TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
+        "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f})",
+        aiHost, aiPort, requestTimeoutMs, _healthIntervalMs, _decisionMaxInFlight,
+        _decisionSchedulerIntervalMs, _decisionNearbyIntervalMs, _decisionActiveIntervalMs, _decisionNearbyPlayerRange);
 
     // Last step: only from here on can PublishWorldEvent() actually enqueue
     // anything. Ordered after everything above so a map worker can't race
@@ -273,12 +302,16 @@ void AIWorldMgr::Update(uint32 diff)
     for (ActionEngineEvent& event : _actionEngineEventBus.Drain())
         ProcessActionEngineEvent(event);
 
-    // Milestone 2.10A: was a single-_testAgentId poll gate - now runs the
-    // bounded multi-agent scheduler pass on the same cadence.
-    _snapshotTimer += diff;
-    if (_snapshotTimer >= _snapshotIntervalMs)
+    // Milestone 2.10A/2.10B: runs the bounded multi-agent scheduler pass -
+    // AIWorld.DecisionSchedulerIntervalMs (default 250ms), deliberately
+    // its own, faster cadence than either per-agent decision interval
+    // RunDecisionScheduler() itself schedules against (Nearby/Active) - see
+    // that function's own comment for why scheduler-poll cadence and
+    // per-agent decision cadence are two different things.
+    _decisionSchedulerTimer += diff;
+    if (_decisionSchedulerTimer >= _decisionSchedulerIntervalMs)
     {
-        _snapshotTimer = 0;
+        _decisionSchedulerTimer = 0;
         RunDecisionScheduler();
     }
 
@@ -723,7 +756,7 @@ std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector
     return _aiClient->SubmitDecisions(std::move(requests));
 }
 
-// Milestone 2.10A: world-thread-only bounded admission over every
+// Milestone 2.10A/2.10B: world-thread-only bounded admission over every
 // registered agent - replaces the old single-_testAgentId cadence now that
 // Needs/Goal/Action (UpdateNeeds()) and perception (ScanNearbyEntities())
 // already iterate the full registry themselves; this was the one part of
@@ -734,20 +767,54 @@ std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector
 // ValidateDecisionIntent()) async decision this pass. No unbounded queue:
 // an agent skipped for capacity is simply left due for the next pass,
 // never buffered anywhere.
+//
+// Milestone 2.10B: this pass's own cadence (AIWorld.DecisionSchedulerIntervalMs,
+// default 250ms) is deliberately much faster than either per-agent
+// decision interval it schedules against (DecisionNearbyIntervalMs/
+// DecisionActiveIntervalMs, default 1000/5000ms) - a fine-grained polling
+// cadence over coarse-grained per-agent intervals, not one cadence doing
+// both jobs the way 2.10A's single _snapshotIntervalMs did. This is what
+// lets a player walking up to an agent get that agent onto the faster
+// Nearby cadence within one poll interval, instead of waiting for
+// whatever the previous (possibly much longer) interval happened to be.
 void AIWorldMgr::RunDecisionScheduler()
 {
     uint64 nowMs = CurrentTimeMs();
 
-    // Cheap pre-filter: AgentRegistry's own WorldState flag, not a fresh
-    // live-Creature resolution (ProcessAgent() below does that for real,
-    // for whichever agents actually get admitted) - same trust level
-    // ValidateDecisionIntent() already extends it elsewhere.
-    std::vector<AgentId> candidates;
+    // Milestone 2.10B: the live Creature is already needed here for
+    // GetPlayerListInGrid() (proximity classification), so bind/unbind
+    // bookkeeping happens in this same loop too - the same idempotent
+    // pattern ProcessAgent()/ScanNearbyEntities()/UpdateNeeds() each
+    // already follow independently. Classification itself is never
+    // persisted (see DecisionCadenceClass.h) - purely a function of this
+    // pass's own world-thread-resolved proximity, so a player walking up
+    // to (or away from) an agent changes its class, and therefore its
+    // cadence, the very next scheduler pass, with no agent-side state to
+    // migrate and no restart required.
+    std::vector<DecisionScheduler::Candidate> candidates;
     for (AgentId id : _registry.GetAgents())
     {
-        AgentRecord const* record = _registry.Find(id);
-        if (record && record->WorldState == AgentWorldState::Materialized)
-            candidates.push_back(id);
+        AgentRecord* record = _registry.Find(id);
+        if (!record)
+            continue;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+
+        if (!creature)
+        {
+            if (record->WorldState == AgentWorldState::Materialized)
+                _registry.UnbindCreature(id);
+            continue;
+        }
+
+        _registry.BindCreature(id, *creature);
+
+        std::vector<Player*> nearbyPlayers;
+        creature->GetPlayerListInGrid(nearbyPlayers, _decisionNearbyPlayerRange);
+
+        DecisionCadenceClass cadenceClass = nearbyPlayers.empty() ? DecisionCadenceClass::Active : DecisionCadenceClass::Nearby;
+        candidates.push_back({ id, cadenceClass });
     }
 
     uint32 inFlight = 0;
@@ -769,19 +836,30 @@ void AIWorldMgr::RunDecisionScheduler()
     for (std::size_t i = 0; i < selection.SkippedCapacity.size(); ++i)
         TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "skipped_capacity"));
 
+    // Milestone 2.10B: which cadence class each admitted agent was given
+    // this pass, so the interval used to advance NextDecisionAtMs below
+    // (once a request is actually confirmed Submitted) matches what it
+    // was actually classified as - DecisionSubmitResult itself only
+    // carries AgentId, not CadenceClass.
+    std::unordered_map<uint64, DecisionCadenceClass> admittedClass;
+    admittedClass.reserve(selection.Admitted.size());
+
     std::vector<AIRequest> requests;
     requests.reserve(selection.Admitted.size());
 
-    for (AgentId id : selection.Admitted)
+    for (DecisionScheduler::Candidate const& candidate : selection.Admitted)
     {
-        std::optional<AIRequest> request = ProcessAgent(id);
+        admittedClass[candidate.Agent.Value] = candidate.CadenceClass;
+
+        std::optional<AIRequest> request = ProcessAgent(candidate.Agent);
         if (!request)
         {
             // AgentRegistry's WorldState flag was already stale by the
             // time ProcessAgent() actually tried to resolve a live
-            // Creature for it - retry at the normal cadence rather than
-            // busy-looping on it every pass.
-            _decisionSchedule[id.Value].NextDecisionAtMs = nowMs + _snapshotIntervalMs;
+            // Creature for it - retry at this agent's own normal cadence
+            // rather than busy-looping on it every pass.
+            uint32 retryIntervalMs = candidate.CadenceClass == DecisionCadenceClass::Nearby ? _decisionNearbyIntervalMs : _decisionActiveIntervalMs;
+            _decisionSchedule[candidate.Agent.Value].NextDecisionAtMs = nowMs + retryIntervalMs;
             continue;
         }
 
@@ -804,8 +882,12 @@ void AIWorldMgr::RunDecisionScheduler()
         if (result.Status != DecisionSubmitStatus::Submitted)
             continue;
 
+        uint32 intervalMs = _decisionActiveIntervalMs;
+        if (auto it = admittedClass.find(result.Agent.Value); it != admittedClass.end() && it->second == DecisionCadenceClass::Nearby)
+            intervalMs = _decisionNearbyIntervalMs;
+
         DecisionScheduleState& state = _decisionSchedule[result.Agent.Value];
-        state.NextDecisionAtMs = nowMs + _snapshotIntervalMs;
+        state.NextDecisionAtMs = nowMs + intervalMs;
         state.AwaitingResponse = true;
         ++submitted;
     }
@@ -901,13 +983,15 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 
         // Whether a Creature actually exists right now is the authority
         // for whether this agent can perceive anything - not
-        // record->WorldState, which is only as fresh as the last
-        // ProcessAgent() snapshot poll (up to AIWorld.SnapshotIntervalMs
-        // old). Gating on WorldState here would produce false-negative
-        // perception for however long a grid can be loaded before the
-        // next poll catches up: exactly the gap that must not exist going
-        // into Memory, where it would show up as random, snapshot-timer-
-        // dependent holes rather than a real absence of perception.
+        // record->WorldState, which is only as fresh as the last poll that
+        // happened to touch this agent (RunDecisionScheduler()/
+        // ScanNearbyEntities()/UpdateNeeds() each bind/unbind
+        // independently, on their own cadences). Gating on WorldState here
+        // would produce false-negative perception for however long a grid
+        // can be loaded before the next poll catches up: exactly the gap
+        // that must not exist going into Memory, where it would show up as
+        // random, poll-timing-dependent holes rather than a real absence
+        // of perception.
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
         Creature* observer = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
 
@@ -931,9 +1015,9 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 // World thread only, on its own ~1s cadence (_nearbyPerceptionIntervalMs),
 // independent of any WorldEvent - Milestone 2.4B/2.4C. Same "live Creature
 // existence is the authority, not record->WorldState" rule as
-// ProcessWorldEvent()'s perception loop, for the same reason: this runs
-// faster than _snapshotIntervalMs, so trusting WorldState here would
-// reintroduce the exact false-negative gap that was just closed there.
+// ProcessWorldEvent()'s perception loop, for the same reason: trusting
+// WorldState here would reintroduce the exact false-negative gap that was
+// just closed there.
 void AIWorldMgr::ScanNearbyEntities()
 {
     for (AgentId id : _registry.GetAgents())
@@ -991,7 +1075,8 @@ void AIWorldMgr::ScanNearbyEntities()
 }
 
 // World thread only, on its own ~1s cadence (_needsUpdateIntervalMs),
-// independent of _snapshotIntervalMs - Milestone 2.6A/2.6B1/2.6B2. Only
+// independent of the decision scheduler's cadence - Milestone
+// 2.6A/2.6B1/2.6B2. Only
 // Materialized agents drift; Abstract agents are frozen rather than
 // dead-reckoned, so this deliberately does not become background
 // simulation before that's its own milestone. record->WorldState is only

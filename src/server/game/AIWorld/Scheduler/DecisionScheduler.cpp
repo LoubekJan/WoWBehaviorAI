@@ -20,14 +20,14 @@
 
 DecisionScheduler::SelectionResult DecisionScheduler::SelectDue(
     std::unordered_map<uint64, DecisionScheduleState> const& state,
-    std::vector<AgentId> const& candidates, uint64 nowMs, uint32 maxAdmit) const
+    std::vector<Candidate> const& candidates, uint64 nowMs, uint32 maxAdmit) const
 {
-    std::vector<AgentId> due;
+    std::vector<Candidate> due;
     due.reserve(candidates.size());
 
-    for (AgentId id : candidates)
+    for (Candidate const& candidate : candidates)
     {
-        auto it = state.find(id.Value);
+        auto it = state.find(candidate.Agent.Value);
 
         // An agent the scheduler has never seen before has no entry yet -
         // DecisionScheduleState's own defaults (NextDecisionAtMs = 0,
@@ -41,27 +41,35 @@ DecisionScheduler::SelectionResult DecisionScheduler::SelectDue(
         if (nextDecisionAtMs > nowMs)
             continue;
 
-        due.push_back(id);
+        due.push_back(candidate);
     }
 
-    std::sort(due.begin(), due.end(), [&state](AgentId a, AgentId b)
+    std::sort(due.begin(), due.end(), [&state](Candidate const& a, Candidate const& b)
     {
-        auto aIt = state.find(a.Value);
-        auto bIt = state.find(b.Value);
+        // Nearby always outranks Active - see this header's own comment
+        // for why that is an accepted, documented limitation for now.
+        if (a.CadenceClass != b.CadenceClass)
+            return a.CadenceClass == DecisionCadenceClass::Nearby;
+
+        auto aIt = state.find(a.Agent.Value);
+        auto bIt = state.find(b.Agent.Value);
         uint64 aNext = aIt != state.end() ? aIt->second.NextDecisionAtMs : 0;
         uint64 bNext = bIt != state.end() ? bIt->second.NextDecisionAtMs : 0;
 
         if (aNext != bNext)
             return aNext < bNext;
 
-        return a.Value < b.Value;
+        return a.Agent.Value < b.Agent.Value;
     });
 
     SelectionResult result;
     std::size_t admitCount = std::min<std::size_t>(due.size(), maxAdmit);
 
     result.Admitted.assign(due.begin(), due.begin() + admitCount);
-    result.SkippedCapacity.assign(due.begin() + admitCount, due.end());
+
+    result.SkippedCapacity.reserve(due.size() - admitCount);
+    for (std::size_t i = admitCount; i < due.size(); ++i)
+        result.SkippedCapacity.push_back(due[i].Agent);
 
     return result;
 }
