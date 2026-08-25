@@ -2,12 +2,12 @@
 
 > **Výchozí stav:** TrinityCore `3.3.5` + Ubuntu Server + NVIDIA GPU  
 > **Rozsah dokumentu:** Etapa 1 — Development Infrastructure, Etapa 2 — AI World Foundation  
-> **Aktualizováno:** 2026-08-25  
+> **Aktualizováno:** 2026-08-26  
 > **Aktivní větev:** `ai-world`
 
 ## Stav projektu
 
-**Etapa 1 má splněný runtime gate. Etapa 2 je aktivně rozpracovaná. Scheduler/tier foundation 2.10A–2.10C je uzavřená; 2.10D má implementaci + static PASS a runtime ověřený deterministic staggering, zbývá poslední steady-state cadence evidence před formálním uzavřením celé 2.10.**
+**Etapa 1 má splněný runtime gate. Etapa 2 je aktivně rozpracovaná. 2.10 Scheduler/tier foundation je CLOSED/PASS, 2.11 persistentní farmář je CLOSED/PASS a 2.12 dosáhla přes oddělenou group identity až k runtime-ověřenému `AgentGroup` lifecycle `CreateGroup / JoinGroup / LeaveGroup / DissolveGroup` (2.12E1 CLOSED/PASS).**
 
 Na reálném Ubuntu/GPU hostu bylo ověřeno:
 
@@ -20,7 +20,7 @@ Na reálném Ubuntu/GPU hostu bylo ověřeno:
 - `auth.realmlist` je konfigurován versionovaným `make configure-realm`, nikoli ručním SQL zásahem.
 - restart `worldserver` přes `make restart-world` zachová DB/herní stav.
 
-Etapa 2 má runtime ověřený foundation řetězec od persistentní identity přes events/perception/memory/Needs/Goals až po bezpečné Action API a async decision pipeline. Implementovaný stav zahrnuje:
+Etapa 2 má runtime ověřený foundation řetězec od persistentní identity přes events/perception/memory/Needs/Goals až po bezpečné Action API, async decision pipeline, scheduler a první dva persistentní vertical slices. Implementovaný stav zahrnuje:
 
 - `AIWorldMgr` lifecycle + read-only snapshot.
 - async `AIClient` `/health` + verzovaný `/decision` V2, timeout/fallback, korelace a stale-response ochrana.
@@ -33,11 +33,15 @@ Etapa 2 má runtime ověřený foundation řetězec od persistentní identity p�
 - deterministic relevant-memory retrieval s Top-N omezením a wire-safe `DecisionMemory` DTO.
 - per-agent `NeedsState`: health/hunger/fatigue/safety/resource pressure, live-state coupling, recent-memory safety a threshold events.
 - deterministic Goal System pro `GET_FOOD` a `FLEE_DANGER`, včetně retention/interruption/success/timeout lifecycle.
-- safe Action API pro `FLEE`, `MOVE_TO`, `EAT`; plný `GET_FOOD → MOVE_TO → ARRIVED → EAT → CONSUMED → NEED_SATISFIED` feedback loop.
+- safe Action API pro `FLEE`, `MOVE_TO`, `EAT`, `WORK`, `REST`; TrinityCore zůstává jediný executor fyzického světa.
 - decision protocol 2.9A–2.9E: full `AgentContext`, structured `DecisionIntent`, strict V2 korelace, stale/provenance guard, authoritative validation, metrics a multi-agent submit API.
-- scheduler 2.10A–2.10D: bounded multi-agent decision admission, proximity-aware cadence, explicit simulation tiers a coarse Background/Abstract scheduling seam.
+- scheduler 2.10A–2.10D: bounded multi-agent decision admission, proximity-aware cadence, explicit simulation policy a bounded/staggered coarse scheduling.
+- persistentní farmář Pa Maclure: Home/Work location, deterministic rutina, movement, WORK/REST activity/action a persistentní economy reward marker.
+- `AgentGroup` social domain oddělený od `AgentRecord`: vlastní `GroupId`, registry, persistence, membership a coarse group simulation.
+- runtime group lifecycle: create/join/leave/dissolve nad existujícími individuálními agenty bez fake SpawnId a bez 1:1 vazby group→Creature.
+- persistentní monotónní `GroupId` high-water sequence s fail-closed validací proti fyzickému `MAX(group_id)`.
 
-**Aktuální NEXT:** dokončit poslední runtime gate 2.10D — po prvním staggered coarse ticku každého agenta potvrdit další tick přibližně po 60 s. Potom přejít na `2.11 — persistentní farmář`.
+**Aktuální NEXT:** před automatickým vznikem/rozpadem LOOSE coalitions odstranit synchronní DB round-trip z runtime lifecycle cesty. Současné 2.12E1 CRUD je přijatelné pro startup/admin/manual test, ale nesmí být beze změny použito z per-tick/per-decision policy. Potom přidat `Loose/Stable` membership policy a teprve následně automatickou formation/dissolution logiku vlků.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -61,7 +65,7 @@ Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gat
   - [2.9 AI server — decision protocol](#29-ai-server--decision-protocol)
   - [2.10 Scheduler a úrovně simulace](#210-scheduler-a-úrovně-simulace)
   - [2.11 První experiment — persistentní farmář](#211-první-experiment--persistentní-farmář)
-  - [2.12 První experiment — wolf pack](#212-první-experiment--wolf-pack)
+  - [2.12 První experiment — wolf pack / AgentGroup coalition](#212-první-experiment--wolf-pack--agentgroup-coalition)
   - [2.13 První emergentní end-to-end událost](#213-první-emergentní-end-to-end-událost)
   - [2.14 Testy a diagnostika](#214-testy-a-diagnostika)
 - [Doporučené pořadí implementace](#doporučené-pořadí-implementace)
@@ -104,6 +108,9 @@ Základní invariants:
 - odpovědi se zpracovávají na world threadu;
 - AIWorld nikdy force-loaduje grid kvůli simulaci;
 - world binding a simulation policy jsou dva oddělené koncepty;
+- načtený individuální agent je materialized `Creature`, nenačtený persistentní `AgentRecord`;
+- `AgentGroup` je sociální/koordinační entita nad individuálními `AgentId`, nikdy není 1:1 bind na `Creature`;
+- group intent se v budoucnu musí rozložit na per-member intent/`ActionRequest`; group nikdy přímo nepohybuje více Creatures;
 - remote AI pouze navrhuje, `ActionSystem` validuje a TrinityCore provádí;
 - drahé inference/LLM se používá jen tam, kde deterministic logika nestačí.
 
@@ -112,7 +119,7 @@ Základní invariants:
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — 2.10D final runtime gate, potom 2.11** | Persistentní agenti, události, paměť, cíle, Action API, async AI bridge a scheduler tiers | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — 2.12E1 CLOSED, next async-safe dynamic group lifecycle** | Persistentní agenti, události, paměť, cíle, Action API, async AI bridge, scheduler a coalition model | Wolf attack → memory → goal → decision → validated action |
 
 ---
 
@@ -154,13 +161,17 @@ TrinityCore
 │
 └── AIWorldMgr
     ├── AgentRegistry
+    ├── AgentGroupRegistry
+    ├── AgentGroupLifecycleSystem
     ├── PerceptionSystem
     ├── MemorySystem
     ├── NeedsSystem
     ├── GoalSystem
     ├── ActionSystem
     ├── EventSystem
-    ├── Scheduler
+    ├── DecisionScheduler
+    ├── CoarseSimulationScheduler
+    ├── GroupCoarseSimulationScheduler
     └── AIClient  -------------------->  ai-server  ---> GPU
 ```
 
@@ -168,7 +179,9 @@ TrinityCore
 - [x] lifecycle integrace do `worldserver`;
 - [x] AIWorld lze vypnout;
 - [x] network/inference async vůči world update loopu;
-- [x] response freshness/provenance validation.
+- [x] response freshness/provenance validation;
+- [x] group identity oddělená od physical Agent identity;
+- [x] group coarse simulation má vlastní GroupId-keyed scheduler.
 
 ## 2.1 Persistentní agent
 
@@ -179,23 +192,32 @@ TrinityCore
 - [x] `AgentId ↔ Creature/ObjectGuid` binding;
 - [x] unload → agent zůstává persistentní bez live `Creature`;
 - [x] rematerializace bez ztráty identity/state;
-- [x] typy `CIVILIAN`, `GUARD`, `MERCHANT`, `CREATURE_GROUP`.
+- [x] `RuntimeGuid` provenance platí pouze pro aktuální materialized incarnation;
+- [x] group/coalition už není `AgentType` a nevytváří fake physical agent.
 
-`RuntimeGuid` je platný pouze pro materialized runtime incarnation; SpawnId je spawn identity, ne runtime object identity.
+`SpawnId` je persistentní spawn identity individuálního creature agenta. `RuntimeGuid` je platný pouze pro aktuální materialized runtime object. `GroupId` je samostatná sociální identity doména a nesmí být odvozována z `AgentId`, `SpawnId` ani `RuntimeGuid`.
 
 ## 2.2 Persistence
 
-Aktuálně `characters` DB:
+Aktuálně `characters` DB zahrnuje mimo jiné:
 
 ```text
 ai_agents
 ai_long_term_memories
+ai_agent_groups
+ai_agent_group_members
+ai_agent_group_id_sequence
 ```
 
-- [x] agent identity persistence;
+- [x] individual agent identity persistence;
 - [x] long-term memory persistence + restart/load;
-- [ ] relationships;
-- [ ] active goals;
+- [x] persistent Home/Work location;
+- [x] persistent economy state + monotonic economy version;
+- [x] oddělená group identity/state persistence;
+- [x] persistent AgentId membership edges;
+- [x] persistent monotonic GroupId high-water sequence;
+- [ ] obecné relationships mimo group membership;
+- [ ] active goals persistence;
 - [ ] historical events/audit persistence.
 
 ## 2.3 World Event System
@@ -265,31 +287,36 @@ Top-N DecisionMemory
 
 ## 2.7 Goal System
 
-**Stav: 2.7A–2.7B2 DONE / runtime PASS**
+**Stav: core goals + farmer routine vertical slice DONE / runtime PASS**
 
-Runtime implementované goals:
+Runtime implementované goal/routine koncepty:
 
 - `GET_FOOD`
 - `FLEE_DANGER`
+- `GO_TO_WORK`
+- `GO_HOME`
 
 - [x] deterministic candidate generation;
 - [x] utility/priority selection;
 - [x] retention;
 - [x] emergency interruption;
 - [x] success/failure/timeout;
-- [x] dead agent bez candidate/ActiveGoal.
+- [x] dead agent bez candidate/ActiveGoal;
+- [x] routine goal je pod ActiveGoal a emergency goal jej preemptuje.
 
-Další katalogové cíle (`WORK`, `REST`, `PROTECT_HOME`, `REQUEST_HELP`, ...) čekají na konkrétní vertical slice.
+Poznámka k historii roadmapy: původní 2.11 návrh mluvil o `WORK/REST` goals. Implementovaný vertical slice odděluje routing (`GO_TO_WORK` / `GO_HOME`) od activity/action vrstvy (`WORK` / `REST`). Historie se tím nepřepisuje; aktuální model je přesnější a je runtime ověřený.
 
 ## 2.8 Bezpečné Action API
 
-**Stav: 2.8A–2.8G DONE / runtime PASS**
+**Stav: deterministic action path DONE / runtime PASS**
 
-Runtime ověřené action primitives:
+Runtime ověřené action primitives / vertical slices:
 
 - `FLEE`
 - `MOVE_TO`
 - `EAT`
+- `WORK`
+- `REST`
 
 ```text
 GET_FOOD
@@ -310,6 +337,8 @@ NeedsSystem::SatisfyHunger
     ↓
 GET_FOOD SUCCEEDED
 ```
+
+Farmer routine používá stejný ownership princip: AIWorld/routine navrhne akci, `ActionSystem` ji validuje a TrinityCore provede movement/emote. Group lifecycle zatím nemá žádnou group action execution cestu.
 
 **Pravidlo:** AI navrhuje. `ActionSystem` validuje. TrinityCore provádí.
 
@@ -342,18 +371,25 @@ Otevřené hardening:
 
 **2.10A DONE / PASS**  
 **2.10B DONE / PASS**  
-**2.10C DONE / static PASS + runtime transition PASS**  
-**2.10D implementation DONE / static PASS + runtime phase-stagger PASS; poslední steady-state cadence sample pending**
+**2.10C DONE / PASS**  
+**2.10D DONE / static + runtime PASS**  
+**2.10 CLOSED**
 
-World binding a simulation policy jsou oddělené osy:
+World binding a simulation policy jsou oddělené osy. Aktuální model po group identity refactoru:
 
 ```text
 AgentWorldState:
   MATERIALIZED / ABSTRACT
 
-SimulationTier:
-  NEARBY / ACTIVE / BACKGROUND / ABSTRACT
+SimulationTier (individual AgentRecord):
+  NEARBY / ACTIVE / BACKGROUND
+
+AgentGroup:
+  samostatný GroupId-keyed coarse scheduler
+  není SimulationTier::ABSTRACT
 ```
+
+Historicky 2.10C/2.10D zavedly i `SimulationTier::ABSTRACT` pro tehdejší aggregate-group model. 2.12D tuto část odstranila, protože group už není physical `AgentRecord`; coarse group scheduling nyní běží přes `GroupCoarseSimulationScheduler`.
 
 ### 2.10A — bounded multi-agent decision scheduler
 
@@ -394,77 +430,48 @@ AIWorld.DecisionNearbyPlayerRange = 60.0
 
 Runtime fairness ověřena i s `DecisionMaxInFlight=1`.
 
-### 2.10C — explicit simulation tiers
+### 2.10C — explicit simulation policy
 
 Implementation: `5639c9ec` feat(ai-world): add explicit simulation tier transitions (2.10C)
 
-Derivace:
+Current individual derivation:
 
 ```text
 live Creature + player near → NEARBY
 live Creature + no player   → ACTIVE
-no live Creature, individual→ BACKGROUND
-no live Creature, group     → ABSTRACT
+no live Creature            → BACKGROUND
 ```
 
 - [x] `AgentWorldState` nebyl nahrazen ani conflated se `SimulationTier`;
 - [x] `NEARBY/ACTIVE` jsou decision-eligible;
-- [x] `BACKGROUND/ABSTRACT` neposílají `/decision`;
+- [x] `BACKGROUND` neposílá `/decision`;
 - [x] žádný force-load;
 - [x] transition logging pouze při změně;
 - [x] AgentId/Needs/memory/goals se transitionem nemění;
 - [x] RuntimeGuid semantics beze změny.
 
-Runtime ověřeno:
-
-```text
-BACKGROUND → NEARBY reason=MATERIALIZED
-NEARBY → ACTIVE reason=PLAYER_LEFT_RANGE
-ACTIVE → BACKGROUND reason=NOT_MATERIALIZED
-```
-
-### 2.10D — coarse Background/Abstract scheduling seam
+### 2.10D — bounded/staggered coarse scheduling seam
 
 Implementation: `55304729` feat(ai-world): add coarse simulation tier scheduling (2.10D)  
 Hardening: `3c2122a9` fix(ai-world): bound and desync coarse simulation ticks (2.10D P2)  
 Runtime hardening: `2cda5756` fix(ai-world): stagger coarse simulation tick phase (2.10D P2 runtime)
 
-Defaults:
+Default individual background cadence:
 
 ```ini
 AIWorld.BackgroundSimulationIntervalMs = 60000
-AIWorld.AbstractSimulationIntervalMs = 300000
 AIWorld.CoarseSimulationMaxPerPass = 50
-```
-
-2.10D je **scheduling/observability seam**, ne gameplay background simulation:
-
-```text
-BACKGROUND / ABSTRACT coarse tick
-≠ /decision
-≠ ActionExecutor
-≠ Needs/Goal/Memory mutation
-≠ force-load
 ```
 
 - [x] bounded per-pass admission;
 - [x] deterministic ordering podle authoritative `NextTickAtMs`, tie-break AgentId;
 - [x] capacity-skipped agent zůstává due;
 - [x] žádný catch-up loop;
-- [x] coarse epoch reset při vstupu/re-entry do Background/Abstract, takže `dt` nikdy nezahrne materialized období;
-- [x] deterministic one-time phase offset přes `StableAgentHash(AgentId) % interval`;
-- [x] po skutečném ticku pokračuje scheduling přes plain `now + interval`;
-- [x] pure-value state (`LastTickAtMs`, `NextTickAtMs`), žádné live pointery.
-
-Runtime phase staggering ověřen na třech guardech:
-
-```text
-agent=3 BACKGROUND first tick dt=14253ms
-agent=2 BACKGROUND first tick dt=21504ms
-agent=1 BACKGROUND first tick dt=46762ms
-```
-
-Tím je potvrzeno, že společný vstup do BACKGROUND už nevytváří jeden phase-locked 60s burst. **Pending:** zachytit následující tick každého konkrétního agenta s `dt≈60000ms`; po něm lze 2.10D a celou 2.10 označit CLOSED/PASS.
+- [x] coarse epoch reset při vstupu/re-entry do Background;
+- [x] deterministic one-time phase offset přes stable AgentId hash;
+- [x] po ticku pokračuje scheduling přes plain `now + interval`;
+- [x] pure-value state (`LastTickAtMs`, `NextTickAtMs`), žádné live pointery;
+- [x] runtime potvrzen deterministic staggering i steady-state cadence.
 
 ### Známé neblokující scheduler P3
 
@@ -473,45 +480,196 @@ Tím je potvrzeno, že společný vstup do BACKGROUND už nevytváří jeden pha
 
 ## 2.11 První experiment — persistentní farmář
 
-**Stav: NEXT po uzavření posledního runtime gate 2.10D.**
+**Stav: 2.11A–2.11E2 CLOSED / static + runtime PASS.**
 
-Vybrat jedno NPC v malé testovací oblasti a dát mu jednoduchý, pozorovatelný denní cyklus, který používá existující scheduler/tier foundation místo vlastních ad-hoc timerů.
+Referenční NPC: **Pa Maclure** (`SpawnID 80683`, `Entry 250`, Elwynn / Maclure Vineyards). Zůstává `AgentType::Civilian`; profession/routine je samostatná doména, ne nový physical agent type.
 
-- [ ] home location;
-- [ ] working location;
-- [ ] money/food/resource stav;
-- [x] základní Needs + `GET_FOOD`/`FLEE_DANGER` existují;
-- [ ] `WORK` goal/action vertical slice;
-- [ ] ráno jde pracovat;
-- [x] při nebezpečí umí utéct (`FLEE_DANGER` runtime PASS);
-- [ ] večer se vrátí domů a odpočívá;
-- [x] persistentní long-term memory mechanismus přežívá restart.
+### 2.11A — persistent Home / Work
 
-## 2.12 První experiment — wolf pack
+- [x] pure-value `AgentLocation`;
+- [x] nullable persistent HomeLocation / WorkLocation;
+- [x] restart/load;
+- [x] Pa Maclure seed/runtime identity zachována přes stabilní `AgentId`.
+
+### 2.11B — deterministic routine
+
+- [x] Home/Work + synthetic day → `GO_TO_WORK` / `GO_HOME`;
+- [x] emergency `FLEE_DANGER` routine potlačí;
+- [x] routine runtime state je oddělený od persistent AgentRecord identity;
+- [x] runtime `NONE → GO_HOME → GO_TO_WORK → GO_HOME`.
+
+### 2.11C — routine movement přes Action layer
+
+- [x] routine MOVE_TO jen bez aktivního vyššího goal/action ownership;
+- [x] target change zastaví starý movement;
+- [x] arrival range validation;
+- [x] žádné opakované MOVE_TO po dosažení targetu;
+- [x] TrinityCore movement zůstává executor.
+
+### 2.11D — WORK / REST activity state
+
+- [x] transient `RoutineActivity` WORK/REST;
+- [x] pouze materialized + alive + at target + bez aktivního goal/action + ne engine-moving;
+- [x] `GET_FOOD` / `FLEE_DANGER`, unload a death activity správně preempt/clear.
+
+### 2.11E1 — WORK / REST ActionType
+
+- [x] `ActionType::Work` / `ActionType::Rest`;
+- [x] provenance + completion flow;
+- [x] one-shot emote pouze přes ActionExecutor;
+- [x] runtime WORK/REST PASS.
+
+### 2.11E2 — economy persistence
+
+- [x] work-window replay suppression;
+- [x] persistent Money/Food/Resource state;
+- [x] Money `uint64`;
+- [x] monotonic economy version;
+- [x] mutation/version bump centralizovaný v persistence API;
+- [x] static PASS/CLOSED.
+
+Neblokující caveat: fire-and-forget state snapshot persistence není absolutní crash-durability transakce; pro současný economy vertical slice je to přijaté.
+
+## 2.12 První experiment — wolf pack / AgentGroup coalition
+
+### Aktuální model
+
+Původní aggregate návrh `WolfPack = jeden pseudo-agent s population/hunger` byl během implementace **záměrně opuštěn**. Každý vlk musí zůstat samostatný agent se svou identitou a behavior pipeline.
 
 ```text
-WolfPack #1
-├── population
-├── territory
-├── hunger
-├── fear
-├── home
-└── current_goal
+Wolf A AgentId 101 ┐
+Wolf B AgentId 102 ├── AgentGroup / Coalition #7 (GroupId 7)
+Wolf C AgentId 103 ┘
+Wolf D AgentId 104     // mimo group
 ```
 
-- [ ] skutečný `CREATURE_GROUP` aggregate agent;
-- [ ] ABSTRACT coarse simulation;
-- [ ] hunger/resources/territory;
-- [ ] materialization policy;
-- [ ] členové používají TrinityCore combat;
-- [ ] population update po ztrátě členů.
+Každý člen vlastní:
+
+- vlastní `AgentId` a physical spawn binding;
+- vlastní memory, needs, goal, decision a actions;
+- vlastní materialized/unloaded Creature lifecycle.
+
+`AgentGroup` vlastní pouze sociální/koordinační stav:
+
+- `GroupId`;
+- `AgentGroupKind { Loose, Stable }`;
+- membership (`AgentId` edges);
+- territory/shared environmental resources;
+- budoucí cohesion/shared intent/roles/leader facts.
+
+Population se **odvozuje z membership count**, není samostatná mutable aggregate population.
+
+### 2.12A–2.12C — původní group experiment a pivot
+
+- [x] první persistent group state a coarse simulation seam;
+- [x] real wolf membership/presence runtime evidence;
+- [x] potvrzeno, že přirozené materialization členů nepoužívá force-load;
+- [x] architecture review odmítl pseudo-group jako fake `AgentRecord`/SpawnId identity;
+- [x] group-level Hunger odstraněn, protože needs patří jednotlivým členům.
+
+### 2.12D — oddělená AgentGroup identity
+
+- [x] samostatný `GroupId`;
+- [x] `AgentGroupRecord` / `AgentGroupRegistry` / `AgentGroupPersistence`;
+- [x] `ai_agent_groups` oddělená od `ai_agents`;
+- [x] `AgentType::AgentGroup` odstraněn;
+- [x] `SimulationTier::Abstract` odstraněn z individual simulation policy;
+- [x] group coarse tick má `GroupCoarseSimulationScheduler` s `AIWorld.GroupSimulationMaxPerPass`;
+- [x] membership loader vyžaduje existující `AgentId`;
+- [x] `AgentGroupKind` load je fail-closed (`Loose`/`Stable` pouze);
+- [x] group simulation běží nezávisle na tom, zda jsou členové materialized;
+- [x] saturated `Resources` no-op už nezvyšuje Version ani nevydává DB write.
+
+Natural presence runtime gate byl ověřen se třemi individuálními vlky (`AgentId 1,2,3`):
+
+```text
+loadedMembers=0
+→ každý wolf se přirozeně materializuje jako vlastní Creature
+→ loadedMembers=3
+→ group coarse simulation pokračuje
+```
+
+Group se nikdy neváže 1:1 na žádný `Creature`.
+
+### 2.12E1 — runtime group lifecycle
+
+**Stav: CLOSED / STATIC PASS + RUNTIME PASS.**
+
+Implementované API:
+
+```text
+CreateGroup(...)
+JoinGroup(GroupId, AgentId)
+LeaveGroup(GroupId, AgentId)
+DissolveGroup(GroupId)
+```
+
+- [x] `AgentGroupLifecycleSystem` je jediný owner create/join/leave/dissolve orchestrace;
+- [x] join vyžaduje existující group i existující individual `AgentRecord`;
+- [x] duplicate membership je odmítnut;
+- [x] lifecycle nemutuje individual AgentRecord/Creature world state;
+- [x] žádné fake SpawnId / pseudo physical agents;
+- [x] membership add/remove DB write je potvrzen read-backem před runtime mutation;
+- [x] dissolve maže memberships + group jako jednu DB transakci a runtime registry mění až po potvrzení;
+- [x] `GroupId` používá persistentní monotónní `ai_agent_group_id_sequence`;
+- [x] sequence load je fail-closed;
+- [x] sequence musí být nonzero a `next_group_id > MAX(ai_agent_groups.group_id)` nad fyzickou DB tabulkou;
+- [x] sequence reservation je potvrzená read-backem před group INSERT;
+- [x] runtime smoke používá pouze existující AgentIds, nevyrábí ghost agenty;
+- [x] restart/non-reuse runtime gate PASS.
+
+Runtime evidence:
+
+```text
+sequence = 2
+Create GroupId 2 → Join 1,2,3 → Leave 3 → Dissolve 2 → PASS
+DB: GroupId 2/memberships gone, sequence = 3
+restart
+load sequence = 3
+Create GroupId 3 → Join 1,2,3 → Leave 3 → Dissolve 3 → PASS
+```
+
+Tím je potvrzeno, že dissolved `GroupId` se po restartu nerecykluje a individual AgentIds zůstávají nedotčené.
+
+### Next gate před dynamickými coalitions
+
+Současný lifecycle CRUD používá synchronní DB round-trip (`CONNECTION_SYNCH`, read-back, transaction commit). Pro 2.12E1 startup/admin/manual lifecycle je to akceptováno, ale **je to blocker před automatickou per-tick/per-decision formation policy**.
+
+Před prvním automatickým join/leave/create/dissolve callerem:
+
+- [ ] navrhnout non-blocking lifecycle command/persistence boundary;
+- [ ] DB operace nesmí blokovat world update thread;
+- [ ] async completion se musí aplikovat zpět na world threadu;
+- [ ] request musí nést GroupId/AgentId provenance a stale protection;
+- [ ] runtime registry se smí změnit až po potvrzeném persistence výsledku;
+- [ ] žádný live `Creature*`/`Map*` nesmí překročit async hranici.
+
+Potom:
+
+- [ ] přidat skutečnou `Loose` vs `Stable` membership policy;
+- [ ] deterministic formation/dissolution rules pro loose wolf coalition;
+- [ ] shared group intent/goal pouze jako koordinace;
+- [ ] decompozice group intent na per-member `ActionRequest`;
+- [ ] individual emergency (`FLEE_DANGER`, death, invalid action) vždy může group intent preemptovat;
+- [ ] combat/movement členů vždy přes existující individual ActionSystem + TrinityCore.
+
+### Známé neblokující P3 po 2.12E1
+
+- [ ] guard proti `uint64` overflow při `_nextGroupId + 1`;
+- [ ] failed smoke-test path má udělat best-effort cleanup částečně vytvořené test group;
+- [ ] při dissolve explicitně odstranit stale `_groupSimulationSchedule[GroupId]` entry;
+- [ ] historická dev-specific/destructive migration cesta před produkčním schema upgrade hardeningem.
 
 ## 2.13 První emergentní end-to-end událost
 
+Cílový scénář se po group architecture pivotu mění tak, že **pack není aggregate mob**. Group může koordinovat shared intent, ale jednotliví vlci jednají samostatně.
+
 ```text
-WolfPack hunger rises
+individual wolf needs / local opportunity
         ↓
-wolves move toward farm
+coalition shared intent: approach farm
+        ↓
+per-member goals / validated MOVE_TO / combat
         ↓
 livestock is attacked
         ↓
@@ -528,17 +686,27 @@ Decision: REQUEST_HELP
 validated TrinityCore action
 ```
 
+- [ ] group shared intent bez direct world mutation;
+- [ ] per-member action decomposition;
+- [ ] livestock attack event producer;
+- [ ] farmer perception/memory of attack;
+- [ ] `PROTECT_HOME` / `REQUEST_HELP` vertical slice;
+- [ ] end-to-end runtime evidence celé smyčky.
+
 ## 2.14 Testy a diagnostika
 
 - [ ] unit testy Goal utility selection;
 - [ ] unit testy `ActionRequest` validation;
 - [ ] unit testy persistence/serialization;
+- [ ] unit testy AgentGroup lifecycle/policy;
 - [ ] integration AI request → mock response → validation/result;
 - [ ] integration timeout/stale → fallback;
 - [x] restart → reload memory;
 - [x] structured decision/action audit logs;
 - [x] simulation tier transition/tick DEBUG observability;
-- [ ] debug snapshot podle `AgentId`;
+- [x] AgentGroup presence/coarse simulation DEBUG observability;
+- [x] AgentGroup lifecycle smoke + restart/non-reuse runtime evidence;
+- [ ] debug snapshot podle `AgentId` / `GroupId`;
 - [ ] metrics backend/dashboard verification;
 - [ ] tier counts / scheduler depth / stale breakdown dashboards.
 
@@ -556,12 +724,18 @@ validated TrinityCore action
 - [x] full `AgentContext` + structured deterministic decision V2;
 - [ ] remote AI převezme execution ownership bezpečně — dnes pouze dry-run validation;
 - [x] deterministic Goal→Action pipeline pro FLEE/MOVE_TO/EAT;
+- [x] farmer routine/action/economy vertical slice;
 - [x] výpadek AI serveru nezablokuje worldserver;
 - [x] scheduler má rozdílnou NEARBY/ACTIVE cadence a bounded decision admission;
-- [x] explicitní `NEARBY/ACTIVE/BACKGROUND/ABSTRACT` simulation tiers;
-- [x] bounded/staggered coarse scheduling seam pro Background/Abstract;
-- [ ] skutečný background/abstract gameplay state simulation;
-- [ ] Wolf pack → livestock → farmer memory → protect/request help end-to-end.
+- [x] explicitní individual `NEARBY/ACTIVE/BACKGROUND` simulation policy;
+- [x] bounded/staggered coarse scheduling pro individual Background agents;
+- [x] oddělená AgentGroup identity/membership persistence;
+- [x] bounded GroupId-keyed coarse group scheduling;
+- [x] manual/admin AgentGroup create/join/leave/dissolve lifecycle + restart/non-reuse;
+- [ ] async-safe dynamic AgentGroup lifecycle persistence;
+- [ ] Loose/Stable policy + automatic coalition formation/dissolution;
+- [ ] shared group intent → per-member validated actions;
+- [ ] Wolf coalition → livestock → farmer memory → protect/request help end-to-end.
 
 > **Gate:** po Etapě 2 máme skutečnou smyčku  
 > `WORLD STATE → EVENT → PERCEPTION → MEMORY → NEED → GOAL → DECISION → ACTION → WORLD STATE`.
@@ -595,18 +769,31 @@ validated TrinityCore action
 21. [x] Decision protocol 2.9A–2.9E
 22. [x] 2.10A bounded multi-agent decision admission
 23. [x] 2.10B proximity-aware cadence + fairness
-24. [x] 2.10C explicit simulation tiers
-25. [x] 2.10D bounded + deterministic staggered coarse scheduler implementation
+24. [x] 2.10C explicit simulation policy
+25. [x] 2.10D bounded + deterministic staggered coarse scheduler + runtime closure
+26. [x] 2.11A Home/Work persistence
+27. [x] 2.11B deterministic farmer routine
+28. [x] 2.11C routine movement přes Action layer
+29. [x] 2.11D WORK/REST activity
+30. [x] 2.11E1 WORK/REST ActionType
+31. [x] 2.11E2 persistent economy/reward marker
+32. [x] 2.12 AgentGroup identity pivot: group != AgentRecord/Creature
+33. [x] 2.12D GroupId/registry/persistence + bounded group coarse scheduler
+34. [x] group membership + natural materialization presence runtime evidence
+35. [x] 2.12E1 Create/Join/Leave/Dissolve + confirmed persistence
+36. [x] persistent monotonic GroupId sequence + restart/non-reuse runtime gate
 
 ## Teď
 
-26. [ ] **2.10D final runtime closure: další tick každého Background agenta `dt≈60000ms`**
+37. [ ] **Async-safe AgentGroup lifecycle persistence boundary před automatickou policy**
+38. [ ] **malý 2.12E1 hardening: overflow / smoke cleanup / schedule cleanup**
 
 ## Následuje
 
-27. [ ] **2.11 Persistentní farmář**
-28. [ ] 2.12 Wolf pack
-29. [ ] 2.13 End-to-end emergentní událost
+39. [ ] `Loose` vs `Stable` membership policy
+40. [ ] deterministic automatic wolf coalition formation/dissolution
+41. [ ] shared group intent → per-member goal/action decomposition
+42. [ ] 2.13 Wolf coalition → livestock → farmer memory → protect/request help
 
 ## Paralelní hardening
 
@@ -620,6 +807,7 @@ validated TrinityCore action
 - [ ] Sjednotit starší action cancellation paths přes strukturovaný `ActionCompletion`.
 - [ ] Optimalizovat fast registry/materialization scan před velkou background populací.
 - [ ] Optimalizovat full-sort coarse selection před velkou populací.
+- [ ] Produkční hardening historických AIWorld SQL migrací.
 
 ## Co bude následovat
 
