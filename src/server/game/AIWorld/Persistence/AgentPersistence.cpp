@@ -82,14 +82,19 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
         record.EconomyState.Version = fields[18].GetUInt64();
 
-        // Milestone 2.12A P3 fix: population/territory_x/y/z are four
-        // independently nullable columns - Field::GetFloat() silently
-        // returns 0.0f for SQL NULL, so trusting a single presence bit
-        // (population alone) the way home_map_id/work_map_id can for their
-        // pairs would let a partially-NULL row (a corrupt/hand-edited row,
-        // never one AgentPersistence itself produces) load as a
-        // legitimate-looking Territory=(0,0,0) instead of being caught.
-        // All four must agree - either all NULL (no group) or all set.
+        // Milestone 2.12A/2.12B P2 fix: population/territory_x/y/z/hunger/
+        // resources are six independently nullable columns -
+        // Field::GetFloat() silently returns 0.0f for SQL NULL, so
+        // trusting a subset of the presence bits (as an earlier merge of
+        // this file briefly did - only population/territory_*, dropping
+        // hunger/resources) would let a partially-NULL row (a corrupt/
+        // hand-edited row, never one AgentPersistence itself produces)
+        // load as a legitimate-looking Hunger=0/Resources=0 - no longer
+        // inert once CreatureGroupSimulationSystem actually mutates and
+        // persists it. All six must agree - either all NULL (no group) or
+        // all set; a partial row is rejected outright (continue, like the
+        // AgentType <-> GroupState check below), not silently degraded to
+        // "no CreatureGroupState".
         bool populationNull = fields[19].IsNull();
         bool territoryXNull = fields[20].IsNull();
         bool territoryYNull = fields[21].IsNull();
@@ -97,7 +102,7 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         bool hungerNull = fields[23].IsNull();
         bool resourcesNull = fields[24].IsNull();
 
-        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull)
+        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull && !hungerNull && !resourcesNull)
         {
             CreatureGroupState group;
             group.Population = fields[19].GetUInt32();
@@ -109,30 +114,40 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
             group.Version = fields[25].GetUInt64();
             record.GroupState = group;
         }
-        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull)
+        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull
+            || populationNull != hungerNull || populationNull != resourcesNull)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} has a partially NULL population/territory_x/y/z row (present: population={} territory_x={} territory_y={} territory_z={}) - ignoring malformed CreatureGroupState",
-                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull);
+                "AgentPersistence: refusing to load agent id={} with a partially NULL population/territory_x/y/z/hunger/resources row "
+                "(present: population={} territory_x={} territory_y={} territory_z={} hunger={} resources={})",
+                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull, !hungerNull, !resourcesNull);
+            continue;
         }
-        // else: all four NULL - no CreatureGroupState, the ordinary case
+        // else: all six NULL - no CreatureGroupState, the ordinary case
         // for every non-CreatureGroup agent.
 
-        // Milestone 2.12A P3 fix: the AgentType <-> GroupState invariant
-        // (CreatureGroup => GroupState required, anything else => absent)
-        // is not yet enforced anywhere upstream (nothing stops a hand-
-        // edited row from violating it), so it is only ever detected here,
-        // loudly, rather than silently trusted. Neither branch rejects the
-        // row - a CreatureGroup missing its state still loads as an empty
-        // aggregate, the same resilient-load behavior an orphaned row
-        // elsewhere in this loader already gets; group state does not
-        // simulate anything yet (2.12B's job), so there is nothing this
-        // could silently corrupt today.
+        // Milestone 2.12A/2.12B P2 fix: the AgentType <-> GroupState
+        // invariant (CreatureGroup => GroupState required, anything else
+        // => absent) is not enforced anywhere upstream (nothing stops a
+        // hand-edited row from violating it), so both directions are
+        // rejected outright here - fail-closed, not just logged, now that
+        // CreatureGroupSimulationSystem actually mutates and persists
+        // GroupState (2.12B); a validly-registered CreatureGroup with no
+        // GroupState would otherwise sit at SimulationTier::Abstract
+        // forever, never simulating, with nothing surfacing why.
         if (record.GroupState && record.Type != AgentType::CreatureGroup)
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: refusing to load agent id={} type={} because CreatureGroup/GroupState invariant is violated (groupState={})",
-                record.Id.Value, ToString(record.Type), record.GroupState.has_value());
+                "AgentPersistence: refusing to load agent id={} type={} because it has a CreatureGroupState but is not AgentType::CreatureGroup",
+                record.Id.Value, ToString(record.Type));
+            continue;
+        }
+
+        if (!record.GroupState && record.Type == AgentType::CreatureGroup)
+        {
+            TC_LOG_ERROR("ai.world",
+                "AgentPersistence: refusing to load agent id={} because it is AgentType::CreatureGroup but has no CreatureGroupState",
+                record.Id.Value);
             continue;
         }
 
