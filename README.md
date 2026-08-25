@@ -2,17 +2,17 @@
 
 Experimental **persistent AI world layer for TrinityCore 3.3.5**.
 
-The project extends TrinityCore with long-lived agents that can perceive the world, remember events, develop needs and goals, propose actions, and eventually participate in a larger simulated world without bypassing TrinityCore's authoritative gameplay rules.
+The project extends TrinityCore with long-lived individual agents that can perceive the world, remember events, develop needs and goals, propose actions, participate in deterministic routines, and coordinate through persistent social groups without bypassing TrinityCore's authoritative gameplay rules.
 
-The long-term goal is not to replace TrinityCore AI with a language model. Deterministic systems handle common behavior; external AI/inference is used only where it adds value.
+The goal is not to replace TrinityCore AI with a language model. Deterministic systems handle common behavior; external AI/inference is used only where it adds value.
 
 > Development branch: `ai-world`
 >
-> Current milestone: **Etapa 2 / 2.10D final runtime closure**
+> Current milestone: **Etapa 2 / 2.12E1 AgentGroup lifecycle — CLOSED / static + runtime PASS**
 >
-> Next after closure: **2.11 — persistent farmer**
+> Current next gate: **async-safe dynamic AgentGroup lifecycle before automatic coalition formation**
 
-For detailed milestone history see [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md).
+For detailed milestone history and the current implementation plan see [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md).
 
 ---
 
@@ -43,13 +43,16 @@ TrinityCore gameplay execution
     └──────────────► WORLD STATE
 ```
 
-Safety/threading invariants:
+Core invariants:
 
-- no live `Creature*`, `Player*`, `Map*` or `Unit*` crosses the async inference boundary;
+- no live `Creature*`, `Player*`, `Map*` or `Unit*` crosses an async inference/persistence boundary;
 - async/network workers receive only value DTOs;
-- responses are consumed and validated on the world thread;
+- async responses are consumed and validated on the world thread;
 - AIWorld never force-loads grids just to simulate an agent;
-- `AgentWorldState` (materialized/abstract binding) is separate from `SimulationTier` (`NEARBY`/`ACTIVE`/`BACKGROUND`/`ABSTRACT` policy);
+- loaded individual agent = materialized TrinityCore `Creature`; unloaded persistent agent = `AgentRecord` without a live pointer;
+- `AgentWorldState` (world binding) is separate from `SimulationTier` (simulation policy);
+- `AgentGroup` is a social/coordination entity over individual `AgentId`s, never a 1:1 replacement for a mob and never bound to a `Creature`;
+- group intent may coordinate members, but any future physical action must decompose into per-member `ActionRequest`s and pass normal validation;
 - remote decisions are untrusted intent, never permission to mutate world state;
 - deterministic behavior is preferred where sufficient.
 
@@ -80,9 +83,13 @@ Implemented and runtime exercised:
 - world events, perception and short/long-term memory;
 - deterministic relevant-memory Top-N retrieval;
 - Needs System with health/hunger/fatigue/safety/resource pressure;
-- deterministic Goal System for `GET_FOOD` and `FLEE_DANGER`;
-- safe Action API primitives `FLEE`, `MOVE_TO`, `EAT`;
-- full `GET_FOOD → MOVE_TO → ARRIVED → EAT → CONSUMED → NEED_SATISFIED` feedback loop.
+- deterministic Goal System including `GET_FOOD`, `FLEE_DANGER`, farmer routing and interruption semantics;
+- safe Action API primitives/vertical slices `FLEE`, `MOVE_TO`, `EAT`, `WORK`, `REST`;
+- full `GET_FOOD → MOVE_TO → ARRIVED → EAT → CONSUMED → NEED_SATISFIED` feedback loop;
+- persistent farmer routine and economy state;
+- bounded multi-agent decision scheduling and coarse simulation scheduling;
+- separate persistent `AgentGroup` identity, membership and group coarse simulation;
+- runtime group lifecycle `CreateGroup → JoinGroup → LeaveGroup → DissolveGroup` over existing individual agents.
 
 ### Async decision protocol — 2.9A through 2.9E
 
@@ -97,41 +104,176 @@ Safeguards include:
 - world-thread authoritative `ActionRequest` translation;
 - `ActionSystem::Validate()` before any execution ownership could be transferred.
 
-Remote decision execution is still intentionally dry-run. The deterministic Goal→Action pipeline owns real FLEE execution so there are not two movement owners racing each other.
+Remote decision execution is still intentionally dry-run. The deterministic Goal→Action pipeline remains the real action owner until execution ownership is transferred explicitly and safely.
 
-### Scheduler and simulation tiers — 2.10
+### Scheduler and simulation policy — 2.10 CLOSED
 
-2.10A–2.10C are closed. 2.10D implementation has static PASS and runtime-verified deterministic phase staggering; one final steady-state cadence sample remains before formal closure.
+2.10A–2.10D are closed with static/runtime PASS.
 
-Materialized decision tiers:
+Individual materialized decision tiers:
 
 ```text
 NEARBY → ~1 s decision cadence
 ACTIVE → ~5 s decision cadence
 ```
 
-Decision admission is bounded by `AIWorld.DecisionMaxInFlight`. Capacity-skipped agents stay due rather than entering an unbounded request queue. Effective due-time ordering preserves fairness and allows live `ACTIVE ↔ NEARBY` cadence changes without stale deadlines.
-
-Non-materialized simulation tiers:
+Individual non-materialized policy:
 
 ```text
 BACKGROUND → default coarse interval 60 s
-ABSTRACT   → default coarse interval 5 min
 ```
 
-The current coarse tick is **observability/scheduling only**. It does not call `/decision`, `ActionExecutor`, mutate Needs/goals/memory or force-load grids.
+Decision admission is bounded by `AIWorld.DecisionMaxInFlight`. Capacity-skipped agents stay due rather than entering an unbounded request queue. Effective due-time ordering preserves fairness and allows live `ACTIVE ↔ NEARBY` cadence changes without stale deadlines.
 
-`AIWorld.CoarseSimulationMaxPerPass` bounds coarse work per scheduler pass. A per-agent authoritative `NextTickAtMs` plus deterministic `StableAgentHash(AgentId)` entry phase avoids phase-locking agents that enter Background together.
+Background coarse work is bounded by `AIWorld.CoarseSimulationMaxPerPass`, uses deterministic phase staggering, has no catch-up loop, and does not force-load grids.
 
-Runtime first-phase evidence for the three test guards:
+The old `SimulationTier::ABSTRACT` concept was removed during the AgentGroup identity refactor. Groups now have their own `GroupId`-keyed coarse scheduler instead of pretending to be abstract physical agents.
+
+### Persistent farmer — 2.11 CLOSED
+
+The first persistent civilian vertical slice uses **Pa Maclure** in Elwynn.
+
+Implemented and runtime verified:
+
+- persistent Home/Work locations;
+- deterministic synthetic-day routing `GO_TO_WORK` / `GO_HOME`;
+- emergency interruption by higher-priority goals such as `FLEE_DANGER`;
+- movement through the normal Action layer;
+- transient `WORK` / `REST` activity;
+- `ActionType::Work` / `ActionType::Rest` with ActionExecutor ownership;
+- persistent economy state and work-window replay suppression.
+
+The implementation intentionally separates routing goals from work/rest activity. Pa Maclure remains `AgentType::Civilian`; profession/routine is not a new physical agent type.
+
+### AgentGroup / wolf-coalition foundation — 2.12
+
+The original aggregate wolf-pack design was abandoned. A group does **not** merge several mobs into one pseudo-agent.
 
 ```text
-agent=3 tier=BACKGROUND dt=14253ms
-agent=2 tier=BACKGROUND dt=21504ms
-agent=1 tier=BACKGROUND dt=46762ms
+Wolf A AgentId 101 ┐
+Wolf B AgentId 102 ├── AgentGroup / Coalition #7
+Wolf C AgentId 103 ┘
+Wolf D AgentId 104     // independent
 ```
 
-The final 2.10D gate is to observe each agent's next Background tick at approximately `dt=60000ms`. After that, the project moves to **2.11 persistent farmer**.
+Each wolf keeps its own:
+
+- `AgentId` and spawn identity;
+- `Creature` materialization lifecycle;
+- memory and needs;
+- goals and decisions;
+- validated actions.
+
+The group owns social/coordination state only:
+
+- independent `GroupId`;
+- `AgentGroupKind { Loose, Stable }`;
+- membership edges to individual `AgentId`s;
+- territory/shared environmental resources;
+- future cohesion, roles, leader/shared-intent state.
+
+Population is derived from membership count; it is not an aggregate mutable mob count.
+
+#### 2.12D — separate group identity
+
+Implemented:
+
+- `AgentGroupRecord`, `AgentGroupRegistry`, `AgentGroupPersistence`;
+- `ai_agent_groups` separate from `ai_agents`;
+- `ai_agent_group_members` persistent membership;
+- `AgentType::AgentGroup` removed;
+- group `Creature` binding impossible by construction;
+- `AgentGroupKind` persistence loads fail-closed;
+- bounded `GroupCoarseSimulationScheduler` keyed by `GroupId`;
+- group simulation continues whether members are loaded or unloaded;
+- saturated no-op group resource ticks skip persistence/version churn.
+
+Runtime presence evidence confirmed three individual wolves materializing as their own Creatures while the same group changed from `loadedMembers=0` to `loadedMembers=3`; group simulation continued and no grid was force-loaded.
+
+#### 2.12E1 — group lifecycle CLOSED
+
+Implemented lifecycle API:
+
+```text
+CreateGroup(...)
+JoinGroup(GroupId, AgentId)
+LeaveGroup(GroupId, AgentId)
+DissolveGroup(GroupId)
+```
+
+Properties:
+
+- `AgentGroupLifecycleSystem` owns lifecycle orchestration;
+- join requires an existing group and an existing individual `AgentRecord`;
+- duplicate membership is rejected;
+- group lifecycle never spawns/despawns/moves a member Creature;
+- no fake `SpawnId` or pseudo physical group agent is created;
+- membership writes are confirmed before runtime registry mutation;
+- dissolve removes membership rows + group row transactionally before registry removal;
+- `GroupId` uses persistent monotonic `ai_agent_group_id_sequence`;
+- allocator load is fail-closed and validated against physical `MAX(ai_agent_groups.group_id)`;
+- sequence reservation is read-back-confirmed before group creation;
+- dissolved `GroupId`s are not reused after restart.
+
+Runtime acceptance evidence:
+
+```text
+sequence = 2
+Create GroupId 2
+Join AgentId 1,2,3
+Leave AgentId 3
+Dissolve GroupId 2
+PASS
+
+DB after dissolve:
+GroupId 2 gone
+membership rows for GroupId 2 gone
+sequence = 3
+
+restart
+Create GroupId 3
+Join/Leave/Dissolve
+PASS
+```
+
+This proves persistent GroupId provenance and non-reuse while the individual wolves remain ordinary agents.
+
+---
+
+## Current next gate
+
+The current 2.12E1 lifecycle persistence uses synchronous DB round-trips. That is acceptable for the existing startup/admin/manual lifecycle path, but it is **not acceptable for automatic policy-driven group formation on the world update thread**.
+
+Before automatic `Loose` coalition formation/dissolution is added, the lifecycle boundary must become non-blocking:
+
+```text
+world-thread lifecycle request
+        ↓ value command
+async persistence
+        ↓ confirmed result
+world-thread completion
+        ↓
+AgentGroupRegistry mutation
+```
+
+Required properties:
+
+- no blocking DB wait on the world update thread;
+- no live TrinityCore pointer crosses the async boundary;
+- GroupId/AgentId provenance is retained through completion;
+- stale/invalid completions fail closed;
+- runtime membership changes only after confirmed persistence;
+- no direct world-state mutation is introduced.
+
+After that gate, the planned order is:
+
+1. `Loose` vs `Stable` membership policy;
+2. deterministic automatic wolf coalition formation/dissolution;
+3. shared group intent/coordination;
+4. decomposition into per-member validated actions;
+5. wolf coalition → farm → farmer memory → protect/request-help end-to-end scenario.
+
+Known non-blocking 2.12E1 hardening remains: GroupId `uint64` overflow guard, failed smoke-test cleanup, stale group-scheduler entry cleanup on dissolve, and production hardening of older dev-oriented migrations.
 
 ---
 
@@ -139,14 +281,15 @@ The final 2.10D gate is to observe each agent's next Background tick at approxim
 
 Major open areas include:
 
-- actual gameplay/state simulation on the Background/Abstract coarse seam;
-- persistent farmer daily-life behavior (`WORK`, home/working locations, rest/resources);
+- automatic dynamic `Loose`/`Stable` coalition policy;
+- non-blocking persistence path for automatic group lifecycle;
+- group shared intent and per-member action decomposition;
 - actual GPU/LLM decision inference;
 - safe transfer of execution ownership from deterministic behavior to selected remote decisions;
-- richer actions such as `WORK`, `REST`, `REQUEST_HELP`, trade/economy;
-- relationships/social state and persistent active goals;
-- a real aggregate `CREATURE_GROUP` wolf-pack agent;
-- the emergent wolf-pack → farm → memory → protect/request-help loop.
+- richer social relationships outside current group membership;
+- persistent active goals;
+- `PROTECT_HOME`, `REQUEST_HELP`, trade/economy expansion;
+- the emergent wolf-coalition → farm → farmer-memory → protect/request-help loop.
 
 Before a real external/LLM provider becomes execution-relevant, the hand-written C++ V2 response parser and external DecisionContext privacy boundary should be hardened.
 
@@ -234,7 +377,7 @@ make logs
 
 ## AIWorld configuration
 
-AIWorld settings are versioned in `deploy/worldserver.conf`.
+AIWorld settings are versioned in `deploy/worldserver.conf`. Relevant scheduler/group defaults include:
 
 ```ini
 AIWorld.Enable = 1
@@ -243,9 +386,23 @@ AIWorld.DecisionNearbyIntervalMs = 1000
 AIWorld.DecisionActiveIntervalMs = 5000
 AIWorld.DecisionNearbyPlayerRange = 60.0
 AIWorld.DecisionMaxInFlight = 4
+
 AIWorld.BackgroundSimulationIntervalMs = 60000
-AIWorld.AbstractSimulationIntervalMs = 300000
 AIWorld.CoarseSimulationMaxPerPass = 50
+
+AIWorld.GroupSimulationIntervalMs = 300000
+AIWorld.GroupSimulationMaxPerPass = 50
+AIWorld.AgentGroupResourcesRatePerSecond = 0.0005
+```
+
+The old `AIWorld.AbstractSimulationIntervalMs` setting was replaced by `AIWorld.GroupSimulationIntervalMs` when AgentGroup stopped being represented as an abstract individual agent.
+
+The 2.12E1 manual lifecycle smoke test is disabled by default:
+
+```ini
+AIWorld.TestGroupMemberAgentId1 = 0
+AIWorld.TestGroupMemberAgentId2 = 0
+AIWorld.TestGroupMemberAgentId3 = 0
 ```
 
 Set `AIWorld.Enable = 0` to disable the custom subsystem.
@@ -265,6 +422,8 @@ Useful checks:
 ```bash
 grep "AI simulation tier" runtime/logs/Server.log
 grep "AI simulation tick" runtime/logs/Server.log
+grep -E "agent group presence|agent group simulation" runtime/logs/Server.log
+grep -E "group lifecycle smoke test|agent group created|agent group join|agent group leave|agent group dissolved" runtime/logs/Server.log
 ```
 
 `make world-logs` follows container stdout/stderr, whose console threshold may hide DEBUG lines even when the `ai.world` logger is at DEBUG level.
@@ -276,20 +435,25 @@ Decision metrics use TrinityCore's existing `Metric.h` infrastructure. Dedicated
 ## Roadmap handoff
 
 ```text
-2.8   Safe Action API                         DONE
-2.9A  Full AgentContext protocol              DONE
-2.9B  Structured deterministic response      DONE
-2.9C  World-thread validation seam            DONE
-2.9D  Decision metrics                        DONE
-2.9E  Multi-agent submit API                  DONE
-2.10A Bounded multi-agent admission           DONE
-2.10B Proximity-aware decision cadence        DONE
-2.10C Explicit simulation tier transitions    DONE
-2.10D Coarse Background/Abstract scheduling   FINAL RUNTIME GATE
-2.11  Persistent farmer                       NEXT
+2.8    Safe Action API                            DONE
+2.9A-E Async Decision Protocol                    DONE
+2.10A  Bounded multi-agent admission              DONE
+2.10B  Proximity-aware decision cadence           DONE
+2.10C  Explicit individual simulation policy      DONE
+2.10D  Bounded/staggered coarse scheduling        DONE
+2.11A  Persistent Home/Work                       DONE
+2.11B  Deterministic farmer routine               DONE
+2.11C  Routine movement via Action layer          DONE
+2.11D  WORK/REST activity                         DONE
+2.11E1 WORK/REST ActionType                       DONE
+2.11E2 Persistent economy                         DONE
+2.12D  Separate AgentGroup identity + scheduler   DONE
+2.12E1 Create/Join/Leave/Dissolve lifecycle       DONE
+NEXT    Async-safe dynamic group lifecycle        IN PROGRESS/NEXT
+THEN    Loose/Stable policy + auto formation
 ```
 
-See [README_DEV.md](README_DEV.md) for environment details and [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md) for milestone history.
+See [README_DEV.md](README_DEV.md) for environment details and [AI_TrinityCore_Roadmap_Etapa_1_2.md](AI_TrinityCore_Roadmap_Etapa_1_2.md) for milestone history and acceptance gates.
 
 ## License
 
