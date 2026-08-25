@@ -1655,70 +1655,95 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                     record->ActiveActionState.reset();
                 }
 
-                ActionRequest moveRequest;
-                moveRequest.Actor = id;
-                moveRequest.Type = ActionType::MoveTo;
-                moveRequest.SourceGoal = record->RoutineGoalState->Type;
+                // 2.11C static review P2 fix: HandleActionCompletion()
+                // clears ActiveActionState on arrival but deliberately
+                // leaves RoutineGoalState alone (routine still correctly
+                // says "you should be home/at work" - it is just satisfied
+                // right now, not stale, the same way an ActiveGoal's own
+                // Need can sit below its candidate threshold without the
+                // goal itself needing to change). Without this check,
+                // every following Needs tick alreadyExecuting would be
+                // false again (ActiveActionState was just cleared) and
+                // this block would re-issue an identical MOVE_TO forever -
+                // ActionSystem::ValidateMoveTo() only checks map/finite/
+                // range/busy, not "already there", so a zero-distance
+                // request passes it every time. Same map + within
+                // ArrivalToleranceYards of the target is "nothing to do",
+                // not "target reached, forget it" - the instant routine
+                // phase flips to the other location, this is no longer
+                // true and MOVE_TO proposes normally again.
+                ActionPosition routineDestination;
+                routineDestination.MapId = record->RoutineGoalState->Target.MapId;
+                routineDestination.X = record->RoutineGoalState->Target.X;
+                routineDestination.Y = record->RoutineGoalState->Target.Y;
+                routineDestination.Z = record->RoutineGoalState->Target.Z;
 
-                // No StartedAtMs of its own to reuse (RoutineGoal is
-                // stateless, recomputed fresh every tick - see
-                // RoutineGoal.h) - nowMs, the moment this specific attempt
-                // is actually issued, is this attempt's identity instead.
-                moveRequest.GoalStartedAtMs = nowMs;
+                bool alreadyAtTarget = creature->GetMapId() == routineDestination.MapId
+                    && IsWithinArrivalTolerance(routineDestination,
+                        creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ());
 
-                ActionPosition destination;
-                destination.MapId = record->RoutineGoalState->Target.MapId;
-                destination.X = record->RoutineGoalState->Target.X;
-                destination.Y = record->RoutineGoalState->Target.Y;
-                destination.Z = record->RoutineGoalState->Target.Z;
-                moveRequest.Destination = destination;
-
-                TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
-                    record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
-                    destination.X, destination.Y, destination.Z);
-
-                ActionValidationContext moveContext;
-                moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
-                moveContext.Alive = context.Alive;
-
-                // No AgentRecord::ActiveGoalState to read here (that is
-                // exactly the branch condition above) - RoutineGoalState's
-                // own Type/this attempt's nowMs is what Validate() checks
-                // the request's honesty against instead. See
-                // ActionValidationContext.h.
-                moveContext.ActiveGoalType = record->RoutineGoalState->Type;
-                moveContext.ActiveGoalStartedAtMs = moveRequest.GoalStartedAtMs;
-                moveContext.MapId = creature->GetMapId();
-                moveContext.X = creature->GetPositionX();
-                moveContext.Y = creature->GetPositionY();
-                moveContext.Z = creature->GetPositionZ();
-                moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
-
-                ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
-
-                TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
-                    record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
-                    ToString(moveValidation.Reason));
-
-                if (moveValidation.Allowed)
+                if (!alreadyAtTarget)
                 {
-                    ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+                    ActionRequest moveRequest;
+                    moveRequest.Actor = id;
+                    moveRequest.Type = ActionType::MoveTo;
+                    moveRequest.SourceGoal = record->RoutineGoalState->Type;
 
-                    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
-                        record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+                    // No StartedAtMs of its own to reuse (RoutineGoal is
+                    // stateless, recomputed fresh every tick - see
+                    // RoutineGoal.h) - nowMs, the moment this specific
+                    // attempt is actually issued, is this attempt's
+                    // identity instead.
+                    moveRequest.GoalStartedAtMs = nowMs;
+                    moveRequest.Destination = routineDestination;
 
-                    // Same rule 2.8F already established for GET_FOOD: only
-                    // after the executor actually returned Started, never
-                    // before validation and never on a Failed result.
-                    if (moveResult.Status == ActionExecutionStatus::Started)
+                    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
+                        record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
+                        routineDestination.X, routineDestination.Y, routineDestination.Z);
+
+                    ActionValidationContext moveContext;
+                    moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
+                    moveContext.Alive = context.Alive;
+
+                    // No AgentRecord::ActiveGoalState to read here (that is
+                    // exactly the branch condition above) - RoutineGoalState's
+                    // own Type/this attempt's nowMs is what Validate() checks
+                    // the request's honesty against instead. See
+                    // ActionValidationContext.h.
+                    moveContext.ActiveGoalType = record->RoutineGoalState->Type;
+                    moveContext.ActiveGoalStartedAtMs = moveRequest.GoalStartedAtMs;
+                    moveContext.MapId = creature->GetMapId();
+                    moveContext.X = creature->GetPositionX();
+                    moveContext.Y = creature->GetPositionY();
+                    moveContext.Z = creature->GetPositionZ();
+                    moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
+
+                    ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
+
+                    TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+                        record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
+                        ToString(moveValidation.Reason));
+
+                    if (moveValidation.Allowed)
                     {
-                        ActiveAction action;
-                        action.Type = moveRequest.Type;
-                        action.SourceGoal = moveRequest.SourceGoal;
-                        action.GoalStartedAtMs = moveRequest.GoalStartedAtMs;
-                        action.StartedAtMs = nowMs;
-                        action.Destination = moveRequest.Destination;
-                        record->ActiveActionState = action;
+                        ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+
+                        TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+                            record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+
+                        // Same rule 2.8F already established for GET_FOOD: only
+                        // after the executor actually returned Started, never
+                        // before validation and never on a Failed result.
+                        if (moveResult.Status == ActionExecutionStatus::Started)
+                        {
+                            ActiveAction action;
+                            action.Type = moveRequest.Type;
+                            action.SourceGoal = moveRequest.SourceGoal;
+                            action.GoalStartedAtMs = moveRequest.GoalStartedAtMs;
+                            action.StartedAtMs = nowMs;
+                            action.Destination = moveRequest.Destination;
+                            record->ActiveActionState = action;
+                        }
                     }
                 }
             }
