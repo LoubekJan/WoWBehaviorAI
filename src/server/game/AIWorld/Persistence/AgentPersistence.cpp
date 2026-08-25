@@ -82,20 +82,30 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
         record.EconomyState.Version = fields[18].GetUInt64();
 
-        // Milestone 2.12A P3 fix: population/territory_x/y/z are four
-        // independently nullable columns - Field::GetFloat() silently
-        // returns 0.0f for SQL NULL, so trusting a single presence bit
-        // (population alone) the way home_map_id/work_map_id can for their
-        // pairs would let a partially-NULL row (a corrupt/hand-edited row,
-        // never one AgentPersistence itself produces) load as a
-        // legitimate-looking Territory=(0,0,0) instead of being caught.
-        // All four must agree - either all NULL (no group) or all set.
+        // Milestone 2.12A P3 hardening: population/territory_x/y/z are four
+        // independently nullable columns. Treat the four fields as one
+        // atomic value-state capability: all NULL means no GroupState, all
+        // non-NULL means one complete GroupState. Any partial row is
+        // malformed and must not enter AgentRegistry - Field::GetFloat()
+        // turns SQL NULL into 0.0f, so merely logging and continuing would
+        // manufacture plausible-looking state from corrupt persistence.
         bool populationNull = fields[19].IsNull();
         bool territoryXNull = fields[20].IsNull();
         bool territoryYNull = fields[21].IsNull();
         bool territoryZNull = fields[22].IsNull();
 
-        if (!populationNull && !territoryXNull && !territoryYNull && !territoryZNull)
+        bool anyGroupFieldPresent = !populationNull || !territoryXNull || !territoryYNull || !territoryZNull;
+        bool allGroupFieldsPresent = !populationNull && !territoryXNull && !territoryYNull && !territoryZNull;
+
+        if (anyGroupFieldPresent && !allGroupFieldsPresent)
+        {
+            TC_LOG_ERROR("ai.world",
+                "AgentPersistence: refusing to load agent id={} with partially NULL population/territory_x/y/z row (present: population={} territory_x={} territory_y={} territory_z={})",
+                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull);
+            continue;
+        }
+
+        if (allGroupFieldsPresent)
         {
             CreatureGroupState group;
             group.Population = fields[19].GetUInt32();
@@ -104,36 +114,19 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
             group.TerritoryZ = fields[22].GetFloat();
             record.GroupState = group;
         }
-        else if (populationNull != territoryXNull || populationNull != territoryYNull || populationNull != territoryZNull)
-        {
-            TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} has a partially NULL population/territory_x/y/z row (present: population={} territory_x={} territory_y={} territory_z={}) - ignoring malformed CreatureGroupState",
-                record.Id.Value, !populationNull, !territoryXNull, !territoryYNull, !territoryZNull);
-        }
-        // else: all four NULL - no CreatureGroupState, the ordinary case
-        // for every non-CreatureGroup agent.
 
-        // Milestone 2.12A P3 fix: the AgentType <-> GroupState invariant
-        // (CreatureGroup => GroupState required, anything else => absent)
-        // is not yet enforced anywhere upstream (nothing stops a hand-
-        // edited row from violating it), so it is only ever detected here,
-        // loudly, rather than silently trusted. Neither branch rejects the
-        // row - a CreatureGroup missing its state still loads as an empty
-        // aggregate, the same resilient-load behavior an orphaned row
-        // elsewhere in this loader already gets; group state does not
-        // simulate anything yet (2.12B's job), so there is nothing this
-        // could silently corrupt today.
-        if (record.GroupState && record.Type != AgentType::CreatureGroup)
+        // Milestone 2.12A P3 hardening: enforce the type/capability
+        // invariant at the persistence boundary, before a malformed row can
+        // enter runtime state. 2.12B will actually tick GroupState, so a
+        // CreatureGroup without one - or an individual agent carrying one -
+        // must fail closed rather than load into an ambiguous state.
+        bool isCreatureGroup = record.Type == AgentType::CreatureGroup;
+        if (isCreatureGroup != record.GroupState.has_value())
         {
             TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} type={} has a CreatureGroupState but is not AgentType::CreatureGroup - loading it anyway, but this invariant should never be violated",
-                record.Id.Value, ToString(record.Type));
-        }
-        else if (!record.GroupState && record.Type == AgentType::CreatureGroup)
-        {
-            TC_LOG_ERROR("ai.world",
-                "AgentPersistence: agent id={} is AgentType::CreatureGroup but has no CreatureGroupState - loading it anyway as an empty aggregate with no group data",
-                record.Id.Value);
+                "AgentPersistence: refusing to load agent id={} type={} because CreatureGroup/GroupState invariant is violated (groupState={})",
+                record.Id.Value, ToString(record.Type), record.GroupState.has_value());
+            continue;
         }
 
         if (!registry.Add(record))
