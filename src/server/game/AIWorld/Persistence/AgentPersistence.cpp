@@ -16,6 +16,7 @@
  */
 
 #include "AgentPersistence.h"
+#include "Agent/AgentLocation.h"
 #include "Agent/AgentRegistry.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
@@ -45,11 +46,37 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.WorldState = AgentWorldState::Abstract;
         record.SnapshotSequence = 0;
 
+        // Milestone 2.11A: home_map_id/work_map_id are the presence check
+        // for the whole pair - always NULL or set together, never partial
+        // (see ai_agents' own migration comment).
+        if (!fields[4].IsNull())
+        {
+            AgentLocation home;
+            home.MapId = fields[4].GetUInt32();
+            home.X = fields[5].GetFloat();
+            home.Y = fields[6].GetFloat();
+            home.Z = fields[7].GetFloat();
+            home.Orientation = fields[8].GetFloat();
+            record.HomeLocation = home;
+        }
+
+        if (!fields[9].IsNull())
+        {
+            AgentLocation work;
+            work.MapId = fields[9].GetUInt32();
+            work.X = fields[10].GetFloat();
+            work.Y = fields[11].GetFloat();
+            work.Z = fields[12].GetFloat();
+            work.Orientation = fields[13].GetFloat();
+            record.WorkLocation = work;
+        }
+
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT",
-            record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId);
+        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={}",
+            record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId,
+            record.HomeLocation.has_value(), record.WorkLocation.has_value());
 
         ++loaded;
     } while (result->NextRow());

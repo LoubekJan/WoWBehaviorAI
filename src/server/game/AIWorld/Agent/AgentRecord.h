@@ -21,6 +21,7 @@
 #include "Action/ActiveAction.h"
 #include "Action/PendingEatContinuation.h"
 #include "AgentId.h"
+#include "AgentLocation.h"
 #include "AgentType.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
@@ -41,6 +42,15 @@ struct AgentRecord
 
     uint32 MapId = 0;
     uint64 SpawnId = 0;
+
+    // Milestone 2.11A: persistent, optional - most agents (e.g. GUARD) have
+    // neither. Behavior/capability layer (profession, daily cycle, ...) is
+    // deliberately not modeled as its own AgentType; a CIVILIAN with both
+    // set is how "this agent has a home and a workplace" is expressed for
+    // now. Not yet read by any goal/action/scheduler - 2.11A only persists
+    // and loads these, nothing acts on them.
+    std::optional<AgentLocation> HomeLocation;
+    std::optional<AgentLocation> WorkLocation;
 
     ObjectGuid RuntimeGuid;
     AgentWorldState WorldState = AgentWorldState::Abstract;
