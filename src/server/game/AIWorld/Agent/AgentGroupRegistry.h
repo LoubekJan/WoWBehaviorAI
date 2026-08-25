@@ -47,6 +47,15 @@ class TC_GAME_API AgentGroupRegistry
         AgentGroupRecord* Find(GroupId id);
         AgentGroupRecord const* Find(GroupId id) const;
 
+        // Milestone 2.12E1: erases the whole record - membership included,
+        // since it lives inside AgentGroupRecord::Members, not a separate
+        // container. Only ever called by AgentGroupLifecycleSystem::
+        // DissolveGroup(), after AgentGroupPersistence::DeleteGroup() has
+        // already removed the DB-side rows. Returns whether a record was
+        // actually erased (false for an unknown GroupId - not an error,
+        // the caller decides what that means).
+        bool Remove(GroupId id);
+
         std::vector<GroupId> GetGroups() const;
 
     private:

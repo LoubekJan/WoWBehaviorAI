@@ -24,12 +24,14 @@
 uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
 {
     uint32 loaded = 0;
+    uint64 maxGroupIdSeen = 0;
 
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUPS);
     PreparedQueryResult result = CharacterDatabase.Query(stmt);
     if (!result)
     {
         TC_LOG_INFO("ai.world", "AI persistence loaded 0 agent groups");
+        _nextGroupId = maxGroupIdSeen + 1;
         return 0;
     }
 
@@ -39,6 +41,12 @@ uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
 
         AgentGroupRecord record;
         record.Id = GroupId{ fields[0].GetUInt64() };
+
+        // Milestone 2.12E1: tracked before any validation/skip below can
+        // "continue" past it - see this method's own header comment for
+        // why even a rejected row's id must still be reserved.
+        if (record.Id.Value > maxGroupIdSeen)
+            maxGroupIdSeen = record.Id.Value;
 
         // Hardening (STATIC review P3 fix): kind used to be a blind cast -
         // AgentGroupKind(fields[1].GetUInt8()) would silently accept any
@@ -81,7 +89,9 @@ uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
         ++loaded;
     } while (result->NextRow());
 
-    TC_LOG_INFO("ai.world", "AI persistence loaded {} agent groups", loaded);
+    _nextGroupId = maxGroupIdSeen + 1;
+
+    TC_LOG_INFO("ai.world", "AI persistence loaded {} agent groups, next group id={}", loaded, _nextGroupId);
     return loaded;
 }
 
@@ -168,4 +178,67 @@ void AgentGroupPersistence::SaveGroupState(GroupId id, AgentGroupRecord& record)
     // Fire-and-forget by design - see the class comment. The world update
     // thread must never wait on this.
     CharacterDatabase.Execute(stmt);
+}
+
+GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources)
+{
+    // Mint-then-advance as a single step, unconditionally - see this
+    // method's own header comment for why a failed create below is
+    // allowed to simply burn this id rather than retry it.
+    GroupId newId{ _nextGroupId++ };
+
+    CharacterDatabasePreparedStatement* insertStmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT_GROUP);
+    insertStmt->setUInt64(0, newId.Value);
+    insertStmt->setUInt8(1, uint8(kind));
+    insertStmt->setUInt32(2, territoryMapId);
+    insertStmt->setFloat(3, territoryX);
+    insertStmt->setFloat(4, territoryY);
+    insertStmt->setFloat(5, territoryZ);
+    insertStmt->setFloat(6, resources);
+    CharacterDatabase.DirectExecute(insertStmt);
+
+    // DirectExecute() doesn't report success/failure, so the only way to
+    // know whether the row actually landed is to read it back - the same
+    // discipline AgentPersistence::CreateCreatureAgent() already holds
+    // AgentId to via its own (map_id, spawn_id) binding.
+    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_BY_ID);
+    selectStmt->setUInt64(0, newId.Value);
+    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
+    if (!result)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: INSERT for group id={} did not produce a readable row, group was not created", newId.Value);
+        return GroupId{};
+    }
+
+    return newId;
+}
+
+void AgentGroupPersistence::AddGroupMember(GroupId groupId, AgentId memberId, uint64 joinedAtMs)
+{
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT_GROUP_MEMBER);
+    stmt->setUInt64(0, groupId.Value);
+    stmt->setUInt64(1, memberId.Value);
+    stmt->setUInt64(2, joinedAtMs);
+    CharacterDatabase.DirectExecute(stmt);
+}
+
+void AgentGroupPersistence::RemoveGroupMember(GroupId groupId, AgentId memberId)
+{
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBER);
+    stmt->setUInt64(0, groupId.Value);
+    stmt->setUInt64(1, memberId.Value);
+    CharacterDatabase.DirectExecute(stmt);
+}
+
+void AgentGroupPersistence::DeleteGroup(GroupId groupId)
+{
+    // Membership rows first, group row second - see this method's own
+    // header comment for why that order matters.
+    CharacterDatabasePreparedStatement* membersStmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP);
+    membersStmt->setUInt64(0, groupId.Value);
+    CharacterDatabase.DirectExecute(membersStmt);
+
+    CharacterDatabasePreparedStatement* groupStmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP);
+    groupStmt->setUInt64(0, groupId.Value);
+    CharacterDatabase.DirectExecute(groupStmt);
 }

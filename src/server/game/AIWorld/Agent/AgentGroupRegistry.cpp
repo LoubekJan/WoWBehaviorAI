@@ -50,6 +50,11 @@ AgentGroupRecord const* AgentGroupRegistry::Find(GroupId id) const
     return it != _groups.end() ? &it->second : nullptr;
 }
 
+bool AgentGroupRegistry::Remove(GroupId id)
+{
+    return _groups.erase(id.Value) != 0;
+}
+
 std::vector<GroupId> AgentGroupRegistry::GetGroups() const
 {
     std::vector<GroupId> ids;

@@ -3532,6 +3532,21 @@ AIWorld.TestMapId = 0
 AIWorld.TestSpawnId = 0
 
 #
+#    AIWorld.TestGroupLifecycle
+#        Description: Milestone 2.12E1 - when true (and AIWorld.TestSpawnId is set), runs a
+#                     one-shot manual proof at startup that AgentGroupLifecycleSystem's Create/
+#                     Join/Leave/Dissolve sequence never touches Creature/WorldState: creates
+#                     three ordinary test AgentRecords (at AIWorld.TestMapId, spawn ids
+#                     TestSpawnId+1/+2/+3 - never colliding with the AIWorld.TestSpawnId agent
+#                     itself), joins them into a fresh group, has one leave, then dissolves the
+#                     group. Every step is logged (see AIWorldMgr::RunGroupLifecycleSmokeTest())
+#                     so the result is visible in ai.world logs without a debugger. Off by
+#                     default - this is a manual verification aid, not a feature.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestGroupLifecycle = 0
+
+#
 #    AIWorld.AIHost
 #    AIWorld.AIPort
 #        Description: Hostname/IP and port of the ai-server bridge. The default matches the

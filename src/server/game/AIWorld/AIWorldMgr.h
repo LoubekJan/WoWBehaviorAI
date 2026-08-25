@@ -23,6 +23,7 @@
 #include "Action/ActionExecutor.h"
 #include "Action/ActionSystem.h"
 #include "Action/PendingEatContinuation.h"
+#include "Agent/AgentGroupLifecycleSystem.h"
 #include "Agent/AgentGroupRegistry.h"
 #include "Agent/AgentGroupSimulationSystem.h"
 #include "Agent/AgentId.h"
@@ -141,6 +142,19 @@ class TC_GAME_API AIWorldMgr
         void RunDecisionScheduler();
         bool UpdateSimulationTier(AgentId id, SimulationTier tier);
 
+        // Milestone 2.12E1: manual proof that AgentGroupLifecycleSystem
+        // never touches Creature/WorldState - gated behind
+        // AIWorld.TestGroupLifecycle (default off), called once from
+        // Initialize() after _registry/_groupRegistry are both loaded.
+        // Creates three ordinary test AgentRecords, joins them into a
+        // fresh group, has one leave, then dissolves the group - every
+        // step logged so the acceptance-criteria shape (group={1,2,3} ->
+        // {1,2} -> gone, all three AgentRecords untouched throughout) is
+        // visible in ai.world logs. Not itself part of the lifecycle API -
+        // a real caller (a future admin/test command, or 2.12E2/2.12E3
+        // policy code) talks to _groupLifecycleSystem directly.
+        void RunGroupLifecycleSmokeTest(uint32 testMapId, uint64 testSpawnId);
+
         bool _enabled = false;
 
         // Milestone 2.10A/2.10B: how often RunDecisionScheduler() itself
@@ -187,6 +201,13 @@ class TC_GAME_API AIWorldMgr
         // for why this is a separate class rather than folded into
         // AgentPersistence.
         AgentGroupPersistence _groupPersistence;
+
+        // Milestone 2.12E1: the single owner of AgentGroup create/join/
+        // leave/dissolve - see its own class comment. Stateless (every
+        // dependency is a parameter), so this is just a stable place to
+        // call through rather than constructing one per call; no different
+        // in spirit from _agentGroupSimulationSystem below.
+        AgentGroupLifecycleSystem _groupLifecycleSystem;
 
         // Milestone 2.10A: deterministic admission ranking over every
         // registered+Materialized agent - see DecisionScheduler.h. Pure
