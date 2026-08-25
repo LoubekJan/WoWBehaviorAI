@@ -30,6 +30,7 @@
 #include "Event/WorldEvent.h"
 #include "Goal/FoodTargetResolver.h"
 #include "Goal/GoalSystem.h"
+#include "Goal/RoutineSystem.h"
 #include "Inference/AIClient.h"
 #include "Memory/LongTermMemory.h"
 #include "Memory/MemoryRetrieval.h"
@@ -329,6 +330,17 @@ class TC_GAME_API AIWorldMgr
         // Creature/Map/DB.
         FoodTargetResolver _foodTargetResolver;
         FoodTargetConfig _foodTargetConfig;
+
+        // Milestone 2.11B: run alongside GoalSystem in UpdateNeeds() (same
+        // Needs-cadence tick, right after ActiveGoalState is finalized for
+        // it), independent of GoalSystem's own Needs-driven selection - see
+        // RoutineSystem.h for why routine is deliberately not folded into
+        // GoalCandidate/ActiveGoal. _routineScheduleConfig is shared
+        // configuration (AIWorld.Routine*, loaded and cross-validated once
+        // at Initialize()), passed into DeriveGoal() per call, the same
+        // pattern _foodTargetConfig already uses for FoodTargetResolver.
+        RoutineSystem _routineSystem;
+        RoutineScheduleConfig _routineScheduleConfig;
 
         // Milestone 2.8F: cross-thread ingress for ActionEngineEvents (see
         // ActionEngineEventBus) - AIWorldCreatureAI::MovementInform()

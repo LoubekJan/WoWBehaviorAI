@@ -25,6 +25,7 @@
 #include "AgentType.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
+#include "Goal/RoutineGoal.h"
 #include "Needs/NeedsState.h"
 #include "Needs/NeedsThresholdState.h"
 #include "ObjectGuid.h"
@@ -74,6 +75,17 @@ struct AgentRecord
     // must survive Creature unload/reload within this process. Not
     // persisted across restart yet.
     std::optional<ActiveGoal> ActiveGoalState;
+
+    // Milestone 2.11B: the agent's current routine destination (GO_TO_WORK/
+    // GO_HOME), or empty if it has neither HomeLocation/WorkLocation set or
+    // ActiveGoalState is currently Emergency (see RoutineSystem::
+    // DeriveGoal()). Unlike ActiveGoalState this has no hysteresis of its
+    // own - it is a pure function of current time, recomputed fresh every
+    // Needs-cadence tick, not persisted across restart. Stored here (rather
+    // than only ever a local in UpdateNeeds()) so a later milestone can
+    // compare it tick-over-tick before reconciling it into a MOVE_TO
+    // ActionRequest; 2.11B itself never acts on it.
+    std::optional<RoutineGoal> RoutineGoalState;
 
     // Milestone 2.8F: the Action currently actually running in TrinityCore
     // for this agent's ActiveGoalState, if any. Set only after

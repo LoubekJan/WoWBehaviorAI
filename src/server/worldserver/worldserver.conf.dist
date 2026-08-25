@@ -3640,6 +3640,31 @@ AIWorld.TestFoodTargetY = 0.0
 AIWorld.TestFoodTargetZ = 0.0
 
 #
+#    AIWorld.RoutineDayLengthMs
+#        Description: Milestone 2.11B RoutineSystem's synthetic day length in milliseconds -
+#                     deliberately not real wall-clock time or TrinityCore's in-game day/night
+#                     cycle, both too slow to make GO_TO_WORK/GO_HOME switching runtime-observable.
+#                     nowMs % this value is what selects the current phase.
+#        Important:   Clamped to a minimum of 60000 (1 minute).
+#        Default:     1200000 - (20 minutes)
+
+AIWorld.RoutineDayLengthMs = 1200000
+
+#
+#    AIWorld.RoutineWorkStartMs
+#    AIWorld.RoutineWorkEndMs
+#        Description: Offsets in milliseconds within AIWorld.RoutineDayLengthMs during which a
+#                     CIVILIAN with both HomeLocation and WorkLocation set (see AgentRecord.h) has
+#                     GO_TO_WORK as its RoutineGoalState; GO_HOME the rest of the day.
+#        Important:   Must satisfy 0 <= WorkStartMs < WorkEndMs <= DayLengthMs, otherwise both are
+#                     clamped to 1/3 and 2/3 of the day length.
+#        Default:     400000 - (AIWorld.RoutineWorkStartMs)
+#                     800000 - (AIWorld.RoutineWorkEndMs)
+
+AIWorld.RoutineWorkStartMs = 400000
+AIWorld.RoutineWorkEndMs = 800000
+
+#
 ###################################################################################################
 
 ###################################################################################################

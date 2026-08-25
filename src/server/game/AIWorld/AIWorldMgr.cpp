@@ -249,6 +249,35 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _foodTargetConfig.Y = sConfigMgr->GetFloatDefault("AIWorld.TestFoodTargetY", 0.0f);
     _foodTargetConfig.Z = sConfigMgr->GetFloatDefault("AIWorld.TestFoodTargetZ", 0.0f);
 
+    // Milestone 2.11B: a synthetic, config-driven day - deliberately not
+    // wall-clock (the rest of AIWorld's own GameTime::GetSystemTime()
+    // convention) or TrinityCore's in-game day/night cycle, both too slow
+    // to make GO_TO_WORK/GO_HOME switching runtime-observable. See
+    // RoutineScheduleConfig.h.
+    int32 routineDayLengthMs = sConfigMgr->GetIntDefault("AIWorld.RoutineDayLengthMs", 1200000);
+    if (routineDayLengthMs < 60000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.RoutineDayLengthMs ({}) is invalid or too low, clamping to 60000ms", routineDayLengthMs);
+        routineDayLengthMs = 60000;
+    }
+
+    int32 routineWorkStartMs = sConfigMgr->GetIntDefault("AIWorld.RoutineWorkStartMs", 400000);
+    int32 routineWorkEndMs = sConfigMgr->GetIntDefault("AIWorld.RoutineWorkEndMs", 800000);
+    if (routineWorkStartMs < 0 || routineWorkEndMs <= routineWorkStartMs || routineWorkEndMs > routineDayLengthMs)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.RoutineWorkStartMs/RoutineWorkEndMs ({}, {}) is invalid for day length {}ms, clamping to 1/3 and 2/3 of day length",
+            routineWorkStartMs, routineWorkEndMs, routineDayLengthMs);
+        routineWorkStartMs = routineDayLengthMs / 3;
+        routineWorkEndMs = (routineDayLengthMs * 2) / 3;
+    }
+
+    _routineScheduleConfig.DayLengthMs = uint32(routineDayLengthMs);
+    _routineScheduleConfig.WorkStartMs = uint32(routineWorkStartMs);
+    _routineScheduleConfig.WorkEndMs = uint32(routineWorkEndMs);
+
+    TC_LOG_INFO("ai.world", "AI routine configured dayLength={}ms workStart={}ms workEnd={}ms",
+        _routineScheduleConfig.DayLengthMs, _routineScheduleConfig.WorkStartMs, _routineScheduleConfig.WorkEndMs);
+
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight);
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
@@ -1395,6 +1424,15 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             // above - a dead agent must not have a pending Eat either.
             record->PendingEat.reset();
 
+            // Milestone 2.11B: same reasoning again - a corpse has no
+            // routine destination either.
+            if (record->RoutineGoalState)
+            {
+                TC_LOG_DEBUG("ai.world", "AI routine transition agent={} from={} to=NONE reason=DEAD",
+                    record->Id.Value, ToString(record->RoutineGoalState->Type));
+                record->RoutineGoalState.reset();
+            }
+
             continue;
         }
 
@@ -1519,6 +1557,31 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 break;
             case GoalTransition::None:
                 break;
+        }
+
+        // Milestone 2.11B: independent of the goal transition above (see
+        // RoutineSystem.h for why this is not folded into GoalSystem's own
+        // Needs-driven selection) - runs after ActiveGoalState is finalized
+        // for this tick, so an Emergency goal Activated/Interrupted-into
+        // this same tick already suppresses routine output rather than
+        // racing it a tick late. No hysteresis: recomputed fresh every
+        // tick, so the only thing worth logging is an edge (previous vs.
+        // this tick's Type differs, or presence itself flips) - not every
+        // tick it stays unchanged. Still no Action API, no world mutation -
+        // a later milestone reconciles this into MOVE_TO.
+        std::optional<RoutineGoal> previousRoutineGoal = record->RoutineGoalState;
+        record->RoutineGoalState = _routineSystem.DeriveGoal(record->ActiveGoalState,
+            record->HomeLocation, record->WorkLocation, nowMs, _routineScheduleConfig);
+
+        bool routineChanged = previousRoutineGoal.has_value() != record->RoutineGoalState.has_value()
+            || (previousRoutineGoal && record->RoutineGoalState && previousRoutineGoal->Type != record->RoutineGoalState->Type);
+
+        if (routineChanged)
+        {
+            TC_LOG_DEBUG("ai.world", "AI routine transition agent={} from={} to={}",
+                record->Id.Value,
+                previousRoutineGoal ? ToString(previousRoutineGoal->Type) : "NONE",
+                record->RoutineGoalState ? ToString(record->RoutineGoalState->Type) : "NONE");
         }
 
         // Milestone 2.8G P2 fix: consume any pending Eat continuation only
