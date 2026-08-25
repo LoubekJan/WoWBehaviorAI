@@ -25,6 +25,7 @@
 #include "AgentType.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
+#include "Goal/RoutineActivity.h"
 #include "Goal/RoutineGoal.h"
 #include "Needs/NeedsState.h"
 #include "Needs/NeedsThresholdState.h"
@@ -91,6 +92,17 @@ struct AgentRecord
     // wants; whether that is actually safe to act on right now is decided
     // there, never here.
     std::optional<RoutineGoal> RoutineGoalState;
+
+    // Milestone 2.11D: what the agent is actually doing right now at its
+    // routine destination (Work/Rest), or empty - see
+    // RoutineActivitySystem::DeriveActivity() for the reality checks this
+    // requires (materialized, alive, no ActiveGoalState/ActiveActionState,
+    // actually standing at RoutineGoalState's own target). Unlike
+    // RoutineGoalState, StartedAtMs here is stable across ticks while the
+    // same activity holds - only set fresh on an actual transition, not
+    // recomputed from scratch every tick. Runtime-only, not persisted
+    // across restart, the same as RoutineGoalState/ActiveActionState.
+    std::optional<RoutineActivity> RoutineActivityState;
 
     // Milestone 2.8F: the Action currently actually running in TrinityCore
     // for this agent's ActiveGoalState, if any. Set only after

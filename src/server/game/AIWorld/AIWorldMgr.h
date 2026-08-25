@@ -30,6 +30,7 @@
 #include "Event/WorldEvent.h"
 #include "Goal/FoodTargetResolver.h"
 #include "Goal/GoalSystem.h"
+#include "Goal/RoutineActivitySystem.h"
 #include "Goal/RoutineSystem.h"
 #include "Inference/AIClient.h"
 #include "Memory/LongTermMemory.h"
@@ -341,6 +342,15 @@ class TC_GAME_API AIWorldMgr
         // pattern _foodTargetConfig already uses for FoodTargetResolver.
         RoutineSystem _routineSystem;
         RoutineScheduleConfig _routineScheduleConfig;
+
+        // Milestone 2.11D: run in UpdateNeeds() right after RoutineGoalState/
+        // its own MOVE_TO handling, from facts AIWorldMgr resolves itself
+        // (materialized/alive/live position vs. RoutineGoalState's target) -
+        // see RoutineActivitySystem.h for why this is a separate class from
+        // RoutineSystem rather than a third responsibility folded into it.
+        // No config of its own; ArrivalToleranceYards (already shared with
+        // MOVE_TO arrival/Eat) is reused, not duplicated.
+        RoutineActivitySystem _routineActivitySystem;
 
         // Milestone 2.8F: cross-thread ingress for ActionEngineEvents (see
         // ActionEngineEventBus) - AIWorldCreatureAI::MovementInform()

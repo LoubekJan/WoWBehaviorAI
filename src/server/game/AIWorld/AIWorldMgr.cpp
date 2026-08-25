@@ -1345,6 +1345,19 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             // rather than let it linger for a future re-materialize.
             record->PendingEat.reset();
 
+            // Milestone 2.11D: unlike ActiveGoalState/RoutineGoalState (both
+            // deliberately left alone here - they are intent, allowed to
+            // survive a rematerialize), WORK/REST requires Materialized as
+            // one of its own reality checks (see RoutineActivityContext.h)
+            // - it must not keep claiming an activity for an agent that no
+            // longer has a live Creature at all.
+            if (record->RoutineActivityState)
+            {
+                TC_LOG_DEBUG("ai.world", "AI routine activity agent={} from={} to=NONE reason=DEMATERIALIZED",
+                    record->Id.Value, ToString(record->RoutineActivityState->Type));
+                record->RoutineActivityState.reset();
+            }
+
             if (record->WorldState == AgentWorldState::Materialized)
                 _registry.UnbindCreature(id);
             continue;
@@ -1448,6 +1461,15 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 TC_LOG_DEBUG("ai.world", "AI routine transition agent={} from={} to=NONE reason=DEAD",
                     record->Id.Value, ToString(record->RoutineGoalState->Type));
                 record->RoutineGoalState.reset();
+            }
+
+            // Milestone 2.11D: same reasoning again - a corpse is not WORK
+            // or REST either.
+            if (record->RoutineActivityState)
+            {
+                TC_LOG_DEBUG("ai.world", "AI routine activity agent={} from={} to=NONE reason=DEAD",
+                    record->Id.Value, ToString(record->RoutineActivityState->Type));
+                record->RoutineActivityState.reset();
             }
 
             continue;
@@ -1746,6 +1768,65 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                         }
                     }
                 }
+            }
+        }
+
+        // Milestone 2.11D: RoutineGoal -> MOVE_TO -> ARRIVED -> RoutineActivity
+        // (Work/Rest) - runs unconditionally every materialized/alive tick
+        // (unlike the MOVE_TO block above, not gated behind
+        // !record->ActiveGoalState), since it must also be the thing that
+        // notices ActiveGoalState/ActiveActionState just appeared and drops
+        // WORK/REST back to NONE this same tick, not a tick late. First
+        // commit: state + transition log only - no ActionRequest, no emote,
+        // no ResourcePressure/money change.
+        RoutineActivityContext activityContext;
+        activityContext.CurrentRoutineGoal = record->RoutineGoalState
+            ? std::optional<GoalType>(record->RoutineGoalState->Type) : std::nullopt;
+        activityContext.Materialized = record->WorldState == AgentWorldState::Materialized;
+        activityContext.Alive = context.Alive;
+        activityContext.HasActiveGoal = record->ActiveGoalState.has_value();
+        activityContext.HasActiveAction = record->ActiveActionState.has_value();
+
+        if (record->RoutineGoalState)
+        {
+            ActionPosition routineTarget;
+            routineTarget.MapId = record->RoutineGoalState->Target.MapId;
+            routineTarget.X = record->RoutineGoalState->Target.X;
+            routineTarget.Y = record->RoutineGoalState->Target.Y;
+            routineTarget.Z = record->RoutineGoalState->Target.Z;
+
+            activityContext.AtRoutineTarget = creature->GetMapId() == routineTarget.MapId
+                && IsWithinArrivalTolerance(routineTarget, creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ());
+        }
+
+        std::optional<RoutineActivityType> previousActivity = record->RoutineActivityState
+            ? std::optional<RoutineActivityType>(record->RoutineActivityState->Type) : std::nullopt;
+        std::optional<RoutineActivityType> derivedActivity = _routineActivitySystem.DeriveActivity(activityContext);
+
+        if (derivedActivity != previousActivity)
+        {
+            if (derivedActivity)
+            {
+                TC_LOG_DEBUG("ai.world", "AI routine activity agent={} from={} to={}",
+                    record->Id.Value, previousActivity ? ToString(*previousActivity) : "NONE", ToString(*derivedActivity));
+
+                RoutineActivity activity;
+                activity.Type = *derivedActivity;
+                activity.StartedAtMs = nowMs;
+                record->RoutineActivityState = activity;
+            }
+            else
+            {
+                // Single-owner takeover (ActiveGoalState/ActiveActionState
+                // just appeared) reads distinctly from "still traveling,
+                // not there yet" - both end WORK/REST, but for a different
+                // reason worth telling apart in the log.
+                char const* reason = (activityContext.HasActiveGoal || activityContext.HasActiveAction) ? "GOAL_OWNERSHIP" : "TRAVEL";
+
+                TC_LOG_DEBUG("ai.world", "AI routine activity agent={} from={} to=NONE reason={}",
+                    record->Id.Value, ToString(*previousActivity), reason);
+
+                record->RoutineActivityState.reset();
             }
         }
 
