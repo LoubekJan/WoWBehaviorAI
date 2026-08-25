@@ -32,7 +32,13 @@
 // schema migration, but nothing writes to them yet.
 struct AgentEconomyState
 {
-    uint32 Money = 0;
+    // Milestone 2.11E2 P3 fix: uint64/BIGINT UNSIGNED, not uint32/INT
+    // UNSIGNED - the only field anything currently mutates, so it is the
+    // only one actually at risk of wrapping back to a small value after
+    // enough WORK rewards. Food/Resource stay uint32 for now: nothing
+    // writes to them yet, so there is nothing to overflow - widen them the
+    // same way whenever a milestone actually starts mutating them.
+    uint64 Money = 0;
     uint32 Food = 0;
     uint32 Resource = 0;
 

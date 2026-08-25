@@ -72,8 +72,10 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         }
 
         // Milestone 2.11E2/2.11E2 P2/P3 fix: NOT NULL columns (default 0) -
-        // no presence check needed, unlike home_*/work_* above.
-        record.EconomyState.Money = fields[14].GetUInt32();
+        // no presence check needed, unlike home_*/work_* above. money is
+        // BIGINT UNSIGNED (GetUInt64), not INT UNSIGNED like food/resource
+        // - see AgentEconomyState::Money.
+        record.EconomyState.Money = fields[14].GetUInt64();
         record.EconomyState.Food = fields[15].GetUInt32();
         record.EconomyState.Resource = fields[16].GetUInt32();
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
@@ -137,7 +139,7 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
 void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState const& state)
 {
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_ECONOMY);
-    stmt->setUInt32(0, state.Money);
+    stmt->setUInt64(0, state.Money);
     stmt->setUInt32(1, state.Food);
     stmt->setUInt32(2, state.Resource);
     stmt->setUInt64(3, state.LastRewardedWorkWindowId);
