@@ -34,7 +34,7 @@
 // AIWorldMgr::Update()'s stale-response check), so they aren't repeated as
 // separate fields here. Pure value: no Creature*/Player*/Map* anywhere,
 // same rule as every other AIWorld DTO. Built fresh every
-// CaptureAndSubmitSnapshot() call from data AIWorldMgr already has on hand
+// CaptureAgentContext() call from data AIWorldMgr already has on hand
 // (AgentRecord::Needs/ActiveGoalState, this tick's own
 // MemoryRetrieval::Retrieve() result) - AgentContext itself never fetches
 // or computes anything.

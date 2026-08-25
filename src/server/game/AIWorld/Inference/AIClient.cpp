@@ -457,12 +457,17 @@ namespace
     class DecisionSession : public std::enable_shared_from_this<DecisionSession>
     {
         public:
+            // Milestone 2.10A: inFlightCount is a bounded counter, not a
+            // single bool - multiple DecisionSessions for different agents
+            // can be alive at once, up to AIClient's own maxDecisionsInFlight.
+            // Complete() decrements it exactly once per session, the same
+            // "guarded by _completed" contract as everything else it does.
             DecisionSession(net::io_context& ioContext, std::string const& host, std::string const& port,
-                uint32 timeoutMs, AIRequest const& request, MPSCQueue<AIResponse>* responseQueue, std::atomic<bool>* inFlightFlag)
+                uint32 timeoutMs, AIRequest const& request, MPSCQueue<AIResponse>* responseQueue, std::atomic<uint32>* inFlightCount)
                 : _resolver(net::make_strand(ioContext)), _stream(net::make_strand(ioContext)),
                   _resolveTimer(_resolver.get_executor()),
                   _host(host), _port(port), _timeoutMs(timeoutMs), _request(request),
-                  _responseQueue(responseQueue), _inFlightFlag(inFlightFlag),
+                  _responseQueue(responseQueue), _inFlightCount(inFlightCount),
                   _startTime(std::chrono::steady_clock::now())
             {
                 // Milestone 2.9D: how long this request actually sat
@@ -612,7 +617,7 @@ namespace
 
                 beast::error_code ignored;
                 _stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
-                _inFlightFlag->store(false, std::memory_order_release);
+                _inFlightCount->fetch_sub(1, std::memory_order_acq_rel);
 
                 uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - _startTime).count());
@@ -730,7 +735,7 @@ namespace
             uint32 _timeoutMs;
             AIRequest _request;
             MPSCQueue<AIResponse>* _responseQueue;
-            std::atomic<bool>* _inFlightFlag;
+            std::atomic<uint32>* _inFlightCount;
             std::chrono::steady_clock::time_point _startTime;
             uint32 _queueMs = 0;
             std::atomic<bool> _completed { false };
@@ -739,8 +744,9 @@ namespace
 
 struct AIClient::Impl
 {
-    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs)
-        : IoContextRef(ioContext), Host(std::move(host)), Port(std::move(port)), RequestTimeoutMs(requestTimeoutMs)
+    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight)
+        : IoContextRef(ioContext), Host(std::move(host)), Port(std::move(port)), RequestTimeoutMs(requestTimeoutMs),
+          MaxDecisionsInFlight(maxDecisionsInFlight)
     {
     }
 
@@ -748,22 +754,28 @@ struct AIClient::Impl
     std::string Host;
     std::string Port;
     uint32 RequestTimeoutMs;
+    uint32 MaxDecisionsInFlight;
     std::atomic<uint64> NextRequestId { 1 };
     MPSCQueue<AIResponse> ResponseQueue;
 
     // Guards against a health check pileup when RequestTimeoutMs is set
     // higher than HealthIntervalMs (e.g. 30000/1000): without this, every
     // Update() tick would spawn another in-flight session against a slow or
-    // unresponsive ai-server instead of waiting for the previous one.
+    // unresponsive ai-server instead of waiting for the previous one. Still
+    // a single bool - health checks were never part of 2.10A's bounded
+    // multi-agent admission scope.
     std::atomic<bool> HealthCheckInFlight { false };
 
-    // Same guard, for decisions: SnapshotIntervalMs is the decision cadence,
-    // and nothing stops it being configured shorter than RequestTimeoutMs.
-    std::atomic<bool> DecisionInFlight { false };
+    // Milestone 2.10A: bounded counter, not a single bool - up to
+    // MaxDecisionsInFlight DecisionSessions for different agents can be
+    // alive at once. SubmitDecision() only increments after confirming
+    // there is room (see its own compare-and-increment loop); every
+    // DecisionSession decrements exactly once, in Complete().
+    std::atomic<uint32> DecisionsInFlight { 0 };
 };
 
-AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs)
-    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs))
+AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight)
+    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs, maxDecisionsInFlight))
 {
 }
 
@@ -798,17 +810,31 @@ uint64 AIClient::SubmitHealthCheck()
 
 uint64 AIClient::SubmitDecision(AIRequest request)
 {
-    if (_impl->DecisionInFlight.exchange(true, std::memory_order_acq_rel))
+    // Milestone 2.10A: compare-and-increment rather than a single
+    // exchange(true) - admits up to MaxDecisionsInFlight concurrently,
+    // for however many different agents, instead of only ever one at a
+    // time. Retries the compare_exchange_weak on spurious failure (the
+    // loaded value is refreshed in place by the failed attempt); gives up
+    // and skips only once the cap itself is actually reached.
+    uint32 current = _impl->DecisionsInFlight.load(std::memory_order_acquire);
+    for (;;)
     {
-        TC_LOG_DEBUG("ai.world", "AI decision skipped: previous request still in flight");
+        if (current >= _impl->MaxDecisionsInFlight)
+        {
+            TC_LOG_DEBUG("ai.world", "AI decision skipped: {} decision(s) already in flight (max={})",
+                current, _impl->MaxDecisionsInFlight);
 
-        // Milestone 2.9D: without this, ai.world.decision.queue_ms could
-        // look perfectly healthy while the global DecisionInFlight guard
-        // was silently dropping half of every attempted decision - this is
-        // the baseline a later batching/backpressure milestone needs
-        // before it can claim an improvement.
-        TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "skipped_in_flight"));
-        return 0;
+            // Milestone 2.9D: without this, ai.world.decision.queue_ms
+            // could look perfectly healthy while this cap was silently
+            // dropping every decision beyond it - this is the baseline a
+            // scheduler built on top of SubmitDecisions() needs to already
+            // be visible against.
+            TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "skipped_in_flight"));
+            return 0;
+        }
+
+        if (_impl->DecisionsInFlight.compare_exchange_weak(current, current + 1, std::memory_order_acq_rel, std::memory_order_acquire))
+            break;
     }
 
     uint64 requestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
@@ -823,11 +849,11 @@ uint64 AIClient::SubmitDecision(AIRequest request)
     std::string const& port = _impl->Port;
     uint32 timeoutMs = _impl->RequestTimeoutMs;
     MPSCQueue<AIResponse>* responseQueue = &_impl->ResponseQueue;
-    std::atomic<bool>* inFlightFlag = &_impl->DecisionInFlight;
+    std::atomic<uint32>* inFlightCount = &_impl->DecisionsInFlight;
 
-    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightFlag]()
+    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightCount]()
     {
-        std::make_shared<DecisionSession>(rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightFlag)->Run();
+        std::make_shared<DecisionSession>(rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightCount)->Run();
     });
 
     TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "submitted"));
@@ -838,9 +864,9 @@ uint64 AIClient::SubmitDecision(AIRequest request)
 std::vector<DecisionSubmitResult> AIClient::SubmitDecisions(std::vector<AIRequest> requests)
 {
     // Milestone 2.9E: pure delegation to the existing single-request
-    // primitive, in order - no new admission policy, no new wire format,
-    // no batching at the transport level. Every request still goes through
-    // SubmitDecision()'s own DecisionInFlight guard and already-existing
+    // primitive, in order - no new wire format, no batching at the
+    // transport level. Every request still goes through SubmitDecision()'s
+    // own bounded-counter admission (Milestone 2.10A) and already-existing
     // ai.world.decision.submit metric individually; this only adds a
     // caller-facing shape on top, and a single aggregate debug log for
     // this one batch.

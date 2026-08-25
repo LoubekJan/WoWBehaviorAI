@@ -42,7 +42,13 @@ namespace Trinity::Asio { class IoContext; }
 class TC_GAME_API AIClient
 {
     public:
-        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs);
+        // Milestone 2.10A: maxDecisionsInFlight bounds how many /decision
+        // requests SubmitDecision()/SubmitDecisions() will let be
+        // simultaneously in flight - the hard global admission cap
+        // AIWorldMgr's DecisionScheduler is designed around (see
+        // AIWorld.DecisionMaxInFlight). Health checks are unaffected -
+        // SubmitHealthCheck() keeps its own separate single-in-flight guard.
+        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight);
         ~AIClient();
 
         AIClient(AIClient const&) = delete;
@@ -62,27 +68,27 @@ class TC_GAME_API AIClient
         // RequestId, Type, Decision.RequestId, and Decision.Version are all
         // stamped internally (any value the caller set is overwritten), so
         // only Decision.Context needs to be filled in. Same non-blocking
-        // contract and same "0 means skipped, a previous decision is still
-        // in flight" return convention as SubmitHealthCheck().
+        // contract as SubmitHealthCheck(); returns 0 - "skipped, no slot
+        // available" - if maxDecisionsInFlight requests are already in
+        // flight (Milestone 2.10A: a bounded counter, not a single bool -
+        // multiple different agents' requests can be in flight at once, up
+        // to that bound). Never blocks waiting for a slot to free up.
         uint64 SubmitDecision(AIRequest request);
 
-        // Milestone 2.9E: caller-facing batch entry point - internally
-        // still just calls SubmitDecision() once per request in order, so
-        // today's admission behavior (one global DecisionInFlight guard
-        // for the whole AIWorld, see SubmitDecision()) is unchanged: a
-        // later request in the same batch can legitimately come back
-        // SkippedInFlight even though nothing about it individually was
-        // wrong - that is the current admission policy, not a bug here.
-        // Exists so a caller (AIWorldMgr, and eventually a real scheduler)
-        // can already code against a stable vector<AIRequest> ->
-        // vector<DecisionSubmitResult> shape; a later milestone's real
-        // per-agent/bounded admission policy changes what happens inside
-        // this call, not the interface built against it. Results are
-        // returned in request order, but callers must correlate by
-        // DecisionSubmitResult::Agent, never by vector position alone -
-        // see DecisionSubmitResult.h. Emits no metrics of its own:
-        // SubmitDecision() already logs ai.world.decision.submit once per
-        // request, and this must never double-count it.
+        // Milestone 2.9E/2.10A: caller-facing batch entry point - still
+        // just calls SubmitDecision() once per request in order, so
+        // admission is still governed entirely by that same bounded
+        // counter: a later request in the same batch can legitimately come
+        // back SkippedInFlight once the cap is reached, even though
+        // nothing about it individually was wrong. Deciding which agents
+        // are even worth attempting (due-ness, per-agent duplicate guard,
+        // deterministic ordering) is the caller's job - see AIWorldMgr's
+        // DecisionScheduler - this only ever enforces the hard global cap.
+        // Results are returned in request order, but callers must
+        // correlate by DecisionSubmitResult::Agent, never by vector
+        // position alone - see DecisionSubmitResult.h. Emits no metrics of
+        // its own: SubmitDecision() already logs ai.world.decision.submit
+        // once per request, and this must never double-count it.
         std::vector<DecisionSubmitResult> SubmitDecisions(std::vector<AIRequest> requests);
 
         // Non-blocking pop of one completed response. Returns false if none

@@ -38,8 +38,11 @@
 #include "Perception/PerceptionSystem.h"
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
+#include "Scheduler/DecisionScheduler.h"
 #include <atomic>
 #include <memory>
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace Trinity::Asio { class IoContext; }
@@ -101,8 +104,8 @@ class TC_GAME_API AIWorldMgr
         AIWorldMgr(AIWorldMgr const&) = delete;
         AIWorldMgr& operator=(AIWorldMgr const&) = delete;
 
-        void ProcessAgent(AgentId id);
-        void CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creature& creature);
+        std::optional<AIRequest> ProcessAgent(AgentId id);
+        AIRequest CaptureAgentContext(AgentId id, AgentRecord& record, Creature& creature);
         void ProcessWorldEvent(WorldEvent& event);
         void ProcessObservation(Observation const& observation);
         void ScanNearbyEntities();
@@ -111,10 +114,18 @@ class TC_GAME_API AIWorldMgr
         void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
         void TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs);
         void ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response);
-        void SubmitDecisionContexts(std::vector<AIRequest> requests);
+        std::vector<DecisionSubmitResult> SubmitDecisionContexts(std::vector<AIRequest> requests);
+        void RunDecisionScheduler();
 
         bool _enabled = false;
 
+        // Milestone 2.10A: no longer just a single test-agent poll gate -
+        // now the cadence RunDecisionScheduler() itself runs on, once per
+        // interval rather than every tick (GetAgents() allocates, so this
+        // avoids paying that cost on every single world tick the way
+        // _needsUpdateTimer/_nearbyPerceptionTimer already don't either).
+        // Also still each admitted agent's own per-decision interval - see
+        // DecisionScheduleState::NextDecisionAtMs.
         uint32 _snapshotIntervalMs = 5000;
         uint32 _snapshotTimer = 0;
 
@@ -129,11 +140,23 @@ class TC_GAME_API AIWorldMgr
         // by this. Used exclusively during Initialize(), never per-tick.
         AgentPersistence _persistence;
 
-        // Milestone 2.1's single test agent: config identifies the spawn to
-        // load-or-create at Initialize() time, everything after that goes
-        // through _registry via _testAgentId instead of touching map/spawn
-        // directly.
-        AgentId _testAgentId;
+        // Milestone 2.10A: deterministic admission ranking over every
+        // registered+Materialized agent - see DecisionScheduler.h. Pure
+        // value transform, like _needsSystem/_goalSystem/_actionSystem;
+        // RunDecisionScheduler() is the one place that resolves live
+        // Creatures/AgentRecords and drives it.
+        DecisionScheduler _decisionScheduler;
+
+        // Per-agent scheduling bookkeeping (NextDecisionAtMs/AwaitingResponse)
+        // for _decisionScheduler - deliberately not part of AgentRecord/
+        // AgentRegistry, see DecisionScheduleState.h. Keyed by AgentId::Value.
+        std::unordered_map<uint64, DecisionScheduleState> _decisionSchedule;
+
+        // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
+        // admits against and AIClient itself separately enforces (defense in
+        // depth: even a scheduler bug can't get more than this many
+        // concurrent /decision requests out of AIClient).
+        uint32 _decisionMaxInFlight = 4;
 
         // Owned for the process lifetime, deliberately not reset in
         // Shutdown(): by the time Shutdown() runs, the io_context it was
@@ -206,7 +229,7 @@ class TC_GAME_API AIWorldMgr
         float _longTermMemoryMinImportance = 0.75f;
 
         // Milestone 2.5C/2.9A: deterministic relevance scoring over
-        // _shortTermMemory/_longTermMemory, run once per CaptureAndSubmitSnapshot()
+        // _shortTermMemory/_longTermMemory, run once per CaptureAgentContext()
         // right after the AgentSnapshot is built - its Top-N result feeds
         // AgentContext::RelevantMemories.
         MemoryRetrieval _memoryRetrieval;

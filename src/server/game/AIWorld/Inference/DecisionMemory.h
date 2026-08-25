@@ -80,7 +80,7 @@ struct DecisionMemory
 };
 
 // The one place RetrievedMemory's internal shape is narrowed down to what
-// ai-server is allowed to see - called by AIWorldMgr::CaptureAndSubmitSnapshot()
+// ai-server is allowed to see - called by AIWorldMgr::CaptureAgentContext()
 // for every entry in this tick's Top-N MemoryRetrieval::Retrieve() result,
 // so AgentContext::RelevantMemories is already wire-safe by construction
 // and AIClient's JSON builder never has to make that judgment call itself.

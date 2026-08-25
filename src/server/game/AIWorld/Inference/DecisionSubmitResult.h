@@ -21,11 +21,16 @@
 #include "Agent/AgentId.h"
 #include "Define.h"
 
-// Milestone 2.9E: whether AIClient::SubmitDecisions() actually handed one
-// request off to the async transport, or skipped it. Today's single
-// global DecisionInFlight guard (unchanged in 2.9E) means a later request
-// in the same batch can legitimately come back SkippedInFlight even though
-// nothing about it individually was wrong - see AIClient::SubmitDecisions().
+// Milestone 2.9E/2.10A: whether AIClient::SubmitDecisions() actually handed
+// one request off to the async transport, or skipped it because
+// AIClient's own bounded DecisionsInFlight counter (Milestone 2.10A - see
+// AIWorld.DecisionMaxInFlight) was already at capacity. A later request in
+// the same batch can legitimately come back SkippedInFlight once the cap
+// is reached, even for a perfectly well-formed request - see AIClient::
+// SubmitDecisions(). This is a transport-level outcome only: a request the
+// caller's own scheduler declines to even attempt (see DecisionScheduler::
+// SelectionResult::SkippedCapacity) never reaches here at all - it is a
+// scheduler-level decision, not a DecisionSubmitStatus value.
 enum class DecisionSubmitStatus : uint8
 {
     Submitted,
@@ -34,8 +39,8 @@ enum class DecisionSubmitStatus : uint8
 
 // Milestone 2.9E: per-agent outcome of one AIClient::SubmitDecisions()
 // call. Deliberately carries AgentId rather than leaving correlation to
-// vector position - a future bounded/per-agent admission policy (2.10)
-// could submit any subset of a batch, not necessarily a prefix, and a
+// vector position - Milestone 2.10A's bounded/per-agent admission policy
+// can submit any subset of a batch, not necessarily a prefix, and a
 // caller must still be able to tell input A/B/C/D apart from output
 // A/C unambiguously. RequestId == 0 means "not submitted", the same
 // convention AIClient::SubmitDecision()'s own return value already uses.

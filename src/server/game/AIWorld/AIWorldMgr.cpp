@@ -101,6 +101,17 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         requestTimeoutMs = 100;
     }
 
+    // Milestone 2.10A: the hard global cap RunDecisionScheduler() admits
+    // against, also enforced independently by AIClient itself (defense in
+    // depth - see AIClient::SubmitDecision()).
+    int32 decisionMaxInFlight = sConfigMgr->GetIntDefault("AIWorld.DecisionMaxInFlight", 4);
+    if (decisionMaxInFlight < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DecisionMaxInFlight ({}) is invalid or too low, clamping to 1", decisionMaxInFlight);
+        decisionMaxInFlight = 1;
+    }
+    _decisionMaxInFlight = uint32(decisionMaxInFlight);
+
     int32 healthIntervalMs = sConfigMgr->GetIntDefault("AIWorld.HealthIntervalMs", 10000);
     if (healthIntervalMs < 1000)
     {
@@ -180,7 +191,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _foodTargetConfig.Y = sConfigMgr->GetFloatDefault("AIWorld.TestFoodTargetY", 0.0f);
     _foodTargetConfig.Z = sConfigMgr->GetFloatDefault("AIWorld.TestFoodTargetZ", 0.0f);
 
-    _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs));
+    _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight);
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
 
@@ -196,14 +207,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     // Does not require the spawn's Creature/grid to be loaded - the agent
     // exists in _registry as soon as this returns, Abstract until
-    // ProcessAgent() finds a live Creature for it.
+    // RunDecisionScheduler()/ProcessAgent() finds a live Creature for it.
+    // Milestone 2.10A: no longer remembered in a dedicated _testAgentId
+    // member - RunDecisionScheduler() iterates every AgentRegistry::
+    // GetAgents() entry, so this one just needs to end up in _registry,
+    // the same as any other agent would.
     if (testSpawnId)
     {
-        if (AgentRecord* existing = _registry.FindBySpawn(testMapId, testSpawnId))
-        {
-            _testAgentId = existing->Id;
-        }
-        else
+        if (!_registry.FindBySpawn(testMapId, testSpawnId))
         {
             AgentId newId = _persistence.CreateCreatureAgent(AgentType::Guard, testMapId, testSpawnId);
             if (!newId)
@@ -226,7 +237,6 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
                 if (_registry.Add(record))
                 {
-                    _testAgentId = newId;
                     TC_LOG_INFO("ai.world", "AI persistent agent created id={} type={} map={} spawn={}",
                         newId.Value, ToString(AgentType::Guard), testMapId, testSpawnId);
                 }
@@ -234,7 +244,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         }
     }
 
-    TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms)", aiHost, aiPort, requestTimeoutMs, _healthIntervalMs);
+    TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={})",
+        aiHost, aiPort, requestTimeoutMs, _healthIntervalMs, _decisionMaxInFlight);
 
     // Last step: only from here on can PublishWorldEvent() actually enqueue
     // anything. Ordered after everything above so a map worker can't race
@@ -262,14 +273,13 @@ void AIWorldMgr::Update(uint32 diff)
     for (ActionEngineEvent& event : _actionEngineEventBus.Drain())
         ProcessActionEngineEvent(event);
 
-    if (_testAgentId)
+    // Milestone 2.10A: was a single-_testAgentId poll gate - now runs the
+    // bounded multi-agent scheduler pass on the same cadence.
+    _snapshotTimer += diff;
+    if (_snapshotTimer >= _snapshotIntervalMs)
     {
-        _snapshotTimer += diff;
-        if (_snapshotTimer >= _snapshotIntervalMs)
-        {
-            _snapshotTimer = 0;
-            ProcessAgent(_testAgentId);
-        }
+        _snapshotTimer = 0;
+        RunDecisionScheduler();
     }
 
     _nearbyPerceptionTimer += diff;
@@ -314,6 +324,17 @@ void AIWorldMgr::Update(uint32 diff)
                 response.RequestId, response.StatusCode, response.LatencyMs);
             continue;
         }
+
+        // Milestone 2.10A: clears the scheduler's per-agent duplicate
+        // guard unconditionally for every Decision-type response - success,
+        // failure, or timeout alike, since AIClient guarantees exactly one
+        // terminal response per submitted request (RequestTimeoutMs bounds
+        // how long that can take). Must run before any of the discard/
+        // stale checks below (they all "continue") - this agent's specific
+        // in-flight request is resolved either way, whether or not the
+        // resulting decision goes on to be used for anything.
+        if (auto it = _decisionSchedule.find(response.Agent.Value); it != _decisionSchedule.end())
+            it->second.AwaitingResponse = false;
 
         if (!response.Success)
             continue; // AIClient already logged the failure/timeout
@@ -573,7 +594,11 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
 // (Abstract -> Materialized) the tick it's found loaded, dematerializes it
 // (Materialized -> Abstract) the tick it stops being found - the agent
 // itself, and its SnapshotSequence, live in _registry across either
-// transition. Never forces a grid to load.
+// transition. Never forces a grid to load. Returns the built AIRequest for
+// the caller (RunDecisionScheduler(), Milestone 2.10A) to collect into a
+// batch and submit itself - nullopt if this agent isn't actually
+// materialized right now, whatever AgentRegistry's own WorldState flag
+// claimed when it was selected as a scheduling candidate.
 //
 // BindCreature() is called unconditionally (not just out of Abstract): a
 // SpawnId identifies a TrinityCore spawn, not a runtime object, so the old
@@ -581,11 +606,11 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
 // polls without WorldState ever passing through Abstract in between.
 // BindCreature() is idempotent and only actually changes anything when the
 // runtime GUID doesn't already match.
-void AIWorldMgr::ProcessAgent(AgentId id)
+std::optional<AIRequest> AIWorldMgr::ProcessAgent(AgentId id)
 {
     AgentRecord* record = _registry.Find(id);
     if (!record)
-        return;
+        return std::nullopt;
 
     Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
     Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
@@ -594,15 +619,15 @@ void AIWorldMgr::ProcessAgent(AgentId id)
     {
         if (record->WorldState == AgentWorldState::Materialized)
             _registry.UnbindCreature(id);
-        return;
+        return std::nullopt;
     }
 
     _registry.BindCreature(id, *creature);
 
-    CaptureAndSubmitSnapshot(id, *record, *creature);
+    return CaptureAgentContext(id, *record, *creature);
 }
 
-void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creature& creature)
+AIRequest AIWorldMgr::CaptureAgentContext(AgentId id, AgentRecord& record, Creature& creature)
 {
     AgentSnapshot snapshot;
     snapshot.Agent = id;
@@ -678,28 +703,115 @@ void AIWorldMgr::CaptureAndSubmitSnapshot(AgentId id, AgentRecord& record, Creat
     AIRequest request;
     request.Decision.Context = std::move(context);
 
-    // Milestone 2.9E: routed through the batch-shaped entry point even
-    // though there is only ever one request today - a single test agent,
-    // one capture per tick, same cadence as before. Proves the
-    // vector<AIRequest> -> SubmitDecisionContexts() -> AIClient::
-    // SubmitDecisions() seam end-to-end so a later multi-agent capture
-    // pass (2.10) has a working call site to extend, not a new one to
-    // build from scratch.
-    std::vector<AIRequest> requests;
-    requests.push_back(std::move(request));
-    SubmitDecisionContexts(std::move(requests));
+    // Milestone 2.10A: building the request is this function's whole job
+    // now - RunDecisionScheduler() collects one of these per admitted
+    // agent into a single batch and submits them together through
+    // SubmitDecisionContexts().
+    return request;
 }
 
-// Milestone 2.9E: thin batch boundary between AIWorldMgr's own capture
-// logic and AIClient::SubmitDecisions() - today always called with exactly
-// one request (see CaptureAndSubmitSnapshot()), since AIWorldMgr has no
-// multi-agent scheduler yet. Pure passthrough: no admission policy, no
-// wire format, no ActionExecutor, and requests is already the same
-// Creature*/Player*/Map*/Unit*-free value transport AIRequest always was -
-// this never resolves a TrinityCore entity, just moves DTOs along.
-void AIWorldMgr::SubmitDecisionContexts(std::vector<AIRequest> requests)
+// Milestone 2.9E/2.10A: thin batch boundary between AIWorldMgr's own
+// capture logic and AIClient::SubmitDecisions() - pure passthrough, no
+// admission policy of its own (that's RunDecisionScheduler(), on the
+// caller side), no wire format, no ActionExecutor. requests is already the
+// same Creature*/Player*/Map*/Unit*-free value transport AIRequest always
+// was - this never resolves a TrinityCore entity, just moves DTOs along.
+// Returns AIClient's own per-agent results so the caller can update its
+// scheduling state - see RunDecisionScheduler().
+std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector<AIRequest> requests)
 {
-    _aiClient->SubmitDecisions(std::move(requests));
+    return _aiClient->SubmitDecisions(std::move(requests));
+}
+
+// Milestone 2.10A: world-thread-only bounded admission over every
+// registered agent - replaces the old single-_testAgentId cadence now that
+// Needs/Goal/Action (UpdateNeeds()) and perception (ScanNearbyEntities())
+// already iterate the full registry themselves; this was the one part of
+// the pipeline still gated behind a single hardcoded agent. Never touches
+// ActionExecutor and never changes FLEE/GET_FOOD's existing deterministic
+// execution ownership (see UpdateNeeds()) - this only decides which
+// agents' AgentContext gets submitted for an (still audit-only, see
+// ValidateDecisionIntent()) async decision this pass. No unbounded queue:
+// an agent skipped for capacity is simply left due for the next pass,
+// never buffered anywhere.
+void AIWorldMgr::RunDecisionScheduler()
+{
+    uint64 nowMs = CurrentTimeMs();
+
+    // Cheap pre-filter: AgentRegistry's own WorldState flag, not a fresh
+    // live-Creature resolution (ProcessAgent() below does that for real,
+    // for whichever agents actually get admitted) - same trust level
+    // ValidateDecisionIntent() already extends it elsewhere.
+    std::vector<AgentId> candidates;
+    for (AgentId id : _registry.GetAgents())
+    {
+        AgentRecord const* record = _registry.Find(id);
+        if (record && record->WorldState == AgentWorldState::Materialized)
+            candidates.push_back(id);
+    }
+
+    uint32 inFlight = 0;
+    for (auto const& entry : _decisionSchedule)
+        if (entry.second.AwaitingResponse)
+            ++inFlight;
+
+    uint32 available = _decisionMaxInFlight > inFlight ? _decisionMaxInFlight - inFlight : 0;
+
+    DecisionScheduler::SelectionResult selection = _decisionScheduler.SelectDue(_decisionSchedule, candidates, nowMs, available);
+
+    // Milestone 2.9D-style observability: a capacity skip is visible
+    // through the same ai.world.decision.submit series SubmitDecision()
+    // itself already uses for submitted/skipped_in_flight - these agents
+    // never even reach AIClient, so nothing else would ever record them.
+    // No AgentId in the tag (low-cardinality metric tags only, per 2.9D) -
+    // which agent got skipped is what the TC_LOG_DEBUG batch summary below
+    // is for.
+    for (std::size_t i = 0; i < selection.SkippedCapacity.size(); ++i)
+        TC_METRIC_VALUE("ai.world.decision.submit", uint64(1), TC_METRIC_TAG("result", "skipped_capacity"));
+
+    std::vector<AIRequest> requests;
+    requests.reserve(selection.Admitted.size());
+
+    for (AgentId id : selection.Admitted)
+    {
+        std::optional<AIRequest> request = ProcessAgent(id);
+        if (!request)
+        {
+            // AgentRegistry's WorldState flag was already stale by the
+            // time ProcessAgent() actually tried to resolve a live
+            // Creature for it - retry at the normal cadence rather than
+            // busy-looping on it every pass.
+            _decisionSchedule[id.Value].NextDecisionAtMs = nowMs + _snapshotIntervalMs;
+            continue;
+        }
+
+        requests.push_back(std::move(*request));
+    }
+
+    std::vector<DecisionSubmitResult> results = SubmitDecisionContexts(std::move(requests));
+
+    uint32 submitted = 0;
+    for (DecisionSubmitResult const& result : results)
+    {
+        // SkippedInFlight shouldn't actually happen here in today's
+        // single-scheduler-caller world - this pass's own inFlight count
+        // is computed from the same AwaitingResponse bookkeeping that
+        // gates admission, so it should already agree with AIClient's own
+        // counter. Handled anyway (AIClient's admission is authoritative,
+        // never just trusted from this pass's own estimate): leaves
+        // NextDecisionAtMs untouched, same as SkippedCapacity above, so
+        // this agent is retried next pass rather than losing its turn.
+        if (result.Status != DecisionSubmitStatus::Submitted)
+            continue;
+
+        DecisionScheduleState& state = _decisionSchedule[result.Agent.Value];
+        state.NextDecisionAtMs = nowMs + _snapshotIntervalMs;
+        state.AwaitingResponse = true;
+        ++submitted;
+    }
+
+    TC_LOG_DEBUG("ai.world", "AI decision batch eligible={} admitted={} capacity_skipped={} in_flight={}",
+        selection.Admitted.size() + selection.SkippedCapacity.size(), submitted, selection.SkippedCapacity.size(), inFlight + submitted);
 }
 
 // Safe to call from any thread - see the declaration in AIWorldMgr.h and
@@ -937,7 +1049,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         context.Alive = creature->IsAlive();
         context.InCombat = creature->IsInCombat();
 
-        // Same deterministic retrieval pipeline CaptureAndSubmitSnapshot()
+        // Same deterministic retrieval pipeline CaptureAgentContext()
         // already runs at snapshot cadence - reused here at Needs cadence
         // to turn recent dangerous memories into a danger signal that
         // outlives combat itself (2.6B2). Retrieval::Relevance is not used

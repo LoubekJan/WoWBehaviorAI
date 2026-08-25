@@ -3447,6 +3447,18 @@ AIWorld.AIPort = 8000
 AIWorld.RequestTimeoutMs = 1000
 
 #
+#    AIWorld.DecisionMaxInFlight
+#        Description: Hard cap on how many /decision requests may be simultaneously in
+#                     flight across every AIWorld agent. AIWorldMgr's decision scheduler
+#                     admits agents up to this bound each pass; agents beyond it stay due
+#                     rather than being queued, and are retried on a later pass. Also
+#                     enforced independently inside AIClient itself.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     4
+
+AIWorld.DecisionMaxInFlight = 4
+
+#
 #    AIWorld.HealthIntervalMs
 #        Description: Time (in milliseconds) between GET /health requests to ai-server.
 #        Important:   Values below 1000 are clamped to 1000.
