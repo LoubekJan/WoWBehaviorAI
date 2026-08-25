@@ -62,6 +62,18 @@ namespace
             return point && point->GetId() == ActionExecutor::MovePointId;
         }, MOTION_SLOT_ACTIVE) != nullptr;
     }
+
+    // Milestone 2.11C: the single place that knows GoalType::GoToWork/
+    // GoHome are Action-layer identity tags RoutineSystem produces, never
+    // something GoalSystem produces or AgentRecord::ActiveGoalState ever
+    // holds - see GoalType.h. Anything that needs to branch on "does this
+    // ActionRequest/ActiveAction::SourceGoal belong to ActiveGoalState or
+    // RoutineGoalState" goes through here rather than re-deriving the
+    // distinction inline.
+    bool IsRoutineSourceGoal(GoalType type)
+    {
+        return type == GoalType::GoToWork || type == GoalType::GoHome;
+    }
 }
 
 AIWorldMgr* AIWorldMgr::instance()
@@ -1589,6 +1601,129 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 record->RoutineGoalState ? ToString(record->RoutineGoalState->Type) : "NONE");
         }
 
+        // Milestone 2.11C: single-owner arbitration - Emergency ActiveGoal
+        // > Normal ActiveGoal > RoutineGoal (RoutineSystem::DeriveGoal()
+        // already handles Emergency by returning nullopt; this handles
+        // Normal too, since GET_FOOD is allowed to coexist with a non-null
+        // RoutineGoalState - see its own P3 note). Any ActiveGoalState at
+        // all outranks a routine-owned MOVE_TO, so it must yield the
+        // instant one exists - not just on this tick's own Activated/
+        // Interrupted edge: a fresh FLEE_DANGER Activated from no prior
+        // ActiveGoalState (the one case the FleeDanger-specific stop above
+        // does not cover) can still be racing an in-flight routine MOVE_TO.
+        // Scoped to IsRoutineSourceGoal() only - a GET_FOOD-owned MOVE_TO
+        // being interrupted by FLEE_DANGER is already handled above and is
+        // untouched here.
+        if (record->ActiveGoalState && record->ActiveActionState && IsRoutineSourceGoal(record->ActiveActionState->SourceGoal))
+        {
+            _actionExecutor.StopMoveTo(*creature);
+
+            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=ROUTINE_PREEMPTED_BY_GOAL sourceGoal={}",
+                record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal));
+
+            record->ActiveActionState.reset();
+        }
+
+        // Milestone 2.11C: the routine's own MOVE_TO - only proposed while
+        // no gameplay ActiveGoal exists at all (the preemption check above
+        // already cleared a routine-owned action the moment one appeared,
+        // so this never races GET_FOOD/FLEE_DANGER for the action slot).
+        // GET_FOOD's own MOVE_TO/FLEE_DANGER's own Flee below never check
+        // RoutineGoalState either way, so this has no effect on them.
+        if (!record->ActiveGoalState && record->RoutineGoalState)
+        {
+            bool alreadyExecuting = record->ActiveActionState
+                && record->ActiveActionState->Type == ActionType::MoveTo
+                && record->ActiveActionState->SourceGoal == record->RoutineGoalState->Type;
+
+            if (!alreadyExecuting)
+            {
+                // The routine target changed (GO_TO_WORK <-> GO_HOME) while
+                // the previous one was still in flight - stop it first, in
+                // the same tick, the same "stop before issuing the
+                // replacement" pattern FLEE-interrupting-GET_FOOD already
+                // uses above, so ValidateMoveTo()'s HasActiveMovement check
+                // below sees an idle actor.
+                if (record->ActiveActionState && record->ActiveActionState->Type == ActionType::MoveTo
+                    && IsRoutineSourceGoal(record->ActiveActionState->SourceGoal))
+                {
+                    _actionExecutor.StopMoveTo(*creature);
+
+                    TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=ROUTINE_TARGET_CHANGED sourceGoal={}",
+                        record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal));
+
+                    record->ActiveActionState.reset();
+                }
+
+                ActionRequest moveRequest;
+                moveRequest.Actor = id;
+                moveRequest.Type = ActionType::MoveTo;
+                moveRequest.SourceGoal = record->RoutineGoalState->Type;
+
+                // No StartedAtMs of its own to reuse (RoutineGoal is
+                // stateless, recomputed fresh every tick - see
+                // RoutineGoal.h) - nowMs, the moment this specific attempt
+                // is actually issued, is this attempt's identity instead.
+                moveRequest.GoalStartedAtMs = nowMs;
+
+                ActionPosition destination;
+                destination.MapId = record->RoutineGoalState->Target.MapId;
+                destination.X = record->RoutineGoalState->Target.X;
+                destination.Y = record->RoutineGoalState->Target.Y;
+                destination.Z = record->RoutineGoalState->Target.Z;
+                moveRequest.Destination = destination;
+
+                TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
+                    record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
+                    destination.X, destination.Y, destination.Z);
+
+                ActionValidationContext moveContext;
+                moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
+                moveContext.Alive = context.Alive;
+
+                // No AgentRecord::ActiveGoalState to read here (that is
+                // exactly the branch condition above) - RoutineGoalState's
+                // own Type/this attempt's nowMs is what Validate() checks
+                // the request's honesty against instead. See
+                // ActionValidationContext.h.
+                moveContext.ActiveGoalType = record->RoutineGoalState->Type;
+                moveContext.ActiveGoalStartedAtMs = moveRequest.GoalStartedAtMs;
+                moveContext.MapId = creature->GetMapId();
+                moveContext.X = creature->GetPositionX();
+                moveContext.Y = creature->GetPositionY();
+                moveContext.Z = creature->GetPositionZ();
+                moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
+
+                ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
+
+                TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+                    record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
+                    ToString(moveValidation.Reason));
+
+                if (moveValidation.Allowed)
+                {
+                    ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+
+                    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+                        record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+
+                    // Same rule 2.8F already established for GET_FOOD: only
+                    // after the executor actually returned Started, never
+                    // before validation and never on a Failed result.
+                    if (moveResult.Status == ActionExecutionStatus::Started)
+                    {
+                        ActiveAction action;
+                        action.Type = moveRequest.Type;
+                        action.SourceGoal = moveRequest.SourceGoal;
+                        action.GoalStartedAtMs = moveRequest.GoalStartedAtMs;
+                        action.StartedAtMs = nowMs;
+                        action.Destination = moveRequest.Destination;
+                        record->ActiveActionState = action;
+                    }
+                }
+            }
+        }
+
         // Milestone 2.8G P2 fix: consume any pending Eat continuation only
         // now, after this tick's own goal selection above has already run
         // - not from inside HandleActionCompletion() at MOVE_TO arrival
@@ -1781,9 +1916,25 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
         return;
     }
 
-    if (!record->ActiveGoalState
-        || record->ActiveGoalState->Type != record->ActiveActionState->SourceGoal
-        || record->ActiveGoalState->StartedAtMs != record->ActiveActionState->GoalStartedAtMs)
+    // Milestone 2.11C: ActiveActionState::SourceGoal identifies which of
+    // the two independent owners this action belongs to - AgentRecord::
+    // ActiveGoalState for every GoalType except GoToWork/GoHome, ::
+    // RoutineGoalState for those (see IsRoutineSourceGoal()). RoutineGoal
+    // has no StartedAtMs of its own to cross-check (it is stateless,
+    // recomputed fresh every tick - see RoutineGoal.h): Type still matching
+    // is the routine-side equivalent of the GoalType+StartedAtMs match
+    // below, sufficient here because AIWorldMgr::UpdateNeeds() always stops
+    // and clears a routine-owned ActiveActionState (target change,
+    // preemption by a gameplay goal, dematerialization, death) before a
+    // different attempt of the same Type could ever start - never lets one
+    // silently get superseded out from under this check the way it could
+    // not otherwise notice.
+    bool ownedByCurrentAttempt = IsRoutineSourceGoal(record->ActiveActionState->SourceGoal)
+        ? (record->RoutineGoalState && record->RoutineGoalState->Type == record->ActiveActionState->SourceGoal)
+        : (record->ActiveGoalState && record->ActiveGoalState->Type == record->ActiveActionState->SourceGoal
+            && record->ActiveGoalState->StartedAtMs == record->ActiveActionState->GoalStartedAtMs);
+
+    if (!ownedByCurrentAttempt)
     {
         TC_LOG_DEBUG("ai.world", "AI action engine event agent={} discarded: goal attempt has already ended", record->Id.Value);
         return;

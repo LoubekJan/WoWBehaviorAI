@@ -35,6 +35,12 @@ struct ActionValidationContext
     bool Materialized = false;
     bool Alive = false;
 
+    // Milestone 2.11C: despite the name, not always literally
+    // AgentRecord::ActiveGoalState - for a routine-sourced MOVE_TO
+    // (GoalType::GoToWork/GoHome) AIWorldMgr sets this from
+    // RoutineGoalState instead, since Validate()'s honesty check only
+    // needs "the caller's claimed current goal identity", not specifically
+    // a Need-driven one. See ActionRequest::SourceGoal.
     std::optional<GoalType> ActiveGoalType;
     uint64 ActiveGoalStartedAtMs = 0;
 

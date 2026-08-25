@@ -35,10 +35,11 @@
 // its HomeLocation/WorkLocation, what does its routine say right now.
 // AIWorldMgr calls both this and GoalSystem every Needs-cadence tick and
 // stores each result separately (AgentRecord::ActiveGoalState vs
-// ::RoutineGoalState) - a later milestone is what reconciles a
-// RoutineGoalState into an actual MOVE_TO ActionRequest; 2.11B itself
-// produces the value and nothing else, no Action API, no world mutation.
-// Pure value transform: no AgentId, Creature*, Map*, or DB.
+// ::RoutineGoalState). This class only ever produces the value - it never
+// decides whether it is safe to act on (that arbitration, and the actual
+// MOVE_TO ActionRequest, is AIWorldMgr::UpdateNeeds()'s job, see its own
+// 2.11C comment) and never touches Action API itself. Pure value
+// transform: no AgentId, Creature*, Map*, or DB.
 class TC_GAME_API RoutineSystem
 {
     public:

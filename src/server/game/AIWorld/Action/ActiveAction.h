@@ -43,10 +43,13 @@ struct ActiveAction
 {
     ActionType Type = ActionType::MoveTo;
 
-    // What ActiveGoal attempt this action belongs to - the same identity
+    // What goal attempt this action belongs to - the same identity
     // (GoalType + StartedAtMs) ActionRequest already carries, kept here so
     // a later arrival/completion event can be checked against the actual
-    // current ActiveGoal before being trusted.
+    // current owner before being trusted. Usually AgentRecord::
+    // ActiveGoalState; for GoalType::GoToWork/GoHome (2.11C) it is
+    // AgentRecord::RoutineGoalState instead - see AIWorldMgr::
+    // ProcessActionEngineEvent() for where that distinction is resolved.
     GoalType SourceGoal = GoalType::GetFood;
     uint64 GoalStartedAtMs = 0;
 

@@ -43,7 +43,7 @@ std::optional<RoutineGoal> RoutineSystem::DeriveGoal(std::optional<ActiveGoal> c
     AgentLocation const& source = isWorkHours ? *work : *home;
 
     RoutineGoal goal;
-    goal.Type = isWorkHours ? RoutineGoalType::GoToWork : RoutineGoalType::GoHome;
+    goal.Type = isWorkHours ? GoalType::GoToWork : GoalType::GoHome;
     goal.Target.MapId = source.MapId;
     goal.Target.X = source.X;
     goal.Target.Y = source.Y;

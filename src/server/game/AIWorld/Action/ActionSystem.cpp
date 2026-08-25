@@ -29,6 +29,17 @@ namespace
     // could plausibly already be reacting to", not a deliberate coupling
     // between the two.
     constexpr float MaxMoveToRangeYards = 40.0f;
+
+    // Milestone 2.11C: GoToWork/GoHome are a wider bound than the reactive
+    // default above - a commute between a persisted HomeLocation/
+    // WorkLocation is expected to legitimately be much farther than
+    // "somewhere this agent could plausibly already be reacting to" (Pa
+    // Maclure's own is already ~58 yards). Still bounded, not unlimited:
+    // the destination is curated world data set at the persistence layer
+    // (see AgentRecord.h), not an arbitrary point an AI proposal could
+    // name, but ValidateMoveTo() must not have to trust that distinction
+    // implicitly - this constant is the explicit bound for it either way.
+    constexpr float MaxRoutineMoveToRangeYards = 300.0f;
 }
 
 ActionValidationResult ActionSystem::Validate(ActionRequest const& request, ActionValidationContext const& context) const
@@ -105,13 +116,18 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     // map - bounded to a fixed range from the actor's own current
     // position, checked after the finite check so a non-finite coordinate
     // is reported as that, not folded into an equally-failing distance
-    // comparison.
+    // comparison. GoToWork/GoHome get the wider routine-commute bound
+    // (see MaxRoutineMoveToRangeYards above) - every other GoalType keeps
+    // the original reactive-goal bound unchanged.
     float dx = request.Destination->X - context.X;
     float dy = request.Destination->Y - context.Y;
     float dz = request.Destination->Z - context.Z;
     float distanceSq = dx * dx + dy * dy + dz * dz;
 
-    if (distanceSq > MaxMoveToRangeYards * MaxMoveToRangeYards)
+    bool isRoutineMove = request.SourceGoal == GoalType::GoToWork || request.SourceGoal == GoalType::GoHome;
+    float maxRangeYards = isRoutineMove ? MaxRoutineMoveToRangeYards : MaxMoveToRangeYards;
+
+    if (distanceSq > maxRangeYards * maxRangeYards)
         return { false, ActionRejectReason::DestinationTooFar };
 
     // MoveTo may only start from an idle actor. Without this, a new

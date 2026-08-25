@@ -19,17 +19,21 @@
 #define AIWORLD_ROUTINEGOAL_H
 
 #include "GoalTarget.h"
-#include "RoutineGoalType.h"
+#include "GoalType.h"
 
-// Milestone 2.11B: RoutineSystem's only output - which of HomeLocation/
-// WorkLocation the agent's routine currently points at, already resolved
-// to a GoalTarget (reusing the same DTO FoodTargetResolver produces, for
-// the same reason: this is "where", not an ActionRequest). A later
-// milestone translates this into a MOVE_TO via ActionSystem; 2.11B itself
-// never touches Action API. Pure value: no AgentId, Creature*, Map*, or DB.
+// Milestone 2.11B/2.11C: RoutineSystem's only output - which of
+// HomeLocation/WorkLocation the agent's routine currently points at,
+// already resolved to a GoalTarget (reusing the same DTO FoodTargetResolver
+// produces, for the same reason: this is "where", not an ActionRequest).
+// Type is only ever GoalType::GoToWork/GoHome - reusing GoalType (rather
+// than a separate enum) is what lets AIWorldMgr pass this Type straight
+// through as ActionRequest::SourceGoal/ActiveAction::SourceGoal, so a
+// routine-sourced MOVE_TO goes through the exact same ActionSystem::
+// Validate()/ActionExecutor pipeline GET_FOOD already does - see
+// GoalType.h. Pure value: no AgentId, Creature*, Map*, or DB.
 struct RoutineGoal
 {
-    RoutineGoalType Type = RoutineGoalType::GoHome;
+    GoalType Type = GoalType::GoHome;
     GoalTarget Target;
 };
 

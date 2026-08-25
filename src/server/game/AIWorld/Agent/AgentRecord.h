@@ -77,15 +77,19 @@ struct AgentRecord
     // persisted across restart yet.
     std::optional<ActiveGoal> ActiveGoalState;
 
-    // Milestone 2.11B: the agent's current routine destination (GO_TO_WORK/
-    // GO_HOME), or empty if it has neither HomeLocation/WorkLocation set or
-    // ActiveGoalState is currently Emergency (see RoutineSystem::
-    // DeriveGoal()). Unlike ActiveGoalState this has no hysteresis of its
-    // own - it is a pure function of current time, recomputed fresh every
-    // Needs-cadence tick, not persisted across restart. Stored here (rather
-    // than only ever a local in UpdateNeeds()) so a later milestone can
-    // compare it tick-over-tick before reconciling it into a MOVE_TO
-    // ActionRequest; 2.11B itself never acts on it.
+    // Milestone 2.11B/2.11C: the agent's current routine destination
+    // (GoalType::GoToWork/GoHome), or empty if it has neither HomeLocation/
+    // WorkLocation set or ActiveGoalState is currently Emergency (see
+    // RoutineSystem::DeriveGoal()). Unlike ActiveGoalState this has no
+    // hysteresis of its own - it is a pure function of current time,
+    // recomputed fresh every Needs-cadence tick, not persisted across
+    // restart. Stored here (rather than only ever a local in UpdateNeeds())
+    // so it can be compared tick-over-tick before being reconciled into a
+    // MOVE_TO ActionRequest - see AIWorldMgr::UpdateNeeds()'s 2.11C
+    // arbitration comment for when that reconciliation is (and is not)
+    // allowed to happen. This field only ever holds what routine currently
+    // wants; whether that is actually safe to act on right now is decided
+    // there, never here.
     std::optional<RoutineGoal> RoutineGoalState;
 
     // Milestone 2.8F: the Action currently actually running in TrinityCore

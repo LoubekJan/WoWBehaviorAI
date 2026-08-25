@@ -40,13 +40,14 @@ struct ActionRequest
     AgentId Actor;
     ActionType Type = ActionType::Flee;
 
-    // What ActiveGoal this request claims to come from - Validate() checks
-    // this against the actor's actual current goal AND the specific goal
+    // What goal this request claims to come from - Validate() checks this
+    // against the actor's actual current goal AND the specific goal
     // attempt (GoalMismatch) rather than trusting the caller. Not yet
     // exploitable in 2.8B, where the request is built and validated
     // synchronously in the same world-thread pass with no queue, but this
     // is exactly the identity a future queued/async ActionRequest would
-    // need.
+    // need. Usually AgentRecord::ActiveGoalState; for GoalType::GoToWork/
+    // GoHome (2.11C) it is AgentRecord::RoutineGoalState instead.
     GoalType SourceGoal = GoalType::FleeDanger;
     uint64 GoalStartedAtMs = 0;
 

@@ -20,14 +20,27 @@
 
 #include "Define.h"
 
-// Milestone 2.7A only generates candidates for these two - the full
+// Milestone 2.7A only generates candidates for the first two - the full
 // SURVIVE/MAKE_MONEY/PROTECT_HOME/HELP_FAMILY/WORK/REST/INVESTIGATE/
 // REQUEST_HELP catalog (per the roadmap's 2.7 Goal System) comes later,
 // once GET_FOOD/FLEE_DANGER have cleared their own runtime gate.
+//
+// GoToWork/GoHome (2.11C) are a deliberate exception to that: they are
+// never produced by GoalSystem::GenerateCandidates()/UpdateActiveGoal(),
+// never appear in AgentRecord::ActiveGoalState, and have no Need behind
+// them (see RoutineSystem.h for why routine is its own, separate, non-
+// Need-driven decision from GoalSystem's). They exist in this enum purely
+// so RoutineGoal::Type can double as ActionRequest::SourceGoal/
+// ActiveAction::SourceGoal directly - reusing the exact same "AI proposes,
+// ActionSystem validates, ActionExecutor executes" MOVE_TO pipeline
+// GET_FOOD already goes through, rather than inventing a second, parallel
+// action-identity type just for routine.
 enum class GoalType : uint8
 {
     GetFood,
-    FleeDanger
+    FleeDanger,
+    GoToWork,
+    GoHome
 };
 
 inline char const* ToString(GoalType type)
@@ -36,6 +49,8 @@ inline char const* ToString(GoalType type)
     {
         case GoalType::GetFood:    return "GET_FOOD";
         case GoalType::FleeDanger: return "FLEE_DANGER";
+        case GoalType::GoToWork:   return "GO_TO_WORK";
+        case GoalType::GoHome:     return "GO_HOME";
         default:                   return "UNKNOWN";
     }
 }

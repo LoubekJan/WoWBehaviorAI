@@ -55,7 +55,9 @@ class TC_GAME_API ActionSystem
         // common checks above already proved there is one and the request
         // honestly names it). Checks the destination exists, is on the
         // actor's own map, has finite coordinates, and is within a bounded
-        // range - see ActionSystem.cpp for the exact distance.
+        // range - see ActionSystem.cpp for the exact distances (GoToWork/
+        // GoHome get a wider routine-commute bound than every other
+        // GoalType).
         ActionValidationResult ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const;
 
         // Milestone 2.8G/2.8G P2 fix: Eat-specific, run only once the
