@@ -94,7 +94,14 @@ bool AgentGroupLifecycleSystem::JoinGroup(GroupId groupId, AgentId memberId, uin
         return false;
     }
 
-    persistence.AddGroupMember(groupId, memberId, joinedAtMs);
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): only mutate
+    // group->Members once persistence confirms the DB write actually
+    // landed - see this class's own header comment.
+    if (!persistence.AddGroupMember(groupId, memberId, joinedAtMs))
+    {
+        // AgentGroupPersistence::AddGroupMember() already logged why.
+        return false;
+    }
 
     AgentGroupMembership membership;
     membership.Member = memberId;
@@ -126,7 +133,16 @@ bool AgentGroupLifecycleSystem::LeaveGroup(GroupId groupId, AgentId memberId,
         return false;
     }
 
-    persistence.RemoveGroupMember(groupId, memberId);
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): only erase the
+    // runtime membership once persistence confirms the DB agrees - if it
+    // doesn't, the runtime membership is left exactly as it was, rather
+    // than diverging from what is actually stored.
+    if (!persistence.RemoveGroupMember(groupId, memberId))
+    {
+        // AgentGroupPersistence::RemoveGroupMember() already logged why.
+        return false;
+    }
+
     group->Members.erase(it);
 
     TC_LOG_INFO("ai.world", "AI agent group leave group={} member={}", groupId.Value, memberId.Value);
@@ -145,13 +161,19 @@ bool AgentGroupLifecycleSystem::DissolveGroup(GroupId groupId,
 
     uint32 formerMemberCount = uint32(group->Members.size());
 
-    // Persistence first, then the runtime registry - same ordering
-    // CreateGroup()/JoinGroup()/LeaveGroup() all use, so groupRegistry
-    // never disagrees with what is actually in the DB for longer than it
-    // takes this one call to run. Never touches AgentRegistry/AgentRecord/
-    // Creature for any former member - see this class's own header
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): only erase from
+    // groupRegistry once persistence confirms the DB rows are actually
+    // gone - if it can't, groupRegistry is left exactly as it was, rather
+    // than the runtime believing a group is dissolved that a restart would
+    // just bring back. Never touches AgentRegistry/AgentRecord/Creature
+    // for any former member either way - see this class's own header
     // comment.
-    persistence.DeleteGroup(groupId);
+    if (!persistence.DeleteGroup(groupId))
+    {
+        // AgentGroupPersistence::DeleteGroup() already logged why.
+        return false;
+    }
+
     groupRegistry.Remove(groupId);
 
     TC_LOG_INFO("ai.world", "AI agent group dissolved group={} formerMemberCount={}", groupId.Value, formerMemberCount);

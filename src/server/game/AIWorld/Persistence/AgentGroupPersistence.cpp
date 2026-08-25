@@ -21,17 +21,32 @@
 #include "DatabaseEnv.h"
 #include "Log.h"
 
+void AgentGroupPersistence::LoadGroupIdSequence()
+{
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE);
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: ai_agent_group_id_sequence has no row (expected exactly one, id=1) - "
+            "did the 2.12E1 P2 migration run? Leaving the GroupId allocator at its default of 1, which risks colliding with an existing group id.");
+        return;
+    }
+
+    Field* fields = result->Fetch();
+    _nextGroupId = fields[0].GetUInt64();
+
+    TC_LOG_INFO("ai.world", "AI persistence loaded group id sequence, next group id={}", _nextGroupId);
+}
+
 uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
 {
     uint32 loaded = 0;
-    uint64 maxGroupIdSeen = 0;
 
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUPS);
     PreparedQueryResult result = CharacterDatabase.Query(stmt);
     if (!result)
     {
         TC_LOG_INFO("ai.world", "AI persistence loaded 0 agent groups");
-        _nextGroupId = maxGroupIdSeen + 1;
         return 0;
     }
 
@@ -41,12 +56,6 @@ uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
 
         AgentGroupRecord record;
         record.Id = GroupId{ fields[0].GetUInt64() };
-
-        // Milestone 2.12E1: tracked before any validation/skip below can
-        // "continue" past it - see this method's own header comment for
-        // why even a rejected row's id must still be reserved.
-        if (record.Id.Value > maxGroupIdSeen)
-            maxGroupIdSeen = record.Id.Value;
 
         // Hardening (STATIC review P3 fix): kind used to be a blind cast -
         // AgentGroupKind(fields[1].GetUInt8()) would silently accept any
@@ -89,9 +98,7 @@ uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
         ++loaded;
     } while (result->NextRow());
 
-    _nextGroupId = maxGroupIdSeen + 1;
-
-    TC_LOG_INFO("ai.world", "AI persistence loaded {} agent groups, next group id={}", loaded, _nextGroupId);
+    TC_LOG_INFO("ai.world", "AI persistence loaded {} agent groups", loaded);
     return loaded;
 }
 
@@ -182,10 +189,17 @@ void AgentGroupPersistence::SaveGroupState(GroupId id, AgentGroupRecord& record)
 
 GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources)
 {
-    // Mint-then-advance as a single step, unconditionally - see this
-    // method's own header comment for why a failed create below is
-    // allowed to simply burn this id rather than retry it.
-    GroupId newId{ _nextGroupId++ };
+    GroupId newId{ _nextGroupId };
+
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): persist the
+    // reservation BEFORE the group row itself is ever inserted - see this
+    // method's own header comment for why that ordering, not the reverse,
+    // is what actually prevents the same id from ever being computed
+    // twice across a restart.
+    CharacterDatabasePreparedStatement* seqStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE);
+    seqStmt->setUInt64(0, _nextGroupId + 1);
+    CharacterDatabase.DirectExecute(seqStmt);
+    ++_nextGroupId;
 
     CharacterDatabasePreparedStatement* insertStmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT_GROUP);
     insertStmt->setUInt64(0, newId.Value);
@@ -200,7 +214,9 @@ GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territory
     // DirectExecute() doesn't report success/failure, so the only way to
     // know whether the row actually landed is to read it back - the same
     // discipline AgentPersistence::CreateCreatureAgent() already holds
-    // AgentId to via its own (map_id, spawn_id) binding.
+    // AgentId to via its own (map_id, spawn_id) binding. The reservation
+    // above already advanced _nextGroupId regardless of what happens here
+    // - newId is never handed out again either way.
     CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_BY_ID);
     selectStmt->setUInt64(0, newId.Value);
     PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
@@ -213,32 +229,92 @@ GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territory
     return newId;
 }
 
-void AgentGroupPersistence::AddGroupMember(GroupId groupId, AgentId memberId, uint64 joinedAtMs)
+bool AgentGroupPersistence::AddGroupMember(GroupId groupId, AgentId memberId, uint64 joinedAtMs)
 {
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT_GROUP_MEMBER);
     stmt->setUInt64(0, groupId.Value);
     stmt->setUInt64(1, memberId.Value);
     stmt->setUInt64(2, joinedAtMs);
     CharacterDatabase.DirectExecute(stmt);
+
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): confirm the row
+    // actually exists before the caller is allowed to trust it - see this
+    // method's own header comment.
+    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBER);
+    selectStmt->setUInt64(0, groupId.Value);
+    selectStmt->setUInt64(1, memberId.Value);
+    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
+    if (!result)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: INSERT for group_id={} member_agent_id={} did not produce a readable row, membership was not created",
+            groupId.Value, memberId.Value);
+        return false;
+    }
+
+    return true;
 }
 
-void AgentGroupPersistence::RemoveGroupMember(GroupId groupId, AgentId memberId)
+bool AgentGroupPersistence::RemoveGroupMember(GroupId groupId, AgentId memberId)
 {
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBER);
     stmt->setUInt64(0, groupId.Value);
     stmt->setUInt64(1, memberId.Value);
     CharacterDatabase.DirectExecute(stmt);
+
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): confirm the row is
+    // actually gone before the caller is allowed to trust it - see this
+    // method's own header comment. A row that is still readable here means
+    // the DELETE did not (yet) take effect - reported as failure, not
+    // silently treated as "already removed".
+    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBER);
+    selectStmt->setUInt64(0, groupId.Value);
+    selectStmt->setUInt64(1, memberId.Value);
+    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
+    if (result)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: DELETE for group_id={} member_agent_id={} did not remove the row, membership still exists in the DB",
+            groupId.Value, memberId.Value);
+        return false;
+    }
+
+    return true;
 }
 
-void AgentGroupPersistence::DeleteGroup(GroupId groupId)
+bool AgentGroupPersistence::DeleteGroup(GroupId groupId)
 {
-    // Membership rows first, group row second - see this method's own
-    // header comment for why that order matters.
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): both DELETEs as
+    // one CharacterDatabaseTransaction, committed synchronously and
+    // atomically via DirectCommitTransaction() - an earlier version issued
+    // these as two independent DirectExecute() calls, which could leave an
+    // orphaned membership row if interrupted between the two. Membership
+    // rows first, group row second within the transaction - not that it
+    // matters for atomicity, but it keeps the statement order matching the
+    // dependency order a reader would expect.
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
     CharacterDatabasePreparedStatement* membersStmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP);
     membersStmt->setUInt64(0, groupId.Value);
-    CharacterDatabase.DirectExecute(membersStmt);
+    trans->Append(membersStmt);
 
     CharacterDatabasePreparedStatement* groupStmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP);
     groupStmt->setUInt64(0, groupId.Value);
-    CharacterDatabase.DirectExecute(groupStmt);
+    trans->Append(groupStmt);
+
+    CharacterDatabase.DirectCommitTransaction(trans);
+
+    // Confirm the group row is actually gone before the caller is allowed
+    // to trust it - see this method's own header comment. Membership rows
+    // are not checked separately: they were deleted in the same atomic
+    // transaction as the group row, so this one confirmation covers both.
+    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_BY_ID);
+    selectStmt->setUInt64(0, groupId.Value);
+    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
+    if (result)
+    {
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: DELETE transaction for group id={} did not remove the row, group still exists in the DB",
+            groupId.Value);
+        return false;
+    }
+
+    return true;
 }

@@ -142,18 +142,20 @@ class TC_GAME_API AIWorldMgr
         void RunDecisionScheduler();
         bool UpdateSimulationTier(AgentId id, SimulationTier tier);
 
-        // Milestone 2.12E1: manual proof that AgentGroupLifecycleSystem
-        // never touches Creature/WorldState - gated behind
-        // AIWorld.TestGroupLifecycle (default off), called once from
-        // Initialize() after _registry/_groupRegistry are both loaded.
-        // Creates three ordinary test AgentRecords, joins them into a
-        // fresh group, has one leave, then dissolves the group - every
-        // step logged so the acceptance-criteria shape (group={1,2,3} ->
-        // {1,2} -> gone, all three AgentRecords untouched throughout) is
-        // visible in ai.world logs. Not itself part of the lifecycle API -
-        // a real caller (a future admin/test command, or 2.12E2/2.12E3
-        // policy code) talks to _groupLifecycleSystem directly.
-        void RunGroupLifecycleSmokeTest(uint32 testMapId, uint64 testSpawnId);
+        // Milestone 2.12E1 P2 fix (STATIC review, round 2): manual proof
+        // that AgentGroupLifecycleSystem never touches Creature/WorldState
+        // - runs once from Initialize(), only when all three
+        // AIWorld.TestGroupMemberAgentId1/2/3 resolve to already-registered
+        // agents. Never creates an agent itself (see this method's own
+        // .cpp comment for why an earlier version doing so was wrong) -
+        // joins the three given members into a fresh group, has one leave,
+        // then dissolves the group, checking every step's return value
+        // rather than assuming success. Not itself part of the lifecycle
+        // API - a real caller (a future admin/test command, or
+        // 2.12E2/2.12E3 policy code, once the persistence layer is
+        // redesigned for that - see AgentGroupLifecycleSystem.h) talks to
+        // _groupLifecycleSystem directly.
+        void RunGroupLifecycleSmokeTest(AgentId memberId1, AgentId memberId2, AgentId memberId3);
 
         bool _enabled = false;
 

@@ -35,29 +35,50 @@ class AgentRegistry;
 // already uses, for the same reasons - see its own class comment.
 //
 // Milestone 2.12E1: stateful now, unlike AgentPersistence - owns the
-// GroupId allocator (_nextGroupId), the same in-memory "seed from the
-// highest id ever seen, then increment per mint" shape
-// GuildMgr::GenerateGuildId() already uses for guildid, chosen over a
-// MySQL AUTO_INCREMENT read-back (what CreateCreatureAgent() effectively
-// does via its unique (map_id, spawn_id) binding) because a group has no
-// natural unique binding of its own to read back by - see CreateGroup()'s
-// own comment and the 2.12E1 migration's comment on ai_agent_groups.
+// GroupId allocator (_nextGroupId), the same in-memory "seed once, then
+// increment per mint" shape GuildMgr::GenerateGuildId() already uses for
+// guildid.
+//
+// Milestone 2.12E1 P2 fix (STATIC review, round 2): _nextGroupId is seeded
+// from ai_agent_group_id_sequence (LoadGroupIdSequence()), NOT from
+// MAX(group_id) over the currently-live ai_agent_groups rows any more - a
+// dissolved group's row disappears from that MAX(), which would let its id
+// be handed to an unrelated group after a restart, directly contradicting
+// "never reused once issued" below. The sequence table is append-only
+// (never deleted from), so its one row's next_group_id is a true
+// high-water mark independent of which groups currently exist - see its
+// own migration comment. CreateGroup() persists the reservation there
+// before it ever inserts the group row itself.
+//
+// Every create/join/leave/dissolve write below is followed by (or, for
+// DeleteGroup(), wrapped together with) a read-back that confirms the
+// write actually landed - DirectExecute() alone never reports success or
+// failure, and AgentGroupLifecycleSystem is only allowed to mutate the
+// runtime registry once that confirmation holds (STATIC review: a caller
+// that mutated the registry right after an unconfirmed DirectExecute()
+// could let AgentGroupRegistry silently drift out of agreement with what
+// is actually in the DB).
 class TC_GAME_API AgentGroupPersistence
 {
     public:
+        // Milestone 2.12E1 P2 fix (STATIC review): reads the single row
+        // from ai_agent_group_id_sequence into _nextGroupId. Call once at
+        // startup, before the first CreateGroup() of the process (order
+        // relative to LoadGroups()/LoadGroupMembers() does not matter - the
+        // sequence table is independent of which groups currently exist).
+        // If the row is somehow missing (a schema that never ran the
+        // 2.12E1 P2 migration, or a hand-edited table), logs an error and
+        // leaves _nextGroupId at its class-default of 1 - not a crash, but
+        // a real risk of colliding with an existing group_id, the same
+        // "malformed schema state" category AgentPersistence::LoadAgents()
+        // already treats as reportable rather than silently tolerated.
+        void LoadGroupIdSequence();
+
         // Loads every row from ai_agent_groups into registry. Returns the
         // number of groups loaded. Must be called before LoadGroupMembers()
         // (a membership row needs an already-registered group to attach
-        // to).
-        //
-        // Milestone 2.12E1: also (re)seeds the GroupId allocator
-        // (_nextGroupId) from the highest group_id this sees - including a
-        // row rejected by the AgentGroupKind validation below, since it
-        // still physically occupies that id in the table even though it
-        // never reaches the registry; seeding from only the successfully-
-        // loaded rows could mint a fresh id that collides with a row this
-        // load chose to skip rather than trust. Still seeds to 1 (empty
-        // table => first mint is id 1) even when zero rows load at all.
+        // to). No longer touches the GroupId allocator (2.12E1 P2 fix) -
+        // see LoadGroupIdSequence() for that.
         uint32 LoadGroups(AgentGroupRegistry& registry);
 
         // Loads every row from ai_agent_group_members into the matching
@@ -101,57 +122,70 @@ class TC_GAME_API AgentGroupPersistence
         // holds AgentId to, just via the freshly-minted id's own
         // guaranteed-unique value instead of a natural (map_id, spawn_id)
         // binding (a group has neither). Synchronous by design like
-        // CreateCreatureAgent() - acceptable here because group creation
-        // is a rare, lifecycle-scoped operation (2.12E1 has no automatic
-        // group formation yet), never a per-tick one the way
-        // SaveGroupState() above is; AddGroupMember()/RemoveGroupMember()/
-        // DeleteGroup() below are the same category.
+        // CreateCreatureAgent() - acceptable for 2.12E1's own startup/
+        // admin-scoped usage, but see AgentGroupLifecycleSystem.h for why
+        // this must be reconsidered before any automatic/policy-driven
+        // caller exists.
         //
-        // _nextGroupId is advanced unconditionally, whether or not the
-        // read-back below confirms success - a failed create just burns
-        // an id, the same tradeoff GuildMgr::GenerateGuildId() already
-        // accepts, rather than risking a retry reusing an id whose insert
-        // may actually have landed despite an unrelated read-back hiccup.
-        // Returns GroupId{} (Value == 0, never a valid id) if the
-        // read-back doesn't find the row - the caller
-        // (AgentGroupLifecycleSystem::CreateGroup()) must not add anything
-        // to AgentGroupRegistry in that case.
+        // Milestone 2.12E1 P2 fix (STATIC review, round 2): the reservation
+        // (CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE) is persisted, and
+        // _nextGroupId advanced in memory to match, BEFORE the group row
+        // itself is ever inserted - so a process that crashes between the
+        // two just burns the reserved id forever (the same accepted
+        // tradeoff GuildMgr::GenerateGuildId() already makes), rather than
+        // risking two different CreateGroup() calls - across a restart -
+        // ever computing the same id. Returns GroupId{} (Value == 0, never
+        // a valid id) if the group-row read-back doesn't find the row - the
+        // caller (AgentGroupLifecycleSystem::CreateGroup()) must not add
+        // anything to AgentGroupRegistry in that case. The reserved id
+        // itself is never reused either way, confirmed or not.
         GroupId CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources);
 
-        // Milestone 2.12E1: CONNECTION_SYNCH/DirectExecute() - see
-        // CreateGroup()'s own comment for why synchronous is acceptable
-        // for this category of operation. Duplicate-membership prevention
-        // is AgentGroupLifecycleSystem::JoinGroup()'s job, checked against
-        // the in-memory AgentGroupRecord::Members before this is ever
-        // called - this method does not itself detect or reject a
-        // duplicate (group_id, member_agent_id) pair.
-        void AddGroupMember(GroupId groupId, AgentId memberId, uint64 joinedAtMs);
+        // Milestone 2.12E1 P2 fix (STATIC review, round 2): CONNECTION_SYNCH/
+        // DirectExecute() followed by a CHAR_SEL_AI_AGENT_GROUP_MEMBER
+        // read-back confirming the (groupId, memberId) row now exists -
+        // returns whether it does. AgentGroupLifecycleSystem::JoinGroup()
+        // only adds the membership to the runtime AgentGroupRecord::Members
+        // once this returns true - never before. Duplicate-membership
+        // prevention is still JoinGroup()'s own job (checked against
+        // Members before this is ever called), not this method's; a
+        // duplicate (group_id, member_agent_id) INSERT is not a case this
+        // method is expected to handle gracefully.
+        bool AddGroupMember(GroupId groupId, AgentId memberId, uint64 joinedAtMs);
 
-        // Milestone 2.12E1: CONNECTION_SYNCH/DirectExecute(). A DELETE that
-        // matches zero rows (member was never actually in the group) is
-        // not an error at this layer - AgentGroupLifecycleSystem::
-        // LeaveGroup() is what decides whether that is worth logging,
-        // using its own in-memory AgentGroupRecord::Members check, not
-        // this method's return.
-        void RemoveGroupMember(GroupId groupId, AgentId memberId);
+        // Milestone 2.12E1 P2 fix (STATIC review, round 2): CONNECTION_SYNCH/
+        // DirectExecute() followed by the same CHAR_SEL_AI_AGENT_GROUP_MEMBER
+        // read-back as AddGroupMember(), here expecting NOT to find the row
+        // - returns whether the membership is now confirmed absent (true
+        // whether this call actually removed it or it was already gone,
+        // since either way the post-condition "not a member in the DB"
+        // holds). AgentGroupLifecycleSystem::LeaveGroup() only erases the
+        // runtime membership once this returns true.
+        bool RemoveGroupMember(GroupId groupId, AgentId memberId);
 
-        // Milestone 2.12E1: deletes every ai_agent_group_members row for
-        // groupId first (CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP), then
-        // the ai_agent_groups row itself (CHAR_DEL_AI_AGENT_GROUP) -
-        // deliberately in that order, so an interrupted delete (process
-        // crash between the two statements) never leaves an orphaned
-        // membership row pointing at a group_id that no longer exists;
-        // the reverse order could. Both CONNECTION_SYNCH/DirectExecute(),
-        // same category as CreateGroup() above. Never touches ai_agents -
-        // AgentGroupLifecycleSystem::DissolveGroup() is the caller's own
-        // guarantee that member AgentRecords are never touched by this.
-        void DeleteGroup(GroupId groupId);
+        // Milestone 2.12E1 P2 fix (STATIC review, round 2): deletes every
+        // ai_agent_group_members row for groupId and the ai_agent_groups
+        // row itself as ONE CharacterDatabaseTransaction
+        // (DirectCommitTransaction() - synchronous, atomic), not two
+        // independent DirectExecute() calls - an earlier version issued
+        // them separately, which could leave an orphaned membership row if
+        // interrupted between the two. Followed by a
+        // CHAR_SEL_AI_AGENT_GROUP_BY_ID read-back confirming the group row
+        // is now gone; returns that. AgentGroupLifecycleSystem::
+        // DissolveGroup() only erases the runtime AgentGroupRecord once
+        // this returns true. Never touches ai_agents - DissolveGroup() is
+        // the caller's own guarantee that member AgentRecords are never
+        // touched by this.
+        bool DeleteGroup(GroupId groupId);
 
     private:
-        // Milestone 2.12E1: seeded by LoadGroups() at startup, advanced by
-        // one per CreateGroup() call thereafter - never reset, never
-        // reused once issued (even for a failed create, see CreateGroup()'s
-        // own comment). World-thread-only, like everything else here.
+        // Milestone 2.12E1/2.12E1 P2 fix: seeded by LoadGroupIdSequence()
+        // at startup from the persistent ai_agent_group_id_sequence row,
+        // advanced by one - and immediately re-persisted - per
+        // CreateGroup() call thereafter. Never reset, never reused once
+        // issued, even across a dissolve+restart (that is the whole point
+        // of the sequence table - see this class's own comment).
+        // World-thread-only, like everything else here.
         uint64 _nextGroupId = 1;
 };
 

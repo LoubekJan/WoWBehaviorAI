@@ -239,10 +239,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
-    // Milestone 2.12E1: off by default - see RunGroupLifecycleSmokeTest()'s
-    // own comment. Read here (not inline at the call site below) purely to
-    // sit next to the two config values it reuses.
-    bool testGroupLifecycle = sConfigMgr->GetBoolDefault("AIWorld.TestGroupLifecycle", false);
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): three EXISTING
+    // AgentIds, not spawn ids - see RunGroupLifecycleSmokeTest()'s own
+    // comment for why this no longer fabricates test member agents itself.
+    // All three default to 0 (unset); the smoke test only runs once all
+    // three resolve to a real, already-registered AgentRecord.
+    AgentId testGroupMemberAgentId1{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestGroupMemberAgentId1", 0)) };
+    AgentId testGroupMemberAgentId2{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestGroupMemberAgentId2", 0)) };
+    AgentId testGroupMemberAgentId3{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestGroupMemberAgentId3", 0)) };
 
     std::string aiHost = sConfigMgr->GetStringDefault("AIWorld.AIHost", "ai-server");
     std::string aiPort = std::to_string(sConfigMgr->GetIntDefault("AIWorld.AIPort", 8000));
@@ -399,6 +403,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // empty RuntimeGuid regardless of what it was before shutdown.
     _persistence.LoadAgents(_registry);
 
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): the persistent
+    // GroupId allocator - see AgentGroupPersistence::LoadGroupIdSequence()
+    // and ai_agent_group_id_sequence's own migration comment for why this
+    // is a dedicated append-only table rather than MAX(group_id) over
+    // ai_agent_groups. No dependency on _registry/_groupRegistry; order
+    // relative to LoadGroups()/LoadGroupMembers() below does not matter.
+    _groupPersistence.LoadGroupIdSequence();
+
     // Milestone 2.12D (STATIC review P2 fix): AgentGroup identity/state is
     // its own registry/table now (see GroupId.h/AgentGroupRegistry.h/
     // AgentGroupPersistence.h) - LoadGroups() has no dependency on
@@ -456,14 +468,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         }
     }
 
-    // Milestone 2.12E1: manual proof only, gated behind
-    // AIWorld.TestGroupLifecycle (default off) - see
-    // RunGroupLifecycleSmokeTest()'s own comment. Reuses testMapId; also
-    // requires testSpawnId so it has a base spawn id range to mint its own
-    // three test member agents from without colliding with the single
-    // Guard test agent above.
-    if (testSpawnId && testGroupLifecycle)
-        RunGroupLifecycleSmokeTest(testMapId, testSpawnId);
+    // Milestone 2.12E1 P2 fix (STATIC review, round 2): manual proof only,
+    // and only runs once all three configured member AgentIds are set -
+    // see RunGroupLifecycleSmokeTest()'s own comment for why it no longer
+    // has an "off by default" flag of its own: three unset (default 0)
+    // AgentIds already means "disabled", the same as AIWorld.TestSpawnId's
+    // own 0-means-disabled convention.
+    if (testGroupMemberAgentId1 && testGroupMemberAgentId2 && testGroupMemberAgentId3)
+        RunGroupLifecycleSmokeTest(testGroupMemberAgentId1, testGroupMemberAgentId2, testGroupMemberAgentId3);
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
@@ -478,76 +490,82 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _acceptEvents.store(true, std::memory_order_release);
 }
 
-// Milestone 2.12E1: called at most once, from Initialize(), only when
-// AIWorld.TestGroupLifecycle is enabled - manual proof that
-// AgentGroupLifecycleSystem never touches Creature/WorldState, exercising
-// exactly the Create -> Join x3 -> Leave -> Dissolve sequence the
-// milestone's own acceptance criteria describes. The three member agents
-// are ordinary AgentType::Civilian AgentRecords with no real creature.guid
-// backing them - that's fine, this only exercises AgentRegistry::Find()
-// existence checks (what JoinGroup() needs), never materialization; they
-// stay Abstract for as long as no matching Creature spawn ever loads,
-// exactly like the AIWorld.TestSpawnId Guard agent above already does
-// when its own spawn isn't loaded. testSpawnId+1/+2/+3 are used so this
-// never collides with that agent's own testSpawnId.
-void AIWorldMgr::RunGroupLifecycleSmokeTest(uint32 testMapId, uint64 testSpawnId)
+// Milestone 2.12E1 P2 fix (STATIC review, round 2): called at most once,
+// from Initialize(), only when all three AIWorld.TestGroupMemberAgentId1/
+// 2/3 are set - manual proof that AgentGroupLifecycleSystem never touches
+// Creature/WorldState, exercising exactly the Create -> Join x3 -> Leave
+// -> Dissolve sequence the milestone's own acceptance criteria describes.
+//
+// Deliberately does NOT create anything: an earlier version minted three
+// fresh AgentType::Civilian AgentRecords at testSpawnId+1/+2/+3 via
+// CreateCreatureAgent() - review rejected this. CreateCreatureAgent() only
+// checks (map_id, spawn_id) uniqueness in ai_agents; it never confirms a
+// matching TrinityCore creature spawn actually exists, so this could
+// either produce a permanent ghost AgentRecord with no real Creature ever
+// able to bind it, or - worse - if that (map, spawn) combination happened
+// to already name a real creature, silently claim it as a fake Civilian
+// out from under whatever AgentType it should have had. Every AgentRecord
+// is supposed to name a real, individually-bindable creature spawn (see
+// AgentRecord.h) - a test harness is not exempt from that invariant.
+// Instead, this requires three AgentIds the operator has explicitly
+// configured to already-existing, already-registered agents (e.g. three
+// real test wolves created some other way) - see the three
+// AIWorld.TestGroupMemberAgentId* config values read in Initialize().
+void AIWorldMgr::RunGroupLifecycleSmokeTest(AgentId memberId1, AgentId memberId2, AgentId memberId3)
 {
-    AgentId memberIds[3];
+    AgentId memberIds[3] = { memberId1, memberId2, memberId3 };
 
-    for (uint32 i = 0; i < 3; ++i)
+    for (AgentId memberId : memberIds)
     {
-        uint64 memberSpawnId = testSpawnId + 1 + i;
-
-        if (AgentRecord* existing = _registry.FindBySpawn(testMapId, memberSpawnId))
+        if (!_registry.Find(memberId))
         {
-            memberIds[i] = existing->Id;
-            continue;
-        }
-
-        AgentId newId = _persistence.CreateCreatureAgent(AgentType::Civilian, testMapId, memberSpawnId);
-        if (!newId)
-        {
-            TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test: failed to create test member agent map={} spawn={}, aborting",
-                testMapId, memberSpawnId);
+            TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test: configured member agent id={} does not exist in _registry, aborting - "
+                "AIWorld.TestGroupMemberAgentId1/2/3 must all name real, already-registered agents", memberId.Value);
             return;
         }
-
-        AgentRecord record;
-        record.Id = newId;
-        record.Type = AgentType::Civilian;
-        record.MapId = testMapId;
-        record.SpawnId = memberSpawnId;
-        record.WorldState = AgentWorldState::Abstract;
-
-        if (!_registry.Add(record))
-        {
-            TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test: failed to register test member agent id={}, aborting", newId.Value);
-            return;
-        }
-
-        memberIds[i] = newId;
     }
 
     TC_LOG_INFO("ai.world", "AI group lifecycle smoke test: members={} {} {}",
         memberIds[0].Value, memberIds[1].Value, memberIds[2].Value);
 
-    std::optional<GroupId> groupId = _groupLifecycleSystem.CreateGroup(AgentGroupKind::Loose, testMapId, 0.0f, 0.0f, 0.0f, 1.0f,
+    std::optional<GroupId> groupId = _groupLifecycleSystem.CreateGroup(AgentGroupKind::Loose, 0, 0.0f, 0.0f, 0.0f, 1.0f,
         _groupRegistry, _groupPersistence);
     if (!groupId)
     {
-        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test: CreateGroup failed, aborting");
+        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: CreateGroup failed, aborting");
         return;
     }
 
+    // Milestone 2.12E1 P3 fix (STATIC review, round 2): every step's
+    // return value is checked - an earlier version fired Join/Leave/
+    // Dissolve without looking at what they returned and always logged
+    // "complete" regardless, which could report a false PASS on an actual
+    // lifecycle failure.
     uint64 nowMs = CurrentTimeMs();
     for (AgentId memberId : memberIds)
-        _groupLifecycleSystem.JoinGroup(*groupId, memberId, nowMs, _groupRegistry, _registry, _groupPersistence);
+    {
+        if (!_groupLifecycleSystem.JoinGroup(*groupId, memberId, nowMs, _groupRegistry, _registry, _groupPersistence))
+        {
+            TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: JoinGroup failed for member id={}, group={} left as-is",
+                memberId.Value, groupId->Value);
+            return;
+        }
+    }
 
-    _groupLifecycleSystem.LeaveGroup(*groupId, memberIds[2], _groupRegistry, _groupPersistence);
+    if (!_groupLifecycleSystem.LeaveGroup(*groupId, memberIds[2], _groupRegistry, _groupPersistence))
+    {
+        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: LeaveGroup failed for member id={}, group={} left as-is",
+            memberIds[2].Value, groupId->Value);
+        return;
+    }
 
-    _groupLifecycleSystem.DissolveGroup(*groupId, _groupRegistry, _groupPersistence);
+    if (!_groupLifecycleSystem.DissolveGroup(*groupId, _groupRegistry, _groupPersistence))
+    {
+        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: DissolveGroup failed for group={}, left as-is", groupId->Value);
+        return;
+    }
 
-    TC_LOG_INFO("ai.world", "AI group lifecycle smoke test complete: members {} {} {} remain ordinary AgentRecords, untouched by group lifecycle",
+    TC_LOG_INFO("ai.world", "AI group lifecycle smoke test PASSED: members {} {} {} remain ordinary AgentRecords, untouched by group lifecycle",
         memberIds[0].Value, memberIds[1].Value, memberIds[2].Value);
 }
 

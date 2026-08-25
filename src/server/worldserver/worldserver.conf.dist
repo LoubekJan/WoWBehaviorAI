@@ -3532,19 +3532,27 @@ AIWorld.TestMapId = 0
 AIWorld.TestSpawnId = 0
 
 #
-#    AIWorld.TestGroupLifecycle
-#        Description: Milestone 2.12E1 - when true (and AIWorld.TestSpawnId is set), runs a
-#                     one-shot manual proof at startup that AgentGroupLifecycleSystem's Create/
-#                     Join/Leave/Dissolve sequence never touches Creature/WorldState: creates
-#                     three ordinary test AgentRecords (at AIWorld.TestMapId, spawn ids
-#                     TestSpawnId+1/+2/+3 - never colliding with the AIWorld.TestSpawnId agent
-#                     itself), joins them into a fresh group, has one leave, then dissolves the
-#                     group. Every step is logged (see AIWorldMgr::RunGroupLifecycleSmokeTest())
-#                     so the result is visible in ai.world logs without a debugger. Off by
-#                     default - this is a manual verification aid, not a feature.
-#        Default:     0 - (Disabled)
+#    AIWorld.TestGroupMemberAgentId1
+#    AIWorld.TestGroupMemberAgentId2
+#    AIWorld.TestGroupMemberAgentId3
+#        Description: Milestone 2.12E1 (STATIC review P2 fix) - AgentIds of three EXISTING,
+#                     already-registered agents (e.g. three real test wolves created some other
+#                     way). When all three are set (nonzero), runs a one-shot manual proof at
+#                     startup that AgentGroupLifecycleSystem's Create/Join/Leave/Dissolve sequence
+#                     never touches Creature/WorldState: joins the three configured members into a
+#                     fresh group, has the third leave, then dissolves the group. Every step's
+#                     result is checked and logged (see AIWorldMgr::RunGroupLifecycleSmokeTest())
+#                     so a PASS/FAILED outcome is visible in ai.world logs without a debugger.
+#                     Deliberately does NOT create any agent itself - every AgentRecord must name
+#                     a real, individually-bindable creature spawn, and a test harness is not
+#                     exempt from that invariant.
+#        Default:     0 - (AIWorld.TestGroupMemberAgentId1, Disabled)
+#                     0 - (AIWorld.TestGroupMemberAgentId2, Disabled)
+#                     0 - (AIWorld.TestGroupMemberAgentId3, Disabled)
 
-AIWorld.TestGroupLifecycle = 0
+AIWorld.TestGroupMemberAgentId1 = 0
+AIWorld.TestGroupMemberAgentId2 = 0
+AIWorld.TestGroupMemberAgentId3 = 0
 
 #
 #    AIWorld.AIHost

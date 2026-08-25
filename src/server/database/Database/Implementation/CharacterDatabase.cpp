@@ -633,6 +633,17 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_UPD_AI_AGENT_ECONOMY, "UPDATE ai_agents SET money = ?, food = ?, resource = ?, "
         "last_rewarded_work_window_id = ?, economy_version = ? WHERE agent_id = ? AND economy_version < ?", CONNECTION_ASYNC);
 
+    // Milestone 2.12E1 P2 fix (STATIC review): the persistent, monotonic
+    // GroupId allocator - see ai_agent_group_id_sequence's own migration
+    // comment for why this exists (a plain MAX(group_id) over
+    // ai_agent_groups would let a dissolved group's id be handed out
+    // again after a restart). Startup-only read (AgentGroupPersistence::
+    // LoadGroupIdSequence()) and a synchronous write per CreateGroup()
+    // call (never CONNECTION_ASYNC - the reservation must be persisted
+    // before the group row it protects is even inserted).
+    PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE, "SELECT next_group_id FROM ai_agent_group_id_sequence WHERE id = 1", CONNECTION_SYNCH);
+    PrepareStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE, "UPDATE ai_agent_group_id_sequence SET next_group_id = ? WHERE id = 1", CONNECTION_SYNCH);
+
     // Milestone 2.12D (STATIC review P2 fix): AgentGroup identity/state now
     // lives in its own table, ai_agent_groups, not in ai_agents any more -
     // see GroupId.h/AgentGroupRecord.h/AgentGroupPersistence.h for why.
@@ -670,12 +681,14 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_UPD_AI_AGENT_GROUP, "UPDATE ai_agent_groups SET kind = ?, territory_map_id = ?, territory_x = ?, "
         "territory_y = ?, territory_z = ?, resources = ?, version = ? WHERE group_id = ? AND version < ?", CONNECTION_ASYNC);
 
-    // Milestone 2.12E1: AgentGroupPersistence::DeleteGroup() - the group-row
-    // half, issued after CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP below has
-    // already removed every membership row for it (never the other order -
-    // see DeleteGroup()'s own comment). CONNECTION_SYNCH/DirectExecute(),
-    // same "rare, lifecycle-scoped" category as CHAR_INS_AI_AGENT_GROUP
-    // above.
+    // Milestone 2.12E1 P2 fix (STATIC review): AgentGroupPersistence::
+    // DeleteGroup() - the group-row half, appended to the same
+    // CharacterDatabaseTransaction as CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP
+    // below and committed atomically via DirectCommitTransaction() (never
+    // two independent DirectExecute() calls - a crash or error between two
+    // separate statements could otherwise leave an orphaned membership row
+    // pointing at a group_id that no longer exists). CONNECTION_SYNCH, same
+    // "rare, lifecycle-scoped" category as CHAR_INS_AI_AGENT_GROUP above.
     PrepareStatement(CHAR_DEL_AI_AGENT_GROUP, "DELETE FROM ai_agent_groups WHERE group_id = ?", CONNECTION_SYNCH);
 
     // Milestone 2.12C/2.12D: startup-only (synchronous load), same as
@@ -685,6 +698,15 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // see GroupId.h) and member_agent_id are two different id spaces, both
     // validated by AgentGroupPersistence::LoadGroupMembers() at load time.
     PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBERS, "SELECT group_id, member_agent_id, joined_at_ms FROM ai_agent_group_members", CONNECTION_SYNCH);
+
+    // Milestone 2.12E1 P2 fix (STATIC review): the read-back half of both
+    // AddGroupMember() and RemoveGroupMember() below - confirms whether the
+    // one specific (group_id, member_agent_id) row exists after the write,
+    // the same "read back to confirm" discipline CHAR_SEL_AI_AGENT_GROUP_BY_ID
+    // already gives CreateGroup(). AgentGroupLifecycleSystem only mutates
+    // the runtime AgentGroupRecord::Members once this confirms the DB
+    // agrees.
+    PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBER, "SELECT group_id FROM ai_agent_group_members WHERE group_id = ? AND member_agent_id = ?", CONNECTION_SYNCH);
 
     // Milestone 2.12E1: AgentGroupPersistence::AddGroupMember()/
     // RemoveGroupMember() - both CONNECTION_SYNCH/DirectExecute(), the same
@@ -698,9 +720,10 @@ void CharacterDatabaseConnection::DoPrepareStatements()
         "VALUES (?, ?, ?)", CONNECTION_SYNCH);
     PrepareStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBER, "DELETE FROM ai_agent_group_members WHERE group_id = ? AND member_agent_id = ?", CONNECTION_SYNCH);
 
-    // Milestone 2.12E1: the membership half of AgentGroupPersistence::
-    // DeleteGroup() - see CHAR_DEL_AI_AGENT_GROUP above for the ordering
-    // this must run before.
+    // Milestone 2.12E1 P2 fix (STATIC review): the membership half of
+    // AgentGroupPersistence::DeleteGroup()'s CharacterDatabaseTransaction -
+    // see CHAR_DEL_AI_AGENT_GROUP above for why this is appended to the
+    // same transaction rather than DirectExecute()'d independently.
     PrepareStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP, "DELETE FROM ai_agent_group_members WHERE group_id = ?", CONNECTION_SYNCH);
 
     // AIWorld (Milestone 2.5B) - CHAR_SEL_AI_LONG_TERM_MEMORIES is startup-only (synchronous
