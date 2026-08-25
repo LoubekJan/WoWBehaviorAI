@@ -75,7 +75,18 @@ class TC_GAME_API AgentPersistence
         // AgentRecord::EconomyState the caller already updated is
         // authoritative for this process's remaining lifetime regardless
         // of whether/when the write actually lands.
-        void SaveEconomyState(AgentId id, AgentEconomyState const& state);
+        //
+        // Milestone 2.11E2 P3 fix: state is a mutable reference, not const
+        // - this function increments state.Version itself, unconditionally,
+        // as its first step, before persisting. That used to be the
+        // caller's job (AIWorldMgr::MutateEconomyAndPersist()), but a
+        // convention only holds for callers that go through it; anyone
+        // calling SaveEconomyState() directly could still forget the bump
+        // and the UPDATE's own "AND economy_version < ?" guard would then
+        // silently reject the write. Bumping here instead means every
+        // caller that actually persists gets it for free - there is no
+        // path to a real DB write that skips it.
+        void SaveEconomyState(AgentId id, AgentEconomyState& state);
 
     private:
         AgentId FindBinding(uint32 mapId, uint64 spawnId);

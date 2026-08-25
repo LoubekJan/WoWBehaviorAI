@@ -1957,16 +1957,14 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                             {
                                 uint32 workMoneyReward = _workMoneyReward;
 
-                                // 2.11E2 P3 fix: the only place allowed to
-                                // touch EconomyState - bumps Version and
-                                // persists the whole row itself, so this
-                                // site cannot forget either the way a
-                                // direct Money +=/SaveEconomyState() call
-                                // could. Money and the idempotency marker
-                                // still land in the same UPDATE either way
-                                // - MutateEconomyAndPersist() only ever
-                                // does one SaveEconomyState() call per
-                                // invocation.
+                                // Money and the idempotency marker are
+                                // applied together and persisted in the
+                                // same UPDATE - MutateEconomyAndPersist()
+                                // only ever does one SaveEconomyState() call
+                                // per invocation, and that call bumps
+                                // Version unconditionally itself (see
+                                // AgentPersistence::SaveEconomyState()),
+                                // so this site does not need to.
                                 MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId](AgentEconomyState& economy)
                                 {
                                     economy.Money += workMoneyReward;
@@ -2283,17 +2281,14 @@ void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion co
     }
 }
 
-// World thread only. Milestone 2.11E2 P3 fix: the only place
-// AgentRecord::EconomyState is allowed to change - see this method's own
-// header comment for why. Fixed order, every call: apply mutate, bump
-// Version, persist the whole row - a caller cannot reach EconomyState's
-// fields without going through this and therefore cannot forget the
-// Version bump AgentPersistence::SaveEconomyState()'s monotonic guard
-// depends on.
+// World thread only. Milestone 2.11E2 P3 fix: applies mutate, then persists
+// - see this method's own header comment for why the Version bump is
+// deliberately not done here (SaveEconomyState() does it unconditionally
+// itself now, so this stays a plain two-step convenience rather than the
+// thing anything actually depends on for correctness).
 void AIWorldMgr::MutateEconomyAndPersist(AgentRecord& record, std::function<void(AgentEconomyState&)> const& mutate)
 {
     mutate(record.EconomyState);
-    ++record.EconomyState.Version;
 
     _persistence.SaveEconomyState(record.Id, record.EconomyState);
 }

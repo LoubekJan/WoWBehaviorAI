@@ -136,8 +136,13 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
     return newId;
 }
 
-void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState const& state)
+void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState& state)
 {
+    // 2.11E2 P3 fix: unconditional, first thing, regardless of what the
+    // caller already did - see this method's own header comment for why
+    // the bump lives here rather than being trusted to every caller.
+    ++state.Version;
+
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_ECONOMY);
     stmt->setUInt64(0, state.Money);
     stmt->setUInt32(1, state.Food);

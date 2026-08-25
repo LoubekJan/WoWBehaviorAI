@@ -121,15 +121,15 @@ class TC_GAME_API AIWorldMgr
         void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
         void TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs);
 
-        // Milestone 2.11E2 P3 fix: the only way AgentRecord::EconomyState is
-        // allowed to change - centralizes the "bump Version, then persist"
-        // invariant AgentPersistence::SaveEconomyState()'s monotonic
-        // "AND economy_version < ?" guard depends on (see
-        // AgentEconomyState::Version), so a future Food/Resource mutation
-        // cannot forget it by calling SaveEconomyState() directly. mutate
-        // is applied to record.EconomyState first, then Version is
-        // incremented, then the whole row is persisted - in that fixed
-        // order, every time, regardless of what mutate actually changes.
+        // Milestone 2.11E2 P3 fix: a convenience for the common "apply one
+        // mutation, then persist" shape every economy change so far has
+        // (see UpdateNeeds()'s WORK reward block) - not itself the source
+        // of the Version-bump guarantee. That guarantee now lives in
+        // AgentPersistence::SaveEconomyState() itself (it increments
+        // Version unconditionally, first thing, regardless of caller) -
+        // see its own comment for why a convention at this layer alone was
+        // not enough: anyone could still call SaveEconomyState() directly
+        // and bypass this method entirely.
         void MutateEconomyAndPersist(AgentRecord& record, std::function<void(AgentEconomyState&)> const& mutate);
         void ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response);
         std::vector<DecisionSubmitResult> SubmitDecisionContexts(std::vector<AIRequest> requests);

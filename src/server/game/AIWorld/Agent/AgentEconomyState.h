@@ -56,15 +56,17 @@ struct AgentEconomyState
     // the payment.
     uint64 LastRewardedWorkWindowId = 0;
 
-    // Milestone 2.11E2 P3 fix: a monotonic write counter, incremented in
-    // memory every time AIWorldMgr is about to persist this state (see
-    // UpdateNeeds()'s WORK reward block) and written together with the
-    // rest of the row. SaveEconomyState()'s UPDATE only applies when the
-    // stored economy_version is still below the one it is writing - the
-    // async write queue does not itself guarantee execution order across
-    // CharacterDatabase's own async worker threads, so without this an
-    // older snapshot could in principle finish after a newer one and
-    // silently revert it.
+    // Milestone 2.11E2 P3 fix: a monotonic write counter. Incremented by
+    // AgentPersistence::SaveEconomyState() itself, unconditionally, the
+    // instant before every write - not by whatever caller happens to
+    // mutate this struct in memory (a convention at that layer alone could
+    // still be bypassed by any future code that calls SaveEconomyState()
+    // directly - see its own comment). SaveEconomyState()'s UPDATE only
+    // applies when the stored economy_version is still below the one it is
+    // writing - the async write queue does not itself guarantee execution
+    // order across CharacterDatabase's own async worker threads, so
+    // without this an older snapshot could in principle finish after a
+    // newer one and silently revert it.
     // Harmless today (at most one SaveEconomyState() call per work window,
     // see LastRewardedWorkWindowId, so two writes for the same agent never
     // actually race in practice) - this is what keeps it safe once a
