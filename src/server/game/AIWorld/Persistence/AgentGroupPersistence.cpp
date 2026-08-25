@@ -39,7 +39,32 @@ uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
 
         AgentGroupRecord record;
         record.Id = GroupId{ fields[0].GetUInt64() };
-        record.Kind = AgentGroupKind(fields[1].GetUInt8());
+
+        // Hardening (STATIC review P3 fix): kind used to be a blind cast -
+        // AgentGroupKind(fields[1].GetUInt8()) would silently accept any
+        // uint8 the column happened to hold, including values with no
+        // named enumerator, and ToString() would just print "UNKNOWN"
+        // forever after. Fail-closed instead, the same discipline
+        // AgentPersistence::LoadAgents() already holds ai_agents to: an
+        // explicit switch over only the values AgentGroupKind actually
+        // declares, everything else rejected (logged, skipped) rather than
+        // silently reinterpreted or degraded.
+        uint8 rawKind = fields[1].GetUInt8();
+        switch (rawKind)
+        {
+            case uint8(AgentGroupKind::Loose):
+                record.Kind = AgentGroupKind::Loose;
+                break;
+            case uint8(AgentGroupKind::Stable):
+                record.Kind = AgentGroupKind::Stable;
+                break;
+            default:
+                TC_LOG_ERROR("ai.world",
+                    "AgentGroupPersistence: refusing to load group id={} with invalid kind={} (not LOOSE(0)/STABLE(1)), skipping",
+                    record.Id.Value, rawKind);
+                continue;
+        }
+
         record.TerritoryMapId = fields[2].GetUInt32();
         record.TerritoryX = fields[3].GetFloat();
         record.TerritoryY = fields[4].GetFloat();
