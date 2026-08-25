@@ -44,16 +44,21 @@
 // TrinityCore creature spawn the way it does for every other AgentType -
 // a group never binds 1:1 to one Creature. It is instead an opaque,
 // caller-assigned identifier, unique per MapId the same way a real
-// spawn_id is, chosen from a range reserved well above any real
-// creature.guid in the world DB (see the 2.12A migration's own comment)
-// so map->GetCreatureBySpawnId(SpawnId) can never accidentally resolve an
-// unrelated real creature. MapId is the group's territory map - see
-// CreatureGroupState.h. This is what lets a CreatureGroup agent reuse the
-// exact same AgentRegistry/AgentPersistence (map_id, spawn_id) identity
-// model as everything else, with no schema/registry change of its own:
-// the ordinary "no Creature found for this (map, spawn)" path every
-// agent already goes through is what keeps it correctly Abstract - see
-// SimulationTier.h's own DeriveSimulationTier().
+// spawn_id is, chosen by convention from a range reserved well above any
+// real creature.guid in the world DB (see the 2.12A migration's own
+// comment) - but that convention is not itself what keeps a CreatureGroup
+// unbindable. Nothing at the DB level rules out a genuine collision with
+// a real creature.guid, so a CreatureGroup is non-bindable BY
+// CONSTRUCTION instead (2.12A P2 fix): every live-Creature-resolution and
+// live-spawn-enrichment call site in AIWorldMgr.cpp goes through
+// ResolveLiveCreature()/FindLiveAgentBySpawn(), which exclude
+// AgentType::CreatureGroup unconditionally, regardless of what SpawnId
+// value it holds or what it might collide with. MapId is the group's
+// territory map - see CreatureGroupState.h. This is what lets a
+// CreatureGroup agent reuse the exact same AgentRegistry/
+// AgentPersistence (map_id, spawn_id) identity model as everything else,
+// with no schema/registry change of its own - see SimulationTier.h's own
+// DeriveSimulationTier() for why that keeps it correctly Abstract.
 struct AgentRecord
 {
     AgentId Id;

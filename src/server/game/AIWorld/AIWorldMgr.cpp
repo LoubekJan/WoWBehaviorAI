@@ -74,6 +74,43 @@ namespace
     {
         return type == GoalType::GoToWork || type == GoalType::GoHome;
     }
+
+    // Milestone 2.12A P2 fix: an AgentType::CreatureGroup never binds 1:1
+    // to a live Creature - see AgentRecord.h's own comment on what
+    // SpawnId means for this AgentType (an opaque, caller-assigned group
+    // id, not a TrinityCore spawn). Centralizing the exclusion here,
+    // rather than trusting every call site to remember it, is what makes
+    // a CreatureGroup non-bindable BY CONSTRUCTION: even a genuine
+    // SpawnId collision with a real creature.guid (nothing at the DB
+    // level rules that out) can no longer materialize one, because
+    // nothing in this file ever calls Map::GetCreatureBySpawnId() with a
+    // CreatureGroup's own SpawnId in the first place. Every live-
+    // Creature-resolution call site in this file must go through this,
+    // never Map::GetCreatureBySpawnId() directly.
+    Creature* ResolveLiveCreature(AgentRecord const& record, Map* map)
+    {
+        if (record.Type == AgentType::CreatureGroup)
+            return nullptr;
+
+        return map ? map->GetCreatureBySpawnId(record.SpawnId) : nullptr;
+    }
+
+    // Milestone 2.12A P2 fix: the other half of ResolveLiveCreature()'s
+    // guarantee. A real Creature's own spawn id could in principle
+    // collide with a CreatureGroup's reserved-range one (again, nothing
+    // at the DB level rules it out), so AgentRegistry::FindBySpawn()
+    // alone cannot tell "this (map, spawn) genuinely names a live
+    // Creature" apart from "this happens to match a CreatureGroup's
+    // opaque group id". Anything that uses a real spawn id to enrich a
+    // live-entity fact (a WorldEvent's Actor/Target, a perceived
+    // creature, an engine movement callback) must go through this
+    // instead of calling AgentRegistry::FindBySpawn() directly - a match
+    // against a CreatureGroup is treated the same as no match at all.
+    AgentRecord* FindLiveAgentBySpawn(AgentRegistry& registry, uint32 mapId, uint64 spawnId)
+    {
+        AgentRecord* record = registry.FindBySpawn(mapId, spawnId);
+        return (record && record->Type != AgentType::CreatureGroup) ? record : nullptr;
+    }
 }
 
 AIWorldMgr* AIWorldMgr::instance()
@@ -616,7 +653,7 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
     // pattern as ProcessAgent(): never force a grid to load, and no
     // pointer from here is ever stored anywhere past this call.
     Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
-    Creature* creature = map ? map->GetCreatureBySpawnId(record.SpawnId) : nullptr;
+    Creature* creature = ResolveLiveCreature(record, map);
     if (!creature)
     {
         if (record.WorldState == AgentWorldState::Materialized)
@@ -737,7 +774,7 @@ std::optional<AIRequest> AIWorldMgr::ProcessAgent(AgentId id)
         return std::nullopt;
 
     Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-    Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+    Creature* creature = ResolveLiveCreature(*record, map);
 
     if (!creature)
     {
@@ -927,7 +964,7 @@ void AIWorldMgr::RunDecisionScheduler()
             continue;
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-        Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+        Creature* creature = ResolveLiveCreature(*record, map);
 
         if (!creature)
         {
@@ -1176,7 +1213,13 @@ bool AIWorldMgr::OwnsSpawn(uint32 mapId, uint64 spawnId) const
     if (!_enabled)
         return false;
 
-    return _registry.FindBySpawn(mapId, spawnId) != nullptr;
+    // Milestone 2.12A P2 fix: a real creature's spawn id could in
+    // principle collide with a CreatureGroup's reserved-range one (see
+    // FindLiveAgentBySpawn()'s own comment) - this answers "does AI own
+    // this live spawn", so a match against a CreatureGroup (which never
+    // owns a live spawn at all) must not count as ownership.
+    AgentRecord const* record = _registry.FindBySpawn(mapId, spawnId);
+    return record && record->Type != AgentType::CreatureGroup;
 }
 
 // World thread only (called from Update(), right after EventBus::Drain()).
@@ -1189,13 +1232,13 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 {
     if (event.Actor.SpawnId)
     {
-        if (AgentRecord* agent = _registry.FindBySpawn(event.Location.MapId, event.Actor.SpawnId))
+        if (AgentRecord* agent = FindLiveAgentBySpawn(_registry, event.Location.MapId, event.Actor.SpawnId))
             event.Actor.Agent = agent->Id;
     }
 
     if (event.Target.SpawnId)
     {
-        if (AgentRecord* agent = _registry.FindBySpawn(event.Location.MapId, event.Target.SpawnId))
+        if (AgentRecord* agent = FindLiveAgentBySpawn(_registry, event.Location.MapId, event.Target.SpawnId))
             event.Target.Agent = agent->Id;
     }
 
@@ -1229,7 +1272,7 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
         // random, poll-timing-dependent holes rather than a real absence
         // of perception.
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-        Creature* observer = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+        Creature* observer = ResolveLiveCreature(*record, map);
 
         if (!observer)
         {
@@ -1263,7 +1306,7 @@ void AIWorldMgr::ScanNearbyEntities()
             continue;
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-        Creature* observer = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+        Creature* observer = ResolveLiveCreature(*record, map);
 
         if (!observer)
         {
@@ -1301,7 +1344,7 @@ void AIWorldMgr::ScanNearbyEntities()
             // Actor/Target for a WorldEvent.
             if (observation->Target.SpawnId)
             {
-                if (AgentRecord* seenAgent = _registry.FindBySpawn(observation->Location.MapId, observation->Target.SpawnId))
+                if (AgentRecord* seenAgent = FindLiveAgentBySpawn(_registry, observation->Location.MapId, observation->Target.SpawnId))
                     observation->Target.Agent = seenAgent->Id;
             }
 
@@ -1333,7 +1376,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             continue;
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-        Creature* creature = map ? map->GetCreatureBySpawnId(record->SpawnId) : nullptr;
+        Creature* creature = ResolveLiveCreature(*record, map);
 
         if (!creature)
         {
@@ -2174,7 +2217,7 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
         return;
     }
 
-    AgentRecord* record = _registry.FindBySpawn(event.MapId, event.SpawnId);
+    AgentRecord* record = FindLiveAgentBySpawn(_registry, event.MapId, event.SpawnId);
     if (!record)
     {
         TC_LOG_DEBUG("ai.world", "AI action engine event map={} spawn={} discarded: no registered agent", event.MapId, event.SpawnId);
