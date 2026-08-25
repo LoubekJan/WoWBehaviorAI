@@ -21,62 +21,45 @@
 #include "Agent/AgentId.h"
 #include "Define.h"
 #include "SimulationScheduleState.h"
-#include "SimulationTier.h"
 #include <unordered_map>
 #include <vector>
 
-// Milestone 2.10D P2 fix: deterministic bounded admission for the coarse
+// Milestone 2.10D P2 fixes: deterministic bounded admission for the coarse
 // Background/Abstract tick - the same "pure value transform, caller
 // resolves every live fact" rule DecisionScheduler already follows for the
 // decision-eligible tiers. Without a bound, every due Background/Abstract
 // agent would tick in the very same scheduler pass (thousands at once, at
-// a shared 250ms poll cadence far finer than their own 60s/5min interval),
-// and since they would all then share the exact same LastTickAtMs, they
-// would stay permanently phase-locked afterwards too - ticking together
-// forever instead of spreading out, exactly the "one global tick for every
-// entity" outcome the whole scheduler/tier foundation exists to avoid. A
-// bounded per-pass admission fixes both problems at once: only maxAdmit
-// agents tick per pass, and draining an initial simultaneous backlog in
-// deterministic AgentId order naturally staggers their LastTickAtMs across
-// the drain window - which then persists as long-term desynchronization
-// once the backlog clears, with no separate artificial stagger mechanism
-// needed.
+// a shared 250ms poll cadence far finer than their own 60s/5min interval).
+//
+// Unlike DecisionScheduler, this class never computes a due time itself -
+// SimulationScheduleState::NextTickAtMs is already the authoritative due
+// time by the time a candidate reaches here, set by the caller
+// (AIWorldMgr::RunDecisionScheduler()) either as a one-time phase-offset
+// on tier entry or as a plain "+interval" after each real tick (see
+// SimulationScheduleState.h/StableAgentHash.h for why entry needs a phase
+// offset and a live per-pass recompute would not preserve one). This class
+// only ever ranks and bounds what it is handed.
 class TC_GAME_API CoarseSimulationScheduler
 {
     public:
-        // Milestone 2.10D: one due candidate, plus the SimulationTier
-        // AIWorldMgr already determined for it this pass (Background or
-        // Abstract - RunDecisionScheduler() never builds one of these for
-        // a Materialized agent) - SelectDue() itself never computes or
-        // re-checks tier, only ranks by what it is told.
-        struct Candidate
-        {
-            AgentId Agent;
-            SimulationTier Tier;
-        };
-
         struct SelectionResult
         {
             std::vector<AgentId> Admitted;
             std::vector<AgentId> SkippedCapacity;
         };
 
-        // Deterministic ordering: effective due time ascending - computed
-        // fresh every call as LastTickAtMs + interval(candidate's current
-        // Tier), using backgroundIntervalMs/abstractIntervalMs (mirroring
-        // AIWorld.BackgroundSimulationIntervalMs/AbstractSimulationIntervalMs) -
-        // then AgentId ascending as the tie-break. LastTickAtMs == 0
-        // ("never ticked, or just entered this tier - see AIWorldMgr::
-        // UpdateSimulationTier()'s epoch reset") is always immediately
-        // due. Admitted up to maxAdmit, in that order; the remainder (if
-        // any) is SkippedCapacity, left with its LastTickAtMs untouched by
-        // this call so it stays at the front of the due set next pass
-        // instead of being starved behind agents that already ticked - the
-        // caller is the one that actually updates LastTickAtMs, only for
-        // what it goes on to tick.
+        // Deterministic ordering: NextTickAtMs ascending (0 - "never set",
+        // reachable only defensively, see SimulationScheduleState.h - is
+        // always immediately due and always sorts first), then AgentId
+        // ascending as the tie-break. Admitted up to maxAdmit, in that
+        // order; the remainder (if any) is SkippedCapacity, left with its
+        // NextTickAtMs untouched by this call so it stays at the front of
+        // the due set next pass instead of being starved behind agents
+        // that already ticked - the caller is the one that actually
+        // updates LastTickAtMs/NextTickAtMs, only for what it goes on to
+        // tick.
         SelectionResult SelectDue(std::unordered_map<uint64, SimulationScheduleState> const& state,
-            std::vector<Candidate> const& candidates, uint64 nowMs, uint32 maxAdmit,
-            uint32 backgroundIntervalMs, uint32 abstractIntervalMs) const;
+            std::vector<AgentId> const& candidates, uint64 nowMs, uint32 maxAdmit) const;
 };
 
 #endif // AIWORLD_COARSESIMULATIONSCHEDULER_H

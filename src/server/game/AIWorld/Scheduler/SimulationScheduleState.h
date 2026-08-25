@@ -20,7 +20,7 @@
 
 #include "Define.h"
 
-// Milestone 2.10D/2.10D P2 fix: per-agent, world-thread-only bookkeeping
+// Milestone 2.10D/2.10D P2 fixes: per-agent, world-thread-only bookkeeping
 // for the coarse Background/Abstract simulation tick - deliberately not
 // part of AgentRecord/AgentRegistry, the same reasoning as
 // DecisionScheduleState.h and AIWorldMgr's own _agentSimulationTier: this
@@ -28,32 +28,40 @@
 // nothing but log - no Needs/goal/memory change, so there is nothing here
 // for a tier transition to disturb either way.
 //
-// One field, reused for both Background and Abstract - which interval
-// (AIWorld.BackgroundSimulationIntervalMs/AbstractSimulationIntervalMs)
-// applies is decided fresh each check from the agent's current
-// SimulationTier, not stored here - the same "recompute from current
-// classification, never lock in the interval that was true last time"
-// principle DecisionScheduleState/DecisionScheduler already apply to
-// Nearby/Active (see their own 2.10B P2 fix comments).
+// Both fields are reused for both Background and Abstract - which
+// interval (AIWorld.BackgroundSimulationIntervalMs/
+// AbstractSimulationIntervalMs) applies is resolved by the caller
+// (AIWorldMgr::RunDecisionScheduler()) from the agent's current
+// SimulationTier whenever it writes NextTickAtMs, not stored here as its
+// own field.
 //
-// LastTickAtMs == 0 means "never ticked" and is always immediately due -
-// but AIWorldMgr::UpdateSimulationTier() also resets it to the current
-// time (not 0) the moment an agent (re-)enters Background/Abstract, from
-// any other tier or from having no tier recorded yet. Without that reset,
-// an agent that spent time Materialized (Active/Nearby) in between two
-// Background stretches would compute its next due time - and, once a
-// future milestone attaches real background simulation here, whatever
-// that simulation actually does - against a timestamp from before the
-// materialized stretch even started, silently including time that was
-// already being simulated for real by the live Materialized path. The
-// reset makes the coarse-tick "epoch" start fresh every time this agent
-// actually becomes Background/Abstract, so LastTickAtMs (and therefore any
-// due-time or dt computed from it) never reaches back across a
-// materialized stretch, or across the moment this agent was first ever
-// observed.
+// NextTickAtMs (runtime review P2 fix) is the authoritative due time
+// CoarseSimulationScheduler::SelectDue() sorts and admits by - unlike
+// DecisionScheduleState's Nearby/Active due time, this is NOT recomputed
+// live from LastTickAtMs + interval every pass, because the very first
+// due time after entering Background/Abstract needs a one-time random-
+// looking phase offset (see StableAgentHash.h) to avoid every agent that
+// enters the tier at the same moment (e.g. a mass grid unload) piling up
+// on the exact same due time forever afterwards - a plain "+interval"
+// formula has no way to encode that offset. RunDecisionScheduler() sets
+// both fields the moment an agent (re-)enters Background/Abstract
+// (LastTickAtMs = now, NextTickAtMs = now + StableAgentHash(id) %
+// interval) and again after every real tick (LastTickAtMs = now,
+// NextTickAtMs = now + interval, no more phase offset - only the entry
+// moment gets one). 0 means "never set" and is always immediately due,
+// the same convention DecisionScheduleState already uses - reachable in
+// practice only defensively, since RunDecisionScheduler() always sets
+// both fields before an agent is ever added as a coarse candidate.
+//
+// LastTickAtMs is also what keeps a coarse dt from ever reaching back
+// across a stretch spent Materialized (Active/Nearby) in between two
+// Background/Abstract stints, or across the moment the agent was first
+// ever observed - it is reset to "now", not left stale, on every entry
+// into the tier, the same as NextTickAtMs.
 struct SimulationScheduleState
 {
     uint64 LastTickAtMs = 0;
+    uint64 NextTickAtMs = 0;
 };
 
 #endif // AIWORLD_SIMULATIONSCHEDULESTATE_H

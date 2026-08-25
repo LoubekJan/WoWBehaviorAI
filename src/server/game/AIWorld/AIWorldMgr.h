@@ -42,6 +42,7 @@
 #include "Scheduler/DecisionScheduler.h"
 #include "Scheduler/SimulationScheduleState.h"
 #include "Scheduler/SimulationTier.h"
+#include "Scheduler/StableAgentHash.h"
 #include <atomic>
 #include <memory>
 #include <optional>

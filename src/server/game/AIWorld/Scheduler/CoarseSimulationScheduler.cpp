@@ -20,53 +20,42 @@
 
 namespace
 {
-    // 0 ("never ticked, or just entered this tier") is always immediately
-    // due and always sorts first - see this class's own header comment.
-    uint64 EffectiveDueAtMs(std::unordered_map<uint64, SimulationScheduleState> const& state,
-        CoarseSimulationScheduler::Candidate const& candidate, uint32 backgroundIntervalMs, uint32 abstractIntervalMs)
+    // 0 ("never set" - reachable only defensively, see
+    // SimulationScheduleState.h) is always immediately due and always
+    // sorts first.
+    uint64 NextTickAtMs(std::unordered_map<uint64, SimulationScheduleState> const& state, AgentId agent)
     {
-        auto it = state.find(candidate.Agent.Value);
-        uint64 lastTickAtMs = it != state.end() ? it->second.LastTickAtMs : 0;
-        if (lastTickAtMs == 0)
-            return 0;
-
-        uint32 intervalMs = candidate.Tier == SimulationTier::Abstract ? abstractIntervalMs : backgroundIntervalMs;
-        return lastTickAtMs + intervalMs;
+        auto it = state.find(agent.Value);
+        return it != state.end() ? it->second.NextTickAtMs : 0;
     }
 }
 
 CoarseSimulationScheduler::SelectionResult CoarseSimulationScheduler::SelectDue(
     std::unordered_map<uint64, SimulationScheduleState> const& state,
-    std::vector<Candidate> const& candidates, uint64 nowMs, uint32 maxAdmit,
-    uint32 backgroundIntervalMs, uint32 abstractIntervalMs) const
+    std::vector<AgentId> const& candidates, uint64 nowMs, uint32 maxAdmit) const
 {
-    std::vector<Candidate> due;
+    std::vector<AgentId> due;
     due.reserve(candidates.size());
 
-    for (Candidate const& candidate : candidates)
-        if (EffectiveDueAtMs(state, candidate, backgroundIntervalMs, abstractIntervalMs) <= nowMs)
-            due.push_back(candidate);
+    for (AgentId agent : candidates)
+        if (NextTickAtMs(state, agent) <= nowMs)
+            due.push_back(agent);
 
-    std::sort(due.begin(), due.end(), [&](Candidate const& a, Candidate const& b)
+    std::sort(due.begin(), due.end(), [&](AgentId a, AgentId b)
     {
-        uint64 aDueAtMs = EffectiveDueAtMs(state, a, backgroundIntervalMs, abstractIntervalMs);
-        uint64 bDueAtMs = EffectiveDueAtMs(state, b, backgroundIntervalMs, abstractIntervalMs);
+        uint64 aDueAtMs = NextTickAtMs(state, a);
+        uint64 bDueAtMs = NextTickAtMs(state, b);
         if (aDueAtMs != bDueAtMs)
             return aDueAtMs < bDueAtMs;
 
-        return a.Agent.Value < b.Agent.Value;
+        return a.Value < b.Value;
     });
 
     SelectionResult result;
     std::size_t admitCount = std::min<std::size_t>(due.size(), maxAdmit);
 
-    result.Admitted.reserve(admitCount);
-    for (std::size_t i = 0; i < admitCount; ++i)
-        result.Admitted.push_back(due[i].Agent);
-
-    result.SkippedCapacity.reserve(due.size() - admitCount);
-    for (std::size_t i = admitCount; i < due.size(); ++i)
-        result.SkippedCapacity.push_back(due[i].Agent);
+    result.Admitted.assign(due.begin(), due.begin() + admitCount);
+    result.SkippedCapacity.assign(due.begin() + admitCount, due.end());
 
     return result;
 }

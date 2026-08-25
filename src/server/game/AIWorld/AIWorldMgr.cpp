@@ -861,7 +861,7 @@ void AIWorldMgr::RunDecisionScheduler()
     // cadence, the very next scheduler pass, with no agent-side state to
     // migrate and no restart required.
     std::vector<DecisionScheduler::Candidate> candidates;
-    std::vector<CoarseSimulationScheduler::Candidate> coarseCandidates;
+    std::vector<AgentId> coarseCandidates;
     for (AgentId id : _registry.GetAgents())
     {
         AgentRecord* record = _registry.Find(id);
@@ -883,19 +883,35 @@ void AIWorldMgr::RunDecisionScheduler()
             SimulationTier tier = DeriveSimulationTier(record->Type, AgentWorldState::Abstract, false);
             bool tierChanged = UpdateSimulationTier(id, tier);
 
-            // Milestone 2.10D P2 fix: reset the coarse-tick epoch exactly
-            // when this agent (re-)enters Background/Abstract - from any
-            // other tier, or from never having a tier recorded at all -
-            // so LastTickAtMs (and therefore any due-time/dt computed from
+            // Milestone 2.10D P2 fixes: reset the coarse-tick epoch
+            // exactly when this agent (re-)enters Background/Abstract -
+            // from any other tier, or from never having a tier recorded
+            // at all - so LastTickAtMs (and therefore any dt computed from
             // it) never reaches back across a stretch spent Materialized
             // in between, or across the moment this agent was first ever
-            // observed. See SimulationScheduleState.h for the full
-            // reasoning. Only ever collected as a candidate here - the
-            // actual tick (bounded, deterministic) happens after this loop.
+            // observed. NextTickAtMs gets a one-time phase offset here
+            // too (StableAgentHash(id) % interval, never a plain
+            // AgentId % interval - see StableAgentHash.h for why that
+            // would still cluster consecutive AgentIds into the same
+            // scheduler pass) so a batch of agents entering the tier at
+            // the same moment (e.g. a mass grid unload) do not all pile
+            // onto the same due time forever afterwards - only entry gets
+            // this treatment, a real tick below always resumes the plain
+            // "+interval" cadence. See SimulationScheduleState.h for the
+            // full reasoning. Only ever collected as a candidate here -
+            // the actual tick (bounded, deterministic) happens after this
+            // loop.
             if (tierChanged)
-                _simulationSchedule[id.Value].LastTickAtMs = nowMs;
+            {
+                uint32 intervalMs = tier == SimulationTier::Abstract ? _abstractSimulationIntervalMs : _backgroundSimulationIntervalMs;
+                uint64 phaseMs = StableAgentHash(id.Value) % intervalMs;
 
-            coarseCandidates.push_back({ id, tier });
+                SimulationScheduleState& scheduleState = _simulationSchedule[id.Value];
+                scheduleState.LastTickAtMs = nowMs;
+                scheduleState.NextTickAtMs = nowMs + phaseMs;
+            }
+
+            coarseCandidates.push_back(id);
             continue;
         }
 
@@ -915,18 +931,17 @@ void AIWorldMgr::RunDecisionScheduler()
         candidates.push_back({ id, cadenceClass });
     }
 
-    // Milestone 2.10D P2 fix: bounded, deterministic admission for the
+    // Milestone 2.10D P2 fixes: bounded, deterministic admission for the
     // coarse tick - see CoarseSimulationScheduler.h for why an unbounded
     // "every due agent ticks this pass" design both spikes world-thread
     // work with enough Background/Abstract agents and permanently
     // phase-locks them onto the same pass once they do. A
-    // capacity-skipped agent's LastTickAtMs is left untouched, so it stays
+    // capacity-skipped agent's NextTickAtMs is left untouched, so it stays
     // at the front of the due set next pass rather than losing its turn -
     // the same no-unbounded-queue guarantee the decision scheduler already
     // gives Nearby/Active agents.
     CoarseSimulationScheduler::SelectionResult coarseSelection = _coarseSimulationScheduler.SelectDue(
-        _simulationSchedule, coarseCandidates, nowMs, _coarseSimulationMaxPerPass,
-        _backgroundSimulationIntervalMs, _abstractSimulationIntervalMs);
+        _simulationSchedule, coarseCandidates, nowMs, _coarseSimulationMaxPerPass);
 
     for (AgentId id : coarseSelection.Admitted)
     {
@@ -940,7 +955,13 @@ void AIWorldMgr::RunDecisionScheduler()
         SimulationTier tier = tierIt != _agentSimulationTier.end() ? tierIt->second : SimulationTier::Background;
 
         TC_LOG_DEBUG("ai.world", "AI simulation tick agent={} tier={} dt={}ms", id.Value, ToString(tier), dtMs);
+
+        // Runtime review P2 fix: a real tick always resumes the plain
+        // "+interval" cadence - no phase offset here, that is applied only
+        // once, on tier entry above, via StableAgentHash.
+        uint32 intervalMs = tier == SimulationTier::Abstract ? _abstractSimulationIntervalMs : _backgroundSimulationIntervalMs;
         tickState.LastTickAtMs = nowMs;
+        tickState.NextTickAtMs = nowMs + intervalMs;
     }
 
     uint32 inFlight = 0;
