@@ -19,8 +19,20 @@
 #define AIWORLD_TRANSACTIONCALLBACKPROCESSOR_H
 
 #include "AsyncCallbackProcessor.h"
-#include "DatabaseEnvFwd.h"
+#include "Transaction.h"
 
+// Milestone 2.12E2 P1 fix (STATIC review): includes Transaction.h, not just
+// DatabaseEnvFwd.h - DatabaseEnvFwd.h only forward-declares
+// "class TransactionCallback;", enough to name the type but not to hold or
+// construct one. AsyncCallbackProcessor<TransactionCallback>::_callbacks is
+// a std::vector<TransactionCallback>, and callers throughout AIWorld
+// (AgentGroupLifecycleSystem.cpp's TransactionCallback callback =
+// persistence.AddGroupMemberAsync(...); and friends) construct/move
+// TransactionCallback values directly - both need TransactionCallback
+// complete wherever this header is actually used, not just forward-
+// declarable. Transaction.h (which DatabaseEnv.h itself includes) is where
+// the real definition lives.
+//
 // Milestone 2.12E2: TransactionCallback's own sibling to QueryCallbackProcessor
 // (DatabaseEnvFwd.h's own alias for AsyncCallbackProcessor<QueryCallback>,
 // used throughout the engine for e.g. World::_queryProcessor) - no

@@ -27,7 +27,7 @@
 void AgentGroupLifecycleSystem::RequestCreateGroup(AgentGroupKind kind, uint32 territoryMapId,
     float territoryX, float territoryY, float territoryZ, float resources,
     AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence, TransactionCallbackProcessor& pending,
-    std::function<void(std::optional<GroupId>)> onComplete) const
+    std::function<void(std::optional<GroupId>)> onComplete)
 {
     std::optional<TransactionCallback> callback = persistence.CreateGroupAsync(kind, territoryMapId, territoryX, territoryY, territoryZ, resources,
         [&groupRegistry, kind, territoryMapId, territoryX, territoryY, territoryZ, resources, onComplete](bool success, GroupId newId)
@@ -77,12 +77,24 @@ void AgentGroupLifecycleSystem::RequestCreateGroup(AgentGroupKind kind, uint32 t
 
 void AgentGroupLifecycleSystem::RequestJoinGroup(GroupId groupId, AgentId memberId, uint64 joinedAtMs,
     AgentGroupRegistry& groupRegistry, AgentRegistry const& agentRegistry, AgentGroupPersistence& persistence,
-    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const
+    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete)
 {
     AgentGroupRecord* group = groupRegistry.Find(groupId);
     if (!group)
     {
         TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::RequestJoinGroup: group id={} does not exist, refusing to join member id={}",
+            groupId.Value, memberId.Value);
+        onComplete(false);
+        return;
+    }
+
+    // 2.12E2 P2 fix (STATIC review): rejects synchronously, before ever
+    // touching the DB, if a Join/Leave/Dissolve is already in flight for
+    // this GroupId - see this class's own header comment for the
+    // DissolveGroup-then-JoinGroup orphan-membership race this closes.
+    if (_pendingGroupOperations.contains(groupId.Value))
+    {
+        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestJoinGroup: group id={} already has a lifecycle operation in flight, refusing to join member id={}",
             groupId.Value, memberId.Value);
         onComplete(false);
         return;
@@ -109,9 +121,13 @@ void AgentGroupLifecycleSystem::RequestJoinGroup(GroupId groupId, AgentId member
         return;
     }
 
+    _pendingGroupOperations.insert(groupId.Value);
+
     TransactionCallback callback = persistence.AddGroupMemberAsync(groupId, memberId, joinedAtMs,
-        [&groupRegistry, groupId, memberId, joinedAtMs, onComplete](bool success)
+        [this, &groupRegistry, groupId, memberId, joinedAtMs, onComplete](bool success)
         {
+            _pendingGroupOperations.erase(groupId.Value);
+
             if (!success)
             {
                 onComplete(false);
@@ -120,8 +136,10 @@ void AgentGroupLifecycleSystem::RequestJoinGroup(GroupId groupId, AgentId member
 
             // Re-resolved here, not the pointer captured above - see this
             // class's own header comment on why a completion never trusts
-            // request-time validity. The group may have been dissolved
-            // while this join was in flight.
+            // request-time validity. The pending-operation guard above
+            // means the group cannot have been dissolved by another
+            // Request* call while this join was in flight, but this is
+            // kept as defense in depth regardless.
             AgentGroupRecord* group = groupRegistry.Find(groupId);
             if (!group)
             {
@@ -145,12 +163,21 @@ void AgentGroupLifecycleSystem::RequestJoinGroup(GroupId groupId, AgentId member
 
 void AgentGroupLifecycleSystem::RequestLeaveGroup(GroupId groupId, AgentId memberId,
     AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence,
-    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const
+    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete)
 {
     AgentGroupRecord* group = groupRegistry.Find(groupId);
     if (!group)
     {
         TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestLeaveGroup: group id={} does not exist, nothing to do for member id={}",
+            groupId.Value, memberId.Value);
+        onComplete(false);
+        return;
+    }
+
+    // 2.12E2 P2 fix (STATIC review): see RequestJoinGroup()'s own comment.
+    if (_pendingGroupOperations.contains(groupId.Value))
+    {
+        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestLeaveGroup: group id={} already has a lifecycle operation in flight, nothing to do for member id={}",
             groupId.Value, memberId.Value);
         onComplete(false);
         return;
@@ -167,9 +194,13 @@ void AgentGroupLifecycleSystem::RequestLeaveGroup(GroupId groupId, AgentId membe
         return;
     }
 
+    _pendingGroupOperations.insert(groupId.Value);
+
     TransactionCallback callback = persistence.RemoveGroupMemberAsync(groupId, memberId,
-        [&groupRegistry, groupId, memberId, onComplete](bool success)
+        [this, &groupRegistry, groupId, memberId, onComplete](bool success)
         {
+            _pendingGroupOperations.erase(groupId.Value);
+
             if (!success)
             {
                 onComplete(false);
@@ -177,9 +208,11 @@ void AgentGroupLifecycleSystem::RequestLeaveGroup(GroupId groupId, AgentId membe
             }
 
             // Re-resolved here, not the iterator captured above - the
-            // group may have been dissolved while this leave was in
-            // flight, and even a still-live AgentGroupRecord::Members has
-            // moved on since the earlier find_if() ran.
+            // pending-operation guard above means the group cannot have
+            // been dissolved by another Request* call while this leave was
+            // in flight, but this is kept as defense in depth regardless,
+            // and even a still-live AgentGroupRecord::Members has moved on
+            // since the earlier find_if() ran.
             AgentGroupRecord* group = groupRegistry.Find(groupId);
             if (!group)
             {
@@ -207,7 +240,7 @@ void AgentGroupLifecycleSystem::RequestLeaveGroup(GroupId groupId, AgentId membe
 
 void AgentGroupLifecycleSystem::RequestDissolveGroup(GroupId groupId,
     AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence,
-    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const
+    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete)
 {
     AgentGroupRecord* group = groupRegistry.Find(groupId);
     if (!group)
@@ -217,11 +250,27 @@ void AgentGroupLifecycleSystem::RequestDissolveGroup(GroupId groupId,
         return;
     }
 
+    // 2.12E2 P2 fix (STATIC review): see RequestJoinGroup()'s own comment.
+    // This is the specific check that closes the original race the review
+    // found: a Join/Leave submitted for a group whose dissolve is already
+    // in flight is now rejected synchronously by that side's own check
+    // above, instead of racing the dissolve's DELETE to commit second.
+    if (_pendingGroupOperations.contains(groupId.Value))
+    {
+        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestDissolveGroup: group id={} already has a lifecycle operation in flight, nothing to do", groupId.Value);
+        onComplete(false);
+        return;
+    }
+
     uint32 formerMemberCount = uint32(group->Members.size());
 
+    _pendingGroupOperations.insert(groupId.Value);
+
     TransactionCallback callback = persistence.DeleteGroupAsync(groupId,
-        [&groupRegistry, groupId, formerMemberCount, onComplete](bool success)
+        [this, &groupRegistry, groupId, formerMemberCount, onComplete](bool success)
         {
+            _pendingGroupOperations.erase(groupId.Value);
+
             if (!success)
             {
                 onComplete(false);

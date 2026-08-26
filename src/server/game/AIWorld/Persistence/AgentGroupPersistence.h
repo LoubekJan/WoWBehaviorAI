@@ -22,7 +22,7 @@
 #include "Agent/AgentId.h"
 #include "Agent/GroupId.h"
 #include "Define.h"
-#include "DatabaseEnvFwd.h"
+#include "Transaction.h"
 #include <functional>
 #include <optional>
 
@@ -57,6 +57,13 @@ class AgentRegistry;
 // actually found a trustworthy sequence row (nonzero, and strictly greater
 // than every group_id physically present in ai_agent_groups) - if it
 // didn't, CreateGroupAsync() refuses to mint anything at all.
+//
+// Milestone 2.12E2 P1 fix (STATIC review): includes Transaction.h (not just
+// a forward declaration) because CreateGroupAsync()/AddGroupMemberAsync()/
+// RemoveGroupMemberAsync()/DeleteGroupAsync() below return TransactionCallback/
+// std::optional<TransactionCallback> BY VALUE - any caller (not just the
+// one this codebase happens to have today) needs the complete type to
+// call or store the result, not merely to name it.
 //
 // Milestone 2.12E2: every write below is async - CreateGroupAsync()/
 // AddGroupMemberAsync()/RemoveGroupMemberAsync()/DeleteGroupAsync() all

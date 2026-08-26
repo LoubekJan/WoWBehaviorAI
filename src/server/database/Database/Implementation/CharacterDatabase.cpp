@@ -645,8 +645,24 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // below and committed via AsyncCommitTransaction(), never issued on
     // its own, so the reservation and the group row it protects always
     // land (or fail) together.
+    //
+    // Milestone 2.12E2 P2 fix (STATIC review): GREATEST(next_group_id, ?),
+    // not a plain "SET next_group_id = ?" - with more than one
+    // CharacterDatabase async worker thread (AIWorld.* config does not
+    // control this; CharacterDatabase.WorkerThreads does, and is a normal
+    // deployment tunable, not something this subsystem can assume stays at
+    // 1), two CreateGroupAsync() transactions can commit out of order (the
+    // one reserving the HIGHER id finishing first). A plain SET would let
+    // the later-committing, lower-value transaction silently regress
+    // next_group_id below a group_id that already exists, which
+    // LoadGroupIdSequence()'s own high-water-mark check would then reject
+    // as an invalid allocator on the next restart - not a silent identity
+    // collision, but a real allocator outage from a valid deployment
+    // config change. GREATEST() makes the persisted value monotonic
+    // regardless of commit order: whichever of the two commits lands
+    // second can never lower it back down.
     PrepareStatement(CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE, "SELECT next_group_id FROM ai_agent_group_id_sequence WHERE id = 1", CONNECTION_SYNCH);
-    PrepareStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE, "UPDATE ai_agent_group_id_sequence SET next_group_id = ? WHERE id = 1", CONNECTION_ASYNC);
+    PrepareStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE, "UPDATE ai_agent_group_id_sequence SET next_group_id = GREATEST(next_group_id, ?) WHERE id = 1", CONNECTION_ASYNC);
 
     // Milestone 2.12E1 P2 fix (STATIC review, round 4): AgentGroupPersistence::
     // LoadGroupIdSequence()'s own high-water-mark sanity check - a

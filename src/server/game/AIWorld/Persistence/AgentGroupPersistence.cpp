@@ -252,6 +252,10 @@ std::optional<TransactionCallback> AgentGroupPersistence::CreateGroupAsync(Agent
     // group row INSERT either both land or neither does.
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
+    // 2.12E2 P2 fix (STATIC review): CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE
+    // itself is GREATEST(next_group_id, ?), not a plain SET - see its own
+    // PrepareStatement() comment for why a plain SET is not safe with more
+    // than one CharacterDatabase async worker.
     CharacterDatabasePreparedStatement* seqStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE);
     seqStmt->setUInt64(0, reservedNext);
     trans->Append(seqStmt);
