@@ -3596,6 +3596,52 @@ AIWorld.TestGroupMemberAgentId3 = 0
 AIWorld.TestGroupPolicy = 0
 
 #
+#    AIWorld.WolfGroupAutoFormation
+#        Description: Milestone 2.12E4A/2.12E4B - when true, AIWorldMgr periodically scans for
+#                     eligible wolves (Materialized, alive, AIWorld.WolfGroupCreatureEntry, not
+#                     already a member of any Loose AgentGroup) and, once
+#                     WolfCoalitionFormationSystem::Propose() finds a deterministic candidate
+#                     cluster meeting AIWorld.LooseGroupMinMembers, forms a real Loose AgentGroup
+#                     for it via RequestCreateGroup() followed by a
+#                     RequestJoinGroupWithPolicy(AutomaticPolicy) chain (see
+#                     AIWorldMgr::RunWolfCoalitionFormation()). At most one automatic formation is
+#                     ever in flight at a time. Off by default - this is a new, not yet
+#                     runtime-verified feature.
+#        Default:     0 - (Disabled)
+
+AIWorld.WolfGroupAutoFormation = 0
+
+#
+#    AIWorld.WolfGroupCreatureEntry
+#        Description: Milestone 2.12E4A - the one creature_template entry
+#                     CollectWolfCoalitionCandidates() considers eligible for automatic wolf
+#                     coalition formation. A single fixed entry, not a list/category.
+#        Default:     1423
+
+AIWorld.WolfGroupCreatureEntry = 1423
+
+#
+#    AIWorld.WolfGroupFormationIntervalMs
+#        Description: Milestone 2.12E4A - how often (in milliseconds) AIWorldMgr::Update() runs
+#                     RunWolfCoalitionFormation(), only while AIWorld.WolfGroupAutoFormation is
+#                     enabled.
+#        Important:   Values below 1000 are clamped to 1000.
+#        Default:     5000
+
+AIWorld.WolfGroupFormationIntervalMs = 5000
+
+#
+#    AIWorld.WolfGroupFormationRadius
+#        Description: Milestone 2.12E4A - how close (in yards) another eligible wolf must be to
+#                     the lowest-AgentId seed candidate to be considered a neighbor by
+#                     WolfCoalitionFormationSystem::Propose() - see its own class comment for the
+#                     full deterministic seed/neighbor selection algorithm.
+#        Important:   Values below 1.0 are clamped to 1.0.
+#        Default:     30.0
+
+AIWorld.WolfGroupFormationRadius = 30.0
+
+#
 #    AIWorld.AIHost
 #    AIWorld.AIPort
 #        Description: Hostname/IP and port of the ai-server bridge. The default matches the

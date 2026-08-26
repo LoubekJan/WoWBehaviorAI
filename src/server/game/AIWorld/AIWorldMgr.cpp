@@ -283,6 +283,39 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         _groupPolicyConfig.LooseMinMembers, _groupPolicyConfig.LooseMaxMembers,
         _groupPolicyConfig.StableMinMembers, _groupPolicyConfig.StableMaxMembers);
 
+    // Milestone 2.12E4A: off by default - this is a new, not yet
+    // runtime-verified feature (see RunWolfCoalitionFormation()'s own
+    // comment). A wolf pack IS a Loose AgentGroup, so its own size bounds
+    // are never configured here - see WolfCoalitionFormationConfig.h for
+    // why MinMembers/MaxMembers are always copied from
+    // AIWorld.LooseGroupMinMembers/LooseGroupMaxMembers above instead of a
+    // second, independently-tunable pair.
+    _wolfGroupAutoFormation = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupAutoFormation", false);
+
+    _wolfGroupCreatureEntry = uint32(sConfigMgr->GetIntDefault("AIWorld.WolfGroupCreatureEntry", 1423));
+
+    int32 wolfGroupFormationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.WolfGroupFormationIntervalMs", 5000);
+    if (wolfGroupFormationIntervalMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupFormationIntervalMs ({}) is invalid or too low, clamping to 1000ms", wolfGroupFormationIntervalMs);
+        wolfGroupFormationIntervalMs = 1000;
+    }
+    _wolfGroupFormationIntervalMs = uint32(wolfGroupFormationIntervalMs);
+    _wolfGroupFormationTimer = 0;
+
+    float wolfGroupFormationRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupFormationRadius", 30.0f);
+    if (wolfGroupFormationRadius < 1.0f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupFormationRadius ({:.1f}) is invalid or too low, clamping to 1.0", wolfGroupFormationRadius);
+        wolfGroupFormationRadius = 1.0f;
+    }
+    _wolfGroupFormationRadius = wolfGroupFormationRadius;
+
+    _wolfFormationInFlight = false;
+
+    TC_LOG_INFO("ai.world", "AI wolf coalition formation configured autoFormation={} creatureEntry={} interval={}ms radius={:.1f}",
+        _wolfGroupAutoFormation, _wolfGroupCreatureEntry, _wolfGroupFormationIntervalMs, _wolfGroupFormationRadius);
+
     // Milestone 2.12E3B: off by default - see RunGroupPolicySmokeTest()'s
     // own comment. Read here (not inline at the call site below) purely to
     // sit next to the config values its pure half exercises.
@@ -977,6 +1010,131 @@ void AIWorldMgr::RunGroupPolicySmokeTest(AgentId testMemberId)
         });
 }
 
+std::vector<WolfCoalitionCandidate> AIWorldMgr::CollectWolfCoalitionCandidates(uint32 creatureEntry)
+{
+    std::vector<WolfCoalitionCandidate> candidates;
+
+    for (AgentId id : _registry.GetAgents())
+    {
+        AgentRecord* record = _registry.Find(id);
+        if (!record || record->WorldState != AgentWorldState::Materialized)
+            continue;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        Creature* creature = ResolveLiveCreature(*record, map);
+        if (!creature || !creature->IsAlive() || creature->GetEntry() != creatureEntry)
+            continue;
+
+        if (IsMemberOfAnyLooseGroup(id))
+            continue;
+
+        WolfCoalitionCandidate candidate;
+        candidate.Id = id;
+        candidate.MapId = creature->GetMapId();
+        candidate.X = creature->GetPositionX();
+        candidate.Y = creature->GetPositionY();
+        candidate.Z = creature->GetPositionZ();
+        candidates.push_back(candidate);
+    }
+
+    return candidates;
+}
+
+bool AIWorldMgr::IsMemberOfAnyLooseGroup(AgentId member) const
+{
+    for (GroupId groupId : _groupRegistry.GetGroups())
+    {
+        AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+        if (!group || group->Kind != AgentGroupKind::Loose)
+            continue;
+
+        for (AgentGroupMembership const& membership : group->Members)
+            if (membership.Member == member)
+                return true;
+    }
+
+    return false;
+}
+
+void AIWorldMgr::RunWolfCoalitionFormation()
+{
+    if (_wolfFormationInFlight)
+        return;
+
+    std::vector<WolfCoalitionCandidate> candidates = CollectWolfCoalitionCandidates(_wolfGroupCreatureEntry);
+
+    WolfCoalitionFormationConfig config;
+    config.RadiusYards = _wolfGroupFormationRadius;
+    config.MinMembers = _groupPolicyConfig.LooseMinMembers;
+    config.MaxMembers = _groupPolicyConfig.LooseMaxMembers;
+
+    std::optional<WolfCoalitionProposal> proposal = _wolfCoalitionFormationSystem.Propose(candidates, config);
+    if (!proposal)
+        return;
+
+    TC_LOG_INFO("ai.world", "AI wolf coalition formation proposal: map={} territory=({:.1f}, {:.1f}, {:.1f}) members={}",
+        proposal->MapId, proposal->TerritoryX, proposal->TerritoryY, proposal->TerritoryZ, proposal->Members.size());
+
+    _wolfFormationInFlight = true;
+
+    std::vector<AgentId> members = proposal->Members;
+    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Loose, proposal->MapId,
+        proposal->TerritoryX, proposal->TerritoryY, proposal->TerritoryZ, 1.0f,
+        _groupRegistry, _groupPersistence, _groupLifecyclePending,
+        [this, members](std::optional<GroupId> groupId)
+        {
+            if (!groupId)
+            {
+                TC_LOG_ERROR("ai.world", "AI wolf coalition formation FAILED: CreateGroup failed, aborting");
+                _wolfFormationInFlight = false;
+                return;
+            }
+
+            RunWolfCoalitionJoinStep(*groupId, members, 0);
+        });
+}
+
+void AIWorldMgr::RunWolfCoalitionJoinStep(GroupId groupId, std::vector<AgentId> members, std::size_t index)
+{
+    if (index == members.size())
+    {
+        TC_LOG_INFO("ai.world", "AI wolf coalition formation PASSED: group={} members={}", groupId.Value, members.size());
+        _wolfFormationInFlight = false;
+        return;
+    }
+
+    uint64 nowMs = CurrentTimeMs();
+    RequestJoinGroupWithPolicy(groupId, members[index], nowMs, AgentGroupOperationSource::AutomaticPolicy,
+        [this, groupId, members, index](bool success, AgentGroupPolicyDecision decision)
+        {
+            if (!success)
+            {
+                TC_LOG_ERROR("ai.world", "AI wolf coalition formation: join FAILED for member id={} (decision={}), group={}",
+                    members[index].Value, ToString(decision), groupId.Value);
+                RunWolfCoalitionFormationAbort(groupId, members[index]);
+                return;
+            }
+
+            RunWolfCoalitionJoinStep(groupId, members, index + 1);
+        });
+}
+
+void AIWorldMgr::RunWolfCoalitionFormationAbort(GroupId groupId, AgentId failedMember)
+{
+    TC_LOG_ERROR("ai.world", "AI wolf coalition formation FAILED: member id={} could not join, group={} - attempting best-effort cleanup",
+        failedMember.Value, groupId.Value);
+
+    RequestDissolveGroup(groupId, [this, groupId](bool success)
+    {
+        if (success)
+            TC_LOG_INFO("ai.world", "AI wolf coalition formation cleanup: group={} dissolved after earlier failure", groupId.Value);
+        else
+            TC_LOG_ERROR("ai.world", "AI wolf coalition formation cleanup FAILED: group={} could not be dissolved, left as-is", groupId.Value);
+
+        _wolfFormationInFlight = false;
+    });
+}
+
 void AIWorldMgr::Update(uint32 diff)
 {
     if (!_enabled)
@@ -1017,6 +1175,21 @@ void AIWorldMgr::Update(uint32 diff)
     {
         _decisionSchedulerTimer = 0;
         RunDecisionScheduler();
+    }
+
+    // Milestone 2.12E4A/2.12E4B: entirely gated on AIWorld.WolfGroupAutoFormation
+    // (off by default) - the timer itself does not even advance while
+    // disabled, the same "no cost at all unless the feature is on"
+    // treatment AIWorld.TestGroupPolicy's own one-shot smoke test gets at
+    // Initialize(), just on a recurring cadence here instead.
+    if (_wolfGroupAutoFormation)
+    {
+        _wolfGroupFormationTimer += diff;
+        if (_wolfGroupFormationTimer >= _wolfGroupFormationIntervalMs)
+        {
+            _wolfGroupFormationTimer = 0;
+            RunWolfCoalitionFormation();
+        }
     }
 
     _nearbyPerceptionTimer += diff;
