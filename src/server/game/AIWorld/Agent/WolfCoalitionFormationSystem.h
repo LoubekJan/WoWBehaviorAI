@@ -36,24 +36,35 @@
 // (turning a proposal into a real AgentGroup, including the CanJoin() check
 // every member still has to pass, is AIWorldMgr's own job).
 //
-// Deliberately a SINGLE-seed algorithm, not an exhaustive search for the
-// best possible grouping:
-//   1. Sort candidates by AgentId - the lowest becomes the seed. This makes
-//      seed selection depend only on the candidate set itself, never on
-//      AIWorldMgr's own AgentRegistry::GetAgents() iteration order (an
-//      unordered_map).
-//   2. Every other candidate on the seed's own MapId within
-//      config.RadiusYards of the seed (straight-line distance, ignoring
-//      Z-axis line-of-sight/pathing) is a neighbor.
-//   3. Neighbors are ranked by (distance squared, AgentId) and taken up to
-//      config.MaxMembers - 1 - the seed itself fills the first of
-//      config.MaxMembers slots.
-//   4. If seed + kept neighbors is still below config.MinMembers, no
-//      proposal exists this call - Propose() returns nullopt rather than a
-//      group too small for AgentGroupPolicySystem::CanJoin()/
-//      ShouldDissolve() to accept as viable.
+// Deliberately a first-viable-seed algorithm, not an exhaustive search for
+// the single best possible grouping across the whole candidate set:
+//   1. Sort candidates by AgentId. This makes seed trial order depend only
+//      on the candidate set itself, never on AIWorldMgr's own
+//      AgentRegistry::GetAgents() iteration order (an unordered_map).
+//   2. Try each candidate as seed, lowest AgentId first. For a given seed,
+//      every OTHER candidate on the seed's own MapId within
+//      config.RadiusYards of it (straight-line distance, ignoring Z-axis
+//      line-of-sight/pathing) is a neighbor, ranked by (distance squared,
+//      AgentId) and kept up to config.MaxMembers - 1 - the seed itself
+//      fills the first of config.MaxMembers slots.
+//   3. The first seed (in AgentId order) whose seed + kept neighbors
+//      reaches config.MinMembers wins - that becomes the returned
+//      proposal, and no further seed is tried. If no seed ever reaches
+//      config.MinMembers, Propose() returns nullopt - never a group too
+//      small for AgentGroupPolicySystem::CanJoin()/ShouldDissolve() to
+//      accept as viable.
 // Fully deterministic given the same candidate set: two calls with the same
-// input always pick the same seed, the same neighbors, in the same order.
+// input always try the same seeds in the same order and return the same
+// proposal (or none).
+//
+// 2.12E4A/B P2 fix (STATIC review): an earlier version only ever tried the
+// single lowest-AgentId candidate as seed, and returned nullopt immediately
+// if that one seed alone could not reach MinMembers - so one isolated low-
+// AgentId candidate (on ANY map, since map is only checked once a seed is
+// already fixed) permanently blocked formation for every other, otherwise
+// fully eligible cluster, every single pass. Trying every candidate as a
+// seed - not just the lowest - fixes this while staying just as
+// deterministic; still at most one proposal per call, exactly as before.
 class TC_GAME_API WolfCoalitionFormationSystem
 {
     public:

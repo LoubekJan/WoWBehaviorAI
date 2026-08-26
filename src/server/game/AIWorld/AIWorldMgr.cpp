@@ -1103,15 +1103,34 @@ void AIWorldMgr::RunWolfCoalitionJoinStep(GroupId groupId, std::vector<AgentId> 
         return;
     }
 
+    AgentId memberId = members[index];
+
+    // 2.12E4A/B P2 fix (STATIC review): the proposal's own eligibility
+    // snapshot (CollectWolfCoalitionCandidates(), taken before the async
+    // CreateGroup round trip and every earlier join in this chain even
+    // started) can go stale by the time this specific join is actually
+    // issued - see this method's own header comment. RequestJoinGroupWithPolicy()'s
+    // CanJoin() only ever validates against groupId itself, so it cannot
+    // catch memberId having joined some OTHER Loose group (or having been
+    // removed from _registry entirely) in the meantime - only this
+    // re-check can.
+    if (!_registry.Find(memberId) || IsMemberOfAnyLooseGroup(memberId))
+    {
+        TC_LOG_ERROR("ai.world", "AI wolf coalition formation: member id={} no longer eligible (missing, or already in a Loose group), group={}",
+            memberId.Value, groupId.Value);
+        RunWolfCoalitionFormationAbort(groupId, memberId);
+        return;
+    }
+
     uint64 nowMs = CurrentTimeMs();
-    RequestJoinGroupWithPolicy(groupId, members[index], nowMs, AgentGroupOperationSource::AutomaticPolicy,
-        [this, groupId, members, index](bool success, AgentGroupPolicyDecision decision)
+    RequestJoinGroupWithPolicy(groupId, memberId, nowMs, AgentGroupOperationSource::AutomaticPolicy,
+        [this, groupId, members, index, memberId](bool success, AgentGroupPolicyDecision decision)
         {
             if (!success)
             {
                 TC_LOG_ERROR("ai.world", "AI wolf coalition formation: join FAILED for member id={} (decision={}), group={}",
-                    members[index].Value, ToString(decision), groupId.Value);
-                RunWolfCoalitionFormationAbort(groupId, members[index]);
+                    memberId.Value, ToString(decision), groupId.Value);
+                RunWolfCoalitionFormationAbort(groupId, memberId);
                 return;
             }
 

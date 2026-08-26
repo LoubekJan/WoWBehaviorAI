@@ -359,6 +359,22 @@ class TC_GAME_API AIWorldMgr
         // best-effort dissolves the group already created for it
         // (RunWolfCoalitionFormationAbort()) rather than leaving a
         // partially joined automatic pack behind.
+        //
+        // 2.12E4A/B P2 fix (STATIC review): re-checks members[index] still
+        // resolves in _registry AND is still not a member of any Loose
+        // AgentGroup, immediately before issuing its own join - the exact
+        // eligibility CollectWolfCoalitionCandidates() already checked once
+        // when the proposal was built, but that snapshot can go stale by
+        // the time a later step in this chain actually runs (the async
+        // CreateGroup round trip, and every join before this one, all take
+        // real time - a manual/lifecycle/other-policy change to this
+        // member's own Loose membership could land in between).
+        // RequestJoinGroupWithPolicy()'s own CanJoin() only ever validates
+        // against THIS groupId - AgentGroupPolicySystem deliberately has no
+        // global one-group invariant (see its own class comment) - so it
+        // cannot catch a member that is already in some OTHER Loose group;
+        // only this re-check can. A failure here aborts and cleans up the
+        // same way a rejected/failed join itself does.
         void RunWolfCoalitionJoinStep(GroupId groupId, std::vector<AgentId> members, std::size_t index);
 
         // Milestone 2.12E4B: logs the formation attempt as FAILED (naming
