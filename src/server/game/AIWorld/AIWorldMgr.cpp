@@ -569,6 +569,43 @@ void AIWorldMgr::RequestDissolveGroup(GroupId groupId, std::function<void(bool)>
         });
 }
 
+void AIWorldMgr::RequestDissolveGroupWithPolicy(GroupId groupId, AgentGroupOperationSource source, std::function<void(bool)> onComplete)
+{
+    // Manual is always allowed, the same rule CanLeave() already gives it -
+    // no policy question to ask, straight to the raw dissolve path.
+    if (source == AgentGroupOperationSource::Manual)
+    {
+        RequestDissolveGroup(groupId, std::move(onComplete));
+        return;
+    }
+
+    AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+    if (!group)
+    {
+        TC_LOG_WARN("ai.world", "AIWorldMgr::RequestDissolveGroupWithPolicy: group id={} does not exist, nothing to do", groupId.Value);
+        onComplete(false);
+        return;
+    }
+
+    AgentGroupPolicyContext context;
+    context.Config = _groupPolicyConfig;
+    context.Source = source;
+
+    if (!_groupPolicySystem.ShouldDissolve(*group, context))
+    {
+        // ShouldDissolve() already encodes both halves of the rule this
+        // needs (Stable -> always false; Loose -> only below
+        // LooseGroupMinMembers) - this only picks the right log reason,
+        // it does not re-derive the decision itself.
+        char const* reason = group->Kind == AgentGroupKind::Stable ? "STABLE_GROUP_PROTECTED" : "GROUP_NOT_BELOW_MINIMUM";
+        TC_LOG_INFO("ai.world", "AI agent group dissolve REJECTED group={} source={} reason={}", groupId.Value, ToString(source), reason);
+        onComplete(false);
+        return;
+    }
+
+    RequestDissolveGroup(groupId, std::move(onComplete));
+}
+
 // Milestone 2.12E2: called at most once, from Initialize(), only when all
 // three AIWorld.TestGroupMemberAgentId1/2/3 are set - manual proof that
 // AgentGroupLifecycleSystem's async Request* API never touches Creature/

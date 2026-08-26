@@ -147,9 +147,8 @@ class TC_GAME_API AIWorldMgr
         void RunDecisionScheduler();
         bool UpdateSimulationTier(AgentId id, SimulationTier tier);
 
-        // Milestone 2.12E2: the canonical way ANY part of AIWorldMgr
-        // dissolves a group - today only the smoke test below, later any
-        // automatic/policy-driven caller too. Thin wrapper around
+        // Milestone 2.12E2/2.12E3B P2 fix (STATIC review): the raw,
+        // policy-UNGATED dissolve path - thin wrapper around
         // _groupLifecycleSystem.RequestDissolveGroup(), except it also
         // erases _groupSimulationSchedule's entry for groupId once the
         // dissolve is confirmed (2.12E2 hardening: an earlier version left
@@ -160,7 +159,42 @@ class TC_GAME_API AIWorldMgr
         // so this is the one place that can close the gap). onComplete
         // fires with the same success/failure AgentGroupLifecycleSystem::
         // RequestDissolveGroup() itself would have reported.
+        //
+        // NOT the canonical dissolve entry point any more (STATIC review:
+        // an earlier version of this comment claimed it was meant for
+        // "any automatic/policy-driven caller too" - wrong, since this
+        // method has no AgentGroupOperationSource and asks
+        // AgentGroupPolicySystem nothing, an automatic caller going
+        // through this directly could dissolve a Stable group outright,
+        // exactly what StableGroupProtected exists to prevent for
+        // CanLeave()). Reserved for callers that are themselves already
+        // the policy decision - today's manual smoke test/cleanup paths,
+        // which are unconditionally allowed the same way a Manual request
+        // always is. Any automatic/policy-driven caller (2.12E4+) MUST use
+        // RequestDissolveGroupWithPolicy() below instead.
         void RequestDissolveGroup(GroupId groupId, std::function<void(bool)> onComplete);
+
+        // Milestone 2.12E3B P2 fix (STATIC review): the canonical,
+        // policy-gated dissolve entry point - the Dissolve counterpart to
+        // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below,
+        // closing the gap those two already covered but
+        // RequestDissolveGroup() above never did. source ==
+        // AgentGroupOperationSource::Manual always proceeds straight to
+        // RequestDissolveGroup(), the same "a deliberately-authorized
+        // individual request is never policy-blocked" rule CanLeave()
+        // already gives Manual. source == AutomaticPolicy asks
+        // _groupPolicySystem.ShouldDissolve() first - which already
+        // encodes both halves of the rule this milestone's own roadmap
+        // message asked for (AutomaticPolicy + Stable -> always false,
+        // i.e. rejected; AutomaticPolicy + Loose -> only when actually
+        // below AIWorld.LooseGroupMinMembers) without this method needing
+        // to duplicate that Kind-branch itself - only calls through to
+        // RequestDissolveGroup() if that returns true. An unknown groupId
+        // or a rejected decision calls onComplete(false) synchronously and
+        // never reaches AgentGroupLifecycleSystem/the DB at all, the same
+        // contract RequestJoinGroupWithPolicy()/
+        // RequestLeaveGroupWithPolicy() already hold.
+        void RequestDissolveGroupWithPolicy(GroupId groupId, AgentGroupOperationSource source, std::function<void(bool)> onComplete);
 
         // Milestone 2.12E2: manual proof that AgentGroupLifecycleSystem's
         // async Request* API never touches Creature/WorldState and never
