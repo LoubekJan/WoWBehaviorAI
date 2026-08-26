@@ -24,6 +24,9 @@
 #include "Action/ActionSystem.h"
 #include "Action/PendingEatContinuation.h"
 #include "Agent/AgentGroupLifecycleSystem.h"
+#include "Agent/AgentGroupOperationSource.h"
+#include "Agent/AgentGroupPolicyConfig.h"
+#include "Agent/AgentGroupPolicySystem.h"
 #include "Agent/AgentGroupRegistry.h"
 #include "Agent/AgentGroupSimulationSystem.h"
 #include "Agent/AgentId.h"
@@ -194,6 +197,51 @@ class TC_GAME_API AIWorldMgr
         // best-effort, not a guarantee.
         void RunGroupLifecycleSmokeTestAbort(GroupId groupId, char const* step, AgentId memberId);
 
+        // Milestone 2.12E3B: the canonical way ANY part of AIWorldMgr asks
+        // to join a group - resolves groupId in _groupRegistry, asks
+        // _groupPolicySystem.CanJoin() (source is always relevant here,
+        // even though CanJoin() itself never reads it - kept in the
+        // signature for symmetry with RequestLeaveGroupWithPolicy() and so
+        // every call site names who is asking, matching
+        // AgentGroupOperationSource.h's own comment on why that matters
+        // for logging even where a rule does not yet branch on it), and
+        // only calls through to _groupLifecycleSystem.RequestJoinGroup()
+        // if the answer is Allowed. An unknown groupId or a rejected
+        // decision calls onComplete(false) synchronously and never reaches
+        // AgentGroupLifecycleSystem/the DB at all - see
+        // AgentGroupPolicySystem.h's own class comment for why this gate
+        // sits strictly upstream of lifecycle, never inside it.
+        void RequestJoinGroupWithPolicy(GroupId groupId, AgentId memberId, uint64 joinedAtMs, AgentGroupOperationSource source,
+            std::function<void(bool)> onComplete);
+
+        // Milestone 2.12E3B: same shape as RequestJoinGroupWithPolicy(),
+        // asking _groupPolicySystem.CanLeave() instead - this is the one
+        // that actually matters for Stable protection, since CanLeave()
+        // rejects (StableGroupProtected) an AutomaticPolicy leave for a
+        // Stable group but allows a Manual one for either kind. An unknown
+        // groupId or a rejected decision calls onComplete(false)
+        // synchronously and never reaches AgentGroupLifecycleSystem/the DB.
+        void RequestLeaveGroupWithPolicy(GroupId groupId, AgentId memberId, AgentGroupOperationSource source,
+            std::function<void(bool)> onComplete);
+
+        // Milestone 2.12E3B: manual proof of AgentGroupPolicySystem's own
+        // rules, in two parts. Part one is pure - synthetic
+        // AgentGroupRecord values built on the stack, fed straight to
+        // _groupPolicySystem.CanJoin()/CanLeave()/ShouldDissolve(), no
+        // registry/DB touched at all, exercising every rule
+        // AgentGroupPolicySystem.cpp implements (capacity, Manual-vs-
+        // AutomaticPolicy leave, Loose-below-minimum dissolution, Stable
+        // protection). Always runs when this method is called at all (see
+        // AIWorld.TestGroupPolicy). Part two only runs if testMemberId is
+        // set and resolves in _registry - creates a real Stable test
+        // group, joins testMemberId, then proves the policy gate actually
+        // protects RequestLeaveGroupWithPolicy(): an AutomaticPolicy leave
+        // must be rejected with membership left untouched, a Manual leave
+        // for the same member must then succeed, and the test group is
+        // dissolved (manually, via RequestDissolveGroup()) either way
+        // before finishing, so it never lingers as a permanent DB fixture.
+        void RunGroupPolicySmokeTest(AgentId testMemberId);
+
         bool _enabled = false;
 
         // Milestone 2.10A/2.10B: how often RunDecisionScheduler() itself
@@ -256,6 +304,27 @@ class TC_GAME_API AIWorldMgr
         // completion only ever runs from inside that poll, so it is always
         // world-thread-only.
         TransactionCallbackProcessor _groupLifecyclePending;
+
+        // Milestone 2.12E3A/2.12E3B: "is this socially allowed?" - see its
+        // own class comment for why this is a separate question from
+        // everything _groupLifecycleSystem already answers. Pure/stateless
+        // like _groupLifecycleSystem, called only from
+        // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below
+        // (and the smoke test) - _groupLifecycleSystem's own Request*
+        // methods are never called directly by anything else in this file
+        // any more once 2.12E3B's own automatic-policy callers exist,
+        // though 2.12E2's own lifecycle-only smoke test still does, since
+        // it is deliberately testing the seam one layer below this one.
+        AgentGroupPolicySystem _groupPolicySystem;
+
+        // Milestone 2.12E3B: loaded and clamped once at Initialize() from
+        // AIWorld.Loose/StableGroupMin/MaxMembers - see
+        // AgentGroupPolicyConfig.h for why _groupPolicySystem itself never
+        // reads config directly. Copied into a fresh AgentGroupPolicyContext
+        // for every CanJoin()/CanLeave()/ShouldDissolve() call rather than
+        // referenced, the same reasoning AgentGroupPolicyContext.h's own
+        // comment gives.
+        AgentGroupPolicyConfig _groupPolicyConfig;
 
         // Milestone 2.10A: deterministic admission ranking over every
         // registered+Materialized agent - see DecisionScheduler.h. Pure

@@ -236,6 +236,58 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI agent group simulation configured resourcesRate={:.6f}",
         _agentGroupSimulationRates.ResourcesPerSecond);
 
+    // Milestone 2.12E3B: AgentGroupPolicySystem itself never reads config -
+    // see AgentGroupPolicyConfig.h for why. Min is clamped to at least 1 (a
+    // group of 0 makes no sense as either a floor or a ceiling), Max is
+    // clamped to be at least Min - a config that would let LooseMinMembers
+    // exceed LooseMaxMembers (or the Stable equivalent) would make
+    // AgentGroupPolicySystem::CanJoin() and ::ShouldDissolve() disagree
+    // with each other about whether a group of exactly Min members is
+    // viable, which is a real risk to fail-closed against here rather than
+    // let each method quietly interpret it differently.
+    int32 looseGroupMinMembers = sConfigMgr->GetIntDefault("AIWorld.LooseGroupMinMembers", 2);
+    if (looseGroupMinMembers < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.LooseGroupMinMembers ({}) is invalid or too low, clamping to 1", looseGroupMinMembers);
+        looseGroupMinMembers = 1;
+    }
+    _groupPolicyConfig.LooseMinMembers = uint32(looseGroupMinMembers);
+
+    int32 looseGroupMaxMembers = sConfigMgr->GetIntDefault("AIWorld.LooseGroupMaxMembers", 5);
+    if (looseGroupMaxMembers < looseGroupMinMembers)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.LooseGroupMaxMembers ({}) is lower than AIWorld.LooseGroupMinMembers ({}), clamping to match",
+            looseGroupMaxMembers, looseGroupMinMembers);
+        looseGroupMaxMembers = looseGroupMinMembers;
+    }
+    _groupPolicyConfig.LooseMaxMembers = uint32(looseGroupMaxMembers);
+
+    int32 stableGroupMinMembers = sConfigMgr->GetIntDefault("AIWorld.StableGroupMinMembers", 2);
+    if (stableGroupMinMembers < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.StableGroupMinMembers ({}) is invalid or too low, clamping to 1", stableGroupMinMembers);
+        stableGroupMinMembers = 1;
+    }
+    _groupPolicyConfig.StableMinMembers = uint32(stableGroupMinMembers);
+
+    int32 stableGroupMaxMembers = sConfigMgr->GetIntDefault("AIWorld.StableGroupMaxMembers", 8);
+    if (stableGroupMaxMembers < stableGroupMinMembers)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.StableGroupMaxMembers ({}) is lower than AIWorld.StableGroupMinMembers ({}), clamping to match",
+            stableGroupMaxMembers, stableGroupMinMembers);
+        stableGroupMaxMembers = stableGroupMinMembers;
+    }
+    _groupPolicyConfig.StableMaxMembers = uint32(stableGroupMaxMembers);
+
+    TC_LOG_INFO("ai.world", "AI agent group policy configured looseMin={} looseMax={} stableMin={} stableMax={}",
+        _groupPolicyConfig.LooseMinMembers, _groupPolicyConfig.LooseMaxMembers,
+        _groupPolicyConfig.StableMinMembers, _groupPolicyConfig.StableMaxMembers);
+
+    // Milestone 2.12E3B: off by default - see RunGroupPolicySmokeTest()'s
+    // own comment. Read here (not inline at the call site below) purely to
+    // sit next to the config values its pure half exercises.
+    bool testGroupPolicy = sConfigMgr->GetBoolDefault("AIWorld.TestGroupPolicy", false);
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -477,6 +529,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     if (testGroupMemberAgentId1 && testGroupMemberAgentId2 && testGroupMemberAgentId3)
         RunGroupLifecycleSmokeTest(testGroupMemberAgentId1, testGroupMemberAgentId2, testGroupMemberAgentId3);
 
+    // Milestone 2.12E3B: manual proof only, gated behind AIWorld.TestGroupPolicy
+    // (default off) - see RunGroupPolicySmokeTest()'s own comment. Its pure
+    // half runs regardless of testGroupMemberAgentId1; its integration half
+    // (a real Stable test group) only runs if that resolves in _registry,
+    // which RunGroupPolicySmokeTest() itself checks.
+    if (testGroupPolicy)
+        RunGroupPolicySmokeTest(testGroupMemberAgentId1);
+
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
         "background interval={}ms, group interval={}ms, coarse max/pass={})",
@@ -622,6 +682,211 @@ void AIWorldMgr::RunGroupLifecycleSmokeTestAbort(GroupId groupId, char const* st
         else
             TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test cleanup FAILED: group={} could not be dissolved, left as-is", groupId.Value);
     });
+}
+
+void AIWorldMgr::RequestJoinGroupWithPolicy(GroupId groupId, AgentId memberId, uint64 joinedAtMs, AgentGroupOperationSource source,
+    std::function<void(bool)> onComplete)
+{
+    AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+    if (!group)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorldMgr::RequestJoinGroupWithPolicy: group id={} does not exist, refusing to join member id={}",
+            groupId.Value, memberId.Value);
+        onComplete(false);
+        return;
+    }
+
+    AgentGroupPolicyContext context;
+    context.Config = _groupPolicyConfig;
+    context.Source = source;
+
+    AgentGroupPolicyDecision decision = _groupPolicySystem.CanJoin(*group, memberId, context);
+    if (decision != AgentGroupPolicyDecision::Allowed)
+    {
+        TC_LOG_INFO("ai.world", "AI agent group join REJECTED group={} member={} source={} reason={}",
+            groupId.Value, memberId.Value, ToString(source), ToString(decision));
+        onComplete(false);
+        return;
+    }
+
+    _groupLifecycleSystem.RequestJoinGroup(groupId, memberId, joinedAtMs, _groupRegistry, _registry, _groupPersistence, _groupLifecyclePending,
+        std::move(onComplete));
+}
+
+void AIWorldMgr::RequestLeaveGroupWithPolicy(GroupId groupId, AgentId memberId, AgentGroupOperationSource source, std::function<void(bool)> onComplete)
+{
+    AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+    if (!group)
+    {
+        TC_LOG_WARN("ai.world", "AIWorldMgr::RequestLeaveGroupWithPolicy: group id={} does not exist, nothing to do for member id={}",
+            groupId.Value, memberId.Value);
+        onComplete(false);
+        return;
+    }
+
+    AgentGroupPolicyContext context;
+    context.Config = _groupPolicyConfig;
+    context.Source = source;
+
+    AgentGroupPolicyDecision decision = _groupPolicySystem.CanLeave(*group, memberId, context);
+    if (decision != AgentGroupPolicyDecision::Allowed)
+    {
+        TC_LOG_INFO("ai.world", "AI agent group leave REJECTED group={} member={} source={} reason={}",
+            groupId.Value, memberId.Value, ToString(source), ToString(decision));
+        onComplete(false);
+        return;
+    }
+
+    _groupLifecycleSystem.RequestLeaveGroup(groupId, memberId, _groupRegistry, _groupPersistence, _groupLifecyclePending, std::move(onComplete));
+}
+
+// Milestone 2.12E3B: part one - pure, synchronous, no registry/DB touched.
+// Every AgentGroupRecord here is a local value never added to
+// _groupRegistry, matching AgentGroupPolicySystem's own "pure value
+// transform" contract (see its class comment). Runs unconditionally
+// whenever this method is called at all (gated only by
+// AIWorld.TestGroupPolicy at the call site in Initialize()).
+void AIWorldMgr::RunGroupPolicySmokeTest(AgentId testMemberId)
+{
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI group policy smoke test: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI group policy smoke test: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    AgentGroupPolicyContext context;
+    context.Config = _groupPolicyConfig;
+
+    // LOOSE: fill to one below capacity, then to exactly capacity.
+    AgentGroupRecord looseGroup;
+    looseGroup.Id = GroupId{ 1 };
+    looseGroup.Kind = AgentGroupKind::Loose;
+    for (uint32 i = 0; i + 1 < _groupPolicyConfig.LooseMaxMembers; ++i)
+        looseGroup.Members.push_back(AgentGroupMembership{ AgentId{ 1000 + i }, 0 });
+
+    check("LOOSE CanJoin below capacity",
+        _groupPolicySystem.CanJoin(looseGroup, AgentId{ 9001 }, context) == AgentGroupPolicyDecision::Allowed);
+
+    looseGroup.Members.push_back(AgentGroupMembership{ AgentId{ 2000 }, 0 });
+    check("LOOSE CanJoin at capacity is GROUP_FULL",
+        _groupPolicySystem.CanJoin(looseGroup, AgentId{ 9001 }, context) == AgentGroupPolicyDecision::GroupFull);
+
+    context.Source = AgentGroupOperationSource::AutomaticPolicy;
+    check("LOOSE AutomaticPolicy CanLeave is ALLOWED",
+        _groupPolicySystem.CanLeave(looseGroup, looseGroup.Members.front().Member, context) == AgentGroupPolicyDecision::Allowed);
+
+    // LOOSE below minimum -> ShouldDissolve.
+    AgentGroupRecord shrunkLooseGroup;
+    shrunkLooseGroup.Id = GroupId{ 2 };
+    shrunkLooseGroup.Kind = AgentGroupKind::Loose;
+    for (uint32 i = 0; i + 1 < _groupPolicyConfig.LooseMinMembers; ++i)
+        shrunkLooseGroup.Members.push_back(AgentGroupMembership{ AgentId{ 3000 + i }, 0 });
+    check("LOOSE ShouldDissolve below minimum",
+        _groupPolicySystem.ShouldDissolve(shrunkLooseGroup, context));
+
+    // STABLE: below capacity is ALLOWED the same way LOOSE is; the
+    // Manual-vs-AutomaticPolicy leave distinction is what actually differs.
+    AgentGroupRecord stableGroup;
+    stableGroup.Id = GroupId{ 3 };
+    stableGroup.Kind = AgentGroupKind::Stable;
+    stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 4000 }, 0 });
+
+    context.Source = AgentGroupOperationSource::Manual;
+    check("STABLE CanJoin below capacity",
+        _groupPolicySystem.CanJoin(stableGroup, AgentId{ 9002 }, context) == AgentGroupPolicyDecision::Allowed);
+
+    context.Source = AgentGroupOperationSource::AutomaticPolicy;
+    check("STABLE AutomaticPolicy CanLeave is STABLE_GROUP_PROTECTED",
+        _groupPolicySystem.CanLeave(stableGroup, stableGroup.Members.front().Member, context) == AgentGroupPolicyDecision::StableGroupProtected);
+    check("STABLE ShouldDissolve is never automatic",
+        !_groupPolicySystem.ShouldDissolve(stableGroup, context));
+
+    context.Source = AgentGroupOperationSource::Manual;
+    check("STABLE Manual CanLeave is ALLOWED",
+        _groupPolicySystem.CanLeave(stableGroup, stableGroup.Members.front().Member, context) == AgentGroupPolicyDecision::Allowed);
+
+    TC_LOG_INFO("ai.world", "AI group policy smoke test (pure) {}", allPassed ? "PASSED" : "FAILED");
+
+    // Part two - integration: only if testMemberId is a real, registered
+    // agent. Proves the policy gate actually protects
+    // RequestLeaveGroupWithPolicy(), not just that AgentGroupPolicySystem's
+    // own rules are internally consistent.
+    if (!testMemberId || !_registry.Find(testMemberId))
+    {
+        TC_LOG_INFO("ai.world", "AI group policy smoke test (integration): skipped - AIWorld.TestGroupMemberAgentId1 is not set to a real, already-registered agent");
+        return;
+    }
+
+    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Stable, 0, 0.0f, 0.0f, 0.0f, 1.0f,
+        _groupRegistry, _groupPersistence, _groupLifecyclePending,
+        [this, testMemberId](std::optional<GroupId> groupId)
+        {
+            if (!groupId)
+            {
+                TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration) FAILED: CreateGroup failed, aborting");
+                return;
+            }
+
+            GroupId stableGroupId = *groupId;
+            uint64 nowMs = CurrentTimeMs();
+
+            RequestJoinGroupWithPolicy(stableGroupId, testMemberId, nowMs, AgentGroupOperationSource::Manual,
+                [this, stableGroupId, testMemberId](bool joined)
+                {
+                    if (!joined)
+                    {
+                        TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration) FAILED: setup JoinGroup failed, group={} - attempting best-effort cleanup",
+                            stableGroupId.Value);
+                        RequestDissolveGroup(stableGroupId, [](bool) {});
+                        return;
+                    }
+
+                    // AutomaticPolicy leave on a Stable group must be
+                    // rejected - the policy gate itself, never
+                    // AgentGroupLifecycleSystem, is what stops this.
+                    RequestLeaveGroupWithPolicy(stableGroupId, testMemberId, AgentGroupOperationSource::AutomaticPolicy,
+                        [this, stableGroupId, testMemberId](bool automaticLeaveSucceeded)
+                        {
+                            bool rejectedAsExpected = !automaticLeaveSucceeded;
+                            bool stillMember = false;
+                            if (AgentGroupRecord const* group = _groupRegistry.Find(stableGroupId))
+                                stillMember = std::any_of(group->Members.begin(), group->Members.end(),
+                                    [testMemberId](AgentGroupMembership const& membership) { return membership.Member == testMemberId; });
+
+                            if (!rejectedAsExpected || !stillMember)
+                                TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration): AutomaticPolicy leave gate FAILED (rejected={}, stillMember={})",
+                                    rejectedAsExpected, stillMember);
+                            else
+                                TC_LOG_INFO("ai.world", "AI group policy smoke test (integration): AutomaticPolicy leave gate PASSED");
+
+                            // Manual leave for the same member must now
+                            // succeed - Stable is protected from automatic
+                            // thinning, never from a deliberate request.
+                            RequestLeaveGroupWithPolicy(stableGroupId, testMemberId, AgentGroupOperationSource::Manual,
+                                [this, stableGroupId](bool manualLeaveSucceeded)
+                                {
+                                    if (manualLeaveSucceeded)
+                                        TC_LOG_INFO("ai.world", "AI group policy smoke test (integration): Manual leave gate PASSED");
+                                    else
+                                        TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration): Manual leave gate FAILED");
+
+                                    RequestDissolveGroup(stableGroupId, [stableGroupId](bool dissolved)
+                                    {
+                                        if (dissolved)
+                                            TC_LOG_INFO("ai.world", "AI group policy smoke test (integration) complete: group={} cleaned up", stableGroupId.Value);
+                                        else
+                                            TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration) cleanup FAILED: group={} left as-is", stableGroupId.Value);
+                                    });
+                                });
+                        });
+                });
+        });
 }
 
 void AIWorldMgr::Update(uint32 diff)

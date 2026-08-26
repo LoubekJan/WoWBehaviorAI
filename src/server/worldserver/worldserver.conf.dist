@@ -3519,6 +3519,31 @@ AIWorld.GroupSimulationMaxPerPass = 50
 AIWorld.AgentGroupResourcesRatePerSecond = 0.0005
 
 #
+#    AIWorld.LooseGroupMinMembers
+#    AIWorld.LooseGroupMaxMembers
+#    AIWorld.StableGroupMinMembers
+#    AIWorld.StableGroupMaxMembers
+#        Description: Milestone 2.12E3B - membership size bounds AgentGroupPolicySystem checks
+#                     for its own Kind - Min/MaxMembers is never read by AgentGroupPolicySystem
+#                     itself, only by AIWorldMgr at startup (see AgentGroupPolicyConfig.h for why).
+#                     CanJoin() rejects (GROUP_FULL) once a group's member count would reach its
+#                     own Kind's Max; ShouldDissolve() returns true for a Loose group once its
+#                     member count drops below LooseGroupMinMembers (a Stable group is never
+#                     automatically dissolved, regardless of size - StableGroupMinMembers is
+#                     loaded but not yet consulted by any rule, see AgentGroupPolicyConfig.h).
+#        Important:   Each Min is clamped to at least 1; each Max is clamped to be at least its
+#                     own Kind's Min.
+#        Default:     2 - (AIWorld.LooseGroupMinMembers)
+#                     5 - (AIWorld.LooseGroupMaxMembers)
+#                     2 - (AIWorld.StableGroupMinMembers)
+#                     8 - (AIWorld.StableGroupMaxMembers)
+
+AIWorld.LooseGroupMinMembers = 2
+AIWorld.LooseGroupMaxMembers = 5
+AIWorld.StableGroupMinMembers = 2
+AIWorld.StableGroupMaxMembers = 8
+
+#
 #    AIWorld.TestMapId
 #    AIWorld.TestSpawnId
 #        Description: Map ID and creature spawn ID (creature.guid in the world database) of a
@@ -3553,6 +3578,22 @@ AIWorld.TestSpawnId = 0
 AIWorld.TestGroupMemberAgentId1 = 0
 AIWorld.TestGroupMemberAgentId2 = 0
 AIWorld.TestGroupMemberAgentId3 = 0
+
+#
+#    AIWorld.TestGroupPolicy
+#        Description: Milestone 2.12E3B - when true, runs a one-shot manual proof at startup of
+#                     AgentGroupPolicySystem's own rules (see AIWorldMgr::RunGroupPolicySmokeTest()).
+#                     Its first half is pure - synthetic AgentGroupRecord values, no registry/DB
+#                     touched - and always runs. Its second half only runs if
+#                     AIWorld.TestGroupMemberAgentId1 resolves to a real, already-registered agent:
+#                     it creates a real Stable test group, joins that agent, then proves the policy
+#                     gate actually protects RequestLeaveGroupWithPolicy() - an AutomaticPolicy
+#                     leave must be rejected with membership left untouched, a Manual leave for the
+#                     same member must then succeed - and dissolves the test group before finishing
+#                     either way. Off by default - this is a manual verification aid, not a feature.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestGroupPolicy = 0
 
 #
 #    AIWorld.AIHost
