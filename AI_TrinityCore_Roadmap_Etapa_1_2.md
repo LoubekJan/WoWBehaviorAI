@@ -1,7 +1,7 @@
 # AI TrinityCore — Roadmap
 
 > **Výchozí stav:** TrinityCore `3.3.5` + Ubuntu Server + NVIDIA GPU  
-> **Rozsah dokumentu:** Etapa 1 — Development Infrastructure, Etapa 2 — AI World Foundation  
+> **Rozsah dokumentu:** Etapy 1–3 + výhled Etapy 4  
 > **Aktualizováno:** 2026-08-26  
 > **Aktivní větev:** `ai-world`
 
@@ -70,6 +70,16 @@ Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gat
   - [2.14 První emergentní end-to-end událost](#214-první-emergentní-end-to-end-událost)
   - [2.15 Testy a diagnostika](#215-testy-a-diagnostika)
 - [Doporučené pořadí implementace](#doporučené-pořadí-implementace)
+- [Etapa 3 — Elwynn Forest World Preparation](#etapa-3--elwynn-forest-world-preparation)
+  - [3.0 Scope a source of truth](#30-scope-a-source-of-truth)
+  - [3.1 Kompletní census NPC a creature spawnů](#31-kompletní-census-npc-a-creature-spawnů)
+  - [3.2 Sémantická mapa lokací](#32-sémantická-mapa-lokací)
+  - [3.3 Faction audit a oprava](#33-faction-audit-a-oprava)
+  - [3.4 Coalition pravidla uvnitř frakcí](#34-coalition-pravidla-uvnitř-frakcí)
+  - [3.5 Faction presence a pohyb po mapě](#35-faction-presence-a-pohyb-po-mapě)
+  - [3.6 World DB cleanup a verifikace](#36-world-db-cleanup-a-verifikace)
+  - [Etapa 3 — Definition of Done](#etapa-3--definition-of-done)
+- [Etapa 4 — Living World](#etapa-4--living-world)
 
 ---
 
@@ -121,6 +131,8 @@ Základní invariants:
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
 | **2 — AI World Foundation** | 🟡 **IN PROGRESS — 2.12E1 CLOSED, next async-safe dynamic group lifecycle** | Vyřešit a runtime ověřit technologické stavební bloky pro persistentní živý AI svět: agenti, události, paměť, cíle, Action API, async AI/LLM bridge, scheduler, coalition model a dynamickou interakci s hráčem | world problem → NPC context → local LLM → validated player task → player action → WORLD STATE |
+| **3 — Elwynn Forest World Preparation** | ⚪ **PLANNED** | Připravit jednu konkrétní lokaci jako správně popsaný a opravený datový základ: všechny NPC/spawny, sémantické lokace, frakce, coalition constraints a faction presence | každý relevantní spawn je evidovaný; lokace a frakce jsou explicitní; coalition membership respektuje faction invariant; DB změny jsou verzované a runtime ověřené |
+| **4 — Living World** | ⚪ **PLANNED** | Z připraveného Elwynn Forest a technologií Etapy 2 skládat komplexní persistentní svět: populace, zdroje, ekonomiku, vztahy, pohyb frakcí, konflikty a AI questy | dlouhodobě běžící oblast generuje kauzální problémy, interakce a změny bez ručně napsané questové posloupnosti |
 
 ---
 
@@ -663,7 +675,7 @@ Potom:
 
 ## 2.13 LLM dynamic quest / player interaction vertical slice
 
-**Účel této části není stavět komplexní questový obsah Etapy 3. Jejím cílem je před vstupem do Etapy 3 vyřešit a runtime ověřit technologický řetězec, ze kterého budou dynamické problémy/questy živého světa později vznikat.**
+**Účel této části není stavět komplexní questový obsah Etapy 4. Jejím cílem je před world-preparation Etapou 3 a následným komplexním světem Etapy 4 vyřešit a runtime ověřit technologický řetězec, ze kterého budou dynamické problémy/questy živého světa později vznikat.**
 
 Etapa 2 se nesmí uzavřít pouze mock/deterministic rozhodováním. Musí existovat alespoň jeden runtime vertical slice, ve kterém **skutečný lokální LLM přes oddělený `ai-server`** dostane omezený kontext skutečného problému světa, vrátí strukturovaný návrh interakce/úkolu a server návrh bezpečně validuje před tím, než jej uvidí hráč.
 
@@ -777,7 +789,7 @@ Gate 2.13:
 - [ ] timeout, malformed output, stale proposal a LLM outage mají runtime ověřený safe fallback;
 - [ ] celý vertical slice má audit/logging dostatečný k reprodukci `source event → proposal → validation → offer → result`.
 
-**Hranice etap:** Etapa 2 řeší technologii a nejmenší ověřené vertical slices. Etapa 3 má tyto mechanismy skládat a škálovat do komplexního světa; neměla by teprve objevovat chybějící základní LLM→player nebo player→world architektonickou cestu.
+**Hranice etap:** Etapa 2 řeší technologii a nejmenší ověřené vertical slices. Etapa 3 připravuje a opravuje konkrétní herní prostor, NPC, lokace a frakce. Etapa 4 teprve tyto mechanismy skládá a škáluje do komplexního živého světa; neměla by už objevovat chybějící fundamentální LLM→player, player→world ani world-data architektonickou cestu.
 
 ## 2.14 První emergentní end-to-end událost
 
@@ -915,7 +927,7 @@ validated TrinityCore action
 37. [ ] **Async-safe AgentGroup lifecycle persistence boundary před automatickou policy**
 38. [ ] **malý 2.12E1 hardening: overflow / smoke cleanup / schedule cleanup**
 
-## Následuje
+## Následuje — uzavření Etapy 2
 
 39. [ ] `Loose` vs `Stable` membership policy
 40. [ ] deterministic automatic wolf coalition formation/dissolution
@@ -925,6 +937,17 @@ validated TrinityCore action
 44. [ ] 2.13C player-facing dynamic task lifecycle
 45. [ ] 2.13D `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate
 46. [ ] 2.14 Wolf coalition → livestock → farmer memory → protect/request help
+
+## Po uzavření Etapy 2 — Etapa 3
+
+47. [ ] exportovat a verzovat kompletní Elwynn Forest NPC/creature spawn census
+48. [ ] klasifikovat každý relevantní spawn: role, AI participation, Home/Work/roam a semantic location
+49. [ ] vytvořit sémantickou mapu lokalit, sublokalit, cest a resource/danger/faction anchorů
+50. [ ] auditovat a opravit Elwynn faction/faction-template a zavést explicitní AI `WorldFactionId`
+51. [ ] vynutit invariant `AgentGroup coalition ⊂ jedna WorldFactionId`
+52. [ ] připravit faction presence/holdings a kontrolovaný přesun stejné frakce mezi semantic locations
+53. [ ] verzovat world DB/spawn/faction/pathing opravy a vytvořit before/after audit
+54. [ ] uzavřít Etapu 3 runtime + data-quality gate před spuštěním komplexního světa
 
 ## Paralelní hardening
 
@@ -940,6 +963,235 @@ validated TrinityCore action
 - [ ] Optimalizovat full-sort coarse selection před velkou populací.
 - [ ] Produkční hardening historických AIWorld SQL migrací.
 
-## Co bude následovat
+---
 
-**Etapa 3:** jedna živá oblast (například Elwynn Forest) s populacemi, zdroji, ekonomikou, vztahy, frakcemi a dynamickými problémy/questy. Etapa 3 má primárně skládat, škálovat a ladit mechanismy technicky ověřené v Etapě 2; nemá teprve řešit chybějící fundamentální cestu `LLM → validovaný player task → authoritative world feedback`.
+# Etapa 3 — Elwynn Forest World Preparation
+
+**Cíl:** před spuštěním komplexního živého světa vzít jednu konkrétní oblast — **Elwynn Forest** — a udělat z ní přesně zmapovaný, sémanticky popsaný a datově opravený základ. Etapa 3 není ještě simulace celé společnosti. Je to příprava herního prostoru, aby Etapa 4 nestavěla emergentní chování nad špatnými spawny, nejasnými lokacemi a nesmyslnými faction assignments.
+
+Zásadní pravidlo Etapy 3:
+
+> **Nejdřív musí být jasné kdo je kdo, kde žije/pracuje/působí, ke které frakci patří a jaké části mapy mají význam. Teprve potom má smysl nechat AI svět dlouhodobě měnit.**
+
+## 3.0 Scope a source of truth
+
+- [ ] cílová oblast je Elwynn Forest v používaném TrinityCore 3.3.5/TDB datasetu;
+- [ ] přesně definovat hranici census výběru podle authoritative map/zone/area dat, ne podle ručně odhadnutého obdélníku;
+- [ ] vytvořit reprodukovatelný export z world DB pro creature spawny, templates, movement/pathing, faction/faction-template, NPC flags a relevantní vazby;
+- [ ] uložit odvozený audit/manifest do repozitáře v reviewovatelném formátu (např. CSV/JSON/Markdown generated report); samotný TDB dump se necommitne;
+- [ ] každý ruční override musí mít důvod a být verzovaný;
+- [ ] z census nesmí mizet spawn jen proto, že zatím není AI-enabled.
+
+Minimální spawn evidence:
+
+```text
+SpawnId
+Entry
+Name/template
+Map / Zone / Area
+X/Y/Z/O
+movement type / path
+respawn
+NPC flags / role hints
+TrinityCore faction/faction-template
+AI participation mode
+WorldFactionId
+SemanticLocationId
+Home / Work / Roam anchors
+notes / correction status
+```
+
+## 3.1 Kompletní census NPC a creature spawnů
+
+Cílem je **zmapovat všechny creature/NPC spawny v Elwynn Forest**, ne jen několik testovacích agentů.
+
+- [ ] vyexportovat 100 % spawnů v definovaném scope;
+- [ ] odlišit unikátní named NPC od generických spawnů stejného template;
+- [ ] klasifikovat minimálně civilians, guards, merchants/vendors, trainers, quest-related NPC, workers/farmers, travelers, hostile humanoids, predators, prey/fauna a special/scripted entities;
+- [ ] u každého relevantního spawnu rozhodnout `FULL_AGENT`, `LIGHTWEIGHT/BACKGROUND`, `VANILLA_ONLY` nebo jiný explicitní participation režim;
+- [ ] u AI-enabled NPC připravit role/profession metadata odděleně od physical `AgentType`;
+- [ ] připravit Home/Work/Roam/Guard/Resource anchors tam, kde dávají smysl;
+- [ ] identifikovat duplicity, nesmyslné spawny, chybné souřadnice, chybné movement types a entity, které se nesmí automaticky převést na persistent AI agenta;
+- [ ] vytvořit coverage report, který failne gate, pokud zůstane spawn bez klasifikace nebo explicitního důvodu `VANILLA_ONLY`.
+
+**Gate 3.1:** každý spawn v Elwynn census má explicitní klasifikaci a auditovatelný stav.
+
+## 3.2 Sémantická mapa lokací
+
+AI nesmí chápat svět jen jako surové `x/y/z`. Etapa 3 zavede konkrétní pojmenované lokace a jejich vztahy.
+
+Minimálně zmapovat a runtime ověřit relevantní oblasti jako například:
+
+- Northshire / Northshire Valley;
+- Goldshire;
+- Stonefield Farm;
+- Maclure Vineyards;
+- Eastvale Logging Camp;
+- Fargodeep Mine;
+- Jasperlode Mine;
+- Tower of Azora;
+- Mirror Lake a okolní body;
+- hlavní cesty, křižovatky, mosty, lesní koridory, farmy, kempy, resource sites a danger zones, které mají význam pro simulaci.
+
+Konkrétní seznam a hranice musí vzniknout z map/world dat a runtime kontroly; výše uvedené názvy nejsou náhradou za úplný map audit.
+
+Pro každou semantic location připravit například:
+
+```text
+SemanticLocationId
+name
+type
+map/zone/area
+center + radius / polygon / bounded region
+parent location
+adjacent locations
+travel connectors / routes
+resource tags
+danger tags
+settlement/farm/mine/road/etc.
+faction presence / holding capability
+population capacity / role hints
+```
+
+- [ ] `HomeLocation`/`WorkLocation` postupně odkazovat na semantic locations/anchors místo náhodných magic coordinates, kde je to vhodné;
+- [ ] definovat adjacency a použitelné přesuny mezi lokalitami;
+- [ ] rozlišit fyzickou lokaci od politického vlastnictví — jedna location může změnit faction presence bez změny identity;
+- [ ] ověřit reprezentativní pathing mezi sousedními semantic locations přes TrinityCore movement/nav data;
+- [ ] vytvořit debug výpis/map report, ze kterého lze zjistit, která NPC a frakce jsou přiřazeny k dané lokaci.
+
+## 3.3 Faction audit a oprava
+
+Současné TrinityCore `faction`/`faction_template` hodnoty nejsou samy o sobě dostatečný sociální model AI světa a v cílové oblasti mohou být pro zamýšlenou simulaci nekonzistentní nebo věcně špatné.
+
+Etapa 3 proto oddělí dvě věci:
+
+```text
+TrinityCore faction/faction_template
+    = combat/reaction/gameplay compatibility
+
+AI WorldFactionId
+    = sociální/politická příslušnost pro vztahy,
+      coalition eligibility, holdings a budoucí dynamiku světa
+```
+
+- [ ] auditovat faction/faction-template u všech Elwynn census spawnů;
+- [ ] identifikovat a verzovaně opravit zjevně chybné/inconsistent TrinityCore faction assignments tam, kde ovlivňují gameplay/reaction;
+- [ ] zavést explicitní persistentní `WorldFactionId` nebo ekvivalentní sociální identity layer nezávislou na `AgentGroup`;
+- [ ] každý AI-enabled agent musí mít explicitní WorldFaction affiliation nebo explicitní `Neutral/Unaffiliated` stav;
+- [ ] definovat první konkrétní seznam WorldFaction entit pro Elwynn podle skutečného census, nikoli podle několika předem vymyšlených typů;
+- [ ] fauna/predators/humanoids nesmí být automaticky sloučeni do jedné frakce jen proto, že sdílejí combat reaction;
+- [ ] faction změna nesmí implicitně přepsat `AgentId`, memory ani individual identity;
+- [ ] faction relation/diplomacy matrix pro Etapu 3 může být minimální/static; komplexní změny vztahů patří do Etapy 4.
+
+## 3.4 Coalition pravidla uvnitř frakcí
+
+`AgentGroup`/coalition a `WorldFaction` jsou dvě různé úrovně:
+
+```text
+WorldFaction
+├── Agent A ┐
+├── Agent B ├── AgentGroup / Coalition #1
+├── Agent C ┘
+├── Agent D ┐
+└── Agent E ┴── AgentGroup / Coalition #2
+```
+
+Základní invariant:
+
+> **Jedna coalition může obsahovat pouze členy stejné `WorldFactionId`.**
+
+- [ ] `CreateGroup`/`JoinGroup` policy musí znát WorldFaction membership;
+- [ ] cross-faction `JoinGroup` failuje před persistence mutation;
+- [ ] mixed-faction group se nesmí načíst z DB; invalid persistent state fail-closed / quarantine podle zvolené recovery policy;
+- [ ] `Loose`/`Stable` je charakter coalition, nikoli frakce;
+- [ ] jedna frakce může mít mnoho současných coalitions a mnoho agentů bez coalition;
+- [ ] faction membership sama automaticky nevytváří group;
+- [ ] pokud agent někdy v budoucnu změní frakci, jeho nekompatibilní group membership musí být nejprve bezpečně ukončeno/reconciled;
+- [ ] runtime test musí potvrdit same-faction join PASS a cross-faction join REJECT bez side effects.
+
+Komplexní diplomacie, přeběhnutí mezi frakcemi a hráčovy faction transitions jsou explicitně **mimo Etapu 3**.
+
+## 3.5 Faction presence a pohyb po mapě
+
+Frakce nesmí být modelována jako statická značka přibitá k jedné souřadnici. Etapa 3 připraví datový/runtime základ pro to, že se **přítomnost frakce může po Elwynn Forest měnit a přesouvat**.
+
+Důležité rozlišení:
+
+```text
+WorldFaction identity
+    ≠
+current faction presence / holdings / occupied locations
+```
+
+- [ ] zavést nebo navrhnout `FactionPresence`/`FactionHolding` state nad `SemanticLocationId`;
+- [ ] frakce může mít současně přítomnost ve více lokalitách;
+- [ ] presence může mít minimálně strength/population/priority nebo jiný malý deterministic state potřebný pro budoucí simulaci;
+- [ ] movement znamená přesun/redeployment konkrétních agentů/coalitions mezi semantic locations přes existující movement/action pravidla, ne teleport celé abstraktní frakce;
+- [ ] unloaded/background pohyb musí mít později reconciliation na physical spawny bez force-load; Etapa 3 má připravit seam a kontrolovaný smoke, ne kompletní strategickou AI;
+- [ ] faction holdings/presence změna nesmí automaticky měnit faction identity NPC, která se v lokaci právě nacházejí;
+- [ ] připravit controlled runtime scenario, kde same-faction coalition/presence opustí location A a přesune se do location B se zachováním AgentIds, GroupId a WorldFactionId;
+- [ ] všechny změny presence musí být auditovatelné a mít jasný source/cause pro budoucí Event System integraci.
+
+**Etapa 3 připravuje pohyb frakcí jako mechanismus. Proč frakce expanduje, ustupuje, bojuje nebo mění vztahy, bude až dynamika Etapy 4.**
+
+## 3.6 World DB cleanup a verifikace
+
+Mapování není pouze dokumentace. Pokud census odhalí špatná data, musí být cílový Elwynn baseline skutečně opraven.
+
+- [ ] opravy spawn position/orientation tam, kde jsou prokazatelně chybné;
+- [ ] opravy movement/pathing/home/wander parametrů;
+- [ ] odstranění nebo zdokumentování chybných/duplicitních spawnů;
+- [ ] opravy faction/faction-template a dalších flags, pokud neodpovídají zamýšlenému authoritative gameplay;
+- [ ] validace vendor/trainer/questgiver/special NPC flags proti skutečné roli;
+- [ ] AI metadata a WorldFaction mapování držet ve vlastní versionované vrstvě, pokud není důvod měnit upstream world schema;
+- [ ] všechny world DB změny dodat jako versionované TrinityCore SQL updates/migrations, nikdy jako ruční zásah do běžící DB;
+- [ ] vytvořit before/after audit report a smoke checklist pro reprezentativní lokace;
+- [ ] ověřit, že opravy nerozbily vanilla login, quest/NPC interaction a základní hostile/friendly reaction.
+
+## Etapa 3 — Definition of Done
+
+- [ ] 100 % creature/NPC spawnů v definovaném Elwynn Forest scope je v census manifestu;
+- [ ] každý spawn má explicitní classification/participation status;
+- [ ] každý AI-enabled agent má semantic location context a explicitní WorldFaction affiliation nebo `Neutral/Unaffiliated`;
+- [ ] klíčové lokace, sublokace, cesty a resource/danger anchors jsou verzovaně zmapované;
+- [ ] TrinityCore faction/faction-template audit je dokončen a nalezené chyby jsou opravené nebo explicitně zdokumentované;
+- [ ] `WorldFactionId` je oddělený od `AgentGroup` i od raw TrinityCore faction template;
+- [ ] same-faction coalition membership funguje a cross-faction coalition membership je fail-closed;
+- [ ] existuje minimální faction presence/holding model nad semantic locations;
+- [ ] controlled same-faction movement/presence test mezi dvěma Elwynn locations projde bez ztráty identity a bez force-load shortcutu;
+- [ ] všechny změny world DB jsou reprodukovatelné z Git historie;
+- [ ] coverage/audit report neobsahuje nevyřešené „unknown“ položky, které by blokovaly dlouhodobou simulaci;
+- [ ] po clean DB bootstrapu a aplikaci updates odpovídá Elwynn runtime připravenému baseline.
+
+> **Gate:** Etapa 3 končí ve chvíli, kdy Elwynn Forest není pro AI jen sada TrinityCore spawnů a souřadnic, ale explicitně popsaný světový prostor s NPC identitami, rolemi, lokacemi, frakcemi a bezpečnými coalition pravidly. Teprve nad tímto baseline se zapíná komplexní dynamika Etapy 4.
+
+---
+
+# Etapa 4 — Living World
+
+**Cíl:** z technologií ověřených v Etapě 2 a z datově připraveného Elwynn Forest z Etapy 3 vytvořit první skutečně komplexní dlouhodobě žijící oblast.
+
+Etapa 4 bude rozvíjet zejména:
+
+- populace a dlouhodobé population pressures;
+- zdroje a jejich spotřebu/obnovu;
+- ekonomiku a pracovní/obchodní vztahy;
+- persistentní relationships mezi agenty;
+- dynamické faction relations, konflikty, spolupráci, expanzi a ústup;
+- přesuny faction populations/coalitions mezi semantic locations podle skutečných potřeb, hrozeb a příležitostí;
+- problémy vznikající z world state místo z pevně napsané quest sequence;
+- LLM-generované, serverem validované dynamické questy navázané na tyto skutečné problémy;
+- důsledky hráčových akcí, které se vrací do economy/faction/population/memory/world state.
+
+### Hráč a frakce — Etapa 4
+
+Právě zde se může rozvinout myšlenka, že hráč není navždy uzamčený do jedné statické sociální vazby jen kvůli původní quest linii.
+
+- AI questy a dlouhodobé akce hráče mohou měnit vztahy/standing k WorldFaction entitám;
+- hráč se může postupně dostat od jedné frakce k jiné, pokud to dovolí serverová pravidla a kauzální historie světa;
+- přechod nesmí být jednorázový LLM textový trik — musí vycházet z validovaných činů, vztahů, reputation/standing policy a world events;
+- cross-faction diplomacie, defection/allegiance change a přijetí hráče jinou frakcí se řeší jako explicitní systémy;
+- coalition invariant zůstává zachovaný: jedna coalition obsahuje členy jedné aktuální WorldFaction; změna faction affiliation nejprve reconciliuje starou coalition membership;
+- LLM může navrhovat narativ a sociální možnosti, ale samotná faction transition je vždy server-owned a deterministicky validovaná.
+
+**Etapa 4 už nemá být další infrastrukturní projekt. Má skládat existující technologie a opravená data do komplexního světa a nové technické změny přidávat jen tehdy, když je vyžaduje skutečné emergentní chování Elwynn Forest.**
