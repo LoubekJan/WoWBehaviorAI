@@ -274,7 +274,12 @@ std::optional<TransactionCallback> AgentGroupPersistence::CreateGroupAsync(Agent
     callback.AfterComplete([newId, onComplete = std::move(onComplete)](bool success)
     {
         if (!success)
-            TC_LOG_ERROR("ai.world", "AgentGroupPersistence: async CreateGroup transaction for group id={} failed - id burned, never reused", newId.Value);
+            // 2.12E2 P3 fix (STATIC review): "not minted again this
+            // process" only, not "never reused" - see CreateGroupAsync()'s
+            // own header comment for why a restart before some later
+            // successful create can still re-mint this exact id, safely.
+            TC_LOG_ERROR("ai.world", "AgentGroupPersistence: async CreateGroup transaction for group id={} failed and was rolled back "
+                "(not minted again this process, but may be re-minted after a restart - see CreateGroupAsync()'s own comment)", newId.Value);
 
         onComplete(success, success ? newId : GroupId{});
     });

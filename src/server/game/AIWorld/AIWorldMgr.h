@@ -241,22 +241,42 @@ class TC_GAME_API AIWorldMgr
         // for logging even where a rule does not yet branch on it), and
         // only calls through to _groupLifecycleSystem.RequestJoinGroup()
         // if the answer is Allowed. An unknown groupId or a rejected
-        // decision calls onComplete(false) synchronously and never reaches
-        // AgentGroupLifecycleSystem/the DB at all - see
+        // decision calls onComplete(false, decision) synchronously and
+        // never reaches AgentGroupLifecycleSystem/the DB at all - see
         // AgentGroupPolicySystem.h's own class comment for why this gate
         // sits strictly upstream of lifecycle, never inside it.
+        //
+        // Milestone 2.12E3B P3 fix (STATIC review): onComplete carries the
+        // AgentGroupPolicyDecision alongside success, not just a bare bool
+        // - decision != Allowed means policy itself rejected the request
+        // (success is always false in that case, and nothing downstream of
+        // policy was ever touched); decision == Allowed means the request
+        // reached AgentGroupLifecycleSystem, and success reflects whatever
+        // that layer/the DB ultimately reported. Without this, a caller
+        // (a test, or future policy/AI code reacting to a rejection)
+        // cannot tell "policy said no" apart from "policy said yes but the
+        // DB write failed" from the bool alone - see
+        // RunGroupPolicySmokeTest()'s own integration half for exactly the
+        // assertion this makes possible that a bare bool could not
+        // (STABLE_GROUP_PROTECTED specifically, not just "some rejection
+        // happened, for some reason, somewhere"). InvalidOperation is used
+        // for the one case that never reaches AgentGroupPolicySystem at
+        // all - an unknown groupId, see AgentGroupPolicyDecision.h's own
+        // comment on why that value was reserved rather than invented here.
         void RequestJoinGroupWithPolicy(GroupId groupId, AgentId memberId, uint64 joinedAtMs, AgentGroupOperationSource source,
-            std::function<void(bool)> onComplete);
+            std::function<void(bool success, AgentGroupPolicyDecision decision)> onComplete);
 
         // Milestone 2.12E3B: same shape as RequestJoinGroupWithPolicy(),
         // asking _groupPolicySystem.CanLeave() instead - this is the one
         // that actually matters for Stable protection, since CanLeave()
         // rejects (StableGroupProtected) an AutomaticPolicy leave for a
         // Stable group but allows a Manual one for either kind. An unknown
-        // groupId or a rejected decision calls onComplete(false)
-        // synchronously and never reaches AgentGroupLifecycleSystem/the DB.
+        // groupId or a rejected decision calls onComplete(false, decision)
+        // synchronously and never reaches AgentGroupLifecycleSystem/the DB
+        // - see RequestJoinGroupWithPolicy()'s own comment (2.12E3B P3 fix)
+        // for why decision is reported alongside success.
         void RequestLeaveGroupWithPolicy(GroupId groupId, AgentId memberId, AgentGroupOperationSource source,
-            std::function<void(bool)> onComplete);
+            std::function<void(bool success, AgentGroupPolicyDecision decision)> onComplete);
 
         // Milestone 2.12E3B: manual proof of AgentGroupPolicySystem's own
         // rules, in two parts. Part one is pure - synthetic

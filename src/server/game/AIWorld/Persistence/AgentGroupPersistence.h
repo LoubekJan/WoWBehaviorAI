@@ -168,11 +168,28 @@ class TC_GAME_API AgentGroupPersistence
         // be in flight at once (both still only ever issued from the
         // world thread, one after another, never concurrently - but the
         // second could easily be requested before the first's transaction
-        // has completed): each sees a distinct, already-claimed
-        // candidate id, so they can never collide. A transaction that
-        // ultimately fails just burns its id forever - the same accepted
-        // tradeoff GuildMgr::GenerateGuildId() already makes - rather than
-        // ever risking two different requests computing the same id.
+        // has completed): each sees a distinct, already-claimed candidate
+        // id, so they can never collide within this process's lifetime.
+        //
+        // Milestone 2.12E2 P3 fix (STATIC review): a failed transaction is
+        // NOT guaranteed to burn its id across a restart - the reservation
+        // UPDATE (CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE) and the group INSERT
+        // are the same transaction, so a failure rolls both back together;
+        // the DB's own next_group_id is left exactly where it was before
+        // this call, even though _nextGroupId already moved past the
+        // failed candidate in this process's memory. If the process
+        // restarts before any later CreateGroupAsync() call succeeds and
+        // persists a higher value, LoadGroupIdSequence() re-reads the
+        // unchanged (lower) sequence and the failed candidate's id can be
+        // minted again. This is safe, not a latent collision: a rolled-
+        // back transaction never wrote a group row for that id in the
+        // first place, so there is nothing for the reused id to collide
+        // with - re-minting it is observably identical to never having
+        // tried it at all. The only thing this changes from a stricter
+        // "every minted id is globally unique across all of history, even
+        // failed attempts" invariant is that GroupIds are not guaranteed
+        // gapless around a failed create - which nothing in this codebase
+        // actually promises or depends on.
         //
         // Returns std::nullopt (onComplete already invoked) if rejected
         // synchronously as above; otherwise returns the TransactionCallback
@@ -224,9 +241,13 @@ class TC_GAME_API AgentGroupPersistence
         // advanced by one - synchronously, immediately, before the
         // matching CreateGroupAsync() transaction is even submitted, see
         // that method's own comment for why - per CreateGroupAsync() call
-        // thereafter. Never reset, never reused once issued, even across
-        // a dissolve+restart or a failed transaction (that is the whole
-        // point of the sequence table - see this class's own comment).
+        // thereafter. Never reset, and never reused once a group actually
+        // exists for it, even across a dissolve+restart - that is the
+        // whole point of the sequence table (see this class's own
+        // comment). Milestone 2.12E2 P3 fix (STATIC review): a FAILED
+        // transaction's candidate is a narrower promise than that - see
+        // CreateGroupAsync()'s own comment for why it is not guaranteed to
+        // stay unminted across a restart, and why that is still safe.
         // World-thread-only, like everything else here. Meaningless unless
         // _groupIdAllocatorValid is true - CreateGroupAsync() checks that
         // first.

@@ -27,15 +27,24 @@
 // the DB, or AgentGroupRegistry - see AgentGroupPolicySystem.h's own class
 // comment for why that boundary matters.
 //
-// GroupTooSmall and InvalidOperation are declared for API completeness
-// but not yet returned by 2.12E3A's own deliberately simple rule set (see
-// AgentGroupPolicySystem.cpp) - GroupTooSmall names a future CanLeave/
-// CanJoin refinement (e.g. a minimum-size join requirement), and
-// InvalidOperation names a future kind of malformed request neither
-// CanJoin() nor CanLeave() currently has a case for. Reserved rather than
-// invented on demand later, the same "declare the shape, wire the rule
-// when it is actually needed" discipline AgentGroupKind.h's own
-// Institutional-was-deliberately-not-added-yet comment already documents.
+// GroupTooSmall is declared for API completeness but not yet returned by
+// 2.12E3A's own deliberately simple rule set (see AgentGroupPolicySystem.cpp)
+// - it names a future CanLeave/CanJoin refinement (e.g. a minimum-size join
+// requirement). Reserved rather than invented on demand later, the same
+// "declare the shape, wire the rule when it is actually needed" discipline
+// AgentGroupKind.h's own Institutional-was-deliberately-not-added-yet
+// comment already documents.
+//
+// InvalidOperation is still never returned by AgentGroupPolicySystem itself
+// (CanJoin()/CanLeave() only ever produce InvalidMember for a bad member
+// reference), but is used by AIWorldMgr::RequestJoinGroupWithPolicy()/
+// RequestLeaveGroupWithPolicy() (2.12E3B) for the one rejection case that
+// happens before AgentGroupPolicySystem is even called - an unknown
+// GroupId, which has no AgentGroupRecord to hand CanJoin()/CanLeave() at
+// all. Reusing this value rather than adding a GroupId-specific one keeps
+// the caller-facing "why was this rejected" vocabulary small; it still
+// unambiguously means "not a normal CanJoin()/CanLeave() outcome, this
+// request was malformed before policy ever got to weigh in".
 enum class AgentGroupPolicyDecision : uint8
 {
     Allowed,

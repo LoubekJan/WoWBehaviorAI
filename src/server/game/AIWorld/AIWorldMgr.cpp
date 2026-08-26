@@ -722,14 +722,14 @@ void AIWorldMgr::RunGroupLifecycleSmokeTestAbort(GroupId groupId, char const* st
 }
 
 void AIWorldMgr::RequestJoinGroupWithPolicy(GroupId groupId, AgentId memberId, uint64 joinedAtMs, AgentGroupOperationSource source,
-    std::function<void(bool)> onComplete)
+    std::function<void(bool, AgentGroupPolicyDecision)> onComplete)
 {
     AgentGroupRecord const* group = _groupRegistry.Find(groupId);
     if (!group)
     {
         TC_LOG_ERROR("ai.world", "AIWorldMgr::RequestJoinGroupWithPolicy: group id={} does not exist, refusing to join member id={}",
             groupId.Value, memberId.Value);
-        onComplete(false);
+        onComplete(false, AgentGroupPolicyDecision::InvalidOperation);
         return;
     }
 
@@ -742,22 +742,30 @@ void AIWorldMgr::RequestJoinGroupWithPolicy(GroupId groupId, AgentId memberId, u
     {
         TC_LOG_INFO("ai.world", "AI agent group join REJECTED group={} member={} source={} reason={}",
             groupId.Value, memberId.Value, ToString(source), ToString(decision));
-        onComplete(false);
+        onComplete(false, decision);
         return;
     }
 
     _groupLifecycleSystem.RequestJoinGroup(groupId, memberId, joinedAtMs, _groupRegistry, _registry, _groupPersistence, _groupLifecyclePending,
-        std::move(onComplete));
+        [onComplete = std::move(onComplete)](bool success)
+        {
+            // Reached lifecycle - policy already said Allowed above, so
+            // that is what onComplete reports regardless of the DB
+            // outcome; success alone carries whether the write itself
+            // landed.
+            onComplete(success, AgentGroupPolicyDecision::Allowed);
+        });
 }
 
-void AIWorldMgr::RequestLeaveGroupWithPolicy(GroupId groupId, AgentId memberId, AgentGroupOperationSource source, std::function<void(bool)> onComplete)
+void AIWorldMgr::RequestLeaveGroupWithPolicy(GroupId groupId, AgentId memberId, AgentGroupOperationSource source,
+    std::function<void(bool, AgentGroupPolicyDecision)> onComplete)
 {
     AgentGroupRecord const* group = _groupRegistry.Find(groupId);
     if (!group)
     {
         TC_LOG_WARN("ai.world", "AIWorldMgr::RequestLeaveGroupWithPolicy: group id={} does not exist, nothing to do for member id={}",
             groupId.Value, memberId.Value);
-        onComplete(false);
+        onComplete(false, AgentGroupPolicyDecision::InvalidOperation);
         return;
     }
 
@@ -770,11 +778,15 @@ void AIWorldMgr::RequestLeaveGroupWithPolicy(GroupId groupId, AgentId memberId, 
     {
         TC_LOG_INFO("ai.world", "AI agent group leave REJECTED group={} member={} source={} reason={}",
             groupId.Value, memberId.Value, ToString(source), ToString(decision));
-        onComplete(false);
+        onComplete(false, decision);
         return;
     }
 
-    _groupLifecycleSystem.RequestLeaveGroup(groupId, memberId, _groupRegistry, _groupPersistence, _groupLifecyclePending, std::move(onComplete));
+    _groupLifecycleSystem.RequestLeaveGroup(groupId, memberId, _groupRegistry, _groupPersistence, _groupLifecyclePending,
+        [onComplete = std::move(onComplete)](bool success)
+        {
+            onComplete(success, AgentGroupPolicyDecision::Allowed);
+        });
 }
 
 // Milestone 2.12E3B: part one - pure, synchronous, no registry/DB touched.
@@ -829,14 +841,30 @@ void AIWorldMgr::RunGroupPolicySmokeTest(AgentId testMemberId)
 
     // STABLE: below capacity is ALLOWED the same way LOOSE is; the
     // Manual-vs-AutomaticPolicy leave distinction is what actually differs.
+    // 2.12E3B P3 fix (STATIC review): built the same "fill to one below
+    // capacity, then push exactly one more" way LOOSE already is above -
+    // an earlier version always seeded exactly one member regardless of
+    // StableGroupMaxMembers, so a valid StableGroupMaxMembers=1
+    // configuration made the "below capacity" check below false-FAIL
+    // (Members.size()==1 already >= max==1, i.e. GroupFull, not Allowed).
+    // Also adds the same "at capacity is GROUP_FULL" check LOOSE already
+    // has, which the original Stable section was missing entirely - the
+    // extra push_back before that check is also what guarantees
+    // stableGroup.Members is never empty by the time .front() is used
+    // below, for any StableGroupMaxMembers >= 1.
     AgentGroupRecord stableGroup;
     stableGroup.Id = GroupId{ 3 };
     stableGroup.Kind = AgentGroupKind::Stable;
-    stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 4000 }, 0 });
+    for (uint32 i = 0; i + 1 < _groupPolicyConfig.StableMaxMembers; ++i)
+        stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 4000 + i }, 0 });
 
     context.Source = AgentGroupOperationSource::Manual;
     check("STABLE CanJoin below capacity",
         _groupPolicySystem.CanJoin(stableGroup, AgentId{ 9002 }, context) == AgentGroupPolicyDecision::Allowed);
+
+    stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 5000 }, 0 });
+    check("STABLE CanJoin at capacity is GROUP_FULL",
+        _groupPolicySystem.CanJoin(stableGroup, AgentId{ 9002 }, context) == AgentGroupPolicyDecision::GroupFull);
 
     context.Source = AgentGroupOperationSource::AutomaticPolicy;
     check("STABLE AutomaticPolicy CanLeave is STABLE_GROUP_PROTECTED",
@@ -874,12 +902,12 @@ void AIWorldMgr::RunGroupPolicySmokeTest(AgentId testMemberId)
             uint64 nowMs = CurrentTimeMs();
 
             RequestJoinGroupWithPolicy(stableGroupId, testMemberId, nowMs, AgentGroupOperationSource::Manual,
-                [this, stableGroupId, testMemberId](bool joined)
+                [this, stableGroupId, testMemberId](bool joined, AgentGroupPolicyDecision joinDecision)
                 {
                     if (!joined)
                     {
-                        TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration) FAILED: setup JoinGroup failed, group={} - attempting best-effort cleanup",
-                            stableGroupId.Value);
+                        TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration) FAILED: setup JoinGroup failed (decision={}), group={} - attempting best-effort cleanup",
+                            ToString(joinDecision), stableGroupId.Value);
                         RequestDissolveGroup(stableGroupId, [](bool) {});
                         return;
                     }
@@ -887,31 +915,54 @@ void AIWorldMgr::RunGroupPolicySmokeTest(AgentId testMemberId)
                     // AutomaticPolicy leave on a Stable group must be
                     // rejected - the policy gate itself, never
                     // AgentGroupLifecycleSystem, is what stops this.
+                    //
+                    // 2.12E3B P3 fix (STATIC review): asserts decision ==
+                    // StableGroupProtected specifically, not just
+                    // "automaticLeaveSucceeded == false" - a bare bool
+                    // could not tell "policy rejected this" apart from
+                    // "policy allowed it but the DB write happened to
+                    // fail", so a regression that dropped the policy check
+                    // entirely could previously still report this gate as
+                    // PASSED (submitted to lifecycle, DB failed for an
+                    // unrelated reason, member still not removed). Since
+                    // RequestLeaveGroupWithPolicy() only ever reports
+                    // decision == Allowed once a request has actually
+                    // reached AgentGroupLifecycleSystem/the DB (see its own
+                    // header comment), decision == StableGroupProtected
+                    // here is direct proof the DB was never touched at all
+                    // for this call, not just an inference from its
+                    // side effects.
                     RequestLeaveGroupWithPolicy(stableGroupId, testMemberId, AgentGroupOperationSource::AutomaticPolicy,
-                        [this, stableGroupId, testMemberId](bool automaticLeaveSucceeded)
+                        [this, stableGroupId, testMemberId](bool automaticLeaveSucceeded, AgentGroupPolicyDecision automaticLeaveDecision)
                         {
-                            bool rejectedAsExpected = !automaticLeaveSucceeded;
+                            bool rejectedByPolicy = !automaticLeaveSucceeded && automaticLeaveDecision == AgentGroupPolicyDecision::StableGroupProtected;
                             bool stillMember = false;
                             if (AgentGroupRecord const* group = _groupRegistry.Find(stableGroupId))
                                 stillMember = std::any_of(group->Members.begin(), group->Members.end(),
                                     [testMemberId](AgentGroupMembership const& membership) { return membership.Member == testMemberId; });
 
-                            if (!rejectedAsExpected || !stillMember)
-                                TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration): AutomaticPolicy leave gate FAILED (rejected={}, stillMember={})",
-                                    rejectedAsExpected, stillMember);
+                            if (!rejectedByPolicy || !stillMember)
+                                TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration): AutomaticPolicy leave gate FAILED (decision={}, stillMember={})",
+                                    ToString(automaticLeaveDecision), stillMember);
                             else
-                                TC_LOG_INFO("ai.world", "AI group policy smoke test (integration): AutomaticPolicy leave gate PASSED");
+                                TC_LOG_INFO("ai.world", "AI group policy smoke test (integration): AutomaticPolicy leave gate PASSED (decision={})",
+                                    ToString(automaticLeaveDecision));
 
                             // Manual leave for the same member must now
                             // succeed - Stable is protected from automatic
                             // thinning, never from a deliberate request.
+                            // decision == Allowed here confirms this one
+                            // actually reached the DB, rather than having
+                            // failed for the same (wrong) reason a broken
+                            // policy check might reject it.
                             RequestLeaveGroupWithPolicy(stableGroupId, testMemberId, AgentGroupOperationSource::Manual,
-                                [this, stableGroupId](bool manualLeaveSucceeded)
+                                [this, stableGroupId](bool manualLeaveSucceeded, AgentGroupPolicyDecision manualLeaveDecision)
                                 {
-                                    if (manualLeaveSucceeded)
+                                    if (manualLeaveSucceeded && manualLeaveDecision == AgentGroupPolicyDecision::Allowed)
                                         TC_LOG_INFO("ai.world", "AI group policy smoke test (integration): Manual leave gate PASSED");
                                     else
-                                        TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration): Manual leave gate FAILED");
+                                        TC_LOG_ERROR("ai.world", "AI group policy smoke test (integration): Manual leave gate FAILED (decision={})",
+                                            ToString(manualLeaveDecision));
 
                                     RequestDissolveGroup(stableGroupId, [stableGroupId](bool dissolved)
                                     {
