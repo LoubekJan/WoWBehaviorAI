@@ -66,8 +66,9 @@ Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gat
   - [2.10 Scheduler a úrovně simulace](#210-scheduler-a-úrovně-simulace)
   - [2.11 První experiment — persistentní farmář](#211-první-experiment--persistentní-farmář)
   - [2.12 První experiment — wolf pack / AgentGroup coalition](#212-první-experiment--wolf-pack--agentgroup-coalition)
-  - [2.13 První emergentní end-to-end událost](#213-první-emergentní-end-to-end-událost)
-  - [2.14 Testy a diagnostika](#214-testy-a-diagnostika)
+  - [2.13 LLM dynamic quest / player interaction vertical slice](#213-llm-dynamic-quest--player-interaction-vertical-slice)
+  - [2.14 První emergentní end-to-end událost](#214-první-emergentní-end-to-end-událost)
+  - [2.15 Testy a diagnostika](#215-testy-a-diagnostika)
 - [Doporučené pořadí implementace](#doporučené-pořadí-implementace)
 
 ---
@@ -119,7 +120,7 @@ Základní invariants:
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — 2.12E1 CLOSED, next async-safe dynamic group lifecycle** | Persistentní agenti, události, paměť, cíle, Action API, async AI bridge, scheduler a coalition model | Wolf attack → memory → goal → decision → validated action |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — 2.12E1 CLOSED, next async-safe dynamic group lifecycle** | Vyřešit a runtime ověřit technologické stavební bloky pro persistentní živý AI svět: agenti, události, paměť, cíle, Action API, async AI/LLM bridge, scheduler, coalition model a dynamickou interakci s hráčem | world problem → NPC context → local LLM → validated player task → player action → WORLD STATE |
 
 ---
 
@@ -660,7 +661,125 @@ Potom:
 - [ ] při dissolve explicitně odstranit stale `_groupSimulationSchedule[GroupId]` entry;
 - [ ] historická dev-specific/destructive migration cesta před produkčním schema upgrade hardeningem.
 
-## 2.13 První emergentní end-to-end událost
+## 2.13 LLM dynamic quest / player interaction vertical slice
+
+**Účel této části není stavět komplexní questový obsah Etapy 3. Jejím cílem je před vstupem do Etapy 3 vyřešit a runtime ověřit technologický řetězec, ze kterého budou dynamické problémy/questy živého světa později vznikat.**
+
+Etapa 2 se nesmí uzavřít pouze mock/deterministic rozhodováním. Musí existovat alespoň jeden runtime vertical slice, ve kterém **skutečný lokální LLM přes oddělený `ai-server`** dostane omezený kontext skutečného problému světa, vrátí strukturovaný návrh interakce/úkolu a server návrh bezpečně validuje před tím, než jej uvidí hráč.
+
+Cílový technický tok:
+
+```text
+WORLD STATE / WorldEvent
+        ↓
+NPC Perception + Memory + Needs/Goal
+        ↓
+player-help opportunity / REQUEST_HELP
+        ↓
+sanitisovaný QuestContext DTO
+        ↓ async
+local ai-server / LLM / GPU
+        ↓
+structured QuestProposal
+        ↓
+QuestProposal validation + provenance/stale checks
+        ↓
+server-owned player-facing task / quest offer
+        ↓
+player accepts / acts / completes / fails / expires
+        ↓
+TrinityCore authoritative validation
+        ↓
+WorldEvent + NPC memory/goal + WORLD STATE
+```
+
+### 2.13A — skutečný lokální LLM inference path
+
+- [ ] připojit konkrétní lokální model/backend za existující `ai-server` boundary; konkrétní inference runtime není součástí gameplay API;
+- [ ] zachovat async/non-blocking worldserver boundary, timeout a fallback;
+- [ ] posílat jen sanitizovaný `QuestContext`, nikdy celý world state ani celou historii agenta;
+- [ ] request/response musí nést `request_id`, issuer `AgentId`, relevantní event/cause identity, snapshot/provenance a model/version metadata;
+- [ ] LLM response musí být strict structured schema; volný text nesmí být execution contract;
+- [ ] invalid JSON/schema, timeout, stale context nebo nedostupný model musí failnout bezpečně bez rozbití world state;
+- [ ] runtime evidence musí potvrdit alespoň jeden skutečný local-model request, ne pouze mock response.
+
+### 2.13B — `QuestProposal` contract a serverová validace
+
+Minimální návrhový kontrakt má oddělit narativ od autoritativní mechaniky. LLM smí navrhnout například:
+
+```text
+QuestProposal
+├── issuer_agent_id
+├── source_event / cause_id
+├── title / summary / dialogue text
+├── objective_type
+├── allowed target reference
+├── requested amount / condition
+├── expiry / urgency intent
+└── reward intent / narrative rationale
+```
+
+Server je jediná autorita pro skutečnou podobu úkolu.
+
+- [ ] objective type musí být z allowlistu serverem podporovaných primitives;
+- [ ] target musí odkazovat na existující a pro NPC známou/povolenou entitu nebo serverem odvozenou kategorii;
+- [ ] amount/range/expiry musí mít server-side bounds;
+- [ ] odměna je vždy server-owned policy; LLM nesmí libovolně mintovat gold/item/spell/reputation;
+- [ ] LLM nesmí generovat ani spouštět SQL, Lua/C++, arbitrary script, spell cast, spawn/delete ani jinou direct world mutation;
+- [ ] žádné hallucinated IDs nesmí projít validací;
+- [ ] proposal musí mít provenance na problém, který jej vyvolal, a stale proposal se nesmí nabídnout po zániku/změně problému;
+- [ ] retry/replay musí být idempotentní a nesmí vytvořit duplicity stejného offeru;
+- [ ] textová část může být LLM-generovaná, mechanické podmínky vždy projdou deterministic validator/policy.
+
+### 2.13C — minimální player-facing task lifecycle
+
+Není cílem v Etapě 2 vytvořit obecný content-authoring framework. Stačí nejmenší server-owned seam, který prokáže `WORLD → NPC → PLAYER → WORLD`.
+
+- [ ] NPC umí validovaný dynamický požadavek nabídnout relevantnímu hráči;
+- [ ] server eviduje offer/accept/active/completed/failed/expired stav s jednoznačnou identity;
+- [ ] acceptance/completion je navázaná na konkrétní player identity a source problem provenance;
+- [ ] objective progress vychází z autoritativních TrinityCore eventů, ne z tvrzení LLM;
+- [ ] completion/failure/expiry vydá WorldEvent použitelný Perception/Memory/Goal pipeline;
+- [ ] výsledek umí změnit skutečný problém světa nebo stav/goal/memory issuer NPC bez direct LLM mutation;
+- [ ] restart/reconnect behavior musí být explicitně definovaný alespoň pro aktivní testovací offer.
+
+### 2.13D — runtime gate pro vstup do komplexního světa
+
+Minimální referenční scénář může navazovat na farmář/vlci vertical slice:
+
+```text
+wolves/livestock problem exists
+        ↓
+farmer witnessed/remembers problem
+        ↓
+PROTECT_HOME / REQUEST_HELP
+        ↓
+local LLM proposes player-facing help request
+        ↓
+server validates target/objective/reward bounds
+        ↓
+player receives + accepts task
+        ↓
+player action changes authoritative world state
+        ↓
+completion WorldEvent
+        ↓
+farmer perceives/remembers result and goal resolves/changes
+```
+
+Gate 2.13:
+
+- [ ] jeden skutečný lokální LLM call je součástí runtime end-to-end cesty;
+- [ ] LLM output je pouze návrh a není schopen obejít serverová pravidla;
+- [ ] validovaný dynamický task je skutečně nabídnut hráči;
+- [ ] player action/progress je odvozen z TrinityCore authoritative eventů;
+- [ ] dokončení/neúspěch se vrátí do Event → Perception/Memory/Goal/world-state smyčky;
+- [ ] timeout, malformed output, stale proposal a LLM outage mají runtime ověřený safe fallback;
+- [ ] celý vertical slice má audit/logging dostatečný k reprodukci `source event → proposal → validation → offer → result`.
+
+**Hranice etap:** Etapa 2 řeší technologii a nejmenší ověřené vertical slices. Etapa 3 má tyto mechanismy skládat a škálovat do komplexního světa; neměla by teprve objevovat chybějící základní LLM→player nebo player→world architektonickou cestu.
+
+## 2.14 První emergentní end-to-end událost
 
 Cílový scénář se po group architecture pivotu mění tak, že **pack není aggregate mob**. Group může koordinovat shared intent, ale jednotliví vlci jednají samostatně.
 
@@ -693,14 +812,17 @@ validated TrinityCore action
 - [ ] `PROTECT_HOME` / `REQUEST_HELP` vertical slice;
 - [ ] end-to-end runtime evidence celé smyčky.
 
-## 2.14 Testy a diagnostika
+## 2.15 Testy a diagnostika
 
 - [ ] unit testy Goal utility selection;
 - [ ] unit testy `ActionRequest` validation;
 - [ ] unit testy persistence/serialization;
 - [ ] unit testy AgentGroup lifecycle/policy;
+- [ ] unit testy `QuestProposal` schema + server-side validation policy;
 - [ ] integration AI request → mock response → validation/result;
-- [ ] integration timeout/stale → fallback;
+- [ ] integration local LLM `QuestContext → QuestProposal → validation`;
+- [ ] integration timeout/stale/malformed quest proposal → safe fallback;
+- [ ] integration player task offer → progress → completion event → NPC/world-state feedback;
 - [x] restart → reload memory;
 - [x] structured decision/action audit logs;
 - [x] simulation tier transition/tick DEBUG observability;
@@ -735,10 +857,15 @@ validated TrinityCore action
 - [ ] async-safe dynamic AgentGroup lifecycle persistence;
 - [ ] Loose/Stable policy + automatic coalition formation/dissolution;
 - [ ] shared group intent → per-member validated actions;
+- [ ] skutečný lokální LLM inference request funguje přes async `ai-server` boundary;
+- [ ] structured `QuestProposal` + authoritative server validation;
+- [ ] player-facing dynamic task lifecycle offer/accept/progress/complete/fail/expire;
+- [ ] LLM outage/malformed/stale proposal failuje bezpečně;
+- [ ] player task result se vrací přes WorldEvent do NPC memory/goal/world-state;
 - [ ] Wolf coalition → livestock → farmer memory → protect/request help end-to-end.
 
-> **Gate:** po Etapě 2 máme skutečnou smyčku  
-> `WORLD STATE → EVENT → PERCEPTION → MEMORY → NEED → GOAL → DECISION → ACTION → WORLD STATE`.
+> **Gate:** po Etapě 2 máme technologicky ověřenou uzavřenou smyčku nejen pro NPC akci, ale i pro dynamickou interakci s hráčem:  
+> `WORLD STATE → EVENT → PERCEPTION → MEMORY → NEED → GOAL → LOCAL LLM/DECISION → VALIDATED TASK/ACTION → PLAYER/TRINITYCORE → EVENT → WORLD STATE`.
 
 ---
 
@@ -793,7 +920,11 @@ validated TrinityCore action
 39. [ ] `Loose` vs `Stable` membership policy
 40. [ ] deterministic automatic wolf coalition formation/dissolution
 41. [ ] shared group intent → per-member goal/action decomposition
-42. [ ] 2.13 Wolf coalition → livestock → farmer memory → protect/request help
+42. [ ] 2.13A skutečný local-LLM inference path přes `ai-server`
+43. [ ] 2.13B structured `QuestProposal` + authoritative validation
+44. [ ] 2.13C player-facing dynamic task lifecycle
+45. [ ] 2.13D `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate
+46. [ ] 2.14 Wolf coalition → livestock → farmer memory → protect/request help
 
 ## Paralelní hardening
 
@@ -811,4 +942,4 @@ validated TrinityCore action
 
 ## Co bude následovat
 
-**Etapa 3:** jedna živá oblast (například Elwynn Forest) s populacemi, zdroji, ekonomikou, vztahy, frakcemi a dynamickými problémy/questy.
+**Etapa 3:** jedna živá oblast (například Elwynn Forest) s populacemi, zdroji, ekonomikou, vztahy, frakcemi a dynamickými problémy/questy. Etapa 3 má primárně skládat, škálovat a ladit mechanismy technicky ověřené v Etapě 2; nemá teprve řešit chybějící fundamentální cestu `LLM → validovaný player task → authoritative world feedback`.
