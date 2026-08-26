@@ -20,6 +20,7 @@
 #include "Agent/AgentRegistry.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
+#include <limits>
 
 void AgentGroupPersistence::LoadGroupIdSequence()
 {
@@ -214,48 +215,46 @@ void AgentGroupPersistence::SaveGroupState(GroupId id, AgentGroupRecord& record)
     CharacterDatabase.Execute(stmt);
 }
 
-GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources)
+std::optional<TransactionCallback> AgentGroupPersistence::CreateGroupAsync(AgentGroupKind kind, uint32 territoryMapId,
+    float territoryX, float territoryY, float territoryZ, float resources, std::function<void(bool, GroupId)> onComplete)
 {
-    // Milestone 2.12E1 P2 fix (STATIC review, round 3): fail-closed - never
-    // mint against an allocator LoadGroupIdSequence() could not confirm.
+    // Fail-closed - never mint against an allocator LoadGroupIdSequence()
+    // could not confirm.
     if (!_groupIdAllocatorValid)
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupPersistence::CreateGroup: refusing to mint a GroupId - the allocator is not valid "
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence::CreateGroupAsync: refusing to mint a GroupId - the allocator is not valid "
             "(LoadGroupIdSequence() never confirmed ai_agent_group_id_sequence), group was not created");
-        return GroupId{};
+        onComplete(false, GroupId{});
+        return std::nullopt;
     }
 
-    uint64 candidateId = _nextGroupId;
-    uint64 reservedNext = candidateId + 1;
-
-    // Milestone 2.12E1 P2 fix (STATIC review, round 3): the reservation
-    // write is itself confirmed by read-back, exactly like every other
-    // write in this class, before _nextGroupId is ever advanced in memory
-    // or a group row is ever inserted - an earlier version trusted
-    // DirectExecute() alone here, which could silently fail while the
-    // runtime had already moved on, reintroducing the exact "restart
-    // repeats the same id" bug this table exists to prevent. The write
-    // itself is an absolute SET (not a relative increment), so retrying
-    // this same reservation on a future call - which is exactly what
-    // happens below if the read-back fails - is safe and idempotent.
-    CharacterDatabasePreparedStatement* seqUpdateStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE);
-    seqUpdateStmt->setUInt64(0, reservedNext);
-    CharacterDatabase.DirectExecute(seqUpdateStmt);
-
-    CharacterDatabasePreparedStatement* seqSelectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE);
-    PreparedQueryResult seqResult = CharacterDatabase.Query(seqSelectStmt);
-    if (!seqResult || seqResult->Fetch()[0].GetUInt64() != reservedNext)
+    // 2.12E2 hardening: refuse outright rather than silently wrapping to 0
+    // (a value LoadGroupIdSequence() would itself reject as untrustworthy
+    // on the next restart anyway).
+    if (_nextGroupId == std::numeric_limits<uint64>::max())
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupPersistence::CreateGroup: reservation of group id={} could not be confirmed "
-            "(ai_agent_group_id_sequence does not read back as {}), group was not created - _nextGroupId left unchanged for retry",
-            candidateId, reservedNext);
-        return GroupId{};
+        TC_LOG_ERROR("ai.world", "AgentGroupPersistence::CreateGroupAsync: refusing to mint a GroupId - the allocator has reached "
+            "UINT64_MAX, group was not created");
+        onComplete(false, GroupId{});
+        return std::nullopt;
     }
 
-    // Only now, with the reservation itself confirmed, does _nextGroupId
-    // move and candidateId become real.
+    // Advanced synchronously, immediately, before the transaction below is
+    // even submitted - see this method's own header comment for why that
+    // (rather than advancing only after a confirmed commit) is what keeps
+    // two CreateGroupAsync() calls in flight at once from ever computing
+    // the same id.
+    GroupId newId{ _nextGroupId };
+    uint64 reservedNext = _nextGroupId + 1;
     _nextGroupId = reservedNext;
-    GroupId newId{ candidateId };
+
+    // One transaction, both statements - the sequence reservation and the
+    // group row INSERT either both land or neither does.
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+    CharacterDatabasePreparedStatement* seqStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE);
+    seqStmt->setUInt64(0, reservedNext);
+    trans->Append(seqStmt);
 
     CharacterDatabasePreparedStatement* insertStmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT_GROUP);
     insertStmt->setUInt64(0, newId.Value);
@@ -265,88 +264,70 @@ GroupId AgentGroupPersistence::CreateGroup(AgentGroupKind kind, uint32 territory
     insertStmt->setFloat(4, territoryY);
     insertStmt->setFloat(5, territoryZ);
     insertStmt->setFloat(6, resources);
-    CharacterDatabase.DirectExecute(insertStmt);
+    trans->Append(insertStmt);
 
-    // DirectExecute() doesn't report success/failure, so the only way to
-    // know whether the row actually landed is to read it back - the same
-    // discipline AgentPersistence::CreateCreatureAgent() already holds
-    // AgentId to via its own (map_id, spawn_id) binding. The reservation
-    // above is already confirmed and _nextGroupId already advanced
-    // regardless of what happens here - newId is never handed out again
-    // either way.
-    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_BY_ID);
-    selectStmt->setUInt64(0, newId.Value);
-    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
-    if (!result)
+    TransactionCallback callback = CharacterDatabase.AsyncCommitTransaction(trans);
+    callback.AfterComplete([newId, onComplete = std::move(onComplete)](bool success)
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: INSERT for group id={} did not produce a readable row, group was not created", newId.Value);
-        return GroupId{};
-    }
+        if (!success)
+            TC_LOG_ERROR("ai.world", "AgentGroupPersistence: async CreateGroup transaction for group id={} failed - id burned, never reused", newId.Value);
 
-    return newId;
+        onComplete(success, success ? newId : GroupId{});
+    });
+
+    return callback;
 }
 
-bool AgentGroupPersistence::AddGroupMember(GroupId groupId, AgentId memberId, uint64 joinedAtMs)
+TransactionCallback AgentGroupPersistence::AddGroupMemberAsync(GroupId groupId, AgentId memberId, uint64 joinedAtMs, std::function<void(bool)> onComplete)
 {
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT_GROUP_MEMBER);
     stmt->setUInt64(0, groupId.Value);
     stmt->setUInt64(1, memberId.Value);
     stmt->setUInt64(2, joinedAtMs);
-    CharacterDatabase.DirectExecute(stmt);
+    trans->Append(stmt);
 
-    // Milestone 2.12E1 P2 fix (STATIC review, round 2): confirm the row
-    // actually exists before the caller is allowed to trust it - see this
-    // method's own header comment.
-    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBER);
-    selectStmt->setUInt64(0, groupId.Value);
-    selectStmt->setUInt64(1, memberId.Value);
-    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
-    if (!result)
+    TransactionCallback callback = CharacterDatabase.AsyncCommitTransaction(trans);
+    callback.AfterComplete([groupId, memberId, onComplete = std::move(onComplete)](bool success)
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: INSERT for group_id={} member_agent_id={} did not produce a readable row, membership was not created",
-            groupId.Value, memberId.Value);
-        return false;
-    }
+        if (!success)
+            TC_LOG_ERROR("ai.world", "AgentGroupPersistence: async AddGroupMember transaction for group_id={} member_agent_id={} failed",
+                groupId.Value, memberId.Value);
 
-    return true;
+        onComplete(success);
+    });
+
+    return callback;
 }
 
-bool AgentGroupPersistence::RemoveGroupMember(GroupId groupId, AgentId memberId)
+TransactionCallback AgentGroupPersistence::RemoveGroupMemberAsync(GroupId groupId, AgentId memberId, std::function<void(bool)> onComplete)
 {
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBER);
     stmt->setUInt64(0, groupId.Value);
     stmt->setUInt64(1, memberId.Value);
-    CharacterDatabase.DirectExecute(stmt);
+    trans->Append(stmt);
 
-    // Milestone 2.12E1 P2 fix (STATIC review, round 2): confirm the row is
-    // actually gone before the caller is allowed to trust it - see this
-    // method's own header comment. A row that is still readable here means
-    // the DELETE did not (yet) take effect - reported as failure, not
-    // silently treated as "already removed".
-    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_MEMBER);
-    selectStmt->setUInt64(0, groupId.Value);
-    selectStmt->setUInt64(1, memberId.Value);
-    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
-    if (result)
+    TransactionCallback callback = CharacterDatabase.AsyncCommitTransaction(trans);
+    callback.AfterComplete([groupId, memberId, onComplete = std::move(onComplete)](bool success)
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: DELETE for group_id={} member_agent_id={} did not remove the row, membership still exists in the DB",
-            groupId.Value, memberId.Value);
-        return false;
-    }
+        if (!success)
+            TC_LOG_ERROR("ai.world", "AgentGroupPersistence: async RemoveGroupMember transaction for group_id={} member_agent_id={} failed",
+                groupId.Value, memberId.Value);
 
-    return true;
+        onComplete(success);
+    });
+
+    return callback;
 }
 
-bool AgentGroupPersistence::DeleteGroup(GroupId groupId)
+TransactionCallback AgentGroupPersistence::DeleteGroupAsync(GroupId groupId, std::function<void(bool)> onComplete)
 {
-    // Milestone 2.12E1 P2 fix (STATIC review, round 2): both DELETEs as
-    // one CharacterDatabaseTransaction, committed synchronously and
-    // atomically via DirectCommitTransaction() - an earlier version issued
-    // these as two independent DirectExecute() calls, which could leave an
-    // orphaned membership row if interrupted between the two. Membership
-    // rows first, group row second within the transaction - not that it
-    // matters for atomicity, but it keeps the statement order matching the
-    // dependency order a reader would expect.
+    // Membership rows first, group row second - readability only (the
+    // transaction already makes both atomic regardless of statement
+    // order).
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
     CharacterDatabasePreparedStatement* membersStmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP);
@@ -357,21 +338,14 @@ bool AgentGroupPersistence::DeleteGroup(GroupId groupId)
     groupStmt->setUInt64(0, groupId.Value);
     trans->Append(groupStmt);
 
-    CharacterDatabase.DirectCommitTransaction(trans);
-
-    // Confirm the group row is actually gone before the caller is allowed
-    // to trust it - see this method's own header comment. Membership rows
-    // are not checked separately: they were deleted in the same atomic
-    // transaction as the group row, so this one confirmation covers both.
-    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_GROUP_BY_ID);
-    selectStmt->setUInt64(0, groupId.Value);
-    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
-    if (result)
+    TransactionCallback callback = CharacterDatabase.AsyncCommitTransaction(trans);
+    callback.AfterComplete([groupId, onComplete = std::move(onComplete)](bool success)
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupPersistence: DELETE transaction for group id={} did not remove the row, group still exists in the DB",
-            groupId.Value);
-        return false;
-    }
+        if (!success)
+            TC_LOG_ERROR("ai.world", "AgentGroupPersistence: async DeleteGroup transaction for group id={} failed", groupId.Value);
 
-    return true;
+        onComplete(success);
+    });
+
+    return callback;
 }

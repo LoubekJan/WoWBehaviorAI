@@ -22,6 +22,9 @@
 #include "Agent/AgentId.h"
 #include "Agent/GroupId.h"
 #include "Define.h"
+#include "DatabaseEnvFwd.h"
+#include <functional>
+#include <optional>
 
 class AgentGroupRegistry;
 class AgentRegistry;
@@ -47,31 +50,32 @@ class AgentRegistry;
 // "never reused once issued" below. The sequence table is append-only
 // (never deleted from), so its one row's next_group_id is a true
 // high-water mark independent of which groups currently exist - see its
-// own migration comment. CreateGroup() persists the reservation there
-// before it ever inserts the group row itself.
+// own migration comment.
 //
-// Milestone 2.12E1 P2 fix (STATIC review, round 3): the allocator is
-// fail-closed, not best-effort. _groupIdAllocatorValid tracks whether
-// LoadGroupIdSequence() actually found a trustworthy sequence row - if it
-// didn't, CreateGroup() refuses to mint anything at all (returns GroupId{}
-// immediately) rather than falling back to guessing at _nextGroupId's
-// class-default. And within CreateGroup() itself, the reservation write
-// is followed by its own read-back, confirming the sequence row now reads
-// exactly the value just written, before _nextGroupId is ever advanced in
-// memory or a group row is ever inserted - an unconfirmed
-// DirectExecute() alone was not enough: a reservation write that silently
-// failed would leave the DB's next_group_id unchanged while the runtime
-// had already moved on, reintroducing the exact "restart repeats the same
-// id" bug this table exists to prevent.
+// Milestone 2.12E1 P2 fix (STATIC review, rounds 3-4): the allocator is
+// fail-closed - _groupIdAllocatorValid tracks whether LoadGroupIdSequence()
+// actually found a trustworthy sequence row (nonzero, and strictly greater
+// than every group_id physically present in ai_agent_groups) - if it
+// didn't, CreateGroupAsync() refuses to mint anything at all.
 //
-// Every create/join/leave/dissolve write below is followed by (or, for
-// DeleteGroup(), wrapped together with) a read-back that confirms the
-// write actually landed - DirectExecute() alone never reports success or
-// failure, and AgentGroupLifecycleSystem is only allowed to mutate the
-// runtime registry once that confirmation holds (STATIC review: a caller
-// that mutated the registry right after an unconfirmed DirectExecute()
-// could let AgentGroupRegistry silently drift out of agreement with what
-// is actually in the DB).
+// Milestone 2.12E2: every write below is async - CreateGroupAsync()/
+// AddGroupMemberAsync()/RemoveGroupMemberAsync()/DeleteGroupAsync() all
+// return a TransactionCallback (never block the calling thread) whose
+// AfterComplete() reports a genuine, DB-driver-reported success/failure
+// bool - not an inferred "does a read-back match" guess, the actual
+// execution status CharacterDatabaseConnection::ExecuteTransaction()
+// itself produces. This replaces 2.12E1's synchronous DirectExecute()-
+// then-read-back pattern entirely: a CharacterDatabaseTransaction's own
+// commit result is a strictly stronger confirmation than any read-back
+// could be (a read-back can misread pre-existing, unrelated data as
+// confirming a write that never actually happened - see the round-4
+// GroupId-sequence fix above for a concrete case of exactly that). The
+// caller (AgentGroupLifecycleSystem) supplies an onComplete callback and
+// is responsible for enqueuing the returned TransactionCallback into a
+// TransactionCallbackProcessor it polls once per world tick - this class
+// never touches the processor itself, and never mutates
+// AgentGroupRegistry/AgentRecord on its own; it only ever reports the DB
+// outcome back to whoever asked.
 class TC_GAME_API AgentGroupPersistence
 {
     public:
@@ -84,15 +88,13 @@ class TC_GAME_API AgentGroupPersistence
         // physically present in ai_agent_groups right now (checked against
         // the raw table, not the registry - a row LoadGroups() itself
         // would later reject, e.g. for an invalid kind, still occupies
-        // that id and must still be protected against). Without that
-        // check, CreateGroup() could mint an id that collides with an
-        // existing, unrelated group - and its own read-back could
-        // misread that existing row as confirming its own INSERT. Any
-        // failure logs an error and leaves the allocator invalid, which
-        // CreateGroup() checks first and refuses to mint against. Call
-        // once at startup, before the first CreateGroup() of the process
-        // (order relative to LoadGroups()/LoadGroupMembers() does not
-        // matter - both checks here query ai_agent_groups directly).
+        // that id and must still be protected against). Any failure logs
+        // an error and leaves the allocator invalid, which
+        // CreateGroupAsync() checks first and refuses to mint against.
+        // Synchronous, startup-only (called once from
+        // AIWorldMgr::Initialize(), never from the world update loop) -
+        // order relative to LoadGroups()/LoadGroupMembers() does not
+        // matter, both checks here query ai_agent_groups directly.
         void LoadGroupIdSequence();
 
         // Loads every row from ai_agent_groups into registry. Returns the
@@ -130,97 +132,102 @@ class TC_GAME_API AgentGroupPersistence
         // step, before persisting - never trusted to the caller. Writes
         // the whole group row (Kind/Territory* included, not just
         // Resources) every time, the same "persist the whole snapshot"
-        // shape AgentPersistence::SaveEconomyState() already uses.
+        // shape AgentPersistence::SaveEconomyState() already uses. Not
+        // part of the 2.12E2 async-lifecycle rework below - this is
+        // already fire-and-forget and was never blocking.
         void SaveGroupState(GroupId id, AgentGroupRecord& record);
 
-        // Milestone 2.12E1: mints a fresh GroupId from _nextGroupId (never
-        // derived from AgentId/SpawnId/RuntimeGuid - see this class's own
-        // comment) and writes it to ai_agent_groups via CONNECTION_SYNCH/
-        // DirectExecute(), then reads the row back
-        // (CHAR_SEL_AI_AGENT_GROUP_BY_ID) to confirm the write actually
-        // landed before returning it - the same "no read-back, no
-        // confirmed identity" discipline CreateCreatureAgent() already
-        // holds AgentId to, just via the freshly-minted id's own
-        // guaranteed-unique value instead of a natural (map_id, spawn_id)
-        // binding (a group has neither). Synchronous by design like
-        // CreateCreatureAgent() - acceptable for 2.12E1's own startup/
-        // admin-scoped usage, but see AgentGroupLifecycleSystem.h for why
-        // this must be reconsidered before any automatic/policy-driven
-        // caller exists.
+        // Milestone 2.12E2: mints a fresh GroupId, then submits ONE
+        // CharacterDatabaseTransaction containing both the sequence
+        // reservation (CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE) and the group
+        // row INSERT (CHAR_INS_AI_AGENT_GROUP) via
+        // CharacterDatabase.AsyncCommitTransaction() - non-blocking, and
+        // atomic in a way 2.12E1's synchronous two-step "write, read back,
+        // then write, read back" never was: either both land together or
+        // neither does, in one round trip. Fail-closed if the allocator is
+        // not valid (see LoadGroupIdSequence()) or if _nextGroupId is
+        // already the maximum representable uint64 (2.12E2 hardening: an
+        // overflow here would wrap the allocator back to 0, a value
+        // LoadGroupIdSequence() itself would reject as untrustworthy on
+        // the very next restart - refusing outright is simpler and
+        // strictly safer than trying to define what "the next id after
+        // the last one" even means) - both cases call onComplete(false,
+        // GroupId{}) synchronously and return std::nullopt, mint nothing.
         //
-        // Milestone 2.12E1 P2 fix (STATIC review, round 3): fail-closed if
-        // the allocator is not valid (see LoadGroupIdSequence()) -
-        // returns GroupId{} immediately, mints nothing. Otherwise the
-        // reservation (CHAR_UPD_AI_AGENT_GROUP_ID_SEQUENCE, an absolute
-        // SET, not a relative increment - safe to retry) is written, then
-        // read back (CHAR_SEL_AI_AGENT_GROUP_ID_SEQUENCE) to confirm the
-        // row now reads exactly the reserved value, BEFORE _nextGroupId is
-        // ever advanced in memory or a group row is ever inserted. If that
-        // confirmation fails, _nextGroupId is left untouched (the next
-        // CreateGroup() call retries the identical reservation - safe,
-        // since the write is idempotent) and this returns GroupId{}
-        // without inserting anything. Only once the reservation is
-        // confirmed does this insert the group row itself and read THAT
-        // back (CHAR_SEL_AI_AGENT_GROUP_BY_ID) before returning the id -
-        // so a process that crashes between a confirmed reservation and
-        // the group-row insert just burns that one id forever (the same
-        // accepted tradeoff GuildMgr::GenerateGuildId() already makes),
-        // never risking two different CreateGroup() calls - across a
-        // restart - ever computing the same id.
-        GroupId CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources);
+        // Otherwise _nextGroupId is advanced in memory IMMEDIATELY,
+        // synchronously, before the transaction is even submitted - not
+        // after a confirmed write, unlike 2.12E1's synchronous version.
+        // This is what makes it safe for two CreateGroupAsync() calls to
+        // be in flight at once (both still only ever issued from the
+        // world thread, one after another, never concurrently - but the
+        // second could easily be requested before the first's transaction
+        // has completed): each sees a distinct, already-claimed
+        // candidate id, so they can never collide. A transaction that
+        // ultimately fails just burns its id forever - the same accepted
+        // tradeoff GuildMgr::GenerateGuildId() already makes - rather than
+        // ever risking two different requests computing the same id.
+        //
+        // Returns std::nullopt (onComplete already invoked) if rejected
+        // synchronously as above; otherwise returns the TransactionCallback
+        // for the caller to enqueue into its own TransactionCallbackProcessor
+        // and poll - onComplete(success, newId) fires from there once the
+        // transaction's own real commit result is known (newId is only
+        // meaningful when success is true).
+        std::optional<TransactionCallback> CreateGroupAsync(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources,
+            std::function<void(bool success, GroupId newId)> onComplete);
 
-        // Milestone 2.12E1 P2 fix (STATIC review, round 2): CONNECTION_SYNCH/
-        // DirectExecute() followed by a CHAR_SEL_AI_AGENT_GROUP_MEMBER
-        // read-back confirming the (groupId, memberId) row now exists -
-        // returns whether it does. AgentGroupLifecycleSystem::JoinGroup()
-        // only adds the membership to the runtime AgentGroupRecord::Members
-        // once this returns true - never before. Duplicate-membership
-        // prevention is still JoinGroup()'s own job (checked against
-        // Members before this is ever called), not this method's; a
-        // duplicate (group_id, member_agent_id) INSERT is not a case this
-        // method is expected to handle gracefully.
-        bool AddGroupMember(GroupId groupId, AgentId memberId, uint64 joinedAtMs);
+        // Milestone 2.12E2: submits the membership INSERT as its own
+        // one-statement CharacterDatabaseTransaction via
+        // AsyncCommitTransaction() - non-blocking. Duplicate-membership
+        // prevention is still AgentGroupLifecycleSystem::RequestJoinGroup()'s
+        // job (checked against the in-memory AgentGroupRecord::Members
+        // before this is ever called), not this method's - a duplicate
+        // (group_id, member_agent_id) INSERT is not a case this is
+        // expected to handle gracefully; the transaction would simply fail
+        // and onComplete(false) would fire. Always attempts the write -
+        // unlike CreateGroupAsync() this has no synchronous-rejection path
+        // of its own, so it always returns a real TransactionCallback for
+        // the caller to enqueue.
+        TransactionCallback AddGroupMemberAsync(GroupId groupId, AgentId memberId, uint64 joinedAtMs, std::function<void(bool success)> onComplete);
 
-        // Milestone 2.12E1 P2 fix (STATIC review, round 2): CONNECTION_SYNCH/
-        // DirectExecute() followed by the same CHAR_SEL_AI_AGENT_GROUP_MEMBER
-        // read-back as AddGroupMember(), here expecting NOT to find the row
-        // - returns whether the membership is now confirmed absent (true
-        // whether this call actually removed it or it was already gone,
-        // since either way the post-condition "not a member in the DB"
-        // holds). AgentGroupLifecycleSystem::LeaveGroup() only erases the
-        // runtime membership once this returns true.
-        bool RemoveGroupMember(GroupId groupId, AgentId memberId);
+        // Milestone 2.12E2: same shape as AddGroupMemberAsync(), a DELETE
+        // instead of an INSERT. A transaction that matches zero rows
+        // (member was never actually in the group) still commits
+        // successfully - onComplete(true) either way, since the
+        // post-condition "not a member in the DB" holds regardless of
+        // whether this call's own DELETE was the one that made it true.
+        TransactionCallback RemoveGroupMemberAsync(GroupId groupId, AgentId memberId, std::function<void(bool success)> onComplete);
 
-        // Milestone 2.12E1 P2 fix (STATIC review, round 2): deletes every
-        // ai_agent_group_members row for groupId and the ai_agent_groups
-        // row itself as ONE CharacterDatabaseTransaction
-        // (DirectCommitTransaction() - synchronous, atomic), not two
-        // independent DirectExecute() calls - an earlier version issued
-        // them separately, which could leave an orphaned membership row if
-        // interrupted between the two. Followed by a
-        // CHAR_SEL_AI_AGENT_GROUP_BY_ID read-back confirming the group row
-        // is now gone; returns that. AgentGroupLifecycleSystem::
-        // DissolveGroup() only erases the runtime AgentGroupRecord once
-        // this returns true. Never touches ai_agents - DissolveGroup() is
-        // the caller's own guarantee that member AgentRecords are never
+        // Milestone 2.12E2: one CharacterDatabaseTransaction containing
+        // both DELETEs (every ai_agent_group_members row for groupId, then
+        // the ai_agent_groups row itself) via AsyncCommitTransaction() -
+        // atomic and non-blocking, replacing 2.12E1's
+        // DirectCommitTransaction()-based synchronous version. Statement
+        // order within the transaction still matters for readability (not
+        // atomicity - the transaction already guarantees that): membership
+        // rows first, group row second. Never touches ai_agents -
+        // AgentGroupLifecycleSystem::RequestDissolveGroup() is the
+        // caller's own guarantee that member AgentRecords are never
         // touched by this.
-        bool DeleteGroup(GroupId groupId);
+        TransactionCallback DeleteGroupAsync(GroupId groupId, std::function<void(bool success)> onComplete);
 
     private:
-        // Milestone 2.12E1/2.12E1 P2 fix: seeded by LoadGroupIdSequence()
-        // at startup from the persistent ai_agent_group_id_sequence row,
-        // advanced by one - only after a confirmed reservation write, see
-        // CreateGroup() - per successful CreateGroup() call thereafter.
-        // Never reset, never reused once issued, even across a
-        // dissolve+restart (that is the whole point of the sequence table
-        // - see this class's own comment). World-thread-only, like
-        // everything else here. Meaningless unless _groupIdAllocatorValid
-        // is true - CreateGroup() checks that first.
+        // Milestone 2.12E1/2.12E2: seeded by LoadGroupIdSequence() at
+        // startup from the persistent ai_agent_group_id_sequence row,
+        // advanced by one - synchronously, immediately, before the
+        // matching CreateGroupAsync() transaction is even submitted, see
+        // that method's own comment for why - per CreateGroupAsync() call
+        // thereafter. Never reset, never reused once issued, even across
+        // a dissolve+restart or a failed transaction (that is the whole
+        // point of the sequence table - see this class's own comment).
+        // World-thread-only, like everything else here. Meaningless unless
+        // _groupIdAllocatorValid is true - CreateGroupAsync() checks that
+        // first.
         uint64 _nextGroupId = 1;
 
         // Milestone 2.12E1 P2 fix (STATIC review, round 3): true only once
-        // LoadGroupIdSequence() has actually found and read the
-        // ai_agent_group_id_sequence row - fail-closed: CreateGroup()
+        // LoadGroupIdSequence() has actually found and validated the
+        // ai_agent_group_id_sequence row - fail-closed: CreateGroupAsync()
         // refuses to mint anything while this is false, rather than
         // falling back to _nextGroupId's untrustworthy class-default.
         bool _groupIdAllocatorValid = false;

@@ -45,12 +45,14 @@
 #include "Persistence/AgentGroupPersistence.h"
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
+#include "Persistence/TransactionCallbackProcessor.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
 #include "Scheduler/GroupCoarseSimulationScheduler.h"
 #include "Scheduler/SimulationScheduleState.h"
 #include "Scheduler/SimulationTier.h"
 #include "Scheduler/StableAgentHash.h"
+#include <array>
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -142,20 +144,55 @@ class TC_GAME_API AIWorldMgr
         void RunDecisionScheduler();
         bool UpdateSimulationTier(AgentId id, SimulationTier tier);
 
-        // Milestone 2.12E1 P2 fix (STATIC review, round 2): manual proof
-        // that AgentGroupLifecycleSystem never touches Creature/WorldState
-        // - runs once from Initialize(), only when all three
-        // AIWorld.TestGroupMemberAgentId1/2/3 resolve to already-registered
-        // agents. Never creates an agent itself (see this method's own
-        // .cpp comment for why an earlier version doing so was wrong) -
-        // joins the three given members into a fresh group, has one leave,
-        // then dissolves the group, checking every step's return value
-        // rather than assuming success. Not itself part of the lifecycle
-        // API - a real caller (a future admin/test command, or
-        // 2.12E2/2.12E3 policy code, once the persistence layer is
-        // redesigned for that - see AgentGroupLifecycleSystem.h) talks to
-        // _groupLifecycleSystem directly.
+        // Milestone 2.12E2: the canonical way ANY part of AIWorldMgr
+        // dissolves a group - today only the smoke test below, later any
+        // automatic/policy-driven caller too. Thin wrapper around
+        // _groupLifecycleSystem.RequestDissolveGroup(), except it also
+        // erases _groupSimulationSchedule's entry for groupId once the
+        // dissolve is confirmed (2.12E2 hardening: an earlier version left
+        // that entry behind on every dissolve, growing
+        // _groupSimulationSchedule without bound across repeated
+        // create/dissolve cycles - RequestDissolveGroup() itself has no
+        // access to that map, it is AIWorldMgr-only scheduling bookkeeping,
+        // so this is the one place that can close the gap). onComplete
+        // fires with the same success/failure AgentGroupLifecycleSystem::
+        // RequestDissolveGroup() itself would have reported.
+        void RequestDissolveGroup(GroupId groupId, std::function<void(bool)> onComplete);
+
+        // Milestone 2.12E2: manual proof that AgentGroupLifecycleSystem's
+        // async Request* API never touches Creature/WorldState and never
+        // blocks the world thread - runs once from Initialize(), only when
+        // all three AIWorld.TestGroupMemberAgentId1/2/3 resolve to
+        // already-registered agents. Never creates an agent itself (see
+        // this method's own .cpp comment for why an earlier version doing
+        // so was wrong). Kicks off RequestCreateGroup(), whose completion
+        // chains into RunGroupLifecycleSmokeTestJoinStep() to join the
+        // three members one at a time (each join only issued from the
+        // previous one's own completion - see AgentGroupLifecycleSystem.h
+        // for why a synchronous loop can no longer do this), which in turn
+        // chains into a leave and a dissolve. Every step's outcome is
+        // checked; a failure anywhere logs FAILED and attempts a
+        // best-effort RequestDissolveGroup() cleanup via
+        // RunGroupLifecycleSmokeTestAbort() rather than leaving a partially
+        // joined test group behind.
         void RunGroupLifecycleSmokeTest(AgentId memberId1, AgentId memberId2, AgentId memberId3);
+
+        // Milestone 2.12E2: joins memberIds[index], then recurses into
+        // index+1 - once index reaches memberIds.size(), leaves the last
+        // member and dissolves the group instead. See
+        // RunGroupLifecycleSmokeTest()'s own comment for why this is a
+        // chain of completions rather than a loop.
+        void RunGroupLifecycleSmokeTestJoinStep(GroupId groupId, std::array<AgentId, 3> memberIds, std::size_t index);
+
+        // Milestone 2.12E2: logs the smoke test as FAILED (naming which
+        // step and member failed), then fires a fire-and-forget
+        // RequestDissolveGroup() best-effort cleanup for groupId so a
+        // mid-sequence failure (e.g. the second Join succeeds but the
+        // third fails) does not leave a partially joined test group
+        // sitting in the DB/registry forever. The cleanup's own outcome is
+        // only logged, never chained into anything further - this is
+        // best-effort, not a guarantee.
+        void RunGroupLifecycleSmokeTestAbort(GroupId groupId, char const* step, AgentId memberId);
 
         bool _enabled = false;
 
@@ -210,6 +247,15 @@ class TC_GAME_API AIWorldMgr
         // call through rather than constructing one per call; no different
         // in spirit from _agentGroupSimulationSystem below.
         AgentGroupLifecycleSystem _groupLifecycleSystem;
+
+        // Milestone 2.12E2: every AgentGroupPersistence async write's
+        // TransactionCallback lands here (via _groupLifecycleSystem's own
+        // Request* methods) and is polled once per world tick in Update()
+        // - the same "enqueue, poll every Update()" shape
+        // World::_queryProcessor already uses for QueryCallback. A
+        // completion only ever runs from inside that poll, so it is always
+        // world-thread-only.
+        TransactionCallbackProcessor _groupLifecyclePending;
 
         // Milestone 2.10A: deterministic admission ranking over every
         // registered+Materialized agent - see DecisionScheduler.h. Pure

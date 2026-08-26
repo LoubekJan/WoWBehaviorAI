@@ -490,30 +490,52 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _acceptEvents.store(true, std::memory_order_release);
 }
 
-// Milestone 2.12E1 P2 fix (STATIC review, round 2): called at most once,
-// from Initialize(), only when all three AIWorld.TestGroupMemberAgentId1/
-// 2/3 are set - manual proof that AgentGroupLifecycleSystem never touches
-// Creature/WorldState, exercising exactly the Create -> Join x3 -> Leave
-// -> Dissolve sequence the milestone's own acceptance criteria describes.
+void AIWorldMgr::RequestDissolveGroup(GroupId groupId, std::function<void(bool)> onComplete)
+{
+    _groupLifecycleSystem.RequestDissolveGroup(groupId, _groupRegistry, _groupPersistence, _groupLifecyclePending,
+        [this, groupId, onComplete = std::move(onComplete)](bool success)
+        {
+            // 2.12E2 hardening: _groupSimulationSchedule is AIWorldMgr-only
+            // scheduling bookkeeping (see its own declaration comment) -
+            // AgentGroupLifecycleSystem has no access to it and no business
+            // knowing it exists. Erased only on a confirmed dissolve, the
+            // same "mutate only after confirmation" discipline everything
+            // else here follows; a failed dissolve leaves it alone, since
+            // the group (and therefore its schedule entry) still exists.
+            if (success)
+                _groupSimulationSchedule.erase(groupId.Value);
+
+            onComplete(success);
+        });
+}
+
+// Milestone 2.12E2: called at most once, from Initialize(), only when all
+// three AIWorld.TestGroupMemberAgentId1/2/3 are set - manual proof that
+// AgentGroupLifecycleSystem's async Request* API never touches Creature/
+// WorldState and never blocks the world thread, exercising exactly the
+// Create -> Join x3 -> Leave -> Dissolve sequence the milestone's own
+// acceptance criteria describes, entirely as a chain of completions (see
+// RunGroupLifecycleSmokeTestJoinStep()).
 //
-// Deliberately does NOT create anything: an earlier version minted three
-// fresh AgentType::Civilian AgentRecords at testSpawnId+1/+2/+3 via
-// CreateCreatureAgent() - review rejected this. CreateCreatureAgent() only
-// checks (map_id, spawn_id) uniqueness in ai_agents; it never confirms a
-// matching TrinityCore creature spawn actually exists, so this could
-// either produce a permanent ghost AgentRecord with no real Creature ever
-// able to bind it, or - worse - if that (map, spawn) combination happened
-// to already name a real creature, silently claim it as a fake Civilian
-// out from under whatever AgentType it should have had. Every AgentRecord
-// is supposed to name a real, individually-bindable creature spawn (see
-// AgentRecord.h) - a test harness is not exempt from that invariant.
-// Instead, this requires three AgentIds the operator has explicitly
-// configured to already-existing, already-registered agents (e.g. three
-// real test wolves created some other way) - see the three
-// AIWorld.TestGroupMemberAgentId* config values read in Initialize().
+// Deliberately does NOT create anything: an earlier (2.12E1) version
+// minted three fresh AgentType::Civilian AgentRecords at
+// testSpawnId+1/+2/+3 via CreateCreatureAgent() - review rejected this.
+// CreateCreatureAgent() only checks (map_id, spawn_id) uniqueness in
+// ai_agents; it never confirms a matching TrinityCore creature spawn
+// actually exists, so this could either produce a permanent ghost
+// AgentRecord with no real Creature ever able to bind it, or - worse - if
+// that (map, spawn) combination happened to already name a real creature,
+// silently claim it as a fake Civilian out from under whatever AgentType
+// it should have had. Every AgentRecord is supposed to name a real,
+// individually-bindable creature spawn (see AgentRecord.h) - a test
+// harness is not exempt from that invariant. Instead, this requires three
+// AgentIds the operator has explicitly configured to already-existing,
+// already-registered agents (e.g. three real test wolves created some
+// other way) - see the three AIWorld.TestGroupMemberAgentId* config
+// values read in Initialize().
 void AIWorldMgr::RunGroupLifecycleSmokeTest(AgentId memberId1, AgentId memberId2, AgentId memberId3)
 {
-    AgentId memberIds[3] = { memberId1, memberId2, memberId3 };
+    std::array<AgentId, 3> memberIds{ memberId1, memberId2, memberId3 };
 
     for (AgentId memberId : memberIds)
     {
@@ -528,45 +550,78 @@ void AIWorldMgr::RunGroupLifecycleSmokeTest(AgentId memberId1, AgentId memberId2
     TC_LOG_INFO("ai.world", "AI group lifecycle smoke test: members={} {} {}",
         memberIds[0].Value, memberIds[1].Value, memberIds[2].Value);
 
-    std::optional<GroupId> groupId = _groupLifecycleSystem.CreateGroup(AgentGroupKind::Loose, 0, 0.0f, 0.0f, 0.0f, 1.0f,
-        _groupRegistry, _groupPersistence);
-    if (!groupId)
-    {
-        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: CreateGroup failed, aborting");
-        return;
-    }
-
-    // Milestone 2.12E1 P3 fix (STATIC review, round 2): every step's
-    // return value is checked - an earlier version fired Join/Leave/
-    // Dissolve without looking at what they returned and always logged
-    // "complete" regardless, which could report a false PASS on an actual
-    // lifecycle failure.
-    uint64 nowMs = CurrentTimeMs();
-    for (AgentId memberId : memberIds)
-    {
-        if (!_groupLifecycleSystem.JoinGroup(*groupId, memberId, nowMs, _groupRegistry, _registry, _groupPersistence))
+    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Loose, 0, 0.0f, 0.0f, 0.0f, 1.0f,
+        _groupRegistry, _groupPersistence, _groupLifecyclePending,
+        [this, memberIds](std::optional<GroupId> groupId)
         {
-            TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: JoinGroup failed for member id={}, group={} left as-is",
-                memberId.Value, groupId->Value);
-            return;
-        }
-    }
+            if (!groupId)
+            {
+                TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: CreateGroup failed, aborting");
+                return;
+            }
 
-    if (!_groupLifecycleSystem.LeaveGroup(*groupId, memberIds[2], _groupRegistry, _groupPersistence))
+            RunGroupLifecycleSmokeTestJoinStep(*groupId, memberIds, 0);
+        });
+}
+
+void AIWorldMgr::RunGroupLifecycleSmokeTestJoinStep(GroupId groupId, std::array<AgentId, 3> memberIds, std::size_t index)
+{
+    if (index == memberIds.size())
     {
-        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: LeaveGroup failed for member id={}, group={} left as-is",
-            memberIds[2].Value, groupId->Value);
+        // All joined - leave the last member, then dissolve. Both chained
+        // the same way CreateGroup() -> RunGroupLifecycleSmokeTestJoinStep()
+        // already are: only issued from the previous step's own confirmed
+        // completion.
+        _groupLifecycleSystem.RequestLeaveGroup(groupId, memberIds[2], _groupRegistry, _groupPersistence, _groupLifecyclePending,
+            [this, groupId, memberIds](bool success)
+            {
+                if (!success)
+                {
+                    RunGroupLifecycleSmokeTestAbort(groupId, "LeaveGroup", memberIds[2]);
+                    return;
+                }
+
+                RequestDissolveGroup(groupId, [groupId, memberIds](bool success)
+                {
+                    if (!success)
+                    {
+                        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: DissolveGroup failed for group={}, giving up", groupId.Value);
+                        return;
+                    }
+
+                    TC_LOG_INFO("ai.world", "AI group lifecycle smoke test PASSED: members {} {} {} remain ordinary AgentRecords, untouched by group lifecycle",
+                        memberIds[0].Value, memberIds[1].Value, memberIds[2].Value);
+                });
+            });
         return;
     }
 
-    if (!_groupLifecycleSystem.DissolveGroup(*groupId, _groupRegistry, _groupPersistence))
-    {
-        TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: DissolveGroup failed for group={}, left as-is", groupId->Value);
-        return;
-    }
+    uint64 nowMs = CurrentTimeMs();
+    _groupLifecycleSystem.RequestJoinGroup(groupId, memberIds[index], nowMs, _groupRegistry, _registry, _groupPersistence, _groupLifecyclePending,
+        [this, groupId, memberIds, index](bool success)
+        {
+            if (!success)
+            {
+                RunGroupLifecycleSmokeTestAbort(groupId, "JoinGroup", memberIds[index]);
+                return;
+            }
 
-    TC_LOG_INFO("ai.world", "AI group lifecycle smoke test PASSED: members {} {} {} remain ordinary AgentRecords, untouched by group lifecycle",
-        memberIds[0].Value, memberIds[1].Value, memberIds[2].Value);
+            RunGroupLifecycleSmokeTestJoinStep(groupId, memberIds, index + 1);
+        });
+}
+
+void AIWorldMgr::RunGroupLifecycleSmokeTestAbort(GroupId groupId, char const* step, AgentId memberId)
+{
+    TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test FAILED: {} failed for member id={}, group={} - attempting best-effort cleanup",
+        step, memberId.Value, groupId.Value);
+
+    RequestDissolveGroup(groupId, [groupId](bool success)
+    {
+        if (success)
+            TC_LOG_INFO("ai.world", "AI group lifecycle smoke test cleanup: group={} dissolved after earlier failure", groupId.Value);
+        else
+            TC_LOG_ERROR("ai.world", "AI group lifecycle smoke test cleanup FAILED: group={} could not be dissolved, left as-is", groupId.Value);
+    });
 }
 
 void AIWorldMgr::Update(uint32 diff)
@@ -588,6 +643,15 @@ void AIWorldMgr::Update(uint32 diff)
     // nothing here trusts the event's contents yet.
     for (ActionEngineEvent& event : _actionEngineEventBus.Drain())
         ProcessActionEngineEvent(event);
+
+    // Milestone 2.12E2: delivers every AgentGroupLifecycleSystem Request*
+    // completion that has landed since the last tick - the same
+    // "enqueue, poll every Update()" shape World::Update() already uses
+    // for _queryProcessor.ProcessReadyCallbacks(). Every completion (and
+    // therefore every AgentGroupRegistry mutation it makes) runs from
+    // inside this call, so always on the world thread, never blocking it -
+    // see AgentGroupLifecycleSystem.h for the full design.
+    _groupLifecyclePending.ProcessReadyCallbacks();
 
     // Milestone 2.10A/2.10B: runs the bounded multi-agent scheduler pass -
     // AIWorld.DecisionSchedulerIntervalMs (default 250ms), deliberately

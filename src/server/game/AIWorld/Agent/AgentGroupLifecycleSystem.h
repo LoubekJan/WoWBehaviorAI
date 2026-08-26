@@ -22,6 +22,8 @@
 #include "AgentId.h"
 #include "Define.h"
 #include "GroupId.h"
+#include "Persistence/TransactionCallbackProcessor.h"
+#include <functional>
 #include <optional>
 
 class AgentGroupPersistence;
@@ -36,105 +38,121 @@ class AgentRegistry;
 // transform with no DB/registry access of its own), this class deliberately
 // does own that orchestration - it is the one place that enforces "DB
 // write happens, and is confirmed, before the runtime registry is ever
-// mutated to match" (see CreateGroup()) and "a member must already be a
-// real, independent AgentRecord before it can join" (see JoinGroup()),
-// so nothing else in this codebase has to re-derive either invariant.
+// mutated to match" (see RequestCreateGroup()) and "a member must already
+// be a real, independent AgentRecord before it can join" (see
+// RequestJoinGroup()), so nothing else in this codebase has to re-derive
+// either invariant.
 //
-// Deliberately narrow for 2.12E1: no automatic group formation, no
+// Deliberately narrow for 2.12E1/2.12E2: no automatic group formation, no
 // cohesion/leader/policy logic, no combat/movement, no Loose-vs-Stable
-// join/leave restriction yet (that is 2.12E2's job) - every call here is
+// join/leave restriction yet (that is 2.12E3's job) - every call here is
 // assumed to already be a deliberate, individually-authorized request
 // (today: AIWorldMgr's own manual smoke test; later: an admin/test
 // command). Pure value-transform-shaped otherwise: every dependency
-// (registries, persistence) is a parameter, nothing is held as member
-// state, and nothing here ever touches Creature*/Player*/Map* - group
-// lifecycle changes social relationships between already-existing
-// AgentRecords, it never creates/destroys/moves/despawns anything in
-// TrinityCore's own world state. World-thread-only, like everything else
-// in AIWorld.
+// (registries, persistence, the pending-callback processor) is a
+// parameter, nothing is held as member state, and nothing here ever
+// touches Creature*/Player*/Map* - group lifecycle changes social
+// relationships between already-existing AgentRecords, it never
+// creates/destroys/moves/despawns anything in TrinityCore's own world
+// state. World-thread-only, like everything else in AIWorld - both the
+// synchronous validation each Request* method does up front AND every
+// completion it later runs (see below) only ever happen on that thread.
 //
-// Every method here only mutates groupRegistry (a create, a membership
-// change, an erase) AFTER persistence has confirmed the matching DB write
-// actually landed - STATIC review (round 2) on this class's first version
-// found the opposite order for Join/Leave/Dissolve: they mutated
-// groupRegistry right after an unconfirmed AgentGroupPersistence
-// DirectExecute() call, so a DB failure there could leave groupRegistry
-// disagreeing with what is actually stored. AgentGroupPersistence's own
-// CreateGroup()/AddGroupMember()/RemoveGroupMember()/DeleteGroup() now all
-// return a confirmed result (read-back after write, or - for
-// DeleteGroup() - one atomic CharacterDatabaseTransaction plus a
-// read-back); this class trusts nothing else.
-//
-// Milestone 2.12E1 P2 fix (STATIC review, round 2): every write below goes
-// through AgentGroupPersistence's CONNECTION_SYNCH/DirectExecute() (and,
-// for DeleteGroup(), DirectCommitTransaction()) path, which blocks the
-// calling thread until the DB round-trip completes. That is an accepted,
-// explicitly scoped tradeoff for 2.12E1 - every caller today is a rare,
-// startup/admin-style action (AIWorldMgr's own manual smoke test), never a
-// per-tick one. It is NOT acceptable once 2.12E2/2.12E3 introduce any
-// automatic or policy/AI-driven caller of this same API - a dynamically
-// forming LOOSE coalition calling CreateGroup()/JoinGroup() from a
-// per-tick or per-decision path through this exact synchronous persistence
-// layer would mean blocking DB I/O on the world thread, the same class of
-// problem AgentEconomyState/AgentGroupRecord's own async
-// SaveEconomyState()/SaveGroupState() were built specifically to avoid.
-// Before any such caller exists, this persistence path must be redesigned
-// - e.g. an async command queue that confirms via a callback rather than a
-// blocking read-back, mirroring AIClient's own async request pattern -
-// not wired in unchanged.
+// Milestone 2.12E2: every operation is Request*/async now, replacing
+// 2.12E1's synchronous CreateGroup()/JoinGroup()/LeaveGroup()/
+// DissolveGroup() (STATIC review: those blocked the calling thread on a
+// DB round trip via AgentGroupPersistence's CONNECTION_SYNCH/
+// DirectExecute() path - acceptable only for 2.12E1's own startup/admin-
+// scoped caller, explicitly NOT acceptable once 2.12E3+ introduces an
+// automatic or policy/AI-driven caller, e.g. a dynamically forming LOOSE
+// coalition). Each Request* method:
+//   1. Validates synchronously, in-memory only, against groupRegistry/
+//      agentRegistry (no DB) - group exists, member exists, no duplicate,
+//      etc. A validation failure calls onComplete synchronously, before
+//      returning, and touches nothing else.
+//   2. On success, calls into AgentGroupPersistence's matching *Async()
+//      method, which submits the DB work via
+//      CharacterDatabase.AsyncCommitTransaction() and returns immediately
+//      - the calling (world) thread is never blocked on the DB round
+//      trip.
+//   3. Enqueues the returned TransactionCallback into the caller-supplied
+//      TransactionCallbackProcessor - the caller (AIWorldMgr) owns polling
+//      it once per world tick via ProcessReadyCallbacks(), the exact same
+//      "enqueue, poll every Update()" shape World::_queryProcessor already
+//      uses.
+//   4. groupRegistry is mutated ONLY inside that completion, once
+//      AgentGroupPersistence reports the transaction's own genuine commit
+//      result - never optimistically, never before. Since the completion
+//      runs later (possibly several ticks later), it never trusts that
+//      anything found valid during step 1 is still valid at completion
+//      time - a group can be dissolved (or, once creation exists,
+//      completed) while another request against the same GroupId is still
+//      in flight, so every completion re-resolves groupRegistry.Find()
+//      itself rather than reusing a pointer captured in step 1.
+// No caller today issues two requests against the same GroupId
+// concurrently (2.12E2 has no automatic policy yet, and the manual smoke
+// test only ever chains one step's completion into the next), so that
+// last point is a defense against a class of future bug, not a
+// currently-reachable one - but the completion-time re-resolution costs
+// nothing and is what keeps this safe once 2.12E3+ callers exist.
 class TC_GAME_API AgentGroupLifecycleSystem
 {
     public:
-        // Mints a fresh GroupId via persistence.CreateGroup() (synchronous,
-        // confirmed by read-back - see that method's own comment) and only
-        // then adds the resulting AgentGroupRecord to groupRegistry -
-        // never the other way around, so groupRegistry can never hold a
-        // GroupId the DB does not actually have a row for. Returns
-        // std::nullopt if persistence.CreateGroup() itself failed (already
-        // logged there) or, defensively, if the freshly-minted id somehow
-        // collided with an already-registered one (should be unreachable -
-        // logged loudly if it ever happens, since it would mean
-        // AgentGroupPersistence's own counter and groupRegistry have
-        // drifted out of sync).
-        std::optional<GroupId> CreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources,
-            AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence) const;
+        // Synchronously nothing to validate here (persistence itself owns
+        // the one thing that can reject a create - see
+        // AgentGroupPersistence::CreateGroupAsync()'s fail-closed allocator
+        // check). onComplete(groupId) fires once, either synchronously (a
+        // rejection persistence detected before ever touching the DB) or
+        // later from pending's ProcessReadyCallbacks() (once the DB
+        // transaction's own result is known) - never both, never neither.
+        // groupRegistry is only ever Add()'d to inside that completion,
+        // after AgentGroupPersistence confirms the transaction actually
+        // committed.
+        void RequestCreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources,
+            AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence, TransactionCallbackProcessor& pending,
+            std::function<void(std::optional<GroupId>)> onComplete) const;
 
-        // Validates both sides before writing anything: groupId must
-        // resolve in groupRegistry, memberId must resolve in agentRegistry
-        // (read-only - this never mutates an individual AgentRecord), and
-        // memberId must not already be a member of this group. Only once
-        // all three hold does this write to persistence - and only once
-        // persistence.AddGroupMember() confirms the write (2.12E1 P2 fix,
-        // round 2) does it update groupRegistry, same order as
-        // CreateGroup(). Returns false (and logs why) for any of the four
-        // failures; true only on an actual, DB-confirmed join.
-        bool JoinGroup(GroupId groupId, AgentId memberId, uint64 joinedAtMs,
-            AgentGroupRegistry& groupRegistry, AgentRegistry const& agentRegistry, AgentGroupPersistence& persistence) const;
+        // Validates synchronously before touching the DB at all: groupId
+        // must resolve in groupRegistry, memberId must resolve in
+        // agentRegistry (read-only - this never mutates an individual
+        // AgentRecord), and memberId must not already be a member of this
+        // group. Any failure calls onComplete(false) synchronously and
+        // submits nothing. On success, submits the async membership write
+        // and only pushes into AgentGroupRecord::Members inside the
+        // completion, once AgentGroupPersistence confirms it - and only
+        // if groupId still resolves in groupRegistry at that point (see
+        // this class's own header comment on why a completion never
+        // trusts request-time validity).
+        void RequestJoinGroup(GroupId groupId, AgentId memberId, uint64 joinedAtMs,
+            AgentGroupRegistry& groupRegistry, AgentRegistry const& agentRegistry, AgentGroupPersistence& persistence,
+            TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const;
 
         // Idempotent/fail-safe: an unknown groupId or a memberId that is
-        // not currently a member both return false (nothing to do), never
-        // an error - calling this twice in a row for the same (groupId,
-        // memberId) is always safe. Once a membership is found, this only
-        // erases it from groupRegistry after persistence.RemoveGroupMember()
-        // confirms the DB agrees (2.12E1 P2 fix, round 2) - a DB failure
-        // here leaves the runtime membership untouched rather than
-        // diverging from what is actually stored. Returns true only when a
-        // membership actually existed and was confirmed removed.
-        bool LeaveGroup(GroupId groupId, AgentId memberId,
-            AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence) const;
+        // not currently a member both call onComplete(false) synchronously
+        // (nothing to do, never an error) - calling this twice in a row for
+        // the same (groupId, memberId) is always safe. On success, submits
+        // the async removal and only erases from AgentGroupRecord::Members
+        // inside the completion, once AgentGroupPersistence confirms it. If
+        // groupId no longer resolves in groupRegistry by completion time
+        // (the group was dissolved while this leave was in flight),
+        // onComplete(true) still fires - the post-condition "not a member"
+        // already holds either way, there is nothing left to erase.
+        void RequestLeaveGroup(GroupId groupId, AgentId memberId,
+            AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence,
+            TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const;
 
-        // Removes every membership row and the group row itself as one
-        // atomic transaction (persistence.DeleteGroup()), and only erases
-        // the AgentGroupRecord from groupRegistry once that confirms
-        // success (2.12E1 P2 fix, round 2) - never touches AgentRegistry/
-        // AgentRecord/Creature for any former member either way; they
-        // remain exactly the ordinary individual agents they already were.
-        // Returns false (nothing to do) for an unknown groupId, or if
-        // persistence.DeleteGroup() itself could not confirm the DB rows
-        // are actually gone (groupRegistry is left untouched in that case
-        // too) - never a thrown error either way.
-        bool DissolveGroup(GroupId groupId,
-            AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence) const;
+        // An unknown groupId calls onComplete(false) synchronously, nothing
+        // to do. On success, submits the async delete (every membership row
+        // for groupId, then the group row itself, as one atomic
+        // transaction - see AgentGroupPersistence::DeleteGroupAsync()) and
+        // only erases the AgentGroupRecord from groupRegistry inside the
+        // completion, once that transaction's own commit is confirmed -
+        // never touches AgentRegistry/AgentRecord/Creature for any former
+        // member either way; they remain exactly the ordinary individual
+        // agents they already were.
+        void RequestDissolveGroup(GroupId groupId,
+            AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence,
+            TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const;
 };
 
 #endif // AIWORLD_AGENTGROUPLIFECYCLESYSTEM_H

@@ -24,64 +24,78 @@
 #include "Persistence/AgentGroupPersistence.h"
 #include <algorithm>
 
-std::optional<GroupId> AgentGroupLifecycleSystem::CreateGroup(AgentGroupKind kind, uint32 territoryMapId,
+void AgentGroupLifecycleSystem::RequestCreateGroup(AgentGroupKind kind, uint32 territoryMapId,
     float territoryX, float territoryY, float territoryZ, float resources,
-    AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence) const
+    AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence, TransactionCallbackProcessor& pending,
+    std::function<void(std::optional<GroupId>)> onComplete) const
 {
-    GroupId groupId = persistence.CreateGroup(kind, territoryMapId, territoryX, territoryY, territoryZ, resources);
-    if (!groupId)
-    {
-        // AgentGroupPersistence::CreateGroup() already logged why.
-        return std::nullopt;
-    }
+    std::optional<TransactionCallback> callback = persistence.CreateGroupAsync(kind, territoryMapId, territoryX, territoryY, territoryZ, resources,
+        [&groupRegistry, kind, territoryMapId, territoryX, territoryY, territoryZ, resources, onComplete](bool success, GroupId newId)
+        {
+            if (!success)
+            {
+                onComplete(std::nullopt);
+                return;
+            }
 
-    AgentGroupRecord record;
-    record.Id = groupId;
-    record.Kind = kind;
-    record.TerritoryMapId = territoryMapId;
-    record.TerritoryX = territoryX;
-    record.TerritoryY = territoryY;
-    record.TerritoryZ = territoryZ;
-    record.Resources = resources;
-    record.Version = 0;
+            AgentGroupRecord record;
+            record.Id = newId;
+            record.Kind = kind;
+            record.TerritoryMapId = territoryMapId;
+            record.TerritoryX = territoryX;
+            record.TerritoryY = territoryY;
+            record.TerritoryZ = territoryZ;
+            record.Resources = resources;
+            record.Version = 0;
 
-    if (!groupRegistry.Add(record))
-    {
-        // Should be unreachable - persistence just minted groupId fresh
-        // from its own counter, which only ever increases, so a collision
-        // here would mean that counter and groupRegistry have drifted out
-        // of sync with each other. Defense in depth, not the primary
-        // guarantee - logged loudly because it would indicate a real bug
-        // elsewhere, not an expected runtime condition.
-        TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::CreateGroup: freshly-minted group id={} was already registered in groupRegistry - this should be unreachable",
-            groupId.Value);
-        return std::nullopt;
-    }
+            if (!groupRegistry.Add(record))
+            {
+                // Should be unreachable - persistence just minted newId
+                // fresh from its own counter, which only ever increases,
+                // so a collision here would mean that counter and
+                // groupRegistry have drifted out of sync with each other.
+                // Defense in depth, not the primary guarantee - logged
+                // loudly because it would indicate a real bug elsewhere.
+                TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::RequestCreateGroup: freshly-created group id={} was already registered in groupRegistry - this should be unreachable",
+                    newId.Value);
+                onComplete(std::nullopt);
+                return;
+            }
 
-    TC_LOG_INFO("ai.world", "AI agent group created id={} kind={} territoryMap={} resources={:.4f}",
-        groupId.Value, ToString(kind), territoryMapId, resources);
+            TC_LOG_INFO("ai.world", "AI agent group created id={} kind={} territoryMap={} resources={:.4f}",
+                newId.Value, ToString(kind), territoryMapId, resources);
 
-    return groupId;
+            onComplete(newId);
+        });
+
+    // std::nullopt means persistence already rejected this synchronously
+    // and already invoked the wrapped callback above (with success=false)
+    // - nothing left to enqueue.
+    if (callback)
+        pending.AddCallback(std::move(*callback));
 }
 
-bool AgentGroupLifecycleSystem::JoinGroup(GroupId groupId, AgentId memberId, uint64 joinedAtMs,
-    AgentGroupRegistry& groupRegistry, AgentRegistry const& agentRegistry, AgentGroupPersistence& persistence) const
+void AgentGroupLifecycleSystem::RequestJoinGroup(GroupId groupId, AgentId memberId, uint64 joinedAtMs,
+    AgentGroupRegistry& groupRegistry, AgentRegistry const& agentRegistry, AgentGroupPersistence& persistence,
+    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const
 {
     AgentGroupRecord* group = groupRegistry.Find(groupId);
     if (!group)
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::JoinGroup: group id={} does not exist, refusing to join member id={}",
+        TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::RequestJoinGroup: group id={} does not exist, refusing to join member id={}",
             groupId.Value, memberId.Value);
-        return false;
+        onComplete(false);
+        return;
     }
 
-    // Read-only - JoinGroup() never mutates an individual AgentRecord,
-    // only confirms one already exists.
+    // Read-only - RequestJoinGroup() never mutates an individual
+    // AgentRecord, only confirms one already exists.
     if (!agentRegistry.Find(memberId))
     {
-        TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::JoinGroup: agent id={} does not exist, refusing to add it to group id={}",
+        TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::RequestJoinGroup: agent id={} does not exist, refusing to add it to group id={}",
             memberId.Value, groupId.Value);
-        return false;
+        onComplete(false);
+        return;
     }
 
     bool alreadyMember = std::any_of(group->Members.begin(), group->Members.end(),
@@ -89,38 +103,57 @@ bool AgentGroupLifecycleSystem::JoinGroup(GroupId groupId, AgentId memberId, uin
 
     if (alreadyMember)
     {
-        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::JoinGroup: agent id={} is already a member of group id={}, ignoring duplicate join",
+        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestJoinGroup: agent id={} is already a member of group id={}, ignoring duplicate join",
             memberId.Value, groupId.Value);
-        return false;
+        onComplete(false);
+        return;
     }
 
-    // Milestone 2.12E1 P2 fix (STATIC review, round 2): only mutate
-    // group->Members once persistence confirms the DB write actually
-    // landed - see this class's own header comment.
-    if (!persistence.AddGroupMember(groupId, memberId, joinedAtMs))
-    {
-        // AgentGroupPersistence::AddGroupMember() already logged why.
-        return false;
-    }
+    TransactionCallback callback = persistence.AddGroupMemberAsync(groupId, memberId, joinedAtMs,
+        [&groupRegistry, groupId, memberId, joinedAtMs, onComplete](bool success)
+        {
+            if (!success)
+            {
+                onComplete(false);
+                return;
+            }
 
-    AgentGroupMembership membership;
-    membership.Member = memberId;
-    membership.JoinedAtMs = joinedAtMs;
-    group->Members.push_back(membership);
+            // Re-resolved here, not the pointer captured above - see this
+            // class's own header comment on why a completion never trusts
+            // request-time validity. The group may have been dissolved
+            // while this join was in flight.
+            AgentGroupRecord* group = groupRegistry.Find(groupId);
+            if (!group)
+            {
+                TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestJoinGroup: group id={} no longer exists by the time the async join for member id={} completed",
+                    groupId.Value, memberId.Value);
+                onComplete(false);
+                return;
+            }
 
-    TC_LOG_INFO("ai.world", "AI agent group join group={} member={} joinedAtMs={}", groupId.Value, memberId.Value, joinedAtMs);
-    return true;
+            AgentGroupMembership membership;
+            membership.Member = memberId;
+            membership.JoinedAtMs = joinedAtMs;
+            group->Members.push_back(membership);
+
+            TC_LOG_INFO("ai.world", "AI agent group join group={} member={} joinedAtMs={}", groupId.Value, memberId.Value, joinedAtMs);
+            onComplete(true);
+        });
+
+    pending.AddCallback(std::move(callback));
 }
 
-bool AgentGroupLifecycleSystem::LeaveGroup(GroupId groupId, AgentId memberId,
-    AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence) const
+void AgentGroupLifecycleSystem::RequestLeaveGroup(GroupId groupId, AgentId memberId,
+    AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence,
+    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const
 {
     AgentGroupRecord* group = groupRegistry.Find(groupId);
     if (!group)
     {
-        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::LeaveGroup: group id={} does not exist, nothing to do for member id={}",
+        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestLeaveGroup: group id={} does not exist, nothing to do for member id={}",
             groupId.Value, memberId.Value);
-        return false;
+        onComplete(false);
+        return;
     }
 
     auto it = std::find_if(group->Members.begin(), group->Members.end(),
@@ -128,54 +161,81 @@ bool AgentGroupLifecycleSystem::LeaveGroup(GroupId groupId, AgentId memberId,
 
     if (it == group->Members.end())
     {
-        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::LeaveGroup: agent id={} is not a member of group id={}, nothing to do",
+        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestLeaveGroup: agent id={} is not a member of group id={}, nothing to do",
             memberId.Value, groupId.Value);
-        return false;
+        onComplete(false);
+        return;
     }
 
-    // Milestone 2.12E1 P2 fix (STATIC review, round 2): only erase the
-    // runtime membership once persistence confirms the DB agrees - if it
-    // doesn't, the runtime membership is left exactly as it was, rather
-    // than diverging from what is actually stored.
-    if (!persistence.RemoveGroupMember(groupId, memberId))
-    {
-        // AgentGroupPersistence::RemoveGroupMember() already logged why.
-        return false;
-    }
+    TransactionCallback callback = persistence.RemoveGroupMemberAsync(groupId, memberId,
+        [&groupRegistry, groupId, memberId, onComplete](bool success)
+        {
+            if (!success)
+            {
+                onComplete(false);
+                return;
+            }
 
-    group->Members.erase(it);
+            // Re-resolved here, not the iterator captured above - the
+            // group may have been dissolved while this leave was in
+            // flight, and even a still-live AgentGroupRecord::Members has
+            // moved on since the earlier find_if() ran.
+            AgentGroupRecord* group = groupRegistry.Find(groupId);
+            if (!group)
+            {
+                // The DB-side post-condition ("not a member") already
+                // holds - the whole group, membership included, is gone -
+                // so this is still a success, just nothing left to erase.
+                TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestLeaveGroup: group id={} no longer exists by the time the async leave for member id={} completed",
+                    groupId.Value, memberId.Value);
+                onComplete(true);
+                return;
+            }
 
-    TC_LOG_INFO("ai.world", "AI agent group leave group={} member={}", groupId.Value, memberId.Value);
-    return true;
+            auto it2 = std::find_if(group->Members.begin(), group->Members.end(),
+                [memberId](AgentGroupMembership const& membership) { return membership.Member == memberId; });
+
+            if (it2 != group->Members.end())
+                group->Members.erase(it2);
+
+            TC_LOG_INFO("ai.world", "AI agent group leave group={} member={}", groupId.Value, memberId.Value);
+            onComplete(true);
+        });
+
+    pending.AddCallback(std::move(callback));
 }
 
-bool AgentGroupLifecycleSystem::DissolveGroup(GroupId groupId,
-    AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence) const
+void AgentGroupLifecycleSystem::RequestDissolveGroup(GroupId groupId,
+    AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence,
+    TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete) const
 {
     AgentGroupRecord* group = groupRegistry.Find(groupId);
     if (!group)
     {
-        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::DissolveGroup: group id={} does not exist, nothing to do", groupId.Value);
-        return false;
+        TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestDissolveGroup: group id={} does not exist, nothing to do", groupId.Value);
+        onComplete(false);
+        return;
     }
 
     uint32 formerMemberCount = uint32(group->Members.size());
 
-    // Milestone 2.12E1 P2 fix (STATIC review, round 2): only erase from
-    // groupRegistry once persistence confirms the DB rows are actually
-    // gone - if it can't, groupRegistry is left exactly as it was, rather
-    // than the runtime believing a group is dissolved that a restart would
-    // just bring back. Never touches AgentRegistry/AgentRecord/Creature
-    // for any former member either way - see this class's own header
-    // comment.
-    if (!persistence.DeleteGroup(groupId))
-    {
-        // AgentGroupPersistence::DeleteGroup() already logged why.
-        return false;
-    }
+    TransactionCallback callback = persistence.DeleteGroupAsync(groupId,
+        [&groupRegistry, groupId, formerMemberCount, onComplete](bool success)
+        {
+            if (!success)
+            {
+                onComplete(false);
+                return;
+            }
 
-    groupRegistry.Remove(groupId);
+            // Remove() is already safe/idempotent against groupId no
+            // longer being present (returns false, harmless) - no
+            // re-resolution needed the way Join/Leave's completions do.
+            groupRegistry.Remove(groupId);
 
-    TC_LOG_INFO("ai.world", "AI agent group dissolved group={} formerMemberCount={}", groupId.Value, formerMemberCount);
-    return true;
+            TC_LOG_INFO("ai.world", "AI agent group dissolved group={} formerMemberCount={}", groupId.Value, formerMemberCount);
+            onComplete(true);
+        });
+
+    pending.AddCallback(std::move(callback));
 }
