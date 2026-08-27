@@ -359,6 +359,12 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     AgentId testGroupMemberAgentId2{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestGroupMemberAgentId2", 0)) };
     AgentId testGroupMemberAgentId3{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestGroupMemberAgentId3", 0)) };
 
+    // Milestone 2.12E4R test hook: an existing GroupId to Manually dissolve
+    // once, at this startup only - see RunTestDissolveGroup()'s own comment.
+    // Default 0 (unset) means disabled, the same 0-means-disabled
+    // convention AIWorld.TestSpawnId/TestGroupMemberAgentId1-3 already use.
+    GroupId testDissolveGroupId{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestDissolveGroupId", 0)) };
+
     std::string aiHost = sConfigMgr->GetStringDefault("AIWorld.AIHost", "ai-server");
     std::string aiPort = std::to_string(sConfigMgr->GetIntDefault("AIWorld.AIPort", 8000));
 
@@ -579,6 +585,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         }
     }
 
+    // Milestone 2.12E4R test hook: runs first among this Initialize()'s own
+    // manual test actions - see RunTestDissolveGroup()'s own comment for
+    // why (clearing a specific pre-existing group out of the way before
+    // AIWorld.WolfGroupAutoFormation's own timer gets a chance to run is
+    // the whole point of this hook). Off by default (AIWorld.TestDissolveGroupId
+    // = 0).
+    if (testDissolveGroupId)
+        RunTestDissolveGroup(testDissolveGroupId);
+
     // Milestone 2.12E1 P2 fix (STATIC review, round 2): manual proof only,
     // and only runs once all three configured member AgentIds are set -
     // see RunGroupLifecycleSmokeTest()'s own comment for why it no longer
@@ -663,6 +678,39 @@ void AIWorldMgr::RequestDissolveGroupWithPolicy(GroupId groupId, AgentGroupOpera
     }
 
     RequestDissolveGroup(groupId, std::move(onComplete));
+}
+
+// Milestone 2.12E4R test hook: called at most once, from Initialize(),
+// only when AIWorld.TestDissolveGroupId is set (non-zero) - a one-shot way
+// for an operator to clear a specific, already-existing AgentGroup out of
+// the way before anything else in this same Initialize() run (in
+// particular AIWorld.WolfGroupAutoFormation's own timer, which only starts
+// ticking once Update() is first called, strictly after Initialize()
+// returns) can observe it. Exists purely to make a clean "fresh formation"
+// regression repeatable: dissolve a leftover group from a previous run,
+// then let RunCoalitionFormation() prove it can form a brand new one for
+// the same now-ungrouped members.
+//
+// Goes through RequestDissolveGroupWithPolicy(..., Manual) - the exact
+// same policy-gated entry point any other deliberately-authorized
+// individual dissolve request already uses (Manual is always allowed for
+// either AgentGroupKind, the same rule CanLeave()/ShouldDissolve() already
+// give it - see AgentGroupPolicySystem.h) - never AgentGroupRegistry::
+// Remove() or a raw DELETE against ai_agent_groups/ai_agent_group_members.
+// An unknown groupId just fails and logs; there is nothing to retry, and
+// nothing else in this run depends on this succeeding.
+void AIWorldMgr::RunTestDissolveGroup(GroupId groupId)
+{
+    TC_LOG_INFO("ai.world", "AI test dissolve: requesting Manual dissolve of group={} (AIWorld.TestDissolveGroupId)", groupId.Value);
+
+    RequestDissolveGroupWithPolicy(groupId, AgentGroupOperationSource::Manual,
+        [groupId](bool success)
+        {
+            if (success)
+                TC_LOG_INFO("ai.world", "AI test dissolve PASSED: group={} dissolved", groupId.Value);
+            else
+                TC_LOG_ERROR("ai.world", "AI test dissolve FAILED: group={} could not be dissolved (does it exist?)", groupId.Value);
+        });
 }
 
 // Milestone 2.12E2: called at most once, from Initialize(), only when all

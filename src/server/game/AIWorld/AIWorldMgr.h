@@ -202,6 +202,21 @@ class TC_GAME_API AIWorldMgr
         // RequestLeaveGroupWithPolicy() already hold.
         void RequestDissolveGroupWithPolicy(GroupId groupId, AgentGroupOperationSource source, std::function<void(bool)> onComplete);
 
+        // Milestone 2.12E4R test hook: one-shot, gated behind
+        // AIWorld.TestDissolveGroupId (default 0 = disabled) - runs first
+        // among Initialize()'s own manual test actions, so an operator can
+        // clear a specific leftover AgentGroup out of the way before
+        // AIWorld.WolfGroupAutoFormation's own timer (which cannot fire
+        // until Update() first runs, strictly after Initialize() returns)
+        // ever gets a chance to see its former members as still grouped.
+        // Goes through RequestDissolveGroupWithPolicy(..., Manual) - the
+        // same policy-gated path any other deliberately-authorized
+        // individual request already uses - never
+        // AgentGroupRegistry::Remove() or a raw DB DELETE. See its own
+        // .cpp comment for the full "fresh formation" regression this
+        // makes repeatable.
+        void RunTestDissolveGroup(GroupId groupId);
+
         // Milestone 2.12E2: manual proof that AgentGroupLifecycleSystem's
         // async Request* API never touches Creature/WorldState and never
         // blocks the world thread - runs once from Initialize(), only when
