@@ -34,6 +34,7 @@
 #include "Agent/CoalitionCandidate.h"
 #include "Agent/CoalitionFormationAttempt.h"
 #include "Agent/CoalitionFormationProfile.h"
+#include "Agent/CoalitionFormationReservationKey.h"
 #include "Agent/CoalitionFormationSystem.h"
 #include "Agent/GroupId.h"
 #include "Define.h"
@@ -341,23 +342,47 @@ class TC_GAME_API AIWorldMgr
         // Milestone 2.12E4R (generalized from 2.12E4A/B's
         // RunWolfCoalitionFormation()): AIWorld.WolfGroupFormationIntervalMs-
         // cadenced pass, only ever called while AIWorld.WolfGroupAutoFormation
-        // is enabled and profile.Id is not already in _formationInFlight
-        // (see its own declaration comment for why at most one automatic
-        // formation is ever allowed in flight PER PROFILE, not globally
-        // any more). Builds this pass's candidate list
-        // (CollectCoalitionCandidates()), excludes every candidate already
-        // a member of a profile.Kind group (CollectMemberIdsOfKind()), and
-        // asks _coalitionFormationSystem.Propose() for a deterministic
-        // CoalitionProposal. On an actual proposal, turns it into a real
-        // AgentGroup via RequestCreateGroup() followed by a
-        // RequestJoinGroupWithPolicy(AutomaticPolicy) chain (see
-        // RunCoalitionJoinStep()). No proposal this pass is not an error -
-        // it just means nothing eligible was close enough right now, and
-        // profile.Id is never added to _formationInFlight for it. Only one
-        // profile exists today (AIWorldMgr's own _wolfLooseFormationProfile,
-        // built once at Initialize()), but nothing here reads AIWorld.Wolf*
-        // config directly - a second profile is just another
-        // CoalitionFormationProfile value and call site.
+        // is enabled. Refuses profile.Id == Invalid outright (2.12E4R P3
+        // fix, STATIC review - see CoalitionFormationProfileId.h), refuses
+        // if profile.Id is already in _formationInFlight (at most one
+        // attempt in flight PER PROFILE - see its own declaration comment),
+        // and refuses if _formationInFlight.size() has already reached
+        // _coalitionFormationMaxInFlight (2.12E4R P3 fix, STATIC review:
+        // the per-profile bound alone has no ceiling on how many DIFFERENT
+        // profiles' formations can all be in flight at once - see
+        // _coalitionFormationMaxInFlight's own declaration comment).
+        //
+        // Builds this pass's candidate list (CollectCoalitionCandidates()),
+        // excludes every candidate already a CONFIRMED member of a
+        // profile.Kind group (CollectMemberIdsOfKind()) AND every candidate
+        // already RESERVED for a profile.Kind formation still in flight
+        // (_formationReservedMembers - 2.12E4R P2 fix, STATIC review, see
+        // its own declaration comment for the cross-profile race this
+        // closes), and asks _coalitionFormationSystem.Propose() for a
+        // deterministic CoalitionProposal. No proposal this pass is not an
+        // error - it just means nothing eligible was close enough right
+        // now, and nothing is reserved or added to _formationInFlight for
+        // it.
+        //
+        // On an actual proposal: reserves every Proposal.Members entry
+        // (CoalitionFormationReservationKey{member, profile.Kind}) BEFORE
+        // submitting RequestCreateGroup() - this is what actually closes
+        // the cross-profile race, not the join-time re-check alone (that
+        // re-check only ever sees CONFIRMED AgentGroupRegistry state, which
+        // is exactly the window two same-Kind profiles' own in-flight
+        // CreateGroup/Join chains do not yet occupy) - then turns the
+        // proposal into a real AgentGroup via RequestCreateGroup() followed
+        // by a RequestJoinGroupWithPolicy(AutomaticPolicy) chain (see
+        // RunCoalitionJoinStep()). Reservations are released
+        // (ReleaseCoalitionFormationReservations()) at every terminal
+        // outcome - a failed CreateGroup here, a fully successful join
+        // chain, or a cleaned-up aborted one - never left dangling.
+        //
+        // Only one profile exists today (AIWorldMgr's own
+        // _wolfLooseFormationProfile, built once at Initialize()), but
+        // nothing here reads AIWorld.Wolf* config directly - a second
+        // profile is just another CoalitionFormationProfile value and call
+        // site.
         void RunCoalitionFormation(CoalitionFormationProfile const& profile);
 
         // Milestone 2.12E4R (generalized from 2.12E4B's
@@ -366,15 +391,18 @@ class TC_GAME_API AIWorldMgr
         // AgentGroupOperationSource::AutomaticPolicy, then recurses with
         // NextMemberIndex+1 - once NextMemberIndex reaches
         // attempt.Proposal.Members.size(), formation is complete, logged
-        // PASSED, and attempt.ProfileId is erased from
-        // _formationInFlight. The same "chain each step from the previous
-        // one's own completion" shape RunGroupLifecycleSmokeTestJoinStep()
-        // already uses, for the same reason (AgentGroupLifecycleSystem
-        // allows at most one in-flight operation per GroupId - see its own
-        // header comment). Any join failure aborts the whole formation and
-        // best-effort dissolves the group already created for it
-        // (AbortCoalitionFormation()) rather than leaving a partially
-        // joined automatic coalition behind.
+        // PASSED, attempt.Proposal's own reservations are released
+        // (ReleaseCoalitionFormationReservations() - 2.12E4R P2 fix, now
+        // redundant with real AgentGroupRegistry membership but released
+        // for symmetry with every other terminal outcome), and
+        // attempt.ProfileId is erased from _formationInFlight. The same
+        // "chain each step from the previous one's own completion" shape
+        // RunGroupLifecycleSmokeTestJoinStep() already uses, for the same
+        // reason (AgentGroupLifecycleSystem allows at most one in-flight
+        // operation per GroupId - see its own header comment). Any join
+        // failure aborts the whole formation and best-effort dissolves the
+        // group already created for it (AbortCoalitionFormation()) rather
+        // than leaving a partially joined automatic coalition behind.
         //
         // 2.12E4A/B P2 fix (STATIC review), preserved unchanged by this
         // generalization: re-checks the member still resolves in
@@ -391,8 +419,10 @@ class TC_GAME_API AIWorldMgr
         // against THIS groupId - AgentGroupPolicySystem deliberately has no
         // global one-group invariant (see its own class comment) - so it
         // cannot catch a member that is already in some OTHER group of the
-        // same Kind; only this re-check can. A failure here aborts and
-        // cleans up the same way a rejected/failed join itself does.
+        // same Kind; only this re-check (plus RunCoalitionFormation()'s own
+        // reservation, for the cross-PROFILE case specifically) can. A
+        // failure here aborts and cleans up the same way a rejected/failed
+        // join itself does.
         void RunCoalitionJoinStep(CoalitionFormationAttempt attempt);
 
         // Milestone 2.12E4R (generalized from 2.12E4B's
@@ -404,11 +434,22 @@ class TC_GAME_API AIWorldMgr
         // manual lifecycle smoke test. This is cleanup of an already
         // policy-approved formation operation (CanJoin() already said
         // Allowed for every member that got this far), never a way to
-        // bypass automatic policy. attempt.ProfileId is erased from
-        // _formationInFlight only once this cleanup dissolve itself
-        // completes (success or failure), never synchronously inside this
-        // method - see _formationInFlight's own declaration comment.
+        // bypass automatic policy. attempt.Proposal's own reservations are
+        // released (ReleaseCoalitionFormationReservations()) and
+        // attempt.ProfileId is erased from _formationInFlight only once
+        // this cleanup dissolve itself completes (success or failure),
+        // never synchronously inside this method - see
+        // _formationInFlight's own declaration comment.
         void AbortCoalitionFormation(CoalitionFormationAttempt const& attempt, AgentId failedMember);
+
+        // Milestone 2.12E4R P2 fix (STATIC review): erases
+        // CoalitionFormationReservationKey{member.Value, proposal.Kind} for
+        // every proposal.Members entry from _formationReservedMembers - the
+        // one place every RunCoalitionFormation()/RunCoalitionJoinStep()/
+        // AbortCoalitionFormation() terminal outcome releases its own
+        // reservations, so there is exactly one place that has to get the
+        // "release everything this proposal reserved" logic right.
+        void ReleaseCoalitionFormationReservations(CoalitionProposal const& proposal);
 
         bool _enabled = false;
 
@@ -645,10 +686,44 @@ class TC_GAME_API AIWorldMgr
         // attempt completes (success or failure) - never synchronously
         // inside AbortCoalitionFormation() itself, so a new formation pass
         // for that same profile cannot start until any cleanup dissolve
-        // for a failed attempt has also finished. A budget across profiles
-        // (not just within one) is explicitly out of scope here - see this
-        // milestone's own roadmap message.
+        // for a failed attempt has also finished.
+        //
+        // Deliberately per-profile ONLY, not a cross-profile guarantee by
+        // itself - see _formationReservedMembers below for the P2 STATIC
+        // review fix that closes the gap this alone leaves for two
+        // DIFFERENT profiles of the same AgentGroupKind, and
+        // _coalitionFormationMaxInFlight for the P3 fix bounding how many
+        // DIFFERENT profiles can have an entry here at once.
         std::unordered_set<CoalitionFormationProfileId> _formationInFlight;
+
+        // Milestone 2.12E4R P2 fix (STATIC review): every (member, Kind)
+        // reserved by a formation attempt currently building its
+        // CreateGroup/Join chain - see CoalitionFormationReservationKey.h
+        // for the exact cross-profile race this closes, and
+        // RunCoalitionFormation()/RunCoalitionJoinStep()/
+        // AbortCoalitionFormation()/ReleaseCoalitionFormationReservations()
+        // for where entries are inserted and erased. With only one profile
+        // (WolfLoose) existing today this can never actually collide with
+        // itself - _formationInFlight above already prevents that - but it
+        // is what makes a second, concurrently-running same-Kind profile
+        // safe once one exists, without requiring _formationInFlight to
+        // become a single cross-profile lock again.
+        std::unordered_set<CoalitionFormationReservationKey, CoalitionFormationReservationKeyHash> _formationReservedMembers;
+
+        // Milestone 2.12E4R P3 fix (STATIC review): AIWorld.CoalitionFormationMaxInFlight
+        // - the hard ceiling on _formationInFlight.size() RunCoalitionFormation()
+        // admits against, regardless of how many distinct profiles exist.
+        // _formationInFlight alone bounds each profile to at most one
+        // attempt, but places no bound on the number of DIFFERENT profiles
+        // that can all be mid-formation at the same time - with only one
+        // profile today that is moot, but a future profile registry
+        // (WolfLoose, BanditLoose, Caravan, ...) would otherwise let the
+        // number of concurrent automatic-formation async DB sagas grow
+        // with the number of profiles, unbounded. Defaults to 1 - with
+        // today's single profile, this reproduces the exact "at most one
+        // automatic formation in flight, period" behavior 2.12E4B's own
+        // bool _wolfFormationInFlight already gave.
+        uint32 _coalitionFormationMaxInFlight = 1;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in

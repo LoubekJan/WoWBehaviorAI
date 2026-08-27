@@ -33,14 +33,24 @@
 // FormationRadius = AIWorld.WolfGroupFormationRadius, MinMembers/
 // MaxMembers copied from AgentGroupPolicyConfig::LooseMinMembers/
 // LooseMaxMembers - see this struct's own field comment for why those are
-// never independently-tunable here). A second profile (e.g. a future
-// bandit or caravan formation) is just another CoalitionFormationProfile
+// never independently-tunable here). A second SINGLE-CreatureEntry profile
+// (e.g. a future bandit formation) is just another CoalitionFormationProfile
 // value and a matching AIWorldMgr::RunCoalitionFormation() call site -
 // CoalitionFormationSystem/CoalitionCandidate/CoalitionProposal need no
-// change at all.
+// change at all. STATIC review (2.12E4R): that claim does NOT extend to a
+// MIXED-entry coalition (e.g. a caravan of a merchant + guards + pack
+// animals) - CreatureEntry is still the only compatibility signal
+// CoalitionFormationSystem::Propose() checks (see its own class comment),
+// so a profile can only ever gather one CreatureEntry at a time. Widening
+// compatibility to something like a species/faction/social-archetype tag
+// is explicitly deferred, not attempted here.
 struct CoalitionFormationProfile
 {
-    CoalitionFormationProfileId Id = CoalitionFormationProfileId::WolfLoose;
+    // Milestone 2.12E4R P3 fix (STATIC review): defaults to Invalid, not
+    // WolfLoose - see CoalitionFormationProfileId.h for why. Every real
+    // profile (today: AIWorldMgr::_wolfLooseFormationProfile) sets this
+    // explicitly at construction time.
+    CoalitionFormationProfileId Id = CoalitionFormationProfileId::Invalid;
 
     AgentGroupKind Kind = AgentGroupKind::Loose;
 

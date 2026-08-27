@@ -322,10 +322,25 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseFormationProfile.MaxMembers = _groupPolicyConfig.LooseMaxMembers;
     _wolfLooseFormationProfile.FormationRadius = _wolfGroupFormationRadius;
 
-    _formationInFlight.clear();
+    // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
+    // many DIFFERENT profiles' formations can be in flight at once - see
+    // _coalitionFormationMaxInFlight's own declaration comment. 1 (the
+    // default) reproduces 2.12E4B's own "at most one automatic formation
+    // in flight, period" behavior exactly, since only one profile exists
+    // today.
+    int32 coalitionFormationMaxInFlight = sConfigMgr->GetIntDefault("AIWorld.CoalitionFormationMaxInFlight", 1);
+    if (coalitionFormationMaxInFlight < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.CoalitionFormationMaxInFlight ({}) is invalid or too low, clamping to 1", coalitionFormationMaxInFlight);
+        coalitionFormationMaxInFlight = 1;
+    }
+    _coalitionFormationMaxInFlight = uint32(coalitionFormationMaxInFlight);
 
-    TC_LOG_INFO("ai.world", "AI wolf coalition formation configured autoFormation={} creatureEntry={} interval={}ms radius={:.1f}",
-        _wolfGroupAutoFormation, _wolfGroupCreatureEntry, _wolfGroupFormationIntervalMs, _wolfGroupFormationRadius);
+    _formationInFlight.clear();
+    _formationReservedMembers.clear();
+
+    TC_LOG_INFO("ai.world", "AI wolf coalition formation configured autoFormation={} creatureEntry={} interval={}ms radius={:.1f} maxInFlight={}",
+        _wolfGroupAutoFormation, _wolfGroupCreatureEntry, _wolfGroupFormationIntervalMs, _wolfGroupFormationRadius, _coalitionFormationMaxInFlight);
 
     // Milestone 2.12E3B: off by default - see RunGroupPolicySmokeTest()'s
     // own comment. Read here (not inline at the call site below) purely to
@@ -1068,8 +1083,29 @@ std::unordered_set<uint64> AIWorldMgr::CollectMemberIdsOfKind(AgentGroupKind kin
 
 void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
 {
+    // 2.12E4R P3 fix (STATIC review): fail-closed, not fail-open - see
+    // CoalitionFormationProfileId.h for why Invalid exists and why a
+    // profile silently defaulting to WolfLoose was the wrong failure mode.
+    if (profile.Id == CoalitionFormationProfileId::Invalid)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorldMgr::RunCoalitionFormation: refusing to run for an Invalid profile id");
+        return;
+    }
+
     if (_formationInFlight.count(profile.Id))
         return;
+
+    // 2.12E4R P3 fix (STATIC review): the global ceiling across ALL
+    // profiles - see _coalitionFormationMaxInFlight's own declaration
+    // comment. Checked after the per-profile check above so a profile
+    // already in flight is rejected for that reason, not misreported as
+    // budget-exhausted.
+    if (uint32(_formationInFlight.size()) >= _coalitionFormationMaxInFlight)
+    {
+        TC_LOG_DEBUG("ai.world", "AI coalition formation: global in-flight budget ({}) reached, skipping profile={} this pass",
+            _coalitionFormationMaxInFlight, ToString(profile.Id));
+        return;
+    }
 
     std::vector<CoalitionCandidate> candidates = CollectCoalitionCandidates();
 
@@ -1077,8 +1113,21 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
     std::vector<CoalitionCandidate> eligible;
     eligible.reserve(candidates.size());
     for (CoalitionCandidate const& candidate : candidates)
-        if (!excludedMembers.count(candidate.Id.Value))
-            eligible.push_back(candidate);
+    {
+        if (excludedMembers.count(candidate.Id.Value))
+            continue;
+
+        // 2.12E4R P2 fix (STATIC review): a member already RESERVED by
+        // another in-flight formation attempt of the same Kind is not
+        // eligible either - see CoalitionFormationReservationKey.h for the
+        // cross-profile race this closes. excludedMembers above only ever
+        // reflects CONFIRMED AgentGroupRegistry membership, which is
+        // exactly the window this reservation exists to cover instead.
+        if (_formationReservedMembers.count(CoalitionFormationReservationKey{ candidate.Id.Value, profile.Kind }))
+            continue;
+
+        eligible.push_back(candidate);
+    }
 
     std::optional<CoalitionProposal> proposal = _coalitionFormationSystem.Propose(eligible, profile);
     if (!proposal)
@@ -1089,6 +1138,16 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
         proposal->TerritoryX, proposal->TerritoryY, proposal->TerritoryZ, proposal->Members.size());
 
     _formationInFlight.insert(profile.Id);
+
+    // 2.12E4R P2 fix (STATIC review): reserve every proposed member for
+    // this Kind BEFORE submitting RequestCreateGroup() - this, not the
+    // per-join re-check in RunCoalitionJoinStep(), is what actually closes
+    // the cross-profile race: it makes every proposed member ineligible
+    // for any OTHER profile's own candidate filtering above, starting
+    // immediately, not only once this attempt's own joins start
+    // confirming in AgentGroupRegistry.
+    for (AgentId member : proposal->Members)
+        _formationReservedMembers.insert(CoalitionFormationReservationKey{ member.Value, proposal->Kind });
 
     CoalitionFormationProfileId profileId = profile.Id;
     CoalitionProposal proposalValue = *proposal;
@@ -1101,6 +1160,7 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
             if (!groupId)
             {
                 TC_LOG_ERROR("ai.world", "AI coalition formation FAILED: CreateGroup failed for profile={}, aborting", ToString(profileId));
+                ReleaseCoalitionFormationReservations(proposalValue);
                 _formationInFlight.erase(profileId);
                 return;
             }
@@ -1121,6 +1181,7 @@ void AIWorldMgr::RunCoalitionJoinStep(CoalitionFormationAttempt attempt)
     {
         TC_LOG_INFO("ai.world", "AI coalition formation PASSED: profile={} group={} members={}",
             ToString(attempt.ProfileId), attempt.Group.Value, attempt.Proposal.Members.size());
+        ReleaseCoalitionFormationReservations(attempt.Proposal);
         _formationInFlight.erase(attempt.ProfileId);
         return;
     }
@@ -1171,16 +1232,24 @@ void AIWorldMgr::AbortCoalitionFormation(CoalitionFormationAttempt const& attemp
 
     CoalitionFormationProfileId profileId = attempt.ProfileId;
     GroupId groupId = attempt.Group;
+    CoalitionProposal proposal = attempt.Proposal;
 
-    RequestDissolveGroup(groupId, [this, profileId, groupId](bool success)
+    RequestDissolveGroup(groupId, [this, profileId, groupId, proposal](bool success)
     {
         if (success)
             TC_LOG_INFO("ai.world", "AI coalition formation cleanup: profile={} group={} dissolved after earlier failure", ToString(profileId), groupId.Value);
         else
             TC_LOG_ERROR("ai.world", "AI coalition formation cleanup FAILED: profile={} group={} could not be dissolved, left as-is", ToString(profileId), groupId.Value);
 
+        ReleaseCoalitionFormationReservations(proposal);
         _formationInFlight.erase(profileId);
     });
+}
+
+void AIWorldMgr::ReleaseCoalitionFormationReservations(CoalitionProposal const& proposal)
+{
+    for (AgentId member : proposal.Members)
+        _formationReservedMembers.erase(CoalitionFormationReservationKey{ member.Value, proposal.Kind });
 }
 
 void AIWorldMgr::Update(uint32 diff)

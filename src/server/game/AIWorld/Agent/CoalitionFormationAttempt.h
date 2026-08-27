@@ -40,7 +40,11 @@
 // (known, deferred P3).
 struct CoalitionFormationAttempt
 {
-    CoalitionFormationProfileId ProfileId = CoalitionFormationProfileId::WolfLoose;
+    // Milestone 2.12E4R P3 fix (STATIC review): defaults to Invalid, not
+    // WolfLoose - see CoalitionFormationProfileId.h for why. Always
+    // overwritten with the real profile's Id before this struct is ever
+    // used - see RunCoalitionFormation()'s only construction site.
+    CoalitionFormationProfileId ProfileId = CoalitionFormationProfileId::Invalid;
     CoalitionProposal Proposal;
     GroupId Group;
     std::size_t NextMemberIndex = 0;

@@ -3644,6 +3644,21 @@ AIWorld.WolfGroupFormationIntervalMs = 5000
 AIWorld.WolfGroupFormationRadius = 30.0
 
 #
+#    AIWorld.CoalitionFormationMaxInFlight
+#        Description: Milestone 2.12E4R P3 fix (STATIC review) - the hard ceiling on how many
+#                     DIFFERENT CoalitionFormationProfiles (see AIWorldMgr::_formationInFlight) can
+#                     have an automatic formation attempt in flight at the same time. Each profile
+#                     is separately capped at one attempt of its own regardless of this setting;
+#                     this bounds the total ACROSS all profiles, which the per-profile cap alone
+#                     does not. With only one profile configured today (WolfLoose), the default of
+#                     1 reproduces the exact "at most one automatic formation in flight, period"
+#                     behavior AIWorld.WolfGroupAutoFormation always had before 2.12E4R.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     1
+
+AIWorld.CoalitionFormationMaxInFlight = 1
+
+#
 #    AIWorld.AIHost
 #    AIWorld.AIPort
 #        Description: Hostname/IP and port of the ai-server bridge. The default matches the

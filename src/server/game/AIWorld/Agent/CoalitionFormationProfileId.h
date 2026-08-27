@@ -26,13 +26,26 @@
 // pipeline (those stay entirely unaware that "WolfLoose" is the only
 // profile that exists today). Used to key AIWorldMgr's own per-profile
 // in-flight tracking (see AIWorldMgr::_formationInFlight) and to name a
-// formation attempt in logs. WolfLoose is the only value that exists yet -
-// see CoalitionFormationProfile.h for why adding a second profile (e.g. a
-// future bandit or caravan formation) needs no change to
+// formation attempt in logs. WolfLoose is the only real value that exists
+// yet - see CoalitionFormationProfile.h for why adding a second profile
+// (e.g. a future bandit or caravan formation) needs no change to
 // CoalitionFormationSystem/AIWorldMgr's own orchestration methods, only a
 // new CoalitionFormationProfile value and a new enumerator here.
+//
+// Milestone 2.12E4R P3 fix (STATIC review): Invalid = 0 is deliberately the
+// first (default-constructed) value, not WolfLoose - an earlier version had
+// WolfLoose as the only value at all, so both CoalitionFormationProfile::Id
+// and CoalitionFormationAttempt::ProfileId's own default-member-initializers
+// silently defaulted to WolfLoose. That is fail-OPEN: a future profile
+// whose author forgot to set Id explicitly would not fail to compile or run
+// - it would just quietly masquerade as WolfLoose and share its
+// AIWorldMgr::_formationInFlight/_formationReservedMembers identity with
+// the real WolfLoose profile. RunCoalitionFormation() now refuses Invalid
+// outright (see its own comment) - see CoalitionFormationProfile.h for the
+// matching default-member-initializer change.
 enum class CoalitionFormationProfileId : uint8
 {
+    Invalid,
     WolfLoose
 };
 
@@ -40,6 +53,7 @@ inline char const* ToString(CoalitionFormationProfileId id)
 {
     switch (id)
     {
+        case CoalitionFormationProfileId::Invalid:   return "INVALID";
         case CoalitionFormationProfileId::WolfLoose: return "WOLF_LOOSE";
         default:                                     return "UNKNOWN";
     }
