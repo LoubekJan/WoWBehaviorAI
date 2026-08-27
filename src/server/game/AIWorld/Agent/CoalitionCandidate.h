@@ -15,30 +15,32 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AIWORLD_WOLFCOALITIONCANDIDATE_H
-#define AIWORLD_WOLFCOALITIONCANDIDATE_H
+#ifndef AIWORLD_COALITIONCANDIDATE_H
+#define AIWORLD_COALITIONCANDIDATE_H
 
 #include "AgentId.h"
 #include "Define.h"
 
-// Milestone 2.12E4A: one eligible wolf's position, as a plain value - never
-// a Creature*/Map*. AIWorldMgr is the only thing that ever builds one, from
-// a live Creature it has already resolved for an agent that is Materialized,
-// alive, whose Creature::GetEntry() matches AIWorld.WolfGroupCreatureEntry,
-// and who is not already a member of any Loose AgentGroup (see
-// AIWorldMgr::CollectWolfCoalitionCandidates()) - by the time
-// WolfCoalitionFormationSystem ever sees one, every eligibility check
-// except "close enough to some other candidate" has already passed. A
-// transient formation-scan input only, never stored anywhere past one
+// Milestone 2.12E4R (generalized from 2.12E4A's WolfCoalitionCandidate):
+// one currently-observable agent's position and creature identity, as a
+// plain value - never a Creature*/Map*. AIWorldMgr::CollectCoalitionCandidates()
+// is the only thing that ever builds one, from a live Creature it has
+// already resolved for an agent that is Materialized and alive - it does
+// NOT decide whether this agent is a good fit for any particular coalition
+// (that is CoalitionFormationProfile's job, matched against CreatureEntry
+// by CoalitionFormationSystem::Propose() - see its own class comment for
+// the WORLD OBSERVATION / FORMATION PROFILE split this exists to preserve).
+// A transient formation-scan input only, never stored anywhere past one
 // Propose() call - deliberately not folded into AgentRecord/
 // AgentGroupMembership.
-struct WolfCoalitionCandidate
+struct CoalitionCandidate
 {
     AgentId Id;
     uint32 MapId = 0;
     float X = 0.0f;
     float Y = 0.0f;
     float Z = 0.0f;
+    uint32 CreatureEntry = 0;
 };
 
-#endif // AIWORLD_WOLFCOALITIONCANDIDATE_H
+#endif // AIWORLD_COALITIONCANDIDATE_H

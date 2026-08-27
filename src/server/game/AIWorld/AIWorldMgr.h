@@ -31,10 +31,11 @@
 #include "Agent/AgentGroupSimulationSystem.h"
 #include "Agent/AgentId.h"
 #include "Agent/AgentRegistry.h"
+#include "Agent/CoalitionCandidate.h"
+#include "Agent/CoalitionFormationAttempt.h"
+#include "Agent/CoalitionFormationProfile.h"
+#include "Agent/CoalitionFormationSystem.h"
 #include "Agent/GroupId.h"
-#include "Agent/WolfCoalitionCandidate.h"
-#include "Agent/WolfCoalitionFormationConfig.h"
-#include "Agent/WolfCoalitionFormationSystem.h"
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
@@ -64,6 +65,7 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Trinity::Asio { class IoContext; }
@@ -299,96 +301,114 @@ class TC_GAME_API AIWorldMgr
         // before finishing, so it never lingers as a permanent DB fixture.
         void RunGroupPolicySmokeTest(AgentId testMemberId);
 
-        // Milestone 2.12E4A: builds the value-only candidate list
-        // WolfCoalitionFormationSystem::Propose() needs - one entry per
-        // currently registered agent that is Materialized, alive, whose
-        // live Creature::GetEntry() matches creatureEntry, and who is not
-        // already a member of any Loose AgentGroup (see
-        // IsMemberOfAnyLooseGroup()). Never mutates anything - no
+        // Milestone 2.12E4R (generalized from 2.12E4A's
+        // CollectWolfCoalitionCandidates()): builds the value-only
+        // candidate list CoalitionFormationSystem::Propose() needs - one
+        // entry per currently registered agent that is Materialized and
+        // alive, with NO further eligibility filtering at all (STATIC
+        // review's own "WORLD OBSERVATION / FORMATION PROFILE split"
+        // guidance): this method has no idea which CreatureEntry, Kind, or
+        // group membership any particular CoalitionFormationProfile cares
+        // about - that is CoalitionFormationSystem::Propose() and
+        // RunCoalitionFormation()'s own job (see CollectMemberIdsOfKind()
+        // for the membership half). Never mutates anything - no
         // BindCreature/UnbindCreature call, no registry/DB write. A
-        // candidate's position/MapId come from its live Creature, resolved
-        // fresh this call, never a stored/stale AgentRecord field - the
-        // same "the live Creature is the ground truth for where an agent
-        // actually is" discipline UpdateNeeds()/RunDecisionScheduler()
-        // already follow. Never force-loads a grid: an agent whose
-        // Creature does not currently resolve is simply absent from the
-        // returned list, the same as if it did not exist for this pass at
-        // all - an unload must never be misread as a formation-relevant
-        // fact.
-        std::vector<WolfCoalitionCandidate> CollectWolfCoalitionCandidates(uint32 creatureEntry);
+        // candidate's position/MapId/CreatureEntry come from its live
+        // Creature, resolved fresh this call, never a stored/stale
+        // AgentRecord field - the same "the live Creature is the ground
+        // truth for where an agent actually is" discipline
+        // UpdateNeeds()/RunDecisionScheduler() already follow. Never
+        // force-loads a grid: an agent whose Creature does not currently
+        // resolve is simply absent from the returned list, the same as if
+        // it did not exist for this pass at all - an unload must never be
+        // misread as a formation-relevant fact.
+        std::vector<CoalitionCandidate> CollectCoalitionCandidates();
 
-        // Milestone 2.12E4A: true if member currently belongs to any Loose
-        // AgentGroup in _groupRegistry - the one eligibility check
-        // CollectWolfCoalitionCandidates() cannot express purely from an
-        // AgentRecord/Creature, since group membership lives in
-        // AgentGroupRegistry, not AgentRegistry. A Stable membership does
-        // NOT exclude a candidate - automatic wolf formation only cares
-        // about overlapping Loose membership (see this milestone's own
-        // roadmap message). O(groups * members-per-group) per call -
-        // acceptable at this milestone's scale (a handful of dynamic Loose
-        // coalitions, a formation pass every
-        // AIWorld.WolfGroupFormationIntervalMs, not every tick);
-        // AgentGroupRegistry has no member->group reverse index, and
-        // adding one purely to speed up this one call is not this
-        // milestone's scope.
-        bool IsMemberOfAnyLooseGroup(AgentId member) const;
+        // Milestone 2.12E4R (STATIC review): replaces the old wolf-only
+        // IsMemberOfAnyLooseGroup() - builds a one-off O(1)-lookup set of
+        // every AgentId currently a member of ANY group of exactly kind,
+        // by walking _groupRegistry.GetGroups()/Find() exactly once per
+        // RunCoalitionFormation() call, rather than re-walking every group
+        // (and every one of its members) for every single candidate the
+        // way the method this replaces did - the performance debt that
+        // review flagged. AgentGroupRegistry::IsMemberOfKind() is
+        // deliberately NOT called once per candidate here for that same
+        // reason; IsMemberOfKind() itself stays reserved for a single,
+        // one-off re-check (see RunCoalitionJoinStep()), where building a
+        // whole snapshot for one member would be wasted work.
+        std::unordered_set<uint64> CollectMemberIdsOfKind(AgentGroupKind kind) const;
 
-        // Milestone 2.12E4A/2.12E4B: AIWorld.WolfGroupFormationIntervalMs-
+        // Milestone 2.12E4R (generalized from 2.12E4A/B's
+        // RunWolfCoalitionFormation()): AIWorld.WolfGroupFormationIntervalMs-
         // cadenced pass, only ever called while AIWorld.WolfGroupAutoFormation
-        // is enabled and _wolfFormationInFlight is false (see its own
-        // declaration comment for why only one automatic formation is ever
-        // allowed in flight at a time). Builds this pass's candidate list,
-        // asks _wolfCoalitionFormationSystem.Propose() for a deterministic
-        // WolfCoalitionProposal, and - 2.12E4B - turns an actual proposal
-        // into a real Loose AgentGroup via RequestCreateGroup() followed by
-        // a RequestJoinGroupWithPolicy(AutomaticPolicy) chain (see
-        // RunWolfCoalitionJoinStep()). No proposal this pass is not an
-        // error - it just means nothing eligible was close enough right
-        // now, and _wolfFormationInFlight is never set for it.
-        void RunWolfCoalitionFormation();
+        // is enabled and profile.Id is not already in _formationInFlight
+        // (see its own declaration comment for why at most one automatic
+        // formation is ever allowed in flight PER PROFILE, not globally
+        // any more). Builds this pass's candidate list
+        // (CollectCoalitionCandidates()), excludes every candidate already
+        // a member of a profile.Kind group (CollectMemberIdsOfKind()), and
+        // asks _coalitionFormationSystem.Propose() for a deterministic
+        // CoalitionProposal. On an actual proposal, turns it into a real
+        // AgentGroup via RequestCreateGroup() followed by a
+        // RequestJoinGroupWithPolicy(AutomaticPolicy) chain (see
+        // RunCoalitionJoinStep()). No proposal this pass is not an error -
+        // it just means nothing eligible was close enough right now, and
+        // profile.Id is never added to _formationInFlight for it. Only one
+        // profile exists today (AIWorldMgr's own _wolfLooseFormationProfile,
+        // built once at Initialize()), but nothing here reads AIWorld.Wolf*
+        // config directly - a second profile is just another
+        // CoalitionFormationProfile value and call site.
+        void RunCoalitionFormation(CoalitionFormationProfile const& profile);
 
-        // Milestone 2.12E4B: joins members[index] with
-        // AgentGroupOperationSource::AutomaticPolicy, then recurses into
-        // index+1 - once index reaches members.size(), formation is
-        // complete, logged PASSED, and _wolfFormationInFlight is cleared.
-        // The same "chain each step from the previous one's own
-        // completion" shape RunGroupLifecycleSmokeTestJoinStep() already
-        // uses, for the same reason (AgentGroupLifecycleSystem allows at
-        // most one in-flight operation per GroupId - see its own header
-        // comment). Any join failure aborts the whole formation and
+        // Milestone 2.12E4R (generalized from 2.12E4B's
+        // RunWolfCoalitionJoinStep()): joins
+        // attempt.Proposal.Members[attempt.NextMemberIndex] with
+        // AgentGroupOperationSource::AutomaticPolicy, then recurses with
+        // NextMemberIndex+1 - once NextMemberIndex reaches
+        // attempt.Proposal.Members.size(), formation is complete, logged
+        // PASSED, and attempt.ProfileId is erased from
+        // _formationInFlight. The same "chain each step from the previous
+        // one's own completion" shape RunGroupLifecycleSmokeTestJoinStep()
+        // already uses, for the same reason (AgentGroupLifecycleSystem
+        // allows at most one in-flight operation per GroupId - see its own
+        // header comment). Any join failure aborts the whole formation and
         // best-effort dissolves the group already created for it
-        // (RunWolfCoalitionFormationAbort()) rather than leaving a
-        // partially joined automatic pack behind.
+        // (AbortCoalitionFormation()) rather than leaving a partially
+        // joined automatic coalition behind.
         //
-        // 2.12E4A/B P2 fix (STATIC review): re-checks members[index] still
-        // resolves in _registry AND is still not a member of any Loose
-        // AgentGroup, immediately before issuing its own join - the exact
-        // eligibility CollectWolfCoalitionCandidates() already checked once
-        // when the proposal was built, but that snapshot can go stale by
-        // the time a later step in this chain actually runs (the async
-        // CreateGroup round trip, and every join before this one, all take
-        // real time - a manual/lifecycle/other-policy change to this
-        // member's own Loose membership could land in between).
+        // 2.12E4A/B P2 fix (STATIC review), preserved unchanged by this
+        // generalization: re-checks the member still resolves in
+        // _registry AND is still not a member of any attempt.Proposal.Kind
+        // group (AgentGroupRegistry::IsMemberOfKind()), immediately before
+        // issuing its own join - the exact eligibility
+        // CollectCoalitionCandidates()/CollectMemberIdsOfKind() already
+        // checked once when the proposal was built, but that snapshot can
+        // go stale by the time a later step in this chain actually runs
+        // (the async CreateGroup round trip, and every join before this
+        // one, all take real time - a manual/lifecycle/other-policy change
+        // to this member's own membership could land in between).
         // RequestJoinGroupWithPolicy()'s own CanJoin() only ever validates
         // against THIS groupId - AgentGroupPolicySystem deliberately has no
         // global one-group invariant (see its own class comment) - so it
-        // cannot catch a member that is already in some OTHER Loose group;
-        // only this re-check can. A failure here aborts and cleans up the
-        // same way a rejected/failed join itself does.
-        void RunWolfCoalitionJoinStep(GroupId groupId, std::vector<AgentId> members, std::size_t index);
+        // cannot catch a member that is already in some OTHER group of the
+        // same Kind; only this re-check can. A failure here aborts and
+        // cleans up the same way a rejected/failed join itself does.
+        void RunCoalitionJoinStep(CoalitionFormationAttempt attempt);
 
-        // Milestone 2.12E4B: logs the formation attempt as FAILED (naming
-        // the member that could not join) and fires a fire-and-forget
-        // RequestDissolveGroup() best-effort cleanup for groupId - the same
-        // reasoning RunGroupLifecycleSmokeTestAbort() already documents for
-        // the manual lifecycle smoke test. This is cleanup of an already
+        // Milestone 2.12E4R (generalized from 2.12E4B's
+        // RunWolfCoalitionFormationAbort()): logs the formation attempt as
+        // FAILED (naming the member that could not join) and fires a
+        // fire-and-forget RequestDissolveGroup() best-effort cleanup for
+        // attempt.Group - the same reasoning
+        // RunGroupLifecycleSmokeTestAbort() already documents for the
+        // manual lifecycle smoke test. This is cleanup of an already
         // policy-approved formation operation (CanJoin() already said
         // Allowed for every member that got this far), never a way to
-        // bypass automatic policy. _wolfFormationInFlight is cleared only
-        // once this cleanup dissolve itself completes (success or
-        // failure), never synchronously inside this method - see
-        // _wolfFormationInFlight's own declaration comment.
-        void RunWolfCoalitionFormationAbort(GroupId groupId, AgentId failedMember);
+        // bypass automatic policy. attempt.ProfileId is erased from
+        // _formationInFlight only once this cleanup dissolve itself
+        // completes (success or failure), never synchronously inside this
+        // method - see _formationInFlight's own declaration comment.
+        void AbortCoalitionFormation(CoalitionFormationAttempt const& attempt, AgentId failedMember);
 
         bool _enabled = false;
 
@@ -557,59 +577,78 @@ class TC_GAME_API AIWorldMgr
         AgentGroupSimulationSystem _agentGroupSimulationSystem;
         AgentGroupSimulationRates _agentGroupSimulationRates;
 
-        // Milestone 2.12E4A: pure formation candidate-selection system -
-        // see its own class comment for why this is a separate question
-        // from AgentGroupPolicySystem's "is this socially allowed?" (a
-        // formation proposal still has to pass CanJoin() for every member,
-        // same as any other automatic join - see RunWolfCoalitionJoinStep()).
-        // Stateless, called only from RunWolfCoalitionFormation().
-        WolfCoalitionFormationSystem _wolfCoalitionFormationSystem;
+        // Milestone 2.12E4R (generalized from 2.12E4A's
+        // _wolfCoalitionFormationSystem): pure formation candidate-
+        // selection system - see its own class comment for why this is a
+        // separate question from AgentGroupPolicySystem's "is this
+        // socially allowed?" (a formation proposal still has to pass
+        // CanJoin() for every member, same as any other automatic join -
+        // see RunCoalitionJoinStep()). Stateless and profile-agnostic,
+        // called only from RunCoalitionFormation().
+        CoalitionFormationSystem _coalitionFormationSystem;
+
+        // Milestone 2.12E4R: AIWorldMgr's own one existing
+        // CoalitionFormationProfile, built once at Initialize() from
+        // AIWorld.WolfGroupCreatureEntry/FormationRadius and
+        // _groupPolicyConfig.LooseMinMembers/LooseMaxMembers - see
+        // CoalitionFormationProfile.h for why Min/MaxMembers are never
+        // independently-tunable here. Passed to RunCoalitionFormation()
+        // from Update()'s own AIWorld.WolfGroupFormationIntervalMs timer.
+        // A second profile would be another member exactly like this one,
+        // built the same way, with its own timer/call site - nothing
+        // about CoalitionFormationSystem/RunCoalitionFormation() itself
+        // would need to change.
+        CoalitionFormationProfile _wolfLooseFormationProfile;
 
         // Milestone 2.12E4A: AIWorld.WolfGroupAutoFormation - off by
-        // default, see RunWolfCoalitionFormation()'s own comment.
+        // default, see RunCoalitionFormation()'s own comment.
         bool _wolfGroupAutoFormation = false;
 
         // Milestone 2.12E4A: AIWorld.WolfGroupCreatureEntry - the one
-        // creature_template entry CollectWolfCoalitionCandidates()
-        // considers eligible. A single fixed entry, not a list/category -
-        // deliberately narrow for this milestone's own vertical slice, the
-        // same "prove it for one concrete case first" scoping the manual
-        // group lifecycle/policy smoke tests already followed.
+        // creature_template entry _wolfLooseFormationProfile is built
+        // with. A single fixed entry, not a list/category - deliberately
+        // narrow for this milestone's own vertical slice, the same "prove
+        // it for one concrete case first" scoping the manual group
+        // lifecycle/policy smoke tests already followed.
         uint32 _wolfGroupCreatureEntry = 1423;
 
         // Milestone 2.12E4A: AIWorld.WolfGroupFormationIntervalMs -
-        // RunWolfCoalitionFormation()'s own cadence, deliberately its own
-        // timer rather than piggybacking on any existing one (a formation
-        // scan is neither a decision nor a coarse simulation tick).
+        // Update()'s own cadence for RunCoalitionFormation(_wolfLooseFormationProfile),
+        // deliberately its own timer rather than piggybacking on any
+        // existing one (a formation scan is neither a decision nor a
+        // coarse simulation tick).
         uint32 _wolfGroupFormationIntervalMs = 5000;
         uint32 _wolfGroupFormationTimer = 0;
 
-        // Milestone 2.12E4A: AIWorld.WolfGroupFormationRadius - copied into
-        // a fresh WolfCoalitionFormationConfig (alongside
-        // _groupPolicyConfig.LooseMinMembers/LooseMaxMembers - see
-        // WolfCoalitionFormationConfig.h for why those are never
-        // independently-tunable here) for every RunWolfCoalitionFormation()
-        // call.
+        // Milestone 2.12E4A: AIWorld.WolfGroupFormationRadius -
+        // _wolfLooseFormationProfile's own FormationRadius.
         float _wolfGroupFormationRadius = 30.0f;
 
-        // Milestone 2.12E4B: true from the moment RequestCreateGroup() is
-        // submitted for an automatic wolf formation until that formation's
-        // own outcome is fully resolved - the hard "at most one automatic
-        // formation in flight globally" bound this milestone's own roadmap
-        // message calls for. Without it, two RunWolfCoalitionFormation()
-        // passes landing before the first's CreateGroup/Join chain even
-        // completes could both propose (and then create a group for) the
-        // same still-ungrouped candidates, since neither pass's candidate
-        // list reflects a join that has not landed in _groupRegistry yet.
-        // Checked (and, when no proposal exists, never set) at the top of
-        // RunWolfCoalitionFormation(); cleared once RunWolfCoalitionJoinStep()
-        // reaches index==members.size() (full success), or once
-        // RunWolfCoalitionFormationAbort()'s own best-effort dissolve
+        // Milestone 2.12E4R (STATIC review, generalized from 2.12E4B's
+        // bool _wolfFormationInFlight): the CoalitionFormationProfileIds
+        // with a formation attempt currently in flight - a per-PROFILE
+        // bound now, not a single global boolean, so a future second
+        // profile (e.g. a bandit or caravan formation) never has its own
+        // formation blocked by an unrelated one already in progress for
+        // WolfLoose. Still at most one in-flight attempt PER profile,
+        // exactly the same guarantee 2.12E4B's own roadmap message asked
+        // for: without it, two RunCoalitionFormation() passes for the
+        // SAME profile landing before the first's CreateGroup/Join chain
+        // even completes could both propose (and then create a group for)
+        // the same still-ungrouped candidates, since neither pass's
+        // candidate list reflects a join that has not landed in
+        // _groupRegistry yet. profile.Id is inserted (and, when no
+        // proposal exists, never inserted) at the top of
+        // RunCoalitionFormation(); erased once RunCoalitionJoinStep()
+        // reaches NextMemberIndex==Proposal.Members.size() (full success),
+        // or once AbortCoalitionFormation()'s own best-effort dissolve
         // attempt completes (success or failure) - never synchronously
-        // inside RunWolfCoalitionFormationAbort() itself, so a new
-        // formation pass cannot start until any cleanup dissolve for a
-        // failed attempt has also finished.
-        bool _wolfFormationInFlight = false;
+        // inside AbortCoalitionFormation() itself, so a new formation pass
+        // for that same profile cannot start until any cleanup dissolve
+        // for a failed attempt has also finished. A budget across profiles
+        // (not just within one) is explicitly out of scope here - see this
+        // milestone's own roadmap message.
+        std::unordered_set<CoalitionFormationProfileId> _formationInFlight;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in

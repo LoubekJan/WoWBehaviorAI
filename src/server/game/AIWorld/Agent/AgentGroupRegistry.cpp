@@ -63,3 +63,19 @@ std::vector<GroupId> AgentGroupRegistry::GetGroups() const
         ids.push_back(entry.second.Id);
     return ids;
 }
+
+bool AgentGroupRegistry::IsMemberOfKind(AgentId member, AgentGroupKind kind) const
+{
+    for (auto const& entry : _groups)
+    {
+        AgentGroupRecord const& group = entry.second;
+        if (group.Kind != kind)
+            continue;
+
+        for (AgentGroupMembership const& membership : group.Members)
+            if (membership.Member == member)
+                return true;
+    }
+
+    return false;
+}

@@ -284,9 +284,9 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         _groupPolicyConfig.StableMinMembers, _groupPolicyConfig.StableMaxMembers);
 
     // Milestone 2.12E4A: off by default - this is a new, not yet
-    // runtime-verified feature (see RunWolfCoalitionFormation()'s own
+    // runtime-verified feature (see RunCoalitionFormation()'s own
     // comment). A wolf pack IS a Loose AgentGroup, so its own size bounds
-    // are never configured here - see WolfCoalitionFormationConfig.h for
+    // are never configured here - see CoalitionFormationProfile.h for
     // why MinMembers/MaxMembers are always copied from
     // AIWorld.LooseGroupMinMembers/LooseGroupMaxMembers above instead of a
     // second, independently-tunable pair.
@@ -311,7 +311,18 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _wolfGroupFormationRadius = wolfGroupFormationRadius;
 
-    _wolfFormationInFlight = false;
+    // Milestone 2.12E4R: AIWorldMgr's own one existing
+    // CoalitionFormationProfile - see its own declaration comment.
+    // MinMembers/MaxMembers always mirror _groupPolicyConfig's own Loose
+    // bounds (already clamped above), never independently configured.
+    _wolfLooseFormationProfile.Id = CoalitionFormationProfileId::WolfLoose;
+    _wolfLooseFormationProfile.Kind = AgentGroupKind::Loose;
+    _wolfLooseFormationProfile.CreatureEntry = _wolfGroupCreatureEntry;
+    _wolfLooseFormationProfile.MinMembers = _groupPolicyConfig.LooseMinMembers;
+    _wolfLooseFormationProfile.MaxMembers = _groupPolicyConfig.LooseMaxMembers;
+    _wolfLooseFormationProfile.FormationRadius = _wolfGroupFormationRadius;
+
+    _formationInFlight.clear();
 
     TC_LOG_INFO("ai.world", "AI wolf coalition formation configured autoFormation={} creatureEntry={} interval={}ms radius={:.1f}",
         _wolfGroupAutoFormation, _wolfGroupCreatureEntry, _wolfGroupFormationIntervalMs, _wolfGroupFormationRadius);
@@ -1010,9 +1021,9 @@ void AIWorldMgr::RunGroupPolicySmokeTest(AgentId testMemberId)
         });
 }
 
-std::vector<WolfCoalitionCandidate> AIWorldMgr::CollectWolfCoalitionCandidates(uint32 creatureEntry)
+std::vector<CoalitionCandidate> AIWorldMgr::CollectCoalitionCandidates()
 {
-    std::vector<WolfCoalitionCandidate> candidates;
+    std::vector<CoalitionCandidate> candidates;
 
     for (AgentId id : _registry.GetAgents())
     {
@@ -1022,135 +1033,153 @@ std::vector<WolfCoalitionCandidate> AIWorldMgr::CollectWolfCoalitionCandidates(u
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
         Creature* creature = ResolveLiveCreature(*record, map);
-        if (!creature || !creature->IsAlive() || creature->GetEntry() != creatureEntry)
+        if (!creature || !creature->IsAlive())
             continue;
 
-        if (IsMemberOfAnyLooseGroup(id))
-            continue;
-
-        WolfCoalitionCandidate candidate;
+        CoalitionCandidate candidate;
         candidate.Id = id;
         candidate.MapId = creature->GetMapId();
         candidate.X = creature->GetPositionX();
         candidate.Y = creature->GetPositionY();
         candidate.Z = creature->GetPositionZ();
+        candidate.CreatureEntry = creature->GetEntry();
         candidates.push_back(candidate);
     }
 
     return candidates;
 }
 
-bool AIWorldMgr::IsMemberOfAnyLooseGroup(AgentId member) const
+std::unordered_set<uint64> AIWorldMgr::CollectMemberIdsOfKind(AgentGroupKind kind) const
 {
+    std::unordered_set<uint64> memberIds;
+
     for (GroupId groupId : _groupRegistry.GetGroups())
     {
         AgentGroupRecord const* group = _groupRegistry.Find(groupId);
-        if (!group || group->Kind != AgentGroupKind::Loose)
+        if (!group || group->Kind != kind)
             continue;
 
         for (AgentGroupMembership const& membership : group->Members)
-            if (membership.Member == member)
-                return true;
+            memberIds.insert(membership.Member.Value);
     }
 
-    return false;
+    return memberIds;
 }
 
-void AIWorldMgr::RunWolfCoalitionFormation()
+void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
 {
-    if (_wolfFormationInFlight)
+    if (_formationInFlight.count(profile.Id))
         return;
 
-    std::vector<WolfCoalitionCandidate> candidates = CollectWolfCoalitionCandidates(_wolfGroupCreatureEntry);
+    std::vector<CoalitionCandidate> candidates = CollectCoalitionCandidates();
 
-    WolfCoalitionFormationConfig config;
-    config.RadiusYards = _wolfGroupFormationRadius;
-    config.MinMembers = _groupPolicyConfig.LooseMinMembers;
-    config.MaxMembers = _groupPolicyConfig.LooseMaxMembers;
+    std::unordered_set<uint64> excludedMembers = CollectMemberIdsOfKind(profile.Kind);
+    std::vector<CoalitionCandidate> eligible;
+    eligible.reserve(candidates.size());
+    for (CoalitionCandidate const& candidate : candidates)
+        if (!excludedMembers.count(candidate.Id.Value))
+            eligible.push_back(candidate);
 
-    std::optional<WolfCoalitionProposal> proposal = _wolfCoalitionFormationSystem.Propose(candidates, config);
+    std::optional<CoalitionProposal> proposal = _coalitionFormationSystem.Propose(eligible, profile);
     if (!proposal)
         return;
 
-    TC_LOG_INFO("ai.world", "AI wolf coalition formation proposal: map={} territory=({:.1f}, {:.1f}, {:.1f}) members={}",
-        proposal->MapId, proposal->TerritoryX, proposal->TerritoryY, proposal->TerritoryZ, proposal->Members.size());
+    TC_LOG_INFO("ai.world", "AI coalition formation proposal: profile={} kind={} map={} territory=({:.1f}, {:.1f}, {:.1f}) members={}",
+        ToString(profile.Id), ToString(proposal->Kind), proposal->TerritoryMapId,
+        proposal->TerritoryX, proposal->TerritoryY, proposal->TerritoryZ, proposal->Members.size());
 
-    _wolfFormationInFlight = true;
+    _formationInFlight.insert(profile.Id);
 
-    std::vector<AgentId> members = proposal->Members;
-    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Loose, proposal->MapId,
-        proposal->TerritoryX, proposal->TerritoryY, proposal->TerritoryZ, 1.0f,
+    CoalitionFormationProfileId profileId = profile.Id;
+    CoalitionProposal proposalValue = *proposal;
+
+    _groupLifecycleSystem.RequestCreateGroup(proposalValue.Kind, proposalValue.TerritoryMapId,
+        proposalValue.TerritoryX, proposalValue.TerritoryY, proposalValue.TerritoryZ, 1.0f,
         _groupRegistry, _groupPersistence, _groupLifecyclePending,
-        [this, members](std::optional<GroupId> groupId)
+        [this, profileId, proposalValue](std::optional<GroupId> groupId)
         {
             if (!groupId)
             {
-                TC_LOG_ERROR("ai.world", "AI wolf coalition formation FAILED: CreateGroup failed, aborting");
-                _wolfFormationInFlight = false;
+                TC_LOG_ERROR("ai.world", "AI coalition formation FAILED: CreateGroup failed for profile={}, aborting", ToString(profileId));
+                _formationInFlight.erase(profileId);
                 return;
             }
 
-            RunWolfCoalitionJoinStep(*groupId, members, 0);
+            CoalitionFormationAttempt attempt;
+            attempt.ProfileId = profileId;
+            attempt.Proposal = proposalValue;
+            attempt.Group = *groupId;
+            attempt.NextMemberIndex = 0;
+
+            RunCoalitionJoinStep(attempt);
         });
 }
 
-void AIWorldMgr::RunWolfCoalitionJoinStep(GroupId groupId, std::vector<AgentId> members, std::size_t index)
+void AIWorldMgr::RunCoalitionJoinStep(CoalitionFormationAttempt attempt)
 {
-    if (index == members.size())
+    if (attempt.NextMemberIndex == attempt.Proposal.Members.size())
     {
-        TC_LOG_INFO("ai.world", "AI wolf coalition formation PASSED: group={} members={}", groupId.Value, members.size());
-        _wolfFormationInFlight = false;
+        TC_LOG_INFO("ai.world", "AI coalition formation PASSED: profile={} group={} members={}",
+            ToString(attempt.ProfileId), attempt.Group.Value, attempt.Proposal.Members.size());
+        _formationInFlight.erase(attempt.ProfileId);
         return;
     }
 
-    AgentId memberId = members[index];
+    AgentId memberId = attempt.Proposal.Members[attempt.NextMemberIndex];
 
-    // 2.12E4A/B P2 fix (STATIC review): the proposal's own eligibility
-    // snapshot (CollectWolfCoalitionCandidates(), taken before the async
-    // CreateGroup round trip and every earlier join in this chain even
-    // started) can go stale by the time this specific join is actually
-    // issued - see this method's own header comment. RequestJoinGroupWithPolicy()'s
-    // CanJoin() only ever validates against groupId itself, so it cannot
-    // catch memberId having joined some OTHER Loose group (or having been
-    // removed from _registry entirely) in the meantime - only this
-    // re-check can.
-    if (!_registry.Find(memberId) || IsMemberOfAnyLooseGroup(memberId))
+    // 2.12E4A/B P2 fix (STATIC review), preserved by the 2.12E4R
+    // generalization: the proposal's own eligibility snapshot
+    // (CollectCoalitionCandidates()/CollectMemberIdsOfKind(), taken before
+    // the async CreateGroup round trip and every earlier join in this
+    // chain even started) can go stale by the time this specific join is
+    // actually issued - see this method's own header comment.
+    // RequestJoinGroupWithPolicy()'s CanJoin() only ever validates against
+    // attempt.Group itself, so it cannot catch memberId having joined some
+    // OTHER group of the same Kind (or having been removed from _registry
+    // entirely) in the meantime - only this re-check can.
+    if (!_registry.Find(memberId) || _groupRegistry.IsMemberOfKind(memberId, attempt.Proposal.Kind))
     {
-        TC_LOG_ERROR("ai.world", "AI wolf coalition formation: member id={} no longer eligible (missing, or already in a Loose group), group={}",
-            memberId.Value, groupId.Value);
-        RunWolfCoalitionFormationAbort(groupId, memberId);
+        TC_LOG_ERROR("ai.world", "AI coalition formation: member id={} no longer eligible (missing, or already a {} member), profile={} group={}",
+            memberId.Value, ToString(attempt.Proposal.Kind), ToString(attempt.ProfileId), attempt.Group.Value);
+        AbortCoalitionFormation(attempt, memberId);
         return;
     }
 
     uint64 nowMs = CurrentTimeMs();
+    GroupId groupId = attempt.Group;
     RequestJoinGroupWithPolicy(groupId, memberId, nowMs, AgentGroupOperationSource::AutomaticPolicy,
-        [this, groupId, members, index, memberId](bool success, AgentGroupPolicyDecision decision)
+        [this, attempt, memberId](bool success, AgentGroupPolicyDecision decision)
         {
             if (!success)
             {
-                TC_LOG_ERROR("ai.world", "AI wolf coalition formation: join FAILED for member id={} (decision={}), group={}",
-                    memberId.Value, ToString(decision), groupId.Value);
-                RunWolfCoalitionFormationAbort(groupId, memberId);
+                TC_LOG_ERROR("ai.world", "AI coalition formation: join FAILED for member id={} (decision={}), profile={} group={}",
+                    memberId.Value, ToString(decision), ToString(attempt.ProfileId), attempt.Group.Value);
+                AbortCoalitionFormation(attempt, memberId);
                 return;
             }
 
-            RunWolfCoalitionJoinStep(groupId, members, index + 1);
+            CoalitionFormationAttempt nextAttempt = attempt;
+            nextAttempt.NextMemberIndex += 1;
+            RunCoalitionJoinStep(nextAttempt);
         });
 }
 
-void AIWorldMgr::RunWolfCoalitionFormationAbort(GroupId groupId, AgentId failedMember)
+void AIWorldMgr::AbortCoalitionFormation(CoalitionFormationAttempt const& attempt, AgentId failedMember)
 {
-    TC_LOG_ERROR("ai.world", "AI wolf coalition formation FAILED: member id={} could not join, group={} - attempting best-effort cleanup",
-        failedMember.Value, groupId.Value);
+    TC_LOG_ERROR("ai.world", "AI coalition formation FAILED: member id={} could not join, profile={} group={} - attempting best-effort cleanup",
+        failedMember.Value, ToString(attempt.ProfileId), attempt.Group.Value);
 
-    RequestDissolveGroup(groupId, [this, groupId](bool success)
+    CoalitionFormationProfileId profileId = attempt.ProfileId;
+    GroupId groupId = attempt.Group;
+
+    RequestDissolveGroup(groupId, [this, profileId, groupId](bool success)
     {
         if (success)
-            TC_LOG_INFO("ai.world", "AI wolf coalition formation cleanup: group={} dissolved after earlier failure", groupId.Value);
+            TC_LOG_INFO("ai.world", "AI coalition formation cleanup: profile={} group={} dissolved after earlier failure", ToString(profileId), groupId.Value);
         else
-            TC_LOG_ERROR("ai.world", "AI wolf coalition formation cleanup FAILED: group={} could not be dissolved, left as-is", groupId.Value);
+            TC_LOG_ERROR("ai.world", "AI coalition formation cleanup FAILED: profile={} group={} could not be dissolved, left as-is", ToString(profileId), groupId.Value);
 
-        _wolfFormationInFlight = false;
+        _formationInFlight.erase(profileId);
     });
 }
 
@@ -1207,7 +1236,7 @@ void AIWorldMgr::Update(uint32 diff)
         if (_wolfGroupFormationTimer >= _wolfGroupFormationIntervalMs)
         {
             _wolfGroupFormationTimer = 0;
-            RunWolfCoalitionFormation();
+            RunCoalitionFormation(_wolfLooseFormationProfile);
         }
     }
 

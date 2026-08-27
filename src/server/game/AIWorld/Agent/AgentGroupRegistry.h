@@ -18,7 +18,9 @@
 #ifndef AIWORLD_AGENTGROUPREGISTRY_H
 #define AIWORLD_AGENTGROUPREGISTRY_H
 
+#include "AgentGroupKind.h"
 #include "AgentGroupRecord.h"
+#include "AgentId.h"
 #include "Define.h"
 #include "GroupId.h"
 #include <unordered_map>
@@ -57,6 +59,25 @@ class TC_GAME_API AgentGroupRegistry
         bool Remove(GroupId id);
 
         std::vector<GroupId> GetGroups() const;
+
+        // Milestone 2.12E4R: true if member belongs to any registered
+        // group of exactly this Kind - the group-domain question
+        // AIWorldMgr's own automatic coalition formation/revalidation
+        // needs (see CoalitionFormationSystem.h/AIWorldMgr::
+        // RunCoalitionJoinStep()), pulled out of AIWorldMgr itself since
+        // "does member belong to a Kind-X group" is a fact about
+        // AgentGroupRegistry's own owned state, not about wolves or any
+        // other specific formation profile. O(groups * members-per-group)
+        // - a plain linear scan, the same complexity the AIWorldMgr-side
+        // version this replaces already had for a single member; for
+        // scanning an entire candidate list in one pass, prefer building a
+        // one-off membership set from GetGroups()/Find() instead of
+        // calling this once per candidate (see AIWorldMgr::
+        // CollectMemberIdsOfKind()) - AgentGroupRegistry deliberately does
+        // not keep a permanent member->group reverse index yet, since one
+        // would have to be kept correctly in sync across every Join/Leave/
+        // Dissolve completion, which is not this milestone's scope.
+        bool IsMemberOfKind(AgentId member, AgentGroupKind kind) const;
 
     private:
         std::unordered_map<uint64, AgentGroupRecord> _groups;
