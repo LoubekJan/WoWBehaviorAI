@@ -89,11 +89,16 @@ class TC_GAME_API AgentGroupRegistry
         // about the VALUE, not whether a group with exactly that id still
         // exists, so it simply resumes from whatever survives immediately
         // after it - a dissolve between passes never permanently disrupts
-        // the scan. Returns fewer than maxCount (possibly zero) once the
-        // end of the registry's own ordering is reached - the caller is
-        // responsible for recognizing that and resetting after to
-        // GroupId{} to wrap around, this method never wraps on its own
-        // within a single call.
+        // the scan. Returns fewer than maxCount once fewer than maxCount
+        // entries remain past after, and an EMPTY vector once after is at
+        // or past the last entry the registry's own ordering has - this
+        // method never wraps around on its own within a single call, nor
+        // does it try to top a short result back up to maxCount by
+        // wrapping internally. A caller doing cursor-based wraparound (see
+        // AIWorldMgr::RunCoalitionMaintenance()) is free to choose its own
+        // policy for when to reset after to GroupId{} - typically only
+        // once a call returns empty, since a short-but-nonempty result
+        // still returned real, useful groups worth keeping for that pass.
         std::vector<GroupId> GetGroupsAfter(GroupId after, uint32 maxCount) const;
 
         // Milestone 2.12E4R: true if member belongs to any registered

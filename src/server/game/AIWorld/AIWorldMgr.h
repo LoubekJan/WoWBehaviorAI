@@ -555,6 +555,27 @@ class TC_GAME_API AIWorldMgr
         // own declaration comment for why formation and maintenance must
         // not share one on/off switch).
         //
+        // Milestone 2.12E4C2 P2 fix, round 2 (STATIC review): takes NO
+        // profile parameter any more - an earlier version was itself a
+        // per-profile function called once per configured profile, each
+        // with its own _maintenanceScanCursor... except there was only
+        // ever ONE cursor (a single AIWorldMgr member), shared across
+        // every call. With only WolfLoose configured this happened to
+        // work; the moment a second profile existed, both would
+        // discover-and-consume the SAME bounded window of GroupId space
+        // every pass (profile A sees groups 1-100 this pass, profile B
+        // then ALSO sees 1-100 sharing that same cursor's post-A position,
+        // then both wrap together) - a group whose GroupId never happens
+        // to fall in whichever slice its own profile's call is scanning
+        // is starved forever, the same class of cross-profile bug already
+        // fixed once for formation's own member reservations (see
+        // CoalitionFormationReservationKey.h). Discovery is now a SINGLE
+        // GLOBAL bounded scan across ALL groups regardless of profile,
+        // with per-group profile resolution happening AFTER discovery -
+        // see the two stages below - so total discovery work stays
+        // bounded by one scan bound regardless of how many profiles exist,
+        // rather than growing as profileCount * ScanMaxPerPass.
+        //
         // Two independently bounded stages, deliberately not one:
         //   1. DISCOVERY: AgentGroupRegistry::GetGroupsAfter(_maintenanceScanCursor,
         //      AIWorld.CoalitionMaintenanceScanMaxPerPass) - 2.12E4C2 P3 fix
@@ -565,28 +586,56 @@ class TC_GAME_API AIWorldMgr
         //      world-thread work, exactly the class of problem
         //      GroupCoarseSimulationScheduler was already introduced to
         //      prevent for admission, just not yet for discovery.
-        //      _maintenanceScanCursor advances across passes (wrapping back
-        //      to GroupId{} once GetGroupsAfter() returns fewer than
-        //      requested), so every currently-registered group is still
-        //      seen eventually, just spread over several bounded passes
-        //      instead of scanned in one unbounded one.
-        //   2. ADMISSION: this pass's discovered groups are filtered to
-        //      profile.ProfileId (NOT group->Kind alone - see
-        //      AgentGroupRecord::ProfileId for why Kind cannot tell two
-        //      profiles of the same Kind apart, and why a manually/admin-
-        //      created group must never be swept in just because its Kind
-        //      matches), then handed to GroupCoarseSimulationScheduler
+        //      _maintenanceScanCursor advances across passes; the pass
+        //      immediately after one that reaches the end of the
+        //      registry's own ordering gets an EMPTY result and wraps the
+        //      cursor back to GroupId{} - a tail pass that returns a
+        //      non-empty but under-capacity batch does NOT itself
+        //      backfill from the start to top up to ScanMaxPerPass, it
+        //      simply leaves some of that pass's own budget unused. Every
+        //      currently-registered group is still seen eventually,
+        //      spread over several bounded passes instead of scanned in
+        //      one unbounded one.
+        //   2. Per discovered group, ResolveMaintenanceProfile(group->ProfileId)
+        //      - NOT a check against one fixed profile.ProfileId parameter
+        //      any more, since this function no longer receives one. A
+        //      group whose ProfileId does not resolve (Invalid, or a
+        //      profile this process does not know how to maintain) is
+        //      simply not a maintenance candidate this pass - see that
+        //      method's own comment for why a manually/admin-created group
+        //      must never be swept in just because some profile's Kind
+        //      happens to match its own. The resolved candidates are then
+        //      handed to GroupCoarseSimulationScheduler
         //      (_maintenanceScheduler/_maintenanceSchedule - its own
         //      dedicated instance/schedule map, entirely separate from
         //      _groupCoarseSimulationScheduler/_groupSimulationSchedule's
         //      own resource-drift tick) for the same phase-offset, bounded,
         //      deterministic per-pass admission the group coarse tick
-        //      already uses, capped at AIWorld.CoalitionMaintenanceMaxPerPass.
-        // Every admitted group is handed to RunCoalitionMaintenanceForGroup().
-        void RunCoalitionMaintenance(CoalitionMaintenanceProfile const& profile);
+        //      already uses, capped at AIWorld.CoalitionMaintenanceMaxPerPass
+        //      - globally, across every profile mixed together in this
+        //      pass's own discovered batch, not per profile.
+        // Every admitted group is handed to RunCoalitionMaintenanceForGroup()
+        // together with its own already-resolved CoalitionMaintenanceProfile.
+        void RunCoalitionMaintenance();
 
-        // Milestone 2.12E4C2: the single group this pass's maintenance
-        // scheduler admitted. Refuses to start if groupId is already in
+        // Milestone 2.12E4C2 P2 fix, round 2 (STATIC review): the one
+        // place that maps a persistent AgentGroupRecord::ProfileId to the
+        // CoalitionMaintenanceProfile that governs it - std::nullopt for
+        // Invalid or any profileId this process has no maintenance rules
+        // configured for. Today only WolfLoose resolves (to
+        // _wolfLooseMaintenanceProfile); a future second profile is just
+        // another case added here, not a change to RunCoalitionMaintenance()'s
+        // own discovery/admission shape.
+        std::optional<CoalitionMaintenanceProfile> ResolveMaintenanceProfile(CoalitionFormationProfileId profileId) const;
+
+        // Milestone 2.12E4C2: one group this pass's maintenance scheduler
+        // admitted, together with the CoalitionMaintenanceProfile
+        // RunCoalitionMaintenance() already resolved for it via
+        // ResolveMaintenanceProfile() (2.12E4C2 P2 fix, round 2 - a single
+        // pass's own admitted batch can now mix groups governed by
+        // different profiles, so profile is no longer necessarily the
+        // same value across every call in one pass). Refuses to start if
+        // groupId is already in
         // _maintenanceInFlight (see its own declaration comment for the
         // repeated-request spam this guards against) or no longer resolves
         // in _groupRegistry. Builds this group's own observations
@@ -1037,6 +1086,16 @@ class TC_GAME_API AIWorldMgr
         // whatever GroupId value survives immediately after the cursor,
         // regardless of whether the cursor's own former group still
         // exists - see that method's own comment.
+        //
+        // Milestone 2.12E4C2 P2 fix, round 2 (STATIC review): deliberately
+        // a SINGLE GLOBAL cursor, not one per CoalitionMaintenanceProfile -
+        // RunCoalitionMaintenance() itself no longer takes a profile
+        // parameter (discovery happens once, across every profile
+        // together, then each discovered group's own profile is resolved
+        // - see that method's own comment for the cross-profile
+        // starvation a per-profile cursor would otherwise cause, and why
+        // that would also multiply total discovery work by the number of
+        // configured profiles).
         GroupId _maintenanceScanCursor;
 
         // Milestone 2.12E4C2: GroupId::Value entries with a maintenance

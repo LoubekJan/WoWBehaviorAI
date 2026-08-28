@@ -1804,7 +1804,15 @@ std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObserv
     return observations;
 }
 
-void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& profile)
+std::optional<CoalitionMaintenanceProfile> AIWorldMgr::ResolveMaintenanceProfile(CoalitionFormationProfileId profileId) const
+{
+    if (profileId == CoalitionFormationProfileId::WolfLoose)
+        return _wolfLooseMaintenanceProfile;
+
+    return std::nullopt;
+}
+
+void AIWorldMgr::RunCoalitionMaintenance()
 {
     uint64 nowMs = CurrentTimeMs();
 
@@ -1813,7 +1821,12 @@ void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& prof
     // and AgentGroupRegistry::GetGroupsAfter(). An earlier version called
     // _groupRegistry.GetGroups() here, materializing every registered
     // group's own GroupId every pass regardless of how few (if any) were
-    // ever actually candidates for this profile.
+    // ever actually candidates.
+    //
+    // Milestone 2.12E4C2 P2 fix, round 2 (STATIC review): ONE global scan,
+    // not one per profile - see this method's own header comment and
+    // _maintenanceScanCursor's own declaration comment for the cross-
+    // profile starvation a per-profile cursor would otherwise cause.
     std::vector<GroupId> discovered = _groupRegistry.GetGroupsAfter(_maintenanceScanCursor, _coalitionMaintenanceScanMaxPerPass);
     if (discovered.empty() && _maintenanceScanCursor)
     {
@@ -1830,24 +1843,32 @@ void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& prof
     if (!discovered.empty())
         _maintenanceScanCursor = discovered.back();
 
-    // Milestone 2.12E4C2 P2 fix (STATIC review): pre-filter THIS PASS'S
-    // discovered groups to profile.ProfileId - NOT group->Kind alone.
-    // Kind cannot tell two profiles of the same Kind apart (only WolfLoose
-    // forms LOOSE groups today, but nothing about Kind itself prevents a
-    // future second LOOSE-forming profile from colliding the same way),
-    // and a manually/admin-created LOOSE group (AgentGroupRecord::ProfileId
-    // == Invalid) must never be silently swept into WolfLoose's own
-    // automatic maintenance just because its Kind happens to match. A
-    // wrong-profile group would also fail CoalitionMaintenanceSystem::
-    // Evaluate()'s own ProfileId-mismatch guard, but only after consuming
-    // one of this pass's bounded admission slots to find that out -
-    // filtering here avoids that waste too.
+    // Milestone 2.12E4C2 P2 fix, round 2 (STATIC review): each discovered
+    // group resolves its OWN maintenance profile from its own persistent
+    // ProfileId (ResolveMaintenanceProfile()) - not a check against one
+    // fixed profile passed in for the whole pass, since this pass's own
+    // discovered batch can mix groups governed by different profiles once
+    // more than one exists. A group whose ProfileId does not resolve
+    // (Invalid, or a profile this process has no maintenance rules
+    // configured for) is simply not a maintenance candidate this pass -
+    // the same "never silently sweep in a manually/admin-created group"
+    // guarantee the old per-profile ProfileId check already gave, just
+    // expressed as "did this resolve at all" instead of "does this equal
+    // the one profile this call was given".
     std::vector<GroupId> candidates;
+    std::unordered_map<uint64, CoalitionMaintenanceProfile> candidateProfiles;
     for (GroupId groupId : discovered)
     {
         AgentGroupRecord const* group = _groupRegistry.Find(groupId);
-        if (group && group->ProfileId == profile.ProfileId)
-            candidates.push_back(groupId);
+        if (!group)
+            continue;
+
+        std::optional<CoalitionMaintenanceProfile> profile = ResolveMaintenanceProfile(group->ProfileId);
+        if (!profile)
+            continue;
+
+        candidates.push_back(groupId);
+        candidateProfiles.emplace(groupId.Value, *profile);
     }
 
     // Same phase-offset-on-first-sight pattern RunDecisionScheduler()'s own
@@ -1865,6 +1886,8 @@ void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& prof
         }
     }
 
+    // Bounded globally by AIWorld.CoalitionMaintenanceMaxPerPass, across
+    // every profile mixed together in candidates - not per profile.
     GroupCoarseSimulationScheduler::SelectionResult selection = _maintenanceScheduler.SelectDue(
         _maintenanceSchedule, candidates, nowMs, _coalitionMaintenanceMaxPerPass);
 
@@ -1874,7 +1897,7 @@ void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& prof
         scheduleState.LastTickAtMs = nowMs;
         scheduleState.NextTickAtMs = nowMs + _coalitionMaintenanceIntervalMs;
 
-        RunCoalitionMaintenanceForGroup(groupId, profile);
+        RunCoalitionMaintenanceForGroup(groupId, candidateProfiles.at(groupId.Value));
     }
 }
 
@@ -2035,7 +2058,7 @@ void AIWorldMgr::Update(uint32 diff)
         if (_coalitionMaintenanceTimer >= _coalitionMaintenanceIntervalMs)
         {
             _coalitionMaintenanceTimer = 0;
-            RunCoalitionMaintenance(_wolfLooseMaintenanceProfile);
+            RunCoalitionMaintenance();
         }
     }
 
