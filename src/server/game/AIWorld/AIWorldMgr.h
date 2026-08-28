@@ -815,27 +815,40 @@ class TC_GAME_API AIWorldMgr
         // group is re-evaluated fresh, with fresh membership, the very next
         // pass once the operation resolves either way.
         //
-        // Milestone 2.12F2 P2 fix (STATIC review): every proposal from
-        // every resolved group this pass is collected FIRST, dispatched
-        // only after every group has been evaluated - not dispatched
-        // immediately per group the way an earlier version did. Nothing in
+        // Milestone 2.12F2 P2 fix, round 2 (STATIC review): overlap
+        // arbitration is checked against a REGISTRY-WIDE membership count
+        // (coordinationMembershipCount in this method's own definition),
+        // not against how many proposals this pass's own bounded discovery
+        // batch happened to produce. A first version of this fix collected
+        // proposals per pass and counted duplicates only within that same
+        // batch - STATIC review correctly identified that as provably
+        // incomplete: with AIWorld.GroupCoordinationScanMaxPerPass smaller
+        // than the registry, two overlapping groups can simply never be
+        // discovered in the same pass, so a batch-local count silently
+        // degrades back to "whichever group's own pass runs first wins",
+        // the exact hidden discovery-order priority this mechanism exists
+        // to remove. The registry-wide count is built with ONE
+        // O(all groups + all memberships) pass over AgentGroupRegistry::
+        // GetGroups(), done once per call - not a permanently-maintained
+        // reverse index (AgentGroupRegistry deliberately does not keep one,
+        // see AgentGroupRegistry::IsMemberOfKind()'s own header comment),
+        // and never repeated per group or per proposal. Nothing in
         // AgentGroupPolicySystem::CanJoin() enforces that one agent can
         // only ever be a real member of ONE coordination-enabled group at a
         // time (it only checks duplicate membership WITHIN the target group
         // and that group's own capacity) - so two different groups can, in
-        // principle, both legitimately propose a Regroup for the same
-        // AgentId in the same pass. Dispatching immediately per group in
-        // GroupId-ascending discovery order would make GroupId a hidden,
-        // undocumented priority rule (the lower-numbered group always wins,
-        // silently, for as long as both keep proposing). Instead: any
-        // AgentId proposed by more than one group this pass gets NO
-        // proposal dispatched for it at all this pass - see
-        // RunCoalitionCoordination()'s own definition for the exact
-        // per-member count check. This generic layer has no basis to pick a
-        // winner between two coordination profiles it knows nothing else
-        // about; leaving the member standing still (dispatched again next
-        // pass, by whichever group(s) still want it) is the only choice
-        // that does not invent an implicit, undocumented arbitration rule.
+        // principle, both legitimately claim the same AgentId. Any AgentId
+        // that belongs to more than one group whose own resolved profile
+        // has RegroupEnabled gets NO proposal dispatched for it, from any
+        // of them, for as long as that overlap persists - this generic
+        // layer has no basis to pick a winner between two coordination
+        // profiles it knows nothing else about; leaving the member standing
+        // still (re-evaluated fresh next pass) is the only choice that does
+        // not invent an implicit, undocumented arbitration rule. Logged at
+        // DEBUG, at most once per conflicted AgentId per call - see this
+        // method's own definition for why (2.12F2 P3 fix, STATIC review: an
+        // earlier version logged a WARN per proposal per pass, turning a
+        // persistent, expected arbitration state into recurring log spam).
         //
         // Per resolved, non-pending group: CollectCoalitionMemberObservations(),
         // _agentGroupIntentSystem.Evaluate(), and - only if the result is
@@ -877,6 +890,26 @@ class TC_GAME_API AIWorldMgr
         //     UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL/routine-
         //     preemption blocks ever interrupt an in-flight Regroup, never
         //     the reverse).
+        //   - proposal.X/Y/Z is within ActionSystem::CoordinationMoveToRangeYards()
+        //     of the member's own actual current position (2.12F2 P3 fix,
+        //     round 2, STATIC review - explicit "unreachable coordination
+        //     member" semantics). AgentGroupIntentProjector::Project() only
+        //     ever compares distance against profile.RegroupRadius, a
+        //     TRIGGER threshold, never against this execution-layer bound -
+        //     by design, so the pure projector never needs to know an
+        //     ActionSystem constant. Clamping RegroupRadius/LeaveRadius at
+        //     Initialize() only bounds how close a member must be before a
+        //     Regroup is even proposed, not how far one can have drifted by
+        //     dispatch time (AIWorld.CoalitionMaintenance/
+        //     AIWorld.GroupCoordination are independent flags - nothing
+        //     guarantees maintenance already removed such a member).
+        //     Checked here, explicitly, rather than left to
+        //     ActionSystem::ValidateMoveTo()'s own generic DestinationTooFar
+        //     rejection - a member past this bound is a distinct,
+        //     structurally-recurring case, not an ordinary one-off
+        //     rejection, and deserves its own named log reason rather than
+        //     rebuilding and re-rejecting an identical ActionRequest every
+        //     pass forever.
         // On every rejection above, this simply returns - no log spam for
         // what is an expected, frequent outcome (most members most passes
         // are not eligible), the same restraint RunCoalitionMaintenanceForGroup()

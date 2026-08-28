@@ -3725,7 +3725,13 @@ AIWorld.WolfGroupFormationIntervalMs = 5000
 #                     to the lowest-AgentId seed candidate to be considered a neighbor by
 #                     CoalitionFormationSystem::Propose() - see its own class comment for the
 #                     full deterministic seed/neighbor selection algorithm.
-#        Important:   Values below 1.0 are clamped to 1.0.
+#        Important:   Values below 1.0 are clamped to 1.0. Milestone 2.12F2 P2 fix, round 2
+#                     (STATIC review): values above ActionSystem's own Regroup MOVE_TO range bound
+#                     (100.0 yards) are clamped down to it, BEFORE AIWorld.WolfGroupLeaveRadius's
+#                     own lower-bound clamp (which forces it up to at least this value) runs - this
+#                     ordering is what keeps FormationRadius <= LeaveRadius <= 100 true together,
+#                     rather than letting a FormationRadius above 100 force LeaveRadius above 100
+#                     too before LeaveRadius's own separate upper-bound clamp pulls it back down.
 #        Default:     30.0
 
 AIWorld.WolfGroupFormationRadius = 30.0

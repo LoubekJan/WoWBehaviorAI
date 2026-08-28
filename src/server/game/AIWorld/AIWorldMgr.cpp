@@ -313,6 +313,32 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         TC_LOG_WARN("ai.world", "AIWorld.WolfGroupFormationRadius ({:.1f}) is invalid or too low, clamping to 1.0", wolfGroupFormationRadius);
         wolfGroupFormationRadius = 1.0f;
     }
+
+    // Milestone 2.12F2 P2 fix, round 2 (STATIC review): clamped against
+    // ActionSystem::CoordinationMoveToRangeYards() BEFORE
+    // AIWorld.WolfGroupLeaveRadius's own lower-bound clamp below runs (which
+    // forces LeaveRadius up to at least this value) - an earlier version
+    // clamped LeaveRadius's own upper bound independently, AFTER that
+    // lower-bound clamp, which could silently break the FormationRadius <=
+    // LeaveRadius invariant the lower-bound clamp exists to guarantee: a
+    // FormationRadius of e.g. 150 would first force LeaveRadius up to 150,
+    // then the (at-the-time-independent) upper-bound clamp would pull
+    // LeaveRadius back down to 100 alone, leaving FormationRadius(150) >
+    // LeaveRadius(100) - the exact hysteresis-defeating state that clamp
+    // was meant to prevent in the first place (a member could form at 150
+    // and be immediately eligible to leave past 100). Clamping
+    // FormationRadius here first guarantees FormationRadius <= 100 before
+    // LeaveRadius's own lower-bound clamp ever runs, so that clamp can
+    // never push LeaveRadius above 100 to begin with - the full chain
+    // FormationRadius <= LeaveRadius <= CoordinationMoveToRangeYards() now
+    // holds unconditionally, regardless of config values.
+    if (wolfGroupFormationRadius > ActionSystem::CoordinationMoveToRangeYards())
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupFormationRadius ({:.1f}) exceeds the ActionSystem Regroup range bound ({:.1f}), clamping to match "
+            "(AIWorld.WolfGroupLeaveRadius is never allowed to fall below this value, so it must not exceed that bound either)",
+            wolfGroupFormationRadius, ActionSystem::CoordinationMoveToRangeYards());
+        wolfGroupFormationRadius = ActionSystem::CoordinationMoveToRangeYards();
+    }
     _wolfGroupFormationRadius = wolfGroupFormationRadius;
 
     // Milestone 2.12E4R: AIWorldMgr's own one existing
@@ -351,6 +377,16 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // for a member that is otherwise a perfectly legitimate one - an
     // earlier version relied on the default (60 < 100) never being
     // violated instead of enforcing this explicitly.
+    //
+    // Milestone 2.12F2 P2 fix, round 2 (STATIC review): now provably a
+    // no-op given wolfGroupFormationRadius's own upper-bound clamp above
+    // (FormationRadius <= 100 always holds by the time the lower-bound
+    // clamp runs, so that clamp can never push LeaveRadius past 100 to
+    // begin with) - kept anyway as an explicit, self-contained invariant
+    // on THIS value rather than relying on evaluation order between two
+    // clamp blocks to keep it true, and it still matters on its own if
+    // AIWorld.WolfGroupLeaveRadius itself is configured above 100
+    // independent of FormationRadius.
     if (wolfGroupLeaveRadius > ActionSystem::CoordinationMoveToRangeYards())
     {
         TC_LOG_WARN("ai.world", "AIWorld.WolfGroupLeaveRadius ({:.1f}) exceeds the ActionSystem Regroup range bound ({:.1f}), clamping to match "
@@ -2491,10 +2527,47 @@ void AIWorldMgr::RunCoalitionCoordination()
     // synchronous, in-memory) needs no GroupCoarseSimulationScheduler the
     // way an async DB-writing maintenance action does.
     //
+    // 2.12F2 P2 fix, round 2 (STATIC review): a REGISTRY-WIDE membership
+    // overlap count, not scoped to this pass's own bounded discovery batch
+    // - an earlier version counted proposals only within `discovered`,
+    // which is provably incomplete once AIWorld.GroupCoordinationScanMaxPerPass
+    // is smaller than the registry: two overlapping coordination-enabled
+    // groups can simply never land in the same discovery slice (e.g. a
+    // bound of 1 discovers group 20 this pass, group 30 next pass, never
+    // both together), in which case a batch-local count silently reduces
+    // right back to "whichever group's own pass runs first wins" - the
+    // exact hidden discovery-order priority this whole mechanism exists to
+    // remove. One O(all groups + all memberships) pass over the WHOLE
+    // registry, done ONCE per RunCoalitionCoordination() call (never once
+    // per group, never once per proposal) - the same "a single one-off
+    // scan beats a permanently-maintained reverse index" tradeoff
+    // AgentGroupRegistry::IsMemberOfKind()'s own header comment already
+    // documents and recommends for exactly this kind of batch use, at the
+    // same "hundreds to low thousands of groups" scale that class targets.
+    // Scoped to groups whose own resolved profile actually has
+    // RegroupEnabled - a group whose profile could never propose a Regroup
+    // in the first place can never actually contend for a member's action
+    // slot, so counting it here would only produce false-positive overlap
+    // (permanently suppressing a real, uncontested group).
+    std::unordered_map<uint64, uint32> coordinationMembershipCount;
+    for (GroupId groupId : _groupRegistry.GetGroups())
+    {
+        AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+        if (!group)
+            continue;
+
+        std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
+        if (!profile || !profile->RegroupEnabled)
+            continue;
+
+        for (AgentGroupMembership const& membership : group->Members)
+            ++coordinationMembershipCount[membership.Member.Value];
+    }
+
     // 2.12F2 P2 fix (STATIC review): every group's own proposals are
     // collected into one combined batch first - not dispatched immediately
-    // per group - so the cross-group same-member check below can see every
-    // proposal from this whole pass before anything is actually dispatched.
+    // per group - purely so the overlap check below runs once per proposal
+    // in a single pass over `proposals`, not interleaved with dispatch.
     std::vector<GroupMemberActionProposal> proposals;
 
     for (GroupId groupId : discovered)
@@ -2522,20 +2595,32 @@ void AIWorldMgr::RunCoalitionCoordination()
         proposals.insert(proposals.end(), groupProposals.begin(), groupProposals.end());
     }
 
-    // 2.12F2 P2 fix (STATIC review): see this method's own header comment -
-    // an AgentId proposed by more than one group this same pass has no
-    // defined arbitration, so it gets no proposal dispatched at all this
-    // pass, from any of them.
-    std::unordered_map<uint64, uint32> proposalCountByMember;
-    for (GroupMemberActionProposal const& proposal : proposals)
-        ++proposalCountByMember[proposal.Member.Value];
-
+    // 2.12F2 P2 fix, round 2 (STATIC review): arbitrated against
+    // coordinationMembershipCount (the full-registry picture built above),
+    // not against how many proposals this specific pass happened to
+    // produce - a member who structurally belongs to more than one
+    // RegroupEnabled group gets no proposal dispatched at all, even if
+    // only one of those groups actually proposed something this exact
+    // pass (the other could easily propose next pass instead - the
+    // conservative MVP rule this method's own header comment describes is
+    // about membership overlap, not about which passes happen to collide).
+    //
+    // 2.12F2 P3 fix (STATIC review): logged at DEBUG, at most once per
+    // conflicted AgentId per pass (loggedOverlap below), not once per
+    // proposal at WARN - an earlier version logged a WARN inside this same
+    // loop, which meant a persistent overlap (an expected, ongoing
+    // arbitration state, not a server error) produced a fresh WARN every
+    // single AIWorld.GroupCoordinationIntervalMs indefinitely, worse with
+    // more overlapping groups.
+    std::unordered_set<uint64> loggedOverlap;
     for (GroupMemberActionProposal const& proposal : proposals)
     {
-        if (proposalCountByMember[proposal.Member.Value] > 1)
+        auto membershipIt = coordinationMembershipCount.find(proposal.Member.Value);
+        if (membershipIt != coordinationMembershipCount.end() && membershipIt->second > 1)
         {
-            TC_LOG_WARN("ai.world", "AI group coordination: member={} was proposed a Regroup by more than one group this pass, dispatching none (one of them: group={})",
-                proposal.Member.Value, proposal.SourceGroup.Value);
+            if (loggedOverlap.insert(proposal.Member.Value).second)
+                TC_LOG_DEBUG("ai.world", "AI group coordination: member={} belongs to {} RegroupEnabled groups at once, dispatching no Regroup for it this pass (one of them: group={})",
+                    proposal.Member.Value, membershipIt->second, proposal.SourceGroup.Value);
             continue;
         }
 
@@ -2587,6 +2672,43 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
 
     if (record->ActiveActionState)
         return;
+
+    // 2.12F2 P3 fix, round 2 (STATIC review): explicit "unreachable
+    // coordination member" semantics, checked here rather than left
+    // implicit in ValidateMoveTo()'s own generic DestinationTooFar
+    // rejection. AgentGroupIntentProjector::Project() only ever compares
+    // distance against profile.RegroupRadius - a TRIGGER threshold ("is
+    // this member dispersed enough to bother proposing a move at all"),
+    // never against ActionSystem's own execution-layer maximum range, by
+    // design: the pure projector layer must not need to know an
+    // execution-layer constant (see AgentGroupIntentProjector.h's own
+    // class comment on staying profile-agnostic). Clamping
+    // RegroupRadius/LeaveRadius against CoordinationMoveToRangeYards() at
+    // Initialize() (see AIWorld.WolfGroupRegroupRadius/
+    // AIWorld.WolfGroupLeaveRadius's own comments) only bounds how CLOSE a
+    // member must be before a Regroup is even proposed - it does nothing
+    // to cap how FAR a member can actually have drifted by the moment a
+    // proposal is dispatched (AIWorld.CoalitionMaintenance and
+    // AIWorld.GroupCoordination are deliberately independent enable flags,
+    // so nothing guarantees maintenance already removed a member who has
+    // drifted well past this radius). Without this check, such a member
+    // would get a fresh ActionRequest built and rejected as
+    // DestinationTooFar every single pass, forever, indistinguishable from
+    // an ordinary one-off rejection (busy movement, momentary map
+    // mismatch, ...) instead of the structurally-impossible-under-current-
+    // config case it actually is.
+    float unreachableDx = proposal.X - creature->GetPositionX();
+    float unreachableDy = proposal.Y - creature->GetPositionY();
+    float unreachableDz = proposal.Z - creature->GetPositionZ();
+    float unreachableDistanceSq = unreachableDx * unreachableDx + unreachableDy * unreachableDy + unreachableDz * unreachableDz;
+    float maxCoordinationRangeYards = ActionSystem::CoordinationMoveToRangeYards();
+
+    if (unreachableDistanceSq > maxCoordinationRangeYards * maxCoordinationRangeYards)
+    {
+        TC_LOG_DEBUG("ai.world", "AI group coordination: member={} group={} is farther than the Regroup range bound ({:.1f}yd) from its own target - UNREACHABLE, no automatic Regroup attempted this pass",
+            record->Id.Value, proposal.SourceGroup.Value, maxCoordinationRangeYards);
+        return;
+    }
 
     uint64 nowMs = CurrentTimeMs();
 
