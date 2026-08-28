@@ -125,16 +125,14 @@ class AgentRegistry;
 class TC_GAME_API AgentGroupLifecycleSystem
 {
     public:
-        // Synchronously nothing to validate here (persistence itself owns
-        // the one thing that can reject a create - see
-        // AgentGroupPersistence::CreateGroupAsync()'s fail-closed allocator
-        // check). onComplete(groupId) fires once, either synchronously (a
-        // rejection persistence detected before ever touching the DB) or
-        // later from pending's ProcessReadyCallbacks() (once the DB
-        // transaction's own result is known) - never both, never neither.
-        // groupRegistry is only ever Add()'d to inside that completion,
-        // after AgentGroupPersistence confirms the transaction actually
-        // committed.
+        // onComplete(groupId) fires once, either synchronously (a rejection
+        // detected before ever touching the DB - see below, and
+        // AgentGroupPersistence::CreateGroupAsync()'s own fail-closed
+        // allocator check) or later from pending's ProcessReadyCallbacks()
+        // (once the DB transaction's own result is known) - never both,
+        // never neither. groupRegistry is only ever Add()'d to inside that
+        // completion, after AgentGroupPersistence confirms the transaction
+        // actually committed.
         //
         // Milestone 2.12E4C2 P2 fix (STATIC review): profileId names which
         // CoalitionFormationProfile (if any) is actually creating this
@@ -147,6 +145,15 @@ class TC_GAME_API AgentGroupLifecycleSystem
         // RunCoalitionFormation() create. Threaded straight through to
         // AgentGroupPersistence::CreateGroupAsync() and the resulting
         // AgentGroupRecord unchanged.
+        //
+        // Milestone 2.12E4C2 P3 hardening (STATIC review): this IS now the
+        // one thing validated synchronously, before persistence is ever
+        // touched - a non-Invalid profileId must both be a recognized
+        // value and be compatible with kind (GetCoalitionProfileKind()),
+        // this being the authoritative mutation boundary for
+        // AgentGroupRecord::ProfileId. A rejection here calls
+        // onComplete(std::nullopt) synchronously, the same as any other
+        // create rejection.
         void RequestCreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources,
             CoalitionFormationProfileId profileId,
             AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence, TransactionCallbackProcessor& pending,

@@ -3612,9 +3612,13 @@ AIWorld.TestDissolveGroupId = 0
 #                     upgrade. When AIWorld.AdoptGroupId names an existing GroupId an
 #                     operator has confirmed is legitimately owned by
 #                     AIWorld.AdoptGroupProfileId (currently only 1 = WolfLoose is
-#                     recognized), this runs once at startup and persists that provenance
+#                     recognized - any other value, including one that would alias to a
+#                     recognized value after truncation, is refused before it is even
+#                     compared), this runs once at startup and persists that provenance
 #                     through the existing AgentGroupPersistence API - never a raw SQL
-#                     UPDATE, never a direct registry mutation. Set both back to 0 after the
+#                     UPDATE, never a direct registry mutation. Also refused if the named
+#                     group's own Kind does not match what the target profile expects (e.g.
+#                     WolfLoose only ever adopts a LOOSE group). Set both back to 0 after the
 #                     one run they were needed for.
 #        Default:     0 - (Disabled)
 #                     0 - (Disabled)

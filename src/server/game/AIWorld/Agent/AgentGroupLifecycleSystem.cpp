@@ -20,6 +20,7 @@
 #include "AgentGroupRecord.h"
 #include "AgentGroupRegistry.h"
 #include "AgentRegistry.h"
+#include "CoalitionFormationProfileKind.h"
 #include "Log.h"
 #include "Persistence/AgentGroupPersistence.h"
 #include <algorithm>
@@ -29,6 +30,27 @@ void AgentGroupLifecycleSystem::RequestCreateGroup(AgentGroupKind kind, uint32 t
     AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence, TransactionCallbackProcessor& pending,
     std::function<void(std::optional<GroupId>)> onComplete)
 {
+    // Milestone 2.12E4C2 P3 hardening (STATIC review): the authoritative
+    // mutation boundary for AgentGroupRecord::ProfileId - Invalid is
+    // always allowed (a manual/admin-authorized create names no automatic
+    // profile at all), but a non-Invalid profileId must both be a
+    // recognized value AND be compatible with kind (see
+    // GetCoalitionProfileKind()) - refusing here, before persistence is
+    // ever touched, is what stops a caller from persisting a nonsensical
+    // combination like CoalitionFormationProfileId::WolfLoose on an
+    // AgentGroupKind::Stable group.
+    if (profileId != CoalitionFormationProfileId::Invalid)
+    {
+        std::optional<AgentGroupKind> expectedKind = GetCoalitionProfileKind(profileId);
+        if (!expectedKind || *expectedKind != kind)
+        {
+            TC_LOG_ERROR("ai.world", "AgentGroupLifecycleSystem::RequestCreateGroup: profile={} is not compatible with kind={}, refusing to create",
+                ToString(profileId), ToString(kind));
+            onComplete(std::nullopt);
+            return;
+        }
+    }
+
     std::optional<TransactionCallback> callback = persistence.CreateGroupAsync(kind, territoryMapId, territoryX, territoryY, territoryZ, resources, profileId,
         [&groupRegistry, kind, territoryMapId, territoryX, territoryY, territoryZ, resources, profileId, onComplete](bool success, GroupId newId)
         {

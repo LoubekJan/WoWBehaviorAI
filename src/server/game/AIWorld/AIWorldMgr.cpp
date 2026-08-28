@@ -20,6 +20,7 @@
 #include "Agent/AgentGroupRecord.h"
 #include "Agent/AgentGroupRuntimeView.h"
 #include "Agent/AgentSnapshot.h"
+#include "Agent/CoalitionFormationProfileKind.h"
 #include "Agent/CoalitionMaintenanceSystem.h"
 #include "Config.h"
 #include "Creature.h"
@@ -439,12 +440,35 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // Milestone 2.12E4C2 P2 fix (STATIC review): the controlled legacy-
     // provenance adoption path - see RunGroupProfileAdoption()'s own
     // comment. Default 0 (unset) means disabled, the same convention every
-    // other one-shot GroupId hook here already uses. AdoptGroupProfileId
-    // is read as a raw uint8 - RunGroupProfileAdoption() itself is what
-    // validates it against a recognized, non-Invalid
-    // CoalitionFormationProfileId, not this cast.
+    // other one-shot GroupId hook here already uses.
     GroupId adoptGroupId{ uint64(sConfigMgr->GetIntDefault("AIWorld.AdoptGroupId", 0)) };
-    CoalitionFormationProfileId adoptGroupProfileId = CoalitionFormationProfileId(uint8(sConfigMgr->GetIntDefault("AIWorld.AdoptGroupProfileId", 0)));
+
+    // Milestone 2.12E4C2 P3 hardening (STATIC review): the raw config
+    // value is validated BEFORE any cast to CoalitionFormationProfileId,
+    // not after - an earlier version cast straight to uint8 first (e.g.
+    // AIWorld.AdoptGroupProfileId = 257 would truncate to 1/WolfLoose and
+    // pass RunGroupProfileAdoption()'s own allow-list, silently accepting
+    // a value that was never actually 1), which is fail-OPEN config
+    // parsing, not fail-closed. An explicit switch over int32 means only
+    // the exact literal values CoalitionFormationProfileId actually
+    // defines are ever accepted; anything else - including a value that
+    // would alias to a real one after truncation - stays Invalid and logs
+    // why, and RunGroupProfileAdoption() itself still refuses Invalid
+    // (via GetCoalitionProfileKind()) if AIWorld.AdoptGroupId is set.
+    int32 rawAdoptGroupProfileId = sConfigMgr->GetIntDefault("AIWorld.AdoptGroupProfileId", 0);
+    CoalitionFormationProfileId adoptGroupProfileId = CoalitionFormationProfileId::Invalid;
+    switch (rawAdoptGroupProfileId)
+    {
+        case int32(CoalitionFormationProfileId::Invalid):
+            break; // unset/disabled - stays Invalid
+        case int32(CoalitionFormationProfileId::WolfLoose):
+            adoptGroupProfileId = CoalitionFormationProfileId::WolfLoose;
+            break;
+        default:
+            TC_LOG_ERROR("ai.world", "AIWorld.AdoptGroupProfileId ({}) is not a recognized CoalitionFormationProfileId - "
+                "group profile adoption (if AIWorld.AdoptGroupId is set) will be refused", rawAdoptGroupProfileId);
+            break;
+    }
 
     std::string aiHost = sConfigMgr->GetStringDefault("AIWorld.AIHost", "ai-server");
     std::string aiPort = std::to_string(sConfigMgr->GetIntDefault("AIWorld.AIPort", 8000));
@@ -813,12 +837,16 @@ void AIWorldMgr::RunTestDissolveGroup(GroupId groupId)
 
 void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProfileId profileId)
 {
-    // Deliberately an explicit allow-list, not "anything but Invalid" - a
-    // stray/garbage config value (a raw uint8 that does not name any real
-    // enumerator, or Invalid itself) must be refused here, not merely
-    // deferred to the next restart's own LoadGroups() fail-closed switch
-    // to catch.
-    if (profileId != CoalitionFormationProfileId::WolfLoose)
+    // Milestone 2.12E4C2 P3 hardening (STATIC review): GetCoalitionProfileKind()
+    // is both the recognized-profile allow-list (nullopt for Invalid or
+    // any unrecognized value - a stray/garbage config value must be
+    // refused here, not deferred to the next restart's own LoadGroups()
+    // fail-closed switch to catch) AND the single source of truth for
+    // which AgentGroupKind this profile actually expects - see its own
+    // comment for why this is centralized rather than re-derived per
+    // caller.
+    std::optional<AgentGroupKind> expectedKind = GetCoalitionProfileKind(profileId);
+    if (!expectedKind)
     {
         TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: profile={} (AIWorld.AdoptGroupProfileId) is not a recognized, adoptable profile - refusing to adopt group={}",
             ToString(profileId), groupId.Value);
@@ -829,6 +857,19 @@ void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProf
     if (!group)
     {
         TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: group={} (AIWorld.AdoptGroupId) does not exist", groupId.Value);
+        return;
+    }
+
+    // Milestone 2.12E4C2 P3 hardening (STATIC review): a group whose own
+    // Kind does not match what this profile expects is refused too - e.g.
+    // adopting a Stable group into WolfLoose would persist a nonsensical
+    // provenance combination that RunCoalitionMaintenance() would then
+    // never act on (its own Kind check already stops that), but the
+    // stored ProfileId would still be misleading.
+    if (group->Kind != *expectedKind)
+    {
+        TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: group={} has kind={}, but profile={} expects kind={} - refusing to adopt",
+            groupId.Value, ToString(group->Kind), ToString(profileId), ToString(*expectedKind));
         return;
     }
 
