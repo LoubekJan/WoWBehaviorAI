@@ -1883,6 +1883,28 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             intent.Type == AgentGroupIntentType::None);
     }
 
+    // LOOSE, RegroupEnabled: materialized/alive member on a DIFFERENT map
+    // than the group's own territory (map 1, group is on map 0) past
+    // RegroupRadius -> never a trigger either, regardless of its recorded
+    // distance - the same "not the same map as the group's own territory"
+    // exclusion Rule 1 already applies before any distance check runs.
+    {
+        CoalitionMemberObservation differentMapMember;
+        differentMapMember.MemberId = AgentId{ 2 };
+        differentMapMember.Materialized = true;
+        differentMapMember.Alive = true;
+        differentMapMember.MapId = 1;
+        differentMapMember.X = 30.0f;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            differentMapMember
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        check("different-map member is never a REGROUP trigger",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
     // RegroupEnabled=false: proposes NONE even for an otherwise-textbook
     // dispersed member - a profile that has not opted into automatic
     // regrouping never gets one.
