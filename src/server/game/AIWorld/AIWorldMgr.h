@@ -410,6 +410,26 @@ class TC_GAME_API AIWorldMgr
         // AIWorld.TestGroupIntent).
         void RunGroupIntentSmokeTest() const;
 
+        // Milestone 2.12F2: manual proof of AgentGroupIntentProjector's own
+        // rules, entirely pure - a synthetic AgentGroupIntent/
+        // AgentGroupCoordinationProfile/CoalitionMemberObservation values
+        // built on the stack, fed straight to a stack-local
+        // AgentGroupIntentProjector::Project(), no registry/DB/AIWorldMgr
+        // member state touched at all (the same "pure layer first" scoping
+        // RunGroupIntentSmokeTest() itself already established for
+        // AgentGroupIntentSystem - this milestone deliberately adds no
+        // ActionSystem/orchestration wiring yet, see
+        // AgentGroupIntentProjector.h's own class comment). Exercises every
+        // rule AgentGroupIntentProjector.cpp implements: a materialized/
+        // alive/same-map member past RegroupRadius gets a proposal
+        // targeting the intent's own point; one well within it gets none;
+        // an unloaded or dead member never gets one regardless of its last
+        // known position; a different-map member never gets one either;
+        // and intent.Type == None produces no proposals for anyone,
+        // regardless of how dispersed the members are. Always runs when
+        // this method is called at all (see AIWorld.TestGroupIntentProjector).
+        void RunGroupIntentProjectorSmokeTest() const;
+
         // Milestone 2.12E4R (generalized from 2.12E4A's
         // CollectWolfCoalitionCandidates()): builds the value-only
         // candidate list CoalitionFormationSystem::Propose() needs - one

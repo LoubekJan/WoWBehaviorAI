@@ -17,6 +17,7 @@
 
 #include "AIWorldMgr.h"
 #include "Action/ArrivalTolerance.h"
+#include "Agent/AgentGroupIntentProjector.h"
 #include "Agent/AgentGroupIntentSystem.h"
 #include "Agent/AgentGroupRecord.h"
 #include "Agent/AgentGroupRuntimeView.h"
@@ -438,6 +439,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // test toggles are: sits next to them rather than off on its own.
     bool testGroupIntent = sConfigMgr->GetBoolDefault("AIWorld.TestGroupIntent", false);
 
+    // Milestone 2.12F2: off by default - see RunGroupIntentProjectorSmokeTest()'s
+    // own comment.
+    bool testGroupIntentProjector = sConfigMgr->GetBoolDefault("AIWorld.TestGroupIntentProjector", false);
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -758,6 +763,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // integration at all yet (2.12F1 deliberately adds none).
     if (testGroupIntent)
         RunGroupIntentSmokeTest();
+
+    // Milestone 2.12F2: manual proof only, gated behind
+    // AIWorld.TestGroupIntentProjector (default off) - see
+    // RunGroupIntentProjectorSmokeTest()'s own comment. Entirely pure, no
+    // ActionSystem/orchestration integration at all yet (this milestone's
+    // own pure-layer commit deliberately adds none).
+    if (testGroupIntentProjector)
+        RunGroupIntentProjectorSmokeTest();
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
@@ -1971,6 +1984,121 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
     }
 
     TC_LOG_INFO("ai.world", "AI group intent smoke test {}", allPassed ? "PASSED" : "FAILED");
+}
+
+// Milestone 2.12F2: entirely pure - every AgentGroupIntent/
+// AgentGroupCoordinationProfile/CoalitionMemberObservation here is a local
+// value, and agentGroupIntentProjector itself is a stack-local instance,
+// matching AgentGroupIntentProjector's own "pure value transform" contract
+// (see its class comment). Runs unconditionally whenever this method is
+// called at all (gated only by AIWorld.TestGroupIntentProjector at the
+// call site in Initialize()).
+void AIWorldMgr::RunGroupIntentProjectorSmokeTest() const
+{
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI group intent projector smoke test: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI group intent projector smoke test: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    AgentGroupIntentProjector agentGroupIntentProjector;
+
+    AgentGroupCoordinationProfile profile;
+    profile.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    profile.Kind = AgentGroupKind::Loose;
+    profile.RegroupEnabled = true;
+    profile.RegroupRadius = 20.0f;
+
+    AgentGroupIntent regroupIntent;
+    regroupIntent.Group = GroupId{ 1 };
+    regroupIntent.Type = AgentGroupIntentType::Regroup;
+    regroupIntent.MapId = 0;
+    regroupIntent.X = 0.0f;
+    regroupIntent.Y = 0.0f;
+    regroupIntent.Z = 0.0f;
+
+    auto makeObservation = [](AgentId id, bool materialized, bool alive, uint32 mapId, float x)
+    {
+        CoalitionMemberObservation observation;
+        observation.MemberId = id;
+        observation.Materialized = materialized;
+        observation.Alive = alive;
+        observation.MapId = mapId;
+        observation.X = x;
+        return observation;
+    };
+
+    // REGROUP intent: a materialized/alive/same-map member well past
+    // RegroupRadius gets a proposal targeting the intent's own point; one
+    // well within it gets none.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(regroupIntent, profile, members);
+        check("REGROUP proposes exactly one member (the 30yd one), targeting the intent's own point",
+            proposals.size() == 1 && proposals[0].Member == AgentId{ 2 } && proposals[0].SourceGroup == regroupIntent.Group &&
+            proposals[0].SourceIntent == AgentGroupIntentType::Regroup && proposals[0].MapId == regroupIntent.MapId &&
+            proposals[0].X == regroupIntent.X && proposals[0].Y == regroupIntent.Y && proposals[0].Z == regroupIntent.Z);
+    }
+
+    // REGROUP intent: unloaded member "last known" past RegroupRadius never
+    // gets a proposal, regardless of its stale recorded position.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 5.0f),
+            makeObservation(AgentId{ 2 }, false, false, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(regroupIntent, profile, members);
+        check("unloaded member never gets a proposal", proposals.empty());
+    }
+
+    // REGROUP intent: dead (Materialized but not Alive) member past
+    // RegroupRadius never gets a proposal either.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 5.0f),
+            makeObservation(AgentId{ 2 }, true, false, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(regroupIntent, profile, members);
+        check("dead member never gets a proposal", proposals.empty());
+    }
+
+    // REGROUP intent: a materialized/alive member on a DIFFERENT map than
+    // the intent's own point never gets a proposal either, regardless of
+    // its recorded distance.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 1, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(regroupIntent, profile, members);
+        check("different-map member never gets a proposal", proposals.empty());
+    }
+
+    // intent.Type == None produces no proposals for anyone, regardless of
+    // how dispersed the members are.
+    {
+        AgentGroupIntent noneIntent;
+        noneIntent.Group = GroupId{ 1 };
+        noneIntent.Type = AgentGroupIntentType::None;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(noneIntent, profile, members);
+        check("intent.Type == None produces no proposals", proposals.empty());
+    }
+
+    TC_LOG_INFO("ai.world", "AI group intent projector smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const

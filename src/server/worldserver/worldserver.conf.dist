@@ -3669,6 +3669,20 @@ AIWorld.TestCoalitionMaintenance = 0
 AIWorld.TestGroupIntent = 0
 
 #
+#    AIWorld.TestGroupIntentProjector
+#        Description: Milestone 2.12F2 - when true, runs a one-shot manual proof at startup of
+#                     AgentGroupIntentProjector's own rules (see
+#                     AIWorldMgr::RunGroupIntentProjectorSmokeTest()). Entirely pure - synthetic
+#                     AgentGroupIntent/AgentGroupCoordinationProfile/CoalitionMemberObservation
+#                     values built on the stack, no registry/DB touched at all, no
+#                     ActionSystem/orchestration integration yet (this milestone's own pure-layer
+#                     commit adds none). Off by default - this is a manual verification aid, not
+#                     a feature.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestGroupIntentProjector = 0
+
+#
 #    AIWorld.WolfGroupAutoFormation
 #        Description: Milestone 2.12E4A/2.12E4B (pipeline generalized in 2.12E4R) - when true,
 #                     AIWorldMgr periodically scans currently observable agents and, once
