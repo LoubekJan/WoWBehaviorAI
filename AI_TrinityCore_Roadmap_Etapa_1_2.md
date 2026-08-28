@@ -2,12 +2,12 @@
 
 > **Výchozí stav:** TrinityCore `3.3.5` + Ubuntu Server + NVIDIA GPU  
 > **Rozsah dokumentu:** Etapy 1–3 + výhled Etapy 4  
-> **Aktualizováno:** 2026-08-26  
+> **Aktualizováno:** 2026-08-29  
 > **Aktivní větev:** `ai-world`
 
 ## Stav projektu
 
-**Etapa 1 má splněný runtime gate. Etapa 2 je aktivně rozpracovaná. 2.10 Scheduler/tier foundation je CLOSED/PASS, 2.11 persistentní farmář je CLOSED/PASS a 2.12 dosáhla přes oddělenou group identity až k runtime-ověřenému `AgentGroup` lifecycle `CreateGroup / JoinGroup / LeaveGroup / DissolveGroup` (2.12E1 CLOSED/PASS).**
+**Etapa 1 má splněný runtime gate. Etapa 2 je aktivně rozpracovaná. 2.10 Scheduler/tier foundation je CLOSED/PASS, 2.11 persistentní farmář je CLOSED/PASS a 2.12 pokročila od runtime-ověřeného `AgentGroup` lifecycle (2.12E1 CLOSED/PASS) přes async-safe lifecycle, `Loose`/`Stable` membership policy a deterministickou automatickou wolf coalition formation/maintenance (2.12E2–2.12E4C2 CLOSED) až ke generickému, profile-agnostic group coordination pipeline: sdílený `REGROUP` group intent (2.12F1 CLOSED) a jeho rozklad na individuální `ActionRequest` přes `ActionSystem` (2.12F2 CLOSED) — první staticky prověřené, viditelné group chování ve hře. 2.12F3 přidal one-shot runtime-proof test hook pro dissolve-during-active-REGROUP race; poslední kolo static review je opravené, ale finální potvrzení review a `make build`/runtime evidence pro celý 2.12E2–2.12F3 řetězec zatím chybí.**
 
 Na reálném Ubuntu/GPU hostu bylo ověřeno:
 
@@ -40,8 +40,13 @@ Etapa 2 má runtime ověřený foundation řetězec od persistentní identity p�
 - `AgentGroup` social domain oddělený od `AgentRecord`: vlastní `GroupId`, registry, persistence, membership a coarse group simulation.
 - runtime group lifecycle: create/join/leave/dissolve nad existujícími individuálními agenty bez fake SpawnId a bez 1:1 vazby group→Creature.
 - persistentní monotónní `GroupId` high-water sequence s fail-closed validací proti fyzickému `MAX(group_id)`.
+- async-safe `AgentGroupLifecycleSystem` lifecycle boundary: žádný synchronní DB round-trip z per-tick/per-decision cesty, per-`GroupId` pending-operation serializace proti překrývajícím se Join/Leave/Dissolve.
+- `Loose`/`Stable` membership policy (`AgentGroupPolicySystem`) gatuje CreateGroup/JoinGroup/LeaveGroup/DissolveGroup podle `AgentGroupOperationSource` (Manual vs. AutomaticPolicy); `Stable` group je vždy chráněná proti automatické dissolve/leave.
+- deterministická automatická wolf coalition formation (`CoalitionFormationSystem`) a coalition maintenance (`CoalitionMaintenanceSystem`) nad generickým, profile-driven `CoalitionFormationProfile`/`CoalitionMaintenanceProfile` — vlk je jeden konkrétní profil, ne architektonický střed systému.
+- generický, profile-agnostic group coordination pipeline: `AgentGroup → observations → group-level intent (AgentGroupIntentSystem) → per-member decomposition (AgentGroupIntentProjector) → individuální ActionRequest → ActionSystem → TrinityCore`, s `GoalType::Regroup` jako nejnižší prioritní MOVE_TO tier a plnou dispatch-time revalidací.
+- one-shot runtime-proof test hook pro dissolve-during-active-REGROUP race (`AIWorld.TestDissolveOnActiveRegroupGroupId`).
 
-**Aktuální NEXT:** před automatickým vznikem/rozpadem LOOSE coalitions odstranit synchronní DB round-trip z runtime lifecycle cesty. Současné 2.12E1 CRUD je přijatelné pro startup/admin/manual test, ale nesmí být beze změny použito z per-tick/per-decision policy. Potom přidat `Loose/Stable` membership policy a teprve následně automatickou formation/dissolution logiku vlků.
+**Aktuální NEXT:** 2.12E2–2.12F3 (async-safe lifecycle → `Loose`/`Stable` policy → automatická formation/maintenance → sdílený `REGROUP` intent → intent→movement dispatch → runtime-proof hook) je implementačně a staticky uzavřené, ale zatím nemá `make build`/runtime evidence — to je bezprostřední krok. Poté následuje **2.12G**: další skutečné, viditelné group chování (roaming / hunting / coordinated combat) nad stejným generickým intent pipeline, ne nový wolf-specific orchestration path. Leadership/role vrstva se přidá teprve tehdy, pokud ji skutečné chování z 2.12G opravdu vyžádá — ne dopředu.
 
 Zbývající položky Etapy 1 jsou **hardening / developer tooling**, nikoli gate pro pokračování AI vrstvy.
 
@@ -130,7 +135,7 @@ Základní invariants:
 | Etapa | Stav | Hlavní cíl | Gate pro pokračování |
 |---|---|---|---|
 | **1 — Development Infrastructure** | ✅ **GATE SPLNĚN** | Reprodukovatelný Docker development stack | build → DB/TDB → worldserver → vzdálený WoW klient → restart/persistence |
-| **2 — AI World Foundation** | 🟡 **IN PROGRESS — 2.12E1 CLOSED, next async-safe dynamic group lifecycle** | Vyřešit a runtime ověřit technologické stavební bloky pro persistentní živý AI svět: agenti, události, paměť, cíle, Action API, async AI/LLM bridge, scheduler, coalition model a dynamickou interakci s hráčem | world problem → NPC context → local LLM → validated player task → player action → WORLD STATE |
+| **2 — AI World Foundation** | 🟡 **IN PROGRESS — 2.12F1/2.12F2 CLOSED (generic REGROUP coordination), 2.12F3 test hook implementováno, čeká na build/runtime evidence** | Vyřešit a runtime ověřit technologické stavební bloky pro persistentní živý AI svět: agenti, události, paměť, cíle, Action API, async AI/LLM bridge, scheduler, coalition model a dynamickou interakci s hráčem | world problem → NPC context → local LLM → validated player task → player action → WORLD STATE |
 | **3 — Elwynn Forest World Preparation** | ⚪ **PLANNED** | Připravit jednu konkrétní lokaci jako správně popsaný a opravený datový základ: všechny NPC/spawny, sémantické lokace, frakce, coalition constraints a faction presence | každý relevantní spawn je evidovaný; lokace a frakce jsou explicitní; coalition membership respektuje faction invariant; DB změny jsou verzované a runtime ověřené |
 | **4 — Living World** | ⚪ **PLANNED** | Z připraveného Elwynn Forest a technologií Etapy 2 skládat komplexní persistentní svět: populace, zdroje, ekonomiku, vztahy, pohyb frakcí, konflikty a AI questy | dlouhodobě běžící oblast generuje kauzální problémy, interakce a změny bez ručně napsané questové posloupnosti |
 
@@ -644,33 +649,112 @@ Create GroupId 3 → Join 1,2,3 → Leave 3 → Dissolve 3 → PASS
 
 Tím je potvrzeno, že dissolved `GroupId` se po restartu nerecykluje a individual AgentIds zůstávají nedotčené.
 
-### Next gate před dynamickými coalitions
+### 2.12E2 — async-safe lifecycle persistence boundary
 
-Současný lifecycle CRUD používá synchronní DB round-trip (`CONNECTION_SYNCH`, read-back, transaction commit). Pro 2.12E1 startup/admin/manual lifecycle je to akceptováno, ale **je to blocker před automatickou per-tick/per-decision formation policy**.
+**Stav: CLOSED / STATIC PASS.**
 
-Před prvním automatickým join/leave/create/dissolve callerem:
+2.12E1 CRUD používal synchronní DB round-trip (`CONNECTION_SYNCH`, read-back, transaction commit) — přijatelné pro startup/admin/manual lifecycle, ale blocker před automatickou per-tick/per-decision formation policy. 2.12E2 tento blocker odstranila.
 
-- [ ] navrhnout non-blocking lifecycle command/persistence boundary;
-- [ ] DB operace nesmí blokovat world update thread;
-- [ ] async completion se musí aplikovat zpět na world threadu;
-- [ ] request musí nést GroupId/AgentId provenance a stale protection;
-- [ ] runtime registry se smí změnit až po potvrzeném persistence výsledku;
-- [ ] žádný live `Creature*`/`Map*` nesmí překročit async hranici.
+- [x] `AgentGroupLifecycleSystem` je jediný owner Create/Join/Leave/Dissolve, žádný synchronní DB round-trip z per-tick/per-decision cesty;
+- [x] `TransactionCallback`/`TransactionCallbackProcessor` — DB operace se odešle async a completion se aplikuje zpět na world threadu stejným "enqueue, poll every `Update()`" tvarem, jaký už používá zbytek AIWorld;
+- [x] per-`GroupId` pending-operation guard (`_pendingGroupOperations`) serializuje překrývající se Join/Leave/Dissolve požadavky na stejnou group a zavírá orphan-membership race (Dissolve confirmed po tom, co Join na stejnou group už submitoval INSERT);
+- [x] runtime registry (`AgentGroupRegistry`) se mění výhradně po potvrzeném persistence výsledku, nikdy optimisticky předem;
+- [x] žádný live `Creature*`/`Map*` nepřekračuje async hranici.
 
-Potom:
+### 2.12E3 — Loose/Stable membership policy
 
-- [ ] přidat skutečnou `Loose` vs `Stable` membership policy;
-- [ ] deterministic formation/dissolution rules pro loose wolf coalition;
-- [ ] shared group intent/goal pouze jako koordinace;
-- [ ] decompozice group intent na per-member `ActionRequest`;
-- [ ] individual emergency (`FLEE_DANGER`, death, invalid action) vždy může group intent preemptovat;
-- [ ] combat/movement členů vždy přes existující individual ActionSystem + TrinityCore.
+**Stav: CLOSED / STATIC PASS.**
 
-### Známé neblokující P3 po 2.12E1
+- [x] `AgentGroupPolicySystem` jako pure decision layer nad `AgentGroupOperationSource` (`Manual` vs. `AutomaticPolicy`);
+- [x] `CanJoin`/`CanLeave`/`ShouldDissolve` gatují lifecycle CRUD podle `Loose`/`Stable` kind a member count bounds (`LooseGroupMinMembers`/`LooseGroupMaxMembers`);
+- [x] `Stable` group je vždy chráněná proti automatické (`AutomaticPolicy`) dissolve/leave, `Manual` je vždy povolený;
+- [x] CRUD v `AgentGroupLifecycleSystem` přechází přes policy gate, nikdy přímo z automatického calleru.
+
+### 2.12E4 — automatická wolf coalition formation a maintenance
+
+**Stav: CLOSED / STATIC PASS.**
+
+Klíčový architektonický požadavek platný pro tuto i všechny další podčásti 2.12: **vlk je testovací případ profilu, nikdy architektonický střed systému.** Profil (`CoalitionFormationProfileId`) smí selektovat pouze policy DATA (radii, booleans, entry ids), nikdy vlastní orchestraci nebo vlastní pure-system subclass. Acceptance criterion: přidání druhého profilu nesmí vyžádat nový `RunX...()` orchestration path.
+
+- [x] `CoalitionFormationSystem`: deterministický seed/neighbor candidate selection nad generickým `CoalitionFormationProfile` — wolf je jeden konkrétní profil (2.12E4A/2.12E4B);
+- [x] `CoalitionMaintenanceSystem`: pure LeaveMember/DissolveGroup decision nad generickým `CoalitionMaintenanceProfile` (2.12E4C1);
+- [x] `AIWorldMgr::RunCoalitionMaintenance()`: bounded, cursor-based orchestrace nad `AgentGroupRegistry::GetGroupsAfterUntil()`, jeden globální scan s per-group profile resolution místo per-profile scanu, vlastní scan-cycle high-water mark proti starvation při rostoucí registry (2.12E4C2);
+- [x] `AgentGroupRecord::ProfileId` jako perzistentní, explicit-valued provenance — které automatické profily group vytvořily/spravují, odděleně od `AgentGroupKind`, fail-closed validovaná při každé mutaci;
+- [x] pipeline generalizován (2.12E4R) tak, aby přidání druhého profilu (`GuardPatrol`, `BanditGroup`, ...) nevyžadovalo nový `RunXFormation()`/`RunXMaintenance()` orchestration path;
+- [x] `AIWorld.TestDissolveGroupId` startup-only test hook pro čistý "fresh formation" regression scénář.
+
+Prošlo více koly STATIC review (cross-profile member reservation race, profile provenance validace, confirmed DB write pro profile adoption, bounded discovery, cross-profile shared-cursor starvation, scan-cycle high-water starvation) — nálezy uzavřené.
+
+### 2.12F1 — sdílený REGROUP group intent
+
+**Stav: CLOSED / STATIC PASS.**
+
+Pure, profile-agnostic vrstva: `AgentGroup → observations → AgentGroupIntent`. `AgentGroupIntentSystem` nezná žádný konkrétní profil (wolf, guard, bandit) — pouze generický `AgentGroupCoordinationProfile` (`RegroupEnabled`/`RegroupRadius`).
+
+- [x] `AgentGroupIntentType` / `AgentGroupIntent` / `AgentGroupCoordinationProfile` / `AgentGroupIntentSystem`;
+- [x] fail-closed profil/Kind/ProfileId validace stejná jako u maintenance;
+- [x] group intent nikdy sám nepohybuje ničím — pouze deklaruje, že group něco chce.
+
+### 2.12F2 — group intent → per-member ActionSystem dispatch
+
+**Stav: CLOSED / STATIC PASS. První staticky prověřené viditelné group chování ve hře.**
+
+```text
+AgentGroupIntent(REGROUP)
+        ↓
+AgentGroupIntentProjector (pure, per-member decomposition)
+        ↓
+GroupMemberActionProposal
+        ↓
+revalidace GroupId + membership + AgentId
+        ↓
+individuální ActionRequest (SourceGoal = GoalType::Regroup)
+        ↓
+ActionSystem::Validate / ActionExecutor
+        ↓
+TrinityCore movement
+```
+
+- [x] `AgentGroupIntentProjector`: pure per-member decomposition, žádný TC pointer, žádná re-derivace fail-closed checks už provedených v `AgentGroupIntentSystem`;
+- [x] `GoalType::Regroup` jako třetí, nejnižší MOVE_TO priority tier (Emergency ActiveGoal > Normal ActiveGoal > RoutineGoal > Regroup);
+- [x] `AIWorldMgr::RunCoalitionCoordination()`: bounded discovery (vlastní cursor, nesdílený s maintenance), per-group profile resolution;
+- [x] `AIWorldMgr::DispatchGroupMemberActionProposal()`: plná revalidace member/group/membership/materialization/higher-priority-goal před každým MOVE_TO;
+- [x] cross-group membership overlap arbitration (`AgentGroupRegistry::GetGroupsOfMember()`, generický reverse membership index v registry, ne per-proposal O(all groups) scan) — člen ve více RegroupEnabled groups nedostane žádný dispatch, dokud ambiguity trvá;
+- [x] confirmed Leave/Dissolve zastaví právě běžící Regroup (`StopGroupCoordinationForMember`/`StopInFlightGroupCoordination`), confirmed Join řeší nově vzniklou ambiguity (`ReconcileGroupCoordinationForMember`);
+- [x] explicitní "unreachable coordination member" semantics — Formation/Leave radius zůstává nezávislý na ActionSystem execution limitu, ten hlídá pouze dispatch-time reachability check;
+- [x] žádné `RunWolfRegroup()`, žádný přímý `MovePoint()` z group vrstvy, žádná group-level world mutation.
+
+Prošlo šesti koly STATIC review (lifecycle/pending-operation race, cross-group arbitration batch-scoping, ActionSystem↔formation-policy coupling regrese, recurring full-registry scan, confirmed-Join ambiguity, log diagnostics) — nálezy P1/P2 uzavřené.
+
+### 2.12F3 — runtime-proof test hook
+
+**Stav: implementováno, poslední kolo static review (4× P3) opraveno. Finální potvrzení review a `make build`/runtime evidence zatím chybí.**
+
+`AIWorld.TestDissolveGroupId` je startup-only hook a nemůže dokázat dissolve-during-active-REGROUP race — spouští se dřív, než `Update()` vůbec jednou zavolá `RunCoalitionCoordination()`.
+
+- [x] `AIWorld.TestDissolveOnActiveRegroupGroupId`: one-shot hook, čeká na skutečně běžící REGROUP přes plnou ownership provenance (`ActiveActionState.Type == MoveTo`, `SourceGoal == Regroup`, `GroupCoordinationGoalState` matching group i attempt timestamp, materialized live Creature, `HasOwnMoveToGenerator() == true`), pak vyžádá Manual dissolve přes existující `RequestDissolveGroupWithPolicy()`;
+- [x] žádný direct registry mutation, žádný raw `StopMoveTo()` z hooku, žádné přímé SQL — dissolve i stop jdou přes stejnou produkční cestu jako skutečný dissolve-while-regrouping;
+- [x] check vázaný na `RunCoalitionCoordination()` cadence, ne na každý world tick;
+- [x] fail-closed config parsing (negativní hodnota odmítnuta před castem) + existence validace configured `GroupId` po startup loadu;
+- [x] completion log říká `CONFIRMED` (dissolve committed), ne `PASSED` — nepředstírá důkaz, který sám neposkytuje.
+- [ ] `make build` + skutečné runtime spuštění na Ubuntu/GPU hostu: `REGROUP STARTED → dissolve requested → lifecycle confirmed → REGROUP stopped → restart → group se nevrátí`.
+
+### Next: 2.12G — další skutečné group chování
+
+Pipeline `AgentGroup → intent → per-member ActionRequest → ActionSystem → TrinityCore` z 2.12F1/F2 je hotová a generická. 2.12G ji použije pro další skutečné, viditelné chování — ne pro nový architektonický koncept:
+
+- [ ] `make build` + runtime evidence pro celý 2.12E2–2.12F3 řetězec (bezprostřední krok před 2.12G);
+- [ ] roaming: group intent pro klidový pohyb po territory bez trigger eventu;
+- [ ] hunting: group intent reagující na resource/prey perception;
+- [ ] coordinated combat: group intent při shared threat, stále přes individuální `ActionRequest`/`ActionSystem`, nikdy group-level attack;
+- [ ] druhý, záměrně NE-wolf profil (např. `GuardPatrol` nebo `BanditGroup`) jako důkaz, že přidání nového group typu nevyžaduje nový `RunX...()` orchestration path.
+
+Leadership/role vrstva (leader agent, role assignment) se přidá **teprve tehdy, pokud ji chování z 2.12G skutečně vyžádá** — není to prerekvizita pro roaming/hunting/coordinated combat a nesmí se implementovat dopředu bez konkrétní potřeby.
+
+### Známé neblokující P3 po 2.12E1–2.12F3
 
 - [ ] guard proti `uint64` overflow při `_nextGroupId + 1`;
 - [ ] failed smoke-test path má udělat best-effort cleanup částečně vytvořené test group;
-- [ ] při dissolve explicitně odstranit stale `_groupSimulationSchedule[GroupId]` entry;
 - [ ] historická dev-specific/destructive migration cesta před produkčním schema upgrade hardeningem.
 
 ## 2.13 LLM dynamic quest / player interaction vertical slice
@@ -866,9 +950,10 @@ validated TrinityCore action
 - [x] oddělená AgentGroup identity/membership persistence;
 - [x] bounded GroupId-keyed coarse group scheduling;
 - [x] manual/admin AgentGroup create/join/leave/dissolve lifecycle + restart/non-reuse;
-- [ ] async-safe dynamic AgentGroup lifecycle persistence;
-- [ ] Loose/Stable policy + automatic coalition formation/dissolution;
-- [ ] shared group intent → per-member validated actions;
+- [x] async-safe dynamic AgentGroup lifecycle persistence (2.12E2, static PASS);
+- [x] Loose/Stable policy + automatic coalition formation/maintenance (2.12E3/2.12E4, static PASS);
+- [x] shared group intent → per-member validated actions (2.12F1/2.12F2, static PASS) — build/runtime evidence ještě chybí;
+- [ ] 2.12G: roaming/hunting/coordinated combat nad generickou intent pipeline;
 - [ ] skutečný lokální LLM inference request funguje přes async `ai-server` boundary;
 - [ ] structured `QuestProposal` + authoritative server validation;
 - [ ] player-facing dynamic task lifecycle offer/accept/progress/complete/fail/expire;
@@ -921,33 +1006,37 @@ validated TrinityCore action
 34. [x] group membership + natural materialization presence runtime evidence
 35. [x] 2.12E1 Create/Join/Leave/Dissolve + confirmed persistence
 36. [x] persistent monotonic GroupId sequence + restart/non-reuse runtime gate
+37. [x] 2.12E2 async-safe AgentGroup lifecycle persistence boundary
+38. [x] 2.12E3 Loose/Stable membership policy + policy-gated lifecycle CRUD
+39. [x] 2.12E4 deterministická automatická wolf coalition formation + maintenance (generický profile-driven pipeline)
+40. [x] 2.12F1 sdílený, profile-agnostic REGROUP group intent
+41. [x] 2.12F2 group intent → per-member ActionRequest → ActionSystem dispatch (první staticky prověřené viditelné group chování)
+42. [x] 2.12F3 runtime-proof test hook (`AIWorld.TestDissolveOnActiveRegroupGroupId`), poslední static review kolo opravené
 
 ## Teď
 
-37. [ ] **Async-safe AgentGroup lifecycle persistence boundary před automatickou policy**
-38. [ ] **malý 2.12E1 hardening: overflow / smoke cleanup / schedule cleanup**
+43. [ ] **`make build` + runtime evidence pro celý 2.12E2–2.12F3 řetězec** — dosud jen static review, žádný build/runtime test
+44. [ ] **2.12G: roaming / hunting / coordinated combat nad existující generickou intent pipeline**
 
 ## Následuje — uzavření Etapy 2
 
-39. [ ] `Loose` vs `Stable` membership policy
-40. [ ] deterministic automatic wolf coalition formation/dissolution
-41. [ ] shared group intent → per-member goal/action decomposition
-42. [ ] 2.13A skutečný local-LLM inference path přes `ai-server`
-43. [ ] 2.13B structured `QuestProposal` + authoritative validation
-44. [ ] 2.13C player-facing dynamic task lifecycle
-45. [ ] 2.13D `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate
-46. [ ] 2.14 Wolf coalition → livestock → farmer memory → protect/request help
+45. [ ] leadership/role vrstva, pouze pokud ji chování z 2.12G skutečně vyžádá
+46. [ ] 2.13A skutečný local-LLM inference path přes `ai-server`
+47. [ ] 2.13B structured `QuestProposal` + authoritative validation
+48. [ ] 2.13C player-facing dynamic task lifecycle
+49. [ ] 2.13D `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate
+50. [ ] 2.14 Wolf coalition → livestock → farmer memory → protect/request help
 
 ## Po uzavření Etapy 2 — Etapa 3
 
-47. [ ] exportovat a verzovat kompletní Elwynn Forest NPC/creature spawn census
-48. [ ] klasifikovat každý relevantní spawn: role, AI participation, Home/Work/roam a semantic location
-49. [ ] vytvořit sémantickou mapu lokalit, sublokalit, cest a resource/danger/faction anchorů
-50. [ ] auditovat a opravit Elwynn faction/faction-template a zavést explicitní AI `WorldFactionId`
-51. [ ] vynutit invariant `AgentGroup coalition ⊂ jedna WorldFactionId`
-52. [ ] připravit faction presence/holdings a kontrolovaný přesun stejné frakce mezi semantic locations
-53. [ ] verzovat world DB/spawn/faction/pathing opravy a vytvořit before/after audit
-54. [ ] uzavřít Etapu 3 runtime + data-quality gate před spuštěním komplexního světa
+51. [ ] exportovat a verzovat kompletní Elwynn Forest NPC/creature spawn census
+52. [ ] klasifikovat každý relevantní spawn: role, AI participation, Home/Work/roam a semantic location
+53. [ ] vytvořit sémantickou mapu lokalit, sublokalit, cest a resource/danger/faction anchorů
+54. [ ] auditovat a opravit Elwynn faction/faction-template a zavést explicitní AI `WorldFactionId`
+55. [ ] vynutit invariant `AgentGroup coalition ⊂ jedna WorldFactionId`
+56. [ ] připravit faction presence/holdings a kontrolovaný přesun stejné frakce mezi semantic locations
+57. [ ] verzovat world DB/spawn/faction/pathing opravy a vytvořit before/after audit
+58. [ ] uzavřít Etapu 3 runtime + data-quality gate před spuštěním komplexního světa
 
 ## Paralelní hardening
 
