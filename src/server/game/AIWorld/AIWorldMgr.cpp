@@ -2778,6 +2778,16 @@ uint32 AIWorldMgr::CountRegroupEnabledMemberships(AgentId member) const
 
 void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* reason)
 {
+    // 2.12F2 P3 fix (STATIC review): captured before the reset below, not
+    // after - the old (pre-refactor) StopGroupCoordinationForMember() body
+    // logged this same GroupId; folding both callers into this shared
+    // helper silently dropped it from the stop log. Runtime
+    // identity/ownership was never affected (GroupCoordinationGoalState
+    // still gets cleared the same way either order), but this GroupId is
+    // exactly the provenance an operator needs when reading a lifecycle/
+    // ambiguity stop line - which group did this attempt belong to.
+    GroupId sourceGroup = record.GroupCoordinationGoalState ? record.GroupCoordinationGoalState->SourceGroup : GroupId{};
+
     record.GroupCoordinationGoalState.reset();
 
     // Defensive - by the ownership invariant DispatchGroupMemberActionProposal()
@@ -2800,8 +2810,8 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
         {
             _actionExecutor.StopMoveTo(*creature);
 
-            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={} sourceGoal={}",
-                record.Id.Value, ToString(ActionType::MoveTo), reason, ToString(record.ActiveActionState->SourceGoal));
+            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={} sourceGoal={} sourceGroup={}",
+                record.Id.Value, ToString(ActionType::MoveTo), reason, ToString(record.ActiveActionState->SourceGoal), sourceGroup.Value);
         }
     }
 

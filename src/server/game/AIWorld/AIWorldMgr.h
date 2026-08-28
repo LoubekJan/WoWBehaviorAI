@@ -960,15 +960,21 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): the shared
         // mechanics both StopGroupCoordinationForMember() and
-        // ReconcileGroupCoordinationForMember() need - unconditionally
-        // clears record.GroupCoordinationGoalState, then, only if
-        // record.ActiveActionState is actually the matching in-flight
-        // Regroup (never assumed - see this method's own body comment for
-        // why), stops the underlying engine movement (if a live Creature
-        // still resolves) and clears ActiveActionState too. reason is a
-        // literal describing WHY this particular caller stopped it, logged
-        // alongside the stop for diagnosability - callers never share one
-        // one generic reason string.
+        // ReconcileGroupCoordinationForMember() need - captures
+        // record.GroupCoordinationGoalState's own SourceGroup (2.12F2 P3
+        // fix, round 3, STATIC review - folding both former callers' own
+        // separate bodies into this one shared helper had silently dropped
+        // this GroupId from the stop log; captured here, before the reset
+        // below, since there is nowhere left to read it from afterward),
+        // then unconditionally clears record.GroupCoordinationGoalState.
+        // Only if record.ActiveActionState is actually the matching
+        // in-flight Regroup (never assumed - see this method's own body
+        // comment for why) does it go on to stop the underlying engine
+        // movement (if a live Creature still resolves), logging that
+        // captured SourceGroup alongside it, and clear ActiveActionState
+        // too. reason is a literal describing WHY this particular caller
+        // stopped it, logged the same way - callers never share one
+        // generic reason string.
         void StopInFlightGroupCoordination(AgentRecord& record, char const* reason);
 
         // Milestone 2.12F2 P2 fix (STATIC review): the one place an
