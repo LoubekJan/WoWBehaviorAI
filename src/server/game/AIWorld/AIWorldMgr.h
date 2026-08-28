@@ -224,26 +224,47 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.12F3 test hook: the runtime-proof counterpart to
         // RunTestDissolveGroup() - gated behind
-        // AIWorld.TestDissolveOnActiveRegroupGroupId (default 0 = disabled)
-        // and _testDissolveOnActiveRegroupFired, called from Update() every
-        // tick rather than once from Initialize(), since (unlike
+        // AIWorld.TestDissolveOnActiveRegroupGroupId (default 0 = disabled,
+        // also set true - "already fired" - at Initialize() if the
+        // configured GroupId does not resolve, see Initialize()'s own
+        // comment) and _testDissolveOnActiveRegroupFired, called from
+        // Update() only right after a RunCoalitionCoordination() pass
+        // actually runs (2.12F3 P3 fix, round 2, STATIC review - not every
+        // tick the way an earlier version did; a Regroup is only ever
+        // freshly dispatched from inside that same pass, so there is
+        // nothing new to find in between two passes), since (unlike
         // RunTestDissolveGroup()'s own leftover-group cleanup) this hook
         // has to WAIT for a runtime condition that cannot exist yet at
         // Initialize() time: some member of the configured group actually
-        // mid-REGROUP (AgentRecord::ActiveActionState naming
-        // GoalType::Regroup AND AgentRecord::GroupCoordinationGoalState
-        // naming this exact group). Once observed, requests a Manual
-        // dissolve through RequestDissolveGroupWithPolicy() - the same
-        // entry point RunTestDissolveGroup() itself uses, never
-        // AgentGroupRegistry::Remove(), never a raw StopMoveTo() called
-        // directly from this hook, never a raw DB DELETE - so this proves
-        // AIWorldMgr::RequestDissolveGroup()'s own StopGroupCoordinationForMember()
+        // mid-REGROUP, proven by the full ownership provenance tuple
+        // (2.12F3 P3 fix, round 2, STATIC review - not just
+        // ActiveActionState::SourceGoal/GroupCoordinationGoalState::SourceGroup
+        // alone, which does not by itself prove a MOVE_TO is really
+        // running): ActiveActionState::Type == MoveTo,
+        // ActiveActionState::SourceGoal == Regroup,
+        // GroupCoordinationGoalState::Type == Regroup,
+        // GroupCoordinationGoalState::SourceGroup naming this exact group,
+        // the two attempts' own StartedAtMs/GoalStartedAtMs identity
+        // matching, the member Materialized with a live, transiently-
+        // resolved Creature, and HasOwnMoveToGenerator() actually true on
+        // it - see this method's own definition for the full reasoning.
+        // Once observed, requests a Manual dissolve through
+        // RequestDissolveGroupWithPolicy() - the same entry point
+        // RunTestDissolveGroup() itself uses, never AgentGroupRegistry::
+        // Remove(), never a raw StopMoveTo() called directly from this
+        // hook, never a raw DB DELETE - so this proves AIWorldMgr::
+        // RequestDissolveGroup()'s own StopGroupCoordinationForMember()
         // call (2.12F2 P2 fix, STATIC review) actually stops a real
         // in-flight Regroup end to end, through the exact same production
         // path a real dissolve-while-regrouping would take. Sets
         // _testDissolveOnActiveRegroupFired BEFORE submitting the dissolve
         // request, unconditionally - fires at most once ever, the same
-        // guarantee every other AIWorld.Test* hook in this file gives.
+        // guarantee every other AIWorld.Test* hook in this file gives. Its
+        // own completion logs CONFIRMED, not PASSED (2.12F3 P3 fix, STATIC
+        // review) - a successful dissolve alone does not prove it actually
+        // stopped a still-running REGROUP, only that the dissolve itself
+        // committed; the triggering member's REGROUP could naturally have
+        // already ended on its own before the async dissolve confirmed.
         void CheckTestDissolveOnActiveRegroup();
 
         // Milestone 2.12E4C2 P2 fix (STATIC review): one-shot, gated
@@ -1554,21 +1575,32 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.12F3 test hook: AIWorld.TestDissolveOnActiveRegroupGroupId
         // - see CheckTestDissolveOnActiveRegroup()'s own comment. GroupId{}
-        // (0) means disabled, reloaded fresh every Initialize(). Unlike
+        // (0) means disabled, reloaded fresh every Initialize() (parsed
+        // fail-closed there against a negative config value - 2.12F3 P3
+        // fix, STATIC review - before ever being stored here). Unlike
         // _coordinationScanCursor/_coordinationScanCycleHighWater above,
         // this is not scan state - it is simply which single group (if
         // any) this test hook is watching.
         GroupId _testDissolveOnActiveRegroupGroupId;
 
-        // Milestone 2.12F3 test hook: set once CheckTestDissolveOnActiveRegroup()
-        // has submitted its one and only dissolve request, so it never
+        // Milestone 2.12F3 test hook: doubles as this hook's own enabled/
+        // disabled latch, not only "already fired successfully" - besides
+        // being set once CheckTestDissolveOnActiveRegroup() has submitted
+        // its one and only dissolve request, Initialize() itself also sets
+        // this true up front (2.12F3 P3 fix, STATIC review) if
+        // _testDissolveOnActiveRegroupGroupId does not resolve in
+        // _groupRegistry right after LoadGroups()/LoadGroupMembers() - a
+        // configured GroupId that will never exist this process's
+        // lifetime must disable the hook outright, not leave it silently
+        // polling forever once per coordination pass. Either way, never
         // fires a second time for the rest of this process's lifetime
         // (even if the group somehow still resolves and still has a
         // member mid-REGROUP for some other reason afterward) - the same
         // at-most-once guarantee _formationInFlight/_maintenanceInFlight
         // give their own in-flight work, just for a single test group
         // rather than a set of them since only one groupId is ever
-        // configured at a time. Reset to false every Initialize().
+        // configured at a time. Reset to false every Initialize(), before
+        // the existence check above can set it back to true.
         bool _testDissolveOnActiveRegroupFired = false;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()

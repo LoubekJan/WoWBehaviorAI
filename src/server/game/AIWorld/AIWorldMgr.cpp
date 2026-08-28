@@ -493,21 +493,6 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI group coordination configured enabled={} regroupEnabled={} regroupRadius={:.1f} interval={}ms scanMaxPerPass={}",
         _groupCoordinationEnabled, wolfGroupRegroupEnabled, wolfGroupRegroupRadius, _groupCoordinationIntervalMs, _groupCoordinationScanMaxPerPass);
 
-    // Milestone 2.12F3 test hook: an existing GroupId to Manually dissolve
-    // once its own REGROUP is actually observed in flight - see
-    // CheckTestDissolveOnActiveRegroup()'s own comment for why
-    // AIWorld.TestDissolveGroupId itself (a startup-only, Initialize()-time
-    // hook) cannot prove this: it fires before Update() has ever run
-    // RunCoalitionCoordination() even once, long before any REGROUP could
-    // possibly be in flight yet. Default 0 (unset) means disabled, the
-    // same 0-means-disabled convention AIWorld.TestDissolveGroupId/
-    // AIWorld.TestSpawnId/AIWorld.TestGroupMemberAgentId1-3 already use.
-    // _testDissolveOnActiveRegroupFired is reset here too (false, every
-    // Initialize()) so a runtime reload never leaves a stale fired latch
-    // from a previous run behind.
-    _testDissolveOnActiveRegroupGroupId = GroupId{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestDissolveOnActiveRegroupGroupId", 0)) };
-    _testDissolveOnActiveRegroupFired = false;
-
     // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
     // many DIFFERENT profiles' formations can be in flight at once - see
     // _coalitionFormationMaxInFlight's own declaration comment. 1 (the
@@ -828,6 +813,68 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     if (testDissolveGroupId)
         RunTestDissolveGroup(testDissolveGroupId);
 
+    // Milestone 2.12F3 test hook: an existing GroupId to Manually dissolve
+    // once its own REGROUP is actually observed in flight - see
+    // CheckTestDissolveOnActiveRegroup()'s own comment for why
+    // AIWorld.TestDissolveGroupId itself (a startup-only, Initialize()-time
+    // hook, immediately above) cannot prove this: it fires before Update()
+    // has ever run RunCoalitionCoordination() even once, long before any
+    // REGROUP could possibly be in flight yet. Read/validated here,
+    // deliberately after LoadGroups()/LoadGroupMembers() above (not
+    // alongside the rest of Initialize()'s own coordination config, which
+    // runs before groups are even loaded) so the existence check below has
+    // something to check against.
+    //
+    // Milestone 2.12F3 P3 fix (STATIC review): fail-closed parsing, not a
+    // bare cast - sConfigMgr->GetIntDefault() returns a signed int32, and
+    // GroupId::Value is unsigned (see GroupId.h); an earlier version cast
+    // straight through, so a negative/misconfigured value (e.g. -1) would
+    // silently become some enormous, never-real GroupId instead of being
+    // rejected, leaving the hook enabled but permanently unable to ever
+    // find what it is waiting for.
+    int32 testDissolveOnActiveRegroupGroupIdRaw = sConfigMgr->GetIntDefault("AIWorld.TestDissolveOnActiveRegroupGroupId", 0);
+    if (testDissolveOnActiveRegroupGroupIdRaw < 0)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestDissolveOnActiveRegroupGroupId ({}) is negative, which cannot name a real GroupId, disabling this test hook",
+            testDissolveOnActiveRegroupGroupIdRaw);
+        testDissolveOnActiveRegroupGroupIdRaw = 0;
+    }
+    _testDissolveOnActiveRegroupGroupId = GroupId{ uint64(testDissolveOnActiveRegroupGroupIdRaw) };
+
+    // _testDissolveOnActiveRegroupFired doubles as this hook's own enabled/
+    // disabled latch, not just "already fired successfully" - reset false
+    // here (every Initialize(), so a runtime reload never leaves a stale
+    // latch from a previous run behind), then immediately set true below
+    // if the configured GroupId does not resolve, so
+    // CheckTestDissolveOnActiveRegroup() never has to discover that for
+    // itself by polling forever.
+    _testDissolveOnActiveRegroupFired = false;
+
+    if (_testDissolveOnActiveRegroupGroupId)
+    {
+        // Milestone 2.12F3 P3 fix (STATIC review): validated once, right
+        // now, against the registry LoadGroups()/LoadGroupMembers() above
+        // just populated - a configured GroupId that does not exist would
+        // otherwise leave CheckTestDissolveOnActiveRegroup() silently
+        // polling it, once per coordination pass, forever. LoadGroups()
+        // never adds anything after this point in Initialize(), so "does
+        // not exist now" means "will never exist this process's lifetime"
+        // for this specific config value - disabling outright (the same
+        // fired=true latch a completed one-shot ends in) is correct, not
+        // merely a shortcut.
+        if (!_groupRegistry.Find(_testDissolveOnActiveRegroupGroupId))
+        {
+            TC_LOG_ERROR("ai.world", "AIWorld.TestDissolveOnActiveRegroupGroupId={} does not resolve to a registered group, disabling this test hook",
+                _testDissolveOnActiveRegroupGroupId.Value);
+            _testDissolveOnActiveRegroupFired = true;
+        }
+        else
+        {
+            TC_LOG_INFO("ai.world", "AI test dissolve-on-active-regroup: watching group={} for an active REGROUP (AIWorld.TestDissolveOnActiveRegroupGroupId)",
+                _testDissolveOnActiveRegroupGroupId.Value);
+        }
+    }
+
     // Milestone 2.12E4C2 P2 fix (STATIC review): runs right after the
     // dissolve hook above, for the same reason - a one-shot corrective
     // action that must run before AIWorld.WolfGroupAutoFormation's/
@@ -1029,18 +1076,51 @@ void AIWorldMgr::RunTestDissolveGroup(GroupId groupId)
         });
 }
 
-// Milestone 2.12F3 test hook: called from Update(), every tick, only while
+// Milestone 2.12F3 test hook: called from Update(), only right after a
+// RunCoalitionCoordination() pass actually runs (2.12F3 P3 fix, round 2,
+// STATIC review - an earlier version polled every single world tick
+// regardless; a Regroup can only ever be freshly DISPATCHED from inside
+// RunCoalitionCoordination() itself, via DispatchGroupMemberActionProposal(),
+// so there is nothing to find in between two passes that the previous
+// pass's own check did not already see - checking here ties this hook's
+// entire cost to the same AIWorld.GroupCoordinationIntervalMs cadence
+// RunCoalitionCoordination() already runs on, instead of every tick
+// forever for as long as the condition stays unmet), only while
 // AIWorld.TestDissolveOnActiveRegroupGroupId is set (non-zero) and has not
-// fired yet - the runtime-proof counterpart to RunTestDissolveGroup()'s own
+// fired yet. The runtime-proof counterpart to RunTestDissolveGroup()'s own
 // startup-only hook, which cannot exercise this specific race at all: it
 // runs from Initialize(), before Update() has ever called
 // RunCoalitionCoordination() even once, so no REGROUP could possibly be in
-// flight yet when it fires. This hook instead WAITS - polling
-// _testDissolveOnActiveRegroupGroupId's own Members every tick - until it
-// actually observes one of them mid-REGROUP (AgentRecord::ActiveActionState
-// naming GoalType::Regroup AND AgentRecord::GroupCoordinationGoalState
-// naming this exact group), then requests a Manual dissolve through the
-// same RequestDissolveGroupWithPolicy() entry point RunTestDissolveGroup()
+// flight yet when it fires.
+//
+// Milestone 2.12F3 P3 fix, round 2 (STATIC review): the trigger condition
+// is now the full provenance tuple, fail-closed, not just SourceGoal/
+// SourceGroup - an earlier version accepted ActiveActionState->SourceGoal
+// == Regroup + GroupCoordinationGoalState->SourceGroup == groupId alone,
+// which does not actually prove a Regroup MOVE_TO is really in flight:
+// ActiveActionState is deliberately allowed to sit briefly stale if an
+// engine event has not landed yet (see HasOwnMoveToGenerator()'s own
+// call site in UpdateNeeds(), which exists specifically to reconcile
+// that), and neither ActiveActionState::Type nor
+// GroupCoordinationGoalState::Type nor the two attempts' own
+// GoalStartedAtMs/StartedAtMs identity were checked at all - the same
+// three-part ownership proof ProcessActionEngineEvent()'s own
+// ownedByCurrentAttempt discrimination already requires for Regroup.
+// Now requires, in order: ActiveActionState::Type == MoveTo,
+// ActiveActionState::SourceGoal == Regroup, GroupCoordinationGoalState::Type
+// == Regroup, GroupCoordinationGoalState::SourceGroup == the configured
+// group, the two attempts' own identity matching
+// (GroupCoordinationGoalState::StartedAtMs == ActiveActionState::
+// GoalStartedAtMs), the member actually Materialized with a live,
+// transiently-resolved Creature (ResolveLiveCreature() - the same no-
+// force-load lookup every other AIWorld call site uses, never stored past
+// this call), and HasOwnMoveToGenerator() actually true on it - the
+// engine's own live confirmation that a MOVE_TO this AIWorld's own point
+// generator owns is really running right now, not merely that AgentRecord
+// bookkeeping still claims one.
+//
+// Once triggered, requests a Manual dissolve through the same
+// RequestDissolveGroupWithPolicy() entry point RunTestDissolveGroup()
 // itself already uses - never AgentGroupRegistry::Remove(), never a raw
 // StopMoveTo() called directly from this hook, never a raw DELETE against
 // ai_agent_groups/ai_agent_group_members. What stops the in-flight
@@ -1076,13 +1156,28 @@ void AIWorldMgr::CheckTestDissolveOnActiveRegroup()
         if (!record)
             continue;
 
-        if (record->ActiveActionState && record->ActiveActionState->SourceGoal == GoalType::Regroup
-            && record->GroupCoordinationGoalState && record->GroupCoordinationGoalState->SourceGroup == _testDissolveOnActiveRegroupGroupId)
-        {
-            anyMemberRegrouping = true;
-            regroupingMember = membership.Member;
-            break;
-        }
+        if (!record->ActiveActionState || record->ActiveActionState->Type != ActionType::MoveTo
+            || record->ActiveActionState->SourceGoal != GoalType::Regroup)
+            continue;
+
+        if (!record->GroupCoordinationGoalState || record->GroupCoordinationGoalState->Type != GoalType::Regroup
+            || record->GroupCoordinationGoalState->SourceGroup != _testDissolveOnActiveRegroupGroupId)
+            continue;
+
+        if (record->GroupCoordinationGoalState->StartedAtMs != record->ActiveActionState->GoalStartedAtMs)
+            continue;
+
+        if (record->WorldState != AgentWorldState::Materialized)
+            continue;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        Creature* creature = ResolveLiveCreature(*record, map);
+        if (!creature || !HasOwnMoveToGenerator(*creature))
+            continue;
+
+        anyMemberRegrouping = true;
+        regroupingMember = membership.Member;
+        break;
     }
 
     if (!anyMemberRegrouping)
@@ -1098,8 +1193,20 @@ void AIWorldMgr::CheckTestDissolveOnActiveRegroup()
     RequestDissolveGroupWithPolicy(groupId, AgentGroupOperationSource::Manual,
         [groupId](bool success)
         {
+            // Milestone 2.12F3 P3 fix (STATIC review): CONFIRMED, not
+            // PASSED - success alone only proves the dissolve itself
+            // committed, not that it actually stopped a still-running
+            // REGROUP. Between this dissolve being submitted and its own
+            // async confirmation, the triggering member's REGROUP could
+            // naturally have already arrived/completed/been preempted on
+            // its own, entirely independent of this dissolve - so this
+            // line must not claim more than success itself proves.
+            // Whether the dissolve actually stopped a live movement is a
+            // separate fact, visible in AIWorldMgr::StopInFlightGroupCoordination()'s
+            // own COORDINATION_STOPPED_BY_LIFECYCLE log line if and when
+            // it fires for this same member.
             if (success)
-                TC_LOG_INFO("ai.world", "AI test dissolve-on-active-regroup PASSED: group={} dissolved while REGROUP was active", groupId.Value);
+                TC_LOG_INFO("ai.world", "AI test dissolve-on-active-regroup CONFIRMED: group={} dissolved after active-REGROUP trigger", groupId.Value);
             else
                 TC_LOG_ERROR("ai.world", "AI test dissolve-on-active-regroup FAILED: group={} could not be dissolved", groupId.Value);
         });
@@ -3027,20 +3134,29 @@ void AIWorldMgr::Update(uint32 diff)
         {
             _groupCoordinationTimer = 0;
             RunCoalitionCoordination();
+
+            // Milestone 2.12F3 test hook, P3 fix round 2 (STATIC review):
+            // checked only right here, immediately after a
+            // RunCoalitionCoordination() pass actually ran - not on its
+            // own per-tick check the way an earlier version did. A
+            // Regroup is only ever freshly dispatched from inside
+            // RunCoalitionCoordination() itself (DispatchGroupMemberActionProposal()),
+            // so there is nothing new for this hook to observe in between
+            // two passes that the previous pass's own check did not
+            // already see - an earlier version's per-tick poll paid for a
+            // full scan of the configured group's own Members on every
+            // single world tick, unboundedly, for as long as the
+            // condition stayed unmet, with no relationship to how often
+            // the state it is checking could actually change. Tying this
+            // to the same cadence RunCoalitionCoordination() already runs
+            // on removes that unbounded per-tick cost entirely - gated on
+            // AIWorld.TestDissolveOnActiveRegroupGroupId being set AND not
+            // having fired yet, so it costs nothing at all once disabled
+            // or once fired.
+            if (_testDissolveOnActiveRegroupGroupId && !_testDissolveOnActiveRegroupFired)
+                CheckTestDissolveOnActiveRegroup();
         }
     }
-
-    // Milestone 2.12F3 test hook: entirely gated on
-    // AIWorld.TestDissolveOnActiveRegroupGroupId being set AND not having
-    // fired yet - see CheckTestDissolveOnActiveRegroup()'s own comment.
-    // Checked every tick rather than on its own timer/interval the way the
-    // recurring passes above are: it is scoped to one specific, small
-    // group's own Members (bounded, cheap), off by default, and a one-shot
-    // test hook has no reason to add polling latency on top of whatever
-    // AIWorld.GroupCoordinationIntervalMs itself already takes to first
-    // start the REGROUP this hook is waiting to observe.
-    if (_testDissolveOnActiveRegroupGroupId && !_testDissolveOnActiveRegroupFired)
-        CheckTestDissolveOnActiveRegroup();
 
     _nearbyPerceptionTimer += diff;
     if (_nearbyPerceptionTimer >= _nearbyPerceptionIntervalMs)
