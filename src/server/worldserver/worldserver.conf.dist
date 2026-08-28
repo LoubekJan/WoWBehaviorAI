@@ -3598,6 +3598,30 @@ AIWorld.TestGroupMemberAgentId3 = 0
 AIWorld.TestDissolveGroupId = 0
 
 #
+#    AIWorld.TestDissolveOnActiveRegroupGroupId
+#        Description: Milestone 2.12F3 test hook - the runtime-proof counterpart to
+#                     AIWorld.TestDissolveGroupId, which cannot exercise this specific race at all
+#                     (it fires at startup, before Update() has ever run coordination even once, so
+#                     no REGROUP could possibly be in flight yet). When set to an existing GroupId,
+#                     waits (checked every world tick, via AIWorldMgr::CheckTestDissolveOnActiveRegroup())
+#                     until one of that group's own members is actually observed mid-REGROUP
+#                     (AgentRecord::ActiveActionState naming GoalType::Regroup AND
+#                     AgentRecord::GroupCoordinationGoalState naming this same group), then requests
+#                     a Manual dissolve through the exact same RequestDissolveGroupWithPolicy(...,
+#                     Manual) path AIWorld.TestDissolveGroupId's own hook already uses - never a
+#                     direct AgentGroupRegistry mutation, never a raw StopMoveTo() called from the
+#                     hook itself, never a DB DELETE. Proves AIWorldMgr::RequestDissolveGroup()'s own
+#                     StopGroupCoordinationForMember() call actually stops a real in-flight Regroup
+#                     end to end, through the same production path a real dissolve-while-regrouping
+#                     would take. Fires at most once ever, regardless of outcome. Requires
+#                     AIWorld.GroupCoordination = 1 (and the target group's own profile RegroupEnabled)
+#                     to ever observe the condition it waits for. Set back to 0 after the one run it
+#                     was needed for.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestDissolveOnActiveRegroupGroupId = 0
+
+#
 #    AIWorld.AdoptGroupId
 #    AIWorld.AdoptGroupProfileId
 #        Description: Milestone 2.12E4C2 P2 fix (STATIC review) - the controlled legacy-

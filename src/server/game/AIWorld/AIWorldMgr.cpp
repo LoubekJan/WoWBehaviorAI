@@ -493,6 +493,21 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI group coordination configured enabled={} regroupEnabled={} regroupRadius={:.1f} interval={}ms scanMaxPerPass={}",
         _groupCoordinationEnabled, wolfGroupRegroupEnabled, wolfGroupRegroupRadius, _groupCoordinationIntervalMs, _groupCoordinationScanMaxPerPass);
 
+    // Milestone 2.12F3 test hook: an existing GroupId to Manually dissolve
+    // once its own REGROUP is actually observed in flight - see
+    // CheckTestDissolveOnActiveRegroup()'s own comment for why
+    // AIWorld.TestDissolveGroupId itself (a startup-only, Initialize()-time
+    // hook) cannot prove this: it fires before Update() has ever run
+    // RunCoalitionCoordination() even once, long before any REGROUP could
+    // possibly be in flight yet. Default 0 (unset) means disabled, the
+    // same 0-means-disabled convention AIWorld.TestDissolveGroupId/
+    // AIWorld.TestSpawnId/AIWorld.TestGroupMemberAgentId1-3 already use.
+    // _testDissolveOnActiveRegroupFired is reset here too (false, every
+    // Initialize()) so a runtime reload never leaves a stale fired latch
+    // from a previous run behind.
+    _testDissolveOnActiveRegroupGroupId = GroupId{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestDissolveOnActiveRegroupGroupId", 0)) };
+    _testDissolveOnActiveRegroupFired = false;
+
     // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
     // many DIFFERENT profiles' formations can be in flight at once - see
     // _coalitionFormationMaxInFlight's own declaration comment. 1 (the
@@ -1011,6 +1026,82 @@ void AIWorldMgr::RunTestDissolveGroup(GroupId groupId)
                 TC_LOG_INFO("ai.world", "AI test dissolve PASSED: group={} dissolved", groupId.Value);
             else
                 TC_LOG_ERROR("ai.world", "AI test dissolve FAILED: group={} could not be dissolved (does it exist?)", groupId.Value);
+        });
+}
+
+// Milestone 2.12F3 test hook: called from Update(), every tick, only while
+// AIWorld.TestDissolveOnActiveRegroupGroupId is set (non-zero) and has not
+// fired yet - the runtime-proof counterpart to RunTestDissolveGroup()'s own
+// startup-only hook, which cannot exercise this specific race at all: it
+// runs from Initialize(), before Update() has ever called
+// RunCoalitionCoordination() even once, so no REGROUP could possibly be in
+// flight yet when it fires. This hook instead WAITS - polling
+// _testDissolveOnActiveRegroupGroupId's own Members every tick - until it
+// actually observes one of them mid-REGROUP (AgentRecord::ActiveActionState
+// naming GoalType::Regroup AND AgentRecord::GroupCoordinationGoalState
+// naming this exact group), then requests a Manual dissolve through the
+// same RequestDissolveGroupWithPolicy() entry point RunTestDissolveGroup()
+// itself already uses - never AgentGroupRegistry::Remove(), never a raw
+// StopMoveTo() called directly from this hook, never a raw DELETE against
+// ai_agent_groups/ai_agent_group_members. What stops the in-flight
+// movement (if the dissolve is confirmed) is AIWorldMgr::
+// RequestDissolveGroup()'s own existing StopGroupCoordinationForMember()
+// call, per former member - the exact same production path a real
+// dissolve-while-regrouping would go through, proving that path end to
+// end rather than a special-cased test-only shortcut.
+//
+// Exists to make the 2.12F2 P2 fix (STATIC review) - a confirmed Leave/
+// Dissolve stops any in-flight Regroup that named the now-gone group,
+// rather than letting it run to a stale territory point - runtime-provable
+// under AIWorld.GroupCoordination = 1, not just statically reviewable.
+//
+// _testDissolveOnActiveRegroupFired is set BEFORE the dissolve request is
+// even submitted, unconditionally, regardless of what RequestDissolveGroupWithPolicy()
+// itself eventually reports - a one-shot test hook fires at most once ever,
+// the same guarantee every other AIWorld.Test* hook in this file gives,
+// not something worth retrying automatically if this particular attempt
+// happens to fail.
+void AIWorldMgr::CheckTestDissolveOnActiveRegroup()
+{
+    AgentGroupRecord const* group = _groupRegistry.Find(_testDissolveOnActiveRegroupGroupId);
+    if (!group)
+        return;
+
+    bool anyMemberRegrouping = false;
+    AgentId regroupingMember;
+
+    for (AgentGroupMembership const& membership : group->Members)
+    {
+        AgentRecord const* record = _registry.Find(membership.Member);
+        if (!record)
+            continue;
+
+        if (record->ActiveActionState && record->ActiveActionState->SourceGoal == GoalType::Regroup
+            && record->GroupCoordinationGoalState && record->GroupCoordinationGoalState->SourceGroup == _testDissolveOnActiveRegroupGroupId)
+        {
+            anyMemberRegrouping = true;
+            regroupingMember = membership.Member;
+            break;
+        }
+    }
+
+    if (!anyMemberRegrouping)
+        return;
+
+    _testDissolveOnActiveRegroupFired = true;
+
+    GroupId groupId = _testDissolveOnActiveRegroupGroupId;
+
+    TC_LOG_INFO("ai.world", "AI test dissolve-on-active-regroup: group={} member={} has an active REGROUP in flight, requesting Manual dissolve (AIWorld.TestDissolveOnActiveRegroupGroupId)",
+        groupId.Value, regroupingMember.Value);
+
+    RequestDissolveGroupWithPolicy(groupId, AgentGroupOperationSource::Manual,
+        [groupId](bool success)
+        {
+            if (success)
+                TC_LOG_INFO("ai.world", "AI test dissolve-on-active-regroup PASSED: group={} dissolved while REGROUP was active", groupId.Value);
+            else
+                TC_LOG_ERROR("ai.world", "AI test dissolve-on-active-regroup FAILED: group={} could not be dissolved", groupId.Value);
         });
 }
 
@@ -2938,6 +3029,18 @@ void AIWorldMgr::Update(uint32 diff)
             RunCoalitionCoordination();
         }
     }
+
+    // Milestone 2.12F3 test hook: entirely gated on
+    // AIWorld.TestDissolveOnActiveRegroupGroupId being set AND not having
+    // fired yet - see CheckTestDissolveOnActiveRegroup()'s own comment.
+    // Checked every tick rather than on its own timer/interval the way the
+    // recurring passes above are: it is scoped to one specific, small
+    // group's own Members (bounded, cheap), off by default, and a one-shot
+    // test hook has no reason to add polling latency on top of whatever
+    // AIWorld.GroupCoordinationIntervalMs itself already takes to first
+    // start the REGROUP this hook is waiting to observe.
+    if (_testDissolveOnActiveRegroupGroupId && !_testDissolveOnActiveRegroupFired)
+        CheckTestDissolveOnActiveRegroup();
 
     _nearbyPerceptionTimer += diff;
     if (_nearbyPerceptionTimer >= _nearbyPerceptionIntervalMs)
