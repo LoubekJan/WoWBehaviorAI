@@ -36,6 +36,7 @@
 #include "Agent/CoalitionFormationProfile.h"
 #include "Agent/CoalitionFormationReservationKey.h"
 #include "Agent/CoalitionFormationSystem.h"
+#include "Agent/CoalitionMaintenanceSystem.h"
 #include "Agent/GroupId.h"
 #include "Define.h"
 #include "Event/EventBus.h"
@@ -487,6 +488,100 @@ class TC_GAME_API AIWorldMgr
         // "release everything this proposal reserved" logic right.
         void ReleaseCoalitionFormationReservations(CoalitionProposal const& proposal);
 
+        // Milestone 2.12E4C2: builds one CoalitionMemberObservation per
+        // group.Members entry - the maintenance-side counterpart to
+        // CollectCoalitionCandidates(), walking an EXISTING group's own
+        // membership rather than scanning the whole registry for new
+        // candidates. Never mutates anything, never force-loads a grid -
+        // a member whose Creature does not currently resolve (or whose
+        // AgentRecord is not even Materialized) simply gets a default
+        // (Materialized=false) observation, never skipped outright, so
+        // CoalitionMaintenanceSystem::Evaluate() sees one observation per
+        // membership edge, present or not.
+        std::vector<CoalitionMemberObservation> CollectCoalitionMemberObservations(AgentGroupRecord const& group) const;
+
+        // Milestone 2.12E4C2: AIWorld.CoalitionMaintenanceIntervalMs-
+        // cadenced pass, only ever called while AIWorld.WolfGroupAutoFormation
+        // is enabled (maintenance shares that gate - see its own call site
+        // in Update()). Pre-filters _groupRegistry's own groups to
+        // profile.Kind (a group of the wrong Kind can never produce a
+        // decision from this profile anyway, once
+        // CoalitionMaintenanceSystem::Evaluate()'s own Kind-mismatch guard
+        // is considered - filtering here instead just keeps the bounded
+        // scheduler below from wasting admission slots on groups that
+        // could never use them), then reuses GroupCoarseSimulationScheduler
+        // (_maintenanceScheduler/_maintenanceSchedule - its own dedicated
+        // instance/schedule map, entirely separate from
+        // _groupCoarseSimulationScheduler/_groupSimulationSchedule's own
+        // resource-drift tick) for the same phase-offset, bounded,
+        // deterministic per-pass admission the group coarse tick already
+        // uses - see GroupCoarseSimulationScheduler.h for why an unbounded
+        // "check every existing group every pass" design is exactly the
+        // kind of world-thread work spike this milestone's own roadmap
+        // message asked not to repeat. Every admitted group is handed to
+        // RunCoalitionMaintenanceForGroup().
+        void RunCoalitionMaintenance(CoalitionMaintenanceProfile const& profile);
+
+        // Milestone 2.12E4C2: the single group this pass's maintenance
+        // scheduler admitted. Refuses to start if groupId is already in
+        // _maintenanceInFlight (see its own declaration comment for the
+        // repeated-request spam this guards against) or no longer resolves
+        // in _groupRegistry. Builds this group's own observations
+        // (CollectCoalitionMemberObservations()) and asks
+        // _coalitionMaintenanceSystem.Evaluate() for a deterministic
+        // CoalitionMaintenanceDecision:
+        //   - LeaveMember: marks groupId in flight, then
+        //     RequestLeaveGroupWithPolicy(..., AutomaticPolicy) - the same
+        //     policy-gated path RunCoalitionJoinStep() already uses for
+        //     joins, so a Stable group's own member is protected the exact
+        //     same way an automatic formation join would be rejected for
+        //     one (see AgentGroupPolicySystem::CanLeave()). On a confirmed
+        //     leave, chains into RunCoalitionMaintenanceAfterLeave() -
+        //     never re-uses the AgentGroupRecord* this pass already
+        //     resolved, always re-resolves fresh from _groupRegistry once
+        //     the leave actually confirms.
+        //   - DissolveGroup: marks groupId in flight, then straight into
+        //     RunCoalitionMaintenanceDissolveGroup().
+        //   - None: nothing to do, groupId is never marked in flight for
+        //     it.
+        void RunCoalitionMaintenanceForGroup(GroupId groupId, CoalitionMaintenanceProfile const& profile);
+
+        // Milestone 2.12E4C2: runs once a LeaveMember request this same
+        // maintenance pass already confirmed - re-resolves groupId fresh
+        // from _groupRegistry (never trusts the AgentGroupRecord*/snapshot
+        // RunCoalitionMaintenanceForGroup() itself resolved before the
+        // leave; that reference is stale by the time this runs, possibly
+        // several ticks later - the same "a completion never trusts
+        // request-time validity" discipline AgentGroupLifecycleSystem.h's
+        // own header comment already documents). An unknown groupId
+        // (dissolved some other way in the meantime) just clears
+        // _maintenanceInFlight and returns. Otherwise: Kind == Loose and
+        // now below profile.MinMembers chains into
+        // RunCoalitionMaintenanceDissolveGroup() (still going through
+        // policy, so Stable is never reachable here in the first place -
+        // Kind is re-read from the freshly-resolved group, not assumed
+        // from profile); anything else clears _maintenanceInFlight - the
+        // leave alone was the whole maintenance action needed this pass.
+        void RunCoalitionMaintenanceAfterLeave(GroupId groupId, CoalitionMaintenanceProfile profile);
+
+        // Milestone 2.12E4C2: RequestDissolveGroupWithPolicy(...,
+        // AutomaticPolicy) for groupId - reached either directly from a
+        // DissolveGroup decision (a group already below minimum,
+        // independent of any single member's own distance) or from
+        // RunCoalitionMaintenanceAfterLeave() (a group that just dropped
+        // below minimum as a result of its own confirmed leave). Going
+        // through policy here (never a raw RequestDissolveGroup()) is what
+        // keeps a Stable group protected - AgentGroupPolicySystem::
+        // ShouldDissolve() already refuses Stable unconditionally, the
+        // same protection RunCoalitionMaintenanceForGroup()'s own
+        // LeaveMember path gets from CanLeave(). Always clears
+        // _maintenanceInFlight once this dissolve attempt itself completes
+        // (success or failure) - the one place every
+        // RunCoalitionMaintenanceForGroup()/RunCoalitionMaintenanceAfterLeave()
+        // path that reaches a dissolve funnels through, so there is
+        // exactly one place that has to get that release right.
+        void RunCoalitionMaintenanceDissolveGroup(GroupId groupId);
+
         bool _enabled = false;
 
         // Milestone 2.10A/2.10B: how often RunDecisionScheduler() itself
@@ -760,6 +855,70 @@ class TC_GAME_API AIWorldMgr
         // automatic formation in flight, period" behavior 2.12E4B's own
         // bool _wolfFormationInFlight already gave.
         uint32 _coalitionFormationMaxInFlight = 1;
+
+        // Milestone 2.12E4C1/C2: pure decision system - see its own class
+        // comment. Stateless, called only from RunCoalitionMaintenance().
+        CoalitionMaintenanceSystem _coalitionMaintenanceSystem;
+
+        // Milestone 2.12E4C2: AIWorldMgr's own one existing
+        // CoalitionMaintenanceProfile, paired with
+        // _wolfLooseFormationProfile above (same ProfileId/Kind) - built
+        // once at Initialize() from AIWorld.WolfGroupLeaveRadius and
+        // _groupPolicyConfig.LooseMinMembers.
+        CoalitionMaintenanceProfile _wolfLooseMaintenanceProfile;
+
+        // Milestone 2.12E4C2: AIWorld.WolfGroupLeaveRadius -
+        // _wolfLooseMaintenanceProfile's own LeaveRadius, clamped at
+        // Initialize() to never fall below _wolfGroupFormationRadius (see
+        // Initialize()'s own comment for why a smaller LeaveRadius would
+        // defeat the formation/leave hysteresis entirely).
+        float _wolfGroupLeaveRadius = 60.0f;
+
+        // Milestone 2.12E4C2: RunCoalitionMaintenance()'s own cadence,
+        // deliberately its own timer (a maintenance pass is neither a
+        // formation pass nor a group coarse simulation tick) - shares
+        // AIWorld.WolfGroupAutoFormation's own enable gate at the Update()
+        // call site rather than a config flag of its own, see that call
+        // site's own comment for why.
+        uint32 _coalitionMaintenanceIntervalMs = 5000;
+        uint32 _coalitionMaintenanceTimer = 0;
+
+        // Milestone 2.12E4C2: RunCoalitionMaintenance()'s own bounded,
+        // deterministic per-pass admission - GroupCoarseSimulationScheduler's
+        // own dedicated instance/schedule map for the maintenance pass,
+        // entirely separate from _groupCoarseSimulationScheduler/
+        // _groupSimulationSchedule's own resource-drift tick (different
+        // cadence, different candidate filter, different meaning of "due"
+        // - sharing either the instance or the schedule map across both
+        // concerns would let one pass's admission accounting bleed into
+        // the other's). See GroupCoarseSimulationScheduler.h for why an
+        // unbounded per-pass scan is rejected for the exact same reason
+        // here as it already is for the group coarse tick.
+        GroupCoarseSimulationScheduler _maintenanceScheduler;
+        std::unordered_map<uint64, SimulationScheduleState> _maintenanceSchedule;
+        uint32 _coalitionMaintenanceMaxPerPass = 20;
+
+        // Milestone 2.12E4C2: GroupId::Value entries with a maintenance
+        // Leave/Dissolve chain currently in flight - inserted by
+        // RunCoalitionMaintenanceForGroup() before its own
+        // RequestLeaveGroupWithPolicy()/RequestDissolveGroupWithPolicy()
+        // call, erased only once that chain's own terminal outcome is
+        // fully resolved (RunCoalitionMaintenanceAfterLeave() when no
+        // dissolve follows, or RunCoalitionMaintenanceDissolveGroup()'s own
+        // completion otherwise - see each method's own comment). Exists so
+        // this orchestrator never deliberately re-issues a request for a
+        // group it already knows has one in flight - AgentGroupLifecycleSystem's
+        // own per-GroupId pending-operation guard (see its header comment)
+        // is a second, independent line of defense against the same class
+        // of race, not a substitute for this one: that guard only ever
+        // rejects an overlapping request AFTER it has already been built
+        // and submitted, where this avoids building/logging/submitting a
+        // redundant one at all - the concrete case this closes is a group
+        // still being processed from a previous maintenance pass (a Leave
+        // -> Dissolve chain spanning several ticks) getting re-selected
+        // and re-evaluated by a later pass before the first chain has
+        // finished.
+        std::unordered_set<uint64> _maintenanceInFlight;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in

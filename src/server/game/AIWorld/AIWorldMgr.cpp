@@ -323,6 +323,62 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseFormationProfile.MaxMembers = _groupPolicyConfig.LooseMaxMembers;
     _wolfLooseFormationProfile.FormationRadius = _wolfGroupFormationRadius;
 
+    // Milestone 2.12E4C2: deliberately larger than AIWorld.WolfGroupFormationRadius
+    // - see CoalitionMaintenanceProfile.h's own LeaveRadius comment for the
+    // hysteresis this gap exists to give. Clamped to never fall below
+    // FormationRadius (a LeaveRadius smaller than FormationRadius would
+    // defeat that hysteresis entirely - a member could form a coalition
+    // and immediately be eligible to leave it again the very next
+    // maintenance pass).
+    float wolfGroupLeaveRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupLeaveRadius", 60.0f);
+    if (wolfGroupLeaveRadius < _wolfGroupFormationRadius)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupLeaveRadius ({:.1f}) is lower than AIWorld.WolfGroupFormationRadius ({:.1f}), clamping to match",
+            wolfGroupLeaveRadius, _wolfGroupFormationRadius);
+        wolfGroupLeaveRadius = _wolfGroupFormationRadius;
+    }
+    _wolfGroupLeaveRadius = wolfGroupLeaveRadius;
+
+    // Milestone 2.12E4C2: the maintenance pass's own cadence/bound - a
+    // dedicated timer, not reused from any existing one (a maintenance
+    // pass is neither a formation pass nor a group coarse simulation
+    // tick), and its own GroupCoarseSimulationScheduler-backed bounded
+    // admission (_maintenanceScheduler/_maintenanceSchedule) so a world
+    // with many existing groups cannot spike world-thread work on this
+    // pass either - the same reasoning GroupCoarseSimulationScheduler.h's
+    // own header comment already gives for the group coarse tick.
+    int32 coalitionMaintenanceIntervalMs = sConfigMgr->GetIntDefault("AIWorld.CoalitionMaintenanceIntervalMs", 5000);
+    if (coalitionMaintenanceIntervalMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.CoalitionMaintenanceIntervalMs ({}) is invalid or too low, clamping to 1000ms", coalitionMaintenanceIntervalMs);
+        coalitionMaintenanceIntervalMs = 1000;
+    }
+    _coalitionMaintenanceIntervalMs = uint32(coalitionMaintenanceIntervalMs);
+    _coalitionMaintenanceTimer = 0;
+
+    int32 coalitionMaintenanceMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.CoalitionMaintenanceMaxPerPass", 20);
+    if (coalitionMaintenanceMaxPerPass < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.CoalitionMaintenanceMaxPerPass ({}) is invalid or too low, clamping to 1", coalitionMaintenanceMaxPerPass);
+        coalitionMaintenanceMaxPerPass = 1;
+    }
+    _coalitionMaintenanceMaxPerPass = uint32(coalitionMaintenanceMaxPerPass);
+
+    _maintenanceSchedule.clear();
+    _maintenanceInFlight.clear();
+
+    // Milestone 2.12E4C2: AIWorldMgr's own one existing
+    // CoalitionMaintenanceProfile, paired with _wolfLooseFormationProfile
+    // above (same ProfileId/Kind, see CoalitionMaintenanceProfile.h for
+    // why MinMembers is never independently configured either).
+    _wolfLooseMaintenanceProfile.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    _wolfLooseMaintenanceProfile.Kind = AgentGroupKind::Loose;
+    _wolfLooseMaintenanceProfile.MinMembers = _groupPolicyConfig.LooseMinMembers;
+    _wolfLooseMaintenanceProfile.LeaveRadius = _wolfGroupLeaveRadius;
+
+    TC_LOG_INFO("ai.world", "AI wolf coalition maintenance configured leaveRadius={:.1f} interval={}ms maxPerPass={}",
+        _wolfGroupLeaveRadius, _coalitionMaintenanceIntervalMs, _coalitionMaintenanceMaxPerPass);
+
     // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
     // many DIFFERENT profiles' formations can be in flight at once - see
     // _coalitionFormationMaxInFlight's own declaration comment. 1 (the
@@ -1488,6 +1544,175 @@ void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
     TC_LOG_INFO("ai.world", "AI coalition maintenance smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
+std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const
+{
+    std::vector<CoalitionMemberObservation> observations;
+    observations.reserve(group.Members.size());
+
+    for (AgentGroupMembership const& membership : group.Members)
+    {
+        CoalitionMemberObservation observation;
+        observation.MemberId = membership.Member;
+
+        AgentRecord const* record = _registry.Find(membership.Member);
+        if (!record || record->WorldState != AgentWorldState::Materialized)
+        {
+            observations.push_back(observation);
+            continue;
+        }
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        Creature* creature = ResolveLiveCreature(*record, map);
+        if (!creature)
+        {
+            observations.push_back(observation);
+            continue;
+        }
+
+        observation.Materialized = true;
+        observation.Alive = creature->IsAlive();
+        observation.MapId = creature->GetMapId();
+        observation.X = creature->GetPositionX();
+        observation.Y = creature->GetPositionY();
+        observation.Z = creature->GetPositionZ();
+        observations.push_back(observation);
+    }
+
+    return observations;
+}
+
+void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& profile)
+{
+    uint64 nowMs = CurrentTimeMs();
+
+    // Pre-filter to profile.Kind - see this method's own header comment
+    // for why (a wrong-Kind group would just fail
+    // CoalitionMaintenanceSystem::Evaluate()'s own Kind-mismatch guard
+    // anyway, but only after consuming one of this pass's bounded
+    // admission slots to find that out).
+    std::vector<GroupId> candidates;
+    for (GroupId groupId : _groupRegistry.GetGroups())
+    {
+        AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+        if (group && group->Kind == profile.Kind)
+            candidates.push_back(groupId);
+    }
+
+    // Same phase-offset-on-first-sight pattern RunDecisionScheduler()'s own
+    // group coarse tick already uses (StableAgentHash, see that loop's own
+    // comment) - a batch of groups all existing on the same pass does not
+    // permanently phase-lock onto the same due time forever afterwards.
+    for (GroupId groupId : candidates)
+    {
+        SimulationScheduleState& scheduleState = _maintenanceSchedule[groupId.Value];
+        if (scheduleState.LastTickAtMs == 0 && scheduleState.NextTickAtMs == 0)
+        {
+            uint64 phaseMs = StableAgentHash(groupId.Value) % _coalitionMaintenanceIntervalMs;
+            scheduleState.LastTickAtMs = nowMs;
+            scheduleState.NextTickAtMs = nowMs + phaseMs;
+        }
+    }
+
+    GroupCoarseSimulationScheduler::SelectionResult selection = _maintenanceScheduler.SelectDue(
+        _maintenanceSchedule, candidates, nowMs, _coalitionMaintenanceMaxPerPass);
+
+    for (GroupId groupId : selection.Admitted)
+    {
+        SimulationScheduleState& scheduleState = _maintenanceSchedule[groupId.Value];
+        scheduleState.LastTickAtMs = nowMs;
+        scheduleState.NextTickAtMs = nowMs + _coalitionMaintenanceIntervalMs;
+
+        RunCoalitionMaintenanceForGroup(groupId, profile);
+    }
+}
+
+void AIWorldMgr::RunCoalitionMaintenanceForGroup(GroupId groupId, CoalitionMaintenanceProfile const& profile)
+{
+    if (_maintenanceInFlight.count(groupId.Value))
+        return;
+
+    AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+    if (!group)
+        return;
+
+    std::vector<CoalitionMemberObservation> observations = CollectCoalitionMemberObservations(*group);
+    CoalitionMaintenanceDecision decision = _coalitionMaintenanceSystem.Evaluate(*group, profile, observations);
+
+    switch (decision.Type)
+    {
+        case CoalitionMaintenanceDecisionType::LeaveMember:
+        {
+            _maintenanceInFlight.insert(groupId.Value);
+
+            TC_LOG_INFO("ai.world", "AI coalition maintenance: proposing AutomaticPolicy leave member={} group={}",
+                decision.Member.Value, groupId.Value);
+
+            CoalitionMaintenanceProfile profileValue = profile;
+            RequestLeaveGroupWithPolicy(groupId, decision.Member, AgentGroupOperationSource::AutomaticPolicy,
+                [this, groupId, profileValue](bool success, AgentGroupPolicyDecision policyDecision)
+                {
+                    if (!success)
+                    {
+                        TC_LOG_INFO("ai.world", "AI coalition maintenance: leave REJECTED/FAILED (decision={}) group={}",
+                            ToString(policyDecision), groupId.Value);
+                        _maintenanceInFlight.erase(groupId.Value);
+                        return;
+                    }
+
+                    TC_LOG_INFO("ai.world", "AI coalition maintenance: leave PASSED group={}", groupId.Value);
+                    RunCoalitionMaintenanceAfterLeave(groupId, profileValue);
+                });
+            break;
+        }
+        case CoalitionMaintenanceDecisionType::DissolveGroup:
+            _maintenanceInFlight.insert(groupId.Value);
+            TC_LOG_INFO("ai.world", "AI coalition maintenance: group={} below minimum, requesting AutomaticPolicy dissolve", groupId.Value);
+            RunCoalitionMaintenanceDissolveGroup(groupId);
+            break;
+        case CoalitionMaintenanceDecisionType::None:
+        default:
+            break;
+    }
+}
+
+void AIWorldMgr::RunCoalitionMaintenanceAfterLeave(GroupId groupId, CoalitionMaintenanceProfile profile)
+{
+    // 2.12E4C2: never trusts the AgentGroupRecord* RunCoalitionMaintenanceForGroup()
+    // itself resolved before this leave was even submitted - re-resolves
+    // fresh here, the same "a completion never trusts request-time
+    // validity" discipline AgentGroupLifecycleSystem.h's own header
+    // comment already documents.
+    AgentGroupRecord const* current = _groupRegistry.Find(groupId);
+    if (!current)
+    {
+        _maintenanceInFlight.erase(groupId.Value);
+        return;
+    }
+
+    if (current->Kind == AgentGroupKind::Loose && uint32(current->Members.size()) < profile.MinMembers)
+    {
+        TC_LOG_INFO("ai.world", "AI coalition maintenance: group={} dropped below minimum after leave, requesting AutomaticPolicy dissolve", groupId.Value);
+        RunCoalitionMaintenanceDissolveGroup(groupId);
+        return;
+    }
+
+    _maintenanceInFlight.erase(groupId.Value);
+}
+
+void AIWorldMgr::RunCoalitionMaintenanceDissolveGroup(GroupId groupId)
+{
+    RequestDissolveGroupWithPolicy(groupId, AgentGroupOperationSource::AutomaticPolicy,
+        [this, groupId](bool success)
+        {
+            if (success)
+                TC_LOG_INFO("ai.world", "AI coalition maintenance: dissolve PASSED group={}", groupId.Value);
+            else
+                TC_LOG_INFO("ai.world", "AI coalition maintenance: dissolve REJECTED/FAILED group={}", groupId.Value);
+
+            _maintenanceInFlight.erase(groupId.Value);
+        });
+}
+
 void AIWorldMgr::Update(uint32 diff)
 {
     if (!_enabled)
@@ -1542,6 +1767,18 @@ void AIWorldMgr::Update(uint32 diff)
         {
             _wolfGroupFormationTimer = 0;
             RunCoalitionFormation(_wolfLooseFormationProfile);
+        }
+
+        // Milestone 2.12E4C2: shares AIWorld.WolfGroupAutoFormation's own
+        // gate rather than a separate enable flag - automatic maintenance
+        // only ever has anything to maintain once automatic formation has
+        // actually created something, so the two are one feature, not two
+        // independently togglable ones.
+        _coalitionMaintenanceTimer += diff;
+        if (_coalitionMaintenanceTimer >= _coalitionMaintenanceIntervalMs)
+        {
+            _coalitionMaintenanceTimer = 0;
+            RunCoalitionMaintenance(_wolfLooseMaintenanceProfile);
         }
     }
 
