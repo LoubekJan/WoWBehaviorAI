@@ -25,12 +25,12 @@
 #include <algorithm>
 
 void AgentGroupLifecycleSystem::RequestCreateGroup(AgentGroupKind kind, uint32 territoryMapId,
-    float territoryX, float territoryY, float territoryZ, float resources,
+    float territoryX, float territoryY, float territoryZ, float resources, CoalitionFormationProfileId profileId,
     AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence, TransactionCallbackProcessor& pending,
     std::function<void(std::optional<GroupId>)> onComplete)
 {
-    std::optional<TransactionCallback> callback = persistence.CreateGroupAsync(kind, territoryMapId, territoryX, territoryY, territoryZ, resources,
-        [&groupRegistry, kind, territoryMapId, territoryX, territoryY, territoryZ, resources, onComplete](bool success, GroupId newId)
+    std::optional<TransactionCallback> callback = persistence.CreateGroupAsync(kind, territoryMapId, territoryX, territoryY, territoryZ, resources, profileId,
+        [&groupRegistry, kind, territoryMapId, territoryX, territoryY, territoryZ, resources, profileId, onComplete](bool success, GroupId newId)
         {
             if (!success)
             {
@@ -41,6 +41,7 @@ void AgentGroupLifecycleSystem::RequestCreateGroup(AgentGroupKind kind, uint32 t
             AgentGroupRecord record;
             record.Id = newId;
             record.Kind = kind;
+            record.ProfileId = profileId;
             record.TerritoryMapId = territoryMapId;
             record.TerritoryX = territoryX;
             record.TerritoryY = territoryY;
@@ -62,8 +63,8 @@ void AgentGroupLifecycleSystem::RequestCreateGroup(AgentGroupKind kind, uint32 t
                 return;
             }
 
-            TC_LOG_INFO("ai.world", "AI agent group created id={} kind={} territoryMap={} resources={:.4f}",
-                newId.Value, ToString(kind), territoryMapId, resources);
+            TC_LOG_INFO("ai.world", "AI agent group created id={} kind={} profile={} territoryMap={} resources={:.4f}",
+                newId.Value, ToString(kind), ToString(profileId), territoryMapId, resources);
 
             onComplete(newId);
         });

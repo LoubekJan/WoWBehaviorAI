@@ -20,6 +20,7 @@
 
 #include "Agent/AgentGroupRecord.h"
 #include "Agent/AgentId.h"
+#include "Agent/CoalitionFormationProfileId.h"
 #include "Agent/GroupId.h"
 #include "Define.h"
 #include "Transaction.h"
@@ -197,8 +198,14 @@ class TC_GAME_API AgentGroupPersistence
         // and poll - onComplete(success, newId) fires from there once the
         // transaction's own real commit result is known (newId is only
         // meaningful when success is true).
+        //
+        // Milestone 2.12E4C2 P2 fix (STATIC review): profileId is bound
+        // into the INSERT's own profile_id column - see
+        // AgentGroupRecord::ProfileId for what it means and why it is
+        // persistent. Always bound explicitly, never left at the column's
+        // own DEFAULT - see CHAR_INS_AI_AGENT_GROUP's own comment.
         std::optional<TransactionCallback> CreateGroupAsync(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources,
-            std::function<void(bool success, GroupId newId)> onComplete);
+            CoalitionFormationProfileId profileId, std::function<void(bool success, GroupId newId)> onComplete);
 
         // Milestone 2.12E2: submits the membership INSERT as its own
         // one-statement CharacterDatabaseTransaction via

@@ -20,6 +20,7 @@
 
 #include "AgentGroupKind.h"
 #include "AgentId.h"
+#include "CoalitionFormationProfileId.h"
 #include "Define.h"
 #include "GroupId.h"
 #include "Persistence/TransactionCallbackProcessor.h"
@@ -134,7 +135,20 @@ class TC_GAME_API AgentGroupLifecycleSystem
         // groupRegistry is only ever Add()'d to inside that completion,
         // after AgentGroupPersistence confirms the transaction actually
         // committed.
+        //
+        // Milestone 2.12E4C2 P2 fix (STATIC review): profileId names which
+        // CoalitionFormationProfile (if any) is actually creating this
+        // group - see AgentGroupRecord::ProfileId for why this is
+        // persistent and separate from kind. Every caller must pass one
+        // explicitly: CoalitionFormationProfileId::Invalid for a manual/
+        // admin-authorized create (no automatic formation profile owns
+        // this group, so no automatic maintenance profile may act on it
+        // either), or the real profile's own Id for an automatic
+        // RunCoalitionFormation() create. Threaded straight through to
+        // AgentGroupPersistence::CreateGroupAsync() and the resulting
+        // AgentGroupRecord unchanged.
         void RequestCreateGroup(AgentGroupKind kind, uint32 territoryMapId, float territoryX, float territoryY, float territoryZ, float resources,
+            CoalitionFormationProfileId profileId,
             AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence, TransactionCallbackProcessor& pending,
             std::function<void(std::optional<GroupId>)> onComplete);
 

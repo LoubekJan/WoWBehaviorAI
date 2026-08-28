@@ -44,6 +44,19 @@ CoalitionMaintenanceDecision CoalitionMaintenanceSystem::Evaluate(AgentGroupReco
     if (profile.Kind != group.Kind)
         return decision;
 
+    // 2.12E4C2 P2 fix (STATIC review): a group's own persistent
+    // provenance (AgentGroupRecord::ProfileId - which CoalitionFormationProfile,
+    // if any, actually created it) must match this profile's own identity
+    // too, not just Kind - Kind alone cannot tell two profiles of the same
+    // Kind apart, and a manually/admin-created group (ProfileId == Invalid)
+    // must never be treated as if some automatic profile owned it just
+    // because its Kind happens to match. AIWorldMgr::RunCoalitionMaintenance()
+    // already pre-filters its own candidates this way (see its own
+    // comment) - this is defense in depth for any other/future caller of
+    // Evaluate() that does not.
+    if (profile.ProfileId != group.ProfileId)
+        return decision;
+
     // Rule 1: already below minimum, independent of any single member's
     // own distance - see this class's own header comment for why this is
     // not gated on Kind here (AgentGroupPolicySystem::ShouldDissolve() is

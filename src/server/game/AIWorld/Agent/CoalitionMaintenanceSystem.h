@@ -62,6 +62,13 @@ struct AgentGroupRecord;
 //       review: a caller mismatch - e.g. pairing a Loose profile with a
 //       Stable group - never silently applies one Kind's own thresholds
 //       to a group of a different Kind).
+//   0c. profile.ProfileId != group.ProfileId -> None (2.12E4C2 P2 fix,
+//       STATIC review: Kind alone cannot tell two profiles of the same
+//       Kind apart, and a manually/admin-created group - group.ProfileId
+//       == Invalid - must never be swept into some automatic profile's
+//       own maintenance just because its Kind happens to match. See
+//       AgentGroupRecord::ProfileId for the persistent provenance this
+//       checks).
 //   1. group.Members.size() < profile.MinMembers (right now, independent
 //      of any single member's own distance) -> DissolveGroup.
 //   2. Otherwise, among members, the single FARTHEST one that is

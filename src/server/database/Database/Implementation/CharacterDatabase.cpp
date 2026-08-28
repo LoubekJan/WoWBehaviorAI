@@ -680,8 +680,12 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // see GroupId.h/AgentGroupRecord.h/AgentGroupPersistence.h for why.
     // Startup-only (synchronous load), same as CHAR_SEL_AI_AGENTS - called
     // once from AIWorldMgr::Initialize(), never from the world update loop.
+    // Milestone 2.12E4C2 P2 fix (STATIC review): profile_id appended at the
+    // end (not inserted alphabetically among the other columns) so every
+    // existing field index in AgentGroupPersistence::LoadGroups() stays
+    // unchanged - see AgentGroupRecord::ProfileId for what it means.
     PrepareStatement(CHAR_SEL_AI_AGENT_GROUPS, "SELECT group_id, kind, territory_map_id, territory_x, territory_y, territory_z, "
-        "resources, version FROM ai_agent_groups", CONNECTION_SYNCH);
+        "resources, version, profile_id FROM ai_agent_groups", CONNECTION_SYNCH);
 
     // Milestone 2.12E1/2.12E2: AgentGroupPersistence::CreateGroupAsync() -
     // group_id is bound explicitly (minted in C++, see ai_agent_groups'
@@ -693,8 +697,14 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // above and committed via AsyncCommitTransaction(), never blocking the
     // world thread - see AgentGroupPersistence::CreateGroupAsync()'s own
     // comment.
+    // Milestone 2.12E4C2 P2 fix (STATIC review): profile_id is now always
+    // bound explicitly (never left at a column DEFAULT) - CreateGroupAsync()
+    // itself defaults its own profileId parameter to
+    // CoalitionFormationProfileId::Invalid for any caller that does not
+    // pass one, so this never silently falls back to a DB-side default
+    // that could drift from that same fail-closed value.
     PrepareStatement(CHAR_INS_AI_AGENT_GROUP, "INSERT INTO ai_agent_groups (group_id, kind, territory_map_id, territory_x, "
-        "territory_y, territory_z, resources) VALUES (?, ?, ?, ?, ?, ?, ?)", CONNECTION_ASYNC);
+        "territory_y, territory_z, resources, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", CONNECTION_ASYNC);
 
     // Milestone 2.12B/2.12D: same shape as CHAR_UPD_AI_AGENT_ECONOMY above -
     // used from the world update thread every group coarse tick
@@ -703,8 +713,13 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // guarantee execution order across worker threads) - see
     // AgentGroupPersistence::SaveGroupState(). No Hunger any more (2.12D
     // P2 fix) - see AgentGroupRecord.h.
+    // Milestone 2.12E4C2 P2 fix (STATIC review): profile_id is written back
+    // on every save too, the same "persist the whole snapshot" shape every
+    // other field here already gets - it never actually changes after
+    // creation, but SaveGroupState() has no special-case for "fields that
+    // happen not to change" for anything else either.
     PrepareStatement(CHAR_UPD_AI_AGENT_GROUP, "UPDATE ai_agent_groups SET kind = ?, territory_map_id = ?, territory_x = ?, "
-        "territory_y = ?, territory_z = ?, resources = ?, version = ? WHERE group_id = ? AND version < ?", CONNECTION_ASYNC);
+        "territory_y = ?, territory_z = ?, resources = ?, version = ?, profile_id = ? WHERE group_id = ? AND version < ?", CONNECTION_ASYNC);
 
     // Milestone 2.12E1/2.12E2: AgentGroupPersistence::DeleteGroupAsync() -
     // the group-row half, appended to the same CharacterDatabaseTransaction

@@ -20,6 +20,7 @@
 
 #include "AgentGroupKind.h"
 #include "AgentGroupMembership.h"
+#include "CoalitionFormationProfileId.h"
 #include "Define.h"
 #include "GroupId.h"
 #include <vector>
@@ -52,6 +53,24 @@ struct AgentGroupRecord
 {
     GroupId Id;
     AgentGroupKind Kind = AgentGroupKind::Loose;
+
+    // Milestone 2.12E4C2 P2 fix (STATIC review): which CoalitionFormationProfile
+    // (if any) actually created this group - persistent, and deliberately
+    // separate from Kind. Kind alone cannot tell two profiles of the same
+    // Kind apart (today only WolfLoose forms Loose groups, but nothing
+    // about Kind itself prevents a future second Loose-forming profile),
+    // and a manually/admin-created Loose group must never be silently
+    // treated as if some automatic profile owned it. Invalid (the default)
+    // means exactly that - no automatic formation profile created this
+    // group, so no automatic maintenance profile may act on it either; see
+    // AIWorldMgr::RunCoalitionMaintenance()'s own candidate filter and
+    // CoalitionMaintenanceSystem::Evaluate()'s own fail-closed Invalid/
+    // mismatch checks. Set once, at creation
+    // (AgentGroupLifecycleSystem::RequestCreateGroup()'s own profileId
+    // parameter), and never changed afterward - persisted the same way
+    // Kind/Territory* already are (AgentGroupPersistence::CreateGroupAsync()/
+    // LoadGroups()/SaveGroupState()).
+    CoalitionFormationProfileId ProfileId = CoalitionFormationProfileId::Invalid;
 
     uint32 TerritoryMapId = 0;
     float TerritoryX = 0.0f;

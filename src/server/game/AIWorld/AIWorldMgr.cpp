@@ -367,6 +367,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _maintenanceSchedule.clear();
     _maintenanceInFlight.clear();
 
+    // Milestone 2.12E4C2 P2 fix (STATIC review): a SEPARATE enable gate
+    // from AIWorld.WolfGroupAutoFormation - see
+    // _coalitionMaintenanceEnabled's own declaration comment for why
+    // creation and maintenance must be independently controllable. Off by
+    // default, same as every other not-yet-runtime-verified piece of this
+    // feature.
+    _coalitionMaintenanceEnabled = sConfigMgr->GetBoolDefault("AIWorld.CoalitionMaintenance", false);
+
     // Milestone 2.12E4C2: AIWorldMgr's own one existing
     // CoalitionMaintenanceProfile, paired with _wolfLooseFormationProfile
     // above (same ProfileId/Kind, see CoalitionMaintenanceProfile.h for
@@ -376,8 +384,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseMaintenanceProfile.MinMembers = _groupPolicyConfig.LooseMinMembers;
     _wolfLooseMaintenanceProfile.LeaveRadius = _wolfGroupLeaveRadius;
 
-    TC_LOG_INFO("ai.world", "AI wolf coalition maintenance configured leaveRadius={:.1f} interval={}ms maxPerPass={}",
-        _wolfGroupLeaveRadius, _coalitionMaintenanceIntervalMs, _coalitionMaintenanceMaxPerPass);
+    TC_LOG_INFO("ai.world", "AI wolf coalition maintenance configured enabled={} leaveRadius={:.1f} interval={}ms maxPerPass={}",
+        _coalitionMaintenanceEnabled, _wolfGroupLeaveRadius, _coalitionMaintenanceIntervalMs, _coalitionMaintenanceMaxPerPass);
 
     // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
     // many DIFFERENT profiles' formations can be in flight at once - see
@@ -825,7 +833,11 @@ void AIWorldMgr::RunGroupLifecycleSmokeTest(AgentId memberId1, AgentId memberId2
     TC_LOG_INFO("ai.world", "AI group lifecycle smoke test: members={} {} {}",
         memberIds[0].Value, memberIds[1].Value, memberIds[2].Value);
 
-    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Loose, 0, 0.0f, 0.0f, 0.0f, 1.0f,
+    // Milestone 2.12E4C2 P2 fix (STATIC review): Invalid - a manual smoke
+    // test group is not created by any automatic formation profile, so it
+    // must never be implicitly eligible for one's own automatic
+    // maintenance (see AgentGroupRecord::ProfileId).
+    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Loose, 0, 0.0f, 0.0f, 0.0f, 1.0f, CoalitionFormationProfileId::Invalid,
         _groupRegistry, _groupPersistence, _groupLifecyclePending,
         [this, memberIds](std::optional<GroupId> groupId)
         {
@@ -1066,7 +1078,9 @@ void AIWorldMgr::RunGroupPolicySmokeTest(AgentId testMemberId)
         return;
     }
 
-    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Stable, 0, 0.0f, 0.0f, 0.0f, 1.0f,
+    // Milestone 2.12E4C2 P2 fix (STATIC review): Invalid - same reasoning
+    // as RunGroupLifecycleSmokeTest()'s own create call.
+    _groupLifecycleSystem.RequestCreateGroup(AgentGroupKind::Stable, 0, 0.0f, 0.0f, 0.0f, 1.0f, CoalitionFormationProfileId::Invalid,
         _groupRegistry, _groupPersistence, _groupLifecyclePending,
         [this, testMemberId](std::optional<GroupId> groupId)
         {
@@ -1271,8 +1285,13 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
     CoalitionFormationProfileId profileId = profile.Id;
     CoalitionProposal proposalValue = *proposal;
 
+    // Milestone 2.12E4C2 P2 fix (STATIC review): profileId (the WolfLoose
+    // profile's own Id) is threaded through so the resulting
+    // AgentGroupRecord::ProfileId actually names this profile - without
+    // it, RunCoalitionMaintenance()'s own profile-identity candidate
+    // filter would never recognize a group this very call just formed.
     _groupLifecycleSystem.RequestCreateGroup(proposalValue.Kind, proposalValue.TerritoryMapId,
-        proposalValue.TerritoryX, proposalValue.TerritoryY, proposalValue.TerritoryZ, 1.0f,
+        proposalValue.TerritoryX, proposalValue.TerritoryY, proposalValue.TerritoryZ, 1.0f, profileId,
         _groupRegistry, _groupPersistence, _groupLifecyclePending,
         [this, profileId, proposalValue](std::optional<GroupId> groupId)
         {
@@ -1403,6 +1422,7 @@ void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
     AgentGroupRecord looseGroup;
     looseGroup.Id = GroupId{ 1 };
     looseGroup.Kind = AgentGroupKind::Loose;
+    looseGroup.ProfileId = CoalitionFormationProfileId::WolfLoose;
     looseGroup.TerritoryMapId = 0;
     looseGroup.TerritoryX = 0.0f;
     looseGroup.TerritoryY = 0.0f;
@@ -1473,6 +1493,7 @@ void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
         AgentGroupRecord shrunkGroup;
         shrunkGroup.Id = GroupId{ 2 };
         shrunkGroup.Kind = AgentGroupKind::Loose;
+        shrunkGroup.ProfileId = CoalitionFormationProfileId::WolfLoose;
         shrunkGroup.Members.push_back(AgentGroupMembership{ AgentId{ 1 }, 0 });
 
         std::vector<CoalitionMemberObservation> members{ makeObservation(AgentId{ 1 }, true, true, 0.0f) };
@@ -1492,6 +1513,7 @@ void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
         AgentGroupRecord stableGroup;
         stableGroup.Id = GroupId{ 3 };
         stableGroup.Kind = AgentGroupKind::Stable;
+        stableGroup.ProfileId = CoalitionFormationProfileId::WolfLoose;
         stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 1 }, 0 });
         stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 2 }, 0 });
 
@@ -1541,6 +1563,26 @@ void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
             decision.Type == CoalitionMaintenanceDecisionType::None);
     }
 
+    // 2.12E4C2 P2 fix (STATIC review): a group with no known automatic
+    // formation profile (ProfileId == Invalid - a manually/admin-created
+    // group, or any group predating the profile_id column) never proposes
+    // anything for a real profile either, even though its Kind matches -
+    // this is the actual fix for the P2 that let WolfLoose maintenance
+    // apply to every LOOSE group regardless of provenance.
+    {
+        AgentGroupRecord unclassifiedGroup = looseGroup;
+        unclassifiedGroup.Id = GroupId{ 4 };
+        unclassifiedGroup.ProfileId = CoalitionFormationProfileId::Invalid;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, true, true, 70.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(unclassifiedGroup, profile, members);
+        check("group.ProfileId mismatch (manual/unclassified LOOSE group vs. WolfLoose profile) proposes NONE",
+            decision.Type == CoalitionMaintenanceDecisionType::None);
+    }
+
     TC_LOG_INFO("ai.world", "AI coalition maintenance smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
@@ -1585,16 +1627,23 @@ void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& prof
 {
     uint64 nowMs = CurrentTimeMs();
 
-    // Pre-filter to profile.Kind - see this method's own header comment
-    // for why (a wrong-Kind group would just fail
-    // CoalitionMaintenanceSystem::Evaluate()'s own Kind-mismatch guard
-    // anyway, but only after consuming one of this pass's bounded
-    // admission slots to find that out).
+    // Milestone 2.12E4C2 P2 fix (STATIC review): pre-filter to
+    // profile.ProfileId - NOT group->Kind alone. Kind cannot tell two
+    // profiles of the same Kind apart (only WolfLoose forms LOOSE groups
+    // today, but nothing about Kind itself prevents a future second
+    // LOOSE-forming profile from colliding the same way), and a manually/
+    // admin-created LOOSE group (AgentGroupRecord::ProfileId == Invalid)
+    // must never be silently swept into WolfLoose's own automatic
+    // maintenance just because its Kind happens to match. A wrong-profile
+    // group would also fail CoalitionMaintenanceSystem::Evaluate()'s own
+    // ProfileId-mismatch guard, but only after consuming one of this
+    // pass's bounded admission slots to find that out - filtering here
+    // avoids that waste too.
     std::vector<GroupId> candidates;
     for (GroupId groupId : _groupRegistry.GetGroups())
     {
         AgentGroupRecord const* group = _groupRegistry.Find(groupId);
-        if (group && group->Kind == profile.Kind)
+        if (group && group->ProfileId == profile.ProfileId)
             candidates.push_back(groupId);
     }
 
@@ -1768,12 +1817,17 @@ void AIWorldMgr::Update(uint32 diff)
             _wolfGroupFormationTimer = 0;
             RunCoalitionFormation(_wolfLooseFormationProfile);
         }
+    }
 
-        // Milestone 2.12E4C2: shares AIWorld.WolfGroupAutoFormation's own
-        // gate rather than a separate enable flag - automatic maintenance
-        // only ever has anything to maintain once automatic formation has
-        // actually created something, so the two are one feature, not two
-        // independently togglable ones.
+    // Milestone 2.12E4C2 P2 fix (STATIC review): gated on its OWN
+    // AIWorld.CoalitionMaintenance flag, deliberately NOT
+    // _wolfGroupAutoFormation - see _coalitionMaintenanceEnabled's own
+    // declaration comment for why an operator stopping new automatic
+    // formation must not also silently freeze maintenance of groups that
+    // already exist (persisted across a restart, or created manually/by
+    // an admin tool).
+    if (_coalitionMaintenanceEnabled)
+    {
         _coalitionMaintenanceTimer += diff;
         if (_coalitionMaintenanceTimer >= _coalitionMaintenanceIntervalMs)
         {

@@ -117,11 +117,34 @@ uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
         record.Resources = fields[6].GetFloat();
         record.Version = fields[7].GetUInt64();
 
+        // Milestone 2.12E4C2 P2 fix (STATIC review): same fail-closed
+        // discipline as kind above, not a blind cast - an unrecognized
+        // profile_id is refused (logged, skipped) rather than silently
+        // reinterpreted. Every row from before this column existed reads
+        // back 0 (Invalid) via its own DEFAULT - the correct, fail-closed
+        // reading for "no automatic formation profile is known to have
+        // created this group" (see AgentGroupRecord::ProfileId).
+        uint8 rawProfileId = fields[8].GetUInt8();
+        switch (rawProfileId)
+        {
+            case uint8(CoalitionFormationProfileId::Invalid):
+                record.ProfileId = CoalitionFormationProfileId::Invalid;
+                break;
+            case uint8(CoalitionFormationProfileId::WolfLoose):
+                record.ProfileId = CoalitionFormationProfileId::WolfLoose;
+                break;
+            default:
+                TC_LOG_ERROR("ai.world",
+                    "AgentGroupPersistence: refusing to load group id={} with invalid profile_id={} (not INVALID(0)/WOLF_LOOSE(1)), skipping",
+                    record.Id.Value, rawProfileId);
+                continue;
+        }
+
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent group loaded id={} kind={} territoryMap={} resources={:.4f} version={}",
-            record.Id.Value, ToString(record.Kind), record.TerritoryMapId, record.Resources, record.Version);
+        TC_LOG_INFO("ai.world", "AI agent group loaded id={} kind={} profile={} territoryMap={} resources={:.4f} version={}",
+            record.Id.Value, ToString(record.Kind), ToString(record.ProfileId), record.TerritoryMapId, record.Resources, record.Version);
 
         ++loaded;
     } while (result->NextRow());
@@ -203,12 +226,13 @@ void AgentGroupPersistence::SaveGroupState(GroupId id, AgentGroupRecord& record)
     stmt->setFloat(4, record.TerritoryZ);
     stmt->setFloat(5, record.Resources);
     stmt->setUInt64(6, record.Version);
-    stmt->setUInt64(7, id.Value);
+    stmt->setUInt8(7, uint8(record.ProfileId));
+    stmt->setUInt64(8, id.Value);
 
     // Bound again for the statement's own "AND version < ?" guard - see
     // AgentGroupRecord::Version and CHAR_UPD_AI_AGENT_GROUP's own comment
     // for why.
-    stmt->setUInt64(8, record.Version);
+    stmt->setUInt64(9, record.Version);
 
     // Fire-and-forget by design - see the class comment. The world update
     // thread must never wait on this.
@@ -216,7 +240,8 @@ void AgentGroupPersistence::SaveGroupState(GroupId id, AgentGroupRecord& record)
 }
 
 std::optional<TransactionCallback> AgentGroupPersistence::CreateGroupAsync(AgentGroupKind kind, uint32 territoryMapId,
-    float territoryX, float territoryY, float territoryZ, float resources, std::function<void(bool, GroupId)> onComplete)
+    float territoryX, float territoryY, float territoryZ, float resources, CoalitionFormationProfileId profileId,
+    std::function<void(bool, GroupId)> onComplete)
 {
     // Fail-closed - never mint against an allocator LoadGroupIdSequence()
     // could not confirm.
@@ -268,6 +293,7 @@ std::optional<TransactionCallback> AgentGroupPersistence::CreateGroupAsync(Agent
     insertStmt->setFloat(4, territoryY);
     insertStmt->setFloat(5, territoryZ);
     insertStmt->setFloat(6, resources);
+    insertStmt->setUInt8(7, uint8(profileId));
     trans->Append(insertStmt);
 
     TransactionCallback callback = CharacterDatabase.AsyncCommitTransaction(trans);

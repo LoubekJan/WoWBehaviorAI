@@ -501,13 +501,19 @@ class TC_GAME_API AIWorldMgr
         std::vector<CoalitionMemberObservation> CollectCoalitionMemberObservations(AgentGroupRecord const& group) const;
 
         // Milestone 2.12E4C2: AIWorld.CoalitionMaintenanceIntervalMs-
-        // cadenced pass, only ever called while AIWorld.WolfGroupAutoFormation
-        // is enabled (maintenance shares that gate - see its own call site
-        // in Update()). Pre-filters _groupRegistry's own groups to
-        // profile.Kind (a group of the wrong Kind can never produce a
+        // cadenced pass, only ever called while AIWorld.CoalitionMaintenance
+        // is enabled - a SEPARATE gate from AIWorld.WolfGroupAutoFormation
+        // (2.12E4C2 P2 fix, STATIC review - see _coalitionMaintenanceEnabled's
+        // own declaration comment for why formation and maintenance must
+        // not share one on/off switch). Pre-filters _groupRegistry's own
+        // groups to profile.ProfileId (2.12E4C2 P2 fix, STATIC review: NOT
+        // group->Kind alone - see AgentGroupRecord::ProfileId for why Kind
+        // cannot tell two profiles of the same Kind apart, and why a
+        // manually/admin-created group must never be swept in just because
+        // its Kind matches; a wrong-profile group can never produce a
         // decision from this profile anyway, once
-        // CoalitionMaintenanceSystem::Evaluate()'s own Kind-mismatch guard
-        // is considered - filtering here instead just keeps the bounded
+        // CoalitionMaintenanceSystem::Evaluate()'s own matching guard is
+        // considered - filtering here instead just keeps the bounded
         // scheduler below from wasting admission slots on groups that
         // could never use them), then reuses GroupCoarseSimulationScheduler
         // (_maintenanceScheduler/_maintenanceSchedule - its own dedicated
@@ -866,6 +872,21 @@ class TC_GAME_API AIWorldMgr
         // once at Initialize() from AIWorld.WolfGroupLeaveRadius and
         // _groupPolicyConfig.LooseMinMembers.
         CoalitionMaintenanceProfile _wolfLooseMaintenanceProfile;
+
+        // Milestone 2.12E4C2 P2 fix (STATIC review): AIWorld.CoalitionMaintenance
+        // - a SEPARATE enable gate from _wolfGroupAutoFormation, off by
+        // default. An earlier version shared _wolfGroupAutoFormation's own
+        // gate for both formation AND maintenance, on the argument that
+        // "maintenance has nothing to maintain until formation has created
+        // something" - wrong: a group can persist across a restart, or be
+        // created manually/by an admin tool, entirely independent of
+        // whether automatic formation is currently enabled. An operator
+        // who sets AIWorld.WolfGroupAutoFormation = 0 to stop NEW groups
+        // from forming must not also silently freeze every EXISTING
+        // group's automatic leave/dissolve maintenance - creation and
+        // maintenance are two different lifecycle capabilities. See
+        // RunCoalitionMaintenance()'s own call site in Update().
+        bool _coalitionMaintenanceEnabled = false;
 
         // Milestone 2.12E4C2: AIWorld.WolfGroupLeaveRadius -
         // _wolfLooseMaintenanceProfile's own LeaveRadius, clamped at
