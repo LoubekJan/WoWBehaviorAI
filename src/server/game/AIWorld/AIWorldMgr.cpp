@@ -403,6 +403,57 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI wolf coalition maintenance configured enabled={} leaveRadius={:.1f} interval={}ms maxPerPass={} scanMaxPerPass={}",
         _coalitionMaintenanceEnabled, _wolfGroupLeaveRadius, _coalitionMaintenanceIntervalMs, _coalitionMaintenanceMaxPerPass, _coalitionMaintenanceScanMaxPerPass);
 
+    // Milestone 2.12F2: a SEPARATE enable gate from AIWorld.WolfGroupAutoFormation/
+    // AIWorld.CoalitionMaintenance - see _groupCoordinationEnabled's own
+    // declaration comment for why. Off by default, same as every other
+    // not-yet-runtime-verified piece of this feature.
+    _groupCoordinationEnabled = sConfigMgr->GetBoolDefault("AIWorld.GroupCoordination", false);
+
+    bool wolfGroupRegroupEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRegroupEnabled", false);
+
+    // Milestone 2.12F2: deliberately no relationship enforced against
+    // AIWorld.WolfGroupFormationRadius/AIWorld.WolfGroupLeaveRadius the way
+    // LeaveRadius is clamped against FormationRadius above - unlike that
+    // pair (which exists purely to create hysteresis around a single
+    // shared trigger), RegroupRadius answers a different question
+    // ("how far from the group's own fixed territory point before a
+    // member is considered dispersed", see AgentGroupIntentSystem.h) and a
+    // profile is free to set it independently of either.
+    float wolfGroupRegroupRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRegroupRadius", 20.0f);
+    if (wolfGroupRegroupRadius < 1.0f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRegroupRadius ({:.1f}) is invalid or too low, clamping to 1.0", wolfGroupRegroupRadius);
+        wolfGroupRegroupRadius = 1.0f;
+    }
+
+    _wolfLooseCoordinationProfile.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    _wolfLooseCoordinationProfile.Kind = AgentGroupKind::Loose;
+    _wolfLooseCoordinationProfile.RegroupEnabled = wolfGroupRegroupEnabled;
+    _wolfLooseCoordinationProfile.RegroupRadius = wolfGroupRegroupRadius;
+
+    int32 groupCoordinationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.GroupCoordinationIntervalMs", 5000);
+    if (groupCoordinationIntervalMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.GroupCoordinationIntervalMs ({}) is invalid or too low, clamping to 1000ms", groupCoordinationIntervalMs);
+        groupCoordinationIntervalMs = 1000;
+    }
+    _groupCoordinationIntervalMs = uint32(groupCoordinationIntervalMs);
+    _groupCoordinationTimer = 0;
+
+    int32 groupCoordinationScanMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.GroupCoordinationScanMaxPerPass", 100);
+    if (groupCoordinationScanMaxPerPass < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.GroupCoordinationScanMaxPerPass ({}) is invalid or too low, clamping to 1", groupCoordinationScanMaxPerPass);
+        groupCoordinationScanMaxPerPass = 1;
+    }
+    _groupCoordinationScanMaxPerPass = uint32(groupCoordinationScanMaxPerPass);
+
+    _coordinationScanCursor = GroupId{};
+    _coordinationScanCycleHighWater = GroupId{};
+
+    TC_LOG_INFO("ai.world", "AI group coordination configured enabled={} regroupEnabled={} regroupRadius={:.1f} interval={}ms scanMaxPerPass={}",
+        _groupCoordinationEnabled, wolfGroupRegroupEnabled, wolfGroupRegroupRadius, _groupCoordinationIntervalMs, _groupCoordinationScanMaxPerPass);
+
     // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
     // many DIFFERENT profiles' formations can be in flight at once - see
     // _coalitionFormationMaxInFlight's own declaration comment. 1 (the
@@ -2340,6 +2391,171 @@ void AIWorldMgr::RunCoalitionMaintenanceDissolveGroup(GroupId groupId)
         });
 }
 
+std::optional<AgentGroupCoordinationProfile> AIWorldMgr::ResolveCoordinationProfile(CoalitionFormationProfileId profileId) const
+{
+    if (profileId == CoalitionFormationProfileId::WolfLoose)
+        return _wolfLooseCoordinationProfile;
+
+    return std::nullopt;
+}
+
+void AIWorldMgr::RunCoalitionCoordination()
+{
+    // Same two-stage bounded-discovery shape RunCoalitionMaintenance()
+    // already established, with its own dedicated cursor pair - see
+    // _coordinationScanCursor/_coordinationScanCycleHighWater's own
+    // declaration comments.
+    if (!_coordinationScanCursor)
+        _coordinationScanCycleHighWater = _groupRegistry.GetHighestGroupId();
+
+    std::vector<GroupId> discovered = _groupRegistry.GetGroupsAfterUntil(
+        _coordinationScanCursor, _coordinationScanCycleHighWater, _groupCoordinationScanMaxPerPass);
+
+    if (discovered.empty() && _coordinationScanCursor)
+    {
+        _coordinationScanCursor = GroupId{};
+        _coordinationScanCycleHighWater = _groupRegistry.GetHighestGroupId();
+        discovered = _groupRegistry.GetGroupsAfterUntil(
+            _coordinationScanCursor, _coordinationScanCycleHighWater, _groupCoordinationScanMaxPerPass);
+    }
+
+    if (!discovered.empty())
+        _coordinationScanCursor = discovered.back();
+
+    // No second bounded admission tier - see RunCoalitionCoordination()'s
+    // own header comment for why a dispatched MOVE_TO proposal (cheap,
+    // synchronous, in-memory) needs no GroupCoarseSimulationScheduler the
+    // way an async DB-writing maintenance action does.
+    for (GroupId groupId : discovered)
+    {
+        AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+        if (!group)
+            continue;
+
+        std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
+        if (!profile)
+            continue;
+
+        std::vector<CoalitionMemberObservation> observations = CollectCoalitionMemberObservations(*group);
+        AgentGroupIntent intent = _agentGroupIntentSystem.Evaluate(*group, *profile, observations);
+        if (intent.Type == AgentGroupIntentType::None)
+            continue;
+
+        std::vector<GroupMemberActionProposal> proposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
+        for (GroupMemberActionProposal const& proposal : proposals)
+            DispatchGroupMemberActionProposal(proposal);
+    }
+}
+
+void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal const& proposal)
+{
+    AgentRecord* record = _registry.Find(proposal.Member);
+    if (!record)
+        return;
+
+    // Re-confirms SourceGroup/membership fresh - never trusts that either
+    // still holds by the time this specific proposal (possibly several
+    // members deep into RunCoalitionCoordination()'s own batch) actually
+    // runs. See this method's own declaration comment.
+    AgentGroupRecord const* group = _groupRegistry.Find(proposal.SourceGroup);
+    if (!group)
+        return;
+
+    bool stillMember = std::any_of(group->Members.begin(), group->Members.end(),
+        [&proposal](AgentGroupMembership const& membership) { return membership.Member == proposal.Member; });
+    if (!stillMember)
+        return;
+
+    if (record->WorldState != AgentWorldState::Materialized)
+        return;
+
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+    Creature* creature = ResolveLiveCreature(*record, map);
+    if (!creature || !creature->IsAlive())
+        return;
+
+    // Regroup is the LOWEST of the three MOVE_TO tiers - any higher-tier
+    // individual reason already owns this agent's own action slot this
+    // pass, and this proposal is simply dropped, not queued.
+    if (record->ActiveGoalState || record->RoutineGoalState)
+        return;
+
+    if (record->ActiveActionState)
+        return;
+
+    uint64 nowMs = CurrentTimeMs();
+
+    ActionPosition destination;
+    destination.MapId = proposal.MapId;
+    destination.X = proposal.X;
+    destination.Y = proposal.Y;
+    destination.Z = proposal.Z;
+
+    ActionRequest moveRequest;
+    moveRequest.Actor = proposal.Member;
+    moveRequest.Type = ActionType::MoveTo;
+    moveRequest.SourceGoal = GoalType::Regroup;
+    moveRequest.GoalStartedAtMs = nowMs;
+    moveRequest.Destination = destination;
+
+    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f}) sourceGroup={}",
+        record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
+        destination.X, destination.Y, destination.Z, proposal.SourceGroup.Value);
+
+    // Set BEFORE Validate() - same order the routine MOVE_TO dispatch in
+    // UpdateNeeds() already uses, so ActiveGoalType/ActiveGoalStartedAtMs
+    // below can honestly name this attempt. Rolled back below on any
+    // rejection/failure to start - see GroupCoordinationGoal.h for why
+    // this must never survive naming an attempt that never actually ran.
+    GroupCoordinationGoal coordinationGoal;
+    coordinationGoal.Type = GoalType::Regroup;
+    coordinationGoal.SourceGroup = proposal.SourceGroup;
+    coordinationGoal.StartedAtMs = nowMs;
+    record->GroupCoordinationGoalState = coordinationGoal;
+
+    ActionValidationContext moveContext;
+    moveContext.Materialized = true;
+    moveContext.Alive = true;
+    moveContext.ActiveGoalType = GoalType::Regroup;
+    moveContext.ActiveGoalStartedAtMs = nowMs;
+    moveContext.MapId = creature->GetMapId();
+    moveContext.X = creature->GetPositionX();
+    moveContext.Y = creature->GetPositionY();
+    moveContext.Z = creature->GetPositionZ();
+    moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
+
+    ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
+
+    TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+        record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
+        ToString(moveValidation.Reason));
+
+    if (!moveValidation.Allowed)
+    {
+        record->GroupCoordinationGoalState.reset();
+        return;
+    }
+
+    ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+
+    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+        record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+
+    if (moveResult.Status != ActionExecutionStatus::Started)
+    {
+        record->GroupCoordinationGoalState.reset();
+        return;
+    }
+
+    ActiveAction action;
+    action.Type = moveRequest.Type;
+    action.SourceGoal = moveRequest.SourceGoal;
+    action.GoalStartedAtMs = moveRequest.GoalStartedAtMs;
+    action.StartedAtMs = nowMs;
+    action.Destination = moveRequest.Destination;
+    record->ActiveActionState = action;
+}
+
 void AIWorldMgr::Update(uint32 diff)
 {
     if (!_enabled)
@@ -2411,6 +2627,19 @@ void AIWorldMgr::Update(uint32 diff)
         {
             _coalitionMaintenanceTimer = 0;
             RunCoalitionMaintenance();
+        }
+    }
+
+    // Milestone 2.12F2: gated on its OWN AIWorld.GroupCoordination flag,
+    // deliberately NOT _wolfGroupAutoFormation or _coalitionMaintenanceEnabled -
+    // see _groupCoordinationEnabled's own declaration comment for why.
+    if (_groupCoordinationEnabled)
+    {
+        _groupCoordinationTimer += diff;
+        if (_groupCoordinationTimer >= _groupCoordinationIntervalMs)
+        {
+            _groupCoordinationTimer = 0;
+            RunCoalitionCoordination();
         }
     }
 
@@ -3476,6 +3705,11 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 record->ActiveActionState.reset();
             }
 
+            // Milestone 2.12F2: same reasoning - a dematerialized agent's
+            // own in-flight Regroup attempt (if any) is over too. Harmless
+            // no-op when there was none.
+            record->GroupCoordinationGoalState.reset();
+
             // Milestone 2.8G P2 fix: a pending Eat continuation for a
             // Creature that no longer resolves has nothing left to
             // validate against (TryEat() needs a live Creature&) - drop it
@@ -3579,6 +3813,11 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                     ToString(ActionCompletionReason::ActorDead), ToString(record->ActiveActionState->SourceGoal));
                 record->ActiveActionState.reset();
             }
+
+            // Milestone 2.12F2: same reasoning as ActiveGoalState below - a
+            // corpse has no in-flight Regroup attempt either. Harmless
+            // no-op when there was none.
+            record->GroupCoordinationGoalState.reset();
 
             if (record->ActiveGoalState)
             {
@@ -3781,6 +4020,32 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal));
 
             record->ActiveActionState.reset();
+        }
+
+        // Milestone 2.12F2: Regroup (the lowest-priority, third tier - see
+        // GroupCoordinationGoal.h) yields to EITHER a Need-driven
+        // ActiveGoalState or a Routine-owned MOVE_TO the instant either
+        // exists - unlike Routine (which only yields to ActiveGoalState,
+        // see the block above), Coordination sits below both. Scoped by
+        // SourceGoal == GoalType::Regroup, the same tag-based
+        // discrimination IsRoutineSourceGoal() already establishes for
+        // Routine - an agent's own individual goals always win the action
+        // slot back from an automatic group nudge. Regroup itself is
+        // never dispatched (AIWorldMgr::DispatchGroupMemberActionProposal())
+        // while either already exists, so this only ever fires for the
+        // same kind of "appeared fresh, racing an already in-flight lower-
+        // priority MOVE_TO" case the ROUTINE_PREEMPTED_BY_GOAL block above
+        // exists for.
+        if ((record->ActiveGoalState || record->RoutineGoalState) && record->ActiveActionState
+            && record->ActiveActionState->SourceGoal == GoalType::Regroup)
+        {
+            _actionExecutor.StopMoveTo(*creature);
+
+            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=COORDINATION_PREEMPTED_BY_GOAL sourceGoal={}",
+                record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal));
+
+            record->ActiveActionState.reset();
+            record->GroupCoordinationGoalState.reset();
         }
 
         // Milestone 2.11C: the routine's own MOVE_TO - only proposed while
@@ -4320,10 +4585,11 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
     }
 
     // Milestone 2.11C: ActiveActionState::SourceGoal identifies which of
-    // the two independent owners this action belongs to - AgentRecord::
-    // ActiveGoalState for every GoalType except GoToWork/GoHome, ::
-    // RoutineGoalState for those (see IsRoutineSourceGoal()). RoutineGoal
-    // has no StartedAtMs of its own to cross-check (it is stateless,
+    // the (2.12F2: now three) independent owners this action belongs to -
+    // AgentRecord::ActiveGoalState for every GoalType except GoToWork/
+    // GoHome/Regroup, ::RoutineGoalState for GoToWork/GoHome (see
+    // IsRoutineSourceGoal()), ::GroupCoordinationGoalState for Regroup.
+    // RoutineGoal has no StartedAtMs of its own to cross-check (it is stateless,
     // recomputed fresh every tick - see RoutineGoal.h): Type still matching
     // is the routine-side equivalent of the GoalType+StartedAtMs match
     // below, sufficient here because AIWorldMgr::UpdateNeeds() always stops
@@ -4332,10 +4598,22 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
     // different attempt of the same Type could ever start - never lets one
     // silently get superseded out from under this check the way it could
     // not otherwise notice.
-    bool ownedByCurrentAttempt = IsRoutineSourceGoal(record->ActiveActionState->SourceGoal)
-        ? (record->RoutineGoalState && record->RoutineGoalState->Type == record->ActiveActionState->SourceGoal)
-        : (record->ActiveGoalState && record->ActiveGoalState->Type == record->ActiveActionState->SourceGoal
-            && record->ActiveGoalState->StartedAtMs == record->ActiveActionState->GoalStartedAtMs);
+    // Milestone 2.12F2: a third branch, alongside the Routine/ActiveGoal
+    // ones the comment above already documents - GroupCoordinationGoalState
+    // is this attempt's own owner for a Regroup-sourced action, checked
+    // the same Type+StartedAtMs way ActiveGoalState already is (see
+    // GroupCoordinationGoal.h for why this is ephemeral like ActiveGoal,
+    // not stateless like RoutineGoal).
+    bool ownedByCurrentAttempt;
+    if (IsRoutineSourceGoal(record->ActiveActionState->SourceGoal))
+        ownedByCurrentAttempt = record->RoutineGoalState && record->RoutineGoalState->Type == record->ActiveActionState->SourceGoal;
+    else if (record->ActiveActionState->SourceGoal == GoalType::Regroup)
+        ownedByCurrentAttempt = record->GroupCoordinationGoalState
+            && record->GroupCoordinationGoalState->Type == record->ActiveActionState->SourceGoal
+            && record->GroupCoordinationGoalState->StartedAtMs == record->ActiveActionState->GoalStartedAtMs;
+    else
+        ownedByCurrentAttempt = record->ActiveGoalState && record->ActiveGoalState->Type == record->ActiveActionState->SourceGoal
+            && record->ActiveGoalState->StartedAtMs == record->ActiveActionState->GoalStartedAtMs;
 
     if (!ownedByCurrentAttempt)
     {
@@ -4404,6 +4682,18 @@ void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion co
         pending.GoalStartedAtMs = completion.GoalStartedAtMs;
         record.PendingEat = pending;
     }
+
+    // Milestone 2.12F2: unlike RoutineGoalState (deliberately left alone
+    // on completion - see GroupCoordinationGoal.h for why Coordination is
+    // ephemeral instead), GroupCoordinationGoalState has nothing else that
+    // ever re-derives or re-consumes it - it must be cleared here,
+    // regardless of Status/Reason (Arrived, DestinationNotReached,
+    // GoalInterrupted, ActorDematerialized, ActorDead, EngineStopped all
+    // reach this same call), or a completed attempt's own identity would
+    // linger and could be misread as still owning a future unrelated
+    // ActiveActionState of the same Type.
+    if (completion.SourceGoal == GoalType::Regroup)
+        record.GroupCoordinationGoalState.reset();
 }
 
 // World thread only. Milestone 2.11E2 P3 fix: applies mutate, then persists

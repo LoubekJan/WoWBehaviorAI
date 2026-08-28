@@ -26,6 +26,7 @@
 #include "AgentType.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
+#include "Goal/GroupCoordinationGoal.h"
 #include "Goal/RoutineActivity.h"
 #include "Goal/RoutineGoal.h"
 #include "Needs/NeedsState.h"
@@ -111,6 +112,18 @@ struct AgentRecord
     // wants; whether that is actually safe to act on right now is decided
     // there, never here.
     std::optional<RoutineGoal> RoutineGoalState;
+
+    // Milestone 2.12F2: the agent's own in-flight group-coordination MOVE_TO
+    // attempt (GoalType::Regroup), or empty - the third and LOWEST-priority
+    // tier under ActiveGoalState/RoutineGoalState (see AIWorldMgr::
+    // UpdateNeeds()'s own arbitration comments). Set only by AIWorldMgr::
+    // DispatchGroupMemberActionProposal(), never re-derived every Needs
+    // tick the way RoutineGoalState is - see GroupCoordinationGoal.h for
+    // why this is ephemeral (cleared on the attempt's own terminal
+    // outcome) rather than persistent like RoutineGoalState. Not persisted
+    // across restart, the same as ActiveGoalState/RoutineGoalState/
+    // ActiveActionState.
+    std::optional<GroupCoordinationGoal> GroupCoordinationGoalState;
 
     // Milestone 2.11D: what the agent is actually doing right now at its
     // routine destination (Work/Rest), or empty - see

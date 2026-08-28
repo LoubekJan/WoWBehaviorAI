@@ -40,6 +40,18 @@ namespace
     // name, but ValidateMoveTo() must not have to trust that distinction
     // implicitly - this constant is the explicit bound for it either way.
     constexpr float MaxRoutineMoveToRangeYards = 300.0f;
+
+    // Milestone 2.12F2: Regroup's own bound - wider than the default
+    // reactive-goal bound above (a member is allowed to drift up to a
+    // Loose group's own LeaveRadius, e.g. AIWorld.WolfGroupLeaveRadius,
+    // before actually leaving the group - CoalitionMaintenanceSystem's
+    // own automatic Leave only fires past that same radius - so a
+    // Regroup MOVE_TO must still be able to reach a member from anywhere
+    // within it), but deliberately narrower than the routine-commute
+    // bound above (a group's own territory is not expected to be nearly
+    // as far from a wandering member as a persisted home/work commute
+    // can legitimately be).
+    constexpr float MaxCoordinationMoveToRangeYards = 100.0f;
 }
 
 ActionValidationResult ActionSystem::Validate(ActionRequest const& request, ActionValidationContext const& context) const
@@ -129,7 +141,10 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     float distanceSq = dx * dx + dy * dy + dz * dz;
 
     bool isRoutineMove = request.SourceGoal == GoalType::GoToWork || request.SourceGoal == GoalType::GoHome;
-    float maxRangeYards = isRoutineMove ? MaxRoutineMoveToRangeYards : MaxMoveToRangeYards;
+    bool isCoordinationMove = request.SourceGoal == GoalType::Regroup;
+    float maxRangeYards = isRoutineMove ? MaxRoutineMoveToRangeYards
+        : isCoordinationMove ? MaxCoordinationMoveToRangeYards
+        : MaxMoveToRangeYards;
 
     if (distanceSq > maxRangeYards * maxRangeYards)
         return { false, ActionRejectReason::DestinationTooFar };

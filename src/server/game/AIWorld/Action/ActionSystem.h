@@ -56,8 +56,11 @@ class TC_GAME_API ActionSystem
         // honestly names it). Checks the destination exists, is on the
         // actor's own map, has finite coordinates, and is within a bounded
         // range - see ActionSystem.cpp for the exact distances (GoToWork/
-        // GoHome get a wider routine-commute bound than every other
-        // GoalType).
+        // GoHome get the widest, routine-commute bound; Regroup - 2.12F2 -
+        // gets a narrower-than-routine-but-wider-than-default bound, wide
+        // enough to reach a member from anywhere within a Loose group's
+        // own LeaveRadius; every other GoalType keeps the original
+        // reactive-goal bound).
         ActionValidationResult ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const;
 
         // Milestone 2.8G/2.8G P2 fix: Eat-specific, run only once the

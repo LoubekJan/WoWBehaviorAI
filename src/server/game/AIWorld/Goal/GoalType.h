@@ -35,12 +35,29 @@
 // ActionSystem validates, ActionExecutor executes" MOVE_TO pipeline
 // GET_FOOD already goes through, rather than inventing a second, parallel
 // action-identity type just for routine.
+//
+// Regroup (2.12F2) is the same kind of exception, one tier further down:
+// never produced by GoalSystem, never appears in ActiveGoalState/
+// RoutineGoalState, no Need or persisted schedule behind it - it exists
+// purely so GroupCoordinationGoal::Type can double as ActionRequest::
+// SourceGoal/ActiveAction::SourceGoal directly, the same "reuse the
+// existing MOVE_TO pipeline, don't invent a parallel one" reasoning
+// GoToWork/GoHome's own comment already gives. It is the LOWEST-priority
+// of the three MOVE_TO sources - see AIWorldMgr::UpdateNeeds()'s own
+// arbitration comments (2.11C/2.12F2): Emergency ActiveGoal > Normal
+// ActiveGoal > RoutineGoal > Regroup. Produced only by AIWorldMgr::
+// DispatchGroupMemberActionProposal(), itself fed by
+// AgentGroupIntentSystem/AgentGroupIntentProjector - a group-level
+// coordination fact decomposed into one individual member's own,
+// separately-validated MOVE_TO, never a command the group issues
+// directly (see AgentGroupIntent.h).
 enum class GoalType : uint8
 {
     GetFood,
     FleeDanger,
     GoToWork,
-    GoHome
+    GoHome,
+    Regroup
 };
 
 inline char const* ToString(GoalType type)
@@ -51,6 +68,7 @@ inline char const* ToString(GoalType type)
         case GoalType::FleeDanger: return "FLEE_DANGER";
         case GoalType::GoToWork:   return "GO_TO_WORK";
         case GoalType::GoHome:     return "GO_HOME";
+        case GoalType::Regroup:    return "REGROUP";
         default:                   return "UNKNOWN";
     }
 }

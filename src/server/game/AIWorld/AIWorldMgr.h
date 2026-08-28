@@ -23,6 +23,9 @@
 #include "Action/ActionExecutor.h"
 #include "Action/ActionSystem.h"
 #include "Action/PendingEatContinuation.h"
+#include "Agent/AgentGroupCoordinationProfile.h"
+#include "Agent/AgentGroupIntentProjector.h"
+#include "Agent/AgentGroupIntentSystem.h"
 #include "Agent/AgentGroupLifecycleSystem.h"
 #include "Agent/AgentGroupOperationSource.h"
 #include "Agent/AgentGroupPolicyConfig.h"
@@ -38,6 +41,7 @@
 #include "Agent/CoalitionFormationSystem.h"
 #include "Agent/CoalitionMaintenanceSystem.h"
 #include "Agent/GroupId.h"
+#include "Agent/GroupMemberActionProposal.h"
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
@@ -755,6 +759,94 @@ class TC_GAME_API AIWorldMgr
         // exactly one place that has to get that release right.
         void RunCoalitionMaintenanceDissolveGroup(GroupId groupId);
 
+        // Milestone 2.12F2: the one place that maps a persistent
+        // AgentGroupRecord::ProfileId to the AgentGroupCoordinationProfile
+        // that governs it - std::nullopt for Invalid or any profileId this
+        // process has no coordination rules configured for. Today only
+        // WolfLoose resolves (to _wolfLooseCoordinationProfile); a future
+        // second profile is just another case added here, the same
+        // "profile identity is data, not a new code path" discipline
+        // ResolveMaintenanceProfile() already established - see this
+        // milestone's own architectural mandate: a second group TYPE must
+        // never require a new orchestration method, only a new profile
+        // value.
+        std::optional<AgentGroupCoordinationProfile> ResolveCoordinationProfile(CoalitionFormationProfileId profileId) const;
+
+        // Milestone 2.12F2: the bounded orchestration pass - AgentGroup ->
+        // generic observations -> generic intent (_agentGroupIntentSystem)
+        // -> per-member proposals (_agentGroupIntentProjector) -> individual
+        // ActionRequest (DispatchGroupMemberActionProposal()). Reuses the
+        // exact two-stage bounded-discovery shape RunCoalitionMaintenance()
+        // already established (AgentGroupRegistry::GetGroupsAfterUntil()/
+        // GetHighestGroupId(), AIWorld.GroupCoordinationScanMaxPerPass) -
+        // its own dedicated cursor/high-water pair
+        // (_coordinationScanCursor/_coordinationScanCycleHighWater),
+        // entirely separate from _maintenanceScanCursor/
+        // _maintenanceScanCycleHighWater. A shared cursor would reproduce
+        // the exact cross-scan starvation _maintenanceScanCursor's own
+        // 2.12E4C2 P2 fix already closed for cross-PROFILE sharing within
+        // one concern - two entirely different concerns (maintenance,
+        // coordination) scanning the same registry must never share one
+        // cursor either, for the same reason.
+        //
+        // Deliberately no second GroupCoarseSimulationScheduler-backed
+        // admission tier the way RunCoalitionMaintenance() has - dispatching
+        // a MOVE_TO proposal is a cheap, synchronous, in-memory operation
+        // (no async DB write the way an automatic leave/dissolve is), so
+        // there is nothing here that needs a separate admission bound
+        // beyond the scan bound itself. Every discovered group whose
+        // ProfileId resolves (ResolveCoordinationProfile()) is evaluated
+        // this same pass, unconditionally.
+        //
+        // Per resolved group: CollectCoalitionMemberObservations(),
+        // _agentGroupIntentSystem.Evaluate(), and - only if the result is
+        // not AgentGroupIntentType::None - _agentGroupIntentProjector.
+        // Project() followed by DispatchGroupMemberActionProposal() for
+        // every proposal it returns, in order.
+        void RunCoalitionCoordination();
+
+        // Milestone 2.12F2: the one place a GroupMemberActionProposal
+        // (AgentGroupIntentProjector's own output - a group-level intent
+        // already decomposed to one individual member, but still only a
+        // PROPOSAL, not an authorization - see GroupMemberActionProposal.h)
+        // is turned into a real, individually-validated MOVE_TO
+        // ActionRequest (SourceGoal = GoalType::Regroup). Full revalidation,
+        // never trusting anything RunCoalitionCoordination() itself already
+        // resolved earlier this same pass (a proposal can be several
+        // members old by the time this specific one runs):
+        //   - proposal.Member still resolves in _registry.
+        //   - proposal.SourceGroup still resolves in _groupRegistry, AND
+        //     proposal.Member is still actually one of its Members (a leave
+        //     that lands between Project() and this call must not dispatch
+        //     a movement for a member who already left).
+        //   - the member is Materialized with a live, resolvable Creature,
+        //     and Alive.
+        //   - no higher-priority individual reason to ignore this: neither
+        //     ActiveGoalState nor RoutineGoalState set (Regroup is the
+        //     LOWEST of the three tiers - see AIWorldMgr::UpdateNeeds()'s
+        //     own arbitration comment), and no ActiveActionState already
+        //     running (a member already mid-action, of ANY SourceGoal, is
+        //     left alone - this pass never preempts anything; only
+        //     UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL/routine-
+        //     preemption blocks ever interrupt an in-flight Regroup, never
+        //     the reverse).
+        // On every rejection above, this simply returns - no log spam for
+        // what is an expected, frequent outcome (most members most passes
+        // are not eligible), the same restraint RunCoalitionMaintenanceForGroup()
+        // already shows for its own None decision.
+        //
+        // Sets record->GroupCoordinationGoalState BEFORE calling
+        // ActionSystem::Validate() (the same order UpdateNeeds()'s own
+        // RoutineGoal MOVE_TO dispatch already uses, so Validate()'s
+        // ActiveGoalType/ActiveGoalStartedAtMs context can honestly name
+        // this attempt), and clears it again immediately if Validate()
+        // rejects or ExecuteMoveTo() fails to actually start - a
+        // GroupCoordinationGoalState must never survive naming an attempt
+        // that never actually became a running ActiveActionState (see
+        // GroupCoordinationGoal.h for why this differs from RoutineGoalState,
+        // which is stateless and needs no such rollback).
+        void DispatchGroupMemberActionProposal(GroupMemberActionProposal const& proposal);
+
         bool _enabled = false;
 
         // Milestone 2.10A/2.10B: how often RunDecisionScheduler() itself
@@ -1199,6 +1291,55 @@ class TC_GAME_API AIWorldMgr
         // and re-evaluated by a later pass before the first chain has
         // finished.
         std::unordered_set<uint64> _maintenanceInFlight;
+
+        // Milestone 2.12F1/2.12F2: pure decision systems - see their own
+        // class comments. Stateless, called only from
+        // RunCoalitionCoordination().
+        AgentGroupIntentSystem _agentGroupIntentSystem;
+        AgentGroupIntentProjector _agentGroupIntentProjector;
+
+        // Milestone 2.12F2: AIWorldMgr's own one existing
+        // AgentGroupCoordinationProfile, paired with
+        // _wolfLooseFormationProfile/_wolfLooseMaintenanceProfile above
+        // (same ProfileId/Kind) - built once at Initialize() from
+        // AIWorld.WolfGroupRegroupEnabled/AIWorld.WolfGroupRegroupRadius.
+        AgentGroupCoordinationProfile _wolfLooseCoordinationProfile;
+
+        // Milestone 2.12F2: gated on its OWN AIWorld.GroupCoordination flag,
+        // deliberately NOT _wolfGroupAutoFormation or
+        // _coalitionMaintenanceEnabled - the same "each capability gets its
+        // own gate" discipline _coalitionMaintenanceEnabled's own
+        // declaration comment already established, applied to a third,
+        // independent capability (an operator stopping automatic
+        // maintenance must not also silently freeze coordination movement
+        // of groups that already exist, and vice versa).
+        bool _groupCoordinationEnabled = false;
+
+        // Milestone 2.12F2: RunCoalitionCoordination()'s own cadence,
+        // deliberately its own timer - a coordination pass is neither a
+        // formation pass, a maintenance pass, nor a group coarse simulation
+        // tick.
+        uint32 _groupCoordinationIntervalMs = 5000;
+        uint32 _groupCoordinationTimer = 0;
+
+        // Milestone 2.12F2: the bound on RunCoalitionCoordination()'s own
+        // DISCOVERY (AgentGroupRegistry::GetGroupsAfterUntil()) -
+        // AIWorld.GroupCoordinationScanMaxPerPass. No separate admission
+        // bound exists the way _coalitionMaintenanceMaxPerPass is separate
+        // from _coalitionMaintenanceScanMaxPerPass - see
+        // RunCoalitionCoordination()'s own comment for why a dispatched
+        // MOVE_TO proposal needs no second bounded tier.
+        uint32 _groupCoordinationScanMaxPerPass = 100;
+
+        // Milestone 2.12F2: RunCoalitionCoordination()'s own discovery
+        // cursor/scan-cycle high-water mark - the exact same two-field
+        // pattern _maintenanceScanCursor/_maintenanceScanCycleHighWater
+        // already established (see their own declaration comments for the
+        // full reasoning), just a dedicated pair for this concern so
+        // coordination discovery and maintenance discovery never share, and
+        // therefore never race on, one cursor.
+        GroupId _coordinationScanCursor;
+        GroupId _coordinationScanCycleHighWater;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in
