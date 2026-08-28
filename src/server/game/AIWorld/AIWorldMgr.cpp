@@ -1451,6 +1451,40 @@ void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
             decision.Type == CoalitionMaintenanceDecisionType::LeaveMember && decision.Member == AgentId{ 2 });
     }
 
+    // P3 hardening (STATIC review): an Invalid profile never proposes
+    // anything, even for an otherwise-textbook far-away member - fail
+    // closed rather than silently evaluating MinMembers/LeaveRadius values
+    // that were never actually configured for any real profile.
+    {
+        CoalitionMaintenanceProfile invalidProfile = profile;
+        invalidProfile.ProfileId = CoalitionFormationProfileId::Invalid;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, true, true, 70.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(looseGroup, invalidProfile, members);
+        check("Invalid profile proposes NONE",
+            decision.Type == CoalitionMaintenanceDecisionType::None);
+    }
+
+    // P3 hardening (STATIC review): a profile whose Kind does not match
+    // the group being evaluated (a caller mismatch) never proposes
+    // anything either, rather than applying the wrong Kind's own
+    // thresholds to this group.
+    {
+        CoalitionMaintenanceProfile mismatchedProfile = profile;
+        mismatchedProfile.Kind = AgentGroupKind::Stable;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, true, true, 70.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(looseGroup, mismatchedProfile, members);
+        check("profile.Kind mismatch (Stable profile vs. LOOSE group) proposes NONE",
+            decision.Type == CoalitionMaintenanceDecisionType::None);
+    }
+
     TC_LOG_INFO("ai.world", "AI coalition maintenance smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 

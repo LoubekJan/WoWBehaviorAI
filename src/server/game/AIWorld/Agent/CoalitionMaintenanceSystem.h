@@ -52,6 +52,16 @@ struct AgentGroupRecord;
 // already warns against for a different pair of rules.
 //
 // Rules, evaluated in this order:
+//   0a. profile.ProfileId == Invalid -> None (2.12E4C1 P3 hardening,
+//       STATIC review: fail-closed, the same reason
+//       RunCoalitionFormation() already refuses Invalid outright - see
+//       CoalitionFormationProfileId.h). Never evaluates MinMembers/
+//       LeaveRadius values that were never actually configured for any
+//       real profile.
+//   0b. profile.Kind != group.Kind -> None (2.12E4C1 P3 hardening, STATIC
+//       review: a caller mismatch - e.g. pairing a Loose profile with a
+//       Stable group - never silently applies one Kind's own thresholds
+//       to a group of a different Kind).
 //   1. group.Members.size() < profile.MinMembers (right now, independent
 //      of any single member's own distance) -> DissolveGroup.
 //   2. Otherwise, among members, the single FARTHEST one that is

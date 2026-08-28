@@ -24,6 +24,26 @@ CoalitionMaintenanceDecision CoalitionMaintenanceSystem::Evaluate(AgentGroupReco
     CoalitionMaintenanceDecision decision;
     decision.Group = group.Id;
 
+    // P3 hardening (STATIC review): an Invalid profile (see
+    // CoalitionFormationProfileId.h for why Invalid exists and why
+    // silently proceeding as if some real profile had been meant is the
+    // wrong failure mode) never proposes anything - fail-closed the same
+    // way RunCoalitionFormation() already refuses Invalid outright, rather
+    // than this method quietly evaluating MinMembers/LeaveRadius values
+    // that were never actually configured for any real profile.
+    if (profile.ProfileId == CoalitionFormationProfileId::Invalid)
+        return decision;
+
+    // P3 hardening (STATIC review): a profile whose own Kind does not
+    // match the group actually being evaluated is a caller mismatch (e.g.
+    // 2.12E4C2's own orchestration accidentally pairing a WolfLoose
+    // (Loose) profile with a Stable group) - never propose anything
+    // rather than silently applying one Kind's MinMembers/LeaveRadius
+    // rules to a group of a different Kind, which could otherwise leave
+    // MEMBERS attached to a mismatched Kind's own configured thresholds.
+    if (profile.Kind != group.Kind)
+        return decision;
+
     // Rule 1: already below minimum, independent of any single member's
     // own distance - see this class's own header comment for why this is
     // not gated on Kind here (AgentGroupPolicySystem::ShouldDissolve() is
