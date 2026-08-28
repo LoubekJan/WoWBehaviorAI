@@ -972,10 +972,11 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.12E4C2: RunCoalitionMaintenance()'s own cadence,
         // deliberately its own timer (a maintenance pass is neither a
-        // formation pass nor a group coarse simulation tick) - shares
-        // AIWorld.WolfGroupAutoFormation's own enable gate at the Update()
-        // call site rather than a config flag of its own, see that call
-        // site's own comment for why.
+        // formation pass nor a group coarse simulation tick). Milestone
+        // 2.12E4C2 P2 fix (STATIC review): only advances while
+        // _coalitionMaintenanceEnabled is true - a SEPARATE gate from
+        // _wolfGroupAutoFormation, not shared with it, see
+        // _coalitionMaintenanceEnabled's own declaration comment for why.
         uint32 _coalitionMaintenanceIntervalMs = 5000;
         uint32 _coalitionMaintenanceTimer = 0;
 
@@ -990,6 +991,15 @@ class TC_GAME_API AIWorldMgr
         // the other's). See GroupCoarseSimulationScheduler.h for why an
         // unbounded per-pass scan is rejected for the exact same reason
         // here as it already is for the group coarse tick.
+        //
+        // Milestone 2.12E4C2 P3 fix (STATIC review): erased on every
+        // confirmed dissolve (see RequestDissolveGroup()'s own completion),
+        // the same GroupId-keyed-bookkeeping-never-recycled reasoning
+        // _groupSimulationSchedule's own erase there already documents -
+        // GroupIds are never reused (see GroupId.h), so a schedule entry
+        // left behind after its group is gone would grow this map without
+        // bound across a long-running world's dynamic create/dissolve
+        // history instead of tracking only currently-existing groups.
         GroupCoarseSimulationScheduler _maintenanceScheduler;
         std::unordered_map<uint64, SimulationScheduleState> _maintenanceSchedule;
         uint32 _coalitionMaintenanceMaxPerPass = 20;

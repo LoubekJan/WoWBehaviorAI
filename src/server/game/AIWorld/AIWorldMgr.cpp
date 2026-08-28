@@ -758,8 +758,33 @@ void AIWorldMgr::RequestDissolveGroup(GroupId groupId, std::function<void(bool)>
             // same "mutate only after confirmation" discipline everything
             // else here follows; a failed dissolve leaves it alone, since
             // the group (and therefore its schedule entry) still exists.
+            //
+            // Milestone 2.12E4C2 P3 fix (STATIC review): _maintenanceSchedule
+            // is the exact same class of AIWorldMgr-only bookkeeping,
+            // GroupId-keyed, and was NOT being cleared here - since GroupIds
+            // are never recycled (see GroupId.h), a long-running world with
+            // many dynamic create/dissolve cycles would grow this map
+            // without bound, keyed by historical group count rather than
+            // current group count. This is THE one authoritative confirmed-
+            // dissolve completion every dissolve path funnels through
+            // (Manual, AutomaticPolicy, formation-abort cleanup, maintenance
+            // dissolve) - fixing it here, not only in
+            // RunCoalitionMaintenanceDissolveGroup()'s own completion, is
+            // what makes cleanup unconditional on every successful dissolve,
+            // not just one triggered by maintenance itself.
+            // _maintenanceInFlight/_groupProfileAdoptionInFlight are cleared
+            // here too, purely as defense in depth - each already clears
+            // its own entry from inside its own completion, but a group
+            // dissolved through some other path while either was
+            // (improbably) still marked in-flight for it should not leave
+            // a permanently-stuck entry behind.
             if (success)
+            {
                 _groupSimulationSchedule.erase(groupId.Value);
+                _maintenanceSchedule.erase(groupId.Value);
+                _maintenanceInFlight.erase(groupId.Value);
+                _groupProfileAdoptionInFlight.erase(groupId.Value);
+            }
 
             onComplete(success);
         });
