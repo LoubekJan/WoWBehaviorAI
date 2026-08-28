@@ -54,13 +54,26 @@
 //
 // SourceGroup is identity/observability only (which group's own intent
 // produced this attempt) - never consulted by ActionSystem/ActionExecutor,
-// and never re-validated against AgentGroupRegistry once the MOVE_TO is
+// which never re-validate against AgentGroupRegistry once the MOVE_TO is
 // already in flight (that revalidation already happened once, in
-// DispatchGroupMemberActionProposal(), before this was ever set - a
-// dissolve/leave that happens while this attempt is already moving simply
-// lets the movement run to its own natural conclusion, the same way an
-// in-flight MOVE_TO is never retroactively invalidated by anything else
-// in this codebase either).
+// DispatchGroupMemberActionProposal(), before this was ever set).
+//
+// Milestone 2.12F2 P2 fix (STATIC review): SourceGroup IS actively used
+// outside that ActionSystem/ActionExecutor pipeline, though - a confirmed
+// Leave/Dissolve for this exact GroupId (AIWorldMgr::RequestLeaveGroupWithPolicy()/
+// RequestDissolveGroup()'s own completions) calls
+// AIWorldMgr::StopGroupCoordinationForMember() for every affected member,
+// which compares SourceGroup against the group that just changed and stops
+// the movement if they match. An earlier version of this comment claimed a
+// dissolve/leave mid-flight "simply lets the movement run to its own
+// natural conclusion" - STATIC review correctly identified that as a real
+// bug: the member would keep walking toward a group's own territory point
+// after that group (or its own membership in it) no longer exists, a stale
+// group-owned action with no group behind it any more. Every OTHER
+// in-flight MOVE_TO in this codebase is still never retroactively
+// invalidated by anything else - this is deliberately the one exception,
+// scoped narrowly to "the group this attempt's own identity names just
+// stopped applying to this member".
 struct GroupCoordinationGoal
 {
     GoalType Type = GoalType::Regroup;

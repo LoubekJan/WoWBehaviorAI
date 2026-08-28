@@ -210,6 +210,19 @@ class TC_GAME_API AgentGroupLifecycleSystem
             AgentGroupRegistry& groupRegistry, AgentGroupPersistence& persistence,
             TransactionCallbackProcessor& pending, std::function<void(bool)> onComplete);
 
+        // Milestone 2.12F2 P2 fix (STATIC review): read-only exposure of
+        // _pendingGroupOperations for a caller that needs to fail closed
+        // around a group's own lifecycle churn, not just serialize its own
+        // Request* calls against it - see AIWorldMgr::RunCoalitionCoordination()'s
+        // own comment. AgentGroupRegistry's own membership is only ever
+        // mutated inside a Request*'s completion (see this class's own
+        // header comment), so a group with an operation still in flight has
+        // membership that is about to change but has not yet - a caller
+        // that reads AgentGroupRecord::Members directly (as coordination
+        // does, via CollectCoalitionMemberObservations()) has no other way
+        // to know that without this.
+        bool HasPendingOperation(GroupId groupId) const;
+
     private:
         // Milestone 2.12E2 P2 fix (STATIC review): GroupId::Value currently
         // has an in-flight Join/Leave/Dissolve request - see this class's

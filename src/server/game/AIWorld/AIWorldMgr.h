@@ -794,15 +794,54 @@ class TC_GAME_API AIWorldMgr
         // a MOVE_TO proposal is a cheap, synchronous, in-memory operation
         // (no async DB write the way an automatic leave/dissolve is), so
         // there is nothing here that needs a separate admission bound
-        // beyond the scan bound itself. Every discovered group whose
-        // ProfileId resolves (ResolveCoordinationProfile()) is evaluated
-        // this same pass, unconditionally.
+        // beyond the scan bound itself.
         //
-        // Per resolved group: CollectCoalitionMemberObservations(),
+        // Milestone 2.12F2 P2 fix (STATIC review): a discovered group whose
+        // GroupId currently has a Join/Leave/Dissolve in flight
+        // (_groupLifecycleSystem.HasPendingOperation()) is skipped entirely
+        // this pass, before ResolveCoordinationProfile()/observations/intent
+        // are even attempted. AgentGroupLifecycleSystem only ever mutates
+        // AgentGroupRecord::Members inside a Request*'s own confirmed
+        // completion (see its own header comment) - so a group with an
+        // operation still in flight has membership that is ABOUT to change
+        // but has not yet, and evaluating intent/proposing movement against
+        // that stale snapshot could dispatch a fresh Regroup for a member
+        // whose Leave is already committed to the DB and about to remove
+        // them. Failing closed here (skip the whole group, not just the
+        // one member already known to be leaving - Dissolve affects every
+        // member, and this call has no cheap way to tell which case it is
+        // without re-deriving lifecycle's own bookkeeping) is simpler and
+        // safer than trying to filter the one affected member out: the
+        // group is re-evaluated fresh, with fresh membership, the very next
+        // pass once the operation resolves either way.
+        //
+        // Milestone 2.12F2 P2 fix (STATIC review): every proposal from
+        // every resolved group this pass is collected FIRST, dispatched
+        // only after every group has been evaluated - not dispatched
+        // immediately per group the way an earlier version did. Nothing in
+        // AgentGroupPolicySystem::CanJoin() enforces that one agent can
+        // only ever be a real member of ONE coordination-enabled group at a
+        // time (it only checks duplicate membership WITHIN the target group
+        // and that group's own capacity) - so two different groups can, in
+        // principle, both legitimately propose a Regroup for the same
+        // AgentId in the same pass. Dispatching immediately per group in
+        // GroupId-ascending discovery order would make GroupId a hidden,
+        // undocumented priority rule (the lower-numbered group always wins,
+        // silently, for as long as both keep proposing). Instead: any
+        // AgentId proposed by more than one group this pass gets NO
+        // proposal dispatched for it at all this pass - see
+        // RunCoalitionCoordination()'s own definition for the exact
+        // per-member count check. This generic layer has no basis to pick a
+        // winner between two coordination profiles it knows nothing else
+        // about; leaving the member standing still (dispatched again next
+        // pass, by whichever group(s) still want it) is the only choice
+        // that does not invent an implicit, undocumented arbitration rule.
+        //
+        // Per resolved, non-pending group: CollectCoalitionMemberObservations(),
         // _agentGroupIntentSystem.Evaluate(), and - only if the result is
-        // not AgentGroupIntentType::None - _agentGroupIntentProjector.
-        // Project() followed by DispatchGroupMemberActionProposal() for
-        // every proposal it returns, in order.
+        // AgentGroupIntentType::Regroup - _agentGroupIntentProjector.
+        // Project(), whose proposals are appended to this pass's own
+        // combined batch.
         void RunCoalitionCoordination();
 
         // Milestone 2.12F2: the one place a GroupMemberActionProposal
@@ -814,6 +853,14 @@ class TC_GAME_API AIWorldMgr
         // never trusting anything RunCoalitionCoordination() itself already
         // resolved earlier this same pass (a proposal can be several
         // members old by the time this specific one runs):
+        //   - proposal.SourceIntent == AgentGroupIntentType::Regroup (2.12F2
+        //     P3 fix, STATIC review - fail-closed the same way
+        //     AgentGroupIntentProjector::Project() itself now is; today the
+        //     only way this can ever be false is proposal being a default-
+        //     constructed/malformed value, since Project() itself never
+        //     produces anything else, but this must never silently start a
+        //     MOVE_TO for a future intent type this dispatcher does not yet
+        //     know how to honestly source-tag).
         //   - proposal.Member still resolves in _registry.
         //   - proposal.SourceGroup still resolves in _groupRegistry, AND
         //     proposal.Member is still actually one of its Members (a leave
@@ -846,6 +893,32 @@ class TC_GAME_API AIWorldMgr
         // GroupCoordinationGoal.h for why this differs from RoutineGoalState,
         // which is stateless and needs no such rollback).
         void DispatchGroupMemberActionProposal(GroupMemberActionProposal const& proposal);
+
+        // Milestone 2.12F2 P2 fix (STATIC review): the one place an
+        // in-flight Regroup attempt (AgentRecord::GroupCoordinationGoalState/
+        // ActiveActionState) is stopped because its OWNING GROUP changed
+        // underneath it, not because a higher-priority individual goal
+        // preempted it (see UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL
+        // block for that other case). GroupCoordinationGoal.h's own class
+        // comment previously documented this as a deliberate non-goal ("a
+        // dissolve/leave that happens while this attempt is already moving
+        // simply lets the movement run to its own natural conclusion") -
+        // STATIC review correctly identified that as a real bug, not a
+        // deliberate simplification: a confirmed Leave/Dissolve for
+        // groupId must stop any member still actively moving toward that
+        // now-former group's own territory, or the movement completes as a
+        // stale group-owned action with no group behind it any more.
+        //
+        // A no-op if memberId has no GroupCoordinationGoalState at all, or
+        // one whose SourceGroup names a different group (an agent can only
+        // ever have one in flight at a time - see DispatchGroupMemberActionProposal()'s
+        // own ActiveActionState check). Called from RequestDissolveGroup()'s
+        // own confirmed-dissolve completion (for every FORMER member,
+        // captured before the dissolve was ever submitted - see that
+        // method's own comment for why membership cannot have changed in
+        // the meantime) and from RequestLeaveGroupWithPolicy()'s own
+        // confirmed-leave completion (for the one member who just left).
+        void StopGroupCoordinationForMember(AgentId memberId, GroupId groupId);
 
         bool _enabled = false;
 

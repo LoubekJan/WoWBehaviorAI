@@ -340,6 +340,24 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
             wolfGroupLeaveRadius, _wolfGroupFormationRadius);
         wolfGroupLeaveRadius = _wolfGroupFormationRadius;
     }
+
+    // Milestone 2.12F2 P3 fix (STATIC review): a member may legitimately
+    // sit anywhere up to LeaveRadius from group territory while still a
+    // member (see CoalitionMaintenanceProfile.h's own LeaveRadius comment)
+    // - a LeaveRadius left unbound against ActionSystem::
+    // CoordinationMoveToRangeYards() would let AgentGroupIntentSystem keep
+    // proposing a Regroup for such a member that ActionSystem::
+    // ValidateMoveTo() then rejects as DestinationTooFar every single pass,
+    // for a member that is otherwise a perfectly legitimate one - an
+    // earlier version relied on the default (60 < 100) never being
+    // violated instead of enforcing this explicitly.
+    if (wolfGroupLeaveRadius > ActionSystem::CoordinationMoveToRangeYards())
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupLeaveRadius ({:.1f}) exceeds the ActionSystem Regroup range bound ({:.1f}), clamping to match "
+            "(a member past this radius could remain a group member yet never be reachable by an automatic Regroup move)",
+            wolfGroupLeaveRadius, ActionSystem::CoordinationMoveToRangeYards());
+        wolfGroupLeaveRadius = ActionSystem::CoordinationMoveToRangeYards();
+    }
     _wolfGroupLeaveRadius = wolfGroupLeaveRadius;
 
     // Milestone 2.12E4C2: the maintenance pass's own cadence/bound - a
@@ -424,6 +442,19 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     {
         TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRegroupRadius ({:.1f}) is invalid or too low, clamping to 1.0", wolfGroupRegroupRadius);
         wolfGroupRegroupRadius = 1.0f;
+    }
+
+    // Milestone 2.12F2 P3 fix (STATIC review): same upper-bound invariant
+    // AIWorld.WolfGroupLeaveRadius is clamped against above - a member is
+    // never proposed a Regroup below this radius in the first place
+    // (AgentGroupIntentSystem's own trigger check), so a RegroupRadius past
+    // the ActionSystem bound would mean no Regroup this profile ever
+    // proposes could actually pass ValidateMoveTo() to begin with.
+    if (wolfGroupRegroupRadius > ActionSystem::CoordinationMoveToRangeYards())
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRegroupRadius ({:.1f}) exceeds the ActionSystem Regroup range bound ({:.1f}), clamping to match",
+            wolfGroupRegroupRadius, ActionSystem::CoordinationMoveToRangeYards());
+        wolfGroupRegroupRadius = ActionSystem::CoordinationMoveToRangeYards();
     }
 
     _wolfLooseCoordinationProfile.ProfileId = CoalitionFormationProfileId::WolfLoose;
@@ -838,8 +869,25 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
 void AIWorldMgr::RequestDissolveGroup(GroupId groupId, std::function<void(bool)> onComplete)
 {
+    // 2.12F2 P2 fix (STATIC review): captured NOW, before the dissolve is
+    // even submitted - AgentGroupLifecycleSystem::_pendingGroupOperations
+    // guarantees no Join/Leave for this same groupId can land between this
+    // capture and the completion below (this call is about to mark groupId
+    // pending itself, synchronously, before returning), and the completion
+    // itself runs only after AgentGroupRegistry has already erased this
+    // GroupId's own AgentGroupRecord - there is no later moment membership
+    // could instead be read fresh from. See StopGroupCoordinationForMember()'s
+    // own comment for why every former member needs to be checked here.
+    std::vector<AgentId> formerMembers;
+    if (AgentGroupRecord const* group = _groupRegistry.Find(groupId))
+    {
+        formerMembers.reserve(group->Members.size());
+        for (AgentGroupMembership const& membership : group->Members)
+            formerMembers.push_back(membership.Member);
+    }
+
     _groupLifecycleSystem.RequestDissolveGroup(groupId, _groupRegistry, _groupPersistence, _groupLifecyclePending,
-        [this, groupId, onComplete = std::move(onComplete)](bool success)
+        [this, groupId, formerMembers = std::move(formerMembers), onComplete = std::move(onComplete)](bool success)
         {
             // 2.12E2 hardening: _groupSimulationSchedule is AIWorldMgr-only
             // scheduling bookkeeping (see its own declaration comment) -
@@ -874,6 +922,14 @@ void AIWorldMgr::RequestDissolveGroup(GroupId groupId, std::function<void(bool)>
                 _maintenanceSchedule.erase(groupId.Value);
                 _maintenanceInFlight.erase(groupId.Value);
                 _groupProfileAdoptionInFlight.erase(groupId.Value);
+
+                // 2.12F2 P2 fix (STATIC review): every former member's own
+                // in-flight Regroup (if any) targeting this now-dissolved
+                // group must be stopped, not left to run to its own natural
+                // conclusion toward a group that no longer exists - see
+                // StopGroupCoordinationForMember()'s own comment.
+                for (AgentId memberId : formerMembers)
+                    StopGroupCoordinationForMember(memberId, groupId);
             }
 
             onComplete(success);
@@ -1232,8 +1288,16 @@ void AIWorldMgr::RequestLeaveGroupWithPolicy(GroupId groupId, AgentId memberId, 
     }
 
     _groupLifecycleSystem.RequestLeaveGroup(groupId, memberId, _groupRegistry, _groupPersistence, _groupLifecyclePending,
-        [onComplete = std::move(onComplete)](bool success)
+        [this, groupId, memberId, onComplete = std::move(onComplete)](bool success)
         {
+            // 2.12F2 P2 fix (STATIC review): memberId's own in-flight
+            // Regroup (if any) targeting groupId must be stopped on a
+            // confirmed leave, the same reasoning RequestDissolveGroup()'s
+            // own completion now applies per former member - see
+            // StopGroupCoordinationForMember()'s own comment.
+            if (success)
+                StopGroupCoordinationForMember(memberId, groupId);
+
             onComplete(success, AgentGroupPolicyDecision::Allowed);
         });
 }
@@ -2426,8 +2490,21 @@ void AIWorldMgr::RunCoalitionCoordination()
     // own header comment for why a dispatched MOVE_TO proposal (cheap,
     // synchronous, in-memory) needs no GroupCoarseSimulationScheduler the
     // way an async DB-writing maintenance action does.
+    //
+    // 2.12F2 P2 fix (STATIC review): every group's own proposals are
+    // collected into one combined batch first - not dispatched immediately
+    // per group - so the cross-group same-member check below can see every
+    // proposal from this whole pass before anything is actually dispatched.
+    std::vector<GroupMemberActionProposal> proposals;
+
     for (GroupId groupId : discovered)
     {
+        // 2.12F2 P2 fix (STATIC review): a group with a Join/Leave/Dissolve
+        // still in flight is skipped entirely this pass - see this method's
+        // own header comment for the stale-membership race this closes.
+        if (_groupLifecycleSystem.HasPendingOperation(groupId))
+            continue;
+
         AgentGroupRecord const* group = _groupRegistry.Find(groupId);
         if (!group)
             continue;
@@ -2438,17 +2515,45 @@ void AIWorldMgr::RunCoalitionCoordination()
 
         std::vector<CoalitionMemberObservation> observations = CollectCoalitionMemberObservations(*group);
         AgentGroupIntent intent = _agentGroupIntentSystem.Evaluate(*group, *profile, observations);
-        if (intent.Type == AgentGroupIntentType::None)
+        if (intent.Type != AgentGroupIntentType::Regroup)
             continue;
 
-        std::vector<GroupMemberActionProposal> proposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
-        for (GroupMemberActionProposal const& proposal : proposals)
-            DispatchGroupMemberActionProposal(proposal);
+        std::vector<GroupMemberActionProposal> groupProposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
+        proposals.insert(proposals.end(), groupProposals.begin(), groupProposals.end());
+    }
+
+    // 2.12F2 P2 fix (STATIC review): see this method's own header comment -
+    // an AgentId proposed by more than one group this same pass has no
+    // defined arbitration, so it gets no proposal dispatched at all this
+    // pass, from any of them.
+    std::unordered_map<uint64, uint32> proposalCountByMember;
+    for (GroupMemberActionProposal const& proposal : proposals)
+        ++proposalCountByMember[proposal.Member.Value];
+
+    for (GroupMemberActionProposal const& proposal : proposals)
+    {
+        if (proposalCountByMember[proposal.Member.Value] > 1)
+        {
+            TC_LOG_WARN("ai.world", "AI group coordination: member={} was proposed a Regroup by more than one group this pass, dispatching none (one of them: group={})",
+                proposal.Member.Value, proposal.SourceGroup.Value);
+            continue;
+        }
+
+        DispatchGroupMemberActionProposal(proposal);
     }
 }
 
 void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal const& proposal)
 {
+    // 2.12F2 P3 fix (STATIC review): fail-closed the same way
+    // AgentGroupIntentProjector::Project() itself now is - see its own
+    // comment. Today Project() never produces anything else, so this is
+    // currently unreachable in practice, but this dispatcher must never
+    // silently start a Regroup MOVE_TO for a proposal it cannot honestly
+    // attribute to that specific intent.
+    if (proposal.SourceIntent != AgentGroupIntentType::Regroup)
+        return;
+
     AgentRecord* record = _registry.Find(proposal.Member);
     if (!record)
         return;
@@ -2554,6 +2659,42 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     action.StartedAtMs = nowMs;
     action.Destination = moveRequest.Destination;
     record->ActiveActionState = action;
+}
+
+void AIWorldMgr::StopGroupCoordinationForMember(AgentId memberId, GroupId groupId)
+{
+    AgentRecord* record = _registry.Find(memberId);
+    if (!record || !record->GroupCoordinationGoalState || record->GroupCoordinationGoalState->SourceGroup != groupId)
+        return;
+
+    record->GroupCoordinationGoalState.reset();
+
+    // Defensive - by the ownership invariant DispatchGroupMemberActionProposal()
+    // establishes, GroupCoordinationGoalState being set for this groupId
+    // means ActiveActionState should be the matching in-flight Regroup, but
+    // this never assumes that without checking: a member dematerializing/
+    // dying/being preempted by a higher-priority goal the SAME tick this
+    // confirmed Leave/Dissolve completion happens to run would already have
+    // cleared ActiveActionState (see UpdateNeeds()'s own cleanup/preemption
+    // blocks) while this method's own ordering (called from a
+    // TransactionCallbackProcessor completion, not from inside UpdateNeeds()
+    // itself) cannot guarantee which ran first this tick.
+    if (!record->ActiveActionState || record->ActiveActionState->SourceGoal != GoalType::Regroup)
+        return;
+
+    if (record->WorldState == AgentWorldState::Materialized)
+    {
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        if (Creature* creature = ResolveLiveCreature(*record, map))
+        {
+            _actionExecutor.StopMoveTo(*creature);
+
+            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=COORDINATION_STOPPED_BY_LIFECYCLE sourceGoal={} sourceGroup={}",
+                record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal), groupId.Value);
+        }
+    }
+
+    record->ActiveActionState.reset();
 }
 
 void AIWorldMgr::Update(uint32 diff)

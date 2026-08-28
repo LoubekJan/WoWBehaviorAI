@@ -311,3 +311,8 @@ void AgentGroupLifecycleSystem::RequestDissolveGroup(GroupId groupId,
 
     pending.AddCallback(std::move(callback));
 }
+
+bool AgentGroupLifecycleSystem::HasPendingOperation(GroupId groupId) const
+{
+    return _pendingGroupOperations.contains(groupId.Value);
+}

@@ -22,8 +22,24 @@ std::vector<GroupMemberActionProposal> AgentGroupIntentProjector::Project(AgentG
 {
     std::vector<GroupMemberActionProposal> proposals;
 
-    if (intent.Type == AgentGroupIntentType::None)
-        return proposals;
+    // 2.12F2 P3 fix (STATIC review): explicit switch, not "!= None" - an
+    // earlier version treated any non-None AgentGroupIntentType as Regroup,
+    // which was harmless only because Regroup is the only non-None value
+    // that exists yet. A future second intent type would otherwise silently
+    // inherit Regroup's own movement semantics (RegroupRadius comparison,
+    // GroupMemberActionProposal::SourceIntent) the moment it started being
+    // produced, with no compiler warning and no runtime signal that
+    // anything was wrong. Fail-closed instead: only Regroup is implemented
+    // here; None and any future/unrecognized value produce no proposals at
+    // all until this switch is deliberately extended for them.
+    switch (intent.Type)
+    {
+        case AgentGroupIntentType::Regroup:
+            break;
+        case AgentGroupIntentType::None:
+        default:
+            return proposals;
+    }
 
     float regroupRadiusSq = profile.RegroupRadius * profile.RegroupRadius;
 

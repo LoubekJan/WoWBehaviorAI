@@ -53,9 +53,11 @@
 // CoalitionMaintenanceSystem.h's own class comment already gives for not
 // duplicating Stable protection at multiple layers).
 //
-// Rule: intent.Type == None -> no proposals at all. Otherwise, for every
-// member that is Materialized, Alive, on the same MapId as the intent's
-// own target, and further than profile.RegroupRadius from it -> one
+// Rule: intent.Type != Regroup (None, or any future/unrecognized value -
+// see Project()'s own explicit switch, 2.12F2 P3 fix, STATIC review) -> no
+// proposals at all. Otherwise, for every member that is Materialized,
+// Alive, on the same MapId as the intent's own target, and further than
+// profile.RegroupRadius from it -> one
 // GroupMemberActionProposal targeting that same point. A member already
 // within RegroupRadius, or one that is unloaded/dead/on a different map,
 // gets no proposal - the same "absence from the grid must never be

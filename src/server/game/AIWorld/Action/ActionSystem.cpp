@@ -54,6 +54,11 @@ namespace
     constexpr float MaxCoordinationMoveToRangeYards = 100.0f;
 }
 
+float ActionSystem::CoordinationMoveToRangeYards()
+{
+    return MaxCoordinationMoveToRangeYards;
+}
+
 ActionValidationResult ActionSystem::Validate(ActionRequest const& request, ActionValidationContext const& context) const
 {
     if (!context.Materialized)

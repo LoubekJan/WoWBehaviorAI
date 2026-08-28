@@ -41,6 +41,26 @@ class TC_GAME_API ActionSystem
         // UnsupportedAction for anything else).
         ActionValidationResult Validate(ActionRequest const& request, ActionValidationContext const& context) const;
 
+        // Milestone 2.12F2 P3 fix (STATIC review): exposes the exact same
+        // range bound ValidateMoveTo() enforces for a GoalType::Regroup
+        // request (see that method's own comment) - so a caller building an
+        // AgentGroupCoordinationProfile (or clamping a maintenance profile's
+        // own LeaveRadius against it, since a member may legitimately sit
+        // anywhere up to LeaveRadius from group territory while still a
+        // member) never has to duplicate this number as a second,
+        // independently-maintained magic constant. An earlier version had
+        // no such accessor - a coordination profile radius left unbound
+        // against it (e.g. AIWorld.WolfGroupLeaveRadius set above 100 with
+        // no warning) would let AgentGroupIntentSystem/AgentGroupIntentProjector
+        // keep proposing a Regroup that ValidateMoveTo() then rejects as
+        // DestinationTooFar every single pass, for a member that is
+        // otherwise a perfectly legitimate one. Named distinctly from the
+        // internal MaxCoordinationMoveToRangeYards constant it returns
+        // (rather than reusing that exact name for this static method) so
+        // there is no unqualified-lookup ambiguity between the two inside
+        // ActionSystem.cpp's own implementation.
+        static float CoordinationMoveToRangeYards();
+
     private:
         // Flee-specific, run only once the common checks above already
         // passed: the actor's goal must actually be FleeDanger (not just
