@@ -856,6 +856,16 @@ class TC_GAME_API AIWorldMgr
         // earlier version logged a WARN per proposal per pass, turning a
         // persistent, expected arbitration state into recurring log spam).
         //
+        // Milestone 2.12F2 P2 fix, round 4 (STATIC review): this arbitration
+        // only ever protects a NEW dispatch - it says nothing about an
+        // ALREADY in-flight Regroup that a confirmed Join, some time after
+        // that dispatch, newly makes ambiguous. See
+        // ReconcileGroupCoordinationForMember() (called from
+        // RequestJoinGroupWithPolicy()'s own confirmed-join completion, not
+        // from here) for the counterpart that closes that gap; both share
+        // the exact same CountRegroupEnabledMemberships() definition of
+        // "ambiguous" so the two can never silently disagree.
+        //
         // Per resolved, non-pending group: CollectCoalitionMemberObservations(),
         // _agentGroupIntentSystem.Evaluate(), and - only if the result is
         // AgentGroupIntentType::Regroup - _agentGroupIntentProjector.
@@ -938,6 +948,29 @@ class TC_GAME_API AIWorldMgr
         // which is stateless and needs no such rollback).
         void DispatchGroupMemberActionProposal(GroupMemberActionProposal const& proposal);
 
+        // Milestone 2.12F2 P2 fix, round 4 (STATIC review): how many
+        // currently-registered groups member belongs to whose own resolved
+        // profile has RegroupEnabled - the one shared definition of
+        // "coordination-ambiguous membership" both RunCoalitionCoordination()'s
+        // own overlap arbitration and ReconcileGroupCoordinationForMember()
+        // now use, via AgentGroupRegistry::GetGroupsOfMember() (O(k) where k
+        // is however many groups member is actually in, almost always 0 or
+        // 1 - see that method's own comment).
+        uint32 CountRegroupEnabledMemberships(AgentId member) const;
+
+        // Milestone 2.12F2 P2 fix, round 4 (STATIC review): the shared
+        // mechanics both StopGroupCoordinationForMember() and
+        // ReconcileGroupCoordinationForMember() need - unconditionally
+        // clears record.GroupCoordinationGoalState, then, only if
+        // record.ActiveActionState is actually the matching in-flight
+        // Regroup (never assumed - see this method's own body comment for
+        // why), stops the underlying engine movement (if a live Creature
+        // still resolves) and clears ActiveActionState too. reason is a
+        // literal describing WHY this particular caller stopped it, logged
+        // alongside the stop for diagnosability - callers never share one
+        // one generic reason string.
+        void StopInFlightGroupCoordination(AgentRecord& record, char const* reason);
+
         // Milestone 2.12F2 P2 fix (STATIC review): the one place an
         // in-flight Regroup attempt (AgentRecord::GroupCoordinationGoalState/
         // ActiveActionState) is stopped because its OWNING GROUP changed
@@ -963,6 +996,37 @@ class TC_GAME_API AIWorldMgr
         // the meantime) and from RequestLeaveGroupWithPolicy()'s own
         // confirmed-leave completion (for the one member who just left).
         void StopGroupCoordinationForMember(AgentId memberId, GroupId groupId);
+
+        // Milestone 2.12F2 P2 fix, round 4 (STATIC review): the Join-side
+        // counterpart to StopGroupCoordinationForMember() - a confirmed
+        // Join, unlike a confirmed Leave/Dissolve, can newly CREATE
+        // coordination ambiguity for memberId (a second RegroupEnabled
+        // group now claims it - see CountRegroupEnabledMemberships()) while
+        // a Regroup dispatched before this join, back when membership was
+        // still unambiguous, may still be actively running. Without this,
+        // RunCoalitionCoordination()'s own overlap-arbitration rule would
+        // only ever apply to NEW dispatches - an already in-flight action
+        // would keep running to its own natural conclusion purely because
+        // it started before the join confirmed, an implicit "whoever got
+        // there first keeps it" priority the arbitration rule exists
+        // specifically to remove. Deliberately generic - this only ever
+        // asks AgentGroupRegistry/CountRegroupEnabledMemberships() "is this
+        // membership still unambiguous", never anything about WolfLoose or
+        // any other specific profile - so a future second RegroupEnabled
+        // profile needs no change here.
+        //
+        // A no-op if memberId has no GroupCoordinationGoalState at all (the
+        // overwhelmingly common case - most joins never race an in-flight
+        // Regroup) or if CountRegroupEnabledMemberships() still resolves to
+        // at most 1 (the join did not actually create ambiguity - e.g. the
+        // newly-joined group's own profile has RegroupEnabled false).
+        // Called only from RequestJoinGroupWithPolicy()'s own confirmed-join
+        // completion - deliberately not placed inside
+        // AgentGroupLifecycleSystem itself, which has (and must keep) no
+        // knowledge of AgentGroupCoordinationProfile/RegroupEnabled; this is
+        // AIWorldMgr's own post-confirmation orchestration, the same layer
+        // StopGroupCoordinationForMember() already lives at.
+        void ReconcileGroupCoordinationForMember(AgentId memberId);
 
         bool _enabled = false;
 

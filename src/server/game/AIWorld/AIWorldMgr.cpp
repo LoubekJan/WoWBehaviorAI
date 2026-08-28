@@ -446,12 +446,18 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         wolfGroupRegroupRadius = 1.0f;
     }
 
-    // Milestone 2.12F2 P3 fix (STATIC review): same upper-bound invariant
-    // AIWorld.WolfGroupLeaveRadius is clamped against above - a member is
-    // never proposed a Regroup below this radius in the first place
-    // (AgentGroupIntentSystem's own trigger check), so a RegroupRadius past
-    // the ActionSystem bound would mean no Regroup this profile ever
-    // proposes could actually pass ValidateMoveTo() to begin with.
+    // Milestone 2.12F2 P3 fix (STATIC review): unlike AIWorld.WolfGroupFormationRadius/
+    // AIWorld.WolfGroupLeaveRadius (deliberately NOT clamped against this
+    // bound any more - see AIWorld.WolfGroupLeaveRadius's own comment
+    // above for why Formation/Maintenance policy must stay independent of
+    // Coordination's own execution limit), RegroupRadius genuinely IS
+    // Coordination-layer config - it is the trigger threshold
+    // AgentGroupIntentSystem itself uses to decide a member is dispersed
+    // enough to propose a Regroup at all, so clamping it here is this
+    // capability bounding its own config, not one capability bounding
+    // another's. A RegroupRadius past this bound would mean no Regroup
+    // this profile ever proposes could actually pass ValidateMoveTo() to
+    // begin with.
     if (wolfGroupRegroupRadius > ActionSystem::CoordinationMoveToRangeYards())
     {
         TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRegroupRadius ({:.1f}) exceeds the ActionSystem Regroup range bound ({:.1f}), clamping to match",
@@ -1254,8 +1260,21 @@ void AIWorldMgr::RequestJoinGroupWithPolicy(GroupId groupId, AgentId memberId, u
     }
 
     _groupLifecycleSystem.RequestJoinGroup(groupId, memberId, joinedAtMs, _groupRegistry, _registry, _groupPersistence, _groupLifecyclePending,
-        [onComplete = std::move(onComplete)](bool success)
+        [this, memberId, onComplete = std::move(onComplete)](bool success)
         {
+            // 2.12F2 P2 fix (STATIC review): a confirmed join can newly
+            // make memberId's own group membership coordination-ambiguous
+            // (a second RegroupEnabled group now claims it) while a Regroup
+            // from whichever group already owned it before this join is
+            // still actively running - see ReconcileGroupCoordinationForMember()'s
+            // own comment for why this must be checked here, not only on
+            // Leave/Dissolve (StopGroupCoordinationForMember() already
+            // covers those - a group disappearing/losing a member can only
+            // ever REDUCE ambiguity, never create it, so only Join needs
+            // this reconciliation).
+            if (success)
+                ReconcileGroupCoordinationForMember(memberId);
+
             // Reached lifecycle - policy already said Allowed above, so
             // that is what onComplete reports regardless of the DB
             // outcome; success alone carries whether the write itself
@@ -2560,17 +2579,11 @@ void AIWorldMgr::RunCoalitionCoordination()
     std::unordered_set<uint64> loggedOverlap;
     for (GroupMemberActionProposal const& proposal : proposals)
     {
-        uint32 regroupEnabledMemberships = 0;
-        for (GroupId memberGroupId : _groupRegistry.GetGroupsOfMember(proposal.Member))
-        {
-            AgentGroupRecord const* memberGroup = _groupRegistry.Find(memberGroupId);
-            if (!memberGroup)
-                continue;
-
-            std::optional<AgentGroupCoordinationProfile> memberGroupProfile = ResolveCoordinationProfile(memberGroup->ProfileId);
-            if (memberGroupProfile && memberGroupProfile->RegroupEnabled)
-                ++regroupEnabledMemberships;
-        }
+        // Shared with ReconcileGroupCoordinationForMember(), 2.12F2 P2 fix
+        // round 4 (STATIC review) - the exact same "how many RegroupEnabled
+        // groups does this member currently belong to" question, asked
+        // here at dispatch time and there at confirmed-Join time.
+        uint32 regroupEnabledMemberships = CountRegroupEnabledMemberships(proposal.Member);
 
         if (regroupEnabledMemberships > 1)
         {
@@ -2746,40 +2759,87 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     record->ActiveActionState = action;
 }
 
+uint32 AIWorldMgr::CountRegroupEnabledMemberships(AgentId member) const
+{
+    uint32 count = 0;
+    for (GroupId groupId : _groupRegistry.GetGroupsOfMember(member))
+    {
+        AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+        if (!group)
+            continue;
+
+        std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
+        if (profile && profile->RegroupEnabled)
+            ++count;
+    }
+
+    return count;
+}
+
+void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* reason)
+{
+    record.GroupCoordinationGoalState.reset();
+
+    // Defensive - by the ownership invariant DispatchGroupMemberActionProposal()
+    // establishes, GroupCoordinationGoalState being set means ActiveActionState
+    // should be the matching in-flight Regroup, but this never assumes that
+    // without checking: a member dematerializing/dying/being preempted by a
+    // higher-priority goal the SAME tick one of this method's own callers
+    // happens to run would already have cleared ActiveActionState (see
+    // UpdateNeeds()'s own cleanup/preemption blocks) while both callers'
+    // own ordering (from a TransactionCallbackProcessor completion, not
+    // from inside UpdateNeeds() itself) cannot guarantee which ran first
+    // this tick.
+    if (!record.ActiveActionState || record.ActiveActionState->SourceGoal != GoalType::Regroup)
+        return;
+
+    if (record.WorldState == AgentWorldState::Materialized)
+    {
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
+        if (Creature* creature = ResolveLiveCreature(record, map))
+        {
+            _actionExecutor.StopMoveTo(*creature);
+
+            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={} sourceGoal={}",
+                record.Id.Value, ToString(ActionType::MoveTo), reason, ToString(record.ActiveActionState->SourceGoal));
+        }
+    }
+
+    record.ActiveActionState.reset();
+}
+
 void AIWorldMgr::StopGroupCoordinationForMember(AgentId memberId, GroupId groupId)
 {
     AgentRecord* record = _registry.Find(memberId);
     if (!record || !record->GroupCoordinationGoalState || record->GroupCoordinationGoalState->SourceGroup != groupId)
         return;
 
-    record->GroupCoordinationGoalState.reset();
+    StopInFlightGroupCoordination(*record, "COORDINATION_STOPPED_BY_LIFECYCLE");
+}
 
-    // Defensive - by the ownership invariant DispatchGroupMemberActionProposal()
-    // establishes, GroupCoordinationGoalState being set for this groupId
-    // means ActiveActionState should be the matching in-flight Regroup, but
-    // this never assumes that without checking: a member dematerializing/
-    // dying/being preempted by a higher-priority goal the SAME tick this
-    // confirmed Leave/Dissolve completion happens to run would already have
-    // cleared ActiveActionState (see UpdateNeeds()'s own cleanup/preemption
-    // blocks) while this method's own ordering (called from a
-    // TransactionCallbackProcessor completion, not from inside UpdateNeeds()
-    // itself) cannot guarantee which ran first this tick.
-    if (!record->ActiveActionState || record->ActiveActionState->SourceGoal != GoalType::Regroup)
+void AIWorldMgr::ReconcileGroupCoordinationForMember(AgentId memberId)
+{
+    AgentRecord* record = _registry.Find(memberId);
+    if (!record || !record->GroupCoordinationGoalState)
         return;
 
-    if (record->WorldState == AgentWorldState::Materialized)
-    {
-        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-        if (Creature* creature = ResolveLiveCreature(*record, map))
-        {
-            _actionExecutor.StopMoveTo(*creature);
+    // Milestone 2.12F2 P2 fix, round 4 (STATIC review): a confirmed Join
+    // can newly make memberId's own membership coordination-ambiguous (see
+    // RunCoalitionCoordination()'s own overlap-arbitration comment for the
+    // "member belongs to more than one RegroupEnabled group" rule this
+    // mirrors) while a Regroup dispatched BEFORE this join - back when the
+    // member's own membership was still unambiguous - is still actively
+    // running. Without this, the arbitration rule only ever applied to
+    // NEW dispatches: an existing in-flight action would keep running to
+    // its own natural conclusion purely because it happened to already be
+    // in flight before the join confirmed, an implicit "whoever got there
+    // first keeps it" priority the arbitration rule exists specifically to
+    // avoid. Only relevant if a Regroup is actually in flight right now
+    // (the check above) - most joins never reach this far.
+    if (CountRegroupEnabledMemberships(memberId) <= 1)
+        return;
 
-            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=COORDINATION_STOPPED_BY_LIFECYCLE sourceGoal={} sourceGroup={}",
-                record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal), groupId.Value);
-        }
-    }
-
-    record->ActiveActionState.reset();
+    StopInFlightGroupCoordination(*record, "COORDINATION_STOPPED_BY_MEMBERSHIP_AMBIGUITY");
 }
 
 void AIWorldMgr::Update(uint32 diff)

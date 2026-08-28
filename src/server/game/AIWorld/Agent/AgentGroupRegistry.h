@@ -88,7 +88,20 @@ class TC_GAME_API AgentGroupRegistry
         // directly, so _memberGroups (the reverse AgentId -> GroupId[]
         // index below) can never drift out of sync with the forward
         // Members list it mirrors. Returns false, touching nothing, for an
-        // unknown groupId.
+        // unknown groupId OR a membership.Member that is already one of
+        // this group's own Members (2.12F2 P3 fix, round 2, STATIC
+        // review: an earlier version trusted every caller to have already
+        // checked this itself, e.g. AgentGroupLifecycleSystem::
+        // RequestJoinGroup() already does - but a duplicate slipping
+        // through here would forward-add a second, indistinguishable
+        // Members entry while the reverse _memberGroups side silently
+        // stayed a one-element set, which RemoveMember() would then
+        // desynchronize permanently: it erases only the first forward
+        // entry but the WHOLE reverse one, so the member ends up still
+        // forward-listed yet reverse-invisible to GetGroupsOfMember()/
+        // IsMemberOfKind(). As the authoritative membership-mutation
+        // boundary, this invariant belongs here, not only in whichever
+        // caller happens to check it today).
         bool AddMember(GroupId groupId, AgentGroupMembership const& membership);
 
         // Milestone 2.12F2 P3 fix (STATIC review): the one place a member

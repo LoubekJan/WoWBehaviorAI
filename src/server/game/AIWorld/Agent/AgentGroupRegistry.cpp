@@ -89,6 +89,28 @@ bool AgentGroupRegistry::AddMember(GroupId groupId, AgentGroupMembership const& 
     if (!group)
         return false;
 
+    // 2.12F2 P3 fix, round 2 (STATIC review): fail-closed against a
+    // duplicate membership.Member, checked here rather than trusted to
+    // every caller - _memberGroups indexes by AgentId into an
+    // unordered_SET of GroupId (see its own declaration comment), so a
+    // second AddMember(groupId, sameMember) would insert a second,
+    // indistinguishable entry into the forward Members vector while the
+    // reverse side silently stays a one-element set (insert() of an
+    // already-present value is a no-op). RemoveMember() then erases only
+    // the FIRST forward entry it finds but the WHOLE reverse entry - after
+    // that, AgentGroupRecord::Members still (correctly) lists the member
+    // once, while GetGroupsOfMember()/IsMemberOfKind() both (incorrectly)
+    // report them as not a member of anything, the exact forward/reverse
+    // divergence this whole index exists to prevent. AgentGroupLifecycleSystem::
+    // RequestJoinGroup() already rejects a duplicate before ever reaching
+    // here, but this is now the authoritative membership-mutation
+    // boundary and must not depend on every caller re-deriving that check
+    // correctly itself.
+    bool alreadyMember = std::any_of(group->Members.begin(), group->Members.end(),
+        [&membership](AgentGroupMembership const& existing) { return existing.Member == membership.Member; });
+    if (alreadyMember)
+        return false;
+
     group->Members.push_back(membership);
     _memberGroups[membership.Member.Value].insert(groupId.Value);
     return true;
