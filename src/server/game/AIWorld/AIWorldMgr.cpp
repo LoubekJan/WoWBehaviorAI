@@ -20,6 +20,7 @@
 #include "Agent/AgentGroupRecord.h"
 #include "Agent/AgentGroupRuntimeView.h"
 #include "Agent/AgentSnapshot.h"
+#include "Agent/CoalitionMaintenanceSystem.h"
 #include "Config.h"
 #include "Creature.h"
 #include "GameTime.h"
@@ -347,6 +348,12 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // sit next to the config values its pure half exercises.
     bool testGroupPolicy = sConfigMgr->GetBoolDefault("AIWorld.TestGroupPolicy", false);
 
+    // Milestone 2.12E4C1: off by default - see RunCoalitionMaintenanceSmokeTest()'s
+    // own comment. Read here for the same reason testGroupPolicy is: sits
+    // next to the one other "pure smoke test" toggle Initialize() already
+    // has.
+    bool testCoalitionMaintenance = sConfigMgr->GetBoolDefault("AIWorld.TestCoalitionMaintenance", false);
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -610,6 +617,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // which RunGroupPolicySmokeTest() itself checks.
     if (testGroupPolicy)
         RunGroupPolicySmokeTest(testGroupMemberAgentId1);
+
+    // Milestone 2.12E4C1: manual proof only, gated behind
+    // AIWorld.TestCoalitionMaintenance (default off) - see
+    // RunCoalitionMaintenanceSmokeTest()'s own comment. Entirely pure, no
+    // integration half at all yet (2.12E4C1 deliberately adds no lifecycle
+    // orchestration).
+    if (testCoalitionMaintenance)
+        RunCoalitionMaintenanceSmokeTest();
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
@@ -1298,6 +1313,145 @@ void AIWorldMgr::ReleaseCoalitionFormationReservations(CoalitionProposal const& 
 {
     for (AgentId member : proposal.Members)
         _formationReservedMembers.erase(CoalitionFormationReservationKey{ member.Value, proposal.Kind });
+}
+
+// Milestone 2.12E4C1: entirely pure - every AgentGroupRecord/
+// CoalitionMemberObservation here is a local value never added to
+// _groupRegistry, and coalitionMaintenanceSystem itself is a stack-local
+// instance, matching CoalitionMaintenanceSystem's own "pure value
+// transform" contract (see its class comment). Runs unconditionally
+// whenever this method is called at all (gated only by
+// AIWorld.TestCoalitionMaintenance at the call site in Initialize()).
+void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
+{
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI coalition maintenance smoke test: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI coalition maintenance smoke test: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    CoalitionMaintenanceSystem coalitionMaintenanceSystem;
+
+    CoalitionMaintenanceProfile profile;
+    profile.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    profile.Kind = AgentGroupKind::Loose;
+    profile.MinMembers = 2;
+    profile.LeaveRadius = 60.0f;
+
+    AgentGroupRecord looseGroup;
+    looseGroup.Id = GroupId{ 1 };
+    looseGroup.Kind = AgentGroupKind::Loose;
+    looseGroup.TerritoryMapId = 0;
+    looseGroup.TerritoryX = 0.0f;
+    looseGroup.TerritoryY = 0.0f;
+    looseGroup.TerritoryZ = 0.0f;
+    looseGroup.Members.push_back(AgentGroupMembership{ AgentId{ 1 }, 0 });
+    looseGroup.Members.push_back(AgentGroupMembership{ AgentId{ 2 }, 0 });
+
+    auto makeObservation = [](AgentId id, bool materialized, bool alive, float x)
+    {
+        CoalitionMemberObservation observation;
+        observation.MemberId = id;
+        observation.Materialized = materialized;
+        observation.Alive = alive;
+        observation.MapId = 0;
+        observation.X = x;
+        return observation;
+    };
+
+    // LOOSE: materialized/alive member well past LeaveRadius -> LeaveMember.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, true, true, 70.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE materialized member 70yd away proposes LEAVE_MEMBER",
+            decision.Type == CoalitionMaintenanceDecisionType::LeaveMember && decision.Member == AgentId{ 2 });
+    }
+
+    // LOOSE: materialized/alive member well within LeaveRadius -> None.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, true, true, 40.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE materialized member 40yd away proposes NONE",
+            decision.Type == CoalitionMaintenanceDecisionType::None);
+    }
+
+    // LOOSE: unloaded member "last known" past LeaveRadius -> never a
+    // candidate, regardless of its stale recorded position.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, false, false, 70.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE unloaded member is never a LEAVE candidate",
+            decision.Type == CoalitionMaintenanceDecisionType::None);
+    }
+
+    // LOOSE: dead (Materialized but not Alive) member past LeaveRadius ->
+    // never a candidate either - death alone must not trigger a Leave.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, true, false, 70.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE dead member is never a LEAVE candidate",
+            decision.Type == CoalitionMaintenanceDecisionType::None);
+    }
+
+    // LOOSE: already below MinMembers -> DissolveGroup, independent of
+    // distance.
+    {
+        AgentGroupRecord shrunkGroup;
+        shrunkGroup.Id = GroupId{ 2 };
+        shrunkGroup.Kind = AgentGroupKind::Loose;
+        shrunkGroup.Members.push_back(AgentGroupMembership{ AgentId{ 1 }, 0 });
+
+        std::vector<CoalitionMemberObservation> members{ makeObservation(AgentId{ 1 }, true, true, 0.0f) };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(shrunkGroup, profile, members);
+        check("LOOSE below MinMembers proposes DISSOLVE_GROUP",
+            decision.Type == CoalitionMaintenanceDecisionType::DissolveGroup);
+    }
+
+    // STABLE: Evaluate() still proposes LEAVE_MEMBER for a far-away member,
+    // exactly as readily as for LOOSE - Stable protection is deliberately
+    // NOT this class's job, see its own class comment. Actual protection
+    // (StableGroupProtected) only exists once 2.12E4C2's own
+    // RequestLeaveGroupWithPolicy(AutomaticPolicy) call runs this decision
+    // through AgentGroupPolicySystem - not exercised here, since 2.12E4C1
+    // adds no lifecycle orchestration at all.
+    {
+        AgentGroupRecord stableGroup;
+        stableGroup.Id = GroupId{ 3 };
+        stableGroup.Kind = AgentGroupKind::Stable;
+        stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 1 }, 0 });
+        stableGroup.Members.push_back(AgentGroupMembership{ AgentId{ 2 }, 0 });
+
+        CoalitionMaintenanceProfile stableProfile = profile;
+        stableProfile.Kind = AgentGroupKind::Stable;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 10.0f),
+            makeObservation(AgentId{ 2 }, true, true, 70.0f)
+        };
+        CoalitionMaintenanceDecision decision = coalitionMaintenanceSystem.Evaluate(stableGroup, stableProfile, members);
+        check("STABLE Evaluate() still proposes LEAVE_MEMBER (protection lives in AgentGroupPolicySystem, not here)",
+            decision.Type == CoalitionMaintenanceDecisionType::LeaveMember && decision.Member == AgentId{ 2 });
+    }
+
+    TC_LOG_INFO("ai.world", "AI coalition maintenance smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
 void AIWorldMgr::Update(uint32 diff)

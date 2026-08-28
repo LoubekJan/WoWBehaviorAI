@@ -317,6 +317,27 @@ class TC_GAME_API AIWorldMgr
         // before finishing, so it never lingers as a permanent DB fixture.
         void RunGroupPolicySmokeTest(AgentId testMemberId);
 
+        // Milestone 2.12E4C1: manual proof of CoalitionMaintenanceSystem's
+        // own rules, entirely pure - synthetic AgentGroupRecord/
+        // CoalitionMemberObservation values built on the stack, fed
+        // straight to a stack-local CoalitionMaintenanceSystem::Evaluate(),
+        // no registry/DB/AIWorldMgr member state touched at all (unlike
+        // RunGroupPolicySmokeTest(), this has no integration half yet -
+        // 2.12E4C1 deliberately adds no lifecycle orchestration, see
+        // CoalitionMaintenanceSystem.h's own class comment). Exercises
+        // every rule CoalitionMaintenanceSystem.cpp implements: a
+        // materialized/alive/same-map member past LeaveRadius proposes
+        // LeaveMember; one well within it proposes None; an unloaded or
+        // dead member is never a Leave candidate regardless of its last
+        // known position; a group already below MinMembers proposes
+        // DissolveGroup outright; and - the one case that matters most -
+        // Evaluate() proposes LeaveMember for a Stable group's own
+        // far-away member exactly as readily as for a Loose one, proving
+        // this class does not (and must not) special-case Stable itself.
+        // Always runs when this method is called at all (see
+        // AIWorld.TestCoalitionMaintenance).
+        void RunCoalitionMaintenanceSmokeTest() const;
+
         // Milestone 2.12E4R (generalized from 2.12E4A's
         // CollectWolfCoalitionCandidates()): builds the value-only
         // candidate list CoalitionFormationSystem::Propose() needs - one

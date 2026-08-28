@@ -3614,6 +3614,19 @@ AIWorld.TestDissolveGroupId = 0
 AIWorld.TestGroupPolicy = 0
 
 #
+#    AIWorld.TestCoalitionMaintenance
+#        Description: Milestone 2.12E4C1 - when true, runs a one-shot manual proof at startup of
+#                     CoalitionMaintenanceSystem's own rules (see
+#                     AIWorldMgr::RunCoalitionMaintenanceSmokeTest()). Entirely pure - synthetic
+#                     AgentGroupRecord/CoalitionMemberObservation values built on the stack, no
+#                     registry/DB touched at all, no integration half yet (2.12E4C1 adds no
+#                     lifecycle orchestration - that is 2.12E4C2's job). Off by default - this is a
+#                     manual verification aid, not a feature.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestCoalitionMaintenance = 0
+
+#
 #    AIWorld.WolfGroupAutoFormation
 #        Description: Milestone 2.12E4A/2.12E4B (pipeline generalized in 2.12E4R) - when true,
 #                     AIWorldMgr periodically scans currently observable agents and, once
