@@ -387,6 +387,29 @@ class TC_GAME_API AIWorldMgr
         // AIWorld.TestCoalitionMaintenance).
         void RunCoalitionMaintenanceSmokeTest() const;
 
+        // Milestone 2.12F1: manual proof of AgentGroupIntentSystem's own
+        // rules, entirely pure - synthetic AgentGroupRecord/
+        // CoalitionMemberObservation/AgentGroupCoordinationProfile values
+        // built on the stack, fed straight to a stack-local
+        // AgentGroupIntentSystem::Evaluate(), no registry/DB/AIWorldMgr
+        // member state touched at all (the same "pure layer first, zero
+        // orchestration" scoping CoalitionMaintenanceSystem's own
+        // RunCoalitionMaintenanceSmokeTest() already established for
+        // 2.12E4C1 - 2.12F1 deliberately adds no AgentGroupIntentProjector/
+        // ActionSystem wiring yet, see AgentGroupIntentSystem.h's own
+        // class comment). Exercises every rule AgentGroupIntentSystem.cpp
+        // implements: a materialized/alive/same-map member past
+        // RegroupRadius proposes Regroup; one well within it proposes
+        // None; an unloaded or dead member is never a Regroup trigger
+        // regardless of its last known position; RegroupEnabled=false
+        // proposes None even for an otherwise-textbook dispersed member;
+        // and an Invalid profile, a Kind mismatch, or a ProfileId
+        // mismatch all fail closed to None, the same three-way guard
+        // CoalitionMaintenanceSystem::Evaluate() already holds. Always
+        // runs when this method is called at all (see
+        // AIWorld.TestGroupIntent).
+        void RunGroupIntentSmokeTest() const;
+
         // Milestone 2.12E4R (generalized from 2.12E4A's
         // CollectWolfCoalitionCandidates()): builds the value-only
         // candidate list CoalitionFormationSystem::Propose() needs - one

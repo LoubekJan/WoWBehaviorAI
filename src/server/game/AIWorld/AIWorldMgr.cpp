@@ -17,6 +17,7 @@
 
 #include "AIWorldMgr.h"
 #include "Action/ArrivalTolerance.h"
+#include "Agent/AgentGroupIntentSystem.h"
 #include "Agent/AgentGroupRecord.h"
 #include "Agent/AgentGroupRuntimeView.h"
 #include "Agent/AgentSnapshot.h"
@@ -432,6 +433,11 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // has.
     bool testCoalitionMaintenance = sConfigMgr->GetBoolDefault("AIWorld.TestCoalitionMaintenance", false);
 
+    // Milestone 2.12F1: off by default - see RunGroupIntentSmokeTest()'s
+    // own comment. Read here for the same reason the other pure smoke
+    // test toggles are: sits next to them rather than off on its own.
+    bool testGroupIntent = sConfigMgr->GetBoolDefault("AIWorld.TestGroupIntent", false);
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -745,6 +751,13 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // orchestration).
     if (testCoalitionMaintenance)
         RunCoalitionMaintenanceSmokeTest();
+
+    // Milestone 2.12F1: manual proof only, gated behind
+    // AIWorld.TestGroupIntent (default off) - see RunGroupIntentSmokeTest()'s
+    // own comment. Entirely pure, no AgentGroupIntentProjector/ActionSystem
+    // integration at all yet (2.12F1 deliberately adds none).
+    if (testGroupIntent)
+        RunGroupIntentSmokeTest();
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
@@ -1766,6 +1779,176 @@ void AIWorldMgr::RunCoalitionMaintenanceSmokeTest() const
     }
 
     TC_LOG_INFO("ai.world", "AI coalition maintenance smoke test {}", allPassed ? "PASSED" : "FAILED");
+}
+
+// Milestone 2.12F1: entirely pure - every AgentGroupRecord/
+// CoalitionMemberObservation/AgentGroupCoordinationProfile here is a
+// local value never added to _groupRegistry, and agentGroupIntentSystem
+// itself is a stack-local instance, matching AgentGroupIntentSystem's own
+// "pure value transform" contract (see its class comment). Runs
+// unconditionally whenever this method is called at all (gated only by
+// AIWorld.TestGroupIntent at the call site in Initialize()).
+void AIWorldMgr::RunGroupIntentSmokeTest() const
+{
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI group intent smoke test: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI group intent smoke test: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    AgentGroupIntentSystem agentGroupIntentSystem;
+
+    AgentGroupCoordinationProfile profile;
+    profile.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    profile.Kind = AgentGroupKind::Loose;
+    profile.RegroupEnabled = true;
+    profile.RegroupRadius = 20.0f;
+
+    AgentGroupRecord looseGroup;
+    looseGroup.Id = GroupId{ 1 };
+    looseGroup.Kind = AgentGroupKind::Loose;
+    looseGroup.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    looseGroup.TerritoryMapId = 0;
+    looseGroup.TerritoryX = 0.0f;
+    looseGroup.TerritoryY = 0.0f;
+    looseGroup.TerritoryZ = 0.0f;
+    looseGroup.Members.push_back(AgentGroupMembership{ AgentId{ 1 }, 0 });
+    looseGroup.Members.push_back(AgentGroupMembership{ AgentId{ 2 }, 0 });
+
+    auto makeObservation = [](AgentId id, bool materialized, bool alive, float x)
+    {
+        CoalitionMemberObservation observation;
+        observation.MemberId = id;
+        observation.Materialized = materialized;
+        observation.Alive = alive;
+        observation.MapId = 0;
+        observation.X = x;
+        return observation;
+    };
+
+    // LOOSE, RegroupEnabled: materialized/alive member well past
+    // RegroupRadius -> Regroup, targeting the group's own territory.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE materialized member 30yd past RegroupRadius=20 proposes REGROUP at territory",
+            intent.Type == AgentGroupIntentType::Regroup && intent.MapId == looseGroup.TerritoryMapId &&
+            intent.X == looseGroup.TerritoryX && intent.Y == looseGroup.TerritoryY && intent.Z == looseGroup.TerritoryZ);
+    }
+
+    // LOOSE, RegroupEnabled: materialized/alive member well within
+    // RegroupRadius -> None.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 10.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE materialized member 10yd within RegroupRadius=20 proposes NONE",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
+    // LOOSE, RegroupEnabled: unloaded member "last known" past
+    // RegroupRadius -> never a trigger, regardless of its stale recorded
+    // position.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, false, false, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE unloaded member is never a REGROUP trigger",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
+    // LOOSE, RegroupEnabled: dead (Materialized but not Alive) member past
+    // RegroupRadius -> never a trigger either - death alone must not
+    // trigger a coordination fact.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, false, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        check("LOOSE dead member is never a REGROUP trigger",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
+    // RegroupEnabled=false: proposes NONE even for an otherwise-textbook
+    // dispersed member - a profile that has not opted into automatic
+    // regrouping never gets one.
+    {
+        AgentGroupCoordinationProfile disabledProfile = profile;
+        disabledProfile.RegroupEnabled = false;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, disabledProfile, members);
+        check("RegroupEnabled=false proposes NONE",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
+    // Invalid profile never proposes anything, the same fail-closed
+    // discipline CoalitionMaintenanceSystem::Evaluate() already holds.
+    {
+        AgentGroupCoordinationProfile invalidProfile = profile;
+        invalidProfile.ProfileId = CoalitionFormationProfileId::Invalid;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, invalidProfile, members);
+        check("Invalid profile proposes NONE",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
+    // profile.Kind mismatch (a caller mismatch) never proposes anything
+    // either, rather than applying the wrong Kind's own thresholds to
+    // this group.
+    {
+        AgentGroupCoordinationProfile mismatchedProfile = profile;
+        mismatchedProfile.Kind = AgentGroupKind::Stable;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, mismatchedProfile, members);
+        check("profile.Kind mismatch (Stable profile vs. LOOSE group) proposes NONE",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
+    // group.ProfileId mismatch (a manually/unclassified LOOSE group vs. a
+    // real profile) never proposes anything either - this is the actual
+    // guard that stops WolfLoose coordination from applying to every
+    // LOOSE group regardless of provenance.
+    {
+        AgentGroupRecord unclassifiedGroup = looseGroup;
+        unclassifiedGroup.Id = GroupId{ 2 };
+        unclassifiedGroup.ProfileId = CoalitionFormationProfileId::Invalid;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(unclassifiedGroup, profile, members);
+        check("group.ProfileId mismatch (manual/unclassified LOOSE group vs. WolfLoose profile) proposes NONE",
+            intent.Type == AgentGroupIntentType::None);
+    }
+
+    TC_LOG_INFO("ai.world", "AI group intent smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const
