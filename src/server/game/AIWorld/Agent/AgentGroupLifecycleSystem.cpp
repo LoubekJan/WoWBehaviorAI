@@ -157,25 +157,27 @@ void AgentGroupLifecycleSystem::RequestJoinGroup(GroupId groupId, AgentId member
                 return;
             }
 
-            // Re-resolved here, not the pointer captured above - see this
-            // class's own header comment on why a completion never trusts
-            // request-time validity. The pending-operation guard above
-            // means the group cannot have been dissolved by another
-            // Request* call while this join was in flight, but this is
-            // kept as defense in depth regardless.
-            AgentGroupRecord* group = groupRegistry.Find(groupId);
-            if (!group)
+            // 2.12F2 P3 fix (STATIC review): AddMember() re-resolves
+            // groupId internally and returns false if it no longer exists -
+            // still checked explicitly here (rather than trusting a bare
+            // true/false to distinguish "no longer exists" from some other
+            // failure) so the log line below can say which one happened.
+            // The pending-operation guard above means the group cannot have
+            // been dissolved by another Request* call while this join was
+            // in flight, but this is kept as defense in depth regardless -
+            // see this class's own header comment on why a completion
+            // never trusts request-time validity.
+            AgentGroupMembership membership;
+            membership.Member = memberId;
+            membership.JoinedAtMs = joinedAtMs;
+
+            if (!groupRegistry.AddMember(groupId, membership))
             {
                 TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestJoinGroup: group id={} no longer exists by the time the async join for member id={} completed",
                     groupId.Value, memberId.Value);
                 onComplete(false);
                 return;
             }
-
-            AgentGroupMembership membership;
-            membership.Member = memberId;
-            membership.JoinedAtMs = joinedAtMs;
-            group->Members.push_back(membership);
 
             TC_LOG_INFO("ai.world", "AI agent group join group={} member={} joinedAtMs={}", groupId.Value, memberId.Value, joinedAtMs);
             onComplete(true);
@@ -230,31 +232,24 @@ void AgentGroupLifecycleSystem::RequestLeaveGroup(GroupId groupId, AgentId membe
                 return;
             }
 
-            // Re-resolved here, not the iterator captured above - the
-            // pending-operation guard above means the group cannot have
-            // been dissolved by another Request* call while this leave was
-            // in flight, but this is kept as defense in depth regardless,
-            // and even a still-live AgentGroupRecord::Members has moved on
-            // since the earlier find_if() ran.
-            AgentGroupRecord* group = groupRegistry.Find(groupId);
-            if (!group)
-            {
-                // The DB-side post-condition ("not a member") already
-                // holds - the whole group, membership included, is gone -
-                // so this is still a success, just nothing left to erase.
-                TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestLeaveGroup: group id={} no longer exists by the time the async leave for member id={} completed",
+            // 2.12F2 P3 fix (STATIC review): RemoveMember() re-resolves
+            // groupId internally and re-finds memberId within its own
+            // current Members - the pending-operation guard above means
+            // the group cannot have been dissolved by another Request*
+            // call while this leave was in flight, but this is kept as
+            // defense in depth regardless, and even a still-live
+            // AgentGroupRecord::Members has moved on since the request-time
+            // find_if() ran. Its own false return covers BOTH "group no
+            // longer exists" and "memberId already not a member" - either
+            // way the post-condition this call promises ("not a member")
+            // already holds, so this is still a success, just nothing left
+            // to erase; not distinguished further, the same as before.
+            if (!groupRegistry.RemoveMember(groupId, memberId))
+                TC_LOG_WARN("ai.world", "AgentGroupLifecycleSystem::RequestLeaveGroup: group id={} no longer exists or member id={} was already not a member by the time the async leave completed",
                     groupId.Value, memberId.Value);
-                onComplete(true);
-                return;
-            }
+            else
+                TC_LOG_INFO("ai.world", "AI agent group leave group={} member={}", groupId.Value, memberId.Value);
 
-            auto it2 = std::find_if(group->Members.begin(), group->Members.end(),
-                [memberId](AgentGroupMembership const& membership) { return membership.Member == memberId; });
-
-            if (it2 != group->Members.end())
-                group->Members.erase(it2);
-
-            TC_LOG_INFO("ai.world", "AI agent group leave group={} member={}", groupId.Value, memberId.Value);
             onComplete(true);
         });
 

@@ -35,7 +35,13 @@ bool AgentGroupRegistry::Add(AgentGroupRecord record)
     }
 
     uint64 idValue = record.Id.Value;
-    _groups.emplace(idValue, std::move(record));
+    auto emplaced = _groups.emplace(idValue, std::move(record));
+
+    // 2.12F2 P3 fix (STATIC review): indexes whatever Members the record
+    // already carried, if any - see this method's own header comment.
+    for (AgentGroupMembership const& membership : emplaced.first->second.Members)
+        _memberGroups[membership.Member.Value].insert(idValue);
+
     return true;
 }
 
@@ -53,7 +59,78 @@ AgentGroupRecord const* AgentGroupRegistry::Find(GroupId id) const
 
 bool AgentGroupRegistry::Remove(GroupId id)
 {
-    return _groups.erase(id.Value) != 0;
+    auto it = _groups.find(id.Value);
+    if (it == _groups.end())
+        return false;
+
+    // 2.12F2 P3 fix (STATIC review): every one of this group's own members
+    // is removed from _memberGroups too - see this method's own header
+    // comment. Erases the per-member entry entirely once it is empty,
+    // rather than leaving a stale empty set behind for an agent that no
+    // longer belongs to anything.
+    for (AgentGroupMembership const& membership : it->second.Members)
+    {
+        auto memberIt = _memberGroups.find(membership.Member.Value);
+        if (memberIt == _memberGroups.end())
+            continue;
+
+        memberIt->second.erase(id.Value);
+        if (memberIt->second.empty())
+            _memberGroups.erase(memberIt);
+    }
+
+    _groups.erase(it);
+    return true;
+}
+
+bool AgentGroupRegistry::AddMember(GroupId groupId, AgentGroupMembership const& membership)
+{
+    AgentGroupRecord* group = Find(groupId);
+    if (!group)
+        return false;
+
+    group->Members.push_back(membership);
+    _memberGroups[membership.Member.Value].insert(groupId.Value);
+    return true;
+}
+
+bool AgentGroupRegistry::RemoveMember(GroupId groupId, AgentId member)
+{
+    AgentGroupRecord* group = Find(groupId);
+    if (!group)
+        return false;
+
+    auto it = std::find_if(group->Members.begin(), group->Members.end(),
+        [member](AgentGroupMembership const& membership) { return membership.Member == member; });
+    if (it == group->Members.end())
+        return false;
+
+    group->Members.erase(it);
+
+    auto memberIt = _memberGroups.find(member.Value);
+    if (memberIt != _memberGroups.end())
+    {
+        memberIt->second.erase(groupId.Value);
+        if (memberIt->second.empty())
+            _memberGroups.erase(memberIt);
+    }
+
+    return true;
+}
+
+std::vector<GroupId> AgentGroupRegistry::GetGroupsOfMember(AgentId member) const
+{
+    std::vector<GroupId> groupIds;
+
+    auto it = _memberGroups.find(member.Value);
+    if (it == _memberGroups.end())
+        return groupIds;
+
+    groupIds.reserve(it->second.size());
+    for (uint64 groupIdValue : it->second)
+        groupIds.push_back(GroupId{ groupIdValue });
+
+    return groupIds;
 }
 
 std::vector<GroupId> AgentGroupRegistry::GetGroups() const
@@ -90,15 +167,18 @@ std::vector<GroupId> AgentGroupRegistry::GetGroupsAfterUntil(GroupId after, Grou
 
 bool AgentGroupRegistry::IsMemberOfKind(AgentId member, AgentGroupKind kind) const
 {
-    for (auto const& entry : _groups)
-    {
-        AgentGroupRecord const& group = entry.second;
-        if (group.Kind != kind)
-            continue;
+    // 2.12F2 P3 fix (STATIC review): via _memberGroups now, not a linear
+    // scan of every registered group - see this method's own header
+    // comment.
+    auto it = _memberGroups.find(member.Value);
+    if (it == _memberGroups.end())
+        return false;
 
-        for (AgentGroupMembership const& membership : group.Members)
-            if (membership.Member == member)
-                return true;
+    for (uint64 groupIdValue : it->second)
+    {
+        auto groupIt = _groups.find(groupIdValue);
+        if (groupIt != _groups.end() && groupIt->second.Kind == kind)
+            return true;
     }
 
     return false;

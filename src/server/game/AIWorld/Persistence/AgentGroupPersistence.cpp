@@ -197,10 +197,18 @@ uint32 AgentGroupPersistence::LoadGroupMembers(AgentGroupRegistry& groupRegistry
             continue;
         }
 
+        // 2.12F2 P3 fix (STATIC review): through AddMember() now, not
+        // pushed onto group->Members directly - see that method's own
+        // comment for why this is the one place a member is ever added, so
+        // AgentGroupRegistry's own reverse membership index never drifts
+        // out of sync with the forward Members list it mirrors. Known to
+        // succeed here (group was already confirmed to exist just above,
+        // and this load is single-threaded, so nothing else can have
+        // removed it in between).
         AgentGroupMembership membership;
         membership.Member = memberId;
         membership.JoinedAtMs = joinedAtMs;
-        group->Members.push_back(membership);
+        groupRegistry.AddMember(groupId, membership);
 
         TC_LOG_INFO("ai.world", "AI agent group member loaded group={} member={} joinedAtMs={}", groupId.Value, memberId.Value, joinedAtMs);
 

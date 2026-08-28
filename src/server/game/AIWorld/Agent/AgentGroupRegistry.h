@@ -19,11 +19,14 @@
 #define AIWORLD_AGENTGROUPREGISTRY_H
 
 #include "AgentGroupKind.h"
+#include "AgentGroupMembership.h"
 #include "AgentGroupRecord.h"
 #include "AgentId.h"
 #include "Define.h"
 #include "GroupId.h"
 #include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // Milestone 2.12D (STATIC review P2 fix): owns every persistent AgentGroup's
@@ -54,6 +57,12 @@ class TC_GAME_API AgentGroupRegistry
     public:
         // Adds an already-identified record (from AgentGroupPersistence).
         // Rejects and returns false for GroupId=0 or a duplicate GroupId.
+        // Milestone 2.12F2 P3 fix (STATIC review): also indexes any Members
+        // the record already carries into _memberGroups (see AddMember()'s
+        // own comment) - in practice always empty at creation time (every
+        // real caller adds members afterward, one at a time, through
+        // AddMember()), but Add() stays correct for a record that already
+        // carries some regardless, rather than silently under-indexing one.
         bool Add(AgentGroupRecord record);
 
         AgentGroupRecord* Find(GroupId id);
@@ -65,8 +74,50 @@ class TC_GAME_API AgentGroupRegistry
         // DissolveGroup(), after AgentGroupPersistence::DeleteGroup() has
         // already removed the DB-side rows. Returns whether a record was
         // actually erased (false for an unknown GroupId - not an error,
-        // the caller decides what that means).
+        // the caller decides what that means). Milestone 2.12F2 P3 fix
+        // (STATIC review): also removes every one of that group's own
+        // members from _memberGroups (see AddMember()'s own comment) -
+        // every membership this group ever held is gone along with it.
         bool Remove(GroupId id);
+
+        // Milestone 2.12F2 P3 fix (STATIC review): the one place
+        // AgentGroupRecord::Members is ever mutated to ADD a member -
+        // AgentGroupLifecycleSystem::RequestJoinGroup()'s own confirmed-join
+        // completion and AgentGroupPersistence::LoadGroupMembers() both go
+        // through this now, instead of pushing onto group->Members
+        // directly, so _memberGroups (the reverse AgentId -> GroupId[]
+        // index below) can never drift out of sync with the forward
+        // Members list it mirrors. Returns false, touching nothing, for an
+        // unknown groupId.
+        bool AddMember(GroupId groupId, AgentGroupMembership const& membership);
+
+        // Milestone 2.12F2 P3 fix (STATIC review): the one place a member
+        // is ever REMOVED - AgentGroupLifecycleSystem::RequestLeaveGroup()'s
+        // own confirmed-leave completion goes through this now instead of
+        // erasing from group->Members directly, for the same reverse-index
+        // consistency reason AddMember() exists. Returns false, touching
+        // nothing, for an unknown groupId or a memberId that is not
+        // currently one of its members - the same idempotent/fail-safe
+        // shape RequestLeaveGroup() itself already documents for calling
+        // it twice in a row.
+        bool RemoveMember(GroupId groupId, AgentId member);
+
+        // Milestone 2.12F2 P3 fix (STATIC review): which groups member
+        // currently belongs to, right now - O(1) average to find the
+        // member's own entry in _memberGroups, O(k) to copy it out where k
+        // is however many groups that specific member is in (in practice
+        // almost always 0 or 1; nothing in this codebase enforces an upper
+        // bound on it, hence returning every one found rather than
+        // assuming at most one). Exists so a caller that already knows
+        // WHICH member it cares about (e.g. AIWorldMgr::
+        // RunCoalitionCoordination()'s own cross-group overlap check) never
+        // has to scan the whole registry just to answer "which groups is
+        // this one agent in" - see IsMemberOfKind()'s own comment for the
+        // O(all groups) alternative this replaces for that specific use.
+        // An unknown/never-a-member AgentId returns an empty vector, not an
+        // error - not being in any group is an entirely ordinary state for
+        // most agents.
+        std::vector<GroupId> GetGroupsOfMember(AgentId member) const;
 
         std::vector<GroupId> GetGroups() const;
 
@@ -133,20 +184,45 @@ class TC_GAME_API AgentGroupRegistry
         // RunCoalitionJoinStep()), pulled out of AIWorldMgr itself since
         // "does member belong to a Kind-X group" is a fact about
         // AgentGroupRegistry's own owned state, not about wolves or any
-        // other specific formation profile. O(groups * members-per-group)
-        // - a plain linear scan, the same complexity the AIWorldMgr-side
-        // version this replaces already had for a single member; for
-        // scanning an entire candidate list in one pass, prefer building a
-        // one-off membership set from GetGroups()/Find() instead of
-        // calling this once per candidate (see AIWorldMgr::
-        // CollectMemberIdsOfKind()) - AgentGroupRegistry deliberately does
-        // not keep a permanent member->group reverse index yet, since one
-        // would have to be kept correctly in sync across every Join/Leave/
-        // Dissolve completion, which is not this milestone's scope.
+        // other specific formation profile.
+        //
+        // Milestone 2.12F2 P3 fix (STATIC review): now backed by
+        // _memberGroups/GetGroupsOfMember() - O(k) where k is however many
+        // groups member is actually in (almost always 0 or 1), not the
+        // O(all groups) linear scan an earlier version did. That earlier
+        // version's own comment reasoned AgentGroupRegistry deliberately
+        // kept no permanent member->group reverse index, since one would
+        // have to stay correctly in sync across every Join/Leave/Dissolve
+        // completion - AddMember()/RemoveMember()/Remove() are now that
+        // single, authoritative sync point (see each one's own comment),
+        // so that reasoning no longer holds; this method simply uses the
+        // index that now exists rather than re-deriving its own separate
+        // scan. For scanning an entire candidate list in one pass, prefer
+        // building a one-off membership set from GetGroups()/Find() instead
+        // of calling this once per candidate anyway (see AIWorldMgr::
+        // CollectMemberIdsOfKind()) - not because this got slower, but
+        // because that pattern still does strictly less total work when
+        // the candidate list itself is large.
         bool IsMemberOfKind(AgentId member, AgentGroupKind kind) const;
 
     private:
+        // Milestone 2.12F2 P3 fix (STATIC review): AgentId::Value -> the
+        // GroupId::Value of every group that AgentId currently belongs to -
+        // generic membership infrastructure (any future caller that needs
+        // "which groups is this agent in" reuses this, not a Regroup- or
+        // coordination-specific index), kept in sync exclusively by
+        // AddMember()/RemoveMember()/Add()/Remove() - nothing outside this
+        // class ever touches it directly, the same way nothing outside
+        // this class mutates _groups directly either. A plain
+        // std::unordered_set per member (not a single GroupId) because
+        // nothing in this codebase's own policy (AgentGroupPolicySystem::
+        // CanJoin() checks only duplicate membership WITHIN one group, see
+        // its own comment) actually prevents one agent from being a member
+        // of more than one group at once - see AIWorldMgr::
+        // RunCoalitionCoordination()'s own cross-group overlap check, which
+        // exists specifically because that case is possible.
         std::map<uint64, AgentGroupRecord> _groups;
+        std::unordered_map<uint64, std::unordered_set<uint64>> _memberGroups;
 };
 
 #endif // AIWORLD_AGENTGROUPREGISTRY_H

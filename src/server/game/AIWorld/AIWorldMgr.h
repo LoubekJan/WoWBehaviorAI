@@ -816,24 +816,30 @@ class TC_GAME_API AIWorldMgr
         // pass once the operation resolves either way.
         //
         // Milestone 2.12F2 P2 fix, round 2 (STATIC review): overlap
-        // arbitration is checked against a REGISTRY-WIDE membership count
-        // (coordinationMembershipCount in this method's own definition),
-        // not against how many proposals this pass's own bounded discovery
-        // batch happened to produce. A first version of this fix collected
-        // proposals per pass and counted duplicates only within that same
-        // batch - STATIC review correctly identified that as provably
-        // incomplete: with AIWorld.GroupCoordinationScanMaxPerPass smaller
-        // than the registry, two overlapping groups can simply never be
-        // discovered in the same pass, so a batch-local count silently
-        // degrades back to "whichever group's own pass runs first wins",
-        // the exact hidden discovery-order priority this mechanism exists
-        // to remove. The registry-wide count is built with ONE
-        // O(all groups + all memberships) pass over AgentGroupRegistry::
-        // GetGroups(), done once per call - not a permanently-maintained
-        // reverse index (AgentGroupRegistry deliberately does not keep one,
-        // see AgentGroupRegistry::IsMemberOfKind()'s own header comment),
-        // and never repeated per group or per proposal. Nothing in
-        // AgentGroupPolicySystem::CanJoin() enforces that one agent can
+        // arbitration is checked per-proposal against how many
+        // RegroupEnabled groups that proposal's own Member currently
+        // belongs to (AgentGroupRegistry::GetGroupsOfMember(), 2.12F2 P3
+        // fix, round 2 - see that method's own comment), not against how
+        // many proposals this pass's own bounded discovery batch happened
+        // to produce. A first version of this fix collected proposals per
+        // pass and counted duplicates only within that same batch - STATIC
+        // review correctly identified that as provably incomplete: with
+        // AIWorld.GroupCoordinationScanMaxPerPass smaller than the
+        // registry, two overlapping groups can simply never be discovered
+        // in the same pass, so a batch-local count silently degrades back
+        // to "whichever group's own pass runs first wins", the exact
+        // hidden discovery-order priority this mechanism exists to remove.
+        // A second version fixed THAT by scanning the whole registry once
+        // per call up front - STATIC review correctly identified THAT as
+        // reintroducing the exact O(all groups) recurring world-thread
+        // work class already eliminated from maintenance discovery (see
+        // this method's own bounded-discovery paragraph above). Checking
+        // per-PROPOSAL via GetGroupsOfMember() instead means this
+        // arbitration step's total cost scales with how many proposals
+        // this pass actually produced (typically small, and already
+        // bounded by AIWorld.GroupCoordinationScanMaxPerPass indirectly via
+        // discovered group count), never with total registry size. Nothing
+        // in AgentGroupPolicySystem::CanJoin() enforces that one agent can
         // only ever be a real member of ONE coordination-enabled group at a
         // time (it only checks duplicate membership WITHIN the target group
         // and that group's own capacity) - so two different groups can, in
@@ -897,19 +903,24 @@ class TC_GAME_API AIWorldMgr
         //     ever compares distance against profile.RegroupRadius, a
         //     TRIGGER threshold, never against this execution-layer bound -
         //     by design, so the pure projector never needs to know an
-        //     ActionSystem constant. Clamping RegroupRadius/LeaveRadius at
-        //     Initialize() only bounds how close a member must be before a
-        //     Regroup is even proposed, not how far one can have drifted by
-        //     dispatch time (AIWorld.CoalitionMaintenance/
-        //     AIWorld.GroupCoordination are independent flags - nothing
-        //     guarantees maintenance already removed such a member).
-        //     Checked here, explicitly, rather than left to
-        //     ActionSystem::ValidateMoveTo()'s own generic DestinationTooFar
-        //     rejection - a member past this bound is a distinct,
-        //     structurally-recurring case, not an ordinary one-off
-        //     rejection, and deserves its own named log reason rather than
-        //     rebuilding and re-rejecting an identical ActionRequest every
-        //     pass forever.
+        //     ActionSystem constant. This is deliberately the ONLY place
+        //     that enforces reachability at all (2.12F2 P2 fix, round 3,
+        //     STATIC review): AIWorld.WolfGroupFormationRadius/
+        //     AIWorld.WolfGroupLeaveRadius are NOT clamped against this
+        //     bound - Formation/Maintenance is its own capability with its
+        //     own enable flag, independent of Coordination's, and must not
+        //     have its own policy silently narrowed by a completely
+        //     different, possibly-disabled capability's own execution
+        //     limit (see AIWorld.WolfGroupLeaveRadius's own Initialize()
+        //     comment). AIWorld.WolfGroupRegroupRadius alone is still
+        //     clamped at Initialize(), since that IS a Coordination-layer
+        //     trigger threshold. So a member can legitimately remain a
+        //     group member, or even trigger a Regroup intent, from farther
+        //     away than this dispatcher can actually reach - that gap is
+        //     expected, not a misconfiguration, and this check turns it
+        //     into a clean, named "nothing to do" rather than rebuilding
+        //     and re-rejecting an identical ActionRequest as
+        //     DestinationTooFar every pass, forever.
         // On every rejection above, this simply returns - no log spam for
         // what is an expected, frequent outcome (most members most passes
         // are not eligible), the same restraint RunCoalitionMaintenanceForGroup()
