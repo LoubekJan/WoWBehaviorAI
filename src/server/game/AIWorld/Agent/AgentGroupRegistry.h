@@ -41,14 +41,14 @@
 // like AgentRegistry/AIWorldMgr itself.
 //
 // Milestone 2.12E4C2 P3 fix (STATIC review): _groups is an ordered
-// std::map, not std::unordered_map - GetGroupsAfter() needs a stable,
+// std::map, not std::unordered_map - GetGroupsAfterUntil() needs a stable,
 // GroupId-ascending iteration order it can resume from an arbitrary
 // cursor via upper_bound() in O(log n + returned count), not O(n). Find()/
 // Add()/Remove() go from O(1) to O(log n) as the tradeoff, acceptable at
 // the group-count scale this subsystem targets (hundreds to low
 // thousands of concurrently-existing AgentGroups, not millions) - see
-// GetGroupsAfter()'s own comment for the bounded-discovery problem this
-// solves.
+// GetGroupsAfterUntil()'s own comment for the bounded-discovery problem
+// this solves.
 class TC_GAME_API AgentGroupRegistry
 {
     public:
@@ -70,9 +70,18 @@ class TC_GAME_API AgentGroupRegistry
 
         std::vector<GroupId> GetGroups() const;
 
-        // Milestone 2.12E4C2 P3 fix (STATIC review): bounded, cursor-based
-        // discovery - up to maxCount GroupIds strictly greater than after,
-        // in ascending GroupId order, using _groups' own ordering
+        // Milestone 2.12E4C2 P2 fix, round 3 (STATIC review): the highest
+        // currently-registered GroupId, or GroupId{} (0) if the registry
+        // is empty - O(1) via _groups' own ordering (rbegin()). Exists to
+        // let a caller snapshot a scan-cycle boundary (see
+        // GetGroupsAfterUntil()'s own comment) without paying for a full
+        // traversal just to find it.
+        GroupId GetHighestGroupId() const;
+
+        // Milestone 2.12E4C2 P3 fix, round 2 (STATIC review): bounded,
+        // cursor-based discovery WITHIN one scan cycle - up to maxCount
+        // GroupIds strictly greater than after AND less than or equal to
+        // until, in ascending GroupId order, using _groups' own ordering
         // (upper_bound()) rather than materializing and filtering every
         // registered group the way GetGroups() does. Exists for
         // AIWorldMgr::RunCoalitionMaintenance()'s own scan (see
@@ -80,26 +89,42 @@ class TC_GAME_API AgentGroupRegistry
         // O(all groups) every maintenance pass just to find which ones
         // are even candidates, a caller advances its own cursor
         // (after = the last GroupId this call returned) across repeated
-        // calls/passes, seeing every currently-registered group over
+        // calls/passes, seeing every group that existed at the START of
+        // the current cycle (until = that cycle's own high-water mark,
+        // from GetHighestGroupId() taken once when the cycle began) over
         // several bounded passes instead of all of them in one unbounded
-        // one. after = GroupId{} (0) starts from the beginning - every
-        // real GroupId is nonzero (see GroupId.h), so this never
+        // one.
+        //
+        // until is what makes a scan cycle provably FINITE even under
+        // continuous group creation - an earlier version had no upper
+        // bound at all (every call simply returned "up to maxCount
+        // entries past after", with nothing capping how far ahead new
+        // GroupIds could keep appearing): if groups are created faster
+        // than the scan can advance past them, there is always a higher
+        // GroupId waiting past the cursor, the scan never reaches empty,
+        // never wraps, and the earliest-created groups - the ones closest
+        // to GroupId{} - starve indefinitely, never revisited. Capping
+        // discovery at the cycle's own snapshot means new groups created
+        // mid-cycle are simply deferred to the NEXT cycle (whose own
+        // GetHighestGroupId() snapshot will include them) rather than
+        // extending the current one.
+        //
+        // after = GroupId{} (0) starts from the beginning of a cycle -
+        // every real GroupId is nonzero (see GroupId.h), so this never
         // ambiguously skips a real group 0. A cursor naming a GroupId that
         // has since been dissolved is harmless: upper_bound() only cares
         // about the VALUE, not whether a group with exactly that id still
         // exists, so it simply resumes from whatever survives immediately
         // after it - a dissolve between passes never permanently disrupts
-        // the scan. Returns fewer than maxCount once fewer than maxCount
-        // entries remain past after, and an EMPTY vector once after is at
-        // or past the last entry the registry's own ordering has - this
-        // method never wraps around on its own within a single call, nor
-        // does it try to top a short result back up to maxCount by
-        // wrapping internally. A caller doing cursor-based wraparound (see
-        // AIWorldMgr::RunCoalitionMaintenance()) is free to choose its own
-        // policy for when to reset after to GroupId{} - typically only
-        // once a call returns empty, since a short-but-nonempty result
-        // still returned real, useful groups worth keeping for that pass.
-        std::vector<GroupId> GetGroupsAfter(GroupId after, uint32 maxCount) const;
+        // the scan. Returns an empty vector once after is at or past
+        // until (including the degenerate until = GroupId{} case, an
+        // empty registry) or past the last entry _groups actually has -
+        // this method never wraps a cycle around on its own; a caller
+        // doing cursor-based wraparound (see AIWorldMgr::
+        // RunCoalitionMaintenance()) is the one that decides when a cycle
+        // has ended and starts a new one (a fresh GetHighestGroupId()
+        // snapshot, cursor reset to GroupId{}).
+        std::vector<GroupId> GetGroupsAfterUntil(GroupId after, GroupId until, uint32 maxCount) const;
 
         // Milestone 2.12E4R: true if member belongs to any registered
         // group of exactly this Kind - the group-domain question

@@ -3758,15 +3758,18 @@ AIWorld.CoalitionMaintenanceMaxPerPass = 20
 #
 #    AIWorld.CoalitionMaintenanceScanMaxPerPass
 #        Description: Milestone 2.12E4C2 P3 fix (STATIC review) - the hard per-pass bound on
-#                     DISCOVERY (AgentGroupRegistry::GetGroupsAfter()), separate from
+#                     DISCOVERY (AgentGroupRegistry::GetGroupsAfterUntil()), separate from
 #                     AIWorld.CoalitionMaintenanceMaxPerPass's own bound on actual per-group
 #                     maintenance work. An earlier version scanned every registered group every
-#                     pass just to find which ones were even candidates for a profile - O(all
-#                     groups) recurring world-thread work regardless of how few groups actually
-#                     needed maintenance. The scan now advances a persistent cursor across passes
-#                     (wrapping around once the end of the registry is reached), seeing every
-#                     currently-registered group eventually, spread over several bounded passes
-#                     instead of scanned unbounded in one.
+#                     pass just to find which ones were even candidates - O(all groups) recurring
+#                     world-thread work regardless of how few groups actually needed maintenance.
+#                     The scan advances a persistent cursor across passes within a scan cycle
+#                     bounded by a high-water GroupId snapshot taken at that cycle's own start
+#                     (so continuous group creation can never keep the scan permanently chasing
+#                     new, higher GroupIds and starving the oldest ones), starting a fresh cycle
+#                     once the current one's high-water mark is reached. Every group that existed
+#                     at a cycle's start is seen exactly once by that cycle's end, spread over
+#                     several bounded passes instead of scanned unbounded in one.
 #        Important:   Values below 1 are clamped to 1.
 #        Default:     100
 

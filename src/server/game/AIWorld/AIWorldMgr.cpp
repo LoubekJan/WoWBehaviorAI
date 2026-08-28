@@ -379,6 +379,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _maintenanceSchedule.clear();
     _maintenanceInFlight.clear();
     _maintenanceScanCursor = GroupId{};
+    _maintenanceScanCycleHighWater = GroupId{};
 
     // Milestone 2.12E4C2 P2 fix (STATIC review): a SEPARATE enable gate
     // from AIWorld.WolfGroupAutoFormation - see
@@ -1818,26 +1819,44 @@ void AIWorldMgr::RunCoalitionMaintenance()
 
     // Milestone 2.12E4C2 P3 fix (STATIC review): bounded discovery, not
     // O(all groups) - see RunCoalitionMaintenance()'s own header comment
-    // and AgentGroupRegistry::GetGroupsAfter(). An earlier version called
-    // _groupRegistry.GetGroups() here, materializing every registered
-    // group's own GroupId every pass regardless of how few (if any) were
-    // ever actually candidates.
+    // and AgentGroupRegistry::GetGroupsAfterUntil(). An earlier version
+    // called _groupRegistry.GetGroups() here, materializing every
+    // registered group's own GroupId every pass regardless of how few (if
+    // any) were ever actually candidates.
     //
     // Milestone 2.12E4C2 P2 fix, round 2 (STATIC review): ONE global scan,
     // not one per profile - see this method's own header comment and
     // _maintenanceScanCursor's own declaration comment for the cross-
     // profile starvation a per-profile cursor would otherwise cause.
-    std::vector<GroupId> discovered = _groupRegistry.GetGroupsAfter(_maintenanceScanCursor, _coalitionMaintenanceScanMaxPerPass);
+    //
+    // Milestone 2.12E4C2 P2 fix, round 3 (STATIC review): a scan CYCLE
+    // begins whenever the cursor is at GroupId{} - takes a fresh
+    // _maintenanceScanCycleHighWater snapshot right then, so this cycle
+    // only ever scans groups that already existed at that moment. Without
+    // this, a registry growing faster than the scan can keep up (new
+    // GroupIds always appearing ahead of the cursor, since GroupId is
+    // monotonic) would mean the scan never reaches empty, never wraps,
+    // and the earliest-created groups starve indefinitely - see
+    // GetGroupsAfterUntil()'s own comment.
+    if (!_maintenanceScanCursor)
+        _maintenanceScanCycleHighWater = _groupRegistry.GetHighestGroupId();
+
+    std::vector<GroupId> discovered = _groupRegistry.GetGroupsAfterUntil(
+        _maintenanceScanCursor, _maintenanceScanCycleHighWater, _coalitionMaintenanceScanMaxPerPass);
+
     if (discovered.empty() && _maintenanceScanCursor)
     {
-        // Reached the end of the registry's own GroupId ordering (or it
-        // emptied out since the cursor was last set) - wrap around to the
-        // beginning rather than staying permanently stuck past the last
-        // group that ever existed. Only worth trying once: if the
-        // registry is genuinely empty, this second call also returns
-        // empty, and this pass simply admits nothing.
+        // Reached the end of the CURRENT cycle's own high-water mark -
+        // start a fresh cycle (new snapshot, taken from whatever the
+        // registry actually holds right now - which may include groups
+        // created during the cycle that just ended, correctly deferred to
+        // this new one) and retry once, the same "don't waste a whole
+        // pass on an empty result right after starting a new cycle"
+        // reasoning the earlier version already had for its own wrap.
         _maintenanceScanCursor = GroupId{};
-        discovered = _groupRegistry.GetGroupsAfter(_maintenanceScanCursor, _coalitionMaintenanceScanMaxPerPass);
+        _maintenanceScanCycleHighWater = _groupRegistry.GetHighestGroupId();
+        discovered = _groupRegistry.GetGroupsAfterUntil(
+            _maintenanceScanCursor, _maintenanceScanCycleHighWater, _coalitionMaintenanceScanMaxPerPass);
     }
 
     if (!discovered.empty())

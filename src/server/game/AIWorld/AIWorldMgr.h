@@ -561,13 +561,14 @@ class TC_GAME_API AIWorldMgr
         // with its own _maintenanceScanCursor... except there was only
         // ever ONE cursor (a single AIWorldMgr member), shared across
         // every call. With only WolfLoose configured this happened to
-        // work; the moment a second profile existed, both would
-        // discover-and-consume the SAME bounded window of GroupId space
-        // every pass (profile A sees groups 1-100 this pass, profile B
-        // then ALSO sees 1-100 sharing that same cursor's post-A position,
-        // then both wrap together) - a group whose GroupId never happens
-        // to fall in whichever slice its own profile's call is scanning
-        // is starved forever, the same class of cross-profile bug already
+        // work; the moment a second profile existed, both would share and
+        // mutate that same cursor (profile A's own pass advances it past
+        // groups 1-100, profile B's own pass - sharing that SAME
+        // post-A cursor position - then only ever sees 101-200, never
+        // 1-100, and the next pass both wrap together from wherever B
+        // left it) - a group whose GroupId never happens to fall in
+        // whichever slice its own profile's call ends up scanning is
+        // starved forever, the same class of cross-profile bug already
         // fixed once for formation's own member reservations (see
         // CoalitionFormationReservationKey.h). Discovery is now a SINGLE
         // GLOBAL bounded scan across ALL groups regardless of profile,
@@ -577,25 +578,42 @@ class TC_GAME_API AIWorldMgr
         // rather than growing as profileCount * ScanMaxPerPass.
         //
         // Two independently bounded stages, deliberately not one:
-        //   1. DISCOVERY: AgentGroupRegistry::GetGroupsAfter(_maintenanceScanCursor,
-        //      AIWorld.CoalitionMaintenanceScanMaxPerPass) - 2.12E4C2 P3 fix
-        //      (STATIC review). An earlier version built its candidate list
-        //      from GetGroups(), which materializes and Kind/ProfileId-
-        //      filters EVERY registered group every single pass regardless
-        //      of how few of them ever get admitted - O(all groups) recurring
+        //   1. DISCOVERY: AgentGroupRegistry::GetGroupsAfterUntil(_maintenanceScanCursor,
+        //      _maintenanceScanCycleHighWater, AIWorld.CoalitionMaintenanceScanMaxPerPass)
+        //      - 2.12E4C2 P3 fix. An earlier version built its candidate
+        //      list from GetGroups(), which materializes and filters
+        //      EVERY registered group every single pass regardless of how
+        //      few of them ever get admitted - O(all groups) recurring
         //      world-thread work, exactly the class of problem
         //      GroupCoarseSimulationScheduler was already introduced to
         //      prevent for admission, just not yet for discovery.
-        //      _maintenanceScanCursor advances across passes; the pass
-        //      immediately after one that reaches the end of the
-        //      registry's own ordering gets an EMPTY result and wraps the
-        //      cursor back to GroupId{} - a tail pass that returns a
-        //      non-empty but under-capacity batch does NOT itself
-        //      backfill from the start to top up to ScanMaxPerPass, it
-        //      simply leaves some of that pass's own budget unused. Every
-        //      currently-registered group is still seen eventually,
-        //      spread over several bounded passes instead of scanned in
-        //      one unbounded one.
+        //
+        //      2.12E4C2 P2 fix, round 3 (STATIC review): an interim
+        //      version bounded discovery per PASS (GetGroupsAfter(), no
+        //      upper bound) but not per SCAN CYCLE - GroupIds are
+        //      monotonically increasing, so under continuous group
+        //      creation (new groups always minted with a HIGHER id than
+        //      any that exist yet) the scan could always find a higher
+        //      GroupId waiting past the cursor and would never reach
+        //      empty, never wrap, so the earliest-created groups (closest
+        //      to GroupId{}) would never be revisited - starved
+        //      indefinitely, not merely delayed. _maintenanceScanCycleHighWater
+        //      (see its own declaration comment) fixes this: it snapshots
+        //      GetHighestGroupId() once at the START of each scan cycle,
+        //      and the whole cycle only ever scans up to that snapshot -
+        //      a group created mid-cycle is deferred to the NEXT cycle's
+        //      own snapshot, never chased by the one already running, so
+        //      every cycle is provably finite regardless of creation
+        //      rate. The pass immediately after one that reaches the
+        //      cycle's own high-water mark gets an EMPTY result and
+        //      starts a fresh cycle (new snapshot, cursor reset to
+        //      GroupId{}) - a tail pass that returns a non-empty but
+        //      under-capacity batch does NOT itself backfill from the
+        //      start to top up to ScanMaxPerPass, it simply leaves some
+        //      of that pass's own budget unused. Every group that existed
+        //      at the start of a cycle is still seen exactly once by the
+        //      end of that cycle, spread over several bounded passes
+        //      instead of scanned in one unbounded one.
         //   2. Per discovered group, ResolveMaintenanceProfile(group->ProfileId)
         //      - NOT a check against one fixed profile.ProfileId parameter
         //      any more, since this function no longer receives one. A
@@ -1063,7 +1081,7 @@ class TC_GAME_API AIWorldMgr
         uint32 _coalitionMaintenanceMaxPerPass = 20;
 
         // Milestone 2.12E4C2 P3 fix (STATIC review): AIWorld.CoalitionMaintenanceScanMaxPerPass
-        // - the bound on DISCOVERY (AgentGroupRegistry::GetGroupsAfter()),
+        // - the bound on DISCOVERY (AgentGroupRegistry::GetGroupsAfterUntil()),
         // separate from _coalitionMaintenanceMaxPerPass's own bound on
         // actual per-group WORK (SelectDue() admission) - see
         // RunCoalitionMaintenance()'s own comment for why these are two
@@ -1075,14 +1093,14 @@ class TC_GAME_API AIWorldMgr
         uint32 _coalitionMaintenanceScanMaxPerPass = 100;
 
         // Milestone 2.12E4C2 P3 fix (STATIC review): RunCoalitionMaintenance()'s
-        // own discovery cursor - the last GroupId a GetGroupsAfter() call
-        // returned, so the NEXT pass resumes immediately after it rather
-        // than re-scanning from the beginning every time. GroupId{} (0)
-        // both starts a fresh scan and marks "wrap around, the previous
-        // pass reached the end of the registry's own ordering" - every
-        // real GroupId is nonzero (see GroupId.h), so 0 is never
-        // ambiguous with an actual group. A dissolve/create between passes
-        // never permanently disrupts this: GetGroupsAfter() resumes from
+        // own discovery cursor - the last GroupId a GetGroupsAfterUntil()
+        // call returned, so the NEXT pass resumes immediately after it
+        // rather than re-scanning from the beginning every time. GroupId{}
+        // (0) both starts a fresh scan cycle and marks "the previous pass
+        // reached the end of the CURRENT cycle's own high-water mark" -
+        // every real GroupId is nonzero (see GroupId.h), so 0 is never
+        // ambiguous with an actual group. A dissolve between passes never
+        // permanently disrupts this: GetGroupsAfterUntil() resumes from
         // whatever GroupId value survives immediately after the cursor,
         // regardless of whether the cursor's own former group still
         // exists - see that method's own comment.
@@ -1097,6 +1115,25 @@ class TC_GAME_API AIWorldMgr
         // that would also multiply total discovery work by the number of
         // configured profiles).
         GroupId _maintenanceScanCursor;
+
+        // Milestone 2.12E4C2 P2 fix, round 3 (STATIC review): the highest
+        // GroupId (AgentGroupRegistry::GetHighestGroupId()) that existed
+        // at the moment the CURRENT scan cycle began - RunCoalitionMaintenance()
+        // never discovers a group with a higher GroupId than this within
+        // the same cycle, even if one is created mid-cycle. Recomputed
+        // fresh (from whatever the registry actually holds right then)
+        // every time _maintenanceScanCursor is at GroupId{} - both the
+        // very first call ever and every subsequent cycle start after a
+        // wrap use the exact same "cursor is 0, so take a fresh snapshot"
+        // path, no separate bootstrap needed. Without this, GroupIds being
+        // monotonically increasing means a registry growing faster than
+        // the scan can advance past it would always have a higher GroupId
+        // waiting past the cursor - the scan would never reach empty,
+        // never wrap, and the earliest-created groups would never be
+        // revisited at all, not merely delayed. See
+        // AgentGroupRegistry::GetGroupsAfterUntil()'s own comment for the
+        // full reasoning.
+        GroupId _maintenanceScanCycleHighWater;
 
         // Milestone 2.12E4C2: GroupId::Value entries with a maintenance
         // Leave/Dissolve chain currently in flight - inserted by

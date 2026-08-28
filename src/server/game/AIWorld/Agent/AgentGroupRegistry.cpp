@@ -65,16 +65,24 @@ std::vector<GroupId> AgentGroupRegistry::GetGroups() const
     return ids;
 }
 
-std::vector<GroupId> AgentGroupRegistry::GetGroupsAfter(GroupId after, uint32 maxCount) const
+GroupId AgentGroupRegistry::GetHighestGroupId() const
+{
+    if (_groups.empty())
+        return GroupId{};
+
+    return _groups.rbegin()->second.Id;
+}
+
+std::vector<GroupId> AgentGroupRegistry::GetGroupsAfterUntil(GroupId after, GroupId until, uint32 maxCount) const
 {
     std::vector<GroupId> ids;
-    if (maxCount == 0)
+    if (maxCount == 0 || after.Value >= until.Value)
         return ids;
 
     ids.reserve(std::min<std::size_t>(maxCount, _groups.size()));
 
     auto it = _groups.upper_bound(after.Value);
-    for (; it != _groups.end() && uint32(ids.size()) < maxCount; ++it)
+    for (; it != _groups.end() && it->first <= until.Value && uint32(ids.size()) < maxCount; ++it)
         ids.push_back(it->second.Id);
 
     return ids;
