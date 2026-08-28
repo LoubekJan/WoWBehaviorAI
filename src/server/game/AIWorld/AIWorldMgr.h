@@ -256,6 +256,14 @@ class TC_GAME_API AIWorldMgr
         // ever mutated inside that completion, once success is confirmed -
         // "adopted" is never logged, and the group is never treated as
         // adopted by anything else, before that.
+        //
+        // 2.12E4C2 P2 fix, round 3 (STATIC review): marks groupId in
+        // _groupProfileAdoptionInFlight for the duration of the async
+        // write - see that member's own declaration comment for the
+        // cross-write race this closes against the group coarse tick's
+        // own SaveGroupState() (a second, uncoordinated writer of the same
+        // profile_id column that could otherwise commit either before or
+        // after this one and silently undo it).
         void RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProfileId profileId);
 
         // Milestone 2.12E2: manual proof that AgentGroupLifecycleSystem's
@@ -785,6 +793,33 @@ class TC_GAME_API AIWorldMgr
         // SimulationScheduleState.h (its own comment on why it is reused
         // unmodified here). Keyed by GroupId::Value.
         std::unordered_map<uint64, SimulationScheduleState> _groupSimulationSchedule;
+
+        // Milestone 2.12E4C2 P2 fix, round 3 (STATIC review): GroupId::Value
+        // entries with a RunGroupProfileAdoption() write currently
+        // in flight - the group coarse tick's own resource-drift loop
+        // below (RunDecisionScheduler()) skips a group entirely (Update()/
+        // SaveGroupState() both, schedule state left untouched so it stays
+        // due and is retried the very next pass) while its GroupId is in
+        // this set. Without this, AgentGroupPersistence::AdoptGroupProfileAsync()'s
+        // own targeted "SET profile_id = ? WHERE group_id = ?" and
+        // SaveGroupState()'s own whole-row "SET ..., profile_id = ?,
+        // version = ? WHERE group_id = ? AND version < ?" (built from
+        // whatever AgentGroupRecord::ProfileId the RAM copy still held
+        // BEFORE the adoption's own completion updates it) can commit in
+        // either order - both are individually valid UPDATEs the DB
+        // reports as successful, but if SaveGroupState()'s commits second,
+        // it silently overwrites the just-adopted profile_id back to its
+        // old (pre-adoption) value, and the adoption's own already-logged
+        // "PASSED" (RAM now says adopted) no longer matches what the DB
+        // holds - exactly the persistence/provenance divergence the
+        // confirmed-write fix (round 2) was meant to close, reintroduced
+        // by a second, uncoordinated write path to the same column.
+        // Inserted right before RunGroupProfileAdoption() submits its own
+        // AdoptGroupProfileAsync() call, erased unconditionally at the top
+        // of that call's own completion (success or failure) - the same
+        // "always cleared first, regardless of outcome" shape
+        // AgentGroupLifecycleSystem::_pendingGroupOperations already uses.
+        std::unordered_set<uint64> _groupProfileAdoptionInFlight;
 
         // Milestone 2.12B/2.12D: the only simulation the group coarse tick
         // runs - called from RunDecisionScheduler()'s own group coarse-tick

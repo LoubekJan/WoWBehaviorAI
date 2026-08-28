@@ -841,6 +841,17 @@ void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProf
     TC_LOG_INFO("ai.world", "AI group profile adoption: requesting profile={} for group={} (was {})",
         ToString(profileId), groupId.Value, ToString(group->ProfileId));
 
+    // 2.12E4C2 P2 fix, round 3 (STATIC review): marks groupId in-flight
+    // BEFORE the async write is even submitted, so the group coarse tick's
+    // own SaveGroupState() (see _groupProfileAdoptionInFlight's own
+    // declaration comment for the cross-write race this closes) skips this
+    // group starting this exact tick, not only once the async call
+    // "started" from some other thread's perspective - everything here
+    // still only ever runs on the world thread, so there is no true
+    // concurrency to race, only two independently-submitted async DB
+    // writes whose commit order is not otherwise guaranteed.
+    _groupProfileAdoptionInFlight.insert(groupId.Value);
+
     // 2.12E4C2 P2 fix, round 2 (STATIC review): confirmed write - see this
     // method's own header comment for why AgentGroupRecord::ProfileId is
     // only ever mutated inside AdoptGroupProfileAsync()'s own completion,
@@ -849,6 +860,13 @@ void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProf
     TransactionCallback callback = _groupPersistence.AdoptGroupProfileAsync(groupId, profileId,
         [this, groupId, profileId](bool success)
         {
+            // Cleared first, regardless of outcome - the same "always
+            // released before onComplete runs" shape
+            // AgentGroupLifecycleSystem::_pendingGroupOperations already
+            // uses, see _groupProfileAdoptionInFlight's own declaration
+            // comment.
+            _groupProfileAdoptionInFlight.erase(groupId.Value);
+
             if (!success)
             {
                 TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: group={} could not adopt profile={} (DB write failed)",
@@ -2576,6 +2594,22 @@ void AIWorldMgr::RunDecisionScheduler()
     {
         AgentGroupRecord* group = _groupRegistry.Find(groupId);
         if (!group)
+            continue;
+
+        // 2.12E4C2 P2 fix, round 3 (STATIC review): a RunGroupProfileAdoption()
+        // write is in flight for this group - skip it entirely this pass
+        // (no Update(), no SaveGroupState(), schedule state left
+        // untouched so it stays due and is retried the very next group
+        // coarse tick pass, the same "skip capacity, don't advance,
+        // nothing here starves it" treatment a capacity-skipped group
+        // already gets from GroupCoarseSimulationScheduler itself) rather
+        // than risk this call's own SaveGroupState() committing its
+        // whole-row snapshot (built from whatever ProfileId the RAM copy
+        // held before the adoption's own completion updates it) either
+        // before or after the adoption's own targeted UPDATE - see
+        // _groupProfileAdoptionInFlight's own declaration comment for the
+        // exact divergence this prevents.
+        if (_groupProfileAdoptionInFlight.count(groupId.Value))
             continue;
 
         SimulationScheduleState& scheduleState = _groupSimulationSchedule[groupId.Value];
