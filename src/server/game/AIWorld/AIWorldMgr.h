@@ -239,14 +239,23 @@ class TC_GAME_API AIWorldMgr
         // explicit allow-list, not merely "!= Invalid" - a stray/garbage
         // config value must be refused here, not deferred to the next
         // restart's own LoadGroups() fail-closed switch to catch) or an
-        // unresolvable groupId. On success, mutates the in-memory
-        // AgentGroupRecord directly and persists via the existing
-        // AgentGroupPersistence::SaveGroupState() (the same fire-and-forget,
-        // mutate-then-persist shape the group coarse tick's own resource
-        // drift already uses, not a new confirmed Request*/TransactionCallback
-        // path - this is a single-field metadata correction, not a
-        // lifecycle create/join/leave/dissolve with multi-row atomicity
-        // requirements).
+        // unresolvable groupId.
+        //
+        // 2.12E4C2 P2 fix, round 2 (STATIC review): submits
+        // AgentGroupPersistence::AdoptGroupProfileAsync() (a confirmed
+        // TransactionCallback, enqueued into _groupLifecyclePending like
+        // every other AgentGroup persistence write) rather than mutating
+        // AgentGroupRecord::ProfileId immediately and calling the existing
+        // fire-and-forget SaveGroupState() - an earlier version did exactly
+        // that and logged "adopted" before the DB write was even known to
+        // have landed, so a failed async UPDATE could leave
+        // RunCoalitionMaintenance() treating an only-in-RAM-adopted group
+        // as WolfLoose (able to Leave/Dissolve its members) while the DB
+        // itself still read Invalid, reverting silently on the next
+        // restart. The in-memory AgentGroupRecord::ProfileId is now only
+        // ever mutated inside that completion, once success is confirmed -
+        // "adopted" is never logged, and the group is never treated as
+        // adopted by anything else, before that.
         void RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProfileId profileId);
 
         // Milestone 2.12E2: manual proof that AgentGroupLifecycleSystem's

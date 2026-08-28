@@ -721,6 +721,20 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     PrepareStatement(CHAR_UPD_AI_AGENT_GROUP, "UPDATE ai_agent_groups SET kind = ?, territory_map_id = ?, territory_x = ?, "
         "territory_y = ?, territory_z = ?, resources = ?, version = ?, profile_id = ? WHERE group_id = ? AND version < ?", CONNECTION_ASYNC);
 
+    // Milestone 2.12E4C2 P2 fix (STATIC review): AgentGroupPersistence::
+    // AdoptGroupProfileAsync() - a dedicated, single-column, confirmed-
+    // commit UPDATE for AIWorldMgr::RunGroupProfileAdoption()'s own legacy-
+    // provenance recovery, deliberately NOT reusing CHAR_UPD_AI_AGENT_GROUP/
+    // SaveGroupState()'s fire-and-forget Execute() path - unlike the
+    // continuously-redundant Resources drift write that already tolerates,
+    // a one-shot operator-triggered identity/provenance correction must be
+    // reported as adopted (and only then trusted by
+    // RunCoalitionMaintenance()) after a genuine DB-driver-reported commit
+    // result, not merely "the write was submitted". CONNECTION_ASYNC,
+    // committed via AsyncCommitTransaction() like every other confirmed
+    // AgentGroup write in this file - never blocks the world thread.
+    PrepareStatement(CHAR_UPD_AI_AGENT_GROUP_PROFILE_ID, "UPDATE ai_agent_groups SET profile_id = ? WHERE group_id = ?", CONNECTION_ASYNC);
+
     // Milestone 2.12E1/2.12E2: AgentGroupPersistence::DeleteGroupAsync() -
     // the group-row half, appended to the same CharacterDatabaseTransaction
     // as CHAR_DEL_AI_AGENT_GROUP_MEMBERS_BY_GROUP below and committed

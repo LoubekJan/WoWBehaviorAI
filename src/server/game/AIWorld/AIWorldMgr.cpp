@@ -825,7 +825,7 @@ void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProf
         return;
     }
 
-    AgentGroupRecord* group = _groupRegistry.Find(groupId);
+    AgentGroupRecord const* group = _groupRegistry.Find(groupId);
     if (!group)
     {
         TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: group={} (AIWorld.AdoptGroupId) does not exist", groupId.Value);
@@ -838,12 +838,43 @@ void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProf
         return;
     }
 
-    CoalitionFormationProfileId previousProfileId = group->ProfileId;
-    group->ProfileId = profileId;
-    _groupPersistence.SaveGroupState(groupId, *group);
+    TC_LOG_INFO("ai.world", "AI group profile adoption: requesting profile={} for group={} (was {})",
+        ToString(profileId), groupId.Value, ToString(group->ProfileId));
 
-    TC_LOG_INFO("ai.world", "AI group profile adoption PASSED: group={} adopted profile={} (was {})",
-        groupId.Value, ToString(profileId), ToString(previousProfileId));
+    // 2.12E4C2 P2 fix, round 2 (STATIC review): confirmed write - see this
+    // method's own header comment for why AgentGroupRecord::ProfileId is
+    // only ever mutated inside AdoptGroupProfileAsync()'s own completion,
+    // once success is known, never optimistically here before the DB has
+    // actually confirmed anything.
+    TransactionCallback callback = _groupPersistence.AdoptGroupProfileAsync(groupId, profileId,
+        [this, groupId, profileId](bool success)
+        {
+            if (!success)
+            {
+                TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: group={} could not adopt profile={} (DB write failed)",
+                    groupId.Value, ToString(profileId));
+                return;
+            }
+
+            // Re-resolved here, not the pointer captured before this async
+            // call started - the same "a completion never trusts request-
+            // time validity" discipline AgentGroupLifecycleSystem.h's own
+            // header comment documents (the group could in principle have
+            // been dissolved while this write was in flight).
+            AgentGroupRecord* current = _groupRegistry.Find(groupId);
+            if (!current)
+            {
+                TC_LOG_WARN("ai.world", "AI group profile adoption: group={} no longer exists by the time the DB write for profile={} confirmed",
+                    groupId.Value, ToString(profileId));
+                return;
+            }
+
+            current->ProfileId = profileId;
+
+            TC_LOG_INFO("ai.world", "AI group profile adoption PASSED: group={} adopted profile={}", groupId.Value, ToString(profileId));
+        });
+
+    _groupLifecyclePending.AddCallback(std::move(callback));
 }
 
 // Milestone 2.12E2: called at most once, from Initialize(), only when all

@@ -384,3 +384,25 @@ TransactionCallback AgentGroupPersistence::DeleteGroupAsync(GroupId groupId, std
 
     return callback;
 }
+
+TransactionCallback AgentGroupPersistence::AdoptGroupProfileAsync(GroupId groupId, CoalitionFormationProfileId profileId, std::function<void(bool)> onComplete)
+{
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_GROUP_PROFILE_ID);
+    stmt->setUInt8(0, uint8(profileId));
+    stmt->setUInt64(1, groupId.Value);
+    trans->Append(stmt);
+
+    TransactionCallback callback = CharacterDatabase.AsyncCommitTransaction(trans);
+    callback.AfterComplete([groupId, profileId, onComplete = std::move(onComplete)](bool success)
+    {
+        if (!success)
+            TC_LOG_ERROR("ai.world", "AgentGroupPersistence: async AdoptGroupProfile transaction for group_id={} profile_id={} failed",
+                groupId.Value, uint8(profileId));
+
+        onComplete(success);
+    });
+
+    return callback;
+}

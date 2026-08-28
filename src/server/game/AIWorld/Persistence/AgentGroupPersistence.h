@@ -242,6 +242,25 @@ class TC_GAME_API AgentGroupPersistence
         // touched by this.
         TransactionCallback DeleteGroupAsync(GroupId groupId, std::function<void(bool success)> onComplete);
 
+        // Milestone 2.12E4C2 P2 fix (STATIC review): confirmed async
+        // profile_id-only UPDATE for AIWorldMgr::RunGroupProfileAdoption()'s
+        // own legacy-provenance recovery - deliberately NOT SaveGroupState()
+        // (fire-and-forget Execute(), acceptable for the continuously-
+        // redundant Resources drift write it exists for, not for a
+        // one-shot operator-triggered identity/provenance correction).
+        // onComplete(success) fires only once the transaction's own
+        // genuine DB-driver-reported commit result is known - the same
+        // "a TransactionCallback's own result, not fire-and-forget, not a
+        // read-back guess" discipline CreateGroupAsync()/
+        // AddGroupMemberAsync()/RemoveGroupMemberAsync()/DeleteGroupAsync()
+        // above already hold for every other identity-affecting write this
+        // class makes. Never mutates AgentGroupRegistry itself - the
+        // caller is responsible for only updating its own in-memory
+        // AgentGroupRecord::ProfileId once success is true, the same
+        // "registry mutated only after confirmation" discipline every
+        // other write here already holds.
+        TransactionCallback AdoptGroupProfileAsync(GroupId groupId, CoalitionFormationProfileId profileId, std::function<void(bool success)> onComplete);
+
     private:
         // Milestone 2.12E1/2.12E2: seeded by LoadGroupIdSequence() at
         // startup from the persistent ai_agent_group_id_sequence row,
