@@ -365,8 +365,20 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _coalitionMaintenanceMaxPerPass = uint32(coalitionMaintenanceMaxPerPass);
 
+    // Milestone 2.12E4C2 P3 fix (STATIC review): the bound on DISCOVERY,
+    // separate from _coalitionMaintenanceMaxPerPass's own bound on actual
+    // per-group work - see RunCoalitionMaintenance()'s own comment.
+    int32 coalitionMaintenanceScanMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.CoalitionMaintenanceScanMaxPerPass", 100);
+    if (coalitionMaintenanceScanMaxPerPass < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.CoalitionMaintenanceScanMaxPerPass ({}) is invalid or too low, clamping to 1", coalitionMaintenanceScanMaxPerPass);
+        coalitionMaintenanceScanMaxPerPass = 1;
+    }
+    _coalitionMaintenanceScanMaxPerPass = uint32(coalitionMaintenanceScanMaxPerPass);
+
     _maintenanceSchedule.clear();
     _maintenanceInFlight.clear();
+    _maintenanceScanCursor = GroupId{};
 
     // Milestone 2.12E4C2 P2 fix (STATIC review): a SEPARATE enable gate
     // from AIWorld.WolfGroupAutoFormation - see
@@ -385,8 +397,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseMaintenanceProfile.MinMembers = _groupPolicyConfig.LooseMinMembers;
     _wolfLooseMaintenanceProfile.LeaveRadius = _wolfGroupLeaveRadius;
 
-    TC_LOG_INFO("ai.world", "AI wolf coalition maintenance configured enabled={} leaveRadius={:.1f} interval={}ms maxPerPass={}",
-        _coalitionMaintenanceEnabled, _wolfGroupLeaveRadius, _coalitionMaintenanceIntervalMs, _coalitionMaintenanceMaxPerPass);
+    TC_LOG_INFO("ai.world", "AI wolf coalition maintenance configured enabled={} leaveRadius={:.1f} interval={}ms maxPerPass={} scanMaxPerPass={}",
+        _coalitionMaintenanceEnabled, _wolfGroupLeaveRadius, _coalitionMaintenanceIntervalMs, _coalitionMaintenanceMaxPerPass, _coalitionMaintenanceScanMaxPerPass);
 
     // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
     // many DIFFERENT profiles' formations can be in flight at once - see
@@ -1796,20 +1808,42 @@ void AIWorldMgr::RunCoalitionMaintenance(CoalitionMaintenanceProfile const& prof
 {
     uint64 nowMs = CurrentTimeMs();
 
-    // Milestone 2.12E4C2 P2 fix (STATIC review): pre-filter to
-    // profile.ProfileId - NOT group->Kind alone. Kind cannot tell two
-    // profiles of the same Kind apart (only WolfLoose forms LOOSE groups
-    // today, but nothing about Kind itself prevents a future second
-    // LOOSE-forming profile from colliding the same way), and a manually/
-    // admin-created LOOSE group (AgentGroupRecord::ProfileId == Invalid)
-    // must never be silently swept into WolfLoose's own automatic
-    // maintenance just because its Kind happens to match. A wrong-profile
-    // group would also fail CoalitionMaintenanceSystem::Evaluate()'s own
-    // ProfileId-mismatch guard, but only after consuming one of this
-    // pass's bounded admission slots to find that out - filtering here
-    // avoids that waste too.
+    // Milestone 2.12E4C2 P3 fix (STATIC review): bounded discovery, not
+    // O(all groups) - see RunCoalitionMaintenance()'s own header comment
+    // and AgentGroupRegistry::GetGroupsAfter(). An earlier version called
+    // _groupRegistry.GetGroups() here, materializing every registered
+    // group's own GroupId every pass regardless of how few (if any) were
+    // ever actually candidates for this profile.
+    std::vector<GroupId> discovered = _groupRegistry.GetGroupsAfter(_maintenanceScanCursor, _coalitionMaintenanceScanMaxPerPass);
+    if (discovered.empty() && _maintenanceScanCursor)
+    {
+        // Reached the end of the registry's own GroupId ordering (or it
+        // emptied out since the cursor was last set) - wrap around to the
+        // beginning rather than staying permanently stuck past the last
+        // group that ever existed. Only worth trying once: if the
+        // registry is genuinely empty, this second call also returns
+        // empty, and this pass simply admits nothing.
+        _maintenanceScanCursor = GroupId{};
+        discovered = _groupRegistry.GetGroupsAfter(_maintenanceScanCursor, _coalitionMaintenanceScanMaxPerPass);
+    }
+
+    if (!discovered.empty())
+        _maintenanceScanCursor = discovered.back();
+
+    // Milestone 2.12E4C2 P2 fix (STATIC review): pre-filter THIS PASS'S
+    // discovered groups to profile.ProfileId - NOT group->Kind alone.
+    // Kind cannot tell two profiles of the same Kind apart (only WolfLoose
+    // forms LOOSE groups today, but nothing about Kind itself prevents a
+    // future second LOOSE-forming profile from colliding the same way),
+    // and a manually/admin-created LOOSE group (AgentGroupRecord::ProfileId
+    // == Invalid) must never be silently swept into WolfLoose's own
+    // automatic maintenance just because its Kind happens to match. A
+    // wrong-profile group would also fail CoalitionMaintenanceSystem::
+    // Evaluate()'s own ProfileId-mismatch guard, but only after consuming
+    // one of this pass's bounded admission slots to find that out -
+    // filtering here avoids that waste too.
     std::vector<GroupId> candidates;
-    for (GroupId groupId : _groupRegistry.GetGroups())
+    for (GroupId groupId : discovered)
     {
         AgentGroupRecord const* group = _groupRegistry.Find(groupId);
         if (group && group->ProfileId == profile.ProfileId)

@@ -553,27 +553,36 @@ class TC_GAME_API AIWorldMgr
         // is enabled - a SEPARATE gate from AIWorld.WolfGroupAutoFormation
         // (2.12E4C2 P2 fix, STATIC review - see _coalitionMaintenanceEnabled's
         // own declaration comment for why formation and maintenance must
-        // not share one on/off switch). Pre-filters _groupRegistry's own
-        // groups to profile.ProfileId (2.12E4C2 P2 fix, STATIC review: NOT
-        // group->Kind alone - see AgentGroupRecord::ProfileId for why Kind
-        // cannot tell two profiles of the same Kind apart, and why a
-        // manually/admin-created group must never be swept in just because
-        // its Kind matches; a wrong-profile group can never produce a
-        // decision from this profile anyway, once
-        // CoalitionMaintenanceSystem::Evaluate()'s own matching guard is
-        // considered - filtering here instead just keeps the bounded
-        // scheduler below from wasting admission slots on groups that
-        // could never use them), then reuses GroupCoarseSimulationScheduler
-        // (_maintenanceScheduler/_maintenanceSchedule - its own dedicated
-        // instance/schedule map, entirely separate from
-        // _groupCoarseSimulationScheduler/_groupSimulationSchedule's own
-        // resource-drift tick) for the same phase-offset, bounded,
-        // deterministic per-pass admission the group coarse tick already
-        // uses - see GroupCoarseSimulationScheduler.h for why an unbounded
-        // "check every existing group every pass" design is exactly the
-        // kind of world-thread work spike this milestone's own roadmap
-        // message asked not to repeat. Every admitted group is handed to
-        // RunCoalitionMaintenanceForGroup().
+        // not share one on/off switch).
+        //
+        // Two independently bounded stages, deliberately not one:
+        //   1. DISCOVERY: AgentGroupRegistry::GetGroupsAfter(_maintenanceScanCursor,
+        //      AIWorld.CoalitionMaintenanceScanMaxPerPass) - 2.12E4C2 P3 fix
+        //      (STATIC review). An earlier version built its candidate list
+        //      from GetGroups(), which materializes and Kind/ProfileId-
+        //      filters EVERY registered group every single pass regardless
+        //      of how few of them ever get admitted - O(all groups) recurring
+        //      world-thread work, exactly the class of problem
+        //      GroupCoarseSimulationScheduler was already introduced to
+        //      prevent for admission, just not yet for discovery.
+        //      _maintenanceScanCursor advances across passes (wrapping back
+        //      to GroupId{} once GetGroupsAfter() returns fewer than
+        //      requested), so every currently-registered group is still
+        //      seen eventually, just spread over several bounded passes
+        //      instead of scanned in one unbounded one.
+        //   2. ADMISSION: this pass's discovered groups are filtered to
+        //      profile.ProfileId (NOT group->Kind alone - see
+        //      AgentGroupRecord::ProfileId for why Kind cannot tell two
+        //      profiles of the same Kind apart, and why a manually/admin-
+        //      created group must never be swept in just because its Kind
+        //      matches), then handed to GroupCoarseSimulationScheduler
+        //      (_maintenanceScheduler/_maintenanceSchedule - its own
+        //      dedicated instance/schedule map, entirely separate from
+        //      _groupCoarseSimulationScheduler/_groupSimulationSchedule's
+        //      own resource-drift tick) for the same phase-offset, bounded,
+        //      deterministic per-pass admission the group coarse tick
+        //      already uses, capped at AIWorld.CoalitionMaintenanceMaxPerPass.
+        // Every admitted group is handed to RunCoalitionMaintenanceForGroup().
         void RunCoalitionMaintenance(CoalitionMaintenanceProfile const& profile);
 
         // Milestone 2.12E4C2: the single group this pass's maintenance
@@ -1003,6 +1012,32 @@ class TC_GAME_API AIWorldMgr
         GroupCoarseSimulationScheduler _maintenanceScheduler;
         std::unordered_map<uint64, SimulationScheduleState> _maintenanceSchedule;
         uint32 _coalitionMaintenanceMaxPerPass = 20;
+
+        // Milestone 2.12E4C2 P3 fix (STATIC review): AIWorld.CoalitionMaintenanceScanMaxPerPass
+        // - the bound on DISCOVERY (AgentGroupRegistry::GetGroupsAfter()),
+        // separate from _coalitionMaintenanceMaxPerPass's own bound on
+        // actual per-group WORK (SelectDue() admission) - see
+        // RunCoalitionMaintenance()'s own comment for why these are two
+        // independently bounded stages, not one. Typically larger than
+        // _coalitionMaintenanceMaxPerPass (discovery only filters/reads,
+        // work is comparatively expensive), but nothing enforces that
+        // relationship - a smaller scan bound just means admission rarely
+        // reaches its own ceiling, which is harmless, not incorrect.
+        uint32 _coalitionMaintenanceScanMaxPerPass = 100;
+
+        // Milestone 2.12E4C2 P3 fix (STATIC review): RunCoalitionMaintenance()'s
+        // own discovery cursor - the last GroupId a GetGroupsAfter() call
+        // returned, so the NEXT pass resumes immediately after it rather
+        // than re-scanning from the beginning every time. GroupId{} (0)
+        // both starts a fresh scan and marks "wrap around, the previous
+        // pass reached the end of the registry's own ordering" - every
+        // real GroupId is nonzero (see GroupId.h), so 0 is never
+        // ambiguous with an actual group. A dissolve/create between passes
+        // never permanently disrupts this: GetGroupsAfter() resumes from
+        // whatever GroupId value survives immediately after the cursor,
+        // regardless of whether the cursor's own former group still
+        // exists - see that method's own comment.
+        GroupId _maintenanceScanCursor;
 
         // Milestone 2.12E4C2: GroupId::Value entries with a maintenance
         // Leave/Dissolve chain currently in flight - inserted by

@@ -23,7 +23,7 @@
 #include "AgentId.h"
 #include "Define.h"
 #include "GroupId.h"
-#include <unordered_map>
+#include <map>
 #include <vector>
 
 // Milestone 2.12D (STATIC review P2 fix): owns every persistent AgentGroup's
@@ -39,6 +39,16 @@
 // GroupIds - this class only ever receives already-assigned ones through
 // Add(). Not thread-safe in general: mutating calls are world-thread-only,
 // like AgentRegistry/AIWorldMgr itself.
+//
+// Milestone 2.12E4C2 P3 fix (STATIC review): _groups is an ordered
+// std::map, not std::unordered_map - GetGroupsAfter() needs a stable,
+// GroupId-ascending iteration order it can resume from an arbitrary
+// cursor via upper_bound() in O(log n + returned count), not O(n). Find()/
+// Add()/Remove() go from O(1) to O(log n) as the tradeoff, acceptable at
+// the group-count scale this subsystem targets (hundreds to low
+// thousands of concurrently-existing AgentGroups, not millions) - see
+// GetGroupsAfter()'s own comment for the bounded-discovery problem this
+// solves.
 class TC_GAME_API AgentGroupRegistry
 {
     public:
@@ -60,6 +70,32 @@ class TC_GAME_API AgentGroupRegistry
 
         std::vector<GroupId> GetGroups() const;
 
+        // Milestone 2.12E4C2 P3 fix (STATIC review): bounded, cursor-based
+        // discovery - up to maxCount GroupIds strictly greater than after,
+        // in ascending GroupId order, using _groups' own ordering
+        // (upper_bound()) rather than materializing and filtering every
+        // registered group the way GetGroups() does. Exists for
+        // AIWorldMgr::RunCoalitionMaintenance()'s own scan (see
+        // AIWorld.CoalitionMaintenanceScanMaxPerPass): rather than paying
+        // O(all groups) every maintenance pass just to find which ones
+        // are even candidates, a caller advances its own cursor
+        // (after = the last GroupId this call returned) across repeated
+        // calls/passes, seeing every currently-registered group over
+        // several bounded passes instead of all of them in one unbounded
+        // one. after = GroupId{} (0) starts from the beginning - every
+        // real GroupId is nonzero (see GroupId.h), so this never
+        // ambiguously skips a real group 0. A cursor naming a GroupId that
+        // has since been dissolved is harmless: upper_bound() only cares
+        // about the VALUE, not whether a group with exactly that id still
+        // exists, so it simply resumes from whatever survives immediately
+        // after it - a dissolve between passes never permanently disrupts
+        // the scan. Returns fewer than maxCount (possibly zero) once the
+        // end of the registry's own ordering is reached - the caller is
+        // responsible for recognizing that and resetting after to
+        // GroupId{} to wrap around, this method never wraps on its own
+        // within a single call.
+        std::vector<GroupId> GetGroupsAfter(GroupId after, uint32 maxCount) const;
+
         // Milestone 2.12E4R: true if member belongs to any registered
         // group of exactly this Kind - the group-domain question
         // AIWorldMgr's own automatic coalition formation/revalidation
@@ -80,7 +116,7 @@ class TC_GAME_API AgentGroupRegistry
         bool IsMemberOfKind(AgentId member, AgentGroupKind kind) const;
 
     private:
-        std::unordered_map<uint64, AgentGroupRecord> _groups;
+        std::map<uint64, AgentGroupRecord> _groups;
 };
 
 #endif // AIWORLD_AGENTGROUPREGISTRY_H

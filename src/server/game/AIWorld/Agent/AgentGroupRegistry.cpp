@@ -17,6 +17,7 @@
 
 #include "AgentGroupRegistry.h"
 #include "Log.h"
+#include <algorithm>
 #include <utility>
 
 bool AgentGroupRegistry::Add(AgentGroupRecord record)
@@ -61,6 +62,21 @@ std::vector<GroupId> AgentGroupRegistry::GetGroups() const
     ids.reserve(_groups.size());
     for (auto const& entry : _groups)
         ids.push_back(entry.second.Id);
+    return ids;
+}
+
+std::vector<GroupId> AgentGroupRegistry::GetGroupsAfter(GroupId after, uint32 maxCount) const
+{
+    std::vector<GroupId> ids;
+    if (maxCount == 0)
+        return ids;
+
+    ids.reserve(std::min<std::size_t>(maxCount, _groups.size()));
+
+    auto it = _groups.upper_bound(after.Value);
+    for (; it != _groups.end() && uint32(ids.size()) < maxCount; ++it)
+        ids.push_back(it->second.Id);
+
     return ids;
 }
 

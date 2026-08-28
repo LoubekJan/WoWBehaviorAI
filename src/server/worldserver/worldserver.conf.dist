@@ -3756,6 +3756,23 @@ AIWorld.CoalitionMaintenanceIntervalMs = 5000
 AIWorld.CoalitionMaintenanceMaxPerPass = 20
 
 #
+#    AIWorld.CoalitionMaintenanceScanMaxPerPass
+#        Description: Milestone 2.12E4C2 P3 fix (STATIC review) - the hard per-pass bound on
+#                     DISCOVERY (AgentGroupRegistry::GetGroupsAfter()), separate from
+#                     AIWorld.CoalitionMaintenanceMaxPerPass's own bound on actual per-group
+#                     maintenance work. An earlier version scanned every registered group every
+#                     pass just to find which ones were even candidates for a profile - O(all
+#                     groups) recurring world-thread work regardless of how few groups actually
+#                     needed maintenance. The scan now advances a persistent cursor across passes
+#                     (wrapping around once the end of the registry is reached), seeing every
+#                     currently-registered group eventually, spread over several bounded passes
+#                     instead of scanned unbounded in one.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     100
+
+AIWorld.CoalitionMaintenanceScanMaxPerPass = 100
+
+#
 #    AIWorld.CoalitionFormationMaxInFlight
 #        Description: Milestone 2.12E4R P3 fix (STATIC review) - the hard ceiling on how many
 #                     DIFFERENT CoalitionFormationProfiles (see AIWorldMgr::_formationInFlight) can
