@@ -43,10 +43,27 @@
 // the real WolfLoose profile. RunCoalitionFormation() now refuses Invalid
 // outright (see its own comment) - see CoalitionFormationProfile.h for the
 // matching default-member-initializer change.
+//
+// Milestone 2.12E4C2 P2 fix (STATIC review): every value below has an
+// EXPLICIT numeric literal, and MUST keep it from here on - see
+// AgentGroupRecord::ProfileId and ai_agent_groups.profile_id (migration
+// 2026_08_28_00). Once a value is persisted to that column it is storage
+// ABI, not just an in-process identity: an implicit, position-based
+// enumerator value (the C++ default) would silently renumber every
+// already-persisted profile_id the moment a new enumerator is inserted
+// anywhere but the end, or an existing one is reordered/removed - e.g.
+// inserting BanditLoose between Invalid and WolfLoose would make every
+// already-persisted profile_id=1 (WolfLoose) read back as BanditLoose
+// after the next restart, with no error, no migration, and no way to
+// detect it happened. A new profile is always appended with its own
+// explicit, never-before-used literal; an enumerator's own value, once
+// shipped, is never changed or reassigned to a different profile, even if
+// that profile is later removed (retire the enumerator, do not recycle its
+// number).
 enum class CoalitionFormationProfileId : uint8
 {
-    Invalid,
-    WolfLoose
+    Invalid   = 0,
+    WolfLoose = 1
 };
 
 inline char const* ToString(CoalitionFormationProfileId id)

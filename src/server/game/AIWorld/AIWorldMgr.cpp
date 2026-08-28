@@ -436,6 +436,16 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // convention AIWorld.TestSpawnId/TestGroupMemberAgentId1-3 already use.
     GroupId testDissolveGroupId{ uint64(sConfigMgr->GetIntDefault("AIWorld.TestDissolveGroupId", 0)) };
 
+    // Milestone 2.12E4C2 P2 fix (STATIC review): the controlled legacy-
+    // provenance adoption path - see RunGroupProfileAdoption()'s own
+    // comment. Default 0 (unset) means disabled, the same convention every
+    // other one-shot GroupId hook here already uses. AdoptGroupProfileId
+    // is read as a raw uint8 - RunGroupProfileAdoption() itself is what
+    // validates it against a recognized, non-Invalid
+    // CoalitionFormationProfileId, not this cast.
+    GroupId adoptGroupId{ uint64(sConfigMgr->GetIntDefault("AIWorld.AdoptGroupId", 0)) };
+    CoalitionFormationProfileId adoptGroupProfileId = CoalitionFormationProfileId(uint8(sConfigMgr->GetIntDefault("AIWorld.AdoptGroupProfileId", 0)));
+
     std::string aiHost = sConfigMgr->GetStringDefault("AIWorld.AIHost", "ai-server");
     std::string aiPort = std::to_string(sConfigMgr->GetIntDefault("AIWorld.AIPort", 8000));
 
@@ -665,6 +675,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     if (testDissolveGroupId)
         RunTestDissolveGroup(testDissolveGroupId);
 
+    // Milestone 2.12E4C2 P2 fix (STATIC review): runs right after the
+    // dissolve hook above, for the same reason - a one-shot corrective
+    // action that must run before AIWorld.WolfGroupAutoFormation's/
+    // AIWorld.CoalitionMaintenance's own timers get a chance to observe
+    // (or fail to observe) the group's provenance. Off by default
+    // (AIWorld.AdoptGroupId = 0).
+    if (adoptGroupId)
+        RunGroupProfileAdoption(adoptGroupId, adoptGroupProfileId);
+
     // Milestone 2.12E1 P2 fix (STATIC review, round 2): manual proof only,
     // and only runs once all three configured member AgentIds are set -
     // see RunGroupLifecycleSmokeTest()'s own comment for why it no longer
@@ -790,6 +809,41 @@ void AIWorldMgr::RunTestDissolveGroup(GroupId groupId)
             else
                 TC_LOG_ERROR("ai.world", "AI test dissolve FAILED: group={} could not be dissolved (does it exist?)", groupId.Value);
         });
+}
+
+void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProfileId profileId)
+{
+    // Deliberately an explicit allow-list, not "anything but Invalid" - a
+    // stray/garbage config value (a raw uint8 that does not name any real
+    // enumerator, or Invalid itself) must be refused here, not merely
+    // deferred to the next restart's own LoadGroups() fail-closed switch
+    // to catch.
+    if (profileId != CoalitionFormationProfileId::WolfLoose)
+    {
+        TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: profile={} (AIWorld.AdoptGroupProfileId) is not a recognized, adoptable profile - refusing to adopt group={}",
+            ToString(profileId), groupId.Value);
+        return;
+    }
+
+    AgentGroupRecord* group = _groupRegistry.Find(groupId);
+    if (!group)
+    {
+        TC_LOG_ERROR("ai.world", "AI group profile adoption FAILED: group={} (AIWorld.AdoptGroupId) does not exist", groupId.Value);
+        return;
+    }
+
+    if (group->ProfileId == profileId)
+    {
+        TC_LOG_INFO("ai.world", "AI group profile adoption: group={} already has profile={}, nothing to do", groupId.Value, ToString(profileId));
+        return;
+    }
+
+    CoalitionFormationProfileId previousProfileId = group->ProfileId;
+    group->ProfileId = profileId;
+    _groupPersistence.SaveGroupState(groupId, *group);
+
+    TC_LOG_INFO("ai.world", "AI group profile adoption PASSED: group={} adopted profile={} (was {})",
+        groupId.Value, ToString(profileId), ToString(previousProfileId));
 }
 
 // Milestone 2.12E2: called at most once, from Initialize(), only when all

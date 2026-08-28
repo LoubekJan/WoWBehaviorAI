@@ -218,6 +218,37 @@ class TC_GAME_API AIWorldMgr
         // makes repeatable.
         void RunTestDissolveGroup(GroupId groupId);
 
+        // Milestone 2.12E4C2 P2 fix (STATIC review): one-shot, gated
+        // behind AIWorld.AdoptGroupId (default 0 = disabled) - the
+        // controlled adoption path for a group whose persistent
+        // AgentGroupRecord::ProfileId (added this same milestone, backfilled
+        // to Invalid for every pre-existing row) does not yet reflect which
+        // CoalitionFormationProfile actually governs it. Deliberately NOT
+        // automatic: this milestone's own migration backfills every
+        // pre-existing group to ProfileId::Invalid rather than guessing,
+        // since silently relabeling an existing Loose group as WolfLoose
+        // (or any other profile) with no operator confirmation is exactly
+        // the kind of false-provenance assignment this whole ProfileId
+        // field exists to prevent. Recovering a specific, already-known-
+        // legitimate pre-existing group is instead this explicit, human-
+        // triggered call - the same "no raw SQL/direct registry mutation,
+        // go through the existing persistence API" discipline
+        // RunTestDissolveGroup() already holds, applied to a metadata
+        // correction instead of a lifecycle operation. Refuses anything but
+        // a recognized, non-Invalid CoalitionFormationProfileId (an
+        // explicit allow-list, not merely "!= Invalid" - a stray/garbage
+        // config value must be refused here, not deferred to the next
+        // restart's own LoadGroups() fail-closed switch to catch) or an
+        // unresolvable groupId. On success, mutates the in-memory
+        // AgentGroupRecord directly and persists via the existing
+        // AgentGroupPersistence::SaveGroupState() (the same fire-and-forget,
+        // mutate-then-persist shape the group coarse tick's own resource
+        // drift already uses, not a new confirmed Request*/TransactionCallback
+        // path - this is a single-field metadata correction, not a
+        // lifecycle create/join/leave/dissolve with multi-row atomicity
+        // requirements).
+        void RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProfileId profileId);
+
         // Milestone 2.12E2: manual proof that AgentGroupLifecycleSystem's
         // async Request* API never touches Creature/WorldState and never
         // blocks the world thread - runs once from Initialize(), only when

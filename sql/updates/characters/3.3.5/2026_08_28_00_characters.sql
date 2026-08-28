@@ -19,6 +19,22 @@
 -- RequestCreateGroup() call actually minted this group - only then is it
 -- eligible for that profile's own automatic maintenance.
 --
+-- STATIC review (2.12E4C2): this backfill deliberately does NOT try to
+-- guess which pre-existing rows were actually WolfLoose-formed - relabeling
+-- an existing group's provenance without operator confirmation would be
+-- exactly the false-provenance assignment this column exists to prevent.
+-- A group an operator has independently confirmed is legitimately owned by
+-- a real profile can be adopted after this migration runs via
+-- AIWorld.AdoptGroupId/AIWorld.AdoptGroupProfileId (AIWorldMgr::
+-- RunGroupProfileAdoption()) - a one-shot startup action that goes through
+-- the existing AgentGroupPersistence API, never a raw UPDATE against this
+-- table. profile_id's own numeric values are storage ABI from here on - see
+-- CoalitionFormationProfileId.h for why they are explicit and never
+-- recycled.
+--
+-- Every enumerator CoalitionFormationProfileId currently defines, for
+-- reference: 0 = Invalid, 1 = WolfLoose.
+--
 
 ALTER TABLE `ai_agent_groups`
     ADD COLUMN `profile_id` TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `version`;
