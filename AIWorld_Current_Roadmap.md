@@ -65,7 +65,7 @@ Platí pro všechny další milníky:
 | 2.12F1 — generic group intent (`REGROUP`) | **CLOSED** |
 | 2.12F2 — intent → per-member proposal → ActionSystem | **CLOSED** |
 | 2.12F3 — integration/lifecycle runtime proof | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
-| 2.12F4 — global agent population (ControlMode gate first, then spawn reconciliation, scale hardening, bootstrap proof) | **NEXT** |
+| 2.12F4 — global agent population (ControlMode gate, then TrinityCore-aligned identity, then spawn reconciliation, scale hardening, bootstrap proof) | **NEXT** |
 | 2.12G — druhý profil + další generic group behavior | **PLANNED (po 2.12F4)** |
 | 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
@@ -456,9 +456,47 @@ Kroky:
 
 Runtime gate: `ObserveOnly` agent nikdy neprojde decision schedulerem, nikdy nedostane routine/group action proposal a `ActionSystem::Validate()` odmítne jakýkoli `ActionRequest` pro `ObserveOnly` agenta i v případě, že by performance-gate výše selhal — `ActionExecutor` se pro `ObserveOnly` nikdy nezavolá, protože `Validate()` mu to nedovolí, ne protože to sám kontroluje.
 
+## 2.12F4A2 — TrinityCore-aligned Agent identity (`AgentId == SpawnId`)
+
+**Priorita: až po 2.12F4A, striktně před 2.12F4B.** `2.12F4B` má vytvořit řádově tisíce nových `AgentRecord`ů z `world.creature`; změna identity schématu až po tomto bulk bootstrapu by znamenala migrovat tisíce cizích klíčů napříč `ai_agents`, `ai_agent_group_members`, `ai_long_term_memories` a dalšími tabulkami místo dnešních čtyř — udělat to teď je řádově levnější a bezpečnější.
+
+Dnešní `AgentId` je `ai_agents.agent_id`, MySQL `AUTO_INCREMENT`, nezávislý na tom, ke kterému `world.creature` spawnu patří (`AgentId 1 → spawn 80335`, ...). To je zbytečná indirection: k přečtení "který spawn/creature patří k agentovi X" je vždy nutná zpětná lookup přes `ai_agents`, a v logu/debug session `agent=1` nic neříká o tom, co reálně hledat v `creature`/`creature_template`.
+
+Nové pravidlo pro persistentní non-instance Creature agenty:
+
+```text
+AgentId.Value == TrinityCore Creature SpawnId (world.creature.guid)
+```
+
+`AgentId` (persistentní identita v rámci AIWorld API) a `Creature::GetGUID()`/`RuntimeGuid` (aktuálně materializovaná instance té identity) zůstávají oddělené, jen numericky sladěné s `SpawnId`, ne s `RuntimeGuid`:
+
+```text
+world.creature.guid = 80683
+        ↓
+AgentId = 80683           ← persistentní identita, stabilní přes restart
+        ↓
+AgentRecord
+    SpawnId     = 80683   ← provenance/binding na world.creature, viz níže
+    MapId       = 0
+    RuntimeGuid = <aktuální ObjectGuid nebo empty>   ← mění se mezi materializacemi/restarty
+```
+
+`AgentRecord::SpawnId` se **neruší**, i když bude číselně identické s `AgentId::Value`. Mají jiný význam — `AgentId` je identita entity uvnitř AIWorld API, `SpawnId` je explicitní provenance/foreign binding na konkrétní `world.creature` řádek. To umožňuje invariant assert (`record.Id.Value == record.SpawnId`) jako levnou debug/consistency kontrolu, ne jako redundanci k odstranění.
+
+**Instance scope zůstává mimo tento krok.** Stejný DB spawn může mít víc současně živých instancí (`spawn 12345` → instance 17 i instance 42 zároveň) — ty nemohou sdílet jeden `AgentId 12345`, jsou to fyzicky oddělené bytosti. `2.12F4` (celé, včetně F4A2) zůstává scoped jen na non-instance/base-world spawny (viz Scope predicate výše, `MapEntry` existuje a `Instanceable() == false`) přesně proto, aby se identity-per-instance problém nemusel řešit teď. Instance identity (např. `RuntimeAgentIdentity{ SpawnId, InstanceId }` nad stejným persistentním `SpawnId`) je vlastní budoucí milestone, ne součást `2.12F4A2` — tady se kvůli instancím nesmí znovu zavést anonymní/generated `AgentId`.
+
+Kroky:
+
+- `AgentPersistence::CreateCreatureAgent()` už nespoléhá na MySQL `AUTO_INCREMENT` pro odvození `AgentId` u creature agentů — insert explicitně nese `agent_id = spawn_id`; read-back-by-binding disciplína (viz `FindBinding()`) zůstává, jen už neslouží k zjištění MySQL-přiděleného ID, ale k potvrzení, že řádek s očekávaným `agent_id` skutečně existuje;
+- migrace existujících 4 agentů na jejich vlastní `SpawnId`: `1 → 80335`, `2 → 214023`, `3 → 214021`, `4 → 80683`, včetně navazujících řádků v `ai_agent_group_members` (`member_agent_id`) a `ai_long_term_memories` (`agent_id`) a jakékoli další tabulky, která dnes ukládá `agent_id` jako cizí klíč na `ai_agents`;
+- žádné místo v kódu ani dokumentaci nesmí předpokládat `AgentId = AIWorld-generated sequence` — `AgentRegistry::Add()` dnes generuje/přiděluje nic sama, ale kdekoli se dřív implicitně počítalo s malými sekvenčními hodnotami (logy, testy, komentáře), je nutné to opravit;
+- otevřený bod k rozhodnutí před implementací: zda `ai_agents.agent_id` zůstává `AUTO_INCREMENT` (MySQL dovolí explicitní `INSERT` hodnotu i do `AUTO_INCREMENT` sloupce, čítač se jen posune) nebo se `AUTO_INCREMENT` sundá úplně — a jaká je politika pro budoucí ne-creature `AgentType`, který by explicitní `SpawnId`-vázané `AgentId` nemusel mít (kolize namespace mezi "spawn-derived" a "AIWorld-generated" hodnotami musí být vyloučená explicitně, ne nechaná na náhodě).
+
+Runtime gate: pro každý persistentní non-instance Creature platí `AgentId.Value == TrinityCore Creature SpawnId`; `agent=<id>` v logu je přímo `SELECT * FROM creature WHERE guid = <id>` bez zpětné lookup přes `ai_agents`; existující 4 test agenti fungují po migraci identicky (`ControlMode`, group membership, long-term memory beze ztráty dat).
+
 ## 2.12F4B — Global spawn reconciliation
 
-**Priorita: až po 2.12F4A** — reconciliace smí vytvářet nové `AgentRecord`s pouze do bezpečného `ControlMode`, takže `ControlMode` gate musí existovat první.
+**Priorita: až po 2.12F4A a 2.12F4A2** — reconciliace smí vytvářet nové `AgentRecord`s pouze do bezpečného `ControlMode` (2.12F4A), a musí od prvního nově vytvořeného záznamu používat finální identitu `AgentId == SpawnId` (2.12F4A2) — dělat bulk bootstrap se starou `AUTO_INCREMENT` identitou a pak ji migrovat přes tisíce řádků by bylo přesně to draho/rizikové, čemu má 2.12F4A2 předejít.
 
 Roadmap dříve specifikovala jen jednosměrný bootstrap (`world.creature` → chybějící `ai_agents`: vytvoř). To je neúplné vůči vlastnímu invariantu projektu — **každý individuální `AgentRecord` musí odpovídat skutečnému TrinityCore Creature spawnu.** `AgentRegistry` dnes drží persistentní record jako `Abstract` i bez právě načteného `Creature` a sám nepozná, že DB spawn byl definitivně odstraněn. `2.12F4B` proto musí být obousměrná reconciliace, ne pouze bootstrap — a stejně jako zbytek `2.12F4` **jen nad non-instance/base-world spawny** (viz Scope výše; instance/raid spawny se do žádné z níže uvedených tří větví nezahrnují):
 
@@ -487,7 +525,7 @@ Druhý otevřený bod: **`AgentType` provenance.** `CreateCreatureAgent(AgentTyp
 Kroky:
 
 - `world.creature` (non-instance/base-world scope — `MapEntry` existuje a `Instanceable() == false`, ne `FindBaseNonInstanceMap()`, viz Scope predicate výše) je source of truth, žádné fake/synthetic spawny;
-- reconciliation je idempotentní: existující `(map_id, spawn_id) → AgentId` binding se zachová, nový spawn dostane nový `AgentId` (do `ObserveOnly`), restart nevytvoří duplicity;
+- reconciliation je idempotentní: existující `(map_id, spawn_id) → AgentId` binding se zachová, nový spawn dostane `AgentId == SpawnId` (viz 2.12F4A2, ne nově generovanou hodnotu) do `ObserveOnly`, restart nevytvoří duplicity;
 - chybějící/odstraněné spawny se detekují a fail-closed karanténují, ne tiše zůstávají v `_registry` jako živý agent;
 - deterministická `AgentType`/provenance politika je rozhodnutá a implementovaná před prvním bulk bootstrapem;
 - temporary summons bez persistentního `SpawnId` se do reconciliace nepočítají;
@@ -755,7 +793,7 @@ Hotovo:
 
 Zbývá před uzavřením Etapy 2:
 
-- [ ] global agent population foundation gate (2.12F4: `ControlMode` split + hard gating first, pak bidirectional spawn reconciliation, bounded/indexed runtime at scale, global bootstrap proof) — blocker před second-profile proofem nad reálnými spawny;
+- [ ] global agent population foundation gate (2.12F4: `ControlMode` split + hard gating first, pak TrinityCore-aligned `AgentId == SpawnId` identity, pak bidirectional spawn reconciliation, bounded/indexed runtime at scale, global bootstrap proof) — blocker před second-profile proofem nad reálnými spawny;
 - [ ] second-profile genericity proof;
 - [ ] alespoň jedno další skutečné generic group behavior potřebné pro emergentní slice;
 - [ ] skutečný local LLM request přes async `ai-server`;
@@ -813,21 +851,22 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 
 1. [x] 2.12F3 static/build/runtime closure.
 2. [ ] **2.12F4A — ControlMode foundation (`ObserveOnly` vs `AIWorldControlled`, hard-gated na decision/routine/group/action cestách, existing 4 → `AIWorldControlled`, default = `ObserveOnly`).**
-3. [ ] **2.12F4B — global spawn reconciliation (non-instance `world.creature` ↔ `ai_agents` bidirectional, fail-closed na smazané spawny, deterministická `AgentType` provenance, no ghosts).**
-4. [ ] 2.12F4C — bounded/indexed runtime at world scale (O(1) spawn index, remove recurring full-registry scans).
-5. [ ] 2.12F4D — global bootstrap/runtime proof (plná `ObserveOnly` populace, vanilla/script chování beze změny, bounded work).
-6. [ ] 2.12G1 — second real coalition profile přes stejnou generic pipeline (nad reálnými reconciled spawny z 2.12F4).
-7. [ ] 2.12G2 — generic roaming/territory movement.
-8. [ ] 2.12G3 — generic hunt/coordinated-combat ownership seam.
-9. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
-10. [ ] 2.13A — actual local LLM inference path.
-11. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
-12. [ ] 2.13C — player-facing dynamic task lifecycle.
-13. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
-14. [ ] 2.14 — emergent end-to-end world event slice.
-15. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
-16. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
-17. [ ] Etapa 4 — Living World composition.
+3. [ ] **2.12F4A2 — TrinityCore-aligned Agent identity (`AgentId == SpawnId` pro persistentní non-instance Creature agenty, migrace existujících 4 + navazujících group/memory FK, před bulk bootstrapem v 2.12F4B).**
+4. [ ] **2.12F4B — global spawn reconciliation (non-instance `world.creature` ↔ `ai_agents` bidirectional, fail-closed na smazané spawny, deterministická `AgentType` provenance, no ghosts).**
+5. [ ] 2.12F4C — bounded/indexed runtime at world scale (O(1) spawn index, remove recurring full-registry scans).
+6. [ ] 2.12F4D — global bootstrap/runtime proof (plná `ObserveOnly` populace, vanilla/script chování beze změny, bounded work).
+7. [ ] 2.12G1 — second real coalition profile přes stejnou generic pipeline (nad reálnými reconciled spawny z 2.12F4).
+8. [ ] 2.12G2 — generic roaming/territory movement.
+9. [ ] 2.12G3 — generic hunt/coordinated-combat ownership seam.
+10. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
+11. [ ] 2.13A — actual local LLM inference path.
+12. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
+13. [ ] 2.13C — player-facing dynamic task lifecycle.
+14. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
+15. [ ] 2.14 — emergent end-to-end world event slice.
+16. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
+17. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
+18. [ ] Etapa 4 — Living World composition.
 
 ---
 
@@ -868,6 +907,10 @@ Další změna se nemá zaměřit na další wolf-only behavior ani rovnou na dr
 ControlMode schema + ActionSystem::Validate() as mandatory authoritative gate (2.12F4A)
     ↓
 existing 4 test mobs → AIWorldControlled, default → ObserveOnly
+    ↓
+AgentId == TrinityCore Creature SpawnId for persistent non-instance agents (2.12F4A2)
+    ↓
+existing 4 test mobs migrated to spawn-aligned AgentId (incl. group/memory FKs)
     ↓
 ALL non-instance world.creature SPAWNS reconciled ↔ ai_agents (2.12F4B)
     ↓
