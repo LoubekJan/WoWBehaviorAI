@@ -624,14 +624,14 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // in-memory default matches this exactly - see its own comment for
     // why neither may ever default to AIWorldControlled.
     //
-    // Milestone 2.12F4A2: agent_id is now bound explicitly (=spawn_id,
-    // see AgentPersistence::CreateCreatureAgent()'s own comment) instead
-    // of being left to the column's AUTO_INCREMENT default - for a
+    // Milestone 2.12F4A2 (P2 fix, STATIC review round 2: namespace policy
+    // locked, not deferred to 2.12F4B - see the 2026_08_30_01 migration's
+    // own comment): agent_id is bound explicitly here (=spawn_id, see
+    // AgentPersistence::CreateCreatureAgent()'s own comment) - for a
     // persistent non-instance Creature agent, AgentId must equal the
-    // TrinityCore Creature SpawnId it is bound to. The column itself
-    // stays AUTO_INCREMENT (MySQL allows an explicit value into one; the
-    // counter simply advances past it) - see the 2.12F4A2 migration's own
-    // comment for why nothing here relies on that counter any more.
+    // TrinityCore Creature SpawnId it is bound to, and the column is no
+    // longer AUTO_INCREMENT at all, so no auto-generated id can ever
+    // collide with a real spawn_id-derived one.
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_id, agent_type, map_id, spawn_id) VALUES (?, ?, ?, ?)", CONNECTION_SYNCH);
 
     // Milestone 2.12F4A P2 fix (STATIC review): AgentPersistence::

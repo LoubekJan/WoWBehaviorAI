@@ -38,16 +38,24 @@ class AgentRegistry;
 // runtime state) and over a fourth AI-specific database (not justified
 // yet for one table).
 //
-// Milestone 2.12F4A2: for a persistent non-instance Creature agent,
-// AgentId.Value equals the TrinityCore Creature SpawnId it is bound to -
-// CreateCreatureAgent() binds agent_id explicitly (=spawnId) rather than
-// minting it in C++ or leaving it to the column's own AUTO_INCREMENT
-// default (kept on the column itself, but no longer relied on for
-// creature agents - see AIWorld_Current_Roadmap.md's own "2.12F4A2"
-// section and ai_agents' 2.12F4A2 migration comment). This database layer
-// has no last-insert-id support, so CreateCreatureAgent() still reads the
-// row back by the unique (map_id, spawn_id) binding - not to discover a
-// MySQL-assigned id any more, only to confirm the write actually landed.
+// Milestone 2.12F4A2 (P2 fix, STATIC review round 2: namespace policy
+// locked, not deferred to 2.12F4B): for a persistent non-instance
+// Creature agent, AgentId.Value equals the TrinityCore Creature SpawnId
+// it is bound to, and that is the ONLY namespace agent_id ever comes
+// from - CreateCreatureAgent() binds it explicitly (=spawnId), and
+// ai_agents.agent_id is no longer AUTO_INCREMENT at all (see
+// AIWorld_Current_Roadmap.md's own "2.12F4A2" section and the
+// 2026_08_30_01 migration's own comment) - no auto-generated id can ever
+// collide with a real spawn_id-derived one. A future non-creature
+// AgentType must get its own disjoint namespace or its own table, never
+// a value silently auto-assigned into this one. This database layer has
+// no last-insert-id support, so CreateCreatureAgent() still reads the row
+// back by the unique (map_id, spawn_id) binding - not to discover an
+// assigned id (the caller already knows it), only to confirm the write
+// actually landed. Both CreateCreatureAgent() and LoadAgents() fail
+// closed - refuse to reuse/quarantine, never silently return/load a
+// mismatched AgentId - if a stored row's agent_id doesn't actually equal
+// its spawn_id.
 //
 // Synchronous by design: LoadAgents() and CreateCreatureAgent() are only
 // ever meant to be called during AIWorldMgr::Initialize(), never from the
@@ -73,10 +81,12 @@ class TC_GAME_API AgentPersistence
         // spawnId (Milestone 2.12F4A2 - AgentId == SpawnId for a
         // persistent non-instance Creature agent) and reads it back by
         // that same binding to confirm the write landed. Returns AgentId{}
-        // (Value == 0, never a valid id) if the read-back doesn't find a
-        // row - the caller must not add anything to an AgentRegistry in
-        // that case, since there is then no way to know whether the
-        // insert actually happened.
+        // (Value == 0, never a valid id) - the caller must not add
+        // anything to an AgentRegistry in that case - if the read-back
+        // doesn't find a row (insert didn't land), OR (2.12F4A2 P2 fix,
+        // STATIC review) if an existing/just-inserted row's own agent_id
+        // does not actually equal spawnId: fail closed rather than hand
+        // the caller an identity that violates AgentId == SpawnId.
         AgentId CreateCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId);
 
         // Milestone 2.12F4A P2 fix (STATIC review): explicit, synchronous

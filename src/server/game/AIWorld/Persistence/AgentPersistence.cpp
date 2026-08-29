@@ -92,14 +92,22 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
             ? AgentControlMode::AIWorldControlled
             : AgentControlMode::ObserveOnly;
 
-        // Milestone 2.12F4A2: for a persistent non-instance Creature
-        // agent, AgentId.Value must equal SpawnId - logged, not asserted/
-        // fatal, since a violation here is a data-quality signal to
-        // investigate (e.g. a row this migration didn't reach) rather
-        // than something safe to crash the world thread over.
+        // Milestone 2.12F4A2 P2 fix (STATIC review): AgentId == SpawnId is
+        // a hard identity invariant for a persistent non-instance
+        // Creature agent, not an advisory one - a row violating it (e.g.
+        // one this migration didn't reach) must not silently keep
+        // functioning as a normal agent. Quarantined here: logged and
+        // skipped, never reaching AgentRegistry::Add() - no ownership, no
+        // actions, the same "don't add anything the identity contract
+        // can't vouch for" discipline CreateCreatureAgent() below now
+        // also applies. Not a hard ASSERT/crash: a bad row must not take
+        // the whole world thread down with it.
         if (record.Id.Value != record.SpawnId)
-            TC_LOG_WARN("ai.world", "AI agent id={} map={} spawn={} violates the AgentId == SpawnId invariant (2.12F4A2)",
+        {
+            TC_LOG_ERROR("ai.world", "AI agent id={} map={} spawn={} violates the AgentId == SpawnId invariant (2.12F4A2), quarantined - not added to the registry",
                 record.Id.Value, record.MapId, record.SpawnId);
+            continue;
+        }
 
         if (!registry.Add(record))
             continue;
@@ -134,6 +142,20 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
 {
     if (AgentId existingId = FindBinding(mapId, spawnId))
     {
+        // Milestone 2.12F4A2 P2 fix (STATIC review): a pre-existing row
+        // whose stored agent_id doesn't match this spawnId violates the
+        // AgentId == SpawnId invariant (e.g. an unmigrated historical
+        // row) - refuse to reuse it rather than silently handing the
+        // caller an identity that doesn't describe this spawn, the same
+        // fail-closed contract LoadAgents() now applies to a row like
+        // this at startup.
+        if (existingId.Value != spawnId)
+        {
+            TC_LOG_ERROR("ai.world", "AgentPersistence: map={} spawn={} already exists in ai_agents as agent id={}, which violates the AgentId == SpawnId invariant (2.12F4A2) - refusing to reuse it",
+                mapId, spawnId, existingId.Value);
+            return AgentId{};
+        }
+
         TC_LOG_WARN("ai.world", "AgentPersistence: map={} spawn={} already exists in ai_agents as agent id={}, reusing it instead of inserting a duplicate",
             mapId, spawnId, existingId.Value);
         return existingId;
@@ -163,9 +185,17 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
         return newId;
     }
 
+    // Milestone 2.12F4A2 P2 fix (STATIC review): this should be
+    // unreachable (the INSERT above always binds agent_id=spawnId), but
+    // if it ever isn't true, the caller must not receive an id that
+    // violates the very invariant this method exists to establish - fail
+    // closed instead of returning a mismatched id.
     if (newId.Value != spawnId)
-        TC_LOG_ERROR("ai.world", "AgentPersistence: INSERT for map={} spawn={} produced agent id={}, expected id={} (AgentId == SpawnId invariant violated)",
+    {
+        TC_LOG_ERROR("ai.world", "AgentPersistence: INSERT for map={} spawn={} produced agent id={}, expected id={} (AgentId == SpawnId invariant violated) - refusing to return it",
             mapId, spawnId, newId.Value, spawnId);
+        return AgentId{};
+    }
 
     return newId;
 }

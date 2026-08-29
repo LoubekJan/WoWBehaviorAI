@@ -1,0 +1,32 @@
+--
+-- AIWorld: lock the AgentId namespace policy (Milestone 2.12F4A2 P2 fix,
+-- STATIC review). The previous migration (2026_08_30_00) deliberately
+-- left ai_agents.agent_id AUTO_INCREMENT and deferred the "spawn-derived
+-- vs AIWorld-generated id" namespace collision policy to 2.12F4B, exactly
+-- as AIWorld_Current_Roadmap.md's own "2.12F4A2" section flagged as an
+-- open point to resolve before implementation - reviewed and rejected as
+-- resolved too late: AgentType today is only Civilian/Guard/Merchant,
+-- every one of them a real TrinityCore Creature agent, so there is no
+-- current use case that still needs a MySQL-assigned agent_id, and
+-- leaving AUTO_INCREMENT live meant a future auto-generated id could
+-- still collide with a real spawn_id (e.g. an auto-assigned 214024
+-- colliding with a real world.creature.guid = 214024 during 2.12F4B
+-- reconciliation), reopening the exact "AgentId doesn't unambiguously
+-- name one spawn any more" ambiguity 2.12F4A2 exists to close.
+--
+-- Decided now, not deferred:
+--
+--   Creature AgentId namespace == TrinityCore SpawnId namespace.
+--   No auto-generated id is ever minted into it again.
+--
+-- A future non-creature AgentType (if one is ever introduced) must get
+-- its own disjoint namespace or its own table - never a value silently
+-- auto-assigned into this same column/range. AgentPersistence::
+-- CreateCreatureAgent() already only ever binds agent_id=spawnId
+-- explicitly (see its own comment) and never relied on this counter to
+-- begin with; this migration only removes the column property that made
+-- an accidental collision possible in the first place.
+--
+
+ALTER TABLE `ai_agents`
+    MODIFY COLUMN `agent_id` BIGINT UNSIGNED NOT NULL;
