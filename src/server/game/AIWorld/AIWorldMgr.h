@@ -511,20 +511,29 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.12F4B: bidirectional global reconciliation between
         // eligible persistent non-instance world.creature spawns and
-        // ai_agents/_registry - runs once, unconditionally, from
-        // Initialize() right after _persistence.LoadAgents(_registry) and
-        // before anything (group/memory loaders, the AIWorld.TestSpawnId
-        // fixture) consumes _registry, so every downstream startup step
-        // sees the final, reconciled state. MISSING census entries get a
-        // freshly created AgentRecord (AgentId = SpawnId, ControlMode =
+        // ai_agents - runs once, unconditionally, from Initialize() right
+        // after _persistence.LoadAgents(_registry) and before anything
+        // (group/memory loaders, the AIWorld.TestSpawnId fixture) consumes
+        // _registry, so every downstream startup step sees the final,
+        // reconciled state. The diff is built against ai_agents' own
+        // PHYSICAL content (_persistence.LoadAllBindings(), 2.12F4B P2 fix
+        // STATIC review) rather than _registry, so a row LoadAgents()
+        // itself already quarantined (AgentId != SpawnId, 2.12F4A2) is
+        // still known to occupy its (map_id, spawn_id) binding and is
+        // never treated as Missing. MISSING census entries get a freshly
+        // created AgentRecord (AgentId = SpawnId, ControlMode =
         // ObserveOnly - reconciliation never mass-grants
-        // AIWorldControlled); ORPHANED existing bindings (a world.creature
-        // spawn that no longer exists or is no longer eligible) are
-        // removed from _registry only - never an aggressive ai_agents
-        // DELETE, see RunSpawnReconciliation()'s own .cpp comment. Bounded/
-        // administered (runs once at startup, never recurring per-tick) -
-        // scale hardening for a fully-reconciled, thousands-of-agents
-        // population is 2.12F4C's own job, not this one's.
+        // AIWorldControlled), inserted via a genuine chunked multi-row
+        // INSERT (AgentPersistence::CreateCreatureAgentsBatch()), not one
+        // statement per row. ORPHANED (world.creature spawn gone/no longer
+        // eligible) and CONFLICTED (spawn still eligible, but the row's
+        // own stored MapId disagrees with world.creature) bindings are
+        // both removed from _registry only - never an aggressive ai_agents
+        // DELETE/auto-repair, see RunSpawnReconciliation()'s own .cpp
+        // comment. Bounded/administered (runs once at startup, never
+        // recurring per-tick) - scale hardening for a fully-reconciled,
+        // thousands-of-agents population is 2.12F4C's own job, not this
+        // one's.
         void RunSpawnReconciliation();
 
         // Milestone 2.12E4R (generalized from 2.12E4A's

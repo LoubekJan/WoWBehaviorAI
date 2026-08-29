@@ -2634,33 +2634,29 @@ void AIWorldMgr::RunSpawnReconciliation()
 {
     std::vector<CreatureSpawnIdentity> census = BuildCreatureSpawnCensus();
 
-    // Diff input is built from _registry (already populated by
-    // _persistence.LoadAgents(_registry) moments earlier) - never a fresh
-    // DB read just to learn what was already loaded, see
-    // SpawnReconciliationPlan.h's own comment.
-    std::vector<AgentSpawnBinding> existing;
-    for (AgentId id : _registry.GetAgents())
-    {
-        AgentRecord const* record = _registry.Find(id);
-        if (!record)
-            continue;
-
-        AgentSpawnBinding binding;
-        binding.Id = record->Id;
-        binding.MapId = record->MapId;
-        binding.SpawnId = record->SpawnId;
-        existing.push_back(binding);
-    }
-
-    SpawnReconciliationPlan plan = BuildReconciliationPlan(census, existing);
+    // Milestone 2.12F4B P2 fix (STATIC review): the diff's "what does
+    // ai_agents PHYSICALLY hold" input is the raw table
+    // (_persistence.LoadAllBindings()), NOT built from _registry. A row
+    // AgentPersistence::LoadAgents() itself already quarantined (agent_id
+    // != spawn_id, 2.12F4A2) never reached _registry - if this used
+    // _registry here, its (map_id, spawn_id) binding would look Missing
+    // and the resulting INSERT would collide with that quarantined row's
+    // own UNIQUE (map_id, spawn_id) key. See SpawnReconciliationPlan.h's
+    // own comment for the full reasoning.
+    std::vector<AgentSpawnBinding> physicalBindings = _persistence.LoadAllBindings();
+    SpawnReconciliationPlan plan = BuildReconciliationPlan(census, physicalBindings);
 
     // ORPHANED: the world.creature spawn no longer exists or is no longer
-    // eligible. Fail-closed quarantine only - removed from _registry so it
-    // can never run as a live agent again this process, but its ai_agents
-    // row is deliberately left alone (no aggressive DELETE): lifecycle
-    // policy for a permanently-gone spawn isn't decided yet, and an
-    // explicit quarantine state is safer than deleting persistent state
-    // (memory, economy, ...) that a future policy might still want.
+    // eligible. CONFLICTED: the spawn is still eligible, but the row's own
+    // stored MapId disagrees with what world.creature actually says - a
+    // data inconsistency, never silently treated as valid. Both reconcile
+    // the same way: fail-closed quarantine only, removed from _registry so
+    // it can never run as a live agent again this process, but its
+    // ai_agents row is deliberately left alone (no aggressive DELETE/auto-
+    // repair): lifecycle/repair policy for either case isn't decided yet,
+    // and an explicit quarantine state is safer than deleting or rewriting
+    // persistent state (memory, economy, ...) a future policy might still
+    // want.
     for (AgentId orphanId : plan.Orphaned)
     {
         AgentRecord const* record = _registry.Find(orphanId);
@@ -2668,6 +2664,15 @@ void AIWorldMgr::RunSpawnReconciliation()
             TC_LOG_ERROR("ai.world", "AI agent id={} map={} spawn={} is orphaned (world.creature spawn no longer exists/eligible) - quarantined, removed from the registry this run (2.12F4B)",
                 orphanId.Value, record->MapId, record->SpawnId);
         _registry.Remove(orphanId);
+    }
+
+    for (AgentId conflictId : plan.Conflicted)
+    {
+        AgentRecord const* record = _registry.Find(conflictId);
+        if (record)
+            TC_LOG_ERROR("ai.world", "AI agent id={} map={} spawn={} has a MapId conflicting with world.creature - quarantined, removed from the registry this run (2.12F4B)",
+                conflictId.Value, record->MapId, record->SpawnId);
+        _registry.Remove(conflictId);
     }
 
     // MISSING: create as ObserveOnly, never AIWorldControlled - this bulk
@@ -2692,8 +2697,8 @@ void AIWorldMgr::RunSpawnReconciliation()
             ++addedCount;
     }
 
-    TC_LOG_INFO("ai.world", "AI spawn reconciliation: census={} valid={} missing={} created={} orphaned={}",
-        census.size(), plan.ValidCount, plan.Missing.size(), addedCount, plan.Orphaned.size());
+    TC_LOG_INFO("ai.world", "AI spawn reconciliation: census={} valid={} missing={} created={} orphaned={} conflicted={} quarantined={}",
+        census.size(), plan.ValidCount, plan.Missing.size(), addedCount, plan.Orphaned.size(), plan.Conflicted.size(), plan.QuarantinedCount);
 }
 
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const

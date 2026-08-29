@@ -20,6 +20,7 @@
 #include "Agent/AgentRegistry.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
+#include <string>
 #include <unordered_set>
 
 uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
@@ -201,32 +202,65 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
     return newId;
 }
 
+namespace
+{
+    // Milestone 2.12F4B P2 fix (STATIC review): rows per multi-row INSERT
+    // statement - bounded well under MySQL's default max_allowed_packet
+    // (4MB+) even for the widest realistic row ("(18446744073709551615,
+    // 255,4294967295,18446744073709551615)," is ~50 bytes; 1000 rows is
+    // ~50KB), while still turning a bulk bootstrap of thousands of agents
+    // into a small, bounded number of statements instead of one per row.
+    constexpr std::size_t AgentPersistenceBatchInsertChunkSize = 1000;
+}
+
 std::vector<PendingCreatureAgent> AgentPersistence::CreateCreatureAgentsBatch(std::vector<PendingCreatureAgent> const& pending)
 {
     std::vector<PendingCreatureAgent> confirmed;
     if (pending.empty())
         return confirmed;
 
-    // Milestone 2.12F4B: one transaction, one DirectCommitTransaction()
-    // (one round trip for the whole batch), not one DirectExecute() per
-    // row - see this method's own header comment for why. Every row binds
-    // agent_id=spawnId explicitly, the same as CreateCreatureAgent()'s own
-    // single-row INSERT above.
-    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-    for (PendingCreatureAgent const& agent : pending)
+    // Milestone 2.12F4B P2 fix (STATIC review): a genuine multi-row INSERT
+    // ... VALUES (...),(...),... , chunked to AgentPersistenceBatchInsertChunkSize
+    // rows per statement - see this method's own header comment for why a
+    // CharacterDatabaseTransaction of N single-row PreparedStatements
+    // (the previous shape here) does NOT avoid N separate statement
+    // executions server-side, only N DirectExecute() round trips. Every
+    // interpolated value is a plain unsigned integer (SpawnId/AgentType/
+    // MapId), never a string/identifier from an untrusted source - see
+    // the header comment for why building raw SQL text is safe here.
+    // agent_id is bound explicitly to spawnId, the same as
+    // CreateCreatureAgent()'s own single-row INSERT above.
+    for (std::size_t offset = 0; offset < pending.size(); offset += AgentPersistenceBatchInsertChunkSize)
     {
-        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT);
-        stmt->setUInt64(0, agent.SpawnId);
-        stmt->setUInt8(1, uint8(agent.Type));
-        stmt->setUInt32(2, agent.MapId);
-        stmt->setUInt64(3, agent.SpawnId);
-        trans->Append(stmt);
-    }
-    CharacterDatabase.DirectCommitTransaction(trans);
+        std::size_t chunkEnd = offset + AgentPersistenceBatchInsertChunkSize;
+        if (chunkEnd > pending.size())
+            chunkEnd = pending.size();
 
-    // DirectCommitTransaction() reports no success/failure (like every
-    // DirectExecute() call in this file) - confirm with exactly one bulk
-    // read, then only report back the subset that actually landed with
+        std::string sql = "INSERT INTO ai_agents (agent_id, agent_type, map_id, spawn_id) VALUES ";
+        for (std::size_t i = offset; i < chunkEnd; ++i)
+        {
+            PendingCreatureAgent const& agent = pending[i];
+            if (i != offset)
+                sql += ',';
+
+            sql += '(';
+            sql += std::to_string(agent.SpawnId);
+            sql += ',';
+            sql += std::to_string(uint32(uint8(agent.Type)));
+            sql += ',';
+            sql += std::to_string(agent.MapId);
+            sql += ',';
+            sql += std::to_string(agent.SpawnId);
+            sql += ')';
+        }
+
+        CharacterDatabase.DirectExecute(sql.c_str());
+    }
+
+    // DirectExecute() reports no success/failure (like every
+    // DirectExecute()/DirectCommitTransaction() call in this file) -
+    // confirm with exactly one bulk read (not one per row, not one per
+    // chunk), then only report back the subset that actually landed with
     // agent_id == spawnId. Fail closed per-row, same as CreateCreatureAgent():
     // anything not confirmed is simply not in the returned list, so the
     // caller never adds it to AgentRegistry.

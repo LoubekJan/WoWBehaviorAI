@@ -44,7 +44,25 @@ std::vector<CreatureSpawnIdentity> BuildCreatureSpawnCensus()
         identity.MapId = data.mapId;
         identity.SpawnId = data.spawnId;
         identity.Entry = data.id;
-        identity.NpcFlags = data.npcflag;
+
+        // 2.12F4B P2 fix (STATIC review): data.npcflag is the per-spawn
+        // OVERRIDE column, not the effective flags - creature.npcflag = 0
+        // conventionally means "no override, use creature_template's own
+        // value", the exact fallback ObjectMgr::ChooseCreatureFlags()
+        // itself applies at creature load time (Creature::UpdateEntry()).
+        // Reading data.npcflag directly would misclassify most real
+        // vendors (creature.npcflag = 0, creature_template.npcflag =
+        // VENDOR) as Unclassified. cInfo should never be null here -
+        // ObjectMgr::LoadCreatures() already skips/rejects any creature
+        // row with a nonexistent template before it ever reaches
+        // _creatureDataStore - but this falls back to the raw override
+        // rather than dereferencing a null CreatureTemplate if it somehow
+        // is.
+        uint32 effectiveNpcFlags = data.npcflag;
+        if (CreatureTemplate const* cInfo = sObjectMgr->GetCreatureTemplate(data.id))
+            ObjectMgr::ChooseCreatureFlags(cInfo, &effectiveNpcFlags, nullptr, nullptr, &data);
+        identity.NpcFlags = effectiveNpcFlags;
+
         census.push_back(identity);
     }
 

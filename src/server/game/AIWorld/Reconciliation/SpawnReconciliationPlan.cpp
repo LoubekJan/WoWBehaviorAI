@@ -22,7 +22,7 @@
 
 SpawnReconciliationPlan BuildReconciliationPlan(
     std::vector<CreatureSpawnIdentity> const& census,
-    std::vector<AgentSpawnBinding> const& existing)
+    std::vector<AgentSpawnBinding> const& physicalBindings)
 {
     SpawnReconciliationPlan plan;
 
@@ -31,21 +31,50 @@ SpawnReconciliationPlan BuildReconciliationPlan(
     for (CreatureSpawnIdentity const& identity : census)
         eligibleBySpawnId.emplace(identity.SpawnId, &identity);
 
-    std::unordered_set<uint64> existingSpawnIds;
-    existingSpawnIds.reserve(existing.size());
-    for (AgentSpawnBinding const& binding : existing)
-    {
-        existingSpawnIds.insert(binding.SpawnId);
+    // Every SpawnId with ANY physical ai_agents row - valid, orphaned,
+    // conflicted, or already quarantined by LoadAgents() - must be
+    // excluded from Missing below. A SpawnId can't collide with the
+    // ai_agents UNIQUE (map_id, spawn_id) key if reconciliation never
+    // tries to INSERT it again in the first place.
+    std::unordered_set<uint64> physicalSpawnIds;
+    physicalSpawnIds.reserve(physicalBindings.size());
 
-        if (eligibleBySpawnId.find(binding.SpawnId) == eligibleBySpawnId.end())
+    for (AgentSpawnBinding const& binding : physicalBindings)
+    {
+        physicalSpawnIds.insert(binding.SpawnId);
+
+        // 2.12F4A2's own invariant - AgentPersistence::LoadAgents() itself
+        // already quarantined this row (never added it to AgentRegistry).
+        // Nothing for this plan to remove; just don't treat its SpawnId as
+        // Missing.
+        if (binding.Id.Value != binding.SpawnId)
+        {
+            ++plan.QuarantinedCount;
+            continue;
+        }
+
+        auto it = eligibleBySpawnId.find(binding.SpawnId);
+        if (it == eligibleBySpawnId.end())
+        {
             plan.Orphaned.push_back(binding.Id);
-        else
-            ++plan.ValidCount;
+            continue;
+        }
+
+        // Eligible spawn exists, AgentId == SpawnId, but the row's own
+        // stored MapId disagrees with what world.creature actually says -
+        // a data inconsistency, never silently counted as VALID.
+        if (binding.MapId != it->second->MapId)
+        {
+            plan.Conflicted.push_back(binding.Id);
+            continue;
+        }
+
+        ++plan.ValidCount;
     }
 
     for (CreatureSpawnIdentity const& identity : census)
     {
-        if (existingSpawnIds.find(identity.SpawnId) != existingSpawnIds.end())
+        if (physicalSpawnIds.find(identity.SpawnId) != physicalSpawnIds.end())
             continue;
 
         PendingCreatureAgent pending;

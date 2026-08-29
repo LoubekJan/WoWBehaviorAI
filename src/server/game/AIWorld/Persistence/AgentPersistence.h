@@ -97,13 +97,29 @@ class TC_GAME_API AgentPersistence
         // own MISSING set - potentially thousands of rows at once, so
         // unlike CreateCreatureAgent() above this deliberately does NOT do
         // one FindBinding()/read-back round trip per entry (that would be
-        // exactly the N+1 bootstrap pattern 2.12F4B must avoid). Instead:
-        // every pending row is appended to ONE CharacterDatabaseTransaction
-        // and committed with a single DirectCommitTransaction() (one round
-        // trip, not N), then confirmed with exactly one bulk
-        // LoadAllBindings() read (not one per row). Returns only the
-        // subset of `pending` that read-back actually confirms landed with
-        // agent_id == spawnId - the caller (AIWorldMgr::
+        // exactly the N+1 bootstrap pattern 2.12F4B must avoid).
+        //
+        // Milestone 2.12F4B P2 fix (STATIC review): an earlier version
+        // batched every row into ONE CharacterDatabaseTransaction and
+        // called DirectCommitTransaction() once - reviewed and rejected,
+        // because TrinityCore's own transaction execution still runs each
+        // queued statement as its own separate execution internally; one
+        // CharacterDatabaseTransaction is one COMMIT, not one round trip.
+        // This now builds a genuine multi-row `INSERT ... VALUES
+        // (...),(...),...` (see AgentPersistenceBatchInsertChunkSize in
+        // the .cpp for the per-statement row cap, chosen to stay well
+        // under max_allowed_packet) and issues it via DirectExecute() -
+        // the one place in this codebase's AIWorld subsystem that builds
+        // raw SQL text instead of a fixed-arity PreparedStatement, and
+        // deliberately so: every interpolated value is a plain unsigned
+        // integer sourced from world.creature/this process's own
+        // AgentType enum, never a string/identifier from an untrusted
+        // source, so there is no injection surface to guard against here.
+        //
+        // Confirmed afterward with exactly one bulk LoadAllBindings()
+        // read (not one per row, and not one per chunk either). Returns
+        // only the subset of `pending` that read-back actually confirms
+        // landed with agent_id == spawnId - the caller (AIWorldMgr::
         // RunSpawnReconciliation()) must only add these to AgentRegistry;
         // anything not confirmed is logged and simply reappears as MISSING
         // on the next reconciliation (idempotent, self-healing - never a
@@ -113,13 +129,14 @@ class TC_GAME_API AgentPersistence
 
         // Milestone 2.12F4B: lightweight bulk read of every (AgentId,
         // MapId, SpawnId) binding currently in ai_agents - none of
-        // LoadAgents()'s other columns. Used internally by
-        // CreateCreatureAgentsBatch() above to confirm its own batch write
-        // with exactly one query, regardless of batch size (never one
-        // confirmation query per row). Reconciliation's own "what already
-        // exists" diff input comes from AgentRegistry (already populated
-        // by LoadAgents() moments earlier in AIWorldMgr::Initialize()),
-        // never a second fresh read of this same table.
+        // LoadAgents()'s other columns. Used both by RunSpawnReconciliation()
+        // itself as the diff's "what does ai_agents PHYSICALLY hold"
+        // input (2.12F4B P2 fix, STATIC review: NOT built from
+        // AgentRegistry - see SpawnReconciliationPlan.h's own comment for
+        // why a quarantined row must still be visible here) and
+        // internally by CreateCreatureAgentsBatch() above to confirm its
+        // own batch write, each with exactly one query regardless of
+        // table/batch size.
         std::vector<AgentSpawnBinding> LoadAllBindings();
 
         // Milestone 2.12F4A P2 fix (STATIC review): explicit, synchronous
