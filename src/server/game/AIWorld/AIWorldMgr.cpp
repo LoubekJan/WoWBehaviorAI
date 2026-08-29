@@ -37,6 +37,8 @@
 #include "MovementDefines.h"
 #include "Player.h"
 #include "PointMovementGenerator.h"
+#include "Reconciliation/CreatureSpawnCensus.h"
+#include "Reconciliation/SpawnReconciliationPlan.h"
 #include <algorithm>
 #include <chrono>
 #include <optional>
@@ -756,6 +758,17 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // spawn-specific below - every agent this produces is Abstract with an
     // empty RuntimeGuid regardless of what it was before shutdown.
     _persistence.LoadAgents(_registry);
+
+    // Milestone 2.12F4B: bidirectional global reconciliation against
+    // eligible world.creature spawns - right after LoadAgents() and before
+    // anything else (group/memory loaders below, the AIWorld.TestSpawnId
+    // fixture) consumes _registry, so every downstream startup step sees
+    // the final, reconciled state (in particular: an orphaned agent's
+    // group membership/memory rows below are then correctly treated as
+    // unresolvable, the same tolerance they already have for any other
+    // agent missing from _registry - see LoadGroupMembers()'s own comment
+    // a few lines down).
+    RunSpawnReconciliation();
 
     // Milestone 2.12E1 P2 fix (STATIC review, round 2): the persistent
     // GroupId allocator - see AgentGroupPersistence::LoadGroupIdSequence()
@@ -2615,6 +2628,72 @@ void AIWorldMgr::RunControlModeSmokeTest(AgentId testAgentId) const
         controlledResult.Allowed && controlledResult.Reason == ActionRejectReason::None);
 
     TC_LOG_INFO("ai.world", "AI ControlMode smoke {}", allPassed ? "PASSED" : "FAILED");
+}
+
+void AIWorldMgr::RunSpawnReconciliation()
+{
+    std::vector<CreatureSpawnIdentity> census = BuildCreatureSpawnCensus();
+
+    // Diff input is built from _registry (already populated by
+    // _persistence.LoadAgents(_registry) moments earlier) - never a fresh
+    // DB read just to learn what was already loaded, see
+    // SpawnReconciliationPlan.h's own comment.
+    std::vector<AgentSpawnBinding> existing;
+    for (AgentId id : _registry.GetAgents())
+    {
+        AgentRecord const* record = _registry.Find(id);
+        if (!record)
+            continue;
+
+        AgentSpawnBinding binding;
+        binding.Id = record->Id;
+        binding.MapId = record->MapId;
+        binding.SpawnId = record->SpawnId;
+        existing.push_back(binding);
+    }
+
+    SpawnReconciliationPlan plan = BuildReconciliationPlan(census, existing);
+
+    // ORPHANED: the world.creature spawn no longer exists or is no longer
+    // eligible. Fail-closed quarantine only - removed from _registry so it
+    // can never run as a live agent again this process, but its ai_agents
+    // row is deliberately left alone (no aggressive DELETE): lifecycle
+    // policy for a permanently-gone spawn isn't decided yet, and an
+    // explicit quarantine state is safer than deleting persistent state
+    // (memory, economy, ...) that a future policy might still want.
+    for (AgentId orphanId : plan.Orphaned)
+    {
+        AgentRecord const* record = _registry.Find(orphanId);
+        if (record)
+            TC_LOG_ERROR("ai.world", "AI agent id={} map={} spawn={} is orphaned (world.creature spawn no longer exists/eligible) - quarantined, removed from the registry this run (2.12F4B)",
+                orphanId.Value, record->MapId, record->SpawnId);
+        _registry.Remove(orphanId);
+    }
+
+    // MISSING: create as ObserveOnly, never AIWorldControlled - this bulk
+    // bootstrap must never mass-grant ownership (see AIWorld_Current_
+    // Roadmap.md's own 2.12F4B section). CreateCreatureAgentsBatch() only
+    // returns entries it actually confirmed via read-back; anything not
+    // confirmed is simply not added here and reappears as MISSING on the
+    // next reconciliation.
+    std::vector<PendingCreatureAgent> created = _persistence.CreateCreatureAgentsBatch(plan.Missing);
+    uint32 addedCount = 0;
+    for (PendingCreatureAgent const& pending : created)
+    {
+        AgentRecord record;
+        record.Id = AgentId{ pending.SpawnId };
+        record.Type = pending.Type;
+        record.MapId = pending.MapId;
+        record.SpawnId = pending.SpawnId;
+        record.WorldState = AgentWorldState::Abstract;
+        record.ControlMode = AgentControlMode::ObserveOnly;
+
+        if (_registry.Add(record))
+            ++addedCount;
+    }
+
+    TC_LOG_INFO("ai.world", "AI spawn reconciliation: census={} valid={} missing={} created={} orphaned={}",
+        census.size(), plan.ValidCount, plan.Missing.size(), addedCount, plan.Orphaned.size());
 }
 
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const

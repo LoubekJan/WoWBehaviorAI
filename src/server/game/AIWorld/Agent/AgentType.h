@@ -24,7 +24,7 @@ enum class AgentType : uint8
 {
     Civilian = 0,
     Guard = 1,
-    Merchant = 2
+    Merchant = 2,
 
     // Milestone 2.12D P2 fix (STATIC review): value 3 (formerly
     // CreatureGroup, briefly AgentGroup) is retired, not reused - a group
@@ -37,6 +37,16 @@ enum class AgentType : uint8
     // a gap rather than renumbering Civilian/Guard/Merchant, so a stray
     // agent_type = 3 row from before this migration reads as unknown
     // rather than silently as something else.
+
+    // Milestone 2.12F4B: explicit "no deterministic classification signal
+    // available yet" provenance - a bulk world.creature reconciliation
+    // bootstrap must never silently mislabel an unclassifiable spawn as
+    // Civilian just because that enumerator happens to be 0. See
+    // Reconciliation/AgentTypeProvenance.h's own comment for the
+    // classification rule that produces this; extend that rule (not its
+    // callers) when a new deterministic signal is found, rather than
+    // guessing here.
+    Unclassified = 4
 };
 
 // Materialized: bound to a currently-loaded Creature (RuntimeGuid valid).
@@ -84,10 +94,11 @@ inline char const* ToString(AgentType type)
 {
     switch (type)
     {
-        case AgentType::Civilian: return "CIVILIAN";
-        case AgentType::Guard:    return "GUARD";
-        case AgentType::Merchant: return "MERCHANT";
-        default:                  return "UNKNOWN";
+        case AgentType::Civilian:     return "CIVILIAN";
+        case AgentType::Guard:        return "GUARD";
+        case AgentType::Merchant:     return "MERCHANT";
+        case AgentType::Unclassified: return "UNCLASSIFIED";
+        default:                      return "UNKNOWN";
     }
 }
 

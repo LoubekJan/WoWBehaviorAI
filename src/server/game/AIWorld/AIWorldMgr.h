@@ -509,6 +509,24 @@ class TC_GAME_API AIWorldMgr
         // test is a plain-value check inside ActionSystem itself.
         void RunControlModeSmokeTest(AgentId testAgentId) const;
 
+        // Milestone 2.12F4B: bidirectional global reconciliation between
+        // eligible persistent non-instance world.creature spawns and
+        // ai_agents/_registry - runs once, unconditionally, from
+        // Initialize() right after _persistence.LoadAgents(_registry) and
+        // before anything (group/memory loaders, the AIWorld.TestSpawnId
+        // fixture) consumes _registry, so every downstream startup step
+        // sees the final, reconciled state. MISSING census entries get a
+        // freshly created AgentRecord (AgentId = SpawnId, ControlMode =
+        // ObserveOnly - reconciliation never mass-grants
+        // AIWorldControlled); ORPHANED existing bindings (a world.creature
+        // spawn that no longer exists or is no longer eligible) are
+        // removed from _registry only - never an aggressive ai_agents
+        // DELETE, see RunSpawnReconciliation()'s own .cpp comment. Bounded/
+        // administered (runs once at startup, never recurring per-tick) -
+        // scale hardening for a fully-reconciled, thousands-of-agents
+        // population is 2.12F4C's own job, not this one's.
+        void RunSpawnReconciliation();
+
         // Milestone 2.12E4R (generalized from 2.12E4A's
         // CollectWolfCoalitionCandidates()): builds the value-only
         // candidate list CoalitionFormationSystem::Propose() needs - one

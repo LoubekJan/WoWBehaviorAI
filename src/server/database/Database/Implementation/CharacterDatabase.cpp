@@ -656,6 +656,17 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // CHAR_INS_AI_AGENT's own INSERT.
     PrepareStatement(CHAR_SEL_AI_AGENT_CONTROL_MODE, "SELECT control_mode FROM ai_agents WHERE agent_id = ?", CONNECTION_SYNCH);
 
+    // Milestone 2.12F4B: lightweight bulk identity/binding read - just
+    // agent_id/map_id/spawn_id, none of CHAR_SEL_AI_AGENTS' other columns.
+    // AgentPersistence::LoadAllBindings() uses this to confirm a batch
+    // reconciliation INSERT (AgentPersistence::CreateCreatureAgentsBatch(),
+    // one CharacterDatabaseTransaction/DirectCommitTransaction for
+    // potentially thousands of rows, which - like every DirectExecute()/
+    // DirectCommitTransaction() call in this file - reports no per-row
+    // success/failure) with exactly ONE additional query, regardless of
+    // batch size - never one confirmation query per inserted row.
+    PrepareStatement(CHAR_SEL_AI_AGENT_BINDINGS, "SELECT agent_id, map_id, spawn_id FROM ai_agents", CONNECTION_SYNCH);
+
     // Milestone 2.11E2: unlike CHAR_SEL_AI_AGENTS/CHAR_INS_AI_AGENT above
     // (startup-only), this is used from the world update thread every time
     // a WORK ActionCompletion reaches Succeeded/Performed - CONNECTION_ASYNC/

@@ -20,8 +20,11 @@
 
 #include "Agent/AgentEconomyState.h"
 #include "Agent/AgentId.h"
+#include "Agent/AgentSpawnBinding.h"
 #include "Agent/AgentType.h"
+#include "Agent/PendingCreatureAgent.h"
 #include "Define.h"
+#include <vector>
 
 class AgentRegistry;
 
@@ -57,8 +60,9 @@ class AgentRegistry;
 // mismatched AgentId - if a stored row's agent_id doesn't actually equal
 // its spawn_id.
 //
-// Synchronous by design: LoadAgents() and CreateCreatureAgent() are only
-// ever meant to be called during AIWorldMgr::Initialize(), never from the
+// Synchronous by design: LoadAgents(), CreateCreatureAgent(),
+// CreateCreatureAgentsBatch()/LoadAllBindings() (2.12F4B) are only ever
+// meant to be called during AIWorldMgr::Initialize(), never from the
 // world update loop. SaveEconomyState() (2.11E2) is the one exception -
 // see its own comment for why it is safe from there.
 //
@@ -88,6 +92,35 @@ class TC_GAME_API AgentPersistence
         // does not actually equal spawnId: fail closed rather than hand
         // the caller an identity that violates AgentId == SpawnId.
         AgentId CreateCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId);
+
+        // Milestone 2.12F4B: bulk creation for RunSpawnReconciliation()'s
+        // own MISSING set - potentially thousands of rows at once, so
+        // unlike CreateCreatureAgent() above this deliberately does NOT do
+        // one FindBinding()/read-back round trip per entry (that would be
+        // exactly the N+1 bootstrap pattern 2.12F4B must avoid). Instead:
+        // every pending row is appended to ONE CharacterDatabaseTransaction
+        // and committed with a single DirectCommitTransaction() (one round
+        // trip, not N), then confirmed with exactly one bulk
+        // LoadAllBindings() read (not one per row). Returns only the
+        // subset of `pending` that read-back actually confirms landed with
+        // agent_id == spawnId - the caller (AIWorldMgr::
+        // RunSpawnReconciliation()) must only add these to AgentRegistry;
+        // anything not confirmed is logged and simply reappears as MISSING
+        // on the next reconciliation (idempotent, self-healing - never a
+        // ghost AgentRecord in the meantime, since it was never added).
+        // No-op (empty result, no DB access at all) if pending is empty.
+        std::vector<PendingCreatureAgent> CreateCreatureAgentsBatch(std::vector<PendingCreatureAgent> const& pending);
+
+        // Milestone 2.12F4B: lightweight bulk read of every (AgentId,
+        // MapId, SpawnId) binding currently in ai_agents - none of
+        // LoadAgents()'s other columns. Used internally by
+        // CreateCreatureAgentsBatch() above to confirm its own batch write
+        // with exactly one query, regardless of batch size (never one
+        // confirmation query per row). Reconciliation's own "what already
+        // exists" diff input comes from AgentRegistry (already populated
+        // by LoadAgents() moments earlier in AIWorldMgr::Initialize()),
+        // never a second fresh read of this same table.
+        std::vector<AgentSpawnBinding> LoadAllBindings();
 
         // Milestone 2.12F4A P2 fix (STATIC review): explicit, synchronous
         // ControlMode upgrade for a single already-created agent - startup-

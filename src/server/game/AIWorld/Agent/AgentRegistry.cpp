@@ -52,6 +52,11 @@ bool AgentRegistry::Add(AgentRecord record)
     return true;
 }
 
+bool AgentRegistry::Remove(AgentId id)
+{
+    return _agents.erase(id.Value) > 0;
+}
+
 AgentRecord* AgentRegistry::Find(AgentId id)
 {
     auto it = _agents.find(id.Value);

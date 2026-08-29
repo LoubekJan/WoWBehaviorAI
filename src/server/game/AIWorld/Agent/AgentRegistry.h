@@ -52,6 +52,16 @@ class TC_GAME_API AgentRegistry
         // invariants, not just persistence-layer ones.
         bool Add(AgentRecord record);
 
+        // Milestone 2.12F4B: removes an orphaned agent (its world.creature
+        // spawn no longer exists or is no longer eligible) from the
+        // registry only - never touches ai_agents itself, see
+        // AIWorldMgr::RunSpawnReconciliation()'s own comment for why an
+        // aggressive DB DELETE is deliberately not done here. Ensures the
+        // agent never runs as live for the rest of this process's
+        // lifetime: no scheduler candidacy, no ownership, no actions.
+        // Returns whether an agent with this id was actually present.
+        bool Remove(AgentId id);
+
         AgentRecord* Find(AgentId id);
         AgentRecord const* Find(AgentId id) const;
         AgentRecord* FindBySpawn(uint32 mapId, uint64 spawnId);

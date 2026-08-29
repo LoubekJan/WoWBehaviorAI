@@ -20,6 +20,7 @@
 #include "Agent/AgentRegistry.h"
 #include "DatabaseEnv.h"
 #include "Log.h"
+#include <unordered_set>
 
 uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
 {
@@ -198,6 +199,79 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
     }
 
     return newId;
+}
+
+std::vector<PendingCreatureAgent> AgentPersistence::CreateCreatureAgentsBatch(std::vector<PendingCreatureAgent> const& pending)
+{
+    std::vector<PendingCreatureAgent> confirmed;
+    if (pending.empty())
+        return confirmed;
+
+    // Milestone 2.12F4B: one transaction, one DirectCommitTransaction()
+    // (one round trip for the whole batch), not one DirectExecute() per
+    // row - see this method's own header comment for why. Every row binds
+    // agent_id=spawnId explicitly, the same as CreateCreatureAgent()'s own
+    // single-row INSERT above.
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+    for (PendingCreatureAgent const& agent : pending)
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT);
+        stmt->setUInt64(0, agent.SpawnId);
+        stmt->setUInt8(1, uint8(agent.Type));
+        stmt->setUInt32(2, agent.MapId);
+        stmt->setUInt64(3, agent.SpawnId);
+        trans->Append(stmt);
+    }
+    CharacterDatabase.DirectCommitTransaction(trans);
+
+    // DirectCommitTransaction() reports no success/failure (like every
+    // DirectExecute() call in this file) - confirm with exactly one bulk
+    // read, then only report back the subset that actually landed with
+    // agent_id == spawnId. Fail closed per-row, same as CreateCreatureAgent():
+    // anything not confirmed is simply not in the returned list, so the
+    // caller never adds it to AgentRegistry.
+    std::vector<AgentSpawnBinding> bindings = LoadAllBindings();
+    std::unordered_set<uint64> confirmedSpawnIds;
+    confirmedSpawnIds.reserve(bindings.size());
+    for (AgentSpawnBinding const& binding : bindings)
+        if (binding.Id.Value == binding.SpawnId)
+            confirmedSpawnIds.insert(binding.SpawnId);
+
+    confirmed.reserve(pending.size());
+    for (PendingCreatureAgent const& agent : pending)
+    {
+        if (confirmedSpawnIds.find(agent.SpawnId) != confirmedSpawnIds.end())
+            confirmed.push_back(agent);
+        else
+            TC_LOG_ERROR("ai.world", "AgentPersistence: batch INSERT for map={} spawn={} was not confirmed by read-back, skipped - will be retried by the next reconciliation",
+                agent.MapId, agent.SpawnId);
+    }
+
+    return confirmed;
+}
+
+std::vector<AgentSpawnBinding> AgentPersistence::LoadAllBindings()
+{
+    std::vector<AgentSpawnBinding> bindings;
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_BINDINGS);
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+        return bindings;
+
+    bindings.reserve(result->GetRowCount());
+    do
+    {
+        Field* fields = result->Fetch();
+
+        AgentSpawnBinding binding;
+        binding.Id = AgentId{ fields[0].GetUInt64() };
+        binding.MapId = fields[1].GetUInt32();
+        binding.SpawnId = fields[2].GetUInt64();
+        bindings.push_back(binding);
+    } while (result->NextRow());
+
+    return bindings;
 }
 
 bool AgentPersistence::SetControlMode(AgentId id, AgentControlMode mode)
