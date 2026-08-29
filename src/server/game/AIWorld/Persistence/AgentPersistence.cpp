@@ -147,19 +147,37 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
     return newId;
 }
 
-void AgentPersistence::SetControlMode(AgentId id, AgentControlMode mode)
+bool AgentPersistence::SetControlMode(AgentId id, AgentControlMode mode)
 {
     // Startup-only, synchronous (CONNECTION_SYNCH/DirectExecute()), the
     // same pattern CreateCreatureAgent() above already uses - never called
-    // from the world update loop. No read-back needed: unlike
-    // CreateCreatureAgent()'s own AgentId (MySQL-assigned, unknowable
-    // without a query), the caller already knows both id and mode; if the
-    // row does not exist this is a harmless no-op UPDATE matching zero
-    // rows.
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_CONTROL_MODE);
-    stmt->setUInt8(0, uint8(mode));
-    stmt->setUInt64(1, id.Value);
-    CharacterDatabase.DirectExecute(stmt);
+    // from the world update loop.
+    CharacterDatabasePreparedStatement* updateStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_CONTROL_MODE);
+    updateStmt->setUInt8(0, uint8(mode));
+    updateStmt->setUInt64(1, id.Value);
+    CharacterDatabase.DirectExecute(updateStmt);
+
+    // Milestone 2.12F4A P2 fix (STATIC review, round 2): DirectExecute()
+    // doesn't report success/failure, and "the caller already knows id and
+    // mode" (this method's own original reasoning) is not the same as the
+    // write having actually landed - the exact gap the review caught. Read
+    // the row back and compare, the same discipline CreateCreatureAgent()
+    // already applies to its own INSERT via FindBinding().
+    CharacterDatabasePreparedStatement* selectStmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_CONTROL_MODE);
+    selectStmt->setUInt64(0, id.Value);
+    PreparedQueryResult result = CharacterDatabase.Query(selectStmt);
+    if (!result)
+    {
+        TC_LOG_ERROR("ai.world", "AgentPersistence: ControlMode UPDATE for agent id={} could not be confirmed, no such row on read-back", id.Value);
+        return false;
+    }
+
+    Field* fields = result->Fetch();
+    bool confirmed = fields[0].GetUInt8() == uint8(mode);
+    if (!confirmed)
+        TC_LOG_ERROR("ai.world", "AgentPersistence: ControlMode UPDATE for agent id={} to {} was not confirmed by read-back", id.Value, ToString(mode));
+
+    return confirmed;
 }
 
 void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState& state)

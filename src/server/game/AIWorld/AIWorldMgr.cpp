@@ -792,10 +792,23 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // the same as any other agent would.
     if (testSpawnId)
     {
-        if (!_registry.FindBySpawn(testMapId, testSpawnId))
+        // Milestone 2.12F4A P2 fix (STATIC review, round 2): promotion to
+        // AIWorldControlled must not depend on whether this (map_id,
+        // spawn_id) binding is being created fresh this run or already
+        // existed (loaded by LoadAgents() above, possibly still
+        // ObserveOnly from before this config value was ever set) -
+        // "ensure binding exists, then ensure/persist AIWorldControlled,
+        // then registry/runtime ownership" applies either way. The
+        // previous shape only ran the promotion inside the fresh-create
+        // branch, so an already-existing ObserveOnly row for
+        // AIWorld.TestSpawnId would silently stay ObserveOnly forever.
+        AgentRecord* existing = _registry.FindBySpawn(testMapId, testSpawnId);
+        AgentId agentId = existing ? existing->Id : AgentId{};
+
+        if (!existing)
         {
-            AgentId newId = _persistence.CreateCreatureAgent(AgentType::Guard, testMapId, testSpawnId);
-            if (!newId)
+            agentId = _persistence.CreateCreatureAgent(AgentType::Guard, testMapId, testSpawnId);
+            if (!agentId)
             {
                 // AgentPersistence already logged why. Nothing goes into
                 // _registry without a real, DB-confirmed AgentId - the
@@ -804,35 +817,56 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
                 TC_LOG_ERROR("ai.world", "AI persistent agent creation failed for map={} spawn={}, test agent disabled this run",
                     testMapId, testSpawnId);
             }
+        }
+
+        if (agentId)
+        {
+            // Milestone 2.12F4A P2 fix (STATIC review, round 2):
+            // SetControlMode() now confirms the write via read-back (see
+            // its own comment) before this may treat the agent as
+            // AIWorldControlled anywhere in memory - the same "DB-
+            // confirmed or it didn't happen" discipline the fresh-create
+            // branch above already applies to CreateCreatureAgent()'s own
+            // AgentId.
+            bool controlModeConfirmed = _persistence.SetControlMode(agentId, AgentControlMode::AIWorldControlled);
+            if (!controlModeConfirmed)
+                TC_LOG_ERROR("ai.world", "AI persistent test agent id={} map={} spawn={} ControlMode UPDATE not confirmed",
+                    agentId.Value, testMapId, testSpawnId);
+
+            if (existing)
+            {
+                // Fail closed: only advance an already-loaded record to
+                // AIWorldControlled once confirmed. On failure it is left
+                // exactly as LoadAgents() populated it - never downgraded,
+                // never optimistically upgraded.
+                if (controlModeConfirmed)
+                    existing->ControlMode = AgentControlMode::AIWorldControlled;
+
+                TC_LOG_INFO("ai.world", "AI persistent test agent id={} map={} spawn={} controlMode={}",
+                    agentId.Value, testMapId, testSpawnId, ToString(existing->ControlMode));
+            }
             else
             {
                 AgentRecord record;
-                record.Id = newId;
+                record.Id = agentId;
                 record.Type = AgentType::Guard;
                 record.MapId = testMapId;
                 record.SpawnId = testSpawnId;
                 record.WorldState = AgentWorldState::Abstract;
 
-                // Milestone 2.12F4A P2 fix (STATIC review): AIWorld.TestSpawnId
-                // is the explicitly-chosen AIWorld test agent, and must
-                // become AIWorldControlled the moment it is freshly
-                // created - not silently stay at CreateCreatureAgent()'s
-                // own generic ObserveOnly default (correct for every OTHER
-                // caller, see AgentPersistence::SetControlMode()'s own
-                // comment). Set in-memory AND persisted here, as an
-                // explicit follow-up step, so a fresh-DB bootstrap of this
-                // config value behaves identically to this migration's own
-                // UPDATE upgrading an already-existing row for the same
-                // (map_id, spawn_id) binding - without this, a fresh
-                // install and an upgrade of an existing DB would diverge
-                // for the exact same config.
-                record.ControlMode = AgentControlMode::AIWorldControlled;
-                _persistence.SetControlMode(newId, AgentControlMode::AIWorldControlled);
+                // Fail closed: a freshly created record only starts
+                // AIWorldControlled once the UPDATE is confirmed - on
+                // failure it keeps the field's own ObserveOnly default,
+                // matching what the DB row itself actually holds (the
+                // INSERT never sets control_mode, see CHAR_INS_AI_AGENT's
+                // own comment), rather than going untracked by this
+                // process for the rest of its run.
+                record.ControlMode = controlModeConfirmed ? AgentControlMode::AIWorldControlled : AgentControlMode::ObserveOnly;
 
                 if (_registry.Add(record))
                 {
                     TC_LOG_INFO("ai.world", "AI persistent agent created id={} type={} map={} spawn={} controlMode={}",
-                        newId.Value, ToString(AgentType::Guard), testMapId, testSpawnId, ToString(record.ControlMode));
+                        agentId.Value, ToString(AgentType::Guard), testMapId, testSpawnId, ToString(record.ControlMode));
                 }
             }
         }

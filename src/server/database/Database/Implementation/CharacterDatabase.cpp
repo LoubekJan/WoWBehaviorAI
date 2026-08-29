@@ -638,6 +638,15 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // update loop.
     PrepareStatement(CHAR_UPD_AI_AGENT_CONTROL_MODE, "UPDATE ai_agents SET control_mode = ? WHERE agent_id = ?", CONNECTION_SYNCH);
 
+    // Milestone 2.12F4A P2 fix (STATIC review, round 2): CHAR_UPD_AI_AGENT_
+    // CONTROL_MODE above, like every DirectExecute() statement, never
+    // reports success/failure - AgentPersistence::SetControlMode() reads
+    // the row back through this to confirm the write actually landed
+    // before its caller may treat the agent as AIWorldControlled, the same
+    // discipline CHAR_SEL_AI_AGENT_BY_BINDING already applies to
+    // CHAR_INS_AI_AGENT's own INSERT.
+    PrepareStatement(CHAR_SEL_AI_AGENT_CONTROL_MODE, "SELECT control_mode FROM ai_agents WHERE agent_id = ?", CONNECTION_SYNCH);
+
     // Milestone 2.11E2: unlike CHAR_SEL_AI_AGENTS/CHAR_INS_AI_AGENT above
     // (startup-only), this is used from the world update thread every time
     // a WORK ActionCompletion reaches Succeeded/Performed - CONNECTION_ASYNC/

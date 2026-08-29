@@ -85,7 +85,18 @@ class TC_GAME_API AgentPersistence
         // AIWorldControlled calls this as its own explicit follow-up step
         // - never something CreateCreatureAgent() infers from a hint or a
         // default parameter.
-        void SetControlMode(AgentId id, AgentControlMode mode);
+        //
+        // Milestone 2.12F4A P2 fix (STATIC review, round 2): returns
+        // whether the UPDATE was actually confirmed by a read-back, not
+        // just issued. DirectExecute() itself never reports success/
+        // failure (see CreateCreatureAgent()'s own comment on why its
+        // INSERT needs a read-back) - the same is true for an UPDATE, so a
+        // caller must not set an in-memory AgentRecord::ControlMode to
+        // AIWorldControlled, nor treat ownership as granted, until this
+        // returns true. On false (row missing, or the DB write silently
+        // didn't land) the caller must fail closed and leave the agent at
+        // whatever ControlMode it already had in memory.
+        bool SetControlMode(AgentId id, AgentControlMode mode);
 
         // Milestone 2.11E2: fire-and-forget async UPDATE (CONNECTION_ASYNC/
         // Execute(), never CONNECTION_SYNCH/DirectExecute()) - unlike
