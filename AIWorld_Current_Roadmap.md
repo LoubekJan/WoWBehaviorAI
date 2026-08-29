@@ -364,11 +364,11 @@ Současná runtime vrstva navíc ještě není připravená na desetitisíce age
 ## Cílový model
 
 ```text
-REAL TRINITYCORE CREATURE SPAWN
+REAL TRINITYCORE CREATURE SPAWN (non-instance / base-world)
         ↓
 persistent AgentId / AgentRecord
         ↓
-ALL persistent creatures are AIWorld-known agents
+ALL persistent non-instance creatures are AIWorld-known agents
         ↓
 ControlMode
    ├── ObserveOnly
@@ -386,6 +386,8 @@ Každá reálná mobka/NPC dostane persistentní identitu (memory/relationships/
 **Terminologie:** enum má přesně dvě hodnoty, `ObserveOnly` a `AIWorldControlled`. Nikde jinde v tomto dokumentu ani v kódu se nepoužívá `VanillaControlled` ani `FullControl` — jsou to jména pro tutéž semantiku a vedla by ke dvěma pojmenováním jednoho konceptu.
 
 **Bezpečné pořadí (STATIC review, P2 nálezy proti dřívější verzi tohoto gate):** `ControlMode` schema a jeho hard enforcement musí existovat *před* jakýmkoli bulk bootstrapem, ne až po něm. Dřívější pořadí (nejdřív bootstrapovat všechny `world.creature` do `AgentId`, teprve pak přidat ownership split) by samo vytvořilo přesně ten nebezpečný přechodný stav, který tento gate má odstranit — `AgentRegistry` dnes žádný `ControlMode` koncept nemá a každý načtený persistentní record považuje za běžného agenta. Proto je pořadí A→B→C→D, kde `ControlMode` (A) je prerequisite reconciliace (B), ne naopak.
+
+**Scope: non-instance / base-world spawny (STATIC review P2 fix).** Současná identita používá pouze `(mapId, spawnId) → AgentId` a jeden `RuntimeGuid` na `AgentRecord` — to funguje pro persistentní open-world spawn, ale ne obecně pro instance/raid mapy, kde stejný `(map_id, spawn_id)` může existovat současně jako několik různých `Creature` objektů v různých instancích (runtime na řadě míst už dnes explicitně používá `FindBaseNonInstanceMap(record->MapId)`; event enrichment přiřazuje `AgentId` jen podle `MapId`+`SpawnId`, bez instance identity). Globální registrace instance spawnu by dvě různé incarnace namapovala na stejný `AgentId`/`RuntimeGuid` — sdílená persistent identity, smíchané eventy/memory/provenance, přímý konflikt s invariantem „individual Agent = konkrétní physical entity". **`2.12F4` scope je proto výhradně persistentní non-instance/base-world creature spawny** (`FindBaseNonInstanceMap`-eligible); instance/raid creature zůstávají mimo, dokud nebude samostatně navržená instance-aware identity semantics — to je jiný problém, ne 2.12F4. Rozšiřovat `AgentId` o `InstanceId` v rámci tohoto gate by bylo scope creep.
 
 ## 2.12F4A — ControlMode foundation
 
@@ -406,37 +408,56 @@ AIWorld may observe/state-track this agent.
 AIWorld MUST NOT cause physical world mutation for this agent.
 ```
 
-`AgentRecord` dnes nese needs, active goal, routine goal, group coordination goal i active action — u tisíců nových `ObserveOnly` recordů nestačí zabránit jen vzniku `AIWorldCreatureAI`. `ControlMode` proto musí autoritativně gatovat minimálně:
+`AgentRecord` dnes nese needs, active goal, routine goal, group coordination goal i active action — u tisíců nových `ObserveOnly` recordů nestačí zabránit jen vzniku `AIWorldCreatureAI`.
 
-- decision scheduler / `ProcessAgent()` — `ObserveOnly` agent nikdy nejde do decision pipeline;
-- routine → action proposal;
-- group action proposal/dispatch (`DispatchGroupMemberActionProposal()` a ekvivalenty);
-- automatic coalition membership, pokud z membership může vzniknout fyzická akce;
-- action execution (`ActionExecutor`);
-- ideálně i `ActionSystem::Validate()` jako poslední defense-in-depth kontrola, nezávislá na tom, jestli caller sám `ControlMode` už zkontroloval.
+**`ActionSystem::Validate()` je mandatory authoritative gate, ne "ideální" defense-in-depth (STATIC review P2 fix proti dřívější verzi).** `ActionSystem` je už dnes explicitně definovaný jako safety boundary: *AI proposes → ActionSystem validates → ActionExecutor executes only on ALLOWED.* `ActionExecutor` je engine boundary, jehož vlastní kontrakt už dnes předpokládá, že se volá až poté, co `ActionSystem::Validate()` vrátil `Allowed` — psát `ControlMode` gate až na `ActionExecutor` by tento kontrakt obracelo. Správný pipeline:
 
-Bez tohoto plného gatingu může vanilla/scripted AI stále vlastnit `CreatureAI`, zatímco AIWorld pošle stejnému `Creature` `MOVE_TO`/`FLEE`/`EAT` atd. — dual ownership nad jedním fyzickým objektem. `2.12F4C` (scale hardening) toto neřeší; ownership bezpečnost musí být hotová už zde.
+```text
+scheduler/routine/group gates
+    ↓          performance + early rejection, ne safety boundary
+ActionRequest
+    ↓
+ActionValidationContext.ControlMode
+    ↓
+ActionSystem::Validate()
+    ↓
+ObserveOnly       → REJECT
+AIWorldControlled → pokračovat
+    ↓
+ActionExecutor
+```
+
+`ControlMode` jde do `ActionValidationContext` jako čistá hodnota — context je už dnes DTO světových faktů, které sestavuje `AIWorldMgr`, takže tím neporušíme pure/value hranici `ActionSystem`u. `ActionExecutor` nemusí znát `AgentRecord` ani `ControlMode` a zůstává třetím krokem až po úspěšné validaci.
+
+`ControlMode` tedy gatuje na dvou různých úrovních, s různým účelem:
+
+- **performance/early-rejection** (ne safety boundary samo o sobě) — decision scheduler / `ProcessAgent()`, routine → action proposal, group action proposal/dispatch (`DispatchGroupMemberActionProposal()` a ekvivalenty), automatic coalition membership pokud z ní může vzniknout fyzická akce — `ObserveOnly` agent se sem nemá dostat vůbec, aby se nezbytečně stavěl `ActionRequest`, který stejně skončí `REJECT`;
+- **authoritative safety gate** — `ActionSystem::Validate()` přes `ActionValidationContext.ControlMode`, mandatory, ne volitelné; i kdyby některý z gatů výše selhal nebo byl obejit, `Validate()` musí `ObserveOnly` request odmítnout.
+
+Bez tohoto gatingu na `ActionSystem` úrovni může vanilla/scripted AI stále vlastnit `CreatureAI`, zatímco AIWorld pošle stejnému `Creature` `MOVE_TO`/`FLEE`/`EAT` atd. — dual ownership nad jedním fyzickým objektem. `2.12F4C` (scale hardening) toto neřeší; ownership bezpečnost musí být hotová už zde.
 
 Kroky:
 
 - `ControlMode` jako persistentní pole `AgentRecord`/`ai_agents`;
 - `OwnsSpawn()` (nebo ekvivalentní rozhodovací bod) se řídí `ControlMode`, ne pouhou existencí `AgentRecord`;
+- `ActionValidationContext` získá `ControlMode` pole; `ActionSystem::Validate()` odmítá `ObserveOnly` bezpodmínečně, před jakoukoli per-`ActionType` validací;
+- performance-gates výše (scheduler/routine/group) zůstávají, ale jsou dokumentované jako optimalizace, ne jako náhrada `ActionSystem` gate;
 - migrace: současné 4 testovací mobky → `AIWorldControlled` (explicitní, ne implicitní default);
 - nový/default bootstrap row → `ObserveOnly`.
 
-Runtime gate: `ObserveOnly` agent nikdy neprojde decision schedulerem, nikdy nedostane routine/group action proposal a nikdy nezpůsobí `ActionExecutor` volání — ověřeno pro všechny gated cesty výše, ne jen pro `OwnsSpawn()`/`CreatureAI`.
+Runtime gate: `ObserveOnly` agent nikdy neprojde decision schedulerem, nikdy nedostane routine/group action proposal a `ActionSystem::Validate()` odmítne jakýkoli `ActionRequest` pro `ObserveOnly` agenta i v případě, že by performance-gate výše selhal — `ActionExecutor` se pro `ObserveOnly` nikdy nezavolá, protože `Validate()` mu to nedovolí, ne protože to sám kontroluje.
 
 ## 2.12F4B — Global spawn reconciliation
 
 **Priorita: až po 2.12F4A** — reconciliace smí vytvářet nové `AgentRecord`s pouze do bezpečného `ControlMode`, takže `ControlMode` gate musí existovat první.
 
-Roadmap dříve specifikovala jen jednosměrný bootstrap (`world.creature` → chybějící `ai_agents`: vytvoř). To je neúplné vůči vlastnímu invariantu projektu — **každý individuální `AgentRecord` musí odpovídat skutečnému TrinityCore Creature spawnu.** `AgentRegistry` dnes drží persistentní record jako `Abstract` i bez právě načteného `Creature` a sám nepozná, že DB spawn byl definitivně odstraněn. `2.12F4B` proto musí být obousměrná reconciliace, ne pouze bootstrap:
+Roadmap dříve specifikovala jen jednosměrný bootstrap (`world.creature` → chybějící `ai_agents`: vytvoř). To je neúplné vůči vlastnímu invariantu projektu — **každý individuální `AgentRecord` musí odpovídat skutečnému TrinityCore Creature spawnu.** `AgentRegistry` dnes drží persistentní record jako `Abstract` i bez právě načteného `Creature` a sám nepozná, že DB spawn byl definitivně odstraněn. `2.12F4B` proto musí být obousměrná reconciliace, ne pouze bootstrap — a stejně jako zbytek `2.12F4` **jen nad non-instance/base-world spawny** (viz Scope výše; instance/raid spawny se do žádné z níže uvedených tří větví nezahrnují):
 
 ```text
-world.creature → chybí v ai_agents:
+world.creature (non-instance) → chybí v ai_agents:
     CREATE (ControlMode = ObserveOnly, viz 2.12F4A)
 
-ai_agents → existuje odpovídající world.creature:
+ai_agents → existuje odpovídající non-instance world.creature:
     valid, beze změny
 
 ai_agents → world.creature spawn už neexistuje:
@@ -456,7 +477,7 @@ Druhý otevřený bod: **`AgentType` provenance.** `CreateCreatureAgent(AgentTyp
 
 Kroky:
 
-- `world.creature` je source of truth, žádné fake/synthetic spawny;
+- `world.creature` (non-instance/base-world scope, `FindBaseNonInstanceMap`-eligible) je source of truth, žádné fake/synthetic spawny;
 - reconciliation je idempotentní: existující `(map_id, spawn_id) → AgentId` binding se zachová, nový spawn dostane nový `AgentId` (do `ObserveOnly`), restart nevytvoří duplicity;
 - chybějící/odstraněné spawny se detekují a fail-closed karanténují, ne tiše zůstávají v `_registry` jako živý agent;
 - deterministická `AgentType`/provenance politika je rozhodnutá a implementovaná před prvním bulk bootstrapem;
@@ -783,7 +804,7 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 
 1. [x] 2.12F3 static/build/runtime closure.
 2. [ ] **2.12F4A — ControlMode foundation (`ObserveOnly` vs `AIWorldControlled`, hard-gated na decision/routine/group/action cestách, existing 4 → `AIWorldControlled`, default = `ObserveOnly`).**
-3. [ ] **2.12F4B — global spawn reconciliation (`world.creature` ↔ `ai_agents` bidirectional, fail-closed na smazané spawny, deterministická `AgentType` provenance, no ghosts).**
+3. [ ] **2.12F4B — global spawn reconciliation (non-instance `world.creature` ↔ `ai_agents` bidirectional, fail-closed na smazané spawny, deterministická `AgentType` provenance, no ghosts).**
 4. [ ] 2.12F4C — bounded/indexed runtime at world scale (O(1) spawn index, remove recurring full-registry scans).
 5. [ ] 2.12F4D — global bootstrap/runtime proof (plná `ObserveOnly` populace, vanilla/script chování beze změny, bounded work).
 6. [ ] 2.12G1 — second real coalition profile přes stejnou generic pipeline (nad reálnými reconciled spawny z 2.12F4).
@@ -835,11 +856,11 @@ Po runtime proof vracet one-shot/test flags na default `0`/disabled. Destruktivn
 Další změna se nemá zaměřit na další wolf-only behavior ani rovnou na druhý coalition profil. Nejbližší gate je globální agent population foundation (2.12F4), protože `2.12G1` sám potřebuje reálné, ne synteticky vyrobené spawny druhého profilu:
 
 ```text
-ControlMode schema + hard gating na všech physical-action cestách (2.12F4A)
+ControlMode schema + ActionSystem::Validate() as mandatory authoritative gate (2.12F4A)
     ↓
 existing 4 test mobs → AIWorldControlled, default → ObserveOnly
     ↓
-ALL world.creature SPAWNS reconciled ↔ ai_agents (2.12F4B)
+ALL non-instance world.creature SPAWNS reconciled ↔ ai_agents (2.12F4B)
     ↓
 missing spawn → CREATE (ObserveOnly); deleted spawn → fail-closed/quarantine, no ghosts
     ↓
