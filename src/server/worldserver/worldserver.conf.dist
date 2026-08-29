@@ -3718,6 +3718,26 @@ AIWorld.TestGroupIntent = 0
 AIWorld.TestGroupIntentProjector = 0
 
 #
+#    AIWorld.TestControlMode
+#        Description: Milestone 2.12F4A - when set to an existing, already-registered AgentId,
+#                     runs a one-shot manual proof at startup of ActionSystem::Validate()'s own
+#                     mandatory, authoritative AgentControlMode gate (see AIWorldMgr::
+#                     RunControlModeSmokeTest()). Entirely pure - the exact same otherwise-fully-valid
+#                     MOVE_TO ActionRequest/context for the configured real agent is validated twice,
+#                     with only ActionValidationContext::ControlMode changed between the two calls
+#                     (ObserveOnly, then AIWorldControlled), so a difference in outcome can only be
+#                     attributed to that gate. No live Creature/Map/grid access, no physical
+#                     movement attempted - this only exercises ActionSystem's own pure value
+#                     boundary. Off by default - this is a manual verification aid, not a feature.
+#        Important:   Must name a real, already-registered AgentId; a negative value is rejected
+#                     (logged, disabled) rather than silently reinterpreted, since AgentId itself is
+#                     unsigned. 0 means disabled, the same convention every other AgentId-keyed test
+#                     hook in this file already uses.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestControlMode = 0
+
+#
 #    AIWorld.WolfGroupAutoFormation
 #        Description: Milestone 2.12E4A/2.12E4B (pipeline generalized in 2.12E4R) - when true,
 #                     AIWorldMgr periodically scans currently observable agents and, once

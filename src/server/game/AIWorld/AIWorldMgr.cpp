@@ -533,6 +533,24 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // own comment.
     bool testGroupIntentProjector = sConfigMgr->GetBoolDefault("AIWorld.TestGroupIntentProjector", false);
 
+    // Milestone 2.12F4A: off by default (0 - the same 0-means-disabled
+    // convention every other AgentId-keyed test hook in this file already
+    // uses) - see RunControlModeSmokeTest()'s own comment. Names a real,
+    // already-registered AgentId the hook runs its pure ActionSystem::
+    // Validate() ControlMode-gate proof against - never a fake/ghost
+    // record. Fail-closed parsing: sConfigMgr->GetIntDefault() returns a
+    // signed int32, and AgentId::Value is unsigned (see AgentId.h); a
+    // negative value is rejected here rather than silently reinterpreted
+    // into some enormous, never-real AgentId.
+    int32 testControlModeAgentIdRaw = sConfigMgr->GetIntDefault("AIWorld.TestControlMode", 0);
+    if (testControlModeAgentIdRaw < 0)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestControlMode ({}) is negative, which cannot name a real AgentId, disabling this test hook",
+            testControlModeAgentIdRaw);
+        testControlModeAgentIdRaw = 0;
+    }
+    AgentId testControlModeAgentId{ uint64(testControlModeAgentIdRaw) };
+
     uint32 testMapId = uint32(sConfigMgr->GetIntDefault("AIWorld.TestMapId", 0));
     uint64 testSpawnId = uint64(sConfigMgr->GetIntDefault("AIWorld.TestSpawnId", 0));
 
@@ -923,6 +941,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // own pure-layer commit deliberately adds none).
     if (testGroupIntentProjector)
         RunGroupIntentProjectorSmokeTest();
+
+    // Milestone 2.12F4A: manual proof only, gated behind
+    // AIWorld.TestControlMode (default 0/disabled) - see
+    // RunControlModeSmokeTest()'s own comment. Runs against a real,
+    // already-registered AgentId (never a fake/ghost record) purely
+    // against ActionSystem::Validate() itself - no live Creature/Map
+    // needed, no physical movement attempted.
+    if (testControlModeAgentId)
+        RunControlModeSmokeTest(testControlModeAgentId);
 
     TC_LOG_INFO("ai.world", "AI bridge target {}:{} (timeout={}ms, health interval={}ms, max in-flight decisions={}, "
         "scheduler interval={}ms, nearby interval={}ms, active interval={}ms, nearby player range={:.1f}, "
@@ -1740,6 +1767,18 @@ std::vector<CoalitionCandidate> AIWorldMgr::CollectCoalitionCandidates()
         if (!record || record->WorldState != AgentWorldState::Materialized)
             continue;
 
+        // Milestone 2.12F4A: ControlMode gate (performance/early-rejection
+        // - ActionSystem::Validate() is the actual mandatory safety
+        // boundary regardless, see its own comment) - an ObserveOnly
+        // agent is never an automatic-formation candidate. Membership
+        // eligibility could eventually lead to a group coordination
+        // dispatch (DispatchGroupMemberActionProposal(), which already
+        // gates ControlMode independently too), so excluding it here as
+        // well means an ObserveOnly agent never even gets swept into a
+        // group by an automatic profile in the first place.
+        if (record->ControlMode != AgentControlMode::AIWorldControlled)
+            continue;
+
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
         Creature* creature = ResolveLiveCreature(*record, map);
         if (!creature || !creature->IsAlive())
@@ -2454,6 +2493,80 @@ void AIWorldMgr::RunGroupIntentProjectorSmokeTest() const
     TC_LOG_INFO("ai.world", "AI group intent projector smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
+// Milestone 2.12F4A: manual proof only, gated behind AIWorld.TestControlMode
+// (default 0/disabled) - runs at most once, from Initialize(), only when
+// that config resolves to a real, already-registered AgentId (never a
+// fake/ghost AgentRecord manufactured for the test). Proves the one thing
+// that actually matters for this milestone: ActionSystem::Validate() is a
+// mandatory, authoritative gate on AgentControlMode, not merely something
+// every caller happens to check today. Deliberately pure - no live
+// Creature/Map/grid access at all, since ActionValidationContext.ControlMode
+// is a plain value and Validate() itself never touches TrinityCore; the
+// same otherwise-fully-valid MOVE_TO ActionRequest/context (destination ==
+// the context's own claimed position, so every OTHER ValidateMoveTo() check
+// trivially passes regardless of ControlMode) is validated twice, with only
+// context.ControlMode changed between the two calls - so a difference in
+// outcome can only ever be attributed to the ControlMode gate itself, never
+// to some other check incidentally also failing for ObserveOnly.
+void AIWorldMgr::RunControlModeSmokeTest(AgentId testAgentId) const
+{
+    AgentRecord const* record = _registry.Find(testAgentId);
+    if (!record)
+    {
+        TC_LOG_ERROR("ai.world", "AI ControlMode smoke FAILED: AIWorld.TestControlMode agent id={} does not exist in _registry - configure a real, already-registered AgentId",
+            testAgentId.Value);
+        return;
+    }
+
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI ControlMode smoke check: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI ControlMode smoke check: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    ActionRequest request;
+    request.Actor = testAgentId;
+    request.Type = ActionType::MoveTo;
+    request.SourceGoal = GoalType::GetFood;
+    request.GoalStartedAtMs = 1;
+
+    ActionPosition destination;
+    destination.MapId = record->MapId;
+    destination.X = 0.0f;
+    destination.Y = 0.0f;
+    destination.Z = 0.0f;
+    request.Destination = destination;
+
+    ActionValidationContext context;
+    context.Materialized = true;
+    context.Alive = true;
+    context.ActiveGoalType = GoalType::GetFood;
+    context.ActiveGoalStartedAtMs = 1;
+    context.MapId = record->MapId;
+    context.X = 0.0f;
+    context.Y = 0.0f;
+    context.Z = 0.0f;
+    context.HasActiveMovement = false;
+
+    context.ControlMode = AgentControlMode::ObserveOnly;
+    ActionValidationResult observeOnlyResult = _actionSystem.Validate(request, context);
+    check("ObserveOnly context REJECTS an otherwise-valid MOVE_TO with ControlModeNotAllowed",
+        !observeOnlyResult.Allowed && observeOnlyResult.Reason == ActionRejectReason::ControlModeNotAllowed);
+
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    ActionValidationResult controlledResult = _actionSystem.Validate(request, context);
+    check("AIWorldControlled context proceeds past the ControlMode gate - the same otherwise-valid MOVE_TO is ALLOWED",
+        controlledResult.Allowed && controlledResult.Reason == ActionRejectReason::None);
+
+    TC_LOG_INFO("ai.world", "AI ControlMode smoke {}", allPassed ? "PASSED" : "FAILED");
+}
+
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const
 {
     std::vector<CoalitionMemberObservation> observations;
@@ -2829,6 +2942,15 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     if (!record)
         return;
 
+    // Milestone 2.12F4A: ControlMode gate (performance/early-rejection -
+    // ActionSystem::Validate() is the actual mandatory safety boundary
+    // regardless, see its own comment). An ObserveOnly member is dropped
+    // from group coordination dispatch the same way it is from every
+    // other action-proposing path - group intent/observation collection
+    // upstream of this call still tracks it as an ordinary member.
+    if (record->ControlMode != AgentControlMode::AIWorldControlled)
+        return;
+
     // Re-confirms SourceGroup/membership fresh - never trusts that either
     // still holds by the time this specific proposal (possibly several
     // members deep into RunCoalitionCoordination()'s own batch) actually
@@ -2936,6 +3058,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     ActionValidationContext moveContext;
     moveContext.Materialized = true;
     moveContext.Alive = true;
+    moveContext.ControlMode = record->ControlMode;
     moveContext.ActiveGoalType = GoalType::Regroup;
     moveContext.ActiveGoalStartedAtMs = nowMs;
     moveContext.MapId = creature->GetMapId();
@@ -3440,6 +3563,7 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
     ActionValidationContext validationContext;
     validationContext.Materialized = true;
     validationContext.Alive = creature->IsAlive();
+    validationContext.ControlMode = record.ControlMode;
     validationContext.ActiveGoalType = record.ActiveGoalState->Type;
     validationContext.ActiveGoalStartedAtMs = record.ActiveGoalState->StartedAtMs;
     validationContext.FleeSourceGuid = request.FleeFromGuid;
@@ -3759,7 +3883,17 @@ void AIWorldMgr::RunDecisionScheduler()
         UpdateSimulationTier(id, DeriveSimulationTier(AgentWorldState::Materialized, isNearby));
 
         DecisionCadenceClass cadenceClass = isNearby ? DecisionCadenceClass::Nearby : DecisionCadenceClass::Active;
-        candidates.push_back({ id, cadenceClass });
+
+        // Milestone 2.12F4A: ControlMode gate (performance/early-rejection -
+        // ActionSystem::Validate() is the actual mandatory safety boundary
+        // regardless, see its own comment). BindCreature()/simulation-tier
+        // tracking above still runs for every materialized agent
+        // unconditionally - state-tracking is allowed for ObserveOnly - but
+        // an ObserveOnly agent is never scheduled for a remote /decision
+        // call, which could never lead anywhere but a request
+        // ActionSystem would reject anyway.
+        if (record->ControlMode == AgentControlMode::AIWorldControlled)
+            candidates.push_back({ id, cadenceClass });
     }
 
     // Milestone 2.10D P2 fixes: bounded, deterministic admission for the
@@ -4064,7 +4198,20 @@ bool AIWorldMgr::OwnsSpawn(uint32 mapId, uint64 spawnId) const
     // an AgentRecord any more (see GroupId.h), so there is no exclusion
     // left to apply here.
     AgentRecord const* record = _registry.FindBySpawn(mapId, spawnId);
-    return record != nullptr;
+    if (!record)
+        return false;
+
+    // Milestone 2.12F4A: existence of an AgentRecord is no longer
+    // sufficient by itself - see AgentControlMode's own comment (AgentType.h)
+    // for why. An ObserveOnly agent falls through to TrinityCore's normal
+    // pet/scripted/AIName/Permissible AI selection exactly as if it had no
+    // AgentRecord at all; this read is safe from the map-updater thread
+    // this method can be called from (see this method's own declaration
+    // comment in AIWorldMgr.h) for the same reason record != nullptr
+    // already was - ControlMode is only ever set at load time in this
+    // milestone (no runtime transition command yet), never mutated
+    // concurrently with a map-updater thread's own read here.
+    return record->ControlMode == AgentControlMode::AIWorldControlled;
 }
 
 // World thread only (called from Update(), right after EventBus::Drain()).
@@ -4588,7 +4735,15 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // so this never races GET_FOOD/FLEE_DANGER for the action slot).
         // GET_FOOD's own MOVE_TO/FLEE_DANGER's own Flee below never check
         // RoutineGoalState either way, so this has no effect on them.
-        if (!record->ActiveGoalState && record->RoutineGoalState)
+        //
+        // Milestone 2.12F4A: ControlMode gate (performance/early-rejection
+        // - ActionSystem::Validate() is the actual mandatory safety
+        // boundary regardless of this check, see its own comment).
+        // RoutineGoalState itself is still computed/tracked above for
+        // every agent unconditionally (pure state, allowed for
+        // ObserveOnly) - only the ActionRequest build/dispatch below is
+        // skipped.
+        if (record->ControlMode == AgentControlMode::AIWorldControlled && !record->ActiveGoalState && record->RoutineGoalState)
         {
             bool alreadyExecuting = record->ActiveActionState
                 && record->ActiveActionState->Type == ActionType::MoveTo
@@ -4662,6 +4817,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                     ActionValidationContext moveContext;
                     moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
                     moveContext.Alive = context.Alive;
+                    moveContext.ControlMode = record->ControlMode;
 
                     // No AgentRecord::ActiveGoalState to read here (that is
                     // exactly the branch condition above) - RoutineGoalState's
@@ -4793,6 +4949,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 ActionValidationContext activityValidationContext;
                 activityValidationContext.Materialized = activityContext.Materialized;
                 activityValidationContext.Alive = activityContext.Alive;
+                activityValidationContext.ControlMode = record->ControlMode;
                 activityValidationContext.ActiveGoalType = record->RoutineGoalState->Type;
                 activityValidationContext.ActiveGoalStartedAtMs = activity.StartedAtMs;
                 activityValidationContext.MapId = creature->GetMapId();
@@ -4976,6 +5133,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             ActionValidationContext validationContext;
             validationContext.Materialized = record->WorldState == AgentWorldState::Materialized;
             validationContext.Alive = context.Alive;
+            validationContext.ControlMode = record->ControlMode;
             validationContext.ActiveGoalType = record->ActiveGoalState->Type;
             validationContext.ActiveGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
             validationContext.FleeSourceGuid = request.FleeFromGuid;
@@ -5037,6 +5195,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 ActionValidationContext moveContext;
                 moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
                 moveContext.Alive = context.Alive;
+                moveContext.ControlMode = record->ControlMode;
                 moveContext.ActiveGoalType = record->ActiveGoalState->Type;
                 moveContext.ActiveGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
                 moveContext.MapId = creature->GetMapId();
@@ -5268,6 +5427,7 @@ void AIWorldMgr::TryEat(AgentRecord& record, Creature& creature, PendingEatConti
     ActionValidationContext eatContext;
     eatContext.Materialized = record.WorldState == AgentWorldState::Materialized;
     eatContext.Alive = creature.IsAlive();
+    eatContext.ControlMode = record.ControlMode;
     eatContext.InCombat = creature.IsInCombat();
     eatContext.ActiveGoalType = record.ActiveGoalState->Type;
     eatContext.ActiveGoalStartedAtMs = record.ActiveGoalState->StartedAtMs;

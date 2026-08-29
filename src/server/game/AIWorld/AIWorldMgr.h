@@ -116,6 +116,14 @@ class TC_GAME_API AIWorldMgr
         // other, for different maps, is fine too: this and everything it
         // calls (AgentRegistry::FindBySpawn() const) are read-only. Never
         // touches Creature/Map, never calls ai-server.
+        //
+        // Milestone 2.12F4A: true only for AgentControlMode::AIWorldControlled
+        // - an AgentRecord existing is no longer sufficient by itself (see
+        // AgentControlMode's own comment, AgentType.h). An ObserveOnly
+        // agent falls through to TrinityCore's normal AI selection exactly
+        // as if it had no AgentRecord at all - the read stays safe from a
+        // map-updater thread since ControlMode is only ever set at load
+        // time in this milestone, never mutated concurrently with it.
         bool OwnsSpawn(uint32 mapId, uint64 spawnId) const;
 
         // Milestone 2.8F: safe to call from ANY thread TrinityCore itself
@@ -486,6 +494,20 @@ class TC_GAME_API AIWorldMgr
         // regardless of how dispersed the members are. Always runs when
         // this method is called at all (see AIWorld.TestGroupIntentProjector).
         void RunGroupIntentProjectorSmokeTest() const;
+
+        // Milestone 2.12F4A: manual proof only, gated behind
+        // AIWorld.TestControlMode (default 0 = disabled) - runs at most once,
+        // from Initialize(), only against a real, already-registered AgentId
+        // (never a fake/ghost AgentRecord). Proves ActionSystem::Validate()'s
+        // own mandatory, authoritative ControlMode gate: the exact same
+        // otherwise-fully-valid MOVE_TO ActionRequest/context is validated
+        // twice, with only ActionValidationContext::ControlMode changed
+        // between the two calls (ObserveOnly, then AIWorldControlled) - so
+        // any difference in outcome can only be attributed to that gate,
+        // never to some other check incidentally differing too. Entirely
+        // pure - no live Creature/Map/grid access, since the gate under
+        // test is a plain-value check inside ActionSystem itself.
+        void RunControlModeSmokeTest(AgentId testAgentId) const;
 
         // Milestone 2.12E4R (generalized from 2.12E4A's
         // CollectWolfCoalitionCandidates()): builds the value-only

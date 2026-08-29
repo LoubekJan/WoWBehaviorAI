@@ -48,6 +48,38 @@ enum class AgentWorldState : uint8
     Materialized = 1
 };
 
+// Milestone 2.12F4A: which owner may act on this agent's own Creature
+// binding - deliberately separate from mere AgentRecord existence. An
+// earlier model conflated "is a known AIWorld agent" with "AIWorld owns
+// this Creature's AI/actions", which meant registering every persistent
+// TrinityCore creature spawn would have silently taken over guards,
+// vendors, quest NPCs, bosses, and scripted NPCs the moment they got an
+// AgentRecord at all. Explicit values, persistently stable (this is
+// storage ABI - ai_agents.control_mode - never renumber or reuse a
+// retired value):
+//
+//   ObserveOnly (0, the fail-closed default for every new/default
+//   AgentRecord - see AgentRecord::ControlMode's own comment): TrinityCore/
+//   scripted CreatureAI remains the owner. AIWorld may observe/state-track
+//   this agent (identity, memory, needs, perception, whatever the current
+//   pipeline already safely supports) but MUST NOT cause a physical world
+//   mutation for it - see AIWorldMgr::OwnsSpawn() (never returns true for
+//   ObserveOnly, so FactorySelector::SelectAI() never even instantiates
+//   AIWorldCreatureAI for it) and ActionValidationContext::ControlMode/
+//   ActionSystem::Validate() (the mandatory authoritative gate - rejects
+//   every ActionRequest for anything other than AIWorldControlled, common
+//   to every ActionType, before any per-ActionType check).
+//
+//   AIWorldControlled (1): AIWorldCreatureAI may take over CreatureAI (via
+//   OwnsSpawn()), and AIWorld's own Needs -> Goal -> ActionRequest ->
+//   ActionSystem -> TrinityCore pipeline may actually execute for this
+//   agent.
+enum class AgentControlMode : uint8
+{
+    ObserveOnly = 0,
+    AIWorldControlled = 1
+};
+
 inline char const* ToString(AgentType type)
 {
     switch (type)
@@ -56,6 +88,16 @@ inline char const* ToString(AgentType type)
         case AgentType::Guard:    return "GUARD";
         case AgentType::Merchant: return "MERCHANT";
         default:                  return "UNKNOWN";
+    }
+}
+
+inline char const* ToString(AgentControlMode mode)
+{
+    switch (mode)
+    {
+        case AgentControlMode::ObserveOnly:       return "OBSERVE_ONLY";
+        case AgentControlMode::AIWorldControlled: return "AI_WORLD_CONTROLLED";
+        default:                                  return "UNKNOWN";
     }
 }
 

@@ -32,13 +32,16 @@
 class TC_GAME_API ActionSystem
 {
     public:
-        // Checks common to every ActionType, in this fixed order: actor
-        // state first (materialized, alive), then whether the actor even
-        // has a goal to act on, then whether the request honestly
-        // describes that goal - both its GoalType (SourceGoal) and the
-        // specific goal attempt (GoalStartedAtMs). Only then does it
-        // dispatch to the per-ActionType validation below (or reject
-        // UnsupportedAction for anything else).
+        // Checks common to every ActionType, in this fixed order:
+        // ControlMode first (2.12F4A - the mandatory authoritative safety
+        // gate, rejects anything other than AIWorldControlled unconditionally,
+        // see this method's own .cpp comment), then actor state
+        // (materialized, alive), then whether the actor even has a goal to
+        // act on, then whether the request honestly describes that goal -
+        // both its GoalType (SourceGoal) and the specific goal attempt
+        // (GoalStartedAtMs). Only then does it dispatch to the
+        // per-ActionType validation below (or reject UnsupportedAction for
+        // anything else).
         ActionValidationResult Validate(ActionRequest const& request, ActionValidationContext const& context) const;
 
         // Milestone 2.12F2 P3 fix (STATIC review): exposes the exact same

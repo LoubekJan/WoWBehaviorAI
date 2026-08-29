@@ -19,6 +19,7 @@
 #define AIWORLD_ACTIONVALIDATIONCONTEXT_H
 
 #include "ActionPosition.h"
+#include "Agent/AgentType.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
 #include "Goal/RoutineActivityType.h"
@@ -35,6 +36,19 @@ struct ActionValidationContext
 {
     bool Materialized = false;
     bool Alive = false;
+
+    // Milestone 2.12F4A: the actor's own AgentRecord::ControlMode, as a
+    // plain value - AgentControlMode is a pure enum (AgentType.h), so
+    // carrying it here does not pull a Creature*/AgentRecord*/registry
+    // reference across the pure/value boundary this context exists to
+    // enforce. This is the mandatory authoritative safety gate: Validate()
+    // rejects any request whose context.ControlMode is not
+    // AIWorldControlled, unconditionally, before any per-ActionType check
+    // - see Validate()'s own comment. Defaults to ObserveOnly (the same
+    // fail-closed default AgentRecord::ControlMode itself has), so a
+    // caller that forgets to set this explicitly gets REJECTED rather than
+    // silently ALLOWED.
+    AgentControlMode ControlMode = AgentControlMode::ObserveOnly;
 
     // Milestone 2.11C: despite the name, not always literally
     // AgentRecord::ActiveGoalState - for a routine-sourced MOVE_TO

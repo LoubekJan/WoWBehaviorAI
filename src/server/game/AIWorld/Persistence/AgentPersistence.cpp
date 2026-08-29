@@ -81,11 +81,22 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
         record.EconomyState.LastRewardedWorkWindowId = fields[17].GetUInt64();
         record.EconomyState.Version = fields[18].GetUInt64();
 
+        // Milestone 2.12F4A: appended at the end of CHAR_SEL_AI_AGENTS' own
+        // column list (see its own comment) - fields[19], not reindexed
+        // among the identity columns above. Any value other than the two
+        // AgentControlMode enumerators reads as ObserveOnly, never as
+        // AIWorldControlled - a corrupted/out-of-range stored value must
+        // fail closed, the same discipline AgentGroupKind's own load
+        // already applies.
+        record.ControlMode = fields[19].GetUInt8() == uint8(AgentControlMode::AIWorldControlled)
+            ? AgentControlMode::AIWorldControlled
+            : AgentControlMode::ObserveOnly;
+
         if (!registry.Add(record))
             continue;
 
-        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={}",
-            record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId,
+        TC_LOG_INFO("ai.world", "AI agent loaded id={} type={} map={} spawn={} state=ABSTRACT controlMode={} home={} work={} money={} food={} resource={} lastRewardedWorkWindowId={} economyVersion={}",
+            record.Id.Value, ToString(record.Type), record.MapId, record.SpawnId, ToString(record.ControlMode),
             record.HomeLocation.has_value(), record.WorkLocation.has_value(),
             record.EconomyState.Money, record.EconomyState.Food, record.EconomyState.Resource,
             record.EconomyState.LastRewardedWorkWindowId, record.EconomyState.Version);

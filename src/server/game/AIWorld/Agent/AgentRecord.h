@@ -51,6 +51,18 @@ struct AgentRecord
     AgentId Id;
     AgentType Type = AgentType::Civilian;
 
+    // Milestone 2.12F4A: fail-closed default - ObserveOnly, never
+    // AIWorldControlled. Every new/default-constructed AgentRecord must
+    // start as a TrinityCore/scripted-AI-owned agent AIWorld only
+    // observes/state-tracks; nothing may implicitly grant AIWorld control
+    // over a Creature just because an AgentRecord now exists for it. See
+    // AgentControlMode's own comment (AgentType.h) for the full semantics
+    // and AIWorldMgr::OwnsSpawn()/ActionSystem::Validate() for where this
+    // is actually enforced. Persistent (ai_agents.control_mode) - loaded
+    // by AgentPersistence::LoadAgents(), never mutated per-tick in this
+    // milestone (no runtime transition command yet).
+    AgentControlMode ControlMode = AgentControlMode::ObserveOnly;
+
     uint32 MapId = 0;
     uint64 SpawnId = 0;
 

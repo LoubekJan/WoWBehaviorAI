@@ -61,6 +61,22 @@ float ActionSystem::CoordinationMoveToRangeYards()
 
 ActionValidationResult ActionSystem::Validate(ActionRequest const& request, ActionValidationContext const& context) const
 {
+    // Milestone 2.12F4A: the mandatory authoritative safety gate - checked
+    // first, before every other common check, and before any per-ActionType
+    // dispatch below. AIWorldMgr's own decision scheduler / routine /
+    // group-coordination dispatch sites each already skip building a
+    // request for an ObserveOnly agent (performance/early-rejection - see
+    // their own comments), but none of that is what actually keeps AIWorld
+    // from mutating a Creature it does not own: this is. Even if every
+    // caller-side gate were removed, bypassed, or simply missed for some
+    // future ActionType, an ActionRequest whose context.ControlMode is not
+    // AIWorldControlled is rejected here, unconditionally - see
+    // AgentControlMode's own comment (AgentType.h) for the full ObserveOnly
+    // invariant this enforces ("AIWorld may observe/state-track, MUST NOT
+    // cause physical world mutation").
+    if (context.ControlMode != AgentControlMode::AIWorldControlled)
+        return { false, ActionRejectReason::ControlModeNotAllowed };
+
     if (!context.Materialized)
         return { false, ActionRejectReason::ActorNotMaterialized };
 

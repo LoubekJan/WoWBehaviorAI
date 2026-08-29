@@ -40,6 +40,16 @@ class Unit;
 // SafetyPressure and this agent's own FleeDanger goal both depend on that
 // staying true), and death is left entirely to TrinityCore's own
 // MotionMaster lifecycle.
+//
+// Milestone 2.12F4A: deliberately still knows nothing about AgentRecord,
+// AgentRegistry, or AgentControlMode - the ObserveOnly/AIWorldControlled
+// ownership gate belongs entirely to ActionSystem::Validate() (mandatory,
+// authoritative, checked before this class is ever reached), not to a
+// second ownership check duplicated here. By the time any ExecuteX() call
+// below runs, Validate() already returned Allowed == true for
+// AIWorldControlled - this class's own contract ("Validate() already
+// returned Allowed") already implies ControlMode was already checked, so
+// it never needs to ask again.
 class TC_GAME_API ActionExecutor
 {
     public:

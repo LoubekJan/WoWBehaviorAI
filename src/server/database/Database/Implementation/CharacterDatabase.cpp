@@ -604,10 +604,25 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // agent identity/economy columns only, the same shape it had before
     // 2.12A. See CHAR_SEL_AI_AGENT_GROUPS below for where that state lives
     // now.
+    // Milestone 2.12F4A: control_mode appended at the very end of the
+    // column list (not inserted next to agent_type/map_id/spawn_id where
+    // the schema itself places it, see ai_agents' own 2.12F4A migration
+    // comment) so every existing field index in AgentPersistence::
+    // LoadAgents() stays unchanged - the same "append, don't reindex"
+    // convention CHAR_SEL_AI_AGENT_GROUPS's own profile_id column already
+    // follows.
     PrepareStatement(CHAR_SEL_AI_AGENTS, "SELECT agent_id, agent_type, map_id, spawn_id, "
         "home_map_id, home_x, home_y, home_z, home_o, work_map_id, work_x, work_y, work_z, work_o, "
-        "money, food, resource, last_rewarded_work_window_id, economy_version FROM ai_agents", CONNECTION_SYNCH);
+        "money, food, resource, last_rewarded_work_window_id, economy_version, control_mode FROM ai_agents", CONNECTION_SYNCH);
     PrepareStatement(CHAR_SEL_AI_AGENT_BY_BINDING, "SELECT agent_id, agent_type, map_id, spawn_id FROM ai_agents WHERE map_id = ? AND spawn_id = ?", CONNECTION_SYNCH);
+    // Milestone 2.12F4A: control_mode is deliberately never set here -
+    // every newly created agent must get the column's own ObserveOnly
+    // (0) DEFAULT, the same "don't set what the schema already defaults"
+    // convention this INSERT already follows for every other defaulted
+    // column (there are none here yet, but see ai_agent_groups' own
+    // version column for the precedent). AgentRecord::ControlMode's own
+    // in-memory default matches this exactly - see its own comment for
+    // why neither may ever default to AIWorldControlled.
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_type, map_id, spawn_id) VALUES (?, ?, ?)", CONNECTION_SYNCH);
 
     // Milestone 2.11E2: unlike CHAR_SEL_AI_AGENTS/CHAR_INS_AI_AGENT above

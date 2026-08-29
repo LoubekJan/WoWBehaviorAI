@@ -23,6 +23,12 @@
 enum class ActionRejectReason : uint8
 {
     None,
+    // Milestone 2.12F4A: the mandatory authoritative ControlMode gate -
+    // see ActionSystem::Validate()'s own comment. Checked first, before
+    // ActorNotMaterialized/ActorDead/anything else, since an ObserveOnly
+    // agent is rejected regardless of whether it is materialized/alive/
+    // has an active goal at all.
+    ControlModeNotAllowed,
     ActorNotMaterialized,
     ActorDead,
     NoActiveGoal,
@@ -55,6 +61,7 @@ inline char const* ToString(ActionRejectReason reason)
     switch (reason)
     {
         case ActionRejectReason::None:                   return "NONE";
+        case ActionRejectReason::ControlModeNotAllowed:  return "CONTROL_MODE_NOT_ALLOWED";
         case ActionRejectReason::ActorNotMaterialized:   return "ACTOR_NOT_MATERIALIZED";
         case ActionRejectReason::ActorDead:              return "ACTOR_DEAD";
         case ActionRejectReason::NoActiveGoal:           return "NO_ACTIVE_GOAL";
