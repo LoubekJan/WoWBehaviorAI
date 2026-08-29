@@ -36,13 +36,18 @@ class AgentRegistry;
 //
 // characters DB was picked over world DB (static content, not realm
 // runtime state) and over a fourth AI-specific database (not justified
-// yet for one table). agent_id is MySQL AUTO_INCREMENT, not minted in
-// C++: this database layer has no last-insert-id support, so
-// CreateCreatureAgent() reads the assigned id back by the unique
-// (map_id, spawn_id) binding instead of predicting it - deliberately not
-// a locally-tracked counter, which would silently drift out of sync with
-// the table the moment a row exists that LoadAgents() didn't see (a
-// wider WHERE clause added later, another process, ...).
+// yet for one table).
+//
+// Milestone 2.12F4A2: for a persistent non-instance Creature agent,
+// AgentId.Value equals the TrinityCore Creature SpawnId it is bound to -
+// CreateCreatureAgent() binds agent_id explicitly (=spawnId) rather than
+// minting it in C++ or leaving it to the column's own AUTO_INCREMENT
+// default (kept on the column itself, but no longer relied on for
+// creature agents - see AIWorld_Current_Roadmap.md's own "2.12F4A2"
+// section and ai_agents' 2.12F4A2 migration comment). This database layer
+// has no last-insert-id support, so CreateCreatureAgent() still reads the
+// row back by the unique (map_id, spawn_id) binding - not to discover a
+// MySQL-assigned id any more, only to confirm the write actually landed.
 //
 // Synchronous by design: LoadAgents() and CreateCreatureAgent() are only
 // ever meant to be called during AIWorldMgr::Initialize(), never from the
@@ -64,11 +69,14 @@ class TC_GAME_API AgentPersistence
         // Idempotent against ai_agents itself (not just against what
         // LoadAgents() already saw): if a row for (mapId, spawnId) already
         // exists, its AgentId is reused instead of inserting a duplicate.
-        // Otherwise inserts a new row and reads its MySQL-assigned AgentId
-        // back by that same binding. Returns AgentId{} (Value == 0, never a
-        // valid id) if the read-back doesn't find a row - the caller must
-        // not add anything to an AgentRegistry in that case, since there is
-        // then no way to know whether the insert actually happened.
+        // Otherwise inserts a new row with agent_id bound explicitly to
+        // spawnId (Milestone 2.12F4A2 - AgentId == SpawnId for a
+        // persistent non-instance Creature agent) and reads it back by
+        // that same binding to confirm the write landed. Returns AgentId{}
+        // (Value == 0, never a valid id) if the read-back doesn't find a
+        // row - the caller must not add anything to an AgentRegistry in
+        // that case, since there is then no way to know whether the
+        // insert actually happened.
         AgentId CreateCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId);
 
         // Milestone 2.12F4A P2 fix (STATIC review): explicit, synchronous

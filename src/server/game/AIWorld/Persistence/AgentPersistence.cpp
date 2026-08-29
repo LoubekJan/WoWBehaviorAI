@@ -92,6 +92,15 @@ uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
             ? AgentControlMode::AIWorldControlled
             : AgentControlMode::ObserveOnly;
 
+        // Milestone 2.12F4A2: for a persistent non-instance Creature
+        // agent, AgentId.Value must equal SpawnId - logged, not asserted/
+        // fatal, since a violation here is a data-quality signal to
+        // investigate (e.g. a row this migration didn't reach) rather
+        // than something safe to crash the world thread over.
+        if (record.Id.Value != record.SpawnId)
+            TC_LOG_WARN("ai.world", "AI agent id={} map={} spawn={} violates the AgentId == SpawnId invariant (2.12F4A2)",
+                record.Id.Value, record.MapId, record.SpawnId);
+
         if (!registry.Add(record))
             continue;
 
@@ -130,19 +139,33 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
         return existingId;
     }
 
+    // Milestone 2.12F4A2: for a persistent non-instance Creature agent,
+    // AgentId must equal the TrinityCore Creature SpawnId it is bound to
+    // (see AIWorld_Current_Roadmap.md's own "2.12F4A2" section) - agent_id
+    // is bound explicitly here instead of being left to the column's own
+    // AUTO_INCREMENT default.
     CharacterDatabasePreparedStatement* insertStmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_AGENT);
-    insertStmt->setUInt8(0, uint8(type));
-    insertStmt->setUInt32(1, mapId);
-    insertStmt->setUInt64(2, spawnId);
+    insertStmt->setUInt64(0, spawnId);
+    insertStmt->setUInt8(1, uint8(type));
+    insertStmt->setUInt32(2, mapId);
+    insertStmt->setUInt64(3, spawnId);
     CharacterDatabase.DirectExecute(insertStmt);
 
-    // DirectExecute() doesn't report success/failure, and agent_id is
-    // MySQL-assigned (AUTO_INCREMENT) rather than chosen here, so the only
-    // way to know what id - or whether one at all - actually got stored is
-    // to read it back by the unique (map_id, spawn_id) binding.
+    // DirectExecute() doesn't report success/failure, so the only way to
+    // know whether the row actually got stored is to read it back by the
+    // unique (map_id, spawn_id) binding - this no longer discovers a
+    // MySQL-assigned id (the caller already knows it: spawnId), only
+    // confirms the write landed.
     AgentId newId = FindBinding(mapId, spawnId);
     if (!newId)
+    {
         TC_LOG_ERROR("ai.world", "AgentPersistence: INSERT for map={} spawn={} did not produce a readable row, agent was not created", mapId, spawnId);
+        return newId;
+    }
+
+    if (newId.Value != spawnId)
+        TC_LOG_ERROR("ai.world", "AgentPersistence: INSERT for map={} spawn={} produced agent id={}, expected id={} (AgentId == SpawnId invariant violated)",
+            mapId, spawnId, newId.Value, spawnId);
 
     return newId;
 }
