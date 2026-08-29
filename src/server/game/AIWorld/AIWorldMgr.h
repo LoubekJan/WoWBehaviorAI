@@ -265,6 +265,14 @@ class TC_GAME_API AIWorldMgr
         // stopped a still-running REGROUP, only that the dissolve itself
         // committed; the triggering member's REGROUP could naturally have
         // already ended on its own before the async dissolve confirmed.
+        // Also self-disables (logs, sets _testDissolveOnActiveRegroupFired)
+        // if the configured group no longer resolves at all (2.12F3 P3 fix,
+        // round 3, STATIC review) - the group can legitimately dissolve
+        // through the normal lifecycle path before this hook ever observes
+        // an active REGROUP, and Initialize()'s own existence check only
+        // ever catches a target already gone at startup, not one that
+        // vanishes later; without this, a vanished target would otherwise
+        // be polled once per coordination pass forever.
         void CheckTestDissolveOnActiveRegroup();
 
         // Milestone 2.12E4C2 P2 fix (STATIC review): one-shot, gated
@@ -1592,7 +1600,12 @@ class TC_GAME_API AIWorldMgr
         // _groupRegistry right after LoadGroups()/LoadGroupMembers() - a
         // configured GroupId that will never exist this process's
         // lifetime must disable the hook outright, not leave it silently
-        // polling forever once per coordination pass. Either way, never
+        // polling forever once per coordination pass. CheckTestDissolveOnActiveRegroup()
+        // itself sets this the same way (2.12F3 P3 fix, round 3, STATIC
+        // review) if the group later stops resolving at all - a group can
+        // legitimately dissolve through the normal lifecycle path before
+        // this hook ever observes an active REGROUP, which the
+        // Initialize()-time existence check above cannot catch. Either way, never
         // fires a second time for the rest of this process's lifetime
         // (even if the group somehow still resolves and still has a
         // member mid-REGROUP for some other reason afterward) - the same

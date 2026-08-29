@@ -5,6 +5,8 @@
 > **Aktualizováno:** 2026-08-29  
 > **Aktivní větev:** `ai-world`
 
+> **⚠️ Tento dokument je detailní implementační historie/log, ne aktuální canonical status.** Od 2.12E2 dál (async-safe lifecycle, Loose/Stable policy, automatic formation/maintenance, 2.12F1–2.12F3) je aktuální authoritative execution stav veden v [`AIWorld_Current_Roadmap.md`](AIWorld_Current_Roadmap.md). Pokud se status kterékoli položky v této sekci liší od `AIWorld_Current_Roadmap.md` (např. build/runtime evidence pro 2.12F3), **platí `AIWorld_Current_Roadmap.md`** — tento dokument zachycuje stav k datu commitu, který jej naposledy aktualizoval, a nemusí odrážet pozdější runtime proof provedený mimo tento log.
+
 ## Stav projektu
 
 **Etapa 1 má splněný runtime gate. Etapa 2 je aktivně rozpracovaná. 2.10 Scheduler/tier foundation je CLOSED/PASS, 2.11 persistentní farmář je CLOSED/PASS a 2.12 pokročila od runtime-ověřeného `AgentGroup` lifecycle (2.12E1 CLOSED/PASS) přes async-safe lifecycle, `Loose`/`Stable` membership policy a deterministickou automatickou wolf coalition formation/maintenance (2.12E2–2.12E4C2 CLOSED) až ke generickému, profile-agnostic group coordination pipeline: sdílený `REGROUP` group intent (2.12F1 CLOSED) a jeho rozklad na individuální `ActionRequest` přes `ActionSystem` (2.12F2 CLOSED) — první staticky prověřené, viditelné group chování ve hře. 2.12F3 přidal one-shot runtime-proof test hook pro dissolve-during-active-REGROUP race; poslední kolo static review je opravené, ale finální potvrzení review a `make build`/runtime evidence pro celý 2.12E2–2.12F3 řetězec zatím chybí.**
@@ -728,7 +730,9 @@ Prošlo šesti koly STATIC review (lifecycle/pending-operation race, cross-group
 
 ### 2.12F3 — runtime-proof test hook
 
-**Stav: implementováno, poslední kolo static review (4× P3) opraveno. Finální potvrzení review a `make build`/runtime evidence zatím chybí.**
+> **Poznámka k historickému logu:** tato podsekce zachycuje stav k poslednímu commitu, který ji aktualizoval. Aktuální authoritative status 2.12F3 (včetně build/runtime evidence) veď v [`AIWorld_Current_Roadmap.md`](AIWorld_Current_Roadmap.md), ne zde — viz banner na začátku tohoto dokumentu.
+
+**Stav v tomto logu: implementováno, tři kola static review opravena (poslední kolo řešilo self-disable latch u zaniklé group a fail-closed config parsing). `make build`/runtime evidence není součástí tohoto detailního logu.**
 
 `AIWorld.TestDissolveGroupId` je startup-only hook a nemůže dokázat dissolve-during-active-REGROUP race — spouští se dřív, než `Update()` vůbec jednou zavolá `RunCoalitionCoordination()`.
 
@@ -736,8 +740,9 @@ Prošlo šesti koly STATIC review (lifecycle/pending-operation race, cross-group
 - [x] žádný direct registry mutation, žádný raw `StopMoveTo()` z hooku, žádné přímé SQL — dissolve i stop jdou přes stejnou produkční cestu jako skutečný dissolve-while-regrouping;
 - [x] check vázaný na `RunCoalitionCoordination()` cadence, ne na každý world tick;
 - [x] fail-closed config parsing (negativní hodnota odmítnuta před castem) + existence validace configured `GroupId` po startup loadu;
-- [x] completion log říká `CONFIRMED` (dissolve committed), ne `PASSED` — nepředstírá důkaz, který sám neposkytuje.
-- [ ] `make build` + skutečné runtime spuštění na Ubuntu/GPU hostu: `REGROUP STARTED → dissolve requested → lifecycle confirmed → REGROUP stopped → restart → group se nevrátí`.
+- [x] completion log říká `CONFIRMED` (dissolve committed), ne `PASSED` — nepředstírá důkaz, který sám neposkytuje;
+- [x] self-disable latch i pro group, která legitimně zanikne lifecycle cestou až po startupu (ne jen při Initialize() existence checku) — hook se nikdy nezacyklí do nekonečného per-pass pollingu mrtvého targetu.
+- [ ] `make build` + skutečné runtime spuštění na Ubuntu/GPU hostu: `REGROUP STARTED → dissolve requested → lifecycle confirmed → REGROUP stopped → restart → group se nevrátí` — viz `AIWorld_Current_Roadmap.md` pro aktuální stav tohoto kroku.
 
 ### Next: 2.12G — další skutečné group chování
 

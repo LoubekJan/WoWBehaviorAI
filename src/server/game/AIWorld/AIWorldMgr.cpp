@@ -1145,7 +1145,26 @@ void AIWorldMgr::CheckTestDissolveOnActiveRegroup()
 {
     AgentGroupRecord const* group = _groupRegistry.Find(_testDissolveOnActiveRegroupGroupId);
     if (!group)
+    {
+        // 2.12F3 P3 fix, round 3 (STATIC review): the group can legitimately
+        // dissolve through the normal lifecycle path before this hook ever
+        // observes an active REGROUP (Initialize()'s own existence check
+        // only ever catches a target that is already gone at startup - it
+        // cannot see one that dissolves later). Without this, a vanished
+        // target would leave _testDissolveOnActiveRegroupFired false
+        // forever, so Update() keeps calling this once per coordination
+        // pass indefinitely - only an O(1) registry lookup once the group
+        // is gone, but still unbounded recurring work, and it contradicts
+        // this hook's own "a target that cannot resolve gets disabled, not
+        // polled forever" contract (see Initialize()'s own existence-check
+        // comment). Logged once, then disabled the same way that startup
+        // check disables it - this hook never gets a second chance to
+        // observe a group that no longer exists.
+        TC_LOG_ERROR("ai.world", "AIWorld.TestDissolveOnActiveRegroupGroupId={} no longer resolves to a registered group, disabling this test hook",
+            _testDissolveOnActiveRegroupGroupId.Value);
+        _testDissolveOnActiveRegroupFired = true;
         return;
+    }
 
     bool anyMemberRegrouping = false;
     AgentId regroupingMember;
