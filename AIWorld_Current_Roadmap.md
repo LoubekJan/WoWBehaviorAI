@@ -387,7 +387,16 @@ Každá reálná mobka/NPC dostane persistentní identitu (memory/relationships/
 
 **Bezpečné pořadí (STATIC review, P2 nálezy proti dřívější verzi tohoto gate):** `ControlMode` schema a jeho hard enforcement musí existovat *před* jakýmkoli bulk bootstrapem, ne až po něm. Dřívější pořadí (nejdřív bootstrapovat všechny `world.creature` do `AgentId`, teprve pak přidat ownership split) by samo vytvořilo přesně ten nebezpečný přechodný stav, který tento gate má odstranit — `AgentRegistry` dnes žádný `ControlMode` koncept nemá a každý načtený persistentní record považuje za běžného agenta. Proto je pořadí A→B→C→D, kde `ControlMode` (A) je prerequisite reconciliace (B), ne naopak.
 
-**Scope: non-instance / base-world spawny (STATIC review P2 fix).** Současná identita používá pouze `(mapId, spawnId) → AgentId` a jeden `RuntimeGuid` na `AgentRecord` — to funguje pro persistentní open-world spawn, ale ne obecně pro instance/raid mapy, kde stejný `(map_id, spawn_id)` může existovat současně jako několik různých `Creature` objektů v různých instancích (runtime na řadě míst už dnes explicitně používá `FindBaseNonInstanceMap(record->MapId)`; event enrichment přiřazuje `AgentId` jen podle `MapId`+`SpawnId`, bez instance identity). Globální registrace instance spawnu by dvě různé incarnace namapovala na stejný `AgentId`/`RuntimeGuid` — sdílená persistent identity, smíchané eventy/memory/provenance, přímý konflikt s invariantem „individual Agent = konkrétní physical entity". **`2.12F4` scope je proto výhradně persistentní non-instance/base-world creature spawny** (`FindBaseNonInstanceMap`-eligible); instance/raid creature zůstávají mimo, dokud nebude samostatně navržená instance-aware identity semantics — to je jiný problém, ne 2.12F4. Rozšiřovat `AgentId` o `InstanceId` v rámci tohoto gate by bylo scope creep.
+**Scope: non-instance / base-world spawny (STATIC review P2 fix).** Současná identita používá pouze `(mapId, spawnId) → AgentId` a jeden `RuntimeGuid` na `AgentRecord` — to funguje pro persistentní open-world spawn, ale ne obecně pro instance/raid mapy, kde stejný `(map_id, spawn_id)` může existovat současně jako několik různých `Creature` objektů v různých instancích (runtime na řadě míst už dnes za live/materializovaného světa používá `FindBaseNonInstanceMap(record->MapId)`; event enrichment přiřazuje `AgentId` jen podle `MapId`+`SpawnId`, bez instance identity). Globální registrace instance spawnu by dvě různé incarnace namapovala na stejný `AgentId`/`RuntimeGuid` — sdílená persistent identity, smíchané eventy/memory/provenance, přímý konflikt s invariantem „individual Agent = konkrétní physical entity". **`2.12F4` scope je proto výhradně persistentní non-instance/base-world creature spawny.** Instance/raid creature zůstávají mimo, dokud nebude samostatně navržená instance-aware identity semantics — to je jiný problém, ne 2.12F4. Rozšiřovat `AgentId` o `InstanceId` v rámci tohoto gate by bylo scope creep.
+
+**Scope predicate ≠ `FindBaseNonInstanceMap()` (STATIC review P3 fix).** `FindBaseNonInstanceMap(mapId)` nejprve volá `FindBaseMap(mapId)`, které vrátí `nullptr`, pokud daná base map ještě v procesu nebyla vytvořena — teprve pokud mapa existuje, kontroluje `Instanceable()`. Je to tedy runtime resolver nad už materializovaným světem, ne autorita pro census/reconciliation: startup reconciliation (`2.12F4B`) nesmí spawn přeskočit jen proto, že `FindBaseNonInstanceMap()` zrovna vrátil `nullptr`, protože ta konkrétní base map ještě nebyla v procesu vytvořená — to by legitimní open-world spawny vynechávalo nedeterministicky, podle toho, které mapy už byly zrovna materializované. Scope predicate pro `2.12F4B` musí být deterministický nad statickými map metadaty, nezávislý na tom, jestli je daná mapa zrovna vytvořená:
+
+```text
+MapEntry existuje
+AND MapEntry::Instanceable() == false
+```
+
+`FindBaseNonInstanceMap()` zůstává tím, čím je dnes — runtime resolver pro live/materializovaný svět (perception, event enrichment, dispatch) — jen se nesmí použít jako scope filtr při `2.12F4B` census/reconciliation.
 
 ## 2.12F4A — ControlMode foundation
 
@@ -477,7 +486,7 @@ Druhý otevřený bod: **`AgentType` provenance.** `CreateCreatureAgent(AgentTyp
 
 Kroky:
 
-- `world.creature` (non-instance/base-world scope, `FindBaseNonInstanceMap`-eligible) je source of truth, žádné fake/synthetic spawny;
+- `world.creature` (non-instance/base-world scope — `MapEntry` existuje a `Instanceable() == false`, ne `FindBaseNonInstanceMap()`, viz Scope predicate výše) je source of truth, žádné fake/synthetic spawny;
 - reconciliation je idempotentní: existující `(map_id, spawn_id) → AgentId` binding se zachová, nový spawn dostane nový `AgentId` (do `ObserveOnly`), restart nevytvoří duplicity;
 - chybějící/odstraněné spawny se detekují a fail-closed karanténují, ne tiše zůstávají v `_registry` jako živý agent;
 - deterministická `AgentType`/provenance politika je rozhodnutá a implementovaná před prvním bulk bootstrapem;
