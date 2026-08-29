@@ -625,6 +625,19 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // why neither may ever default to AIWorldControlled.
     PrepareStatement(CHAR_INS_AI_AGENT, "INSERT INTO ai_agents (agent_type, map_id, spawn_id) VALUES (?, ?, ?)", CONNECTION_SYNCH);
 
+    // Milestone 2.12F4A P2 fix (STATIC review): AgentPersistence::
+    // SetControlMode() - the explicit, startup-only follow-up step
+    // AIWorld.TestSpawnId's own agent-creation path uses to become
+    // AIWorldControlled immediately after CreateCreatureAgent() creates it
+    // at the schema's own ObserveOnly default, so a fresh-DB bootstrap of
+    // that config value ends up AIWorldControlled the same way an upgrade
+    // of an already-existing row for the same (map_id, spawn_id) binding
+    // already does via this migration's own UPDATE. CONNECTION_SYNCH/
+    // DirectExecute(), the same startup-only synchronous pattern
+    // CHAR_INS_AI_AGENT above already uses - never called from the world
+    // update loop.
+    PrepareStatement(CHAR_UPD_AI_AGENT_CONTROL_MODE, "UPDATE ai_agents SET control_mode = ? WHERE agent_id = ?", CONNECTION_SYNCH);
+
     // Milestone 2.11E2: unlike CHAR_SEL_AI_AGENTS/CHAR_INS_AI_AGENT above
     // (startup-only), this is used from the world update thread every time
     // a WORK ActionCompletion reaches Succeeded/Performed - CONNECTION_ASYNC/

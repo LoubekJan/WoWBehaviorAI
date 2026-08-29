@@ -813,10 +813,26 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
                 record.SpawnId = testSpawnId;
                 record.WorldState = AgentWorldState::Abstract;
 
+                // Milestone 2.12F4A P2 fix (STATIC review): AIWorld.TestSpawnId
+                // is the explicitly-chosen AIWorld test agent, and must
+                // become AIWorldControlled the moment it is freshly
+                // created - not silently stay at CreateCreatureAgent()'s
+                // own generic ObserveOnly default (correct for every OTHER
+                // caller, see AgentPersistence::SetControlMode()'s own
+                // comment). Set in-memory AND persisted here, as an
+                // explicit follow-up step, so a fresh-DB bootstrap of this
+                // config value behaves identically to this migration's own
+                // UPDATE upgrading an already-existing row for the same
+                // (map_id, spawn_id) binding - without this, a fresh
+                // install and an upgrade of an existing DB would diverge
+                // for the exact same config.
+                record.ControlMode = AgentControlMode::AIWorldControlled;
+                _persistence.SetControlMode(newId, AgentControlMode::AIWorldControlled);
+
                 if (_registry.Add(record))
                 {
-                    TC_LOG_INFO("ai.world", "AI persistent agent created id={} type={} map={} spawn={}",
-                        newId.Value, ToString(AgentType::Guard), testMapId, testSpawnId);
+                    TC_LOG_INFO("ai.world", "AI persistent agent created id={} type={} map={} spawn={} controlMode={}",
+                        newId.Value, ToString(AgentType::Guard), testMapId, testSpawnId, ToString(record.ControlMode));
                 }
             }
         }
@@ -4929,132 +4945,148 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 // guaranteed set here - DeriveActivity() only ever returns
                 // non-nullopt when activityContext.CurrentRoutineGoal (and
                 // therefore record->RoutineGoalState) was already set above.
-                ActionRequest activityRequest;
-                activityRequest.Actor = id;
-                activityRequest.Type = *derivedActivity == RoutineActivityType::Work ? ActionType::Work : ActionType::Rest;
-                activityRequest.SourceGoal = record->RoutineGoalState->Type;
-                activityRequest.GoalStartedAtMs = activity.StartedAtMs;
-
-                ActionPosition activityDestination;
-                activityDestination.MapId = record->RoutineGoalState->Target.MapId;
-                activityDestination.X = record->RoutineGoalState->Target.X;
-                activityDestination.Y = record->RoutineGoalState->Target.Y;
-                activityDestination.Z = record->RoutineGoalState->Target.Z;
-                activityRequest.Destination = activityDestination;
-
-                TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
-                    record->Id.Value, ToString(activityRequest.Type), ToString(activityRequest.SourceGoal),
-                    activityDestination.X, activityDestination.Y, activityDestination.Z);
-
-                ActionValidationContext activityValidationContext;
-                activityValidationContext.Materialized = activityContext.Materialized;
-                activityValidationContext.Alive = activityContext.Alive;
-                activityValidationContext.ControlMode = record->ControlMode;
-                activityValidationContext.ActiveGoalType = record->RoutineGoalState->Type;
-                activityValidationContext.ActiveGoalStartedAtMs = activity.StartedAtMs;
-                activityValidationContext.MapId = creature->GetMapId();
-                activityValidationContext.X = creature->GetPositionX();
-                activityValidationContext.Y = creature->GetPositionY();
-                activityValidationContext.Z = creature->GetPositionZ();
-                activityValidationContext.HasActiveMovement = activityContext.ActorMoving;
-
-                // 2.11E1 P3 fix: read independently from AgentRecord::
-                // RoutineActivityState (just set above), not echoed from
-                // the request being validated - see
-                // ActionValidationContext::ExpectedRoutineActivity.
-                activityValidationContext.ExpectedRoutineActivity = record->RoutineActivityState->Type;
-                activityValidationContext.RoutineActivityStartedAtMs = record->RoutineActivityState->StartedAtMs;
-
-                ActionValidationResult activityValidation = _actionSystem.Validate(activityRequest, activityValidationContext);
-
-                TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
-                    record->Id.Value, ToString(activityRequest.Type), activityValidation.Allowed ? "ALLOWED" : "REJECTED",
-                    ToString(activityValidation.Reason));
-
-                if (activityValidation.Allowed)
+                // Milestone 2.12F4A P3 fix (STATIC review): ControlMode
+                // early gate (performance/early-rejection - ActionSystem::
+                // Validate() is the actual mandatory safety boundary
+                // regardless, see its own comment) - an ObserveOnly agent's
+                // RoutineActivityState above is still tracked (pure state,
+                // set unconditionally just above this point), but no
+                // WORK/REST ActionRequest is ever built/dispatched for one.
+                // An earlier version of this milestone left this specific
+                // path ungated (routine MOVE_TO dispatch already was) -
+                // ActionSystem::Validate() rejected it correctly either way,
+                // but building/validating/logging a request that can never
+                // be ALLOWED for an ObserveOnly agent is exactly the wasted
+                // work this early gate exists to avoid.
+                if (record->ControlMode == AgentControlMode::AIWorldControlled)
                 {
-                    ActionResult activityResult = *derivedActivity == RoutineActivityType::Work
-                        ? _actionExecutor.ExecuteWork(activityRequest, *creature)
-                        : _actionExecutor.ExecuteRest(activityRequest, *creature);
+                    ActionRequest activityRequest;
+                    activityRequest.Actor = id;
+                    activityRequest.Type = *derivedActivity == RoutineActivityType::Work ? ActionType::Work : ActionType::Rest;
+                    activityRequest.SourceGoal = record->RoutineGoalState->Type;
+                    activityRequest.GoalStartedAtMs = activity.StartedAtMs;
 
-                    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
-                        record->Id.Value, ToString(activityResult.Type), ToString(activityResult.Status), ToString(activityResult.Reason));
+                    ActionPosition activityDestination;
+                    activityDestination.MapId = record->RoutineGoalState->Target.MapId;
+                    activityDestination.X = record->RoutineGoalState->Target.X;
+                    activityDestination.Y = record->RoutineGoalState->Target.Y;
+                    activityDestination.Z = record->RoutineGoalState->Target.Z;
+                    activityRequest.Destination = activityDestination;
 
-                    // 2.11E1 P3 fix: same "no engine completion callback,
-                    // Started treated as immediately done, routed through
-                    // HandleActionCompletion() for consistent logging"
-                    // shape TryEat() already uses for Eat - the 2.11E2
-                    // economy mutation below gates on this Succeeded/
-                    // Performed completion, never on Started alone. No
-                    // ActiveActionState was ever set for this action, so
-                    // HandleActionCompletion()'s own reset() is a harmless
-                    // no-op here.
-                    if (activityResult.Status == ActionExecutionStatus::Started)
+                    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f})",
+                        record->Id.Value, ToString(activityRequest.Type), ToString(activityRequest.SourceGoal),
+                        activityDestination.X, activityDestination.Y, activityDestination.Z);
+
+                    ActionValidationContext activityValidationContext;
+                    activityValidationContext.Materialized = activityContext.Materialized;
+                    activityValidationContext.Alive = activityContext.Alive;
+                    activityValidationContext.ControlMode = record->ControlMode;
+                    activityValidationContext.ActiveGoalType = record->RoutineGoalState->Type;
+                    activityValidationContext.ActiveGoalStartedAtMs = activity.StartedAtMs;
+                    activityValidationContext.MapId = creature->GetMapId();
+                    activityValidationContext.X = creature->GetPositionX();
+                    activityValidationContext.Y = creature->GetPositionY();
+                    activityValidationContext.Z = creature->GetPositionZ();
+                    activityValidationContext.HasActiveMovement = activityContext.ActorMoving;
+
+                    // 2.11E1 P3 fix: read independently from AgentRecord::
+                    // RoutineActivityState (just set above), not echoed from
+                    // the request being validated - see
+                    // ActionValidationContext::ExpectedRoutineActivity.
+                    activityValidationContext.ExpectedRoutineActivity = record->RoutineActivityState->Type;
+                    activityValidationContext.RoutineActivityStartedAtMs = record->RoutineActivityState->StartedAtMs;
+
+                    ActionValidationResult activityValidation = _actionSystem.Validate(activityRequest, activityValidationContext);
+
+                    TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+                        record->Id.Value, ToString(activityRequest.Type), activityValidation.Allowed ? "ALLOWED" : "REJECTED",
+                        ToString(activityValidation.Reason));
+
+                    if (activityValidation.Allowed)
                     {
-                        ActionCompletion activityCompletion;
-                        activityCompletion.Actor = record->Id;
-                        activityCompletion.Type = activityRequest.Type;
-                        activityCompletion.SourceGoal = activityRequest.SourceGoal;
-                        activityCompletion.GoalStartedAtMs = activityRequest.GoalStartedAtMs;
-                        activityCompletion.Status = ActionCompletionStatus::Succeeded;
-                        activityCompletion.Reason = ActionCompletionReason::Performed;
-                        activityCompletion.CompletedAtMs = nowMs;
+                        ActionResult activityResult = *derivedActivity == RoutineActivityType::Work
+                            ? _actionExecutor.ExecuteWork(activityRequest, *creature)
+                            : _actionExecutor.ExecuteRest(activityRequest, *creature);
 
-                        HandleActionCompletion(*record, activityCompletion);
+                        TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+                            record->Id.Value, ToString(activityResult.Type), ToString(activityResult.Status), ToString(activityResult.Reason));
 
-                        // Milestone 2.11E2: the only economy mutation that
-                        // exists yet, and its only gate - Work's own
-                        // Succeeded/Performed completion, applied here and
-                        // nowhere else. REST reaches this same call with
-                        // Type == ActionType::Rest and earns nothing; a
-                        // rejected/failed Work request never reaches this
-                        // block at all (activityResult.Status ==
-                        // ActionExecutionStatus::Started already gates it
-                        // above).
-                        if (activityCompletion.Type == ActionType::Work
-                            && activityCompletion.Status == ActionCompletionStatus::Succeeded
-                            && activityCompletion.Reason == ActionCompletionReason::Performed)
+                        // 2.11E1 P3 fix: same "no engine completion callback,
+                        // Started treated as immediately done, routed through
+                        // HandleActionCompletion() for consistent logging"
+                        // shape TryEat() already uses for Eat - the 2.11E2
+                        // economy mutation below gates on this Succeeded/
+                        // Performed completion, never on Started alone. No
+                        // ActiveActionState was ever set for this action, so
+                        // HandleActionCompletion()'s own reset() is a harmless
+                        // no-op here.
+                        if (activityResult.Status == ActionExecutionStatus::Started)
                         {
-                            // 2.11E2 P2 fix: RoutineActivityState (and this
-                            // whole transition block) is runtime-only,
-                            // cleared on every dematerialize/restart - so
-                            // "this is a fresh WORK attempt" is not by
-                            // itself proof "this work window hasn't been
-                            // paid yet". workWindowId identifies the
-                            // current synthetic work window independent of
-                            // any runtime state: dayStartMs is this
-                            // synthetic day's own start (nowMs with its
-                            // within-day remainder subtracted off, the same
-                            // epoch RoutineSystem::DeriveGoal() already
-                            // uses), offset by WorkStartMs so it changes
-                            // exactly once per day/work-phase, not every
-                            // tick. A rematerialize or restart landing back
-                            // inside the same window recomputes the same
-                            // id and is correctly skipped.
-                            uint64 dayStartMs = nowMs - (nowMs % _routineScheduleConfig.DayLengthMs);
-                            uint64 workWindowId = dayStartMs + _routineScheduleConfig.WorkStartMs;
+                            ActionCompletion activityCompletion;
+                            activityCompletion.Actor = record->Id;
+                            activityCompletion.Type = activityRequest.Type;
+                            activityCompletion.SourceGoal = activityRequest.SourceGoal;
+                            activityCompletion.GoalStartedAtMs = activityRequest.GoalStartedAtMs;
+                            activityCompletion.Status = ActionCompletionStatus::Succeeded;
+                            activityCompletion.Reason = ActionCompletionReason::Performed;
+                            activityCompletion.CompletedAtMs = nowMs;
 
-                            if (record->EconomyState.LastRewardedWorkWindowId != workWindowId)
+                            HandleActionCompletion(*record, activityCompletion);
+
+                            // Milestone 2.11E2: the only economy mutation that
+                            // exists yet, and its only gate - Work's own
+                            // Succeeded/Performed completion, applied here and
+                            // nowhere else. REST reaches this same call with
+                            // Type == ActionType::Rest and earns nothing; a
+                            // rejected/failed Work request never reaches this
+                            // block at all (activityResult.Status ==
+                            // ActionExecutionStatus::Started already gates it
+                            // above).
+                            if (activityCompletion.Type == ActionType::Work
+                                && activityCompletion.Status == ActionCompletionStatus::Succeeded
+                                && activityCompletion.Reason == ActionCompletionReason::Performed)
                             {
-                                uint32 workMoneyReward = _workMoneyReward;
+                                // 2.11E2 P2 fix: RoutineActivityState (and this
+                                // whole transition block) is runtime-only,
+                                // cleared on every dematerialize/restart - so
+                                // "this is a fresh WORK attempt" is not by
+                                // itself proof "this work window hasn't been
+                                // paid yet". workWindowId identifies the
+                                // current synthetic work window independent of
+                                // any runtime state: dayStartMs is this
+                                // synthetic day's own start (nowMs with its
+                                // within-day remainder subtracted off, the same
+                                // epoch RoutineSystem::DeriveGoal() already
+                                // uses), offset by WorkStartMs so it changes
+                                // exactly once per day/work-phase, not every
+                                // tick. A rematerialize or restart landing back
+                                // inside the same window recomputes the same
+                                // id and is correctly skipped.
+                                uint64 dayStartMs = nowMs - (nowMs % _routineScheduleConfig.DayLengthMs);
+                                uint64 workWindowId = dayStartMs + _routineScheduleConfig.WorkStartMs;
 
-                                // Money and the idempotency marker are
-                                // applied together and persisted in the
-                                // same UPDATE - MutateEconomyAndPersist()
-                                // only ever does one SaveEconomyState() call
-                                // per invocation, and that call bumps
-                                // Version unconditionally itself (see
-                                // AgentPersistence::SaveEconomyState()),
-                                // so this site does not need to.
-                                MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId](AgentEconomyState& economy)
+                                if (record->EconomyState.LastRewardedWorkWindowId != workWindowId)
                                 {
-                                    economy.Money += workMoneyReward;
-                                    economy.LastRewardedWorkWindowId = workWindowId;
-                                });
+                                    uint32 workMoneyReward = _workMoneyReward;
 
-                                TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={} workWindowId={} version={}",
-                                    record->Id.Value, record->EconomyState.Money, record->EconomyState.Food,
-                                    record->EconomyState.Resource, workWindowId, record->EconomyState.Version);
+                                    // Money and the idempotency marker are
+                                    // applied together and persisted in the
+                                    // same UPDATE - MutateEconomyAndPersist()
+                                    // only ever does one SaveEconomyState() call
+                                    // per invocation, and that call bumps
+                                    // Version unconditionally itself (see
+                                    // AgentPersistence::SaveEconomyState()),
+                                    // so this site does not need to.
+                                    MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId](AgentEconomyState& economy)
+                                    {
+                                        economy.Money += workMoneyReward;
+                                        economy.LastRewardedWorkWindowId = workWindowId;
+                                    });
+
+                                    TC_LOG_DEBUG("ai.world", "AI economy agent={} money={} food={} resource={} workWindowId={} version={}",
+                                        record->Id.Value, record->EconomyState.Money, record->EconomyState.Food,
+                                        record->EconomyState.Resource, workWindowId, record->EconomyState.Version);
+                                }
                             }
                         }
                     }

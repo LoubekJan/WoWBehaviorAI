@@ -71,6 +71,22 @@ class TC_GAME_API AgentPersistence
         // then no way to know whether the insert actually happened.
         AgentId CreateCreatureAgent(AgentType type, uint32 mapId, uint64 spawnId);
 
+        // Milestone 2.12F4A P2 fix (STATIC review): explicit, synchronous
+        // ControlMode upgrade for a single already-created agent - startup-
+        // only, like CreateCreatureAgent()/LoadAgents() above, never called
+        // from the world update loop. CreateCreatureAgent() itself
+        // deliberately never sets control_mode, always taking the schema's
+        // own ObserveOnly (0) DEFAULT (see CHAR_INS_AI_AGENT's own
+        // comment) - correct for every general caller, but wrong for
+        // AIWorld.TestSpawnId's own "explicitly chosen AIWorld test agent"
+        // fixture, which must become AIWorldControlled the moment it is
+        // freshly created, not silently stay at the generic default. A
+        // caller that legitimately needs a just-created agent to start
+        // AIWorldControlled calls this as its own explicit follow-up step
+        // - never something CreateCreatureAgent() infers from a hint or a
+        // default parameter.
+        void SetControlMode(AgentId id, AgentControlMode mode);
+
         // Milestone 2.11E2: fire-and-forget async UPDATE (CONNECTION_ASYNC/
         // Execute(), never CONNECTION_SYNCH/DirectExecute()) - unlike
         // LoadAgents()/CreateCreatureAgent(), this is meant to be called

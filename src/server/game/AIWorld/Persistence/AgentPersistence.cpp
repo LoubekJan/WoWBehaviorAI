@@ -147,6 +147,21 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
     return newId;
 }
 
+void AgentPersistence::SetControlMode(AgentId id, AgentControlMode mode)
+{
+    // Startup-only, synchronous (CONNECTION_SYNCH/DirectExecute()), the
+    // same pattern CreateCreatureAgent() above already uses - never called
+    // from the world update loop. No read-back needed: unlike
+    // CreateCreatureAgent()'s own AgentId (MySQL-assigned, unknowable
+    // without a query), the caller already knows both id and mode; if the
+    // row does not exist this is a harmless no-op UPDATE matching zero
+    // rows.
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AI_AGENT_CONTROL_MODE);
+    stmt->setUInt8(0, uint8(mode));
+    stmt->setUInt64(1, id.Value);
+    CharacterDatabase.DirectExecute(stmt);
+}
+
 void AgentPersistence::SaveEconomyState(AgentId id, AgentEconomyState& state)
 {
     // 2.11E2 P3 fix: unconditional, first thing, regardless of what the
