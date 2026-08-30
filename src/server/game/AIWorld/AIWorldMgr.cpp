@@ -2036,7 +2036,82 @@ std::unordered_set<uint64> AIWorldMgr::CollectMemberIdsOfKind(AgentGroupKind kin
     return memberIds;
 }
 
-void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
+void AIWorldMgr::RunCoalitionFormationPass(uint32 diff)
+{
+    // Milestone 2.12G1 P2 fix (STATIC review): each profile's own gate/
+    // cadence stays per-profile DATA, advanced here - only the discovery/
+    // dispatch below is shared. Entirely gated on each profile's own
+    // AutoFormation flag (off by default) the same "no cost at all unless
+    // the feature is on" treatment AIWorld.TestGroupPolicy's own one-shot
+    // smoke test gets at Initialize(), just on a recurring cadence here
+    // instead - a disabled profile's timer does not even advance.
+    bool wolfDue = false;
+    if (_wolfGroupAutoFormation)
+    {
+        _wolfGroupFormationTimer += diff;
+        if (_wolfGroupFormationTimer >= _wolfGroupFormationIntervalMs)
+        {
+            _wolfGroupFormationTimer = 0;
+            wolfDue = true;
+        }
+    }
+
+    bool defiasDue = false;
+    if (_defiasGroupAutoFormation)
+    {
+        _defiasGroupFormationTimer += diff;
+        if (_defiasGroupFormationTimer >= _defiasGroupFormationIntervalMs)
+        {
+            _defiasGroupFormationTimer = 0;
+            defiasDue = true;
+        }
+    }
+
+    if (!wolfDue && !defiasDue)
+        return;
+
+    // Milestone 2.12G1 P2 fix (STATIC review): ONE shared candidate
+    // discovery for this whole pass, regardless of how many profiles are
+    // due - not one CollectCoalitionCandidates() call per profile.
+    std::vector<CoalitionCandidate> candidates = CollectCoalitionCandidates();
+
+    std::vector<CoalitionFormationProfile const*> dueProfiles;
+    if (wolfDue)
+        dueProfiles.push_back(&_wolfLooseFormationProfile);
+    if (defiasDue)
+        dueProfiles.push_back(&_defiasLooseFormationProfile);
+
+    // Milestone 2.12G1 P2 fix (STATIC review): fair rotation - flips every
+    // pass regardless of how many profiles are due, so which due profile
+    // is evaluated FIRST (and therefore gets first claim on the shared
+    // _coalitionFormationMaxInFlight budget) alternates instead of always
+    // favoring WolfLoose. Only actually matters when more than one
+    // profile is due in the same pass.
+    _formationPassFavorDefiasFirst = !_formationPassFavorDefiasFirst;
+    if (_formationPassFavorDefiasFirst && dueProfiles.size() > 1)
+        std::reverse(dueProfiles.begin(), dueProfiles.end());
+
+    // Milestone 2.12G1 P2 fix (STATIC review): CollectMemberIdsOfKind()
+    // cached per DISTINCT AgentGroupKind actually needed this pass, not
+    // recomputed per profile that happens to share the same Kind - today
+    // WolfLoose/DefiasLoose are both Loose, so this collapses to exactly
+    // one call for both, not two. Still correct if a future profile of a
+    // different Kind is added: each distinct Kind still gets its own
+    // cached lookup.
+    std::unordered_map<AgentGroupKind, std::unordered_set<uint64>> excludedByKind;
+    for (CoalitionFormationProfile const* profile : dueProfiles)
+    {
+        auto it = excludedByKind.find(profile->Kind);
+        if (it == excludedByKind.end())
+            it = excludedByKind.emplace(profile->Kind, CollectMemberIdsOfKind(profile->Kind)).first;
+
+        RunCoalitionFormation(*profile, candidates, it->second);
+    }
+}
+
+void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile,
+    std::vector<CoalitionCandidate> const& candidates,
+    std::unordered_set<uint64> const& excludedMembers)
 {
     // 2.12E4R P3 fix (STATIC review): fail-closed, not fail-open - see
     // CoalitionFormationProfileId.h for why Invalid exists and why a
@@ -2062,9 +2137,9 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile)
         return;
     }
 
-    std::vector<CoalitionCandidate> candidates = CollectCoalitionCandidates();
-
-    std::unordered_set<uint64> excludedMembers = CollectMemberIdsOfKind(profile.Kind);
+    // Milestone 2.12G1 P2 fix (STATIC review): `candidates`/`excludedMembers`
+    // are the caller's (RunCoalitionFormationPass()'s) own shared discovery
+    // for this pass - see this method's own header comment.
     std::vector<CoalitionCandidate> eligible;
     eligible.reserve(candidates.size());
     for (CoalitionCandidate const& candidate : candidates)
@@ -3659,36 +3734,16 @@ void AIWorldMgr::Update(uint32 diff)
         RunDecisionScheduler();
     }
 
-    // Milestone 2.12E4A/2.12E4B: entirely gated on AIWorld.WolfGroupAutoFormation
-    // (off by default) - the timer itself does not even advance while
-    // disabled, the same "no cost at all unless the feature is on"
-    // treatment AIWorld.TestGroupPolicy's own one-shot smoke test gets at
-    // Initialize(), just on a recurring cadence here instead.
-    if (_wolfGroupAutoFormation)
-    {
-        _wolfGroupFormationTimer += diff;
-        if (_wolfGroupFormationTimer >= _wolfGroupFormationIntervalMs)
-        {
-            _wolfGroupFormationTimer = 0;
-            RunCoalitionFormation(_wolfLooseFormationProfile);
-        }
-    }
-
-    // Milestone 2.12G1: DefiasLoose's own gate/timer, independent of
-    // _wolfGroupAutoFormation/_wolfGroupFormationTimer - each profile's
-    // automatic formation is separately controllable and cadenced, the
-    // same discipline every other AIWorld.* capability gate in this class
-    // already follows. RunCoalitionFormation() itself is unchanged; this
-    // is simply a second call site.
-    if (_defiasGroupAutoFormation)
-    {
-        _defiasGroupFormationTimer += diff;
-        if (_defiasGroupFormationTimer >= _defiasGroupFormationIntervalMs)
-        {
-            _defiasGroupFormationTimer = 0;
-            RunCoalitionFormation(_defiasLooseFormationProfile);
-        }
-    }
+    // Milestone 2.12G1 P2 fix (STATIC review): a single shared call, every
+    // tick, for every registered formation profile - see
+    // RunCoalitionFormationPass()'s own comment for why this replaced two
+    // independent per-profile timer/branch blocks here (duplicated
+    // discovery, deterministic WolfLoose-first bias). Cheap when nothing
+    // is due - the "no cost unless enabled" treatment every other
+    // AIWorld.* capability gate in this class already gets is now
+    // enforced per-profile INSIDE the pass, not by skipping the call
+    // itself.
+    RunCoalitionFormationPass(diff);
 
     // Milestone 2.12E4C2 P2 fix (STATIC review): gated on its OWN
     // AIWorld.CoalitionMaintenance flag, deliberately NOT

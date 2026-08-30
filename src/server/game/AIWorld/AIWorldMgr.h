@@ -627,30 +627,77 @@ class TC_GAME_API AIWorldMgr
         // whole snapshot for one member would be wasted work.
         std::unordered_set<uint64> CollectMemberIdsOfKind(AgentGroupKind kind) const;
 
+        // Milestone 2.12G1 P2 fix (STATIC review): the shared formation
+        // scheduler/pass - called unconditionally, every Update() tick,
+        // for EVERY registered formation profile (today: WolfLoose,
+        // DefiasLoose), the same "one shared discovery pass, then
+        // per-item profile resolution" shape RunCoalitionMaintenance()/
+        // RunCoalitionCoordination() already use. Replaces an earlier
+        // shape (2.12G1's own first version) that gave each profile its
+        // own independent Update() `if (autoFormation) { timer...;
+        // RunCoalitionFormation(profile); }` branch - reviewed and
+        // rejected: RunCoalitionFormation() used to do its own
+        // CollectCoalitionCandidates()/CollectMemberIdsOfKind() every
+        // time it was called, so two profiles due the same pass meant two
+        // full redundant scans of the same registry/group state
+        // (O(profiles x registry) instead of O(registry)), AND the fixed
+        // WolfLoose-then-DefiasLoose branch order gave WolfLoose an
+        // implicit, deterministic first claim on the shared
+        // _coalitionFormationMaxInFlight budget every time both profiles'
+        // matching-default (5000ms, both starting at 0) timers fired on
+        // the same tick.
+        //
+        // Each profile still owns its own enabled flag/cadence as plain
+        // per-profile data (_wolfGroupAutoFormation/
+        // _wolfGroupFormationIntervalMs/_wolfGroupFormationTimer and their
+        // Defias equivalents, advanced here) - that data is what varies
+        // per profile, never the orchestration loop itself. If no
+        // profile's timer is due this call, returns immediately with zero
+        // discovery cost, the same "no cost at all unless something is
+        // due" treatment every other bounded pass in this class already
+        // gets. Otherwise: exactly ONE CollectCoalitionCandidates() call
+        // for every due profile this pass, and CollectMemberIdsOfKind()
+        // cached per DISTINCT AgentGroupKind actually needed this pass
+        // (today WolfLoose/DefiasLoose share Kind::Loose, so this
+        // collapses to one call for both, not two - still correct if a
+        // future profile of a different Kind is added). Which due
+        // profile's RunCoalitionFormation() call happens FIRST alternates
+        // every pass (_formationPassFavorDefiasFirst) - fair rotation
+        // under the shared in-flight budget, not source-order priority.
+        void RunCoalitionFormationPass(uint32 diff);
+
         // Milestone 2.12E4R (generalized from 2.12E4A/B's
-        // RunWolfCoalitionFormation()): AIWorld.WolfGroupFormationIntervalMs-
-        // cadenced pass, only ever called while AIWorld.WolfGroupAutoFormation
-        // is enabled. Refuses profile.Id == Invalid outright (2.12E4R P3
-        // fix, STATIC review - see CoalitionFormationProfileId.h), refuses
-        // if profile.Id is already in _formationInFlight (at most one
-        // attempt in flight PER PROFILE - see its own declaration comment),
-        // and refuses if _formationInFlight.size() has already reached
+        // RunWolfCoalitionFormation()): the per-profile evaluate/dispatch
+        // half of formation - called only from RunCoalitionFormationPass()
+        // above, once per due profile per pass, never called directly
+        // from Update() any more (2.12G1 P2 fix, STATIC review). Refuses
+        // profile.Id == Invalid outright (2.12E4R P3 fix, STATIC review -
+        // see CoalitionFormationProfileId.h), refuses if profile.Id is
+        // already in _formationInFlight (at most one attempt in flight
+        // PER PROFILE - see its own declaration comment), and refuses if
+        // _formationInFlight.size() has already reached
         // _coalitionFormationMaxInFlight (2.12E4R P3 fix, STATIC review:
         // the per-profile bound alone has no ceiling on how many DIFFERENT
         // profiles' formations can all be in flight at once - see
         // _coalitionFormationMaxInFlight's own declaration comment).
         //
-        // Builds this pass's candidate list (CollectCoalitionCandidates()),
-        // excludes every candidate already a CONFIRMED member of a
-        // profile.Kind group (CollectMemberIdsOfKind()) AND every candidate
-        // already RESERVED for a profile.Kind formation still in flight
+        // Milestone 2.12G1 P2 fix (STATIC review): `candidates` and
+        // `excludedMembers` are now the CALLER's own responsibility
+        // (RunCoalitionFormationPass()'s shared discovery for this whole
+        // pass) - this method no longer calls CollectCoalitionCandidates()/
+        // CollectMemberIdsOfKind() itself, so evaluating N due profiles in
+        // the same pass costs one discovery, not N. `excludedMembers` must
+        // already be profile.Kind's own CollectMemberIdsOfKind() result -
+        // every candidate already a CONFIRMED member of a profile.Kind
+        // group is excluded via it, AND every candidate already RESERVED
+        // for a profile.Kind formation still in flight
         // (_formationReservedMembers - 2.12E4R P2 fix, STATIC review, see
         // its own declaration comment for the cross-profile race this
-        // closes), and asks _coalitionFormationSystem.Propose() for a
-        // deterministic CoalitionProposal. No proposal this pass is not an
-        // error - it just means nothing eligible was close enough right
-        // now, and nothing is reserved or added to _formationInFlight for
-        // it.
+        // closes) is excluded here directly - then asks
+        // _coalitionFormationSystem.Propose() for a deterministic
+        // CoalitionProposal. No proposal this pass is not an error - it
+        // just means nothing eligible was close enough right now, and
+        // nothing is reserved or added to _formationInFlight for it.
         //
         // On an actual proposal: reserves every Proposal.Members entry
         // (CoalitionFormationReservationKey{member, profile.Kind}) BEFORE
@@ -666,12 +713,15 @@ class TC_GAME_API AIWorldMgr
         // outcome - a failed CreateGroup here, a fully successful join
         // chain, or a cleaned-up aborted one - never left dangling.
         //
-        // Only one profile exists today (AIWorldMgr's own
-        // _wolfLooseFormationProfile, built once at Initialize()), but
-        // nothing here reads AIWorld.Wolf* config directly - a second
-        // profile is just another CoalitionFormationProfile value and call
-        // site.
-        void RunCoalitionFormation(CoalitionFormationProfile const& profile);
+        // WolfLoose and, since 2.12G1, DefiasLoose both go through this
+        // exact same method - nothing here reads AIWorld.Wolf*/
+        // AIWorld.Defias* config directly, confirming a profile is just a
+        // CoalitionFormationProfile value passed in by
+        // RunCoalitionFormationPass(), never a new orchestration path of
+        // its own.
+        void RunCoalitionFormation(CoalitionFormationProfile const& profile,
+            std::vector<CoalitionCandidate> const& candidates,
+            std::unordered_set<uint64> const& excludedMembers);
 
         // Milestone 2.12E4R (generalized from 2.12E4B's
         // RunWolfCoalitionJoinStep()): joins
@@ -1527,6 +1577,17 @@ class TC_GAME_API AIWorldMgr
         // automatic formation in flight, period" behavior 2.12E4B's own
         // bool _wolfFormationInFlight already gave.
         uint32 _coalitionFormationMaxInFlight = 1;
+
+        // Milestone 2.12G1 P2 fix (STATIC review): flips every
+        // RunCoalitionFormationPass() call, regardless of how many
+        // profiles are actually due that pass - when more than one due
+        // profile is being evaluated in the same pass, this decides which
+        // one RunCoalitionFormation() is called for FIRST, so neither
+        // profile has a fixed, deterministic first claim on the shared
+        // _coalitionFormationMaxInFlight budget purely from source-code
+        // ordering (see RunCoalitionFormationPass()'s own comment for the
+        // concrete starvation this fixes).
+        bool _formationPassFavorDefiasFirst = false;
 
         // Milestone 2.12E4C1/C2: pure decision system - see its own class
         // comment. Stateless, called only from RunCoalitionMaintenance().
