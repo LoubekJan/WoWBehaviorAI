@@ -650,20 +650,48 @@ class TC_GAME_API AIWorldMgr
         // Each profile still owns its own enabled flag/cadence as plain
         // per-profile data (_wolfGroupAutoFormation/
         // _wolfGroupFormationIntervalMs/_wolfGroupFormationTimer and their
-        // Defias equivalents, advanced here) - that data is what varies
-        // per profile, never the orchestration loop itself. If no
-        // profile's timer is due this call, returns immediately with zero
-        // discovery cost, the same "no cost at all unless something is
-        // due" treatment every other bounded pass in this class already
-        // gets. Otherwise: exactly ONE CollectCoalitionCandidates() call
-        // for every due profile this pass, and CollectMemberIdsOfKind()
-        // cached per DISTINCT AgentGroupKind actually needed this pass
-        // (today WolfLoose/DefiasLoose share Kind::Loose, so this
-        // collapses to one call for both, not two - still correct if a
-        // future profile of a different Kind is added). Which due
-        // profile's RunCoalitionFormation() call happens FIRST alternates
-        // every pass (_formationPassFavorDefiasFirst) - fair rotation
-        // under the shared in-flight budget, not source-order priority.
+        // Defias equivalents) - that data is what varies per profile,
+        // never the orchestration loop itself. If no profile's timer is
+        // due this call, returns immediately with zero discovery cost,
+        // the same "no cost at all unless something is due" treatment
+        // every other bounded pass in this class already gets.
+        //
+        // Milestone 2.12G1 P2 fix, round 2 (STATIC review): fairness is
+        // admission-aware, not merely timer-aware - an earlier version of
+        // this method reset every due profile's own timer up front and
+        // flipped _formationPassFavorDefiasFirst unconditionally every
+        // pass, regardless of whether either profile actually got a
+        // formation attempt STARTED. Under the shared
+        // _coalitionFormationMaxInFlight budget (default 1) that let a
+        // long-running async formation saga for one profile keep the
+        // OTHER profile's due timer resetting (and the rotation toggle
+        // flipping) every pass anyway, purely by timing coincidence -
+        // concretely, a profile could be evaluated, found budget-blocked,
+        // have its timer reset regardless, and then never get a real
+        // shot again for as long as the toggle kept landing on the
+        // "wrong" side relative to which pass the budget happened to free
+        // up on. Now:
+        //   - if the shared budget is already fully occupied before any
+        //     due profile is even considered, this returns immediately -
+        //     no discovery, no timer resets, every due profile stays due
+        //     and is reconsidered the very next tick;
+        //   - within the pass, a due profile blocked because an EARLIER
+        //     due profile in the SAME pass just consumed the budget also
+        //     keeps its own timer running (not reset) for the same
+        //     reason;
+        //   - a profile's timer only resets once it is genuinely
+        //     EVALUATED (RunCoalitionFormation() actually called for it);
+        //   - _formationPassFavorDefiasFirst only flips if some profile's
+        //     RunCoalitionFormation() call actually returned true (a real
+        //     attempt started this pass) - never merely because a pass
+        //     ran.
+        // Otherwise unchanged: exactly ONE CollectCoalitionCandidates()
+        // call for every due profile this pass, and
+        // CollectMemberIdsOfKind() cached per DISTINCT AgentGroupKind
+        // actually needed this pass (today WolfLoose/DefiasLoose share
+        // Kind::Loose, so this collapses to one call for both, not two -
+        // still correct if a future profile of a different Kind is
+        // added).
         void RunCoalitionFormationPass(uint32 diff);
 
         // Milestone 2.12E4R (generalized from 2.12E4A/B's
@@ -679,7 +707,12 @@ class TC_GAME_API AIWorldMgr
         // _coalitionFormationMaxInFlight (2.12E4R P3 fix, STATIC review:
         // the per-profile bound alone has no ceiling on how many DIFFERENT
         // profiles' formations can all be in flight at once - see
-        // _coalitionFormationMaxInFlight's own declaration comment).
+        // _coalitionFormationMaxInFlight's own declaration comment;
+        // 2.12G1 P2 fix, round 2, STATIC review: RunCoalitionFormationPass()
+        // already checks this same budget before ever calling here, so
+        // this check should be unreachable in practice - kept as defense
+        // in depth, this method must never itself assume its only caller
+        // is that pass).
         //
         // Milestone 2.12G1 P2 fix (STATIC review): `candidates` and
         // `excludedMembers` are now the CALLER's own responsibility
@@ -713,13 +746,21 @@ class TC_GAME_API AIWorldMgr
         // outcome - a failed CreateGroup here, a fully successful join
         // chain, or a cleaned-up aborted one - never left dangling.
         //
+        // Milestone 2.12G1 P2 fix, round 2 (STATIC review): returns
+        // whether an attempt genuinely STARTED this call (a real proposal
+        // was found and the CreateGroup/Join chain was just submitted) -
+        // false for every refusal/no-proposal outcome above. This is what
+        // RunCoalitionFormationPass() uses to decide whether to reset a
+        // profile's own timer / advance its rotation cursor, never merely
+        // "was this method called".
+        //
         // WolfLoose and, since 2.12G1, DefiasLoose both go through this
         // exact same method - nothing here reads AIWorld.Wolf*/
         // AIWorld.Defias* config directly, confirming a profile is just a
         // CoalitionFormationProfile value passed in by
         // RunCoalitionFormationPass(), never a new orchestration path of
         // its own.
-        void RunCoalitionFormation(CoalitionFormationProfile const& profile,
+        bool RunCoalitionFormation(CoalitionFormationProfile const& profile,
             std::vector<CoalitionCandidate> const& candidates,
             std::unordered_set<uint64> const& excludedMembers);
 

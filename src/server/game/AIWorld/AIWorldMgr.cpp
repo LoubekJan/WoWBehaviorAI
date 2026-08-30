@@ -2045,29 +2045,38 @@ void AIWorldMgr::RunCoalitionFormationPass(uint32 diff)
     // the feature is on" treatment AIWorld.TestGroupPolicy's own one-shot
     // smoke test gets at Initialize(), just on a recurring cadence here
     // instead - a disabled profile's timer does not even advance.
+    //
+    // Milestone 2.12G1 P2 fix, round 2 (STATIC review): a due profile's
+    // own timer is deliberately NOT reset here any more - only once that
+    // specific profile is actually EVALUATED below (see the loop's own
+    // comment for why a profile blocked purely by the shared budget must
+    // stay due rather than silently waiting out a full interval again).
     bool wolfDue = false;
     if (_wolfGroupAutoFormation)
     {
         _wolfGroupFormationTimer += diff;
-        if (_wolfGroupFormationTimer >= _wolfGroupFormationIntervalMs)
-        {
-            _wolfGroupFormationTimer = 0;
-            wolfDue = true;
-        }
+        wolfDue = _wolfGroupFormationTimer >= _wolfGroupFormationIntervalMs;
     }
 
     bool defiasDue = false;
     if (_defiasGroupAutoFormation)
     {
         _defiasGroupFormationTimer += diff;
-        if (_defiasGroupFormationTimer >= _defiasGroupFormationIntervalMs)
-        {
-            _defiasGroupFormationTimer = 0;
-            defiasDue = true;
-        }
+        defiasDue = _defiasGroupFormationTimer >= _defiasGroupFormationIntervalMs;
     }
 
     if (!wolfDue && !defiasDue)
+        return;
+
+    // Milestone 2.12G1 P2 fix, round 2 (STATIC review): if the shared
+    // budget is already fully occupied by an attempt still resolving from
+    // an EARLIER pass, skip discovery entirely - every due profile stays
+    // due (its own timer is untouched above), so it is reconsidered the
+    // very next tick once the budget frees up, instead of waiting out a
+    // full interval again. This also avoids a CollectCoalitionCandidates()/
+    // CollectMemberIdsOfKind() scan whose result could not be used by
+    // anything this pass anyway.
+    if (uint32(_formationInFlight.size()) >= _coalitionFormationMaxInFlight)
         return;
 
     // Milestone 2.12G1 P2 fix (STATIC review): ONE shared candidate
@@ -2075,19 +2084,32 @@ void AIWorldMgr::RunCoalitionFormationPass(uint32 diff)
     // due - not one CollectCoalitionCandidates() call per profile.
     std::vector<CoalitionCandidate> candidates = CollectCoalitionCandidates();
 
-    std::vector<CoalitionFormationProfile const*> dueProfiles;
-    if (wolfDue)
-        dueProfiles.push_back(&_wolfLooseFormationProfile);
-    if (defiasDue)
-        dueProfiles.push_back(&_defiasLooseFormationProfile);
+    struct DueFormationProfile
+    {
+        CoalitionFormationProfile* Profile;
+        uint32* Timer;
+    };
 
-    // Milestone 2.12G1 P2 fix (STATIC review): fair rotation - flips every
-    // pass regardless of how many profiles are due, so which due profile
-    // is evaluated FIRST (and therefore gets first claim on the shared
-    // _coalitionFormationMaxInFlight budget) alternates instead of always
-    // favoring WolfLoose. Only actually matters when more than one
-    // profile is due in the same pass.
-    _formationPassFavorDefiasFirst = !_formationPassFavorDefiasFirst;
+    std::vector<DueFormationProfile> dueProfiles;
+    if (wolfDue)
+        dueProfiles.push_back({ &_wolfLooseFormationProfile, &_wolfGroupFormationTimer });
+    if (defiasDue)
+        dueProfiles.push_back({ &_defiasLooseFormationProfile, &_defiasGroupFormationTimer });
+
+    // Milestone 2.12G1 P2 fix (STATIC review): which due profile is
+    // evaluated FIRST (and therefore gets first claim on the shared
+    // budget) alternates instead of always favoring WolfLoose - only
+    // actually matters when more than one profile is due in the same
+    // pass. Milestone 2.12G1 P2 fix, round 2 (STATIC review): this now
+    // only flips once, at the END of this pass, and only if some profile
+    // actually STARTED an attempt (see below) - flipping unconditionally
+    // every pass (the previous version) meant the toggle could keep
+    // alternating in lockstep with a long-running async formation saga
+    // regardless of who actually held the budget, letting the SAME
+    // profile keep winning admission every time it happened to be
+    // evaluated while the toggle favored it, starving the other one for
+    // as long as that saga (or a string of them) kept the budget
+    // occupied on exactly the "wrong" passes.
     if (_formationPassFavorDefiasFirst && dueProfiles.size() > 1)
         std::reverse(dueProfiles.begin(), dueProfiles.end());
 
@@ -2099,17 +2121,46 @@ void AIWorldMgr::RunCoalitionFormationPass(uint32 diff)
     // different Kind is added: each distinct Kind still gets its own
     // cached lookup.
     std::unordered_map<AgentGroupKind, std::unordered_set<uint64>> excludedByKind;
-    for (CoalitionFormationProfile const* profile : dueProfiles)
-    {
-        auto it = excludedByKind.find(profile->Kind);
-        if (it == excludedByKind.end())
-            it = excludedByKind.emplace(profile->Kind, CollectMemberIdsOfKind(profile->Kind)).first;
 
-        RunCoalitionFormation(*profile, candidates, it->second);
+    bool anyStarted = false;
+    for (DueFormationProfile const& due : dueProfiles)
+    {
+        // Milestone 2.12G1 P2 fix, round 2 (STATIC review): if an EARLIER
+        // profile in this same pass just consumed the shared budget, this
+        // one is blocked for the exact same "unfair, not this profile's
+        // fault" reason as the pass-level pre-check above - stays due
+        // (its own timer is left untouched, NOT reset to 0), so it gets a
+        // fair shot again next tick rather than losing its place for a
+        // full interval.
+        if (uint32(_formationInFlight.size()) >= _coalitionFormationMaxInFlight)
+            continue;
+
+        auto it = excludedByKind.find(due.Profile->Kind);
+        if (it == excludedByKind.end())
+            it = excludedByKind.emplace(due.Profile->Kind, CollectMemberIdsOfKind(due.Profile->Kind)).first;
+
+        // Milestone 2.12G1 P2 fix, round 2 (STATIC review): the timer
+        // resets here, once this profile is genuinely EVALUATED - whether
+        // it actually started an attempt, found nothing eligible to
+        // propose, or was already mid-attempt from a previous pass, all
+        // three are normal per-profile cadence outcomes, not unfair
+        // budget starvation, so the interval legitimately restarts.
+        *due.Timer = 0;
+
+        if (RunCoalitionFormation(*due.Profile, candidates, it->second))
+            anyStarted = true;
     }
+
+    // Milestone 2.12G1 P2 fix, round 2 (STATIC review): only advance the
+    // rotation cursor on genuine admission (see this method's own
+    // declaration comment) - a pass where every due profile was blocked,
+    // already in flight, or found nothing to propose leaves next pass's
+    // priority order exactly as it was.
+    if (anyStarted)
+        _formationPassFavorDefiasFirst = !_formationPassFavorDefiasFirst;
 }
 
-void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile,
+bool AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile,
     std::vector<CoalitionCandidate> const& candidates,
     std::unordered_set<uint64> const& excludedMembers)
 {
@@ -2119,22 +2170,26 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile,
     if (profile.Id == CoalitionFormationProfileId::Invalid)
     {
         TC_LOG_ERROR("ai.world", "AIWorldMgr::RunCoalitionFormation: refusing to run for an Invalid profile id");
-        return;
+        return false;
     }
 
     if (_formationInFlight.count(profile.Id))
-        return;
+        return false;
 
     // 2.12E4R P3 fix (STATIC review): the global ceiling across ALL
     // profiles - see _coalitionFormationMaxInFlight's own declaration
     // comment. Checked after the per-profile check above so a profile
     // already in flight is rejected for that reason, not misreported as
-    // budget-exhausted.
+    // budget-exhausted. Milestone 2.12G1 P2 fix, round 2 (STATIC review):
+    // RunCoalitionFormationPass() above already checks this same budget
+    // before ever calling here, so this should be unreachable in
+    // practice - kept as defense in depth (this method must never itself
+    // assume its only caller is that pass).
     if (uint32(_formationInFlight.size()) >= _coalitionFormationMaxInFlight)
     {
         TC_LOG_DEBUG("ai.world", "AI coalition formation: global in-flight budget ({}) reached, skipping profile={} this pass",
             _coalitionFormationMaxInFlight, ToString(profile.Id));
-        return;
+        return false;
     }
 
     // Milestone 2.12G1 P2 fix (STATIC review): `candidates`/`excludedMembers`
@@ -2161,7 +2216,7 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile,
 
     std::optional<CoalitionProposal> proposal = _coalitionFormationSystem.Propose(eligible, profile);
     if (!proposal)
-        return;
+        return false;
 
     TC_LOG_INFO("ai.world", "AI coalition formation proposal: profile={} kind={} map={} territory=({:.1f}, {:.1f}, {:.1f}) members={}",
         ToString(profile.Id), ToString(proposal->Kind), proposal->TerritoryMapId,
@@ -2208,6 +2263,13 @@ void AIWorldMgr::RunCoalitionFormation(CoalitionFormationProfile const& profile,
 
             RunCoalitionJoinStep(attempt);
         });
+
+    // Milestone 2.12G1 P2 fix, round 2 (STATIC review): true means "an
+    // attempt genuinely started this call" (a real proposal was found and
+    // the CreateGroup/Join chain was just submitted) - this, not merely
+    // having been evaluated, is what RunCoalitionFormationPass() uses to
+    // decide whether to advance its own fairness rotation cursor.
+    return true;
 }
 
 void AIWorldMgr::RunCoalitionJoinStep(CoalitionFormationAttempt attempt)
