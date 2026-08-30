@@ -605,7 +605,7 @@ Runtime gate: se `AIWorld.EnableSpawnReconciliation = 1` a `AIWorld.SpawnReconci
 - odstranit recurring full-registry discovery z world-thread cest (scheduler discovery, world-event perception, nearby perception, needs update, coalition candidate discovery) a nahradit bounded cursory / materialized indexes;
 - práce za tick nesmí být úměrná celkovému počtu creature ve světě, jen počtu skutečně `AIWorldControlled`/decision-eligible agentů.
 
-Runtime gate: s plnou reconciled populací (řádově tisíce `ObserveOnly` agentů) zůstává per-tick world-thread práce measurably bounded, ne lineárně rostoucí s celkovým počtem creature.
+Runtime gate (P3 fix, STATIC review - formulováno bez konkrétního řádu populace, ne "řádově tisíce": reálně naměřený `2.12F4B` full-world experiment má `census=128849`, řádově vyšší než cokoli, co dosud v tomto dokumentu implikovalo "tisíce"; `2.12F4B2`'s Elwynn scoped populace bude řádově menší): recurring world-thread práce musí zůstat bounded a nesmí růst úměrně s celkovou `AgentRegistry` populací - ověřeno nejdřív nad `2.12F4B2`'s Elwynn scoped populací (řádově stovky/tisíce), pak nad eventual full-world datasetem (aktuálně ~128849 persistentních non-instance agentů v tomto TDB) - ne jedno číslo předem odhadnuté.
 
 ## 2.12F4D — Global bootstrap/runtime proof
 
