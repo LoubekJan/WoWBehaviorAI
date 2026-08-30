@@ -1,10 +1,10 @@
 # AIWorld — Current Roadmap
 
-> **Aktualizováno:** 2026-08-29  
+> **Aktualizováno:** 2026-08-30  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `ad19264c74b7046c7557f79e75f8c65a7848c9e4`  
-> **Detailní roadmap sync před tímto commitem:** `76a1a51b6f02170ff17c13ae0e74da544bfd5004`
+> **Aktuální code baseline před tímto docs commitem:** `326e7a7b192f2e6b9557398bc30e5ec3d9245536`  
+> **Detailní roadmap sync před tímto commitem:** `20b31f37ea9e59bcb1d9abaca3ad91a9af036514`
 
 ## Základní invariant
 
@@ -534,16 +534,18 @@ Kroky:
 
 Runtime gate: opakovaný restart nad stejným `world.creature` datasetem nikdy nevytvoří duplicitní `AgentId`, nikdy nevynechá nový spawn přidaný mezi restarty, a smazaný spawn nikdy nezůstane v `_registry` jako platný `AgentRecord`.
 
-**Implementační stav:** engine je hotový (`ad80db5949` + STATIC review fixy `149e400927`, `326e7a7b19`) — census/diff/reconcile, fail-closed `AgentId`/`agent_id` collision handling, instance/out-of-scope rozlišení od skutečně smazaných spawnů, i sám bulk insert (chunked multi-row `INSERT`, ne per-row). Gated za `AIWorld.EnableSpawnReconciliation` (default 0) přesně proto, že `2.12F4C` scale hardening ještě neexistuje — viz `2.12F4B2` níže pro plán, jak se z tohoto default-off stavu dostat k rozhodnutí o rozsahu `2.12F4C`, ne rovnou k unconditional globálnímu zapnutí.
+**Implementační stav:** engine je hotový (`ad80db5949` + STATIC review fixy `149e400927`, `326e7a7b19`) — census/diff/reconcile, fail-closed `AgentId`/`agent_id` collision handling, instance/out-of-scope rozlišení od skutečně smazaných spawnů, i sám bulk insert (chunked multi-row `INSERT`, ne per-row). Gated za `AIWorld.EnableSpawnReconciliation` (default 0).
+
+**Runtime evidence (už naměřeno, ne odhad):** engine byl reálně spuštěn nad celým světem (`AIWorld.EnableSpawnReconciliation = 1`, bez zone scope) a naměřil `census=128849 valid=128849 identity mismatch=0 ObserveOnly=128845 Controlled=4` — identitní invarianty (`AgentId == SpawnId`, no ghosts, no duplicates) tedy drží i při plné světové populaci. Zároveň ale způsobil viditelné runtime zpomalení worldserveru/NPC processing. `2.12F4B2` proto NENÍ "first population proof" — ten už proběhl a byl to global stress experiment, který skončil performance FAIL před `2.12F4C`. `2.12F4B2` je navazující, bounded locality proof nad Elwynn: zjistit, jestli current dev scope (menší, ale reálná populace) funguje bez `2.12F4C`. I kdyby Elwynn proof prošel čistě, `2.12F4C` zůstává povinný krok před jakýmkoli eventual full-world rolloutem — Elwynn úspěch neznamená přeskočit scale hardening, jen dává informaci o tom, jak naléhavý/velký musí být.
 
 ## 2.12F4B2 — Scoped rollout proof (Elwynn, zoneId 12)
 
 **Priorita: až po 2.12F4B, před rozhodnutím o rozsahu 2.12F4C.**
 
-`2.12F4B`'s engine je hotový, ale dosud běžel jen nad čtyřmi test agenty — nikdy nad skutečnou, plnou populací žádné oblasti. Než se rozhodne, jak velký/prioritní musí `2.12F4C` scale hardening skutečně být, potřebujeme reálné, měřené číslo, ne odhad. Cesta:
+Cesta:
 
 ```text
-2.12F4B reconciliation engine (hotovo)
+2.12F4B reconciliation engine (hotovo, runtime evidence: 128849 agentů, performance FAIL)
     ↓
 TrinityCore Zone/Area data preparation
     ↓
@@ -557,16 +559,43 @@ podle výsledku rozhodnout rozsah 2.12F4C
 **Zone/Area data preparation.** `creature.zoneId`/`areaId` existují jako sloupce ve world DB schema, ale `ObjectMgr::LoadCreatures()` je nenačítá do `CreatureData` a jsou populované jen pokud na dané DB někdy proběhl `Calculate.Creature.Zone.Area.Data = 1` (TrinityCore core config, ne AIWorld). Bez populovaných sloupců je jediná cesta k zone/area `Map::GetZoneAndAreaId()`, která vyžaduje live `Map*` (`sMapMgr->CreateBaseMap()`) a čte terrain/vmap data z disku — to by do census pipeline poprvé zavedlo přesně tu závislost (live `Map*`, per-spawn I/O), které se `CreatureSpawnCensus` dosud důsledně vyhýbal. Proto:
 
 - scoped census čte `creature.zoneId` přímo přes vlastní úzký `WorldDatabase` SELECT (`SELECT guid FROM creature WHERE zoneId = ?`), nikdy nepočítá zone/area za běhu přes `Map::GetZoneAndAreaId()`;
-- precondition: `creature.zoneId` musí být na cílové DB předem populovaný (operátor spustí `Calculate.Creature.Zone.Area.Data = 1` jednou, mimo AIWorld, pokud ještě není) — pokud není, scoped varianta vrátí prázdnou množinu (fail-safe: nevytvoří nic špatně naškálovaného, jen nic nenajde), nikdy tiše špatný výsledek.
+- **precondition není jen "je populovaný", ale "je aktuálně přepočítaný pro současný stav `world.creature`" (P2 fix, STATIC review):** `Calculate.Creature.Zone.Area.Data = 1` dopočítá `zoneId`/`areaId` jen pro spawny, které `ObjectMgr::LoadCreatures()` právě načítá při daném běhu s daným configem - novější `world.creature` řádek přidaný PO posledním takovém běhu bude mít `zoneId = 0`, a `WHERE zoneId = 12` ho tiše vynechá. Výsledek pak není prázdný (což by bylo bezpečně nápadné), ale částečný a zdánlivě validní - to je horší než žádný výsledek. Administrativní pravidlo pro `2.12F4B2` test: bezprostředně před testem jednorázově spustit `Calculate.Creature.Zone.Area.Data = 1`, restartovat, ověřit v DB že cílové `world.creature` řádky mají nenulový `zoneId`, teprve pak spustit scoped reconciliation - a `Calculate.Creature.Zone.Area.Data` po testu zase vypnout (není to AIWorld config, nemá důvod zůstat trvale zapnutý kvůli tomuto testu).
 
 Kroky:
 
-- nová config hodnota `AIWorld.SpawnReconciliationZoneId` (default `0` = beze scope, dnešní globální chování beze změny; nenulová hodnota = census omezený jen na tento `zoneId`), skládá se s existujícím `AIWorld.EnableSpawnReconciliation`;
+- nová config hodnota `AIWorld.SpawnReconciliationZoneId` (default `0`), skládá se s existujícím `AIWorld.EnableSpawnReconciliation` - **fail-closed kombinace (P2 fix, STATIC review), ne implicitní fallback na global**:
+
+  ```text
+  EnableSpawnReconciliation = 0
+      → OFF, žádná reconciliation (dnešní stav)
+
+  EnableSpawnReconciliation = 1
+  SpawnReconciliationZoneId = nenulová hodnota
+      → scoped reconciliation jen nad tímto zoneId
+
+  EnableSpawnReconciliation = 1
+  SpawnReconciliationZoneId = 0 / neuvedeno
+      → REFUSE: log ERROR, reconciliation se vůbec nespustí
+  ```
+
+  Důvod: než `2.12F4C` scale hardening existuje, nesmí být "zapomenout nastavit ZoneId" dost na to, aby se znovu spustila plná globální reconciliation (~128849 agentů) - přesně ten běh, který už reálně způsobil runtime zpomalení. Globální (`ZoneId = 0` jako explicitní "žádný scope") režim dostane samostatný, explicitní override (např. `AIWorld.SpawnReconciliationAllowGlobal`), zavedený až spolu s `2.12F4C` nebo `2.12F4D`, ne jako tichý default cesta dnešního přepínače;
 - scoped census: eligible množina (`BuildCreatureSpawnCensus()`) se před předáním do `BuildReconciliationPlan()` protne s množinou guidů z `WHERE zoneId = ?`;
 - `allKnownSpawnIds` (`BuildAllKnownCreatureSpawnIds()`) zůstává **neomezená** (žádný zone filtr) — existující `OutOfScopeCount` mechanismus (viz `2.12F4B` P2 fix `326e7a7b19`) tak správně pokryje i "existuje, ale mimo dnešní zone scope" bez jakékoli změny `BuildReconciliationPlan()`'s vlastní logiky: mimo-Elwynn agent nikdy neskončí jako `Orphaned`;
 - žádná změna `ControlMode` chování — nové Elwynn agenty vznikají stejně jako dnes, `ObserveOnly`.
 
-Runtime gate: se `AIWorld.EnableSpawnReconciliation = 1` a `AIWorld.SpawnReconciliationZoneId = 12` vytvoří reconciliation přesně tolik nových `AgentRecord`ů, kolik odpovídá skutečné Elwynn creature populaci (ověřeno `SELECT COUNT(*) FROM ai_agents`), žádný mimo-Elwynn spawn se nedotkne, vanilla/scripted AI beze změny, a naměřený per-tick world-thread dopad (i nad tímto menším, ale reálným počtem agentů) je vstup pro rozhodnutí o skutečném rozsahu/prioritě `2.12F4C` — ne odhad nad celým světem předem.
+**Acceptance nesmí být `SELECT COUNT(*) FROM ai_agents` (P2 fix, STATIC review):** `ai_agents` legitimně obsahuje i historické 4 controlled agenty, mimo-Elwynn agenty, out-of-scope řádky a quarantined řádky (reconciliation je fyzicky nemaže) - celkový počet tedy obecně `≠` počet Elwynn agentů. Acceptance musí porovnávat identity sety, ne agregovaný počet:
+
+```text
+A = eligible world.creature se zoneId = 12 (podle stejného predikátu jako scoped census)
+B = odpovídající ai_agents řádky (AgentId == SpawnId, MapId shoduje)
+
+A - B = 0
+a žádný NOVĚ vytvořený ai_agents řádek nepatří mimo A
+```
+
+Prakticky: uložit baseline `ai_agents` (nebo alespoň jeho identity set) před testem, po reconciliation spočítat deltu a tu porovnat proti `A`, ne spoléhat na jedno absolutní `COUNT(*)` číslo.
+
+Runtime gate: se `AIWorld.EnableSpawnReconciliation = 1` a `AIWorld.SpawnReconciliationZoneId = 12` vytvoří reconciliation právě množinu `A` (viz acceptance výše) jako nové `AgentRecord`y, žádný mimo-Elwynn spawn se nedotkne, vanilla/scripted AI beze změny, a naměřený per-tick world-thread dopad nad touto menší, ale reálnou populací je vstup pro rozhodnutí o skutečném rozsahu/prioritě `2.12F4C` - `2.12F4C` samo zůstává povinné před jakýmkoli budoucím full-world rolloutem bez ohledu na výsledek Elwynn testu.
 
 ## 2.12F4C — bounded/indexed runtime at world scale
 
@@ -954,7 +983,9 @@ missing spawn → CREATE (ObserveOnly); deleted spawn → fail-closed/quarantine
     ↓
 existing vanilla/scripted AI unaffected for ObserveOnly
     ↓
-scoped rollout proof over real Elwynn (zoneId=12) population, not synthetic/guessed scale (2.12F4B2)
+measured global run: 128849 agents, identity invariants hold, but world-thread performance FAIL
+    ↓
+scoped rollout proof over real Elwynn (zoneId=12) population only, fail-closed if ZoneId unset (2.12F4B2)
     ↓
 measured Elwynn runtime cost decides 2.12F4C's real scope/priority
     ↓
