@@ -33,9 +33,13 @@
 // CreatureSpawnCensus.h's own comment). See AIWorld_Current_Roadmap.md's
 // own "2.12F4B2" section for the precondition this depends on:
 // creature.zoneId must be freshly recalculated (Calculate.Creature.Zone.
-// Area.Data run once) for the CURRENT world.creature state - a stale or
-// never-recalculated row simply reads as zoneId = 0 and is excluded, not
-// mistaken for a real match.
+// Area.Data run once) for the CURRENT world.creature state (P3 fix,
+// STATIC review - a never-recalculated/new row commonly reads as
+// zoneId = 0 and is excluded, but a STALE row (calculated once, then the
+// spawn moved/was re-scoped without a fresh recalculation) may still
+// carry an old, nonzero zoneId and be silently mismatched into the wrong
+// zone's result - "reads as 0" only covers one of the two failure modes
+// this precondition guards against).
 TC_GAME_API std::unordered_set<uint64> FetchCreatureSpawnIdsForZone(uint32 zoneId);
 
 #endif // AIWORLD_CREATURESPAWNZONEFILTER_H

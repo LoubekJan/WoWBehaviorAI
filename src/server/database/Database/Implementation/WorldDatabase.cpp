@@ -97,9 +97,13 @@ void WorldDatabaseConnection::DoPrepareStatements()
     // (FetchCreatureSpawnIdsForZone(), AIWorld/Reconciliation/
     // CreatureSpawnZoneFilter.cpp) - reads the column WORLD_UPD_CREATURE_
     // ZONE_AREA_DATA above writes, never computes zone/area itself
-    // (Map::GetZoneAndAreaId() would need a live Map*/vmap data). A stale
-    // or never-recalculated zoneId (0) simply excludes that row, rather
-    // than being mistaken for a real zone 0 spawn.
+    // (Map::GetZoneAndAreaId() would need a live Map*/vmap data). P3 fix
+    // (STATIC review): a never-recalculated/new row commonly reads as
+    // zoneId = 0 and is excluded, but a STALE row (calculated once, then
+    // moved/re-scoped without a fresh recalculation) may still carry an
+    // old, nonzero zoneId - freshly recalculating for the CURRENT
+    // creature table state is the actual precondition, not just "zoneId
+    // is populated".
     PrepareStatement(WORLD_SEL_CREATURE_GUIDS_BY_ZONE, "SELECT guid FROM creature WHERE zoneId = ?", CONNECTION_SYNCH);
     PrepareStatement(WORLD_DEL_SPAWNGROUP_MEMBER, "DELETE FROM spawn_group WHERE spawnType = ? AND spawnId = ?", CONNECTION_ASYNC);
     PrepareStatement(WORLD_DEL_GAMEOBJECT_ADDON, "DELETE FROM gameobject_addon WHERE guid = ?", CONNECTION_ASYNC);
