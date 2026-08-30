@@ -798,6 +798,32 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     else
         TC_LOG_INFO("ai.world", "AI spawn reconciliation disabled (AIWorld.EnableSpawnReconciliation = 0)");
 
+    // Milestone 2.12F4B3: gated behind AIWorld.EnableZoneControlActivation
+    // (default false), fail-closed combined with AIWorld.ControlZoneId the
+    // same way AIWorld.EnableSpawnReconciliation/AIWorld.SpawnReconciliationZoneId
+    // above are - there is no unscoped/global promotion code path.
+    // Deliberately independent of whether AIWorld.EnableSpawnReconciliation
+    // just ran THIS startup: RunZoneControlActivation() recomputes its own
+    // scoped census/promotion set fresh from the currently-loaded
+    // _registry (already rebuilt from ai_agents by LoadAgents() above,
+    // regardless of whether reconciliation ran again this run) and from
+    // world.creature, so it is safe to run on a later restart against a
+    // population that was reconciled in a previous one.
+    bool enableZoneControlActivation = sConfigMgr->GetBoolDefault("AIWorld.EnableZoneControlActivation", false);
+    if (enableZoneControlActivation)
+    {
+        int32 controlZoneIdRaw = sConfigMgr->GetIntDefault("AIWorld.ControlZoneId", 0);
+        if (controlZoneIdRaw <= 0)
+        {
+            TC_LOG_ERROR("ai.world", "AIWorld.EnableZoneControlActivation is set but AIWorld.ControlZoneId ({}) is not a positive zoneId - refusing to run control activation (an unscoped/global promotion is not permitted)",
+                controlZoneIdRaw);
+        }
+        else
+            RunZoneControlActivation(uint32(controlZoneIdRaw));
+    }
+    else
+        TC_LOG_INFO("ai.world", "AI zone control activation disabled (AIWorld.EnableZoneControlActivation = 0)");
+
     // Milestone 2.12E1 P2 fix (STATIC review, round 2): the persistent
     // GroupId allocator - see AgentGroupPersistence::LoadGroupIdSequence()
     // and ai_agent_group_id_sequence's own migration comment for why this
@@ -2769,6 +2795,66 @@ void AIWorldMgr::RunSpawnReconciliation(uint32 zoneId)
     TC_LOG_INFO("ai.world", "AI spawn reconciliation: zoneScope={} rawZoneSpawns={} census={} valid={} missing={} created={} orphaned={} conflicted={} quarantined={} outOfScope={} agentIdCollisions={}",
         zoneId, zoneSpawnIds.size(), census.size(), plan.ValidCount, plan.Missing.size(), addedCount, plan.Orphaned.size(), plan.Conflicted.size(),
         plan.QuarantinedCount, plan.OutOfScopeCount, plan.AgentIdCollisions.size());
+}
+
+void AIWorldMgr::RunZoneControlActivation(uint32 zoneId)
+{
+    // Milestone 2.12F4B3: recomputes the same scoped identity set
+    // RunSpawnReconciliation() itself would for this zoneId, independent
+    // of whether reconciliation ran this same startup - see this
+    // method's own header comment.
+    std::vector<CreatureSpawnIdentity> fullCensus = BuildCreatureSpawnCensus();
+    std::unordered_set<uint64> zoneSpawnIds = FetchCreatureSpawnIdsForZone(zoneId);
+
+    std::vector<AgentId> candidates;
+    uint32 scopedEligibleCount = 0;
+    uint32 alreadyControlled = 0;
+    uint32 notYetReconciled = 0;
+    for (CreatureSpawnIdentity const& identity : fullCensus)
+    {
+        if (zoneSpawnIds.find(identity.SpawnId) == zoneSpawnIds.end())
+            continue;
+
+        ++scopedEligibleCount;
+
+        // AgentId == SpawnId is already guaranteed for anything
+        // AgentRegistry holds (LoadAgents()/reconciliation both fail
+        // closed on a mismatch before adding), so looking up by
+        // AgentId{identity.SpawnId} is exactly "does this scoped-eligible
+        // spawn already have a real AgentRecord". The MapId re-check is
+        // defensive: if 2.12F4B2 reconciliation has not run THIS startup,
+        // a Conflicted row (real spawn, wrong stored MapId) could still
+        // be sitting in _registry unquarantined - never promote that.
+        AgentRecord* record = _registry.Find(AgentId{ identity.SpawnId });
+        if (!record || record->MapId != identity.MapId)
+        {
+            ++notYetReconciled;
+            continue;
+        }
+
+        if (record->ControlMode == AgentControlMode::AIWorldControlled)
+        {
+            ++alreadyControlled;
+            continue;
+        }
+
+        candidates.push_back(record->Id);
+    }
+
+    // Only entries PromoteControlModeBatch() itself confirms via read-back
+    // are reflected here - never optimistically mark a candidate promoted
+    // just because it was requested. Unconfirmed candidates simply remain
+    // ObserveOnly and can be retried by a later run of this same method.
+    std::vector<AgentId> promoted = _persistence.PromoteControlModeBatch(candidates);
+    for (AgentId const& id : promoted)
+    {
+        AgentRecord* record = _registry.Find(id);
+        if (record)
+            record->ControlMode = AgentControlMode::AIWorldControlled;
+    }
+
+    TC_LOG_INFO("ai.world", "AI zone control activation: zone={} rawZoneSpawns={} eligible={} alreadyControlled={} notYetReconciled={} candidates={} promoted={}",
+        zoneId, zoneSpawnIds.size(), scopedEligibleCount, alreadyControlled, notYetReconciled, candidates.size(), promoted.size());
 }
 
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const

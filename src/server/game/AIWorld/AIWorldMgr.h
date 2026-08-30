@@ -553,6 +553,35 @@ class TC_GAME_API AIWorldMgr
         // 2.12F4B "Runtime evidence" note).
         void RunSpawnReconciliation(uint32 zoneId);
 
+        // Milestone 2.12F4B3: promotes every scoped-eligible agent in
+        // `zoneId` from ObserveOnly to AIWorldControlled - gated behind
+        // AIWorld.EnableZoneControlActivation/AIWorld.ControlZoneId (see
+        // Initialize()'s own comment for the fail-closed combination,
+        // mirroring 2.12F4B2's AIWorld.EnableSpawnReconciliation/
+        // AIWorld.SpawnReconciliationZoneId gating - only ever called with
+        // an already-validated, nonzero zoneId, no unscoped/global code
+        // path). Recomputes its own scoped identity set exactly the same
+        // way RunSpawnReconciliation() does (BuildCreatureSpawnCensus()
+        // intersected with FetchCreatureSpawnIdsForZone(zoneId)) rather
+        // than reusing any state 2.12F4B2 may have left behind - safe to
+        // run on a restart where reconciliation did not just run, since
+        // _registry is always freshly rebuilt from ai_agents by
+        // LoadAgents() regardless. For each scoped-eligible identity with
+        // an existing, matching AgentRecord (AgentId == SpawnId already
+        // guaranteed by AgentRegistry; MapId re-checked defensively here
+        // in case this runs without 2.12F4B2 having just quarantined a
+        // Conflicted row out of _registry this same startup) that is not
+        // already AIWorldControlled, promotes via one batched
+        // AgentPersistence::PromoteControlModeBatch() call - never a
+        // per-agent SetControlMode() loop over a zone-sized population.
+        // Only entries PromoteControlModeBatch() itself confirms via
+        // read-back are reflected into AgentRecord::ControlMode in memory;
+        // this never optimistically assumes an unconfirmed write landed.
+        // A scoped-eligible spawn with no existing AgentRecord yet (2.12F4B2
+        // reconciliation hasn't created it) is skipped, not created here -
+        // this method only ever promotes, never mints new identity.
+        void RunZoneControlActivation(uint32 zoneId);
+
         // Milestone 2.12E4R (generalized from 2.12E4A's
         // CollectWolfCoalitionCandidates()): builds the value-only
         // candidate list CoalitionFormationSystem::Propose() needs - one

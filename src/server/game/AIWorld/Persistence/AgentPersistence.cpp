@@ -21,6 +21,7 @@
 #include "DatabaseEnv.h"
 #include "Log.h"
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 uint32 AgentPersistence::LoadAgents(AgentRegistry& registry)
@@ -204,13 +205,16 @@ AgentId AgentPersistence::CreateCreatureAgent(AgentType type, uint32 mapId, uint
 
 namespace
 {
-    // Milestone 2.12F4B P2 fix (STATIC review): rows per multi-row INSERT
-    // statement - bounded well under MySQL's default max_allowed_packet
-    // (4MB+) even for the widest realistic row ("(18446744073709551615,
-    // 255,4294967295,18446744073709551615)," is ~50 bytes; 1000 rows is
-    // ~50KB), while still turning a bulk bootstrap of thousands of agents
-    // into a small, bounded number of statements instead of one per row.
-    constexpr std::size_t AgentPersistenceBatchInsertChunkSize = 1000;
+    // Milestone 2.12F4B P2 fix (STATIC review): rows/ids per batched raw
+    // SQL statement (multi-row INSERT, or an UPDATE ... WHERE id IN (...)
+    // - see CreateCreatureAgentsBatch()/PromoteControlModeBatch()) -
+    // bounded well under MySQL's default max_allowed_packet (4MB+) even
+    // for the widest realistic row ("(18446744073709551615,255,
+    // 4294967295,18446744073709551615)," is ~50 bytes; 1000 rows is
+    // ~50KB), while still turning a bulk operation over thousands of
+    // agents into a small, bounded number of statements instead of one
+    // per row/id.
+    constexpr std::size_t AgentPersistenceBatchChunkSize = 1000;
 }
 
 std::vector<PendingCreatureAgent> AgentPersistence::CreateCreatureAgentsBatch(std::vector<PendingCreatureAgent> const& pending)
@@ -220,7 +224,7 @@ std::vector<PendingCreatureAgent> AgentPersistence::CreateCreatureAgentsBatch(st
         return confirmed;
 
     // Milestone 2.12F4B P2 fix (STATIC review): a genuine multi-row INSERT
-    // ... VALUES (...),(...),... , chunked to AgentPersistenceBatchInsertChunkSize
+    // ... VALUES (...),(...),... , chunked to AgentPersistenceBatchChunkSize
     // rows per statement - see this method's own header comment for why a
     // CharacterDatabaseTransaction of N single-row PreparedStatements
     // (the previous shape here) does NOT avoid N separate statement
@@ -230,9 +234,9 @@ std::vector<PendingCreatureAgent> AgentPersistence::CreateCreatureAgentsBatch(st
     // the header comment for why building raw SQL text is safe here.
     // agent_id is bound explicitly to spawnId, the same as
     // CreateCreatureAgent()'s own single-row INSERT above.
-    for (std::size_t offset = 0; offset < pending.size(); offset += AgentPersistenceBatchInsertChunkSize)
+    for (std::size_t offset = 0; offset < pending.size(); offset += AgentPersistenceBatchChunkSize)
     {
-        std::size_t chunkEnd = offset + AgentPersistenceBatchInsertChunkSize;
+        std::size_t chunkEnd = offset + AgentPersistenceBatchChunkSize;
         if (chunkEnd > pending.size())
             chunkEnd = pending.size();
 
@@ -306,6 +310,83 @@ std::vector<AgentSpawnBinding> AgentPersistence::LoadAllBindings()
     } while (result->NextRow());
 
     return bindings;
+}
+
+std::vector<AgentId> AgentPersistence::PromoteControlModeBatch(std::vector<AgentId> const& ids)
+{
+    std::vector<AgentId> promoted;
+    if (ids.empty())
+        return promoted;
+
+    // Milestone 2.12F4B3: chunked "UPDATE ai_agents SET control_mode = 1
+    // WHERE agent_id IN (...)" raw SQL, the same reasoning as
+    // CreateCreatureAgentsBatch()'s own multi-row INSERT - SetControlMode()
+    // above does one UPDATE + one read-back round trip per call, exactly
+    // the per-id loop this method exists to avoid for a zone-sized
+    // promotion set. Every interpolated id is a plain unsigned integer
+    // from AgentId::Value, never an untrusted string.
+    for (std::size_t offset = 0; offset < ids.size(); offset += AgentPersistenceBatchChunkSize)
+    {
+        std::size_t chunkEnd = offset + AgentPersistenceBatchChunkSize;
+        if (chunkEnd > ids.size())
+            chunkEnd = ids.size();
+
+        std::string sql = "UPDATE ai_agents SET control_mode = ";
+        sql += std::to_string(uint32(uint8(AgentControlMode::AIWorldControlled)));
+        sql += " WHERE agent_id IN (";
+        for (std::size_t i = offset; i < chunkEnd; ++i)
+        {
+            if (i != offset)
+                sql += ',';
+            sql += std::to_string(ids[i].Value);
+        }
+        sql += ')';
+
+        CharacterDatabase.DirectExecute(sql.c_str());
+    }
+
+    // DirectExecute() reports no success/failure - confirm with exactly
+    // one bulk read (LoadAllControlModes(), the whole table, not one per
+    // id/chunk), then only report back the subset actually confirmed
+    // AIWorldControlled. Fail closed: anything not confirmed is simply
+    // not in the returned list, so the caller must not mark it promoted
+    // in memory - it keeps whatever ControlMode it already had.
+    std::unordered_map<uint64, AgentControlMode> controlModes = LoadAllControlModes();
+    promoted.reserve(ids.size());
+    for (AgentId const& id : ids)
+    {
+        auto it = controlModes.find(id.Value);
+        if (it != controlModes.end() && it->second == AgentControlMode::AIWorldControlled)
+            promoted.push_back(id);
+        else
+            TC_LOG_ERROR("ai.world", "AgentPersistence: batch ControlMode promotion for agent id={} was not confirmed by read-back", id.Value);
+    }
+
+    return promoted;
+}
+
+std::unordered_map<uint64, AgentControlMode> AgentPersistence::LoadAllControlModes()
+{
+    std::unordered_map<uint64, AgentControlMode> controlModes;
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_AI_AGENT_CONTROL_MODES);
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+        return controlModes;
+
+    controlModes.reserve(result->GetRowCount());
+    do
+    {
+        Field* fields = result->Fetch();
+
+        uint64 agentId = fields[0].GetUInt64();
+        AgentControlMode mode = fields[1].GetUInt8() == uint8(AgentControlMode::AIWorldControlled)
+            ? AgentControlMode::AIWorldControlled
+            : AgentControlMode::ObserveOnly;
+        controlModes.emplace(agentId, mode);
+    } while (result->NextRow());
+
+    return controlModes;
 }
 
 bool AgentPersistence::SetControlMode(AgentId id, AgentControlMode mode)

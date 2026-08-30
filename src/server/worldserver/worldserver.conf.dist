@@ -3453,6 +3453,40 @@ AIWorld.EnableSpawnReconciliation = 0
 AIWorld.SpawnReconciliationZoneId = 0
 
 #
+#    AIWorld.EnableZoneControlActivation
+#        Description: Milestone 2.12F4B3 - when enabled, promotes every scoped-eligible
+#                     ObserveOnly AgentRecord in AIWorld.ControlZoneId to AIWorldControlled
+#                     (AIWorldMgr::RunZoneControlActivation()). Only agents that already have a
+#                     real AgentRecord for a scoped-eligible spawn are promoted (2.12F4B2
+#                     reconciliation must have already created them - this never mints new
+#                     identity); recomputes its own scoped set the same way
+#                     AIWorld.EnableSpawnReconciliation does, so it is safe to run on a restart
+#                     where reconciliation did not run again this same startup. REQUIRES
+#                     AIWorld.ControlZoneId to also be set to a positive zoneId - an unscoped/
+#                     global promotion is refused (logged, not run), the same fail-closed
+#                     discipline AIWorld.EnableSpawnReconciliation/AIWorld.SpawnReconciliationZoneId
+#                     already use.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled, requires AIWorld.ControlZoneId > 0)
+
+AIWorld.EnableZoneControlActivation = 0
+
+#
+#    AIWorld.ControlZoneId
+#        Description: Milestone 2.12F4B3 - the zoneId AIWorld.EnableZoneControlActivation's own
+#                     promotion run is scoped to (e.g. 12 for Elwynn Forest). Promotion is batched
+#                     (AgentPersistence::PromoteControlModeBatch(), one chunked raw UPDATE ...
+#                     WHERE agent_id IN (...) plus one bulk read-back confirmation) rather than one
+#                     UPDATE per agent, the same reasoning AIWorld.EnableSpawnReconciliation's own
+#                     batch INSERT already applies. 0 (or unset) makes
+#                     AIWorld.EnableZoneControlActivation refuse to run at all - see its own
+#                     Description for why.
+#        Default:     0 - (No scope configured; combined with AIWorld.EnableZoneControlActivation = 1
+#                          this refuses to run)
+
+AIWorld.ControlZoneId = 0
+
+#
 #    AIWorld.DecisionSchedulerIntervalMs
 #        Description: Time (in milliseconds) between decision scheduler passes - how often
 #                     AIWorldMgr looks for agents due for a new decision, not the decision

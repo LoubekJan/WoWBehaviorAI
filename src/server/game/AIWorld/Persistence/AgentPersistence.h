@@ -24,6 +24,7 @@
 #include "Agent/AgentType.h"
 #include "Agent/PendingCreatureAgent.h"
 #include "Define.h"
+#include <unordered_map>
 #include <vector>
 
 class AgentRegistry;
@@ -61,8 +62,9 @@ class AgentRegistry;
 // its spawn_id.
 //
 // Synchronous by design: LoadAgents(), CreateCreatureAgent(),
-// CreateCreatureAgentsBatch()/LoadAllBindings() (2.12F4B) are only ever
-// meant to be called during AIWorldMgr::Initialize(), never from the
+// CreateCreatureAgentsBatch()/LoadAllBindings() (2.12F4B),
+// PromoteControlModeBatch()/LoadAllControlModes() (2.12F4B3) are only
+// ever meant to be called during AIWorldMgr::Initialize(), never from the
 // world update loop. SaveEconomyState() (2.11E2) is the one exception -
 // see its own comment for why it is safe from there.
 //
@@ -106,7 +108,7 @@ class TC_GAME_API AgentPersistence
         // queued statement as its own separate execution internally; one
         // CharacterDatabaseTransaction is one COMMIT, not one round trip.
         // This now builds a genuine multi-row `INSERT ... VALUES
-        // (...),(...),...` (see AgentPersistenceBatchInsertChunkSize in
+        // (...),(...),...` (see AgentPersistenceBatchChunkSize in
         // the .cpp for the per-statement row cap, chosen to stay well
         // under max_allowed_packet) and issues it via DirectExecute() -
         // the one place in this codebase's AIWorld subsystem that builds
@@ -138,6 +140,32 @@ class TC_GAME_API AgentPersistence
         // own batch write, each with exactly one query regardless of
         // table/batch size.
         std::vector<AgentSpawnBinding> LoadAllBindings();
+
+        // Milestone 2.12F4B3: bulk promotion to AIWorldControlled for
+        // AIWorldMgr::RunZoneControlActivation()'s own scoped promotion
+        // set - potentially thousands of ids at once, so unlike
+        // SetControlMode() below this deliberately does NOT do one UPDATE
+        // + one read-back round trip per id (that would be exactly the
+        // per-id loop this method exists to avoid). Builds a chunked
+        // `UPDATE ai_agents SET control_mode = 1 WHERE agent_id IN
+        // (...)` (raw SQL text, same "every interpolated value is a plain
+        // trusted integer" reasoning as CreateCreatureAgentsBatch()'s own
+        // multi-row INSERT), then confirms with exactly one bulk
+        // LoadAllControlModes() read (not one per id/chunk). Returns only
+        // the subset of `ids` confirmed AIWorldControlled by that
+        // read-back - the caller must only mark those promoted in memory
+        // (AgentRecord::ControlMode); anything not confirmed keeps
+        // whatever ControlMode it already had, fail closed, the same
+        // discipline CreateCreatureAgentsBatch() already applies. No-op
+        // (empty result, no DB access) if ids is empty.
+        std::vector<AgentId> PromoteControlModeBatch(std::vector<AgentId> const& ids);
+
+        // Milestone 2.12F4B3: lightweight bulk read of every agent_id's
+        // current control_mode - none of LoadAgents()'s other columns.
+        // Used internally by PromoteControlModeBatch() above to confirm
+        // its own batch UPDATE with exactly one query, regardless of
+        // batch size.
+        std::unordered_map<uint64, AgentControlMode> LoadAllControlModes();
 
         // Milestone 2.12F4A P2 fix (STATIC review): explicit, synchronous
         // ControlMode upgrade for a single already-created agent - startup-

@@ -667,6 +667,17 @@ void CharacterDatabaseConnection::DoPrepareStatements()
     // batch size - never one confirmation query per inserted row.
     PrepareStatement(CHAR_SEL_AI_AGENT_BINDINGS, "SELECT agent_id, map_id, spawn_id FROM ai_agents", CONNECTION_SYNCH);
 
+    // Milestone 2.12F4B3: lightweight bulk read of every agent_id's
+    // current control_mode - none of CHAR_SEL_AI_AGENTS' other columns.
+    // AgentPersistence::LoadAllControlModes() uses this to confirm a
+    // batch ControlMode promotion (AgentPersistence::
+    // PromoteControlModeBatch(), one chunked raw UPDATE ... WHERE
+    // agent_id IN (...) for potentially thousands of ids) with exactly
+    // one query, regardless of batch size - never one confirmation query
+    // per id, the same discipline CHAR_SEL_AI_AGENT_BINDINGS above
+    // already applies to CreateCreatureAgentsBatch()'s own INSERT.
+    PrepareStatement(CHAR_SEL_AI_AGENT_CONTROL_MODES, "SELECT agent_id, control_mode FROM ai_agents", CONNECTION_SYNCH);
+
     // Milestone 2.11E2: unlike CHAR_SEL_AI_AGENTS/CHAR_INS_AI_AGENT above
     // (startup-only), this is used from the world update thread every time
     // a WORK ActionCompletion reaches Succeeded/Performed - CONNECTION_ASYNC/
