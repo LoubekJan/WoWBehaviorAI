@@ -68,3 +68,15 @@ std::vector<CreatureSpawnIdentity> BuildCreatureSpawnCensus()
 
     return census;
 }
+
+std::unordered_set<uint64> BuildAllKnownCreatureSpawnIds()
+{
+    CreatureDataContainer const& spawns = sObjectMgr->GetAllCreatureData();
+
+    std::unordered_set<uint64> spawnIds;
+    spawnIds.reserve(spawns.size());
+    for (auto const& entry : spawns)
+        spawnIds.insert(entry.second.spawnId);
+
+    return spawnIds;
+}

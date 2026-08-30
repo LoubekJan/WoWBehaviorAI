@@ -18,10 +18,10 @@
 #include "SpawnReconciliationPlan.h"
 #include "AgentTypeProvenance.h"
 #include <unordered_map>
-#include <unordered_set>
 
 SpawnReconciliationPlan BuildReconciliationPlan(
     std::vector<CreatureSpawnIdentity> const& census,
+    std::unordered_set<uint64> const& allKnownSpawnIds,
     std::vector<AgentSpawnBinding> const& physicalBindings)
 {
     SpawnReconciliationPlan plan;
@@ -32,21 +32,31 @@ SpawnReconciliationPlan BuildReconciliationPlan(
         eligibleBySpawnId.emplace(identity.SpawnId, &identity);
 
     // Every SpawnId with ANY physical ai_agents row - valid, orphaned,
-    // conflicted, or already quarantined by LoadAgents() - must be
-    // excluded from Missing below. A SpawnId can't collide with the
-    // ai_agents UNIQUE (map_id, spawn_id) key if reconciliation never
-    // tries to INSERT it again in the first place.
+    // conflicted, out-of-scope, or already quarantined by LoadAgents() -
+    // must be excluded from Missing below, so reconciliation never tries
+    // to INSERT a (map_id, spawn_id) that already exists.
     std::unordered_set<uint64> physicalSpawnIds;
     physicalSpawnIds.reserve(physicalBindings.size());
+
+    // Milestone 2.12F4B P2 fix (STATIC review): every agent_id currently
+    // occupied by ANY physical row, regardless of that row's own SpawnId.
+    // A quarantined row (agent_id != its own spawn_id) can still occupy an
+    // agent_id that collides with a completely unrelated, currently-real
+    // spawn's intended new identity - the (map_id, spawn_id) UNIQUE key
+    // alone does not protect against that, since agent_id is ai_agents'
+    // own PRIMARY KEY.
+    std::unordered_set<uint64> physicalAgentIds;
+    physicalAgentIds.reserve(physicalBindings.size());
 
     for (AgentSpawnBinding const& binding : physicalBindings)
     {
         physicalSpawnIds.insert(binding.SpawnId);
+        physicalAgentIds.insert(binding.Id.Value);
 
         // 2.12F4A2's own invariant - AgentPersistence::LoadAgents() itself
         // already quarantined this row (never added it to AgentRegistry).
         // Nothing for this plan to remove; just don't treat its SpawnId as
-        // Missing.
+        // Missing (handled above) or its AgentId as free (handled below).
         if (binding.Id.Value != binding.SpawnId)
         {
             ++plan.QuarantinedCount;
@@ -56,7 +66,15 @@ SpawnReconciliationPlan BuildReconciliationPlan(
         auto it = eligibleBySpawnId.find(binding.SpawnId);
         if (it == eligibleBySpawnId.end())
         {
-            plan.Orphaned.push_back(binding.Id);
+            // Milestone 2.12F4B P2 fix (STATIC review): not eligible does
+            // NOT mean gone - it may simply be out of 2.12F4 scope (e.g.
+            // an instance/raid spawn), which must never be treated as
+            // Orphaned. Only a SpawnId absent from allKnownSpawnIds too
+            // names a world.creature spawn that has actually been removed.
+            if (allKnownSpawnIds.find(binding.SpawnId) != allKnownSpawnIds.end())
+                ++plan.OutOfScopeCount;
+            else
+                plan.Orphaned.push_back(binding.Id);
             continue;
         }
 
@@ -76,6 +94,17 @@ SpawnReconciliationPlan BuildReconciliationPlan(
     {
         if (physicalSpawnIds.find(identity.SpawnId) != physicalSpawnIds.end())
             continue;
+
+        // Milestone 2.12F4B P2 fix (STATIC review): this spawn has no
+        // physical ai_agents row of its own, but its intended new AgentId
+        // (== SpawnId) is already some OTHER row's agent_id - inserting it
+        // would collide with ai_agents' own PRIMARY KEY. Block, don't
+        // insert.
+        if (physicalAgentIds.find(identity.SpawnId) != physicalAgentIds.end())
+        {
+            plan.AgentIdCollisions.push_back(identity);
+            continue;
+        }
 
         PendingCreatureAgent pending;
         pending.Type = DeriveCreatureAgentType(identity.NpcFlags);

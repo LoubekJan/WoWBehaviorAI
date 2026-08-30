@@ -3404,6 +3404,26 @@ PreventRenameCharacterOnCustomization = 0
 AIWorld.Enable = 0
 
 #
+#    AIWorld.EnableSpawnReconciliation
+#        Description: Milestone 2.12F4B - when enabled, runs a one-time, startup-only
+#                     bidirectional reconciliation between eligible persistent non-instance
+#                     world.creature spawns and ai_agents (AIWorldMgr::RunSpawnReconciliation()):
+#                     missing spawns get a new ObserveOnly AgentRecord (AgentId = SpawnId),
+#                     orphaned/conflicting ai_agents rows are quarantined out of the runtime
+#                     registry (never deleted from the DB). Deliberately opt-in for now (2.12F4B
+#                     P2 fix, STATIC review): the roadmap's own F4B -> F4C -> F4D ordering means a
+#                     full ObserveOnly population is only safe to actually run after 2.12F4C's
+#                     scale hardening (bounded/indexed scheduler discovery, perception, needs,
+#                     coalition candidate scans) - enabling this against a real world.creature
+#                     dataset before then would reintroduce the recurring O(all agents) world-
+#                     thread cost 2.12F4C exists to remove. Intended to become the default
+#                     (always-on, like AgentPersistence::LoadAgents() itself) once 2.12F4C lands.
+#        Default:     0 - (Disabled)
+#                     1 - (Enabled)
+
+AIWorld.EnableSpawnReconciliation = 0
+
+#
 #    AIWorld.DecisionSchedulerIntervalMs
 #        Description: Time (in milliseconds) between decision scheduler passes - how often
 #                     AIWorldMgr looks for agents due for a new decision, not the decision

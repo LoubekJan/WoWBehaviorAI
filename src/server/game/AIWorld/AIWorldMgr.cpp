@@ -759,16 +759,33 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // empty RuntimeGuid regardless of what it was before shutdown.
     _persistence.LoadAgents(_registry);
 
-    // Milestone 2.12F4B: bidirectional global reconciliation against
-    // eligible world.creature spawns - right after LoadAgents() and before
-    // anything else (group/memory loaders below, the AIWorld.TestSpawnId
-    // fixture) consumes _registry, so every downstream startup step sees
-    // the final, reconciled state (in particular: an orphaned agent's
-    // group membership/memory rows below are then correctly treated as
-    // unresolvable, the same tolerance they already have for any other
-    // agent missing from _registry - see LoadGroupMembers()'s own comment
-    // a few lines down).
-    RunSpawnReconciliation();
+    // Milestone 2.12F4B P2 fix (STATIC review): gated behind
+    // AIWorld.EnableSpawnReconciliation (default false = disabled), unlike
+    // LoadAgents() itself. The roadmap's own F4B -> F4C -> F4D ordering is
+    // explicit that a full ObserveOnly population only actually runs after
+    // 2.12F4C's scale hardening (bounded/indexed scheduler discovery,
+    // perception, needs, coalition candidate scans) - this engine can be
+    // implemented and reviewed now, but unconditionally activating it
+    // against a real world.creature dataset today would immediately
+    // reintroduce the recurring O(all agents) world-thread cost 2.12F4C
+    // exists to remove. Intended to flip to always-on (like LoadAgents())
+    // once 2.12F4C lands, not to remain a permanent AIWorld.Test* one-shot
+    // proof toggle.
+    bool enableSpawnReconciliation = sConfigMgr->GetBoolDefault("AIWorld.EnableSpawnReconciliation", false);
+    if (enableSpawnReconciliation)
+    {
+        // Right after LoadAgents() and before anything else (group/memory
+        // loaders below, the AIWorld.TestSpawnId fixture) consumes
+        // _registry, so every downstream startup step sees the final,
+        // reconciled state (in particular: an orphaned agent's group
+        // membership/memory rows below are then correctly treated as
+        // unresolvable, the same tolerance they already have for any
+        // other agent missing from _registry - see LoadGroupMembers()'s
+        // own comment a few lines down).
+        RunSpawnReconciliation();
+    }
+    else
+        TC_LOG_INFO("ai.world", "AI spawn reconciliation disabled (AIWorld.EnableSpawnReconciliation = 0)");
 
     // Milestone 2.12E1 P2 fix (STATIC review, round 2): the persistent
     // GroupId allocator - see AgentGroupPersistence::LoadGroupIdSequence()
@@ -2634,6 +2651,13 @@ void AIWorldMgr::RunSpawnReconciliation()
 {
     std::vector<CreatureSpawnIdentity> census = BuildCreatureSpawnCensus();
 
+    // Milestone 2.12F4B P2 fix (STATIC review): a SpawnId absent from the
+    // eligible census may still name a real world.creature spawn that is
+    // simply out of 2.12F4 scope (e.g. instance/raid) - allKnownSpawnIds
+    // is needed to tell that apart from a spawn actually removed from the
+    // DB, see BuildAllKnownCreatureSpawnIds()'s own comment.
+    std::unordered_set<uint64> allKnownSpawnIds = BuildAllKnownCreatureSpawnIds();
+
     // Milestone 2.12F4B P2 fix (STATIC review): the diff's "what does
     // ai_agents PHYSICALLY hold" input is the raw table
     // (_persistence.LoadAllBindings()), NOT built from _registry. A row
@@ -2644,7 +2668,7 @@ void AIWorldMgr::RunSpawnReconciliation()
     // own UNIQUE (map_id, spawn_id) key. See SpawnReconciliationPlan.h's
     // own comment for the full reasoning.
     std::vector<AgentSpawnBinding> physicalBindings = _persistence.LoadAllBindings();
-    SpawnReconciliationPlan plan = BuildReconciliationPlan(census, physicalBindings);
+    SpawnReconciliationPlan plan = BuildReconciliationPlan(census, allKnownSpawnIds, physicalBindings);
 
     // ORPHANED: the world.creature spawn no longer exists or is no longer
     // eligible. CONFLICTED: the spawn is still eligible, but the row's own
@@ -2675,6 +2699,15 @@ void AIWorldMgr::RunSpawnReconciliation()
         _registry.Remove(conflictId);
     }
 
+    // Milestone 2.12F4B P2 fix (STATIC review): a spawn whose intended new
+    // AgentId (== SpawnId) already exists as a DIFFERENT physical row's
+    // own agent_id - never inserted (would violate ai_agents' own PRIMARY
+    // KEY), never added to AgentRegistry (there is nothing to add). Logged
+    // loudly so an operator can resolve the conflicting historical row.
+    for (CreatureSpawnIdentity const& blocked : plan.AgentIdCollisions)
+        TC_LOG_ERROR("ai.world", "AI spawn reconciliation: map={} spawn={} entry={} cannot be created - its intended agent_id={} already belongs to a different ai_agents row (2.12F4B)",
+            blocked.MapId, blocked.SpawnId, blocked.Entry, blocked.SpawnId);
+
     // MISSING: create as ObserveOnly, never AIWorldControlled - this bulk
     // bootstrap must never mass-grant ownership (see AIWorld_Current_
     // Roadmap.md's own 2.12F4B section). CreateCreatureAgentsBatch() only
@@ -2697,8 +2730,9 @@ void AIWorldMgr::RunSpawnReconciliation()
             ++addedCount;
     }
 
-    TC_LOG_INFO("ai.world", "AI spawn reconciliation: census={} valid={} missing={} created={} orphaned={} conflicted={} quarantined={}",
-        census.size(), plan.ValidCount, plan.Missing.size(), addedCount, plan.Orphaned.size(), plan.Conflicted.size(), plan.QuarantinedCount);
+    TC_LOG_INFO("ai.world", "AI spawn reconciliation: census={} valid={} missing={} created={} orphaned={} conflicted={} quarantined={} outOfScope={} agentIdCollisions={}",
+        census.size(), plan.ValidCount, plan.Missing.size(), addedCount, plan.Orphaned.size(), plan.Conflicted.size(),
+        plan.QuarantinedCount, plan.OutOfScopeCount, plan.AgentIdCollisions.size());
 }
 
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const

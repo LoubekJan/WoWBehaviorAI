@@ -20,6 +20,7 @@
 
 #include "CreatureSpawnIdentity.h"
 #include "Define.h"
+#include <unordered_set>
 #include <vector>
 
 // Milestone 2.12F4B: one-shot, startup-only enumeration of every eligible
@@ -42,5 +43,18 @@
 // they are never written to the `creature` table, so they never appear in
 // ObjectMgr's own creature spawn store to begin with.
 TC_GAME_API std::vector<CreatureSpawnIdentity> BuildCreatureSpawnCensus();
+
+// Milestone 2.12F4B P2 fix (STATIC review): every world.creature SpawnId
+// that exists at all, with NO map-eligibility filtering (instance/raid
+// spawns included) - the complement to BuildCreatureSpawnCensus()'s own
+// eligible-only set. SpawnReconciliationPlan needs both: a physical
+// ai_agents binding whose SpawnId is missing from the eligible census but
+// PRESENT here still names a real, currently-existing world.creature spawn
+// that is simply out of 2.12F4 scope (e.g. its map is instanceable) - it
+// must never be treated as Orphaned (2.12F4 explicitly excludes instance/
+// raid spawns from every one of Missing/Valid/Orphaned, not just from
+// eligibility for creation). Only a SpawnId missing from BOTH sets names a
+// world.creature spawn that has actually been removed from the DB.
+TC_GAME_API std::unordered_set<uint64> BuildAllKnownCreatureSpawnIds();
 
 #endif // AIWORLD_CREATURESPAWNCENSUS_H
