@@ -542,6 +542,8 @@ Runtime gate: opakovaný restart nad stejným `world.creature` datasetem nikdy n
 
 **Priorita: až po 2.12F4B, před rozhodnutím o rozsahu 2.12F4C.**
 
+**Vstupy (už naměřeno):** `world.creature` total `151822`; raw `zoneId = 12` (Elwynn) `3540`; `2.12F4B` full-world census `128849`, `PERFORMANCE FAIL`; současný `ai_agents` `4` řádky; reconciliation `OFF`. Finální F4B2 eligible census (po `∩ persistent ∩ non-instance ∩ valid MapEntry ∩ existing F4B eligibility` nad raw `3540`) se změří až po implementaci - liší se od `3540` a rozdíl musí být vysvětlitelný (viz Runtime gate níže).
+
 Cesta:
 
 ```text
@@ -605,7 +607,7 @@ Runtime gate: se `AIWorld.EnableSpawnReconciliation = 1` a `AIWorld.SpawnReconci
 - odstranit recurring full-registry discovery z world-thread cest (scheduler discovery, world-event perception, nearby perception, needs update, coalition candidate discovery) a nahradit bounded cursory / materialized indexes;
 - práce za tick nesmí být úměrná celkovému počtu creature ve světě, jen počtu skutečně `AIWorldControlled`/decision-eligible agentů.
 
-Runtime gate (P3 fix, STATIC review - formulováno bez konkrétního řádu populace, ne "řádově tisíce": reálně naměřený `2.12F4B` full-world experiment má `census=128849`, řádově vyšší než cokoli, co dosud v tomto dokumentu implikovalo "tisíce"; `2.12F4B2`'s Elwynn scoped populace bude řádově menší): recurring world-thread práce musí zůstat bounded a nesmí růst úměrně s celkovou `AgentRegistry` populací - ověřeno nejdřív nad `2.12F4B2`'s Elwynn scoped populací (řádově stovky/tisíce), pak nad eventual full-world datasetem (aktuálně ~128849 persistentních non-instance agentů v tomto TDB) - ne jedno číslo předem odhadnuté.
+Runtime gate (P3 fix, STATIC review - formulováno bez konkrétního řádu populace, ne "řádově tisíce": reálně naměřený `2.12F4B` full-world experiment má `census=128849`, řádově vyšší než cokoli, co dosud v tomto dokumentu implikovalo "tisíce"): recurring world-thread práce musí zůstat bounded a nesmí růst úměrně s celkovou `AgentRegistry` populací - ověřeno nejdřív nad `2.12F4B2`'s Elwynn scoped populací (raw `world.creature` se `zoneId = 12`: naměřeno `3540`; finální F4B2 eligible census bude změřen po implementaci - viz `2.12F4B2`'s vlastní Runtime gate), pak nad eventual full-world datasetem (aktuálně ~128849 persistentních non-instance agentů v tomto TDB) - ne jedno číslo předem odhadnuté.
 
 ## 2.12F4D — Global bootstrap/runtime proof
 
