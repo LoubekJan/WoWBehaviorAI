@@ -65,7 +65,7 @@ Platí pro všechny další milníky:
 | 2.12F1 — generic group intent (`REGROUP`) | **CLOSED** |
 | 2.12F2 — intent → per-member proposal → ActionSystem | **CLOSED** |
 | 2.12F3 — integration/lifecycle runtime proof | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
-| 2.12F4 — global agent population (ControlMode gate, then TrinityCore-aligned identity, then spawn reconciliation, scale hardening, bootstrap proof) | **NEXT** |
+| 2.12F4 — global agent population (ControlMode gate, then TrinityCore-aligned identity, then spawn reconciliation, scoped rollout proof, scale hardening, bootstrap proof) | **NEXT** |
 | 2.12G — druhý profil + další generic group behavior | **PLANNED (po 2.12F4)** |
 | 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
@@ -534,9 +534,43 @@ Kroky:
 
 Runtime gate: opakovaný restart nad stejným `world.creature` datasetem nikdy nevytvoří duplicitní `AgentId`, nikdy nevynechá nový spawn přidaný mezi restarty, a smazaný spawn nikdy nezůstane v `_registry` jako platný `AgentRecord`.
 
+**Implementační stav:** engine je hotový (`ad80db5949` + STATIC review fixy `149e400927`, `326e7a7b19`) — census/diff/reconcile, fail-closed `AgentId`/`agent_id` collision handling, instance/out-of-scope rozlišení od skutečně smazaných spawnů, i sám bulk insert (chunked multi-row `INSERT`, ne per-row). Gated za `AIWorld.EnableSpawnReconciliation` (default 0) přesně proto, že `2.12F4C` scale hardening ještě neexistuje — viz `2.12F4B2` níže pro plán, jak se z tohoto default-off stavu dostat k rozhodnutí o rozsahu `2.12F4C`, ne rovnou k unconditional globálnímu zapnutí.
+
+## 2.12F4B2 — Scoped rollout proof (Elwynn, zoneId 12)
+
+**Priorita: až po 2.12F4B, před rozhodnutím o rozsahu 2.12F4C.**
+
+`2.12F4B`'s engine je hotový, ale dosud běžel jen nad čtyřmi test agenty — nikdy nad skutečnou, plnou populací žádné oblasti. Než se rozhodne, jak velký/prioritní musí `2.12F4C` scale hardening skutečně být, potřebujeme reálné, měřené číslo, ne odhad. Cesta:
+
+```text
+2.12F4B reconciliation engine (hotovo)
+    ↓
+TrinityCore Zone/Area data preparation
+    ↓
+2.12F4B scoped reconciliation: Elwynn zoneId=12
+    ↓
+runtime test nad skutečnou Elwynn populací
+    ↓
+podle výsledku rozhodnout rozsah 2.12F4C
+```
+
+**Zone/Area data preparation.** `creature.zoneId`/`areaId` existují jako sloupce ve world DB schema, ale `ObjectMgr::LoadCreatures()` je nenačítá do `CreatureData` a jsou populované jen pokud na dané DB někdy proběhl `Calculate.Creature.Zone.Area.Data = 1` (TrinityCore core config, ne AIWorld). Bez populovaných sloupců je jediná cesta k zone/area `Map::GetZoneAndAreaId()`, která vyžaduje live `Map*` (`sMapMgr->CreateBaseMap()`) a čte terrain/vmap data z disku — to by do census pipeline poprvé zavedlo přesně tu závislost (live `Map*`, per-spawn I/O), které se `CreatureSpawnCensus` dosud důsledně vyhýbal. Proto:
+
+- scoped census čte `creature.zoneId` přímo přes vlastní úzký `WorldDatabase` SELECT (`SELECT guid FROM creature WHERE zoneId = ?`), nikdy nepočítá zone/area za běhu přes `Map::GetZoneAndAreaId()`;
+- precondition: `creature.zoneId` musí být na cílové DB předem populovaný (operátor spustí `Calculate.Creature.Zone.Area.Data = 1` jednou, mimo AIWorld, pokud ještě není) — pokud není, scoped varianta vrátí prázdnou množinu (fail-safe: nevytvoří nic špatně naškálovaného, jen nic nenajde), nikdy tiše špatný výsledek.
+
+Kroky:
+
+- nová config hodnota `AIWorld.SpawnReconciliationZoneId` (default `0` = beze scope, dnešní globální chování beze změny; nenulová hodnota = census omezený jen na tento `zoneId`), skládá se s existujícím `AIWorld.EnableSpawnReconciliation`;
+- scoped census: eligible množina (`BuildCreatureSpawnCensus()`) se před předáním do `BuildReconciliationPlan()` protne s množinou guidů z `WHERE zoneId = ?`;
+- `allKnownSpawnIds` (`BuildAllKnownCreatureSpawnIds()`) zůstává **neomezená** (žádný zone filtr) — existující `OutOfScopeCount` mechanismus (viz `2.12F4B` P2 fix `326e7a7b19`) tak správně pokryje i "existuje, ale mimo dnešní zone scope" bez jakékoli změny `BuildReconciliationPlan()`'s vlastní logiky: mimo-Elwynn agent nikdy neskončí jako `Orphaned`;
+- žádná změna `ControlMode` chování — nové Elwynn agenty vznikají stejně jako dnes, `ObserveOnly`.
+
+Runtime gate: se `AIWorld.EnableSpawnReconciliation = 1` a `AIWorld.SpawnReconciliationZoneId = 12` vytvoří reconciliation přesně tolik nových `AgentRecord`ů, kolik odpovídá skutečné Elwynn creature populaci (ověřeno `SELECT COUNT(*) FROM ai_agents`), žádný mimo-Elwynn spawn se nedotkne, vanilla/scripted AI beze změny, a naměřený per-tick world-thread dopad (i nad tímto menším, ale reálným počtem agentů) je vstup pro rozhodnutí o skutečném rozsahu/prioritě `2.12F4C` — ne odhad nad celým světem předem.
+
 ## 2.12F4C — bounded/indexed runtime at world scale
 
-**Priorita: scale hardening před globálním zapnutím decision/needs.**
+**Priorita: scale hardening před globálním zapnutím decision/needs, rozsah/priorita rozhodnutá podle naměřených výsledků 2.12F4B2 (Elwynn), ne odhadem předem.**
 
 - minimálně O(1) index `(mapId, spawnId) → AgentId` místo současného lineárního `FindBySpawn()`, který dnes prochází celý `_agents` map;
 - odstranit recurring full-registry discovery z world-thread cest (scheduler discovery, world-event perception, nearby perception, needs update, coalition candidate discovery) a nahradit bounded cursory / materialized indexes;
@@ -794,7 +828,7 @@ Hotovo:
 
 Zbývá před uzavřením Etapy 2:
 
-- [ ] global agent population foundation gate (2.12F4: `ControlMode` split + hard gating first, pak TrinityCore-aligned `AgentId == SpawnId` identity, pak bidirectional spawn reconciliation, bounded/indexed runtime at scale, global bootstrap proof) — blocker před second-profile proofem nad reálnými spawny;
+- [ ] global agent population foundation gate (2.12F4: `ControlMode` split + hard gating first, pak TrinityCore-aligned `AgentId == SpawnId` identity, pak bidirectional spawn reconciliation, scoped rollout proof nad Elwynn, bounded/indexed runtime at scale, global bootstrap proof) — blocker před second-profile proofem nad reálnými spawny;
 - [ ] second-profile genericity proof;
 - [ ] alespoň jedno další skutečné generic group behavior potřebné pro emergentní slice;
 - [ ] skutečný local LLM request přes async `ai-server`;
@@ -853,21 +887,22 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 1. [x] 2.12F3 static/build/runtime closure.
 2. [ ] **2.12F4A — ControlMode foundation (`ObserveOnly` vs `AIWorldControlled`, hard-gated na decision/routine/group/action cestách, existing 4 → `AIWorldControlled`, default = `ObserveOnly`).**
 3. [ ] **2.12F4A2 — TrinityCore-aligned Agent identity (`AgentId == SpawnId` pro persistentní non-instance Creature agenty, migrace existujících 4 + navazujících group/memory FK, před bulk bootstrapem v 2.12F4B).**
-4. [ ] **2.12F4B — global spawn reconciliation (non-instance `world.creature` ↔ `ai_agents` bidirectional, fail-closed na smazané spawny, deterministická `AgentType` provenance, no ghosts).**
-5. [ ] 2.12F4C — bounded/indexed runtime at world scale (O(1) spawn index, remove recurring full-registry scans).
-6. [ ] 2.12F4D — global bootstrap/runtime proof (plná `ObserveOnly` populace, vanilla/script chování beze změny, bounded work).
-7. [ ] 2.12G1 — second real coalition profile přes stejnou generic pipeline (nad reálnými reconciled spawny z 2.12F4).
-8. [ ] 2.12G2 — generic roaming/territory movement.
-9. [ ] 2.12G3 — generic hunt/coordinated-combat ownership seam.
-10. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
-11. [ ] 2.13A — actual local LLM inference path.
-12. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
-13. [ ] 2.13C — player-facing dynamic task lifecycle.
-14. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
-15. [ ] 2.14 — emergent end-to-end world event slice.
-16. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
-17. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
-18. [ ] Etapa 4 — Living World composition.
+4. [ ] **2.12F4B — global spawn reconciliation (non-instance `world.creature` ↔ `ai_agents` bidirectional, fail-closed na smazané spawny, deterministická `AgentType` provenance, no ghosts). Engine implementovaný (`ad80db5949`+fixy), gated za `AIWorld.EnableSpawnReconciliation` (default 0).**
+5. [ ] **2.12F4B2 — scoped rollout proof (Elwynn, `zoneId=12`) - reálný runtime test před rozhodnutím o rozsahu 2.12F4C, ne odhad.**
+6. [ ] 2.12F4C — bounded/indexed runtime at world scale (O(1) spawn index, remove recurring full-registry scans; rozsah/priorita podle 2.12F4B2).
+7. [ ] 2.12F4D — global bootstrap/runtime proof (plná `ObserveOnly` populace, vanilla/script chování beze změny, bounded work).
+8. [ ] 2.12G1 — second real coalition profile přes stejnou generic pipeline (nad reálnými reconciled spawny z 2.12F4).
+9. [ ] 2.12G2 — generic roaming/territory movement.
+10. [ ] 2.12G3 — generic hunt/coordinated-combat ownership seam.
+11. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
+12. [ ] 2.13A — actual local LLM inference path.
+13. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
+14. [ ] 2.13C — player-facing dynamic task lifecycle.
+15. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
+16. [ ] 2.14 — emergent end-to-end world event slice.
+17. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
+18. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
+19. [ ] Etapa 4 — Living World composition.
 
 ---
 
@@ -913,11 +948,15 @@ AgentId == TrinityCore Creature SpawnId for persistent non-instance agents (2.12
     ↓
 existing 4 test mobs migrated to spawn-aligned AgentId (incl. group/memory FKs)
     ↓
-ALL non-instance world.creature SPAWNS reconciled ↔ ai_agents (2.12F4B)
+ALL non-instance world.creature SPAWNS reconciled ↔ ai_agents (2.12F4B, engine done, gated off by default)
     ↓
 missing spawn → CREATE (ObserveOnly); deleted spawn → fail-closed/quarantine, no ghosts
     ↓
 existing vanilla/scripted AI unaffected for ObserveOnly
+    ↓
+scoped rollout proof over real Elwynn (zoneId=12) population, not synthetic/guessed scale (2.12F4B2)
+    ↓
+measured Elwynn runtime cost decides 2.12F4C's real scope/priority
     ↓
 O(1) spawn index + bounded recurring work (2.12F4C)
     ↓
