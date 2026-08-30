@@ -3461,11 +3461,15 @@ AIWorld.SpawnReconciliationZoneId = 0
 #                     reconciliation must have already created them - this never mints new
 #                     identity); recomputes its own scoped set the same way
 #                     AIWorld.EnableSpawnReconciliation does, so it is safe to run on a restart
-#                     where reconciliation did not run again this same startup. REQUIRES
-#                     AIWorld.ControlZoneId to also be set to a positive zoneId - an unscoped/
-#                     global promotion is refused (logged, not run), the same fail-closed
-#                     discipline AIWorld.EnableSpawnReconciliation/AIWorld.SpawnReconciliationZoneId
-#                     already use.
+#                     where reconciliation did not run again this same startup. Fail-closed
+#                     WHOLE-zone, not partial (2.12F4B3 P2 fix, STATIC review): if ANY
+#                     scoped-eligible spawn has no valid AgentRecord yet, this refuses to promote
+#                     even the ones that do, and logs an ERROR instead - it never leaves the zone
+#                     in a mixed Controlled/ObserveOnly state. REQUIRES AIWorld.ControlZoneId to
+#                     also be set to a positive zoneId - an unscoped/global promotion is refused
+#                     (logged, not run), the same fail-closed discipline
+#                     AIWorld.EnableSpawnReconciliation/AIWorld.SpawnReconciliationZoneId already
+#                     use.
 #        Default:     0 - (Disabled)
 #                     1 - (Enabled, requires AIWorld.ControlZoneId > 0)
 
@@ -3481,6 +3485,15 @@ AIWorld.EnableZoneControlActivation = 0
 #                     batch INSERT already applies. 0 (or unset) makes
 #                     AIWorld.EnableZoneControlActivation refuse to run at all - see its own
 #                     Description for why.
+#        Important:   uses the same creature.zoneId column and the same
+#                     FetchCreatureSpawnIdsForZone() query AIWorld.SpawnReconciliationZoneId does,
+#                     so the same precondition applies here too, and matters even more: a STALE
+#                     row (calculated once, then the spawn moved/was re-scoped without a fresh
+#                     recalculation) may still carry this zone's old, nonzero zoneId, so an NPC
+#                     that has actually left the zone could still be promoted to AIWorldControlled.
+#                     Recalculate (Calculate.Creature.Zone.Area.Data = 1, once, then back off) and
+#                     verify in the DB before enabling this, the same as for
+#                     AIWorld.SpawnReconciliationZoneId - see that setting's own Important note.
 #        Default:     0 - (No scope configured; combined with AIWorld.EnableZoneControlActivation = 1
 #                          this refuses to run)
 

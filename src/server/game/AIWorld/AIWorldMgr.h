@@ -578,8 +578,16 @@ class TC_GAME_API AIWorldMgr
         // read-back are reflected into AgentRecord::ControlMode in memory;
         // this never optimistically assumes an unconfirmed write landed.
         // A scoped-eligible spawn with no existing AgentRecord yet (2.12F4B2
-        // reconciliation hasn't created it) is skipped, not created here -
-        // this method only ever promotes, never mints new identity.
+        // reconciliation hasn't created it) is never created here - this
+        // method only ever promotes, never mints new identity. Milestone
+        // 2.12F4B3 P2 fix (STATIC review): fail-closed WHOLE-zone
+        // activation, not partial - if ANY scoped-eligible spawn has no
+        // valid AgentRecord yet, this refuses to promote even the
+        // candidates that do, logs an ERROR, and returns without touching
+        // ai_agents at all. A mixed Controlled/ObserveOnly zone that the
+        // server just carries on with is exactly the outcome this
+        // milestone's target state ("N eligible spawns -> N Controlled,
+        // 0 ObserveOnly") rules out.
         void RunZoneControlActivation(uint32 zoneId);
 
         // Milestone 2.12E4R (generalized from 2.12E4A's

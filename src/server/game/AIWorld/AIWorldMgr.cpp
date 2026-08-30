@@ -2841,6 +2841,21 @@ void AIWorldMgr::RunZoneControlActivation(uint32 zoneId)
         candidates.push_back(record->Id);
     }
 
+    // Milestone 2.12F4B3 P2 fix (STATIC review): fail-closed whole-zone
+    // activation, not partial. Promoting `candidates` while some other
+    // scoped-eligible spawn is still notYetReconciled would leave the
+    // zone in a mixed Controlled/ObserveOnly state and the server would
+    // carry on as if nothing were wrong - exactly the outcome this
+    // milestone's own target state ("Elwynn = 3540 Controlled, 0
+    // ObserveOnly") rules out. Verify the WHOLE scoped set resolved to a
+    // real AgentRecord first; only then attempt any promotion at all.
+    if (notYetReconciled != 0)
+    {
+        TC_LOG_ERROR("ai.world", "AI zone control activation REFUSED: zone={} has {} scoped-eligible spawn(s) with no valid AgentRecord yet (run 2.12F4B reconciliation for this zone first) - promoting the rest would leave a partially-Controlled zone",
+            zoneId, notYetReconciled);
+        return;
+    }
+
     // Only entries PromoteControlModeBatch() itself confirms via read-back
     // are reflected here - never optimistically mark a candidate promoted
     // just because it was requested. Unconfirmed candidates simply remain
@@ -2853,8 +2868,8 @@ void AIWorldMgr::RunZoneControlActivation(uint32 zoneId)
             record->ControlMode = AgentControlMode::AIWorldControlled;
     }
 
-    TC_LOG_INFO("ai.world", "AI zone control activation: zone={} rawZoneSpawns={} eligible={} alreadyControlled={} notYetReconciled={} candidates={} promoted={}",
-        zoneId, zoneSpawnIds.size(), scopedEligibleCount, alreadyControlled, notYetReconciled, candidates.size(), promoted.size());
+    TC_LOG_INFO("ai.world", "AI zone control activation: zone={} rawZoneSpawns={} eligible={} alreadyControlled={} candidates={} promoted={}",
+        zoneId, zoneSpawnIds.size(), scopedEligibleCount, alreadyControlled, candidates.size(), promoted.size());
 }
 
 std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObservations(AgentGroupRecord const& group) const
