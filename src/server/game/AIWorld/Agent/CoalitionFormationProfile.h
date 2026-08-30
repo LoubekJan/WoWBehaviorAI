@@ -28,16 +28,19 @@
 // predecessor this replaces, CoalitionFormationSystem itself no longer
 // knows anything about wolves specifically - only about profiles). Built
 // once by AIWorldMgr at Initialize() for each formation feature it
-// supports - today exactly one, AIWorld's own WolfLoose profile
-// (CreatureEntry = AIWorld.WolfGroupCreatureEntry, Kind = Loose,
-// FormationRadius = AIWorld.WolfGroupFormationRadius, MinMembers/
-// MaxMembers copied from AgentGroupPolicyConfig::LooseMinMembers/
-// LooseMaxMembers - see this struct's own field comment for why those are
-// never independently-tunable here). A second SINGLE-CreatureEntry profile
-// (e.g. a future bandit formation) is just another CoalitionFormationProfile
-// value and a matching AIWorldMgr::RunCoalitionFormation() call site -
-// CoalitionFormationSystem/CoalitionCandidate/CoalitionProposal need no
-// change at all. STATIC review (2.12E4R): that claim does NOT extend to a
+// supports - AIWorld's own WolfLoose profile (CreatureEntry =
+// AIWorld.WolfGroupCreatureEntry, Kind = Loose, FormationRadius =
+// AIWorld.WolfGroupFormationRadius, MinMembers/MaxMembers copied from
+// AgentGroupPolicyConfig::LooseMinMembers/LooseMaxMembers - see this
+// struct's own field comment for why those are never independently-tunable
+// here), and (Milestone 2.12G1 - the exact genericity proof this comment
+// already predicted) AIWorld's own DefiasLoose profile, built the same way
+// from AIWorld.DefiasGroupCreatureEntry/FormationRadius - confirming a
+// second SINGLE-CreatureEntry profile really is just another
+// CoalitionFormationProfile value and a matching AIWorldMgr::
+// RunCoalitionFormation() call site, with zero change to
+// CoalitionFormationSystem/CoalitionCandidate/CoalitionProposal. STATIC
+// review (2.12E4R): that claim does NOT extend to a
 // MIXED-entry coalition (e.g. a caravan of a merchant + guards + pack
 // animals) - CreatureEntry is still the only compatibility signal
 // CoalitionFormationSystem::Propose() checks (see its own class comment),

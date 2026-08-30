@@ -60,19 +60,28 @@
 // shipped, is never changed or reassigned to a different profile, even if
 // that profile is later removed (retire the enumerator, do not recycle its
 // number).
+// Milestone 2.12G1: DefiasLoose is the second real profile - genericity
+// proof that CoalitionFormationSystem/CoalitionMaintenanceSystem/
+// AgentGroupIntentSystem/AgentGroupIntentProjector/ActionSystem need no
+// change at all to gain a second, unrelated coalition (see this enum's
+// own header comment above and CoalitionFormationProfile.h for why). 2 is
+// the correct next explicit literal - appended, never inserted before
+// WolfLoose's own 1.
 enum class CoalitionFormationProfileId : uint8
 {
-    Invalid   = 0,
-    WolfLoose = 1
+    Invalid     = 0,
+    WolfLoose   = 1,
+    DefiasLoose = 2
 };
 
 inline char const* ToString(CoalitionFormationProfileId id)
 {
     switch (id)
     {
-        case CoalitionFormationProfileId::Invalid:   return "INVALID";
-        case CoalitionFormationProfileId::WolfLoose: return "WOLF_LOOSE";
-        default:                                     return "UNKNOWN";
+        case CoalitionFormationProfileId::Invalid:     return "INVALID";
+        case CoalitionFormationProfileId::WolfLoose:   return "WOLF_LOOSE";
+        case CoalitionFormationProfileId::DefiasLoose: return "DEFIAS_LOOSE";
+        default:                                       return "UNKNOWN";
     }
 }
 

@@ -42,6 +42,7 @@ inline std::optional<AgentGroupKind> GetCoalitionProfileKind(CoalitionFormationP
     switch (id)
     {
         case CoalitionFormationProfileId::WolfLoose:
+        case CoalitionFormationProfileId::DefiasLoose:
             return AgentGroupKind::Loose;
 
         case CoalitionFormationProfileId::Invalid:

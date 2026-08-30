@@ -1,0 +1,21 @@
+--
+-- AIWorld: DefiasLoose CoalitionFormationProfileId (Milestone 2.12G1).
+-- ai_agent_groups.profile_id (added 2026_08_28_00, TINYINT UNSIGNED) needs
+-- no schema change - it was already a generic column, not one that only
+-- ever held WolfLoose. This migration exists purely to document the
+-- storage-ABI meaning of a newly-recognized value, the same convention
+-- 2026_08_28_00's own migration comment established: profile_id values
+-- are never guessed/backfilled for pre-existing rows, and are only ever
+-- appended, never renumbered.
+--
+-- Every CoalitionFormationProfileId value this database's own
+-- ai_agent_groups.profile_id column can now legitimately hold, for
+-- reference: 0 = Invalid, 1 = WolfLoose, 2 = DefiasLoose.
+--
+-- No existing row is touched by this migration - a pre-existing group's
+-- own profile_id (0 or 1) keeps meaning exactly what it already did.
+-- DefiasLoose (2) only ever appears on a group AIWorldMgr::
+-- RunCoalitionFormation(_defiasLooseFormationProfile) creates from here
+-- on (see AIWorld.DefiasGroupAutoFormation), or one adopted explicitly
+-- via AIWorld.AdoptGroupId/AdoptGroupProfileId = 2.
+--

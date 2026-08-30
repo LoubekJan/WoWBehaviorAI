@@ -720,6 +720,8 @@ Požadavky:
 
 Výběr konkrétního druhého fixture profilu se má udělat podle reálných spawnů v dostupném testovacím světě (např. guard/bandit/caravan-like skupina), ne vytvořením ghost test entity jen kvůli testu.
 
+**Vybraný profil (podle reálných dat):** `DefiasLoose`, `CreatureEntry = 38` (Defias Thug), `71` skutečných Elwynn (`zoneId = 12`) spawnů - vybráno z `SELECT ... FROM creature JOIN creature_template ... WHERE zoneId = 12 GROUP BY id HAVING COUNT(*) >= 3` nad reálným world DB, ne odhadem. `WolfLoose` zůstává beze změny jako první historický fixture/profile (jeho vlastní runtime proof z dob F/E/F1-F3 používal `CreatureEntry = 1423`, Stormwind Guard, protože skuteční wolf NPC v té době ještě nebyli `AIWorldControlled` - to není důvod k migraci/redesignu WolfLoose teď).
+
 Acceptance gate:
 
 ```text

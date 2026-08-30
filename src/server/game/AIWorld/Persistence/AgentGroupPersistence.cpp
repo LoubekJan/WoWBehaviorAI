@@ -133,9 +133,17 @@ uint32 AgentGroupPersistence::LoadGroups(AgentGroupRegistry& registry)
             case uint8(CoalitionFormationProfileId::WolfLoose):
                 record.ProfileId = CoalitionFormationProfileId::WolfLoose;
                 break;
+            // Milestone 2.12G1: the second real profile - without this
+            // case, every DefiasLoose group would be silently refused/
+            // skipped here on the very next restart (a real correctness
+            // landmine flagged during this milestone's own research, not
+            // a hypothetical).
+            case uint8(CoalitionFormationProfileId::DefiasLoose):
+                record.ProfileId = CoalitionFormationProfileId::DefiasLoose;
+                break;
             default:
                 TC_LOG_ERROR("ai.world",
-                    "AgentGroupPersistence: refusing to load group id={} with invalid profile_id={} (not INVALID(0)/WOLF_LOOSE(1)), skipping",
+                    "AgentGroupPersistence: refusing to load group id={} with invalid profile_id={} (not INVALID(0)/WOLF_LOOSE(1)/DEFIAS_LOOSE(2)), skipping",
                     record.Id.Value, rawProfileId);
                 continue;
         }

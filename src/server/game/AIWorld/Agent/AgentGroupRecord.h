@@ -57,8 +57,9 @@ struct AgentGroupRecord
     // Milestone 2.12E4C2 P2 fix (STATIC review): which CoalitionFormationProfile
     // (if any) actually created this group - persistent, and deliberately
     // separate from Kind. Kind alone cannot tell two profiles of the same
-    // Kind apart (today only WolfLoose forms Loose groups, but nothing
-    // about Kind itself prevents a future second Loose-forming profile),
+    // Kind apart - confirmed by Milestone 2.12G1, where WolfLoose and
+    // DefiasLoose both form Loose groups, so Kind == Loose alone could
+    // never distinguish which of the two actually owns a given group -
     // and a manually/admin-created Loose group must never be silently
     // treated as if some automatic profile owned it. Invalid (the default)
     // means exactly that - no automatic formation profile created this

@@ -843,10 +843,11 @@ class TC_GAME_API AIWorldMgr
         // place that maps a persistent AgentGroupRecord::ProfileId to the
         // CoalitionMaintenanceProfile that governs it - std::nullopt for
         // Invalid or any profileId this process has no maintenance rules
-        // configured for. Today only WolfLoose resolves (to
-        // _wolfLooseMaintenanceProfile); a future second profile is just
-        // another case added here, not a change to RunCoalitionMaintenance()'s
-        // own discovery/admission shape.
+        // configured for. WolfLoose (to _wolfLooseMaintenanceProfile) and,
+        // since 2.12G1, DefiasLoose (to _defiasLooseMaintenanceProfile)
+        // resolve - confirming a second profile really is just another
+        // case added here, not a change to RunCoalitionMaintenance()'s own
+        // discovery/admission shape.
         std::optional<CoalitionMaintenanceProfile> ResolveMaintenanceProfile(CoalitionFormationProfileId profileId) const;
 
         // Milestone 2.12E4C2: one group this pass's maintenance scheduler
@@ -918,14 +919,14 @@ class TC_GAME_API AIWorldMgr
         // Milestone 2.12F2: the one place that maps a persistent
         // AgentGroupRecord::ProfileId to the AgentGroupCoordinationProfile
         // that governs it - std::nullopt for Invalid or any profileId this
-        // process has no coordination rules configured for. Today only
-        // WolfLoose resolves (to _wolfLooseCoordinationProfile); a future
-        // second profile is just another case added here, the same
-        // "profile identity is data, not a new code path" discipline
-        // ResolveMaintenanceProfile() already established - see this
-        // milestone's own architectural mandate: a second group TYPE must
-        // never require a new orchestration method, only a new profile
-        // value.
+        // process has no coordination rules configured for. WolfLoose (to
+        // _wolfLooseCoordinationProfile) and, since 2.12G1, DefiasLoose (to
+        // _defiasLooseCoordinationProfile) resolve - the same "profile
+        // identity is data, not a new code path" discipline
+        // ResolveMaintenanceProfile() already established, and this
+        // milestone's own architectural mandate confirmed: a second group
+        // TYPE never required a new orchestration method, only a new
+        // profile value.
         std::optional<AgentGroupCoordinationProfile> ResolveCoordinationProfile(CoalitionFormationProfileId profileId) const;
 
         // Milestone 2.12F2: the bounded orchestration pass - AgentGroup ->
@@ -1431,6 +1432,42 @@ class TC_GAME_API AIWorldMgr
         // _wolfLooseFormationProfile's own FormationRadius.
         float _wolfGroupFormationRadius = 30.0f;
 
+        // Milestone 2.12G1: AIWorldMgr's second CoalitionFormationProfile -
+        // the genericity proof _wolfLooseFormationProfile's own comment
+        // above already predicted. Built once at Initialize() from
+        // AIWorld.DefiasGroupCreatureEntry/FormationRadius and
+        // _groupPolicyConfig.LooseMinMembers/LooseMaxMembers, exactly the
+        // same shape as _wolfLooseFormationProfile - passed to its own
+        // RunCoalitionFormation() call site from Update()'s own
+        // AIWorld.DefiasGroupFormationIntervalMs timer. No change to
+        // CoalitionFormationSystem/RunCoalitionFormation() itself.
+        CoalitionFormationProfile _defiasLooseFormationProfile;
+
+        // Milestone 2.12G1: AIWorld.DefiasGroupAutoFormation - off by
+        // default, see RunCoalitionFormation()'s own comment. A SEPARATE
+        // gate from _wolfGroupAutoFormation - each profile's own automatic
+        // formation is independently controllable, the same "each
+        // capability gets its own gate" discipline every other AIWorld.*
+        // enable flag in this class already follows.
+        bool _defiasGroupAutoFormation = false;
+
+        // Milestone 2.12G1: AIWorld.DefiasGroupCreatureEntry - the one
+        // creature_template entry _defiasLooseFormationProfile is built
+        // with (38, Defias Thug - see AIWorld_Current_Roadmap.md's own
+        // "2.12G1" section for why this entry was chosen: a real,
+        // sufficiently-populated Elwynn spawn, not a synthetic/test one).
+        uint32 _defiasGroupCreatureEntry = 38;
+
+        // Milestone 2.12G1: AIWorld.DefiasGroupFormationIntervalMs -
+        // Update()'s own cadence for RunCoalitionFormation(_defiasLooseFormationProfile),
+        // its own timer, independent of _wolfGroupFormationTimer.
+        uint32 _defiasGroupFormationIntervalMs = 5000;
+        uint32 _defiasGroupFormationTimer = 0;
+
+        // Milestone 2.12G1: AIWorld.DefiasGroupFormationRadius -
+        // _defiasLooseFormationProfile's own FormationRadius.
+        float _defiasGroupFormationRadius = 30.0f;
+
         // Milestone 2.12E4R (STATIC review, generalized from 2.12E4B's
         // bool _wolfFormationInFlight): the CoalitionFormationProfileIds
         // with a formation attempt currently in flight - a per-PROFILE
@@ -1502,6 +1539,17 @@ class TC_GAME_API AIWorldMgr
         // _groupPolicyConfig.LooseMinMembers.
         CoalitionMaintenanceProfile _wolfLooseMaintenanceProfile;
 
+        // Milestone 2.12G1: paired with _defiasLooseFormationProfile above
+        // (same ProfileId/Kind) - built once at Initialize() from
+        // AIWorld.DefiasGroupLeaveRadius and _groupPolicyConfig.LooseMinMembers.
+        // Maintenance's own enable gate/cadence/bounds
+        // (_coalitionMaintenanceEnabled/_coalitionMaintenanceIntervalMs/
+        // _coalitionMaintenanceMaxPerPass/_coalitionMaintenanceScanMaxPerPass)
+        // stay shared across every profile - see RunCoalitionMaintenance()'s
+        // own comment for why a per-profile maintenance pass would be
+        // wrong, not just unnecessary.
+        CoalitionMaintenanceProfile _defiasLooseMaintenanceProfile;
+
         // Milestone 2.12E4C2 P2 fix (STATIC review): AIWorld.CoalitionMaintenance
         // - a SEPARATE enable gate from _wolfGroupAutoFormation, off by
         // default. An earlier version shared _wolfGroupAutoFormation's own
@@ -1523,6 +1571,13 @@ class TC_GAME_API AIWorldMgr
         // Initialize()'s own comment for why a smaller LeaveRadius would
         // defeat the formation/leave hysteresis entirely).
         float _wolfGroupLeaveRadius = 60.0f;
+
+        // Milestone 2.12G1: AIWorld.DefiasGroupLeaveRadius -
+        // _defiasLooseMaintenanceProfile's own LeaveRadius, clamped at
+        // Initialize() to never fall below _defiasGroupFormationRadius, the
+        // same hysteresis rule AIWorld.WolfGroupLeaveRadius already
+        // follows.
+        float _defiasGroupLeaveRadius = 60.0f;
 
         // Milestone 2.12E4C2: RunCoalitionMaintenance()'s own cadence,
         // deliberately its own timer (a maintenance pass is neither a
@@ -1647,6 +1702,16 @@ class TC_GAME_API AIWorldMgr
         // (same ProfileId/Kind) - built once at Initialize() from
         // AIWorld.WolfGroupRegroupEnabled/AIWorld.WolfGroupRegroupRadius.
         AgentGroupCoordinationProfile _wolfLooseCoordinationProfile;
+
+        // Milestone 2.12G1: paired with _defiasLooseFormationProfile/
+        // _defiasLooseMaintenanceProfile above (same ProfileId/Kind) -
+        // built once at Initialize() from
+        // AIWorld.DefiasGroupRegroupEnabled/AIWorld.DefiasGroupRegroupRadius.
+        // Coordination's own enable gate/cadence
+        // (_groupCoordinationEnabled/_groupCoordinationIntervalMs/
+        // _groupCoordinationScanMaxPerPass) stay shared across every
+        // profile, same reasoning as maintenance above.
+        AgentGroupCoordinationProfile _defiasLooseCoordinationProfile;
 
         // Milestone 2.12F2: gated on its OWN AIWorld.GroupCoordination flag,
         // deliberately NOT _wolfGroupAutoFormation or

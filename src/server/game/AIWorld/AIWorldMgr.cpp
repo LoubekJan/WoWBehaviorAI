@@ -329,6 +329,46 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseFormationProfile.MaxMembers = _groupPolicyConfig.LooseMaxMembers;
     _wolfLooseFormationProfile.FormationRadius = _wolfGroupFormationRadius;
 
+    // Milestone 2.12G1: DefiasLoose - the second real profile, built the
+    // exact same way as _wolfLooseFormationProfile above, off by default.
+    // A Defias Thug cluster IS also a Loose AgentGroup, so it shares the
+    // same _groupPolicyConfig.Loose{Min,Max}Members bounds - not an
+    // independently-tunable pair, same reasoning as WolfLoose above.
+    _defiasGroupAutoFormation = sConfigMgr->GetBoolDefault("AIWorld.DefiasGroupAutoFormation", false);
+
+    _defiasGroupCreatureEntry = uint32(sConfigMgr->GetIntDefault("AIWorld.DefiasGroupCreatureEntry", 38));
+
+    int32 defiasGroupFormationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.DefiasGroupFormationIntervalMs", 5000);
+    if (defiasGroupFormationIntervalMs < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupFormationIntervalMs ({}) is invalid or too low, clamping to 1000ms", defiasGroupFormationIntervalMs);
+        defiasGroupFormationIntervalMs = 1000;
+    }
+    _defiasGroupFormationIntervalMs = uint32(defiasGroupFormationIntervalMs);
+    _defiasGroupFormationTimer = 0;
+
+    float defiasGroupFormationRadius = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupFormationRadius", 30.0f);
+    if (defiasGroupFormationRadius < 1.0f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupFormationRadius ({:.1f}) is invalid or too low, clamping to 1.0", defiasGroupFormationRadius);
+        defiasGroupFormationRadius = 1.0f;
+    }
+    _defiasGroupFormationRadius = defiasGroupFormationRadius;
+
+    _defiasLooseFormationProfile.Id = CoalitionFormationProfileId::DefiasLoose;
+    _defiasLooseFormationProfile.Kind = AgentGroupKind::Loose;
+    _defiasLooseFormationProfile.CreatureEntry = _defiasGroupCreatureEntry;
+    _defiasLooseFormationProfile.MinMembers = _groupPolicyConfig.LooseMinMembers;
+    _defiasLooseFormationProfile.MaxMembers = _groupPolicyConfig.LooseMaxMembers;
+    _defiasLooseFormationProfile.FormationRadius = _defiasGroupFormationRadius;
+
+    // Milestone 2.12G1: its own summary log is deferred to right after the
+    // WolfLoose one below (not logged here) - _coalitionFormationMaxInFlight
+    // is not actually populated from AIWorld.CoalitionFormationMaxInFlight
+    // until later in this same function, so logging it at this point would
+    // print its stale default-member-initializer value, not the real
+    // configured one.
+
     // Milestone 2.12E4C2: deliberately larger than AIWorld.WolfGroupFormationRadius
     // - see CoalitionMaintenanceProfile.h's own LeaveRadius comment for the
     // hysteresis this gap exists to give. Clamped to never fall below
@@ -364,6 +404,18 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         wolfGroupLeaveRadius = _wolfGroupFormationRadius;
     }
     _wolfGroupLeaveRadius = wolfGroupLeaveRadius;
+
+    // Milestone 2.12G1: AIWorld.DefiasGroupLeaveRadius - same hysteresis
+    // rule as AIWorld.WolfGroupLeaveRadius above, clamped against its own
+    // AIWorld.DefiasGroupFormationRadius, never against WolfLoose's.
+    float defiasGroupLeaveRadius = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupLeaveRadius", 60.0f);
+    if (defiasGroupLeaveRadius < _defiasGroupFormationRadius)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupLeaveRadius ({:.1f}) is lower than AIWorld.DefiasGroupFormationRadius ({:.1f}), clamping to match",
+            defiasGroupLeaveRadius, _defiasGroupFormationRadius);
+        defiasGroupLeaveRadius = _defiasGroupFormationRadius;
+    }
+    _defiasGroupLeaveRadius = defiasGroupLeaveRadius;
 
     // Milestone 2.12E4C2: the maintenance pass's own cadence/bound - a
     // dedicated timer, not reused from any existing one (a maintenance
@@ -426,6 +478,17 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI wolf coalition maintenance configured enabled={} leaveRadius={:.1f} interval={}ms maxPerPass={} scanMaxPerPass={}",
         _coalitionMaintenanceEnabled, _wolfGroupLeaveRadius, _coalitionMaintenanceIntervalMs, _coalitionMaintenanceMaxPerPass, _coalitionMaintenanceScanMaxPerPass);
 
+    // Milestone 2.12G1: paired with _defiasLooseFormationProfile above -
+    // _coalitionMaintenanceEnabled/interval/maxPerPass/scanMaxPerPass are
+    // shared across every profile (already logged just above), so this
+    // summary only restates DefiasLoose's own LeaveRadius.
+    _defiasLooseMaintenanceProfile.ProfileId = CoalitionFormationProfileId::DefiasLoose;
+    _defiasLooseMaintenanceProfile.Kind = AgentGroupKind::Loose;
+    _defiasLooseMaintenanceProfile.MinMembers = _groupPolicyConfig.LooseMinMembers;
+    _defiasLooseMaintenanceProfile.LeaveRadius = _defiasGroupLeaveRadius;
+
+    TC_LOG_INFO("ai.world", "AI defias coalition maintenance configured leaveRadius={:.1f}", _defiasGroupLeaveRadius);
+
     // Milestone 2.12F2: a SEPARATE enable gate from AIWorld.WolfGroupAutoFormation/
     // AIWorld.CoalitionMaintenance - see _groupCoordinationEnabled's own
     // declaration comment for why. Off by default, same as every other
@@ -473,6 +536,30 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseCoordinationProfile.RegroupEnabled = wolfGroupRegroupEnabled;
     _wolfLooseCoordinationProfile.RegroupRadius = wolfGroupRegroupRadius;
 
+    // Milestone 2.12G1: same shape as WolfLoose above - RegroupRadius is
+    // still Coordination-layer config (see AIWorld.WolfGroupRegroupRadius's
+    // own comment) so it is still independently clamped against
+    // ActionSystem::CoordinationMoveToRangeYards() here, per-profile.
+    bool defiasGroupRegroupEnabled = sConfigMgr->GetBoolDefault("AIWorld.DefiasGroupRegroupEnabled", false);
+
+    float defiasGroupRegroupRadius = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupRegroupRadius", 20.0f);
+    if (defiasGroupRegroupRadius < 1.0f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRegroupRadius ({:.1f}) is invalid or too low, clamping to 1.0", defiasGroupRegroupRadius);
+        defiasGroupRegroupRadius = 1.0f;
+    }
+    if (defiasGroupRegroupRadius > ActionSystem::CoordinationMoveToRangeYards())
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRegroupRadius ({:.1f}) exceeds the ActionSystem Regroup range bound ({:.1f}), clamping to match",
+            defiasGroupRegroupRadius, ActionSystem::CoordinationMoveToRangeYards());
+        defiasGroupRegroupRadius = ActionSystem::CoordinationMoveToRangeYards();
+    }
+
+    _defiasLooseCoordinationProfile.ProfileId = CoalitionFormationProfileId::DefiasLoose;
+    _defiasLooseCoordinationProfile.Kind = AgentGroupKind::Loose;
+    _defiasLooseCoordinationProfile.RegroupEnabled = defiasGroupRegroupEnabled;
+    _defiasLooseCoordinationProfile.RegroupRadius = defiasGroupRegroupRadius;
+
     int32 groupCoordinationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.GroupCoordinationIntervalMs", 5000);
     if (groupCoordinationIntervalMs < 1000)
     {
@@ -496,12 +583,24 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     TC_LOG_INFO("ai.world", "AI group coordination configured enabled={} regroupEnabled={} regroupRadius={:.1f} interval={}ms scanMaxPerPass={}",
         _groupCoordinationEnabled, wolfGroupRegroupEnabled, wolfGroupRegroupRadius, _groupCoordinationIntervalMs, _groupCoordinationScanMaxPerPass);
 
+    // Milestone 2.12G1: enabled/interval/scanMaxPerPass are the same
+    // shared AIWorld.GroupCoordination settings already logged just above.
+    TC_LOG_INFO("ai.world", "AI defias group coordination configured regroupEnabled={} regroupRadius={:.1f}",
+        defiasGroupRegroupEnabled, defiasGroupRegroupRadius);
+
     // Milestone 2.12E4R P3 fix (STATIC review): the hard ceiling on how
     // many DIFFERENT profiles' formations can be in flight at once - see
     // _coalitionFormationMaxInFlight's own declaration comment. 1 (the
     // default) reproduces 2.12E4B's own "at most one automatic formation
-    // in flight, period" behavior exactly, since only one profile exists
-    // today.
+    // in flight, period" behavior exactly for a single profile - now that
+    // 2.12G1 adds DefiasLoose alongside WolfLoose, the default of 1 also
+    // means the two profiles' own automatic formation sagas cannot run
+    // concurrently (whichever gets there first blocks the other's own
+    // RunCoalitionFormation() call until its CreateGroup/Join chain
+    // resolves) - deliberately left at its existing default rather than
+    // raised as part of this milestone; an operator who wants concurrent
+    // formation across profiles can raise AIWorld.CoalitionFormationMaxInFlight
+    // explicitly.
     int32 coalitionFormationMaxInFlight = sConfigMgr->GetIntDefault("AIWorld.CoalitionFormationMaxInFlight", 1);
     if (coalitionFormationMaxInFlight < 1)
     {
@@ -515,6 +614,9 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     TC_LOG_INFO("ai.world", "AI wolf coalition formation configured autoFormation={} creatureEntry={} interval={}ms radius={:.1f} maxInFlight={}",
         _wolfGroupAutoFormation, _wolfGroupCreatureEntry, _wolfGroupFormationIntervalMs, _wolfGroupFormationRadius, _coalitionFormationMaxInFlight);
+
+    TC_LOG_INFO("ai.world", "AI defias coalition formation configured autoFormation={} creatureEntry={} interval={}ms radius={:.1f} maxInFlight={}",
+        _defiasGroupAutoFormation, _defiasGroupCreatureEntry, _defiasGroupFormationIntervalMs, _defiasGroupFormationRadius, _coalitionFormationMaxInFlight);
 
     // Milestone 2.12E3B: off by default - see RunGroupPolicySmokeTest()'s
     // own comment. Read here (not inline at the call site below) purely to
@@ -598,6 +700,9 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
             break; // unset/disabled - stays Invalid
         case int32(CoalitionFormationProfileId::WolfLoose):
             adoptGroupProfileId = CoalitionFormationProfileId::WolfLoose;
+            break;
+        case int32(CoalitionFormationProfileId::DefiasLoose):
+            adoptGroupProfileId = CoalitionFormationProfileId::DefiasLoose;
             break;
         default:
             TC_LOG_ERROR("ai.world", "AIWorld.AdoptGroupProfileId ({}) is not a recognized CoalitionFormationProfileId - "
@@ -2914,6 +3019,11 @@ std::optional<CoalitionMaintenanceProfile> AIWorldMgr::ResolveMaintenanceProfile
     if (profileId == CoalitionFormationProfileId::WolfLoose)
         return _wolfLooseMaintenanceProfile;
 
+    // Milestone 2.12G1: the second real profile - just another case, no
+    // change to RunCoalitionMaintenance()'s own discovery/admission shape.
+    if (profileId == CoalitionFormationProfileId::DefiasLoose)
+        return _defiasLooseMaintenanceProfile;
+
     return std::nullopt;
 }
 
@@ -3115,6 +3225,12 @@ std::optional<AgentGroupCoordinationProfile> AIWorldMgr::ResolveCoordinationProf
 {
     if (profileId == CoalitionFormationProfileId::WolfLoose)
         return _wolfLooseCoordinationProfile;
+
+    // Milestone 2.12G1: the second real profile - just another case, the
+    // same "profile identity is data" discipline ResolveMaintenanceProfile()
+    // already established.
+    if (profileId == CoalitionFormationProfileId::DefiasLoose)
+        return _defiasLooseCoordinationProfile;
 
     return std::nullopt;
 }
@@ -3345,9 +3461,13 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     moveRequest.GoalStartedAtMs = nowMs;
     moveRequest.Destination = destination;
 
-    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f}) sourceGroup={}",
+    // Milestone 2.12G1: sourceGroupProfile added alongside sourceGroup -
+    // genericity runtime proof needs to see, per REGROUP dispatch, which
+    // profile (WolfLoose vs. DefiasLoose) a given group actually belongs
+    // to, not just its opaque GroupId. `group` was already resolved above.
+    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f}) sourceGroup={} sourceGroupProfile={}",
         record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
-        destination.X, destination.Y, destination.Z, proposal.SourceGroup.Value);
+        destination.X, destination.Y, destination.Z, proposal.SourceGroup.Value, ToString(group->ProfileId));
 
     // Set BEFORE Validate() - same order the routine MOVE_TO dispatch in
     // UpdateNeeds() already uses, so ActiveGoalType/ActiveGoalStartedAtMs
@@ -3551,6 +3671,22 @@ void AIWorldMgr::Update(uint32 diff)
         {
             _wolfGroupFormationTimer = 0;
             RunCoalitionFormation(_wolfLooseFormationProfile);
+        }
+    }
+
+    // Milestone 2.12G1: DefiasLoose's own gate/timer, independent of
+    // _wolfGroupAutoFormation/_wolfGroupFormationTimer - each profile's
+    // automatic formation is separately controllable and cadenced, the
+    // same discipline every other AIWorld.* capability gate in this class
+    // already follows. RunCoalitionFormation() itself is unchanged; this
+    // is simply a second call site.
+    if (_defiasGroupAutoFormation)
+    {
+        _defiasGroupFormationTimer += diff;
+        if (_defiasGroupFormationTimer >= _defiasGroupFormationIntervalMs)
+        {
+            _defiasGroupFormationTimer = 0;
+            RunCoalitionFormation(_defiasLooseFormationProfile);
         }
     }
 
