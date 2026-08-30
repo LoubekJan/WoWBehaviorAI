@@ -150,14 +150,30 @@ class TC_GAME_API AgentPersistence
         // `UPDATE ai_agents SET control_mode = 1 WHERE agent_id IN
         // (...)` (raw SQL text, same "every interpolated value is a plain
         // trusted integer" reasoning as CreateCreatureAgentsBatch()'s own
-        // multi-row INSERT), then confirms with exactly one bulk
-        // LoadAllControlModes() read (not one per id/chunk). Returns only
-        // the subset of `ids` confirmed AIWorldControlled by that
-        // read-back - the caller must only mark those promoted in memory
-        // (AgentRecord::ControlMode); anything not confirmed keeps
-        // whatever ControlMode it already had, fail closed, the same
-        // discipline CreateCreatureAgentsBatch() already applies. No-op
-        // (empty result, no DB access) if ids is empty.
+        // multi-row INSERT).
+        //
+        // Milestone 2.12F4B3 P2 fix (STATIC review): all chunks are
+        // Append()ed to ONE CharacterDatabaseTransaction and committed
+        // together via a single DirectCommitTransaction() - not N
+        // independent DirectExecute() calls. This is about atomicity, not
+        // round-trip count (a different requirement than
+        // CreateCreatureAgentsBatch()'s own multi-row INSERT, which
+        // deliberately avoids a transaction of N statements for the
+        // opposite reason): RunZoneControlActivation()'s own caller-side
+        // "is every scoped spawn already reconciled" check guarantees
+        // this only ever runs against a complete candidate set, but
+        // without a transaction, one chunk failing independently after an
+        // earlier chunk already committed would still leave the exact
+        // partially-Controlled zone that check exists to rule out.
+        //
+        // Confirms with exactly one bulk LoadAllControlModes() read (not
+        // one per id/chunk) regardless. Returns only the subset of `ids`
+        // confirmed AIWorldControlled by that read-back - the caller must
+        // only mark those promoted in memory (AgentRecord::ControlMode);
+        // anything not confirmed keeps whatever ControlMode it already
+        // had, fail closed, the same discipline CreateCreatureAgentsBatch()
+        // already applies. No-op (empty result, no DB access) if ids is
+        // empty.
         std::vector<AgentId> PromoteControlModeBatch(std::vector<AgentId> const& ids);
 
         // Milestone 2.12F4B3: lightweight bulk read of every agent_id's

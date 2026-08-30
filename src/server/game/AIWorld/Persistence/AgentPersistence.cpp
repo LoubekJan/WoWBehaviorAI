@@ -318,13 +318,30 @@ std::vector<AgentId> AgentPersistence::PromoteControlModeBatch(std::vector<Agent
     if (ids.empty())
         return promoted;
 
-    // Milestone 2.12F4B3: chunked "UPDATE ai_agents SET control_mode = 1
-    // WHERE agent_id IN (...)" raw SQL, the same reasoning as
-    // CreateCreatureAgentsBatch()'s own multi-row INSERT - SetControlMode()
-    // above does one UPDATE + one read-back round trip per call, exactly
-    // the per-id loop this method exists to avoid for a zone-sized
-    // promotion set. Every interpolated id is a plain unsigned integer
-    // from AgentId::Value, never an untrusted string.
+    // Milestone 2.12F4B3 P2 fix (STATIC review): chunked "UPDATE ai_agents
+    // SET control_mode = 1 WHERE agent_id IN (...)" raw SQL, but every
+    // chunk is Append()ed to ONE CharacterDatabaseTransaction and
+    // committed together via a single DirectCommitTransaction() - never N
+    // independent DirectExecute() calls. AIWorldMgr::
+    // RunZoneControlActivation()'s own caller-side check (all-or-nothing
+    // at the "is every scoped spawn reconciled" level) does not by itself
+    // guarantee the DB WRITE is all-or-nothing too - if chunk 3 of N
+    // failed independently after chunks 1-2 already committed, the result
+    // is exactly the partially-Controlled zone this milestone's target
+    // state rules out. A CharacterDatabaseTransaction genuinely provides
+    // that here: MySQLConnection::ExecuteTransaction() wraps every
+    // appended element (raw SQL included - Transaction<T>::Append(char
+    // const*) is a real, already-used API, see e.g. PlayerDump.cpp) in
+    // one START TRANSACTION/COMMIT, rolling back the whole transaction if
+    // any element fails. This is a different requirement than
+    // CreateCreatureAgentsBatch()'s own multi-row INSERT deliberately NOT
+    // using a transaction of N statements (that decision was about round-
+    // trip count, not atomicity - a single Missing row failing to insert
+    // is self-healing on the next reconciliation regardless of the other
+    // rows; a half-promoted zone is not equivalently safe to leave as-is).
+    // Every interpolated id is a plain unsigned integer from
+    // AgentId::Value, never an untrusted string.
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
     for (std::size_t offset = 0; offset < ids.size(); offset += AgentPersistenceBatchChunkSize)
     {
         std::size_t chunkEnd = offset + AgentPersistenceBatchChunkSize;
@@ -342,15 +359,17 @@ std::vector<AgentId> AgentPersistence::PromoteControlModeBatch(std::vector<Agent
         }
         sql += ')';
 
-        CharacterDatabase.DirectExecute(sql.c_str());
+        trans->Append(sql.c_str());
     }
+    CharacterDatabase.DirectCommitTransaction(trans);
 
-    // DirectExecute() reports no success/failure - confirm with exactly
-    // one bulk read (LoadAllControlModes(), the whole table, not one per
-    // id/chunk), then only report back the subset actually confirmed
-    // AIWorldControlled. Fail closed: anything not confirmed is simply
-    // not in the returned list, so the caller must not mark it promoted
-    // in memory - it keeps whatever ControlMode it already had.
+    // DirectCommitTransaction() reports no success/failure either - even
+    // though the write is now atomic, still confirm with exactly one bulk
+    // read (LoadAllControlModes(), the whole table, not one per id/chunk),
+    // then only report back the subset actually confirmed AIWorldControlled.
+    // Fail closed: anything not confirmed is simply not in the returned
+    // list, so the caller must not mark it promoted in memory - it keeps
+    // whatever ControlMode it already had.
     std::unordered_map<uint64, AgentControlMode> controlModes = LoadAllControlModes();
     promoted.reserve(ids.size());
     for (AgentId const& id : ids)
