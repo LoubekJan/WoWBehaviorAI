@@ -92,6 +92,15 @@ void WorldDatabaseConnection::DoPrepareStatements()
     PrepareStatement(WORLD_DEL_DISABLES, "DELETE FROM disables WHERE entry = ? AND sourceType = ?", CONNECTION_ASYNC);
     PrepareStatement(WORLD_UPD_CREATURE_ZONE_AREA_DATA, "UPDATE creature SET zoneId = ?, areaId = ? WHERE guid = ?", CONNECTION_ASYNC);
     PrepareStatement(WORLD_UPD_GAMEOBJECT_ZONE_AREA_DATA, "UPDATE gameobject SET zoneId = ?, areaId = ? WHERE guid = ?", CONNECTION_ASYNC);
+    // Milestone 2.12F4B2: AIWorld's own narrow, startup-only read of every
+    // creature.guid whose stored zoneId matches a configured value
+    // (FetchCreatureSpawnIdsForZone(), AIWorld/Reconciliation/
+    // CreatureSpawnZoneFilter.cpp) - reads the column WORLD_UPD_CREATURE_
+    // ZONE_AREA_DATA above writes, never computes zone/area itself
+    // (Map::GetZoneAndAreaId() would need a live Map*/vmap data). A stale
+    // or never-recalculated zoneId (0) simply excludes that row, rather
+    // than being mistaken for a real zone 0 spawn.
+    PrepareStatement(WORLD_SEL_CREATURE_GUIDS_BY_ZONE, "SELECT guid FROM creature WHERE zoneId = ?", CONNECTION_SYNCH);
     PrepareStatement(WORLD_DEL_SPAWNGROUP_MEMBER, "DELETE FROM spawn_group WHERE spawnType = ? AND spawnId = ?", CONNECTION_ASYNC);
     PrepareStatement(WORLD_DEL_GAMEOBJECT_ADDON, "DELETE FROM gameobject_addon WHERE guid = ?", CONNECTION_ASYNC);
 }

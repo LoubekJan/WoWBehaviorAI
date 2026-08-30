@@ -509,41 +509,49 @@ class TC_GAME_API AIWorldMgr
         // test is a plain-value check inside ActionSystem itself.
         void RunControlModeSmokeTest(AgentId testAgentId) const;
 
-        // Milestone 2.12F4B: bidirectional global reconciliation between
+        // Milestone 2.12F4B/2.12F4B2: bidirectional reconciliation between
         // eligible persistent non-instance world.creature spawns and
-        // ai_agents - gated behind AIWorld.EnableSpawnReconciliation
-        // (default false, 2.12F4B P2 fix STATIC review - see Initialize()'s
-        // own comment for why this stays opt-in until 2.12F4C's scale
-        // hardening lands), called right after _persistence.LoadAgents(
-        // _registry) and before anything (group/memory loaders, the
-        // AIWorld.TestSpawnId fixture) consumes _registry, so every
-        // downstream startup step sees the final, reconciled state. The
-        // diff is built against ai_agents' own PHYSICAL content
-        // (_persistence.LoadAllBindings(), 2.12F4B P2 fix STATIC review)
-        // rather than _registry, so a row LoadAgents() itself already
-        // quarantined (AgentId != SpawnId, 2.12F4A2) is still known to
-        // occupy its (map_id, spawn_id) binding AND its agent_id, and is
-        // never treated as Missing - nor is a census spawn whose intended
-        // new AgentId collides with a different quarantined row's own
-        // agent_id (AGENT_ID_COLLISION, see SpawnReconciliationPlan.h).
-        // Every physical row not eligible for the census is also checked
-        // against BuildAllKnownCreatureSpawnIds() before being treated as
-        // ORPHANED, so an existing-but-out-of-scope spawn (e.g. instance/
-        // raid) is left untouched rather than misclassified as orphaned
-        // and quarantined. MISSING census entries get a freshly created
-        // AgentRecord (AgentId = SpawnId, ControlMode = ObserveOnly -
-        // reconciliation never mass-grants AIWorldControlled), inserted
-        // via a genuine chunked multi-row INSERT (AgentPersistence::
+        // ai_agents, SCOPED to zoneId (2.12F4B2 - see Initialize()'s own
+        // comment for the fail-closed AIWorld.EnableSpawnReconciliation/
+        // AIWorld.SpawnReconciliationZoneId gating: this is only ever
+        // called with an already-validated, nonzero zoneId - there is
+        // deliberately no unscoped/global code path any more, see
+        // AIWorld_Current_Roadmap.md's own "2.12F4B2" section for why a
+        // global mode is deferred to its own explicit future override
+        // rather than being reachable from here). Called right after
+        // _persistence.LoadAgents(_registry) and before anything (group/
+        // memory loaders, the AIWorld.TestSpawnId fixture) consumes
+        // _registry, so every downstream startup step sees the final,
+        // reconciled state. The 2.12F4B engine itself (diff/reconcile) is
+        // unchanged by 2.12F4B2 - only its own `census` input is filtered
+        // down to FetchCreatureSpawnIdsForZone(zoneId)'s result before
+        // being passed to BuildReconciliationPlan(); BuildAllKnownCreatureSpawnIds()
+        // stays global/unscoped, so an existing agent outside the
+        // configured zone still correctly falls into OutOfScopeCount, not
+        // Orphaned. The diff is built against ai_agents' own PHYSICAL
+        // content (_persistence.LoadAllBindings(), 2.12F4B P2 fix STATIC
+        // review) rather than _registry, so a row LoadAgents() itself
+        // already quarantined (AgentId != SpawnId, 2.12F4A2) is still
+        // known to occupy its (map_id, spawn_id) binding AND its agent_id,
+        // and is never treated as Missing - nor is a census spawn whose
+        // intended new AgentId collides with a different quarantined
+        // row's own agent_id (AGENT_ID_COLLISION, see
+        // SpawnReconciliationPlan.h). MISSING census entries get a freshly
+        // created AgentRecord (AgentId = SpawnId, ControlMode =
+        // ObserveOnly - reconciliation never mass-grants AIWorldControlled),
+        // inserted via a genuine chunked multi-row INSERT (AgentPersistence::
         // CreateCreatureAgentsBatch()), not one statement per row.
         // ORPHANED and CONFLICTED (spawn still eligible, but the row's own
         // stored MapId disagrees with world.creature) bindings are both
         // removed from _registry only - never an aggressive ai_agents
         // DELETE/auto-repair, see RunSpawnReconciliation()'s own .cpp
         // comment. Bounded/administered (runs once at startup, never
-        // recurring per-tick) - scale hardening for a fully-reconciled,
-        // thousands-of-agents population is 2.12F4C's own job, not this
-        // one's.
-        void RunSpawnReconciliation();
+        // recurring per-tick) - scale hardening for a fully-reconciled
+        // population at world scale is 2.12F4C's own job, not this one's
+        // (2.12F4B already measured 128849 agents world-wide with a real
+        // world-thread performance regression - see the roadmap's own
+        // 2.12F4B "Runtime evidence" note).
+        void RunSpawnReconciliation(uint32 zoneId);
 
         // Milestone 2.12E4R (generalized from 2.12E4A's
         // CollectWolfCoalitionCandidates()): builds the value-only

@@ -3405,23 +3405,49 @@ AIWorld.Enable = 0
 
 #
 #    AIWorld.EnableSpawnReconciliation
-#        Description: Milestone 2.12F4B - when enabled, runs a one-time, startup-only
-#                     bidirectional reconciliation between eligible persistent non-instance
-#                     world.creature spawns and ai_agents (AIWorldMgr::RunSpawnReconciliation()):
-#                     missing spawns get a new ObserveOnly AgentRecord (AgentId = SpawnId),
-#                     orphaned/conflicting ai_agents rows are quarantined out of the runtime
-#                     registry (never deleted from the DB). Deliberately opt-in for now (2.12F4B
-#                     P2 fix, STATIC review): the roadmap's own F4B -> F4C -> F4D ordering means a
-#                     full ObserveOnly population is only safe to actually run after 2.12F4C's
-#                     scale hardening (bounded/indexed scheduler discovery, perception, needs,
-#                     coalition candidate scans) - enabling this against a real world.creature
-#                     dataset before then would reintroduce the recurring O(all agents) world-
-#                     thread cost 2.12F4C exists to remove. Intended to become the default
-#                     (always-on, like AgentPersistence::LoadAgents() itself) once 2.12F4C lands.
+#        Description: Milestone 2.12F4B/2.12F4B2 - when enabled, runs a one-time, startup-only
+#                     reconciliation between eligible persistent non-instance world.creature
+#                     spawns and ai_agents (AIWorldMgr::RunSpawnReconciliation()): missing spawns
+#                     get a new ObserveOnly AgentRecord (AgentId = SpawnId), orphaned/conflicting
+#                     ai_agents rows are quarantined out of the runtime registry (never deleted
+#                     from the DB). REQUIRES AIWorld.SpawnReconciliationZoneId to also be set to a
+#                     positive zoneId (2.12F4B2, STATIC review) - an unscoped/global run is
+#                     refused (logged, not run) rather than silently falling back to one: the
+#                     2.12F4B engine already measured a real unscoped run against this server's
+#                     full world.creature dataset (census=128849) and observed a world-thread
+#                     performance regression before 2.12F4C's scale hardening exists, so
+#                     forgetting to set AIWorld.SpawnReconciliationZoneId must never silently
+#                     repeat that. An unscoped/global mode gets its own explicit override once
+#                     2.12F4C/2.12F4D exist.
 #        Default:     0 - (Disabled)
-#                     1 - (Enabled)
+#                     1 - (Enabled, requires AIWorld.SpawnReconciliationZoneId > 0)
 
 AIWorld.EnableSpawnReconciliation = 0
+
+#
+#    AIWorld.SpawnReconciliationZoneId
+#        Description: Milestone 2.12F4B2 - the zoneId AIWorld.EnableSpawnReconciliation's own
+#                     reconciliation run is scoped to (e.g. 12 for Elwynn Forest). Only the
+#                     eligible census (AIWorldMgr::RunSpawnReconciliation()'s own `census`) is
+#                     filtered to this zone - AgentPersistence::LoadAllBindings() and
+#                     BuildAllKnownCreatureSpawnIds() stay unscoped, so an existing agent outside
+#                     this zone is left untouched (counted as out-of-scope) rather than
+#                     misclassified as orphaned. Reads creature.zoneId directly via a narrow
+#                     WorldDatabase query (FetchCreatureSpawnIdsForZone()) - never computes zone/
+#                     area at runtime (that would require a live Map* and terrain/vmap data from
+#                     disk, a dependency this subsystem's census pipeline has never had).
+#        Important:   creature.zoneId must be freshly recalculated for the CURRENT world.creature
+#                     state before this is used - run TrinityCore's own
+#                     Calculate.Creature.Zone.Area.Data = 1 once, restart, verify the target rows
+#                     have a nonzero zoneId in the DB, then turn Calculate.Creature.Zone.Area.Data
+#                     back off. A stale/never-recalculated row silently reads as zoneId = 0 and is
+#                     excluded - not a loud failure, so this precondition is on the operator, not
+#                     detected here. 0 (or unset) makes AIWorld.EnableSpawnReconciliation refuse to
+#                     run at all - see its own Description for why.
+#        Default:     0 - (No scope configured; combined with AIWorld.EnableSpawnReconciliation = 1
+#                          this refuses to run)
+
+AIWorld.SpawnReconciliationZoneId = 0
 
 #
 #    AIWorld.DecisionSchedulerIntervalMs
