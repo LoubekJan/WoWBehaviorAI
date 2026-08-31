@@ -1,10 +1,10 @@
 # AIWorld — Current Roadmap
 
-> **Aktualizováno:** 2026-08-30  
+> **Aktualizováno:** 2026-08-31  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `c1fc0792b99a907039e11e8c03d73c6425c67347`  
-> **Detailní roadmap sync před tímto commitem:** `fb11e29b1844f0ffc27f1ac6004e06837760f338`
+> **Aktuální code baseline před tímto docs commitem:** `1523cad9cdea33e133e429aefed861d85f82fb02`  
+> **Detailní roadmap sync před tímto commitem:** `9f4cc7732eaa60c7fa25f945948b35801d36b987`
 
 ## Základní invariant
 
@@ -67,7 +67,10 @@ Platí pro všechny další milníky:
 | 2.12F3 — integration/lifecycle runtime proof | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12F4A–F4B3 — ControlMode gate, TrinityCore-aligned identity, spawn reconciliation, scoped Elwynn population + full Control activation | **CLOSED / STATIC + BUILD + RUNTIME PASS (Elwynn: 3540/3540 `AIWorldControlled`)** |
 | 2.12F4C/F4D — world-scale hardening (O(1) index, bounded recurring work) + full-world bootstrap | **DEFERRED — not required for single-location work; required before any eventual full-world rollout, see 2.12F4C's own Priorita** |
-| 2.12G — druhý profil + další generic group behavior | **PLANNED (nad reálnou Elwynn populací z 2.12F4)** |
+| 2.12G1 — druhý coalition profile (genericity proof) | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
+| 2.12G2 — generic ROAM/territory movement intent | **STATIC PASS, positive BUILD + RUNTIME evidence — lifecycle closure (preemption/leave/dissolve during active ROAM) pending, viz 2.12G2R** |
+| 2.12G3 — generic HUNT/coordinated combat contract | **NOT STARTED** |
+| 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
 | 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
 | Etapa 3 — Elwynn world preparation | **PLANNED** |
@@ -680,6 +683,8 @@ Runtime gate: globální reconciliation proběhla, `ObserveOnly` populace neovli
 
 ## 2.12G1 — druhý skutečný coalition profile přes stejnou pipeline
 
+**Stav: CLOSED / STATIC + BUILD + RUNTIME PASS.**
+
 **Priorita: NEXT po 2.12F4.**
 
 Než přidáme složitější chování, musí být prakticky dokázáno, že současná architektura není WolfPack systém převlečený za generic API.
@@ -735,7 +740,19 @@ WolfLoose + second profile
 
 **Silné kritérium:** pokud přidání druhého typu vyžaduje `Run<Species>...()` orchestration metodu, návrh se vrací k refactoru a 2.12G1 není splněno.
 
+**Runtime evidence (potvrzeno):** WolfLoose i DefiasLoose mají reálné persistentní `AgentGroup`y (skuteční Elwynn members, ne ghost/test agenti), se správným persistentním `ProfileId`, vytvořené přes stejný generic `RunCoalitionFormation`/maintenance/coordination path a stejný intent/projector/`ActionSystem` pipeline. Identita/provenance obou skupin drží beze změny po restartu. Žádná species-specific orchestration větev (`RunWolfFormation()`, `RunDefiasFormation()` apod.) nevznikla.
+
+```text
+2.12G1 STATIC   PASS
+2.12G1 BUILD    PASS
+2.12G1 RUNTIME  PASS (WolfLoose + DefiasLoose, restart-stable)
+
+2.12G1 = CLOSED
+```
+
 ## 2.12G2 — generic ROAM / territory movement intent
+
+**Stav: STATIC PASS, positive BUILD + RUNTIME evidence — lifecycle closure (preemption/leave/dissolve during active ROAM) pending, viz 2.12G2R níže.**
 
 Po G1 přidat druhé viditelné group chování, stále generic a deterministic.
 
@@ -759,11 +776,76 @@ Runtime gate:
 - leave/dissolve/preemption během roam failuje bezpečně;
 - oba profily z G1 mohou stejný intent použít pouze změnou profile data/policy.
 
+**Runtime evidence (potvrzeno):** pure smoke `PASS` (Evaluate/Project, deterministic target, REGROUP > ROAM priority, fail-closed unknown intent); reálný runtime `PASS` pro WolfLoose (group `16`) i DefiasLoose (group `15`) — společný deterministický ROAM target, individual `MOVE_TO` request per member, validace přes `ActionSystem`, stabilní `ARRIVED`, žádný viditelný duplicate movement spam. Po testu byl systém vrácen do defaultního disabled stavu (`AIWorld.*GroupRoamEnabled = 0`).
+
+**Chybějící runtime důkaz (blokuje CLOSED):** explicitní proof, že leave/dissolve/higher-priority preemption uprostřed aktivního ROAM bezpečně zruší `GroupCoordinationGoalState` i běžící movement — viz 2.12G2R.
+
+```text
+2.12G2 STATIC        PASS
+2.12G2 BUILD         PASS
+2.12G2 WOLF ROAM     PASS
+2.12G2 DEFIAS ROAM   PASS
+2.12G2 PREEMPTION    NOT YET PROVEN
+2.12G2 LEAVE         NOT YET PROVEN
+2.12G2 DISSOLVE      NOT YET PROVEN
+2.12G2 SAFE-OFF      PASS
+
+2.12G2 = IN PROGRESS (viz 2.12G2R)
+```
+
+## 2.12G2R — ROAM lifecycle runtime closure
+
+**Stav: PLANNED — další implementační krok.**
+
+**Priorita: až po 2.12G2, před uzavřením G2 a před jakýmkoli G3 kódem.**
+
+2.12G2 samo o sobě prokázalo formation/target/dispatch/arrival cestu (viz Runtime evidence výše), ale ne, že lifecycle/preemption cesty, které už `2.12F3` dokázalo pro `REGROUP`, stejně bezpečně fungují i pro `ROAM`. Ruční časování leave/dissolve uprostřed ROAM není spolehlivé — ROAM attempt trvá jen několik sekund, výsledek by nebyl deterministický.
+
+Návrhový směr — stejná disciplína jako `2.12F3`'s `AIWorld.TestDissolveOnActiveRegroupGroupId` hook, ne ruční časování:
+
+- tři defaultně vypnuté, one-shot runtime test hooky:
+  - preempt vybraného člena až ve chvíli, kdy má skutečně aktivní `GoalType::Roam`;
+  - manual leave vybraného člena během aktivního ROAM;
+  - dissolve vybrané skupiny během aktivního ROAM;
+- hooky používají reálné existující agenty/skupiny, nikdy ghost/test entity;
+- hook čeká na skutečně aktivní ROAM (stejná ownership/provenance shoda jako `CheckTestDissolveOnActiveRegroup()`: `ActiveActionState::SourceGoal == Roam`, `GroupCoordinationGoalState::Type == Roam`, matching `SourceGroup`/attempt identity), ne na libovolný timing;
+- hook volá pouze existující goal/lifecycle API (`RequestLeaveGroupWithPolicy(..., Manual)`, `RequestDissolveGroupWithPolicy(..., Manual)`, existující preemption cestu) — nikdy přímo nemutuje registry ani action state;
+- dissolve test může zobecnit existující `AIWorld.TestDissolveOnActiveRegroupGroupId`/`CheckTestDissolveOnActiveRegroup()` tak, aby podporoval libovolný known coordination `GoalType` (Regroup i Roam), místo duplikace celé orchestrace pro Roam zvlášť;
+- hook potvrdí zrušení `GroupCoordinationGoalState` i běžícího movement, ne jen že event proběhl;
+- hook je one-shot a po restartu defaultně vypnutý;
+- test se dělá na nové disposable skupině po DB záloze, ne na dlouhodobě běžících group `15`/`16`.
+
+Runtime gate:
+
+```text
+2.12G2 PREEMPTION   PASS
+2.12G2 LEAVE        PASS
+2.12G2 DISSOLVE     PASS
+```
+
+Teprve po tomto se `2.12G2` (a tento G2R dodatek) označí jako `CLOSED`.
+
 ## 2.12G3 — generic HUNT / coordinated combat preparation
 
-Až po stabilním G1/G2.
+**Stav: NOT STARTED.**
+
+Až po stabilním G1/G2 (tedy až po `2.12G2R` closure výše) — první commit ještě neútočí, jen navrhuje kontrakt.
 
 Nejdřív navrhnout explicitní server-owned combat proposal/action contract. Group nesmí přímo volat combat API nad více Creatures.
+
+```text
+Group HuntIntent
+    ↓
+explicit target identity/provenance
+    ↓
+per-member HuntProposal
+    ↓
+ActionRequest
+    ↓
+target/membership/map/range revalidation
+    ↓
+TrinityCore execution
+```
 
 Požadavky:
 
@@ -779,7 +861,16 @@ Požadavky:
 
 Runtime gate má nejdřív dokazovat correctness a ownership, ne „chytré smečkové taktiky“.
 
+**Doporučené rozdělení (ne nutně samostatné milníky, ale samostatné commity/review kroky):**
+
+- **G3A** — pure DTO a target provenance contract (`HuntIntent`/`HuntProposal` shape, žádná orchestrace);
+- **G3B** — intent/projector a pure smoke testy (stejná disciplína jako `2.12F1`/`2.12F2`);
+- **G3C** — per-member validation a ownership/preemption (stejná disciplína jako `2.12F2`/`2.12F3`);
+- **G3D** — runtime proof: target death/unload/leave/dissolve během aktivního HUNT bezpečně ruší stale group-owned intent.
+
 ## 2.12G4 — roles / leader pouze pokud je skutečně potřeba
+
+**Stav: NOT NEEDED YET.** `2.12G2`'s dosavadní ROAM runtime evidence neprokázala žádnou potřebu leadera/role — shared deterministic target + generic per-member proposal stačí. G4 se nezačíná preventivně jen proto, že G2/G3 existují.
 
 Leadership se nepřidává preventivně.
 
