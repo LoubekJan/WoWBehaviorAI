@@ -595,9 +595,27 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     float wolfRoamEnvelopeMax = std::min(wolfGroupRegroupRadius, _wolfGroupLeaveRadius);
 
-    if (wolfGroupRoamEnabled && wolfRoamEnvelopeMax < MinRoamDistance + MinRoamArrivalRadius)
+    // Milestone 2.12G2 P2 fix, round 2 (STATIC review): feasibility is NOT
+    // "does the envelope fit both floors ADDED TOGETHER"
+    // (MinRoamDistance + MinRoamArrivalRadius) - RoamArrivalRadius only
+    // has to stay strictly below whatever RoamDistance ends up being, not
+    // below the envelope minus RoamDistance's own floor, so the two
+    // floors do not each need their own separate slice of the envelope.
+    // A valid (RoamDistance, RoamArrivalRadius) pair exists iff the
+    // envelope can hold RoamDistance's own floor at all
+    // (wolfRoamEnvelopeMax >= MinRoamDistance) AND that same envelope
+    // leaves ANY room strictly below it for RoamArrivalRadius's own floor
+    // (wolfRoamEnvelopeMax > MinRoamArrivalRadius) - taking RoamDistance
+    // == wolfRoamEnvelopeMax itself is always the most permissive choice,
+    // so if that specific pair does not fit, no pair does. With
+    // MinRoamDistance(1.0) > MinRoamArrivalRadius(0.5), envelope == 1.0
+    // (RoamDistance=1.0, RoamArrivalRadius=0.5) is a genuinely valid pair
+    // that the old "sum of minima" (1.5) check wrongly rejected.
+    bool wolfRoamEnvelopeFeasible = wolfRoamEnvelopeMax >= MinRoamDistance && wolfRoamEnvelopeMax > MinRoamArrivalRadius;
+
+    if (wolfGroupRoamEnabled && !wolfRoamEnvelopeFeasible)
     {
-        TC_LOG_ERROR("ai.world", "AIWorld.WolfGroupRoamEnabled is set, but min(AIWorld.WolfGroupRegroupRadius={:.1f}, AIWorld.WolfGroupLeaveRadius={:.1f})={:.1f} leaves no room for a RoamDistance/RoamArrivalRadius pair respecting their own {:.1f}/{:.1f} minimums - disabling WolfLoose ROAM",
+        TC_LOG_ERROR("ai.world", "AIWorld.WolfGroupRoamEnabled is set, but min(AIWorld.WolfGroupRegroupRadius={:.1f}, AIWorld.WolfGroupLeaveRadius={:.1f})={:.1f} leaves no room for any RoamDistance/RoamArrivalRadius pair respecting their own {:.1f}/{:.1f} minimums - disabling WolfLoose ROAM",
             wolfGroupRegroupRadius, _wolfGroupLeaveRadius, wolfRoamEnvelopeMax, MinRoamDistance, MinRoamArrivalRadius);
         wolfGroupRoamEnabled = false;
     }
@@ -677,9 +695,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     float defiasRoamEnvelopeMax = std::min(defiasGroupRegroupRadius, _defiasGroupLeaveRadius);
 
-    if (defiasGroupRoamEnabled && defiasRoamEnvelopeMax < MinRoamDistance + MinRoamArrivalRadius)
+    // Milestone 2.12G2 P2 fix, round 2 (STATIC review): see
+    // wolfRoamEnvelopeFeasible's own comment above - feasibility is
+    // whether ANY valid (RoamDistance, RoamArrivalRadius) pair fits, not
+    // whether the envelope fits both floors added together.
+    bool defiasRoamEnvelopeFeasible = defiasRoamEnvelopeMax >= MinRoamDistance && defiasRoamEnvelopeMax > MinRoamArrivalRadius;
+
+    if (defiasGroupRoamEnabled && !defiasRoamEnvelopeFeasible)
     {
-        TC_LOG_ERROR("ai.world", "AIWorld.DefiasGroupRoamEnabled is set, but min(AIWorld.DefiasGroupRegroupRadius={:.1f}, AIWorld.DefiasGroupLeaveRadius={:.1f})={:.1f} leaves no room for a RoamDistance/RoamArrivalRadius pair respecting their own {:.1f}/{:.1f} minimums - disabling DefiasLoose ROAM",
+        TC_LOG_ERROR("ai.world", "AIWorld.DefiasGroupRoamEnabled is set, but min(AIWorld.DefiasGroupRegroupRadius={:.1f}, AIWorld.DefiasGroupLeaveRadius={:.1f})={:.1f} leaves no room for any RoamDistance/RoamArrivalRadius pair respecting their own {:.1f}/{:.1f} minimums - disabling DefiasLoose ROAM",
             defiasGroupRegroupRadius, _defiasGroupLeaveRadius, defiasRoamEnvelopeMax, MinRoamDistance, MinRoamArrivalRadius);
         defiasGroupRoamEnabled = false;
     }
@@ -1401,6 +1425,26 @@ void AIWorldMgr::RequestDissolveGroup(GroupId groupId, std::function<void(bool)>
                 _maintenanceSchedule.erase(groupId.Value);
                 _maintenanceInFlight.erase(groupId.Value);
                 _groupProfileAdoptionInFlight.erase(groupId.Value);
+
+                // Milestone 2.12G2 P2 fix, round 2 (STATIC review): same
+                // class of AIWorldMgr-only, GroupId-keyed bookkeeping as
+                // the maps above - _roamAttemptPinnedNowMs records a pin
+                // the moment a ROAM intent is produced (RunCoalitionCoordination()),
+                // but only ever CLEARS it when that same GroupId is later
+                // re-discovered with no in-flight attempt. A dissolved
+                // GroupId is removed from _groupRegistry entirely
+                // (AgentGroupRegistry::Remove()), so AgentGroupRegistry::
+                // GetGroupsAfterUntil() can never discover it again -
+                // RunCoalitionCoordination() would never revisit this
+                // GroupId to do that clearing itself. Without this, a
+                // dissolved-while-still-pinned group's entry would linger
+                // in this map forever (GroupIds are never recycled, see
+                // GroupId.h), growing unbounded over a long-running
+                // server's own churn of created/dissolved groups. This is
+                // the one authoritative confirmed-dissolve completion
+                // every dissolve path funnels through (see this method's
+                // own comment above), so clearing it only here is enough.
+                _roamAttemptPinnedNowMs.erase(groupId.Value);
 
                 // 2.12F2 P2 fix (STATIC review): every former member's own
                 // in-flight Regroup (if any) targeting this now-dissolved
@@ -3766,7 +3810,20 @@ void AIWorldMgr::RunCoalitionCoordination()
 
         AgentGroupRecord const* group = _groupRegistry.Find(groupId);
         if (!group)
+        {
+            // Defense in depth only - in normal operation a dissolved
+            // GroupId is removed from _groupRegistry entirely (see
+            // AgentGroupRegistry::Remove()) and can therefore never be
+            // discovered here again in the first place, so
+            // RequestDissolveGroup()'s own confirmed-dissolve completion
+            // is the actual, always-reached place this same erase happens
+            // (see its own comment for why). Kept here too purely so this
+            // map can never accumulate a stale entry through some future
+            // path that reaches "discovered, but no longer resolves"
+            // without going through that completion.
+            _roamAttemptPinnedNowMs.erase(groupId.Value);
             continue;
+        }
 
         std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
         if (!profile)

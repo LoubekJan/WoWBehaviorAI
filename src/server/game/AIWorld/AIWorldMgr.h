@@ -1970,6 +1970,18 @@ class TC_GAME_API AIWorldMgr
         // whatever nowMs its caller decides to pass - this is entirely
         // AIWorldMgr's own orchestration-layer bookkeeping, the same
         // layer _formationInFlight/_maintenanceInFlight already live at.
+        //
+        // Milestone 2.12G2 P2 fix, round 2 (STATIC review): a dissolved
+        // group's own entry is NOT reliably cleared by
+        // RunCoalitionCoordination() revisiting it later - a dissolved
+        // GroupId is removed from _groupRegistry entirely
+        // (AgentGroupRegistry::Remove()), so
+        // AgentGroupRegistry::GetGroupsAfterUntil() can never discover it
+        // again, and GroupIds are never recycled (see GroupId.h). The
+        // authoritative clear is RequestDissolveGroup()'s own confirmed-
+        // dissolve completion (see its own comment) - the one place every
+        // dissolve path funnels through - with RunCoalitionCoordination()'s
+        // own `!group` branch erasing it too, purely as defense in depth.
         std::unordered_map<uint64, uint64> _roamAttemptPinnedNowMs;
 
         // Milestone 2.12F3 test hook: AIWorld.TestDissolveOnActiveRegroupGroupId
