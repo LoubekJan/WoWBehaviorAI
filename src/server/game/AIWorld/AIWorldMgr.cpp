@@ -35,6 +35,7 @@
 #include "Metric.h"
 #include "MotionMaster.h"
 #include "MovementDefines.h"
+#include "PathGenerator.h"
 #include "Player.h"
 #include "PointMovementGenerator.h"
 #include "Reconciliation/CreatureSpawnCensus.h"
@@ -545,27 +546,41 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         wolfGroupRegroupRadius = ActionSystem::CoordinationMoveToRangeYards();
     }
 
-    // Milestone 2.12G2: off by default (AIWorld.WolfGroupRoamEnabled),
-    // same as every other not-yet-runtime-verified piece of this feature.
-    // RoamDistance/RoamArrivalRadius are clamped to keep the
-    // RoamArrivalRadius < RoamDistance < RegroupRadius < LeaveRadius
-    // envelope AgentGroupCoordinationProfile.h's own RoamEnabled comment
-    // documents - a roam target allowed to land past this profile's OWN
-    // RegroupRadius would have Roam and Regroup fight every other pass.
+    // Milestone 2.12G2 P2 fix, P3 fix (STATIC review): off by default
+    // (AIWorld.WolfGroupRoamEnabled), same as every other not-yet-runtime-
+    // verified piece of this feature. RoamDistance/RoamArrivalRadius used
+    // to be clamped only against RegroupRadius, on the (undocumented,
+    // unenforced) assumption that RegroupRadius < LeaveRadius - but
+    // RegroupRadius is deliberately independent maintenance-unrelated
+    // Coordination-layer config (see its own comment above), so a
+    // perfectly valid RegroupRadius > LeaveRadius let ROAM legally send a
+    // member past LeaveRadius, where CoalitionMaintenanceSystem's own
+    // automatic Leave would then remove it - two generic policies fighting
+    // each other. roamEnvelopeMax below is the REAL bound - whichever of
+    // RegroupRadius/LeaveRadius is tighter - so a Roam target can never
+    // exceed either. Landing EXACTLY at either boundary is still safe:
+    // both AgentGroupIntentSystem's own Regroup check and
+    // CoalitionMaintenanceSystem's own Leave check trigger only on
+    // strictly-GREATER-than their own radius (distanceSq <= radiusSq is
+    // "not yet triggered" in both), so an inclusive upper clamp is
+    // correct, not just a conservative approximation.
+    //
+    // The old independent clamp chain (floor first, then a ">=" ceiling
+    // that could recompute a value BELOW its own just-enforced floor, e.g.
+    // RoamDistance clamped up to 1.0 then immediately back down to
+    // RegroupRadius*0.5 = 0.5 when RegroupRadius itself was only 1.0) is
+    // replaced by one consistent computation: first prove the configured
+    // envelope actually has room for both documented floors at once
+    // (MinRoamDistance/MinRoamArrivalRadius below) - if it does not,
+    // ROAM is fail-closed disabled for this profile entirely, rather than
+    // silently accepting a value that violates its own documented
+    // minimum. Only once that is proven does clamping proceed, and every
+    // subsequent clamp target (roamEnvelopeMax itself, or
+    // wolfGroupRoamDistance which is by then already >= MinRoamDistance)
+    // is provably still >= the floor it is being compared against.
     bool wolfGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRoamEnabled", false);
-
     float wolfGroupRoamDistance = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamDistance", 10.0f);
-    if (wolfGroupRoamDistance < 1.0f)
-    {
-        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamDistance ({:.1f}) is invalid or too low, clamping to 1.0", wolfGroupRoamDistance);
-        wolfGroupRoamDistance = 1.0f;
-    }
-    if (wolfGroupRoamDistance >= wolfGroupRegroupRadius)
-    {
-        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamDistance ({:.1f}) is not smaller than AIWorld.WolfGroupRegroupRadius ({:.1f}) - a roam target this far out could immediately trigger REGROUP, clamping to {:.1f}",
-            wolfGroupRoamDistance, wolfGroupRegroupRadius, wolfGroupRegroupRadius * 0.5f);
-        wolfGroupRoamDistance = wolfGroupRegroupRadius * 0.5f;
-    }
+    float wolfGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamArrivalRadius", 5.0f);
 
     int32 wolfGroupRoamIntervalMsRaw = sConfigMgr->GetIntDefault("AIWorld.WolfGroupRoamIntervalMs", 15000);
     if (wolfGroupRoamIntervalMsRaw < 1000)
@@ -575,15 +590,38 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     uint32 wolfGroupRoamIntervalMs = uint32(wolfGroupRoamIntervalMsRaw);
 
-    float wolfGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamArrivalRadius", 5.0f);
-    if (wolfGroupRoamArrivalRadius < 0.5f)
+    constexpr float MinRoamDistance = 1.0f;
+    constexpr float MinRoamArrivalRadius = 0.5f;
+
+    float wolfRoamEnvelopeMax = std::min(wolfGroupRegroupRadius, _wolfGroupLeaveRadius);
+
+    if (wolfGroupRoamEnabled && wolfRoamEnvelopeMax < MinRoamDistance + MinRoamArrivalRadius)
     {
-        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamArrivalRadius ({:.1f}) is invalid or too low, clamping to 0.5", wolfGroupRoamArrivalRadius);
-        wolfGroupRoamArrivalRadius = 0.5f;
+        TC_LOG_ERROR("ai.world", "AIWorld.WolfGroupRoamEnabled is set, but min(AIWorld.WolfGroupRegroupRadius={:.1f}, AIWorld.WolfGroupLeaveRadius={:.1f})={:.1f} leaves no room for a RoamDistance/RoamArrivalRadius pair respecting their own {:.1f}/{:.1f} minimums - disabling WolfLoose ROAM",
+            wolfGroupRegroupRadius, _wolfGroupLeaveRadius, wolfRoamEnvelopeMax, MinRoamDistance, MinRoamArrivalRadius);
+        wolfGroupRoamEnabled = false;
+    }
+
+    if (wolfGroupRoamDistance < MinRoamDistance)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamDistance ({:.1f}) is invalid or too low, clamping to {:.1f}", wolfGroupRoamDistance, MinRoamDistance);
+        wolfGroupRoamDistance = MinRoamDistance;
+    }
+    if (wolfGroupRoamDistance > wolfRoamEnvelopeMax)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamDistance ({:.1f}) exceeds min(RegroupRadius, LeaveRadius) ({:.1f}) - a roam target past either could immediately trigger REGROUP or an automatic Leave, clamping to match",
+            wolfGroupRoamDistance, wolfRoamEnvelopeMax);
+        wolfGroupRoamDistance = wolfRoamEnvelopeMax;
+    }
+
+    if (wolfGroupRoamArrivalRadius < MinRoamArrivalRadius)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamArrivalRadius ({:.1f}) is invalid or too low, clamping to {:.1f}", wolfGroupRoamArrivalRadius, MinRoamArrivalRadius);
+        wolfGroupRoamArrivalRadius = MinRoamArrivalRadius;
     }
     if (wolfGroupRoamArrivalRadius >= wolfGroupRoamDistance)
     {
-        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamArrivalRadius ({:.1f}) is not smaller than AIWorld.WolfGroupRoamDistance ({:.1f}) - no roam target could ever count as reached, clamping to {:.1f}",
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamArrivalRadius ({:.1f}) is not smaller than the effective AIWorld.WolfGroupRoamDistance ({:.1f}) - no roam target could ever count as reached, clamping to {:.1f}",
             wolfGroupRoamArrivalRadius, wolfGroupRoamDistance, wolfGroupRoamDistance * 0.5f);
         wolfGroupRoamArrivalRadius = wolfGroupRoamDistance * 0.5f;
     }
@@ -619,24 +657,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         defiasGroupRegroupRadius = ActionSystem::CoordinationMoveToRangeYards();
     }
 
-    // Milestone 2.12G2: same shape as WolfLoose above - see its own
-    // comment for the RoamArrivalRadius < RoamDistance < RegroupRadius <
-    // LeaveRadius envelope this clamping keeps DefiasLoose inside too,
-    // independently.
+    // Milestone 2.12G2 P2 fix, P3 fix (STATIC review): same shape as
+    // WolfLoose above - see its own comment for why the clamp bound is
+    // min(RegroupRadius, LeaveRadius), computed once, with a fail-closed
+    // disable of ROAM when the configured envelope leaves no room for
+    // either documented floor, rather than a clamp chain that could
+    // undercut its own minimum.
     bool defiasGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.DefiasGroupRoamEnabled", false);
-
     float defiasGroupRoamDistance = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupRoamDistance", 10.0f);
-    if (defiasGroupRoamDistance < 1.0f)
-    {
-        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamDistance ({:.1f}) is invalid or too low, clamping to 1.0", defiasGroupRoamDistance);
-        defiasGroupRoamDistance = 1.0f;
-    }
-    if (defiasGroupRoamDistance >= defiasGroupRegroupRadius)
-    {
-        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamDistance ({:.1f}) is not smaller than AIWorld.DefiasGroupRegroupRadius ({:.1f}) - a roam target this far out could immediately trigger REGROUP, clamping to {:.1f}",
-            defiasGroupRoamDistance, defiasGroupRegroupRadius, defiasGroupRegroupRadius * 0.5f);
-        defiasGroupRoamDistance = defiasGroupRegroupRadius * 0.5f;
-    }
+    float defiasGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupRoamArrivalRadius", 5.0f);
 
     int32 defiasGroupRoamIntervalMsRaw = sConfigMgr->GetIntDefault("AIWorld.DefiasGroupRoamIntervalMs", 15000);
     if (defiasGroupRoamIntervalMsRaw < 1000)
@@ -646,15 +675,35 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     uint32 defiasGroupRoamIntervalMs = uint32(defiasGroupRoamIntervalMsRaw);
 
-    float defiasGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupRoamArrivalRadius", 5.0f);
-    if (defiasGroupRoamArrivalRadius < 0.5f)
+    float defiasRoamEnvelopeMax = std::min(defiasGroupRegroupRadius, _defiasGroupLeaveRadius);
+
+    if (defiasGroupRoamEnabled && defiasRoamEnvelopeMax < MinRoamDistance + MinRoamArrivalRadius)
     {
-        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamArrivalRadius ({:.1f}) is invalid or too low, clamping to 0.5", defiasGroupRoamArrivalRadius);
-        defiasGroupRoamArrivalRadius = 0.5f;
+        TC_LOG_ERROR("ai.world", "AIWorld.DefiasGroupRoamEnabled is set, but min(AIWorld.DefiasGroupRegroupRadius={:.1f}, AIWorld.DefiasGroupLeaveRadius={:.1f})={:.1f} leaves no room for a RoamDistance/RoamArrivalRadius pair respecting their own {:.1f}/{:.1f} minimums - disabling DefiasLoose ROAM",
+            defiasGroupRegroupRadius, _defiasGroupLeaveRadius, defiasRoamEnvelopeMax, MinRoamDistance, MinRoamArrivalRadius);
+        defiasGroupRoamEnabled = false;
+    }
+
+    if (defiasGroupRoamDistance < MinRoamDistance)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamDistance ({:.1f}) is invalid or too low, clamping to {:.1f}", defiasGroupRoamDistance, MinRoamDistance);
+        defiasGroupRoamDistance = MinRoamDistance;
+    }
+    if (defiasGroupRoamDistance > defiasRoamEnvelopeMax)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamDistance ({:.1f}) exceeds min(RegroupRadius, LeaveRadius) ({:.1f}) - a roam target past either could immediately trigger REGROUP or an automatic Leave, clamping to match",
+            defiasGroupRoamDistance, defiasRoamEnvelopeMax);
+        defiasGroupRoamDistance = defiasRoamEnvelopeMax;
+    }
+
+    if (defiasGroupRoamArrivalRadius < MinRoamArrivalRadius)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamArrivalRadius ({:.1f}) is invalid or too low, clamping to {:.1f}", defiasGroupRoamArrivalRadius, MinRoamArrivalRadius);
+        defiasGroupRoamArrivalRadius = MinRoamArrivalRadius;
     }
     if (defiasGroupRoamArrivalRadius >= defiasGroupRoamDistance)
     {
-        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamArrivalRadius ({:.1f}) is not smaller than AIWorld.DefiasGroupRoamDistance ({:.1f}) - no roam target could ever count as reached, clamping to {:.1f}",
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamArrivalRadius ({:.1f}) is not smaller than the effective AIWorld.DefiasGroupRoamDistance ({:.1f}) - no roam target could ever count as reached, clamping to {:.1f}",
             defiasGroupRoamArrivalRadius, defiasGroupRoamDistance, defiasGroupRoamDistance * 0.5f);
         defiasGroupRoamArrivalRadius = defiasGroupRoamDistance * 0.5f;
     }
@@ -3723,8 +3772,41 @@ void AIWorldMgr::RunCoalitionCoordination()
         if (!profile)
             continue;
 
+        // Milestone 2.12G2 P2 fix (STATIC review): a ROAM target is a
+        // pure function of nowMs (via nowMs / profile.RoamIntervalMs in
+        // AgentGroupIntentSystem::Evaluate()) - without pinning, a phase
+        // bucket boundary crossing WHILE this group's own previous ROAM
+        // attempt is still in flight for some of its members would let
+        // one group coordinate different members toward two different
+        // targets at once: e.g. member 1 dispatched toward phase P's
+        // target, arrives; member 2 is still mid-move toward that same
+        // phase-P target when nowMs ticks into phase P+1; the next pass
+        // would otherwise evaluate member 2's own group fresh against
+        // P+1's target while member 1 (now idle) also gets re-evaluated
+        // against P+1 - two members of the same AgentGroup now converging
+        // on different points, one old, one new. Pinning nowMs to
+        // whatever it was on the pass THIS group's still-in-flight attempt
+        // was first evaluated with keeps every member converging on the
+        // exact same target until the whole attempt concludes (see
+        // _roamAttemptPinnedNowMs's own declaration comment).
+        uint64 effectiveNowMs = nowMs;
+        if (HasInFlightRoamAttempt(*group))
+        {
+            auto pinnedIt = _roamAttemptPinnedNowMs.find(groupId.Value);
+            if (pinnedIt != _roamAttemptPinnedNowMs.end())
+                effectiveNowMs = pinnedIt->second;
+        }
+        else
+        {
+            // No member of this group currently has an in-flight ROAM
+            // attempt - any pin left over from a just-concluded one is
+            // stale and must not linger, or the group would be stuck
+            // reusing an old phase's target forever.
+            _roamAttemptPinnedNowMs.erase(groupId.Value);
+        }
+
         std::vector<CoalitionMemberObservation> observations = CollectCoalitionMemberObservations(*group);
-        AgentGroupIntent intent = _agentGroupIntentSystem.Evaluate(*group, *profile, observations, nowMs);
+        AgentGroupIntent intent = _agentGroupIntentSystem.Evaluate(*group, *profile, observations, effectiveNowMs);
 
         // Milestone 2.12G2: explicit two-value check, not "!= None" - the
         // same fail-closed discipline AgentGroupIntentProjector::Project()
@@ -3734,6 +3816,19 @@ void AIWorldMgr::RunCoalitionCoordination()
         // non-None.
         if (intent.Type != AgentGroupIntentType::Regroup && intent.Type != AgentGroupIntentType::Roam)
             continue;
+
+        // Milestone 2.12G2 P2 fix (STATIC review): record the nowMs this
+        // ROAM intent was actually produced with, so a FUTURE pass -
+        // once this attempt is genuinely in flight (HasInFlightRoamAttempt()
+        // will see the GroupCoordinationGoalState DispatchGroupMemberActionProposal()
+        // is about to set below) - pins to this exact value instead of
+        // silently drifting to a later phase mid-attempt. try_emplace, not
+        // an unconditional overwrite: if a pin already exists for this
+        // group (this call itself used it as effectiveNowMs above), it
+        // must not be clobbered with a slightly-later value from this
+        // same pass.
+        if (intent.Type == AgentGroupIntentType::Roam)
+            _roamAttemptPinnedNowMs.try_emplace(groupId.Value, effectiveNowMs);
 
         std::vector<GroupMemberActionProposal> groupProposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
         proposals.insert(proposals.end(), groupProposals.begin(), groupProposals.end());
@@ -3905,13 +4000,82 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
         return;
     }
 
+    // Milestone 2.12G2 P2 fix (STATIC review): a Roam target, unlike a
+    // Regroup one, is a NEWLY COMPUTED point (AgentGroupIntentSystem's own
+    // deterministic compass offset around the group's territory anchor) -
+    // it was never a real recorded location the way TerritoryX/Y/Z itself
+    // is (captured once, at formation, from an actual member's own
+    // position). ActionSystem::ValidateMoveTo() only ever checks
+    // map/finite-coordinates/distance, never navigability, and
+    // MotionMaster::MovePoint()'s own PathGenerator use is NOT fail-closed
+    // - a PATHFIND_NOPATH result still falls back to a straight two-point
+    // spline to the raw coordinates (MoveSplineInit::MoveTo()), which
+    // could walk a member through a wall, off a cliff, or under/above the
+    // terrain, and would still fire an ordinary arrival completion once
+    // it (perhaps implausibly) reaches those raw coordinates. So a Roam
+    // target's ground point and path are resolved and validated HERE,
+    // against the world this member's own Map already has loaded
+    // (Map::GetHeight()/PathGenerator both only ever read already-resident
+    // grid/vmap/navmesh data around the actor's own current position -
+    // neither one forces anything new to load), and this dispatch fails
+    // closed for THIS member - not proposing a still-unvalidated raw
+    // offset the pure AgentGroupIntentSystem layer itself has no way to
+    // check - if no valid ground point or real navigable path to it
+    // exists. Regroup is deliberately NOT put through this - its own
+    // target is already a real, previously-occupied location, not a
+    // synthesized one.
+    float roamDestinationZ = proposal.Z;
+    if (proposal.SourceIntent == AgentGroupIntentType::Roam)
+    {
+        float groundZ = map->GetHeight(creature->GetPhaseMask(), proposal.X, proposal.Y, creature->GetPositionZ() + 20.0f, true);
+        if (groundZ <= INVALID_HEIGHT)
+        {
+            TC_LOG_DEBUG("ai.world", "AI group coordination: member={} group={} ROAM target ({:.1f},{:.1f}) has no resolvable ground height in the already-loaded world - UNREACHABLE, no automatic Roam attempted this pass",
+                record->Id.Value, proposal.SourceGroup.Value, proposal.X, proposal.Y);
+            return;
+        }
+
+        // A modest vertical sanity bound - a technically-resolvable height
+        // (e.g. atop a nearby building or cliff far above/below the
+        // group's own territory) is still not a reasonable roam point for
+        // a ground-bound Loose group, even once it does pass the
+        // PathGenerator check below (a navmesh can legitimately connect
+        // two very different elevations, e.g. a switchback trail).
+        if (std::fabs(groundZ - creature->GetPositionZ()) > 20.0f)
+        {
+            TC_LOG_DEBUG("ai.world", "AI group coordination: member={} group={} ROAM target ground height ({:.1f}) is implausibly far from current Z ({:.1f}) - UNREACHABLE, no automatic Roam attempted this pass",
+                record->Id.Value, proposal.SourceGroup.Value, groundZ, creature->GetPositionZ());
+            return;
+        }
+
+        // Same PathGenerator/PATHFIND_NOPATH convention MoveSplineInit.cpp/
+        // ChaseMovementGenerator.cpp already use to decide "is there a
+        // real path here" - PATHFIND_INCOMPLETE is deliberately still
+        // accepted (a real, partial navmesh path toward the target, not a
+        // straight-line fallback; ArrivalTolerance-based completion
+        // already handles a short arrival honestly, see
+        // ActionEngineEvent.h's own comment), only PATHFIND_NOPATH (no
+        // real path at all, MoveSplineInit's own straight-line fallback)
+        // is rejected here.
+        PathGenerator roamPath(creature);
+        bool pathCalculated = roamPath.CalculatePath(proposal.X, proposal.Y, groundZ, false);
+        if (!pathCalculated || (roamPath.GetPathType() & PATHFIND_NOPATH))
+        {
+            TC_LOG_DEBUG("ai.world", "AI group coordination: member={} group={} ROAM target ({:.1f},{:.1f},{:.1f}) has no navigable path - UNREACHABLE, no automatic Roam attempted this pass",
+                record->Id.Value, proposal.SourceGroup.Value, proposal.X, proposal.Y, groundZ);
+            return;
+        }
+
+        roamDestinationZ = groundZ;
+    }
+
     uint64 nowMs = CurrentTimeMs();
 
     ActionPosition destination;
     destination.MapId = proposal.MapId;
     destination.X = proposal.X;
     destination.Y = proposal.Y;
-    destination.Z = proposal.Z;
+    destination.Z = roamDestinationZ;
 
     ActionRequest moveRequest;
     moveRequest.Actor = proposal.Member;
@@ -3983,6 +4147,22 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     action.StartedAtMs = nowMs;
     action.Destination = moveRequest.Destination;
     record->ActiveActionState = action;
+}
+
+bool AIWorldMgr::HasInFlightRoamAttempt(AgentGroupRecord const& group) const
+{
+    for (AgentGroupMembership const& membership : group.Members)
+    {
+        AgentRecord const* member = _registry.Find(membership.Member);
+        if (!member || !member->GroupCoordinationGoalState)
+            continue;
+
+        if (member->GroupCoordinationGoalState->Type == GoalType::Roam
+            && member->GroupCoordinationGoalState->SourceGroup == group.Id)
+            return true;
+    }
+
+    return false;
 }
 
 uint32 AIWorldMgr::CountCoordinationEnabledMemberships(AgentId member) const

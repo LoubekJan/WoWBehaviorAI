@@ -55,16 +55,22 @@ struct AgentGroupCoordinationProfile
     // Milestone 2.12G2: same "declare the shape, wire the rule only when
     // it is actually needed" discipline as RegroupEnabled/RegroupRadius
     // above - a profile that has not opted into automatic territory
-    // movement simply leaves RoamEnabled false. RoamDistance is expected
-    // to stay inside RegroupRadius (which itself stays inside LeaveRadius)
-    // - a roam target allowed to land past the group's own RegroupRadius
-    // would have Roam (moving a member out) and Regroup (pulling that
-    // same member back) fight every other pass - see
+    // movement simply leaves RoamEnabled false.
+    //
+    // Milestone 2.12G2 P2 fix (STATIC review): RoamDistance is kept
+    // within min(RegroupRadius, LeaveRadius) - NOT RegroupRadius alone.
+    // RegroupRadius is deliberately independent Coordination-layer
+    // config, with no enforced relationship to LeaveRadius (a valid
+    // config can legally have RegroupRadius > LeaveRadius) - clamping
+    // RoamDistance only against RegroupRadius could still legally send a
+    // member past LeaveRadius, where CoalitionMaintenanceSystem's own
+    // automatic Leave would remove it from the group entirely: Roam and
+    // Maintenance fighting each other, not Roam and Regroup. See
     // AIWorldMgr::Initialize()'s own AIWorld.WolfGroupRoamDistance/
-    // AIWorld.DefiasGroupRoamDistance clamp, and
-    // AgentGroupIntentSystem.h's own class comment for the full
-    // RoamDistance < RegroupRadius < LeaveRadius envelope this is meant
-    // to stay inside.
+    // AIWorld.DefiasGroupRoamDistance clamp (computed once against
+    // min(RegroupRadius, LeaveRadius), with a fail-closed disable of ROAM
+    // entirely when that envelope leaves no room for a valid value) for
+    // the actual enforcement.
     bool RoamEnabled = false;
     float RoamDistance = 0.0f;
 

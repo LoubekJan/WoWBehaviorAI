@@ -1137,6 +1137,17 @@ class TC_GAME_API AIWorldMgr
         // switch to (2.12F2 P3 fix), so a future third intent type is
         // never silently forwarded just because it is non-None.
         //
+        // Milestone 2.12G2 P2 fix (STATIC review): the nowMs actually
+        // passed to Evaluate() for a given group is NOT always the shared
+        // pass-level one - HasInFlightRoamAttempt()/_roamAttemptPinnedNowMs
+        // pin it to whatever nowMs this group's own still-in-flight ROAM
+        // attempt was first evaluated with, for as long as any member is
+        // still mid-move toward it, so a RoamIntervalMs phase-bucket
+        // boundary crossing mid-attempt can never split one group's
+        // members across two different ROAM targets at once - see
+        // _roamAttemptPinnedNowMs's own declaration comment for the exact
+        // interleaving this closes.
+        //
         // Per resolved, non-pending group: CollectCoalitionMemberObservations(),
         // _agentGroupIntentSystem.Evaluate(), and - only if the result is
         // Regroup or Roam - _agentGroupIntentProjector.Project(), whose
@@ -1206,6 +1217,29 @@ class TC_GAME_API AIWorldMgr
         //     named "nothing to do" rather than rebuilding and
         //     re-rejecting an identical ActionRequest as DestinationTooFar
         //     every pass, forever.
+        //   - (Roam only, 2.12G2 P2 fix, STATIC review) proposal.X/Y
+        //     resolves to a real ground point (Map::GetHeight(), reading
+        //     only already-loaded grid/vmap data - no force-load) within a
+        //     modest vertical sanity bound of the member's own current Z,
+        //     AND PathGenerator finds a real navigable path to it
+        //     (rejected only on PATHFIND_NOPATH, the same convention
+        //     MoveSplineInit.cpp/ChaseMovementGenerator.cpp already use -
+        //     PATHFIND_INCOMPLETE is still accepted, a real partial path,
+        //     not a straight-line fallback). Regroup is NOT put through
+        //     this - its own target is TerritoryX/Y/Z, a real,
+        //     previously-occupied location, never a synthesized one the
+        //     way a Roam target (a deterministic compass offset
+        //     AgentGroupIntentSystem computes with no Map access at all)
+        //     is. Needed because ActionSystem::ValidateMoveTo() never
+        //     checks navigability, only map/finite-coordinates/distance,
+        //     and MotionMaster::MovePoint()'s own PathGenerator use is NOT
+        //     fail-closed - a PATHFIND_NOPATH result still falls back to a
+        //     straight two-point spline to the raw coordinates
+        //     (MoveSplineInit::MoveTo()), which could walk a member
+        //     through a wall, off a cliff, or under/above the terrain,
+        //     and would still eventually fire an ordinary arrival
+        //     completion. The resolved ground Z (not proposal.Z) is what
+        //     actually becomes this dispatch's own Destination.
         // On every rejection above, this simply returns - no log spam for
         // what is an expected, frequent outcome (most members most passes
         // are not eligible), the same restraint RunCoalitionMaintenanceForGroup()
@@ -1237,6 +1271,21 @@ class TC_GAME_API AIWorldMgr
         // only the first coordination behavior that ever existed would
         // have left a real gap the moment a second one (Roam) was added.
         uint32 CountCoordinationEnabledMemberships(AgentId member) const;
+
+        // Milestone 2.12G2 P2 fix (STATIC review): whether ANY current
+        // member of group still has an in-flight ROAM attempt SOURCED
+        // FROM THIS GROUP - GroupCoordinationGoalState set, Type ==
+        // GoalType::Roam, SourceGroup == group.Id. Used by
+        // RunCoalitionCoordination() to decide whether this pass's own
+        // Evaluate() call for this group must keep using the pinned nowMs
+        // from _roamAttemptPinnedNowMs (so every member converges on the
+        // SAME phase's target) or is free to use the real current nowMs
+        // (the group's previous attempt has fully concluded - see
+        // _roamAttemptPinnedNowMs's own declaration comment for the exact
+        // race this closes). O(group size), the same cost
+        // CollectCoalitionMemberObservations() already pays for this same
+        // group this same pass.
+        bool HasInFlightRoamAttempt(AgentGroupRecord const& group) const;
 
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): the shared
         // mechanics both StopGroupCoordinationForMember() and
@@ -1893,6 +1942,35 @@ class TC_GAME_API AIWorldMgr
         // therefore never race on, one cursor.
         GroupId _coordinationScanCursor;
         GroupId _coordinationScanCycleHighWater;
+
+        // Milestone 2.12G2 P2 fix (STATIC review): the nowMs a still-in-
+        // flight ROAM attempt for this GroupId was FIRST evaluated with -
+        // keyed by GroupId::Value, entirely runtime-only (never persisted,
+        // never survives a restart, the same "ephemeral like
+        // GroupCoordinationGoalState" lifetime every other in-flight-
+        // attempt tracking field in this class already has). Exists
+        // because AgentGroupIntentSystem::Evaluate()'s ROAM target is a
+        // pure function of nowMs (via nowMs / profile.RoamIntervalMs) -
+        // without this, a phase-bucket boundary crossing mid-attempt
+        // (member A already dispatched toward phase P's target, still
+        // mid-move, while member B of the SAME group is evaluated fresh
+        // once nowMs has ticked into phase P+1) would let one group
+        // coordinate its own members toward two DIFFERENT ROAM targets at
+        // once - see RunCoalitionCoordination()'s own comment for the
+        // exact interleaving this closes. RunCoalitionCoordination() pins
+        // the nowMs it passes to Evaluate() to this recorded value for as
+        // long as ANY member of the group still has an in-flight
+        // GroupCoordinationGoalState with Type == Roam and SourceGroup ==
+        // this group (HasInFlightRoamAttempt()) - once none do (the whole
+        // group's own attempt has concluded, one way or another, for
+        // every member), the entry is erased and the next pass resumes
+        // using the real current nowMs, picking up whatever phase is
+        // actually current then. Never read or written by
+        // AgentGroupIntentSystem itself, which stays a pure function of
+        // whatever nowMs its caller decides to pass - this is entirely
+        // AIWorldMgr's own orchestration-layer bookkeeping, the same
+        // layer _formationInFlight/_maintenanceInFlight already live at.
+        std::unordered_map<uint64, uint64> _roamAttemptPinnedNowMs;
 
         // Milestone 2.12F3 test hook: AIWorld.TestDissolveOnActiveRegroupGroupId
         // - see CheckTestDissolveOnActiveRegroup()'s own comment. GroupId{}

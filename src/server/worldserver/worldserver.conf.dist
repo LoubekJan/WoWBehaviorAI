@@ -4018,7 +4018,11 @@ AIWorld.WolfGroupRegroupRadius = 20.0
 #                     RoamEnabled - whether AgentGroupIntentSystem::Evaluate() ever proposes a Roam
 #                     intent for a WolfLoose group at all (only once no Regroup already fired -
 #                     REGROUP always outranks ROAM). A profile that leaves this false never gets one
-#                     proposed. Off by default - this is a new, not yet runtime-verified feature.
+#                     proposed. Milestone 2.12G2 P2/P3 fix (STATIC review): if
+#                     min(AIWorld.WolfGroupRegroupRadius, AIWorld.WolfGroupLeaveRadius) leaves no room
+#                     for a valid AIWorld.WolfGroupRoamDistance/AIWorld.WolfGroupRoamArrivalRadius pair,
+#                     this is forced back to disabled at startup regardless of this value, with an
+#                     ERROR logged. Off by default - this is a new, not yet runtime-verified feature.
 #        Default:     0 - (Disabled)
 
 AIWorld.WolfGroupRoamEnabled = 0
@@ -4028,11 +4032,17 @@ AIWorld.WolfGroupRoamEnabled = 0
 #        Description: Milestone 2.12G2 - how far (in yards) from its own territory point a WolfLoose
 #                     group's deterministic ROAM target may land (see AgentGroupIntentSystem.h's own
 #                     "Deterministic ROAM target" comment for the 9-slot anchor-or-compass-point
-#                     selection). Clamped below AIWorld.WolfGroupRegroupRadius so ROAM stays inside
-#                     the envelope Regroup itself would otherwise immediately pull a member back
-#                     from.
-#        Important:   Values below 1.0 are clamped to 1.0. Values not smaller than
-#                     AIWorld.WolfGroupRegroupRadius are clamped to half of it.
+#                     selection). Milestone 2.12G2 P2 fix (STATIC review): clamped to at most
+#                     min(AIWorld.WolfGroupRegroupRadius, AIWorld.WolfGroupLeaveRadius), not
+#                     AIWorld.WolfGroupRegroupRadius alone - RegroupRadius has no enforced relationship
+#                     to LeaveRadius, so clamping against it alone could still legally send a member
+#                     past LeaveRadius, where CoalitionMaintenanceSystem's own automatic Leave would
+#                     remove it from the group entirely.
+#        Important:   Values below 1.0 are clamped to 1.0. Values above
+#                     min(AIWorld.WolfGroupRegroupRadius, AIWorld.WolfGroupLeaveRadius) are clamped to
+#                     match it. If that combined bound cannot fit both this 1.0 floor and
+#                     AIWorld.WolfGroupRoamArrivalRadius's own 0.5 floor at once,
+#                     AIWorld.WolfGroupRoamEnabled is forced to disabled instead (see its own comment).
 #        Default:     10.0
 
 AIWorld.WolfGroupRoamDistance = 10.0
@@ -4043,7 +4053,12 @@ AIWorld.WolfGroupRoamDistance = 10.0
 #                     itself changes - a new nowMs / RoamIntervalMs phase bucket picks a new
 #                     deterministic slot (see AgentGroupIntentSystem.h). Deliberately NOT how often
 #                     RunCoalitionCoordination() re-evaluates - that stays the shared
-#                     AIWorld.GroupCoordinationIntervalMs.
+#                     AIWorld.GroupCoordinationIntervalMs. Milestone 2.12G2 P2 fix (STATIC review):
+#                     while any member of a group still has an in-flight ROAM attempt, that group's own
+#                     nowMs is pinned to when the attempt started (AIWorldMgr's own
+#                     _roamAttemptPinnedNowMs) - a phase change here never splits one group's members
+#                     across two different targets mid-attempt, it only takes effect once the whole
+#                     group's own attempt has concluded.
 #        Important:   Values below 1000 are clamped to 1000.
 #        Default:     15000
 
@@ -4054,12 +4069,12 @@ AIWorld.WolfGroupRoamIntervalMs = 15000
 #        Description: Milestone 2.12G2 - how close (in yards) a WolfLoose member must already be to
 #                     the current ROAM target before AgentGroupIntentProjector::Project() stops
 #                     proposing a move for it - the Roam counterpart to AIWorld.WolfGroupRegroupRadius,
-#                     but inverted (a SATISFIED threshold, not a TRIGGER one). This, not any new
-#                     per-group timer/attempt state, is what keeps a settled group standing still
-#                     between roam phases instead of re-issuing an identical MOVE_TO every
+#                     but inverted (a SATISFIED threshold, not a TRIGGER one). Together with the
+#                     dispatch-time ActiveActionState gate, this is what keeps a settled group standing
+#                     still between roam phases instead of re-issuing an identical MOVE_TO every
 #                     coordination pass.
-#        Important:   Values below 0.5 are clamped to 0.5. Values not smaller than
-#                     AIWorld.WolfGroupRoamDistance are clamped to half of it.
+#        Important:   Values below 0.5 are clamped to 0.5. Values not smaller than the EFFECTIVE (i.e.
+#                     already-clamped) AIWorld.WolfGroupRoamDistance are clamped to half of it.
 #        Default:     5.0
 
 AIWorld.WolfGroupRoamArrivalRadius = 5.0
@@ -4169,7 +4184,9 @@ AIWorld.DefiasGroupRegroupRadius = 20.0
 #
 #    AIWorld.DefiasGroupRoamEnabled
 #        Description: Milestone 2.12G2 - see AIWorld.WolfGroupRoamEnabled's own comment (identical
-#                     logic, different profile).
+#                     logic, different profile, including the fail-closed disable when
+#                     min(AIWorld.DefiasGroupRegroupRadius, AIWorld.DefiasGroupLeaveRadius) leaves no
+#                     room for a valid RoamDistance/RoamArrivalRadius pair).
 #        Default:     0 - (Disabled)
 
 AIWorld.DefiasGroupRoamEnabled = 0
@@ -4177,9 +4194,13 @@ AIWorld.DefiasGroupRoamEnabled = 0
 #
 #    AIWorld.DefiasGroupRoamDistance
 #        Description: Milestone 2.12G2 - see AIWorld.WolfGroupRoamDistance's own comment (identical
-#                     logic, different profile). Clamped below AIWorld.DefiasGroupRegroupRadius.
-#        Important:   Values below 1.0 are clamped to 1.0. Values not smaller than
-#                     AIWorld.DefiasGroupRegroupRadius are clamped to half of it.
+#                     logic, different profile) - clamped to at most
+#                     min(AIWorld.DefiasGroupRegroupRadius, AIWorld.DefiasGroupLeaveRadius).
+#        Important:   Values below 1.0 are clamped to 1.0. Values above
+#                     min(AIWorld.DefiasGroupRegroupRadius, AIWorld.DefiasGroupLeaveRadius) are clamped
+#                     to match it. If that combined bound cannot fit both this 1.0 floor and
+#                     AIWorld.DefiasGroupRoamArrivalRadius's own 0.5 floor at once,
+#                     AIWorld.DefiasGroupRoamEnabled is forced to disabled instead.
 #        Default:     10.0
 
 AIWorld.DefiasGroupRoamDistance = 10.0
@@ -4197,8 +4218,8 @@ AIWorld.DefiasGroupRoamIntervalMs = 15000
 #    AIWorld.DefiasGroupRoamArrivalRadius
 #        Description: Milestone 2.12G2 - see AIWorld.WolfGroupRoamArrivalRadius's own comment
 #                     (identical logic, different profile).
-#        Important:   Values below 0.5 are clamped to 0.5. Values not smaller than
-#                     AIWorld.DefiasGroupRoamDistance are clamped to half of it.
+#        Important:   Values below 0.5 are clamped to 0.5. Values not smaller than the EFFECTIVE (i.e.
+#                     already-clamped) AIWorld.DefiasGroupRoamDistance are clamped to half of it.
 #        Default:     5.0
 
 AIWorld.DefiasGroupRoamArrivalRadius = 5.0
