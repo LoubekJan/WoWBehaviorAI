@@ -3,8 +3,8 @@
 > **Aktualizováno:** 2026-08-31  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `1523cad9cdea33e133e429aefed861d85f82fb02`  
-> **Detailní roadmap sync před tímto commitem:** `9f4cc7732eaa60c7fa25f945948b35801d36b987`
+> **Aktuální code baseline před tímto docs commitem:** `e1b5e675fb3bb56575b8597634173d607e2acf80`  
+> **Detailní roadmap sync před tímto commitem:** `21feceefdfe00134ea8ab203c2a4691c23e72c23`
 
 ## Základní invariant
 
@@ -68,8 +68,8 @@ Platí pro všechny další milníky:
 | 2.12F4A–F4B3 — ControlMode gate, TrinityCore-aligned identity, spawn reconciliation, scoped Elwynn population + full Control activation | **CLOSED / STATIC + BUILD + RUNTIME PASS (Elwynn: 3540/3540 `AIWorldControlled`)** |
 | 2.12F4C/F4D — world-scale hardening (O(1) index, bounded recurring work) + full-world bootstrap | **DEFERRED — not required for single-location work; required before any eventual full-world rollout, see 2.12F4C's own Priorita** |
 | 2.12G1 — druhý coalition profile (genericity proof) | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
-| 2.12G2 — generic ROAM/territory movement intent | **STATIC PASS, positive BUILD + RUNTIME evidence — lifecycle closure (preemption/leave/dissolve during active ROAM) pending, viz 2.12G2R** |
-| 2.12G3 — generic HUNT/coordinated combat contract | **NOT STARTED** |
+| 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
+| 2.12G3 — generic HUNT/coordinated combat contract | **NEXT / CONTRACT DESIGN** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
 | 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
@@ -752,7 +752,7 @@ WolfLoose + second profile
 
 ## 2.12G2 — generic ROAM / territory movement intent
 
-**Stav: STATIC PASS, positive BUILD + RUNTIME evidence — lifecycle closure (preemption/leave/dissolve during active ROAM) pending, viz 2.12G2R níže.**
+**Stav: CLOSED / STATIC + BUILD + RUNTIME PASS.**
 
 Po G1 přidat druhé viditelné group chování, stále generic a deterministic.
 
@@ -778,52 +778,82 @@ Runtime gate:
 
 **Runtime evidence (potvrzeno):** pure smoke `PASS` (Evaluate/Project, deterministic target, REGROUP > ROAM priority, fail-closed unknown intent); reálný runtime `PASS` pro WolfLoose (group `16`) i DefiasLoose (group `15`) — společný deterministický ROAM target, individual `MOVE_TO` request per member, validace přes `ActionSystem`, stabilní `ARRIVED`, žádný viditelný duplicate movement spam. Po testu byl systém vrácen do defaultního disabled stavu (`AIWorld.*GroupRoamEnabled = 0`).
 
-**Chybějící runtime důkaz (blokuje CLOSED):** explicitní proof, že leave/dissolve/higher-priority preemption uprostřed aktivního ROAM bezpečně zruší `GroupCoordinationGoalState` i běžící movement — viz 2.12G2R.
+**Lifecycle runtime evidence (potvrzeno):** `2.12G2R` deterministicky ověřilo higher-priority individual preemption, manual leave a manual dissolve během skutečně aktivního ROAM. Ve všech třech případech produkční ownership/lifecycle cesta zastavila původní `MOVE_TO`, vyčistila `GroupCoordinationGoalState` i engine movement generator a zachovala persistence/registry invarianty.
 
 ```text
 2.12G2 STATIC        PASS
 2.12G2 BUILD         PASS
 2.12G2 WOLF ROAM     PASS
 2.12G2 DEFIAS ROAM   PASS
-2.12G2 PREEMPTION    NOT YET PROVEN
-2.12G2 LEAVE         NOT YET PROVEN
-2.12G2 DISSOLVE      NOT YET PROVEN
+2.12G2 PREEMPTION    PASS
+2.12G2 LEAVE         PASS
+2.12G2 DISSOLVE      PASS
 2.12G2 SAFE-OFF      PASS
+2.12G2 DB INTEGRITY  PASS
 
-2.12G2 = IN PROGRESS (viz 2.12G2R)
+2.12G2 = CLOSED
 ```
 
 ## 2.12G2R — ROAM lifecycle runtime closure
 
-**Stav: PLANNED — další implementační krok.**
+**Stav: CLOSED / STATIC + BUILD + RUNTIME PASS.**
 
-**Priorita: až po 2.12G2, před uzavřením G2 a před jakýmkoli G3 kódem.**
+Tři defaultně vypnuté one-shot hooky ověřily lifecycle a ownership během skutečně aktivního ROAM:
 
-2.12G2 samo o sobě prokázalo formation/target/dispatch/arrival cestu (viz Runtime evidence výše), ale ne, že lifecycle/preemption cesty, které už `2.12F3` dokázalo pro `REGROUP`, stejně bezpečně fungují i pro `ROAM`. Ruční časování leave/dissolve uprostřed ROAM není spolehlivé — ROAM attempt trvá jen několik sekund, výsledek by nebyl deterministický.
+### Higher-priority individual preemption
 
-Návrhový směr — stejná disciplína jako `2.12F3`'s `AIWorld.TestDissolveOnActiveRegroupGroupId` hook, ne ruční časování:
+- agent `80237`, group `36`;
+- hook počkal na skutečně aktivní ROAM;
+- produkční `GET_FOOD` goal preemptoval group coordination;
+- původní ROAM skončil jako `COORDINATION_PREEMPTED_BY_GOAL`;
+- zaznamenaný preemptor byl skutečný individual `GET_FOOD`;
+- coordination state i engine movement generator byly úplně vyčištěny.
 
-- tři defaultně vypnuté, one-shot runtime test hooky:
-  - preempt vybraného člena až ve chvíli, kdy má skutečně aktivní `GoalType::Roam`;
-  - manual leave vybraného člena během aktivního ROAM;
-  - dissolve vybrané skupiny během aktivního ROAM;
-- hooky používají reálné existující agenty/skupiny, nikdy ghost/test entity;
-- hook čeká na skutečně aktivní ROAM (stejná ownership/provenance shoda jako `CheckTestDissolveOnActiveRegroup()`: `ActiveActionState::SourceGoal == Roam`, `GroupCoordinationGoalState::Type == Roam`, matching `SourceGroup`/attempt identity), ne na libovolný timing;
-- hook volá pouze existující goal/lifecycle API (`RequestLeaveGroupWithPolicy(..., Manual)`, `RequestDissolveGroupWithPolicy(..., Manual)`, existující preemption cestu) — nikdy přímo nemutuje registry ani action state;
-- dissolve test může zobecnit existující `AIWorld.TestDissolveOnActiveRegroupGroupId`/`CheckTestDissolveOnActiveRegroup()` tak, aby podporoval libovolný known coordination `GoalType` (Regroup i Roam), místo duplikace celé orchestrace pro Roam zvlášť;
-- hook potvrdí zrušení `GroupCoordinationGoalState` i běžícího movement, ne jen že event proběhl;
-- hook je one-shot a po restartu defaultně vypnutý;
-- test se dělá na nové disposable skupině po DB záloze, ne na dlouhodobě běžících group `15`/`16`.
+### Manual leave during active ROAM
 
-Runtime gate:
+- agent `80209`, group `32`;
+- hook počkal na skutečně aktivní ROAM;
+- zavolal produkční `RequestLeaveGroupWithPolicy(..., Manual)`;
+- aktivní movement skončil jako `COORDINATION_STOPPED_BY_LIFECYCLE`;
+- coordination state i engine movement generator byly vyčištěny;
+- persistence potvrdila odstranění membership;
+- group `32` zůstala konzistentní se členy `80210, 80224, 80226`.
+
+### Manual dissolve during active ROAM
+
+- group `36`, členové `80237, 80256, 80257`;
+- hook počkal, až všichni tři členové měli skutečně aktivní ROAM;
+- zavolal produkční `RequestDissolveGroupWithPolicy(..., Manual)`;
+- všechny tři movement akce skončily jako `COORDINATION_STOPPED_BY_LIFECYCLE`;
+- coordination state i engine movement generátory byly vyčištěny;
+- persistence potvrdila úplné odstranění group `36` i jejích membership edges.
+
+### Safety a databázová postcondition
+
+- žádný fatal, assert, segmentation fault, DB failure ani unknown config;
+- group `36` po dissolve neexistuje;
+- nezůstalo žádné osiřelé membership;
+- group `32` zůstala konzistentní;
+- všechny testovací hooky byly po proofu vráceny na `0`.
 
 ```text
-2.12G2 PREEMPTION   PASS
-2.12G2 LEAVE        PASS
-2.12G2 DISSOLVE     PASS
+2.12G2R PREEMPTION    PASS
+2.12G2R LEAVE         PASS
+2.12G2R DISSOLVE      PASS
+2.12G2R PERSISTENCE   PASS
+2.12G2R DB INTEGRITY  PASS
+2.12G2R SAFE-OFF      PASS
+
+2.12G2R = CLOSED
 ```
 
-Teprve po tomto se `2.12G2` (a tento G2R dodatek) označí jako `CLOSED`.
+Po proofu musí zůstat:
+
+```ini
+AIWorld.TestPreemptOnActiveRoamAgentId = 0
+AIWorld.TestLeaveOnActiveRoamAgentId = 0
+AIWorld.TestDissolveOnActiveRoamGroupId = 0
+```
 
 ## 2.12G3 — generic HUNT / coordinated combat preparation
 
@@ -1007,8 +1037,8 @@ Hotovo:
 Zbývá před uzavřením Etapy 2:
 
 - [x] global agent population foundation gate pro jednu lokaci (2.12F4A–F4B3: `ControlMode` split, TrinityCore-aligned `AgentId == SpawnId` identity, bidirectional spawn reconciliation, scoped Elwynn population + full Control activation — `3540 / 3540 AIWorldControlled`, STATIC + BUILD + RUNTIME PASS) — `2.12F4C`/`2.12F4D` (world-scale hardening, eventual full-world bootstrap) zůstávají otevřené, ale nejsou blocker pro second-profile proof nad již reálnou, reconciled Elwynn populací;
-- [ ] second-profile genericity proof;
-- [ ] alespoň jedno další skutečné generic group behavior potřebné pro emergentní slice;
+- [x] second-profile genericity proof;
+- [x] alespoň jedno další skutečné generic group behavior potřebné pro emergentní slice;
 - [ ] skutečný local LLM request přes async `ai-server`;
 - [ ] structured server-validated player task proposal;
 - [ ] player-facing task lifecycle;
@@ -1070,9 +1100,9 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 6. [x] **2.12F4B3 — scoped Control activation (Elwynn) - `3540 / 3540 AIWorldControlled`, fail-closed whole-zone + atomická DB promotion, decision/needs/perception/action runtime `PASS`.**
 7. [ ] 2.12F4C — bounded/indexed runtime at world scale (O(1) spawn index, remove recurring full-registry scans) - **DEFERRED, ne blocker pro pokračování nad Elwynn**; povinné před rozšířením na další lokace/eventual full-world (2.12F4D).
 8. [ ] 2.12F4D — global bootstrap/runtime proof (plná `ObserveOnly` populace, vanilla/script chování beze změny, bounded work) - až po 2.12F4C.
-9. [ ] 2.12G1 — second real coalition profile přes stejnou generic pipeline (nad reálnou reconciled Elwynn populací z 2.12F4B2/F4B3).
-10. [ ] 2.12G2 — generic roaming/territory movement.
-11. [ ] 2.12G3 — generic hunt/coordinated-combat ownership seam.
+9. [x] 2.12G1 — second real coalition profile přes stejnou generic pipeline (nad reálnou reconciled Elwynn populací z 2.12F4B2/F4B3).
+10. [x] 2.12G2/G2R — generic ROAM včetně preemption/leave/dissolve lifecycle closure.
+11. [ ] 2.12G3A — pure HUNT DTO a explicitní target provenance contract.
 12. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
 13. [ ] 2.13A — actual local LLM inference path.
 14. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
