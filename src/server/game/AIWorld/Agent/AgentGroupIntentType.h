@@ -34,10 +34,21 @@
 // patrol, or a caravan is - only WHICH profile a group's own persistent
 // AgentGroupRecord::ProfileId resolves to decides that, entirely outside
 // this enum's own concern.
+//
+// Milestone 2.12G2: Roam is the second real value - deliberately not just
+// a renamed Regroup. Both are still "what does this group want, before
+// any per-member decomposition" facts, but they answer different
+// questions (Regroup: "is anyone too far from the group's own fixed
+// territory point"; Roam: "does the group want to move ITS OWN territory-
+// relative target right now") and AgentGroupIntentProjector/AIWorldMgr
+// both give each its own GoalType/radius semantics rather than treating
+// Roam as an alias - see AgentGroupIntentSystem.h/AgentGroupIntentProjector.h
+// for the full split.
 enum class AgentGroupIntentType : uint8
 {
     None = 0,
-    Regroup = 1
+    Regroup = 1,
+    Roam = 2
 };
 
 inline char const* ToString(AgentGroupIntentType type)
@@ -46,6 +57,7 @@ inline char const* ToString(AgentGroupIntentType type)
     {
         case AgentGroupIntentType::None:    return "NONE";
         case AgentGroupIntentType::Regroup: return "REGROUP";
+        case AgentGroupIntentType::Roam:    return "ROAM";
         default:                            return "UNKNOWN";
     }
 }

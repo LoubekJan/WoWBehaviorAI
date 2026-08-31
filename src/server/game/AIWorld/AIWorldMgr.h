@@ -470,9 +470,16 @@ class TC_GAME_API AIWorldMgr
         // proposes None even for an otherwise-textbook dispersed member;
         // and an Invalid profile, a Kind mismatch, or a ProfileId
         // mismatch all fail closed to None, the same three-way guard
-        // CoalitionMaintenanceSystem::Evaluate() already holds. Always
-        // runs when this method is called at all (see
-        // AIWorld.TestGroupIntent).
+        // CoalitionMaintenanceSystem::Evaluate() already holds. Milestone
+        // 2.12G2 extends this with Roam's own rules: RoamEnabled=false
+        // proposes None even for an otherwise-eligible group; a dispersed
+        // group with BOTH RegroupEnabled and RoamEnabled proposes Regroup,
+        // never Roam (REGROUP always outranks ROAM); a cohesive
+        // (non-dispersed) group with RoamEnabled proposes Roam, targeting
+        // a point within RoamDistance of its own territory; and two
+        // Evaluate() calls given the same nowMs (hence the same roam
+        // phase) agree on the exact same target. Always runs when this
+        // method is called at all (see AIWorld.TestGroupIntent).
         void RunGroupIntentSmokeTest() const;
 
         // Milestone 2.12F2: manual proof of AgentGroupIntentProjector's own
@@ -491,8 +498,15 @@ class TC_GAME_API AIWorldMgr
         // an unloaded or dead member never gets one regardless of its last
         // known position; a different-map member never gets one either;
         // and intent.Type == None produces no proposals for anyone,
-        // regardless of how dispersed the members are. Always runs when
-        // this method is called at all (see AIWorld.TestGroupIntentProjector).
+        // regardless of how dispersed the members are. Milestone 2.12G2
+        // extends this with Roam's own rules: a Roam intent gets the exact
+        // same materialized/alive/same-map/unloaded/dead/different-map
+        // treatment as Regroup, just compared against RoamArrivalRadius
+        // instead of RegroupRadius; and an unrecognized AgentGroupIntentType
+        // value (neither None, Regroup, nor Roam) fails closed to no
+        // proposals at all, the same explicit-switch discipline Project()
+        // itself holds to. Always runs when this method is called at all
+        // (see AIWorld.TestGroupIntentProjector).
         void RunGroupIntentProjectorSmokeTest() const;
 
         // Milestone 2.12F4A: manual proof only, gated behind
@@ -1106,19 +1120,27 @@ class TC_GAME_API AIWorldMgr
         //
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): this arbitration
         // only ever protects a NEW dispatch - it says nothing about an
-        // ALREADY in-flight Regroup that a confirmed Join, some time after
-        // that dispatch, newly makes ambiguous. See
+        // ALREADY in-flight Regroup/Roam that a confirmed Join, some time
+        // after that dispatch, newly makes ambiguous. See
         // ReconcileGroupCoordinationForMember() (called from
         // RequestJoinGroupWithPolicy()'s own confirmed-join completion, not
         // from here) for the counterpart that closes that gap; both share
-        // the exact same CountRegroupEnabledMemberships() definition of
-        // "ambiguous" so the two can never silently disagree.
+        // the exact same CountCoordinationEnabledMemberships() definition
+        // of "ambiguous" so the two can never silently disagree.
+        //
+        // Milestone 2.12G2: Evaluate() now takes an explicit nowMs (one
+        // shared CurrentTimeMs() call for this whole pass, not one per
+        // group - see this method's own definition), and its result is
+        // accepted for EITHER AgentGroupIntentType::Regroup or ::Roam, not
+        // Regroup alone - the same explicit two-value check
+        // AgentGroupIntentProjector::Project() already holds its own
+        // switch to (2.12F2 P3 fix), so a future third intent type is
+        // never silently forwarded just because it is non-None.
         //
         // Per resolved, non-pending group: CollectCoalitionMemberObservations(),
         // _agentGroupIntentSystem.Evaluate(), and - only if the result is
-        // AgentGroupIntentType::Regroup - _agentGroupIntentProjector.
-        // Project(), whose proposals are appended to this pass's own
-        // combined batch.
+        // Regroup or Roam - _agentGroupIntentProjector.Project(), whose
+        // proposals are appended to this pass's own combined batch.
         void RunCoalitionCoordination();
 
         // Milestone 2.12F2: the one place a GroupMemberActionProposal
@@ -1126,18 +1148,20 @@ class TC_GAME_API AIWorldMgr
         // already decomposed to one individual member, but still only a
         // PROPOSAL, not an authorization - see GroupMemberActionProposal.h)
         // is turned into a real, individually-validated MOVE_TO
-        // ActionRequest (SourceGoal = GoalType::Regroup). Full revalidation,
-        // never trusting anything RunCoalitionCoordination() itself already
-        // resolved earlier this same pass (a proposal can be several
-        // members old by the time this specific one runs):
-        //   - proposal.SourceIntent == AgentGroupIntentType::Regroup (2.12F2
-        //     P3 fix, STATIC review - fail-closed the same way
-        //     AgentGroupIntentProjector::Project() itself now is; today the
-        //     only way this can ever be false is proposal being a default-
-        //     constructed/malformed value, since Project() itself never
-        //     produces anything else, but this must never silently start a
-        //     MOVE_TO for a future intent type this dispatcher does not yet
-        //     know how to honestly source-tag).
+        // ActionRequest. Full revalidation, never trusting anything
+        // RunCoalitionCoordination() itself already resolved earlier this
+        // same pass (a proposal can be several members old by the time
+        // this specific one runs):
+        //   - proposal.SourceIntent maps to a known GoalType (2.12F2 P3
+        //     fix, STATIC review - fail-closed the same way
+        //     AgentGroupIntentProjector::Project() itself now is; 2.12G2:
+        //     Regroup -> GoalType::Regroup, Roam -> GoalType::Roam, so
+        //     ActionRequest::SourceGoal/GroupCoordinationGoal::Type always
+        //     honestly name which intent actually produced this proposal,
+        //     never hard-coded to Regroup regardless. None/any future/
+        //     unrecognized value returns outright - this dispatcher must
+        //     never silently start a MOVE_TO for an intent type it does
+        //     not yet know how to honestly source-tag).
         //   - proposal.Member still resolves in _registry.
         //   - proposal.SourceGroup still resolves in _groupRegistry, AND
         //     proposal.Member is still actually one of its Members (a leave
@@ -1146,39 +1170,42 @@ class TC_GAME_API AIWorldMgr
         //   - the member is Materialized with a live, resolvable Creature,
         //     and Alive.
         //   - no higher-priority individual reason to ignore this: neither
-        //     ActiveGoalState nor RoutineGoalState set (Regroup is the
-        //     LOWEST of the three tiers - see AIWorldMgr::UpdateNeeds()'s
-        //     own arbitration comment), and no ActiveActionState already
+        //     ActiveGoalState nor RoutineGoalState set (Regroup/Roam are
+        //     the LOWEST tier - see AIWorldMgr::UpdateNeeds()'s own
+        //     arbitration comment), and no ActiveActionState already
         //     running (a member already mid-action, of ANY SourceGoal, is
         //     left alone - this pass never preempts anything; only
         //     UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL/routine-
-        //     preemption blocks ever interrupt an in-flight Regroup, never
-        //     the reverse).
+        //     preemption blocks ever interrupt an in-flight Regroup/Roam,
+        //     never the reverse).
         //   - proposal.X/Y/Z is within ActionSystem::CoordinationMoveToRangeYards()
         //     of the member's own actual current position (2.12F2 P3 fix,
         //     round 2, STATIC review - explicit "unreachable coordination
         //     member" semantics). AgentGroupIntentProjector::Project() only
-        //     ever compares distance against profile.RegroupRadius, a
-        //     TRIGGER threshold, never against this execution-layer bound -
-        //     by design, so the pure projector never needs to know an
-        //     ActionSystem constant. This is deliberately the ONLY place
-        //     that enforces reachability at all (2.12F2 P2 fix, round 3,
-        //     STATIC review): AIWorld.WolfGroupFormationRadius/
-        //     AIWorld.WolfGroupLeaveRadius are NOT clamped against this
-        //     bound - Formation/Maintenance is its own capability with its
-        //     own enable flag, independent of Coordination's, and must not
-        //     have its own policy silently narrowed by a completely
-        //     different, possibly-disabled capability's own execution
-        //     limit (see AIWorld.WolfGroupLeaveRadius's own Initialize()
-        //     comment). AIWorld.WolfGroupRegroupRadius alone is still
-        //     clamped at Initialize(), since that IS a Coordination-layer
-        //     trigger threshold. So a member can legitimately remain a
-        //     group member, or even trigger a Regroup intent, from farther
-        //     away than this dispatcher can actually reach - that gap is
-        //     expected, not a misconfiguration, and this check turns it
-        //     into a clean, named "nothing to do" rather than rebuilding
-        //     and re-rejecting an identical ActionRequest as
-        //     DestinationTooFar every pass, forever.
+        //     ever compares distance against the matching TRIGGER radius
+        //     (profile.RegroupRadius or, since 2.12G2,
+        //     profile.RoamArrivalRadius), never against this
+        //     execution-layer bound - by design, so the pure projector
+        //     never needs to know an ActionSystem constant. This is
+        //     deliberately the ONLY place that enforces reachability at
+        //     all (2.12F2 P2 fix, round 3, STATIC review):
+        //     AIWorld.WolfGroupFormationRadius/AIWorld.WolfGroupLeaveRadius
+        //     are NOT clamped against this bound - Formation/Maintenance
+        //     is its own capability with its own enable flag, independent
+        //     of Coordination's, and must not have its own policy silently
+        //     narrowed by a completely different, possibly-disabled
+        //     capability's own execution limit (see
+        //     AIWorld.WolfGroupLeaveRadius's own Initialize() comment).
+        //     AIWorld.WolfGroupRegroupRadius/AIWorld.WolfGroupRoamDistance
+        //     are still clamped at Initialize(), since those ARE
+        //     Coordination-layer trigger thresholds. So a member can
+        //     legitimately remain a group member, or even trigger a
+        //     Regroup/Roam intent, from farther away than this dispatcher
+        //     can actually reach - that gap is expected, not a
+        //     misconfiguration, and this check turns it into a clean,
+        //     named "nothing to do" rather than rebuilding and
+        //     re-rejecting an identical ActionRequest as DestinationTooFar
+        //     every pass, forever.
         // On every rejection above, this simply returns - no log spam for
         // what is an expected, frequent outcome (most members most passes
         // are not eligible), the same restraint RunCoalitionMaintenanceForGroup()
@@ -1198,13 +1225,18 @@ class TC_GAME_API AIWorldMgr
 
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): how many
         // currently-registered groups member belongs to whose own resolved
-        // profile has RegroupEnabled - the one shared definition of
-        // "coordination-ambiguous membership" both RunCoalitionCoordination()'s
-        // own overlap arbitration and ReconcileGroupCoordinationForMember()
-        // now use, via AgentGroupRegistry::GetGroupsOfMember() (O(k) where k
-        // is however many groups member is actually in, almost always 0 or
-        // 1 - see that method's own comment).
-        uint32 CountRegroupEnabledMemberships(AgentId member) const;
+        // profile has RegroupEnabled or, since 2.12G2, RoamEnabled - the
+        // one shared definition of "coordination-ambiguous membership"
+        // both RunCoalitionCoordination()'s own overlap arbitration and
+        // ReconcileGroupCoordinationForMember() now use, via
+        // AgentGroupRegistry::GetGroupsOfMember() (O(k) where k is however
+        // many groups member is actually in, almost always 0 or 1 - see
+        // that method's own comment). Milestone 2.12G2: deliberately
+        // RegroupEnabled OR RoamEnabled, not RegroupEnabled alone - see
+        // this method's own definition for why scoping this safety net to
+        // only the first coordination behavior that ever existed would
+        // have left a real gap the moment a second one (Roam) was added.
+        uint32 CountCoordinationEnabledMemberships(AgentId member) const;
 
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): the shared
         // mechanics both StopGroupCoordinationForMember() and
@@ -1216,29 +1248,30 @@ class TC_GAME_API AIWorldMgr
         // below, since there is nowhere left to read it from afterward),
         // then unconditionally clears record.GroupCoordinationGoalState.
         // Only if record.ActiveActionState is actually the matching
-        // in-flight Regroup (never assumed - see this method's own body
-        // comment for why) does it go on to stop the underlying engine
-        // movement (if a live Creature still resolves), logging that
-        // captured SourceGroup alongside it, and clear ActiveActionState
-        // too. reason is a literal describing WHY this particular caller
-        // stopped it, logged the same way - callers never share one
-        // generic reason string.
+        // in-flight Regroup/Roam (2.12G2: IsCoordinationSourceGoal(), never
+        // assumed - see this method's own body comment for why) does it go
+        // on to stop the underlying engine movement (if a live Creature
+        // still resolves), logging that captured SourceGroup alongside it,
+        // and clear ActiveActionState too. reason is a literal describing
+        // WHY this particular caller stopped it, logged the same way -
+        // callers never share one generic reason string.
         void StopInFlightGroupCoordination(AgentRecord& record, char const* reason);
 
         // Milestone 2.12F2 P2 fix (STATIC review): the one place an
-        // in-flight Regroup attempt (AgentRecord::GroupCoordinationGoalState/
-        // ActiveActionState) is stopped because its OWNING GROUP changed
-        // underneath it, not because a higher-priority individual goal
-        // preempted it (see UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL
-        // block for that other case). GroupCoordinationGoal.h's own class
-        // comment previously documented this as a deliberate non-goal ("a
-        // dissolve/leave that happens while this attempt is already moving
-        // simply lets the movement run to its own natural conclusion") -
-        // STATIC review correctly identified that as a real bug, not a
-        // deliberate simplification: a confirmed Leave/Dissolve for
-        // groupId must stop any member still actively moving toward that
-        // now-former group's own territory, or the movement completes as a
-        // stale group-owned action with no group behind it any more.
+        // in-flight Regroup/Roam attempt (AgentRecord::
+        // GroupCoordinationGoalState/ActiveActionState) is stopped because
+        // its OWNING GROUP changed underneath it, not because a
+        // higher-priority individual goal preempted it (see UpdateNeeds()'s
+        // own COORDINATION_PREEMPTED_BY_GOAL block for that other case).
+        // GroupCoordinationGoal.h's own class comment previously documented
+        // this as a deliberate non-goal ("a dissolve/leave that happens
+        // while this attempt is already moving simply lets the movement
+        // run to its own natural conclusion") - STATIC review correctly
+        // identified that as a real bug, not a deliberate simplification:
+        // a confirmed Leave/Dissolve for groupId must stop any member
+        // still actively moving toward that now-former group's own
+        // territory/roam target, or the movement completes as a stale
+        // group-owned action with no group behind it any more.
         //
         // A no-op if memberId has no GroupCoordinationGoalState at all, or
         // one whose SourceGroup names a different group (an agent can only
@@ -1254,30 +1287,32 @@ class TC_GAME_API AIWorldMgr
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): the Join-side
         // counterpart to StopGroupCoordinationForMember() - a confirmed
         // Join, unlike a confirmed Leave/Dissolve, can newly CREATE
-        // coordination ambiguity for memberId (a second RegroupEnabled
-        // group now claims it - see CountRegroupEnabledMemberships()) while
-        // a Regroup dispatched before this join, back when membership was
-        // still unambiguous, may still be actively running. Without this,
+        // coordination ambiguity for memberId (a second coordination-
+        // enabled group now claims it - see
+        // CountCoordinationEnabledMemberships()) while a Regroup/Roam
+        // dispatched before this join, back when membership was still
+        // unambiguous, may still be actively running. Without this,
         // RunCoalitionCoordination()'s own overlap-arbitration rule would
         // only ever apply to NEW dispatches - an already in-flight action
         // would keep running to its own natural conclusion purely because
         // it started before the join confirmed, an implicit "whoever got
         // there first keeps it" priority the arbitration rule exists
         // specifically to remove. Deliberately generic - this only ever
-        // asks AgentGroupRegistry/CountRegroupEnabledMemberships() "is this
-        // membership still unambiguous", never anything about WolfLoose or
-        // any other specific profile - so a future second RegroupEnabled
-        // profile needs no change here.
+        // asks AgentGroupRegistry/CountCoordinationEnabledMemberships() "is
+        // this membership still unambiguous", never anything about
+        // WolfLoose/DefiasLoose or any other specific profile - so a
+        // future third coordination-enabled profile needs no change here.
         //
         // A no-op if memberId has no GroupCoordinationGoalState at all (the
         // overwhelmingly common case - most joins never race an in-flight
-        // Regroup) or if CountRegroupEnabledMemberships() still resolves to
-        // at most 1 (the join did not actually create ambiguity - e.g. the
-        // newly-joined group's own profile has RegroupEnabled false).
-        // Called only from RequestJoinGroupWithPolicy()'s own confirmed-join
-        // completion - deliberately not placed inside
-        // AgentGroupLifecycleSystem itself, which has (and must keep) no
-        // knowledge of AgentGroupCoordinationProfile/RegroupEnabled; this is
+        // Regroup/Roam) or if CountCoordinationEnabledMemberships() still
+        // resolves to at most 1 (the join did not actually create
+        // ambiguity - e.g. the newly-joined group's own profile has both
+        // RegroupEnabled and RoamEnabled false). Called only from
+        // RequestJoinGroupWithPolicy()'s own confirmed-join completion -
+        // deliberately not placed inside AgentGroupLifecycleSystem itself,
+        // which has (and must keep) no knowledge of
+        // AgentGroupCoordinationProfile/RegroupEnabled/RoamEnabled; this is
         // AIWorldMgr's own post-confirmation orchestration, the same layer
         // StopGroupCoordinationForMember() already lives at.
         void ReconcileGroupCoordinationForMember(AgentId memberId);
@@ -1802,17 +1837,25 @@ class TC_GAME_API AIWorldMgr
         // AgentGroupCoordinationProfile, paired with
         // _wolfLooseFormationProfile/_wolfLooseMaintenanceProfile above
         // (same ProfileId/Kind) - built once at Initialize() from
-        // AIWorld.WolfGroupRegroupEnabled/AIWorld.WolfGroupRegroupRadius.
+        // AIWorld.WolfGroupRegroupEnabled/AIWorld.WolfGroupRegroupRadius
+        // and, since 2.12G2, AIWorld.WolfGroupRoamEnabled/
+        // AIWorld.WolfGroupRoamDistance/AIWorld.WolfGroupRoamIntervalMs/
+        // AIWorld.WolfGroupRoamArrivalRadius.
         AgentGroupCoordinationProfile _wolfLooseCoordinationProfile;
 
         // Milestone 2.12G1: paired with _defiasLooseFormationProfile/
         // _defiasLooseMaintenanceProfile above (same ProfileId/Kind) -
         // built once at Initialize() from
-        // AIWorld.DefiasGroupRegroupEnabled/AIWorld.DefiasGroupRegroupRadius.
-        // Coordination's own enable gate/cadence
-        // (_groupCoordinationEnabled/_groupCoordinationIntervalMs/
+        // AIWorld.DefiasGroupRegroupEnabled/AIWorld.DefiasGroupRegroupRadius
+        // and, since 2.12G2, AIWorld.DefiasGroupRoamEnabled/
+        // AIWorld.DefiasGroupRoamDistance/AIWorld.DefiasGroupRoamIntervalMs/
+        // AIWorld.DefiasGroupRoamArrivalRadius. Coordination's own enable
+        // gate/cadence (_groupCoordinationEnabled/_groupCoordinationIntervalMs/
         // _groupCoordinationScanMaxPerPass) stay shared across every
-        // profile, same reasoning as maintenance above.
+        // profile AND every intent type - Roam gets no orchestration
+        // scheduler of its own, only its own profile DATA, the same
+        // discipline 2.12G1's own STATIC review already established for a
+        // second PROFILE and this milestone applies to a second INTENT.
         AgentGroupCoordinationProfile _defiasLooseCoordinationProfile;
 
         // Milestone 2.12F2: gated on its OWN AIWorld.GroupCoordination flag,

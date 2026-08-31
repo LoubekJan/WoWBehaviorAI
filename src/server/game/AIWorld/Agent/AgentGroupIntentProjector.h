@@ -45,27 +45,34 @@
 //
 // Project() itself trusts intent.Type without re-deriving
 // AgentGroupIntentSystem::Evaluate()'s own fail-closed profile checks
-// (Invalid/Kind-mismatch/ProfileId-mismatch/RegroupEnabled) - intent.Type
-// != None already proves Evaluate() confirmed all of them for the exact
-// profile this same call is given, and duplicating that check here would
-// just be a second, independently-maintained copy of a rule
+// (Invalid/Kind-mismatch/ProfileId-mismatch/RegroupEnabled/RoamEnabled) -
+// intent.Type != None already proves Evaluate() confirmed all of them for
+// the exact profile this same call is given, and duplicating that check
+// here would just be a second, independently-maintained copy of a rule
 // AgentGroupIntentSystem already owns (the same reasoning
 // CoalitionMaintenanceSystem.h's own class comment already gives for not
 // duplicating Stable protection at multiple layers).
 //
-// Rule: intent.Type != Regroup (None, or any future/unrecognized value -
-// see Project()'s own explicit switch, 2.12F2 P3 fix, STATIC review) -> no
-// proposals at all. Otherwise, for every member that is Materialized,
-// Alive, on the same MapId as the intent's own target, and further than
-// profile.RegroupRadius from it -> one
-// GroupMemberActionProposal targeting that same point. A member already
-// within RegroupRadius, or one that is unloaded/dead/on a different map,
-// gets no proposal - the same "absence from the grid must never be
-// misread as a coordination fact" discipline CoalitionMemberObservation.h
-// already documents, and the same RegroupRadius AgentGroupIntentSystem
-// itself used to decide the group wanted to regroup at all, so a member
-// exactly at the boundary is never treated as still needing to move by
-// one layer while the other already considered it "close enough".
+// Rule: intent.Type == None, or any future/unrecognized value (see
+// Project()'s own explicit switch, 2.12F2 P3 fix, STATIC review) -> no
+// proposals at all. Otherwise (Regroup or, since 2.12G2, Roam), for every
+// member that is Materialized, Alive, on the same MapId as the intent's
+// own target, and further than the matching radius from it - RegroupRadius
+// for Regroup, RoamArrivalRadius for Roam (2.12G2: deliberately NOT the
+// same field; RegroupRadius is a TRIGGER threshold, RoamArrivalRadius a
+// SATISFIED one, see AgentGroupCoordinationProfile.h) - -> one
+// GroupMemberActionProposal targeting that same point, tagged with the
+// intent's own Type (SourceIntent). A member already within that radius,
+// or one that is unloaded/dead/on a different map, gets no proposal - the
+// same "absence from the grid must never be misread as a coordination
+// fact" discipline CoalitionMemberObservation.h already documents, and
+// the same radius AgentGroupIntentSystem itself used to decide the group
+// wanted to move at all, so a member exactly at the boundary is never
+// treated as still needing to move by one layer while the other already
+// considered it "close enough". Deliberately no per-member spacing/
+// offset yet (2.12G2) - every eligible member of a Roam gets the exact
+// same target; adding spacing is a later refinement once runtime shows it
+// is actually needed.
 // Fully deterministic given the same intent/profile/members: two calls
 // with the same input always return the same proposals, in the same
 // order as members was given.

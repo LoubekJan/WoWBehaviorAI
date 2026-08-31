@@ -51,30 +51,50 @@ struct AgentGroupRecord;
 //   0c. profile.ProfileId != group.ProfileId -> None (see
 //       AgentGroupRecord::ProfileId for why Kind alone is never enough to
 //       tell two profiles of the same Kind apart).
-//   0d. !profile.RegroupEnabled -> None - a profile that has not opted
-//       into automatic regrouping never gets one proposed, regardless of
-//       how dispersed its members are.
-//   1. Otherwise, if any member is Materialized, Alive, on the same MapId
-//      as group.TerritoryMapId, and further than profile.RegroupRadius
-//      from (group.TerritoryX/Y/Z) -> Regroup, targeting the group's own
-//      territory point. An unloaded, dead, or different-map member is
-//      never a trigger, regardless of its last known position - the same
-//      "absence from the grid must never be misread as a social/
-//      coordination fact" discipline CoalitionMemberObservation.h already
-//      documents for maintenance.
-//   2. Otherwise -> None.
-// Deliberately targets the group's own fixed TerritoryX/Y/Z, not a
-// dynamically computed centroid of currently-materialized members - the
-// simplest choice that proves the generic intent/projection pipeline
-// works at all; a centroid-based (or otherwise smarter) regroup target is
-// a later refinement, not required for this milestone's own scope.
-// Fully deterministic given the same group/profile/members: two calls
-// with the same input always return the same intent.
+//   1. If profile.RegroupEnabled, and any member is Materialized, Alive,
+//      on the same MapId as group.TerritoryMapId, and further than
+//      profile.RegroupRadius from (group.TerritoryX/Y/Z) -> Regroup,
+//      targeting the group's own territory point. An unloaded, dead, or
+//      different-map member is never a trigger, regardless of its last
+//      known position - the same "absence from the grid must never be
+//      misread as a social/coordination fact" discipline
+//      CoalitionMemberObservation.h already documents for maintenance.
+//   2. Otherwise (no Regroup fired - REGROUP always outranks ROAM, a
+//      dispersed group must never be pulled further apart by a roam
+//      target instead of pulled back together), if profile.RoamEnabled,
+//      and any member is Materialized, Alive, on the same MapId as
+//      group.TerritoryMapId, and further than profile.RoamArrivalRadius
+//      from this call's own deterministic roam target -> Roam, targeting
+//      that point. See "Deterministic ROAM target" below for how it is
+//      chosen; the same unloaded/dead/different-map exclusions as Regroup
+//      apply.
+//   3. Otherwise -> None.
+// Deliberately targets the group's own fixed TerritoryX/Y/Z (Regroup) or a
+// point close to it (Roam), never a dynamically computed centroid of
+// currently-materialized members - the simplest choice that proves the
+// generic intent/projection pipeline works at all; smarter targeting is a
+// later refinement, not required for this milestone's own scope.
+//
+// Deterministic ROAM target (2.12G2): nowMs (the caller's own current
+// time, passed in explicitly rather than read from a clock here - the
+// same "every dependency is a parameter" purity every other System class
+// in this codebase already holds to) is divided by profile.RoamIntervalMs
+// into a phase bucket; group.Id/profile.ProfileId/that phase are mixed
+// (RoamPhaseHash(), .cpp) into one of 9 deterministic slots - the
+// group's own TerritoryX/Y/Z itself, or one of 8 compass points
+// profile.RoamDistance away from it. No rand()/urand()/random_device
+// anywhere: the exact same (group, profile, nowMs) always picks the exact
+// same slot, so "same GroupId + same roam phase -> same target" holds by
+// construction, and the target only actually changes once every
+// profile.RoamIntervalMs, not on every coordination pass that happens to
+// re-evaluate a still-current phase.
+// Fully deterministic given the same group/profile/members/nowMs: two
+// calls with the same input always return the same intent.
 class TC_GAME_API AgentGroupIntentSystem
 {
     public:
         AgentGroupIntent Evaluate(AgentGroupRecord const& group, AgentGroupCoordinationProfile const& profile,
-            std::vector<CoalitionMemberObservation> const& members) const;
+            std::vector<CoalitionMemberObservation> const& members, uint64 nowMs) const;
 };
 
 #endif // AIWORLD_AGENTGROUPINTENTSYSTEM_H

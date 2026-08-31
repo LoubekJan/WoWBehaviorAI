@@ -43,21 +43,32 @@
 // SourceGoal/ActiveAction::SourceGoal directly, the same "reuse the
 // existing MOVE_TO pipeline, don't invent a parallel one" reasoning
 // GoToWork/GoHome's own comment already gives. It is the LOWEST-priority
-// of the three MOVE_TO sources - see AIWorldMgr::UpdateNeeds()'s own
+// of the MOVE_TO sources - see AIWorldMgr::UpdateNeeds()'s own
 // arbitration comments (2.11C/2.12F2): Emergency ActiveGoal > Normal
-// ActiveGoal > RoutineGoal > Regroup. Produced only by AIWorldMgr::
+// ActiveGoal > RoutineGoal > Regroup/Roam. Produced only by AIWorldMgr::
 // DispatchGroupMemberActionProposal(), itself fed by
 // AgentGroupIntentSystem/AgentGroupIntentProjector - a group-level
 // coordination fact decomposed into one individual member's own,
 // separately-validated MOVE_TO, never a command the group issues
 // directly (see AgentGroupIntent.h).
+//
+// Roam (2.12G2) is Regroup's own sibling at that same tier, not a renamed
+// Regroup - both are GroupCoordinationGoal-sourced and share the LOWEST
+// priority tier and the same MOVE_TO pipeline/range bound
+// (ActionSystem::CoordinationMoveToRangeYards()), but they source-tag
+// genuinely different individual proposals (AgentGroupIntentType::Regroup
+// vs. ::Roam - see GroupMemberActionProposal.h), so ActionRequest::SourceGoal
+// must be able to name each honestly rather than reporting every group-
+// coordination MOVE_TO as REGROUP regardless of which one actually
+// produced it.
 enum class GoalType : uint8
 {
     GetFood,
     FleeDanger,
     GoToWork,
     GoHome,
-    Regroup
+    Regroup,
+    Roam
 };
 
 inline char const* ToString(GoalType type)
@@ -69,6 +80,7 @@ inline char const* ToString(GoalType type)
         case GoalType::GoToWork:   return "GO_TO_WORK";
         case GoalType::GoHome:     return "GO_HOME";
         case GoalType::Regroup:    return "REGROUP";
+        case GoalType::Roam:       return "ROAM";
         default:                   return "UNKNOWN";
     }
 }

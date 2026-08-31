@@ -42,6 +42,7 @@
 #include "Reconciliation/SpawnReconciliationPlan.h"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <vector>
@@ -82,6 +83,19 @@ namespace
     bool IsRoutineSourceGoal(GoalType type)
     {
         return type == GoalType::GoToWork || type == GoalType::GoHome;
+    }
+
+    // Milestone 2.12G2: the group-coordination counterpart to
+    // IsRoutineSourceGoal() above - the single place that knows
+    // GoalType::Regroup/Roam are both GroupCoordinationGoalState-owned
+    // source tags (see GroupCoordinationGoal.h), so every ownership/
+    // preemption/stop check that used to compare only against
+    // GoalType::Regroup now goes through here instead of silently
+    // treating a Roam-sourced attempt as if it belonged to no owner at
+    // all.
+    bool IsCoordinationSourceGoal(GoalType type)
+    {
+        return type == GoalType::Regroup || type == GoalType::Roam;
     }
 
     // Milestone 2.12D P2 fix (STATIC review): every AgentRecord now names a
@@ -531,10 +545,60 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         wolfGroupRegroupRadius = ActionSystem::CoordinationMoveToRangeYards();
     }
 
+    // Milestone 2.12G2: off by default (AIWorld.WolfGroupRoamEnabled),
+    // same as every other not-yet-runtime-verified piece of this feature.
+    // RoamDistance/RoamArrivalRadius are clamped to keep the
+    // RoamArrivalRadius < RoamDistance < RegroupRadius < LeaveRadius
+    // envelope AgentGroupCoordinationProfile.h's own RoamEnabled comment
+    // documents - a roam target allowed to land past this profile's OWN
+    // RegroupRadius would have Roam and Regroup fight every other pass.
+    bool wolfGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRoamEnabled", false);
+
+    float wolfGroupRoamDistance = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamDistance", 10.0f);
+    if (wolfGroupRoamDistance < 1.0f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamDistance ({:.1f}) is invalid or too low, clamping to 1.0", wolfGroupRoamDistance);
+        wolfGroupRoamDistance = 1.0f;
+    }
+    if (wolfGroupRoamDistance >= wolfGroupRegroupRadius)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamDistance ({:.1f}) is not smaller than AIWorld.WolfGroupRegroupRadius ({:.1f}) - a roam target this far out could immediately trigger REGROUP, clamping to {:.1f}",
+            wolfGroupRoamDistance, wolfGroupRegroupRadius, wolfGroupRegroupRadius * 0.5f);
+        wolfGroupRoamDistance = wolfGroupRegroupRadius * 0.5f;
+    }
+
+    int32 wolfGroupRoamIntervalMsRaw = sConfigMgr->GetIntDefault("AIWorld.WolfGroupRoamIntervalMs", 15000);
+    if (wolfGroupRoamIntervalMsRaw < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamIntervalMs ({}) is invalid or too low, clamping to 1000ms", wolfGroupRoamIntervalMsRaw);
+        wolfGroupRoamIntervalMsRaw = 1000;
+    }
+    uint32 wolfGroupRoamIntervalMs = uint32(wolfGroupRoamIntervalMsRaw);
+
+    float wolfGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamArrivalRadius", 5.0f);
+    if (wolfGroupRoamArrivalRadius < 0.5f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamArrivalRadius ({:.1f}) is invalid or too low, clamping to 0.5", wolfGroupRoamArrivalRadius);
+        wolfGroupRoamArrivalRadius = 0.5f;
+    }
+    if (wolfGroupRoamArrivalRadius >= wolfGroupRoamDistance)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.WolfGroupRoamArrivalRadius ({:.1f}) is not smaller than AIWorld.WolfGroupRoamDistance ({:.1f}) - no roam target could ever count as reached, clamping to {:.1f}",
+            wolfGroupRoamArrivalRadius, wolfGroupRoamDistance, wolfGroupRoamDistance * 0.5f);
+        wolfGroupRoamArrivalRadius = wolfGroupRoamDistance * 0.5f;
+    }
+
     _wolfLooseCoordinationProfile.ProfileId = CoalitionFormationProfileId::WolfLoose;
     _wolfLooseCoordinationProfile.Kind = AgentGroupKind::Loose;
     _wolfLooseCoordinationProfile.RegroupEnabled = wolfGroupRegroupEnabled;
     _wolfLooseCoordinationProfile.RegroupRadius = wolfGroupRegroupRadius;
+    _wolfLooseCoordinationProfile.RoamEnabled = wolfGroupRoamEnabled;
+    _wolfLooseCoordinationProfile.RoamDistance = wolfGroupRoamDistance;
+    _wolfLooseCoordinationProfile.RoamIntervalMs = wolfGroupRoamIntervalMs;
+    _wolfLooseCoordinationProfile.RoamArrivalRadius = wolfGroupRoamArrivalRadius;
+
+    TC_LOG_INFO("ai.world", "AI wolf coalition coordination configured regroupEnabled={} regroupRadius={:.1f} roamEnabled={} roamDistance={:.1f} roamIntervalMs={} roamArrivalRadius={:.1f}",
+        wolfGroupRegroupEnabled, wolfGroupRegroupRadius, wolfGroupRoamEnabled, wolfGroupRoamDistance, wolfGroupRoamIntervalMs, wolfGroupRoamArrivalRadius);
 
     // Milestone 2.12G1: same shape as WolfLoose above - RegroupRadius is
     // still Coordination-layer config (see AIWorld.WolfGroupRegroupRadius's
@@ -555,10 +619,57 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         defiasGroupRegroupRadius = ActionSystem::CoordinationMoveToRangeYards();
     }
 
+    // Milestone 2.12G2: same shape as WolfLoose above - see its own
+    // comment for the RoamArrivalRadius < RoamDistance < RegroupRadius <
+    // LeaveRadius envelope this clamping keeps DefiasLoose inside too,
+    // independently.
+    bool defiasGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.DefiasGroupRoamEnabled", false);
+
+    float defiasGroupRoamDistance = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupRoamDistance", 10.0f);
+    if (defiasGroupRoamDistance < 1.0f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamDistance ({:.1f}) is invalid or too low, clamping to 1.0", defiasGroupRoamDistance);
+        defiasGroupRoamDistance = 1.0f;
+    }
+    if (defiasGroupRoamDistance >= defiasGroupRegroupRadius)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamDistance ({:.1f}) is not smaller than AIWorld.DefiasGroupRegroupRadius ({:.1f}) - a roam target this far out could immediately trigger REGROUP, clamping to {:.1f}",
+            defiasGroupRoamDistance, defiasGroupRegroupRadius, defiasGroupRegroupRadius * 0.5f);
+        defiasGroupRoamDistance = defiasGroupRegroupRadius * 0.5f;
+    }
+
+    int32 defiasGroupRoamIntervalMsRaw = sConfigMgr->GetIntDefault("AIWorld.DefiasGroupRoamIntervalMs", 15000);
+    if (defiasGroupRoamIntervalMsRaw < 1000)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamIntervalMs ({}) is invalid or too low, clamping to 1000ms", defiasGroupRoamIntervalMsRaw);
+        defiasGroupRoamIntervalMsRaw = 1000;
+    }
+    uint32 defiasGroupRoamIntervalMs = uint32(defiasGroupRoamIntervalMsRaw);
+
+    float defiasGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupRoamArrivalRadius", 5.0f);
+    if (defiasGroupRoamArrivalRadius < 0.5f)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamArrivalRadius ({:.1f}) is invalid or too low, clamping to 0.5", defiasGroupRoamArrivalRadius);
+        defiasGroupRoamArrivalRadius = 0.5f;
+    }
+    if (defiasGroupRoamArrivalRadius >= defiasGroupRoamDistance)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DefiasGroupRoamArrivalRadius ({:.1f}) is not smaller than AIWorld.DefiasGroupRoamDistance ({:.1f}) - no roam target could ever count as reached, clamping to {:.1f}",
+            defiasGroupRoamArrivalRadius, defiasGroupRoamDistance, defiasGroupRoamDistance * 0.5f);
+        defiasGroupRoamArrivalRadius = defiasGroupRoamDistance * 0.5f;
+    }
+
     _defiasLooseCoordinationProfile.ProfileId = CoalitionFormationProfileId::DefiasLoose;
     _defiasLooseCoordinationProfile.Kind = AgentGroupKind::Loose;
     _defiasLooseCoordinationProfile.RegroupEnabled = defiasGroupRegroupEnabled;
     _defiasLooseCoordinationProfile.RegroupRadius = defiasGroupRegroupRadius;
+    _defiasLooseCoordinationProfile.RoamEnabled = defiasGroupRoamEnabled;
+    _defiasLooseCoordinationProfile.RoamDistance = defiasGroupRoamDistance;
+    _defiasLooseCoordinationProfile.RoamIntervalMs = defiasGroupRoamIntervalMs;
+    _defiasLooseCoordinationProfile.RoamArrivalRadius = defiasGroupRoamArrivalRadius;
+
+    TC_LOG_INFO("ai.world", "AI defias coalition coordination configured regroupEnabled={} regroupRadius={:.1f} roamEnabled={} roamDistance={:.1f} roamIntervalMs={} roamArrivalRadius={:.1f}",
+        defiasGroupRegroupEnabled, defiasGroupRegroupRadius, defiasGroupRoamEnabled, defiasGroupRoamDistance, defiasGroupRoamIntervalMs, defiasGroupRoamArrivalRadius);
 
     int32 groupCoordinationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.GroupCoordinationIntervalMs", 5000);
     if (groupCoordinationIntervalMs < 1000)
@@ -2568,6 +2679,14 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
 
     AgentGroupIntentSystem agentGroupIntentSystem;
 
+    // Milestone 2.12G2: a fixed, arbitrary "now" - Evaluate() is a pure
+    // function of its inputs including this, so any fixed value proves
+    // the same thing; what matters for the ROAM cases below is that every
+    // call in this test uses the SAME nowMs, the same way a real
+    // RunCoalitionCoordination() pass uses one shared CurrentTimeMs() for
+    // every group it evaluates.
+    constexpr uint64 nowMs = 100000;
+
     AgentGroupCoordinationProfile profile;
     profile.ProfileId = CoalitionFormationProfileId::WolfLoose;
     profile.Kind = AgentGroupKind::Loose;
@@ -2603,7 +2722,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, true, true, 30.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members, nowMs);
         check("LOOSE materialized member 30yd past RegroupRadius=20 proposes REGROUP at territory",
             intent.Type == AgentGroupIntentType::Regroup && intent.MapId == looseGroup.TerritoryMapId &&
             intent.X == looseGroup.TerritoryX && intent.Y == looseGroup.TerritoryY && intent.Z == looseGroup.TerritoryZ);
@@ -2616,7 +2735,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, true, true, 10.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members, nowMs);
         check("LOOSE materialized member 10yd within RegroupRadius=20 proposes NONE",
             intent.Type == AgentGroupIntentType::None);
     }
@@ -2629,7 +2748,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, false, false, 30.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members, nowMs);
         check("LOOSE unloaded member is never a REGROUP trigger",
             intent.Type == AgentGroupIntentType::None);
     }
@@ -2642,7 +2761,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, true, false, 30.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members, nowMs);
         check("LOOSE dead member is never a REGROUP trigger",
             intent.Type == AgentGroupIntentType::None);
     }
@@ -2664,7 +2783,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             differentMapMember
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, profile, members, nowMs);
         check("different-map member is never a REGROUP trigger",
             intent.Type == AgentGroupIntentType::None);
     }
@@ -2680,7 +2799,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, true, true, 30.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, disabledProfile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, disabledProfile, members, nowMs);
         check("RegroupEnabled=false proposes NONE",
             intent.Type == AgentGroupIntentType::None);
     }
@@ -2695,7 +2814,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, true, true, 30.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, invalidProfile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, invalidProfile, members, nowMs);
         check("Invalid profile proposes NONE",
             intent.Type == AgentGroupIntentType::None);
     }
@@ -2711,7 +2830,7 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, true, true, 30.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, mismatchedProfile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, mismatchedProfile, members, nowMs);
         check("profile.Kind mismatch (Stable profile vs. LOOSE group) proposes NONE",
             intent.Type == AgentGroupIntentType::None);
     }
@@ -2729,9 +2848,97 @@ void AIWorldMgr::RunGroupIntentSmokeTest() const
             makeObservation(AgentId{ 1 }, true, true, 5.0f),
             makeObservation(AgentId{ 2 }, true, true, 30.0f)
         };
-        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(unclassifiedGroup, profile, members);
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(unclassifiedGroup, profile, members, nowMs);
         check("group.ProfileId mismatch (manual/unclassified LOOSE group vs. WolfLoose profile) proposes NONE",
             intent.Type == AgentGroupIntentType::None);
+    }
+
+    // Milestone 2.12G2: Roam's own rules, using a profile with
+    // RegroupEnabled=false (so these cases only exercise Roam, never
+    // accidentally pass because Regroup already fired) unless a case is
+    // explicitly testing the REGROUP > ROAM priority order.
+    AgentGroupCoordinationProfile roamProfile;
+    roamProfile.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    roamProfile.Kind = AgentGroupKind::Loose;
+    roamProfile.RegroupEnabled = false;
+    roamProfile.RoamEnabled = true;
+    roamProfile.RoamDistance = 10.0f;
+    roamProfile.RoamIntervalMs = 10000;
+    roamProfile.RoamArrivalRadius = 3.0f;
+
+    // RoamEnabled=false proposes NONE even for an otherwise-eligible
+    // cohesive group - a profile that has not opted into automatic
+    // territory movement never gets one.
+    {
+        AgentGroupCoordinationProfile disabledRoamProfile = roamProfile;
+        disabledRoamProfile.RoamEnabled = false;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0.0f),
+            makeObservation(AgentId{ 2 }, true, true, 0.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, disabledRoamProfile, members, nowMs);
+        check("RoamEnabled=false proposes NONE", intent.Type == AgentGroupIntentType::None);
+    }
+
+    // REGROUP > ROAM: a profile with BOTH RegroupEnabled and RoamEnabled,
+    // given a dispersed group, proposes Regroup - a roam target must never
+    // pull a dispersed group even further apart.
+    {
+        AgentGroupCoordinationProfile bothProfile = roamProfile;
+        bothProfile.RegroupEnabled = true;
+        bothProfile.RegroupRadius = 20.0f;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 5.0f),
+            makeObservation(AgentId{ 2 }, true, true, 30.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, bothProfile, members, nowMs);
+        check("RegroupEnabled and RoamEnabled both true, dispersed group proposes REGROUP not ROAM",
+            intent.Type == AgentGroupIntentType::Regroup);
+    }
+
+    // ROAM due: a cohesive group (every member already at the territory
+    // anchor, well inside RoamArrivalRadius of the anchor itself but NOT
+    // necessarily of the actual roam target) with RoamEnabled and no
+    // dispersion proposes Roam, targeting a point within RoamDistance of
+    // the group's own territory. This specific (nowMs, roamProfile) pair
+    // was hand-verified to land on one of the 8 compass-offset slots, not
+    // the anchor-itself slot (RoamPhaseHash(1, WolfLoose, 10) % 9 == 6 -
+    // see AgentGroupIntentSystem.cpp) - the anchor slot would make the
+    // group already-arrived (distance 0 <= RoamArrivalRadius) and
+    // correctly propose None instead, which is a real, valid outcome of
+    // the deterministic selection, just not the one this specific case
+    // means to exercise.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0.0f),
+            makeObservation(AgentId{ 2 }, true, true, 0.0f)
+        };
+        AgentGroupIntent intent = agentGroupIntentSystem.Evaluate(looseGroup, roamProfile, members, nowMs);
+
+        float dx = intent.X - looseGroup.TerritoryX;
+        float dy = intent.Y - looseGroup.TerritoryY;
+        float distance = std::sqrt(dx * dx + dy * dy);
+
+        check("cohesive group with RoamEnabled proposes ROAM within RoamDistance of territory",
+            intent.Type == AgentGroupIntentType::Roam && intent.MapId == looseGroup.TerritoryMapId &&
+            distance <= roamProfile.RoamDistance + 0.01f);
+    }
+
+    // Deterministic target: two independent Evaluate() calls given the
+    // exact same group/profile/members/nowMs (hence the same roam phase)
+    // agree on the exact same ROAM target - no rand()/urand() anywhere.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0.0f),
+            makeObservation(AgentId{ 2 }, true, true, 0.0f)
+        };
+        AgentGroupIntent first = agentGroupIntentSystem.Evaluate(looseGroup, roamProfile, members, nowMs);
+        AgentGroupIntent second = agentGroupIntentSystem.Evaluate(looseGroup, roamProfile, members, nowMs);
+        check("same group + same roam phase (nowMs) proposes the exact same ROAM target",
+            first.Type == AgentGroupIntentType::Roam && second.Type == AgentGroupIntentType::Roam &&
+            first.X == second.X && first.Y == second.Y && first.Z == second.Z);
     }
 
     TC_LOG_INFO("ai.world", "AI group intent smoke test {}", allPassed ? "PASSED" : "FAILED");
@@ -2847,6 +3054,92 @@ void AIWorldMgr::RunGroupIntentProjectorSmokeTest() const
         };
         std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(noneIntent, profile, members);
         check("intent.Type == None produces no proposals", proposals.empty());
+    }
+
+    // Milestone 2.12G2: Roam's own rules - the same materialized/alive/
+    // same-map/unloaded/dead/different-map treatment as Regroup above,
+    // just compared against RoamArrivalRadius instead of RegroupRadius.
+    AgentGroupCoordinationProfile roamProfile = profile;
+    roamProfile.RoamEnabled = true;
+    roamProfile.RoamDistance = 10.0f;
+    roamProfile.RoamIntervalMs = 10000;
+    roamProfile.RoamArrivalRadius = 3.0f;
+
+    AgentGroupIntent roamIntent;
+    roamIntent.Group = GroupId{ 1 };
+    roamIntent.Type = AgentGroupIntentType::Roam;
+    roamIntent.MapId = 0;
+    roamIntent.X = 8.0f;
+    roamIntent.Y = 0.0f;
+    roamIntent.Z = 0.0f;
+
+    // ROAM intent: a materialized/alive/same-map member well past
+    // RoamArrivalRadius gets a proposal targeting the intent's own point;
+    // one well within it gets none.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 7.0f),
+            makeObservation(AgentId{ 2 }, true, true, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(roamIntent, roamProfile, members);
+        check("ROAM proposes exactly one member (the 30yd one), targeting the intent's own point",
+            proposals.size() == 1 && proposals[0].Member == AgentId{ 2 } && proposals[0].SourceGroup == roamIntent.Group &&
+            proposals[0].SourceIntent == AgentGroupIntentType::Roam && proposals[0].MapId == roamIntent.MapId &&
+            proposals[0].X == roamIntent.X && proposals[0].Y == roamIntent.Y && proposals[0].Z == roamIntent.Z);
+    }
+
+    // ROAM intent: unloaded member never gets a proposal, regardless of
+    // its stale recorded position.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 7.0f),
+            makeObservation(AgentId{ 2 }, false, false, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(roamIntent, roamProfile, members);
+        check("ROAM: unloaded member never gets a proposal", proposals.empty());
+    }
+
+    // ROAM intent: dead (Materialized but not Alive) member never gets a
+    // proposal either.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 7.0f),
+            makeObservation(AgentId{ 2 }, true, false, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(roamIntent, roamProfile, members);
+        check("ROAM: dead member never gets a proposal", proposals.empty());
+    }
+
+    // ROAM intent: a materialized/alive member on a DIFFERENT map than the
+    // intent's own point never gets a proposal either.
+    {
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 7.0f),
+            makeObservation(AgentId{ 2 }, true, true, 1, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(roamIntent, roamProfile, members);
+        check("ROAM: different-map member never gets a proposal", proposals.empty());
+    }
+
+    // An unrecognized AgentGroupIntentType value (neither None, Regroup,
+    // nor Roam) fails closed to no proposals at all - the same explicit-
+    // switch discipline Project() itself holds to (2.12F2 P3 fix, STATIC
+    // review), now proven against a genuinely-unrecognized value rather
+    // than only against the two recognized ones.
+    {
+        AgentGroupIntent unknownIntent;
+        unknownIntent.Group = GroupId{ 1 };
+        unknownIntent.Type = static_cast<AgentGroupIntentType>(99);
+        unknownIntent.MapId = 0;
+        unknownIntent.X = 8.0f;
+        unknownIntent.Y = 0.0f;
+        unknownIntent.Z = 0.0f;
+
+        std::vector<CoalitionMemberObservation> members{
+            makeObservation(AgentId{ 1 }, true, true, 0, 30.0f)
+        };
+        std::vector<GroupMemberActionProposal> proposals = agentGroupIntentProjector.Project(unknownIntent, roamProfile, members);
+        check("unrecognized AgentGroupIntentType value produces no proposals", proposals.empty());
     }
 
     TC_LOG_INFO("ai.world", "AI group intent projector smoke test {}", allPassed ? "PASSED" : "FAILED");
@@ -3406,6 +3699,14 @@ void AIWorldMgr::RunCoalitionCoordination()
     // in a single pass over `proposals`, not interleaved with dispatch.
     std::vector<GroupMemberActionProposal> proposals;
 
+    // Milestone 2.12G2: one shared `nowMs` for this whole pass, not a
+    // fresh CurrentTimeMs() per group - AgentGroupIntentSystem::Evaluate()'s
+    // own deterministic ROAM phase bucket (nowMs / profile.RoamIntervalMs)
+    // must not be able to land on two different buckets for two groups
+    // discovered in the same RunCoalitionCoordination() call purely
+    // because evaluating them took a few milliseconds.
+    uint64 nowMs = CurrentTimeMs();
+
     for (GroupId groupId : discovered)
     {
         // 2.12F2 P2 fix (STATIC review): a group with a Join/Leave/Dissolve
@@ -3423,8 +3724,15 @@ void AIWorldMgr::RunCoalitionCoordination()
             continue;
 
         std::vector<CoalitionMemberObservation> observations = CollectCoalitionMemberObservations(*group);
-        AgentGroupIntent intent = _agentGroupIntentSystem.Evaluate(*group, *profile, observations);
-        if (intent.Type != AgentGroupIntentType::Regroup)
+        AgentGroupIntent intent = _agentGroupIntentSystem.Evaluate(*group, *profile, observations, nowMs);
+
+        // Milestone 2.12G2: explicit two-value check, not "!= None" - the
+        // same fail-closed discipline AgentGroupIntentProjector::Project()
+        // already holds to (see its own 2.12F2 P3 fix comment) applied
+        // here too, so a future third AgentGroupIntentType is never
+        // silently forwarded to Project() just because it happens to be
+        // non-None.
+        if (intent.Type != AgentGroupIntentType::Regroup && intent.Type != AgentGroupIntentType::Roam)
             continue;
 
         std::vector<GroupMemberActionProposal> groupProposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
@@ -3432,16 +3740,19 @@ void AIWorldMgr::RunCoalitionCoordination()
     }
 
     // 2.12F2 P2 fix, round 2 (STATIC review): arbitrated against how many
-    // RegroupEnabled groups this specific proposal's own Member currently
-    // belongs to (via AgentGroupRegistry::GetGroupsOfMember(), 2.12F2 P3
-    // fix, round 2 - see that method's own comment), not against how many
-    // proposals this pass's own bounded discovery batch happened to
-    // produce. A member who structurally belongs to more than one
-    // RegroupEnabled group gets no proposal dispatched at all, even if
-    // only one of those groups actually proposed something this exact
-    // pass (the other could easily propose next pass instead - the
-    // conservative MVP rule this method's own header comment describes is
-    // about membership overlap, not about which passes happen to collide).
+    // coordination-enabled groups (2.12G2: RegroupEnabled OR RoamEnabled -
+    // see CountCoordinationEnabledMemberships()'s own comment for why this
+    // must not stay scoped to RegroupEnabled alone) this specific
+    // proposal's own Member currently belongs to (via AgentGroupRegistry::
+    // GetGroupsOfMember(), 2.12F2 P3 fix, round 2 - see that method's own
+    // comment), not against how many proposals this pass's own bounded
+    // discovery batch happened to produce. A member who structurally
+    // belongs to more than one coordination-enabled group gets no proposal
+    // dispatched at all, even if only one of those groups actually
+    // proposed something this exact pass (the other could easily propose
+    // next pass instead - the conservative MVP rule this method's own
+    // header comment describes is about membership overlap, not about
+    // which passes happen to collide).
     //
     // 2.12F2 P3 fix, round 2 (STATIC review): GetGroupsOfMember() is O(k)
     // where k is however many groups THIS proposal's own Member is in
@@ -3468,16 +3779,16 @@ void AIWorldMgr::RunCoalitionCoordination()
     for (GroupMemberActionProposal const& proposal : proposals)
     {
         // Shared with ReconcileGroupCoordinationForMember(), 2.12F2 P2 fix
-        // round 4 (STATIC review) - the exact same "how many RegroupEnabled
-        // groups does this member currently belong to" question, asked
-        // here at dispatch time and there at confirmed-Join time.
-        uint32 regroupEnabledMemberships = CountRegroupEnabledMemberships(proposal.Member);
+        // round 4 (STATIC review) - the exact same "how many coordination-
+        // enabled groups does this member currently belong to" question,
+        // asked here at dispatch time and there at confirmed-Join time.
+        uint32 coordinationEnabledMemberships = CountCoordinationEnabledMemberships(proposal.Member);
 
-        if (regroupEnabledMemberships > 1)
+        if (coordinationEnabledMemberships > 1)
         {
             if (loggedOverlap.insert(proposal.Member.Value).second)
-                TC_LOG_DEBUG("ai.world", "AI group coordination: member={} belongs to {} RegroupEnabled groups at once, dispatching no Regroup for it this pass (one of them: group={})",
-                    proposal.Member.Value, regroupEnabledMemberships, proposal.SourceGroup.Value);
+                TC_LOG_DEBUG("ai.world", "AI group coordination: member={} belongs to {} coordination-enabled groups at once, dispatching no {} for it this pass (one of them: group={})",
+                    proposal.Member.Value, coordinationEnabledMemberships, ToString(proposal.SourceIntent), proposal.SourceGroup.Value);
             continue;
         }
 
@@ -3489,12 +3800,23 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
 {
     // 2.12F2 P3 fix (STATIC review): fail-closed the same way
     // AgentGroupIntentProjector::Project() itself now is - see its own
-    // comment. Today Project() never produces anything else, so this is
-    // currently unreachable in practice, but this dispatcher must never
-    // silently start a Regroup MOVE_TO for a proposal it cannot honestly
-    // attribute to that specific intent.
-    if (proposal.SourceIntent != AgentGroupIntentType::Regroup)
-        return;
+    // comment. Today Project() never produces anything but Regroup/Roam
+    // (2.12G2), so this is currently unreachable in practice, but this
+    // dispatcher must never silently start a group-coordination MOVE_TO
+    // for a proposal it cannot honestly attribute to a known intent.
+    GoalType sourceGoal;
+    switch (proposal.SourceIntent)
+    {
+        case AgentGroupIntentType::Regroup:
+            sourceGoal = GoalType::Regroup;
+            break;
+        case AgentGroupIntentType::Roam:
+            sourceGoal = GoalType::Roam;
+            break;
+        case AgentGroupIntentType::None:
+        default:
+            return;
+    }
 
     AgentRecord* record = _registry.Find(proposal.Member);
     if (!record)
@@ -3530,7 +3852,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     if (!creature || !creature->IsAlive())
         return;
 
-    // Regroup is the LOWEST of the three MOVE_TO tiers - any higher-tier
+    // Regroup/Roam are both the LOWEST MOVE_TO tier - any higher-tier
     // individual reason already owns this agent's own action slot this
     // pass, and this proposal is simply dropped, not queued.
     if (record->ActiveGoalState || record->RoutineGoalState)
@@ -3578,8 +3900,8 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
 
     if (unreachableDistanceSq > maxCoordinationRangeYards * maxCoordinationRangeYards)
     {
-        TC_LOG_DEBUG("ai.world", "AI group coordination: member={} group={} is farther than the Regroup range bound ({:.1f}yd) from its own target - UNREACHABLE, no automatic Regroup attempted this pass",
-            record->Id.Value, proposal.SourceGroup.Value, maxCoordinationRangeYards);
+        TC_LOG_DEBUG("ai.world", "AI group coordination: member={} group={} is farther than the {} range bound ({:.1f}yd) from its own target - UNREACHABLE, no automatic {} attempted this pass",
+            record->Id.Value, proposal.SourceGroup.Value, ToString(sourceGoal), maxCoordinationRangeYards, ToString(sourceGoal));
         return;
     }
 
@@ -3594,14 +3916,16 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     ActionRequest moveRequest;
     moveRequest.Actor = proposal.Member;
     moveRequest.Type = ActionType::MoveTo;
-    moveRequest.SourceGoal = GoalType::Regroup;
+    moveRequest.SourceGoal = sourceGoal;
     moveRequest.GoalStartedAtMs = nowMs;
     moveRequest.Destination = destination;
 
     // Milestone 2.12G1: sourceGroupProfile added alongside sourceGroup -
-    // genericity runtime proof needs to see, per REGROUP dispatch, which
-    // profile (WolfLoose vs. DefiasLoose) a given group actually belongs
-    // to, not just its opaque GroupId. `group` was already resolved above.
+    // genericity runtime proof needs to see, per dispatch, which profile
+    // (WolfLoose vs. DefiasLoose) a given group actually belongs to, not
+    // just its opaque GroupId. `group` was already resolved above.
+    // Milestone 2.12G2: sourceGoal now honestly varies (REGROUP or ROAM)
+    // instead of always reporting REGROUP regardless of proposal.SourceIntent.
     TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f}) sourceGroup={} sourceGroupProfile={}",
         record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
         destination.X, destination.Y, destination.Z, proposal.SourceGroup.Value, ToString(group->ProfileId));
@@ -3612,7 +3936,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     // rejection/failure to start - see GroupCoordinationGoal.h for why
     // this must never survive naming an attempt that never actually ran.
     GroupCoordinationGoal coordinationGoal;
-    coordinationGoal.Type = GoalType::Regroup;
+    coordinationGoal.Type = sourceGoal;
     coordinationGoal.SourceGroup = proposal.SourceGroup;
     coordinationGoal.StartedAtMs = nowMs;
     record->GroupCoordinationGoalState = coordinationGoal;
@@ -3621,7 +3945,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     moveContext.Materialized = true;
     moveContext.Alive = true;
     moveContext.ControlMode = record->ControlMode;
-    moveContext.ActiveGoalType = GoalType::Regroup;
+    moveContext.ActiveGoalType = sourceGoal;
     moveContext.ActiveGoalStartedAtMs = nowMs;
     moveContext.MapId = creature->GetMapId();
     moveContext.X = creature->GetPositionX();
@@ -3661,7 +3985,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     record->ActiveActionState = action;
 }
 
-uint32 AIWorldMgr::CountRegroupEnabledMemberships(AgentId member) const
+uint32 AIWorldMgr::CountCoordinationEnabledMemberships(AgentId member) const
 {
     uint32 count = 0;
     for (GroupId groupId : _groupRegistry.GetGroupsOfMember(member))
@@ -3670,8 +3994,20 @@ uint32 AIWorldMgr::CountRegroupEnabledMemberships(AgentId member) const
         if (!group)
             continue;
 
+        // Milestone 2.12G2: RegroupEnabled OR RoamEnabled, not
+        // RegroupEnabled alone - "coordination-ambiguous membership" is a
+        // fact about whether more than one group could dispatch SOME
+        // automatic movement for this member, regardless of which
+        // specific intent each one would actually propose. Scoping this
+        // to RegroupEnabled only would have let a member belong to one
+        // RegroupEnabled group and one RoamEnabled-only group at once
+        // with neither this overlap check nor
+        // ReconcileGroupCoordinationForMember() ever noticing - exactly
+        // the kind of safety net G1's own STATIC review already warned
+        // must generalize with the capability, not stay hard-coded to
+        // whichever one existed first.
         std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
-        if (profile && profile->RegroupEnabled)
+        if (profile && (profile->RegroupEnabled || profile->RoamEnabled))
             ++count;
     }
 
@@ -3694,15 +4030,16 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
 
     // Defensive - by the ownership invariant DispatchGroupMemberActionProposal()
     // establishes, GroupCoordinationGoalState being set means ActiveActionState
-    // should be the matching in-flight Regroup, but this never assumes that
-    // without checking: a member dematerializing/dying/being preempted by a
-    // higher-priority goal the SAME tick one of this method's own callers
-    // happens to run would already have cleared ActiveActionState (see
-    // UpdateNeeds()'s own cleanup/preemption blocks) while both callers'
-    // own ordering (from a TransactionCallbackProcessor completion, not
-    // from inside UpdateNeeds() itself) cannot guarantee which ran first
-    // this tick.
-    if (!record.ActiveActionState || record.ActiveActionState->SourceGoal != GoalType::Regroup)
+    // should be the matching in-flight Regroup/Roam (2.12G2:
+    // IsCoordinationSourceGoal(), not GoalType::Regroup alone), but this
+    // never assumes that without checking: a member dematerializing/dying/
+    // being preempted by a higher-priority goal the SAME tick one of this
+    // method's own callers happens to run would already have cleared
+    // ActiveActionState (see UpdateNeeds()'s own cleanup/preemption
+    // blocks) while both callers' own ordering (from a
+    // TransactionCallbackProcessor completion, not from inside
+    // UpdateNeeds() itself) cannot guarantee which ran first this tick.
+    if (!record.ActiveActionState || !IsCoordinationSourceGoal(record.ActiveActionState->SourceGoal))
         return;
 
     if (record.WorldState == AgentWorldState::Materialized)
@@ -3738,17 +4075,19 @@ void AIWorldMgr::ReconcileGroupCoordinationForMember(AgentId memberId)
     // Milestone 2.12F2 P2 fix, round 4 (STATIC review): a confirmed Join
     // can newly make memberId's own membership coordination-ambiguous (see
     // RunCoalitionCoordination()'s own overlap-arbitration comment for the
-    // "member belongs to more than one RegroupEnabled group" rule this
-    // mirrors) while a Regroup dispatched BEFORE this join - back when the
-    // member's own membership was still unambiguous - is still actively
-    // running. Without this, the arbitration rule only ever applied to
-    // NEW dispatches: an existing in-flight action would keep running to
-    // its own natural conclusion purely because it happened to already be
-    // in flight before the join confirmed, an implicit "whoever got there
-    // first keeps it" priority the arbitration rule exists specifically to
-    // avoid. Only relevant if a Regroup is actually in flight right now
-    // (the check above) - most joins never reach this far.
-    if (CountRegroupEnabledMemberships(memberId) <= 1)
+    // "member belongs to more than one coordination-enabled group" rule
+    // this mirrors - 2.12G2: RegroupEnabled OR RoamEnabled, see
+    // CountCoordinationEnabledMemberships()) while a Regroup/Roam
+    // dispatched BEFORE this join - back when the member's own membership
+    // was still unambiguous - is still actively running. Without this,
+    // the arbitration rule only ever applied to NEW dispatches: an
+    // existing in-flight action would keep running to its own natural
+    // conclusion purely because it happened to already be in flight
+    // before the join confirmed, an implicit "whoever got there first
+    // keeps it" priority the arbitration rule exists specifically to
+    // avoid. Only relevant if a Regroup/Roam is actually in flight right
+    // now (the check above) - most joins never reach this far.
+    if (CountCoordinationEnabledMemberships(memberId) <= 1)
         return;
 
     StopInFlightGroupCoordination(*record, "COORDINATION_STOPPED_BY_MEMBERSHIP_AMBIGUITY");
@@ -5261,22 +5600,22 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             record->ActiveActionState.reset();
         }
 
-        // Milestone 2.12F2: Regroup (the lowest-priority, third tier - see
-        // GroupCoordinationGoal.h) yields to EITHER a Need-driven
+        // Milestone 2.12F2: Regroup/Roam (2.12G2 - both the lowest-priority
+        // tier, see GroupCoordinationGoal.h) yield to EITHER a Need-driven
         // ActiveGoalState or a Routine-owned MOVE_TO the instant either
         // exists - unlike Routine (which only yields to ActiveGoalState,
         // see the block above), Coordination sits below both. Scoped by
-        // SourceGoal == GoalType::Regroup, the same tag-based
-        // discrimination IsRoutineSourceGoal() already establishes for
-        // Routine - an agent's own individual goals always win the action
-        // slot back from an automatic group nudge. Regroup itself is
-        // never dispatched (AIWorldMgr::DispatchGroupMemberActionProposal())
+        // IsCoordinationSourceGoal(), the same tag-based discrimination
+        // IsRoutineSourceGoal() already establishes for Routine - an
+        // agent's own individual goals always win the action slot back
+        // from an automatic group nudge. Regroup/Roam are themselves never
+        // dispatched (AIWorldMgr::DispatchGroupMemberActionProposal())
         // while either already exists, so this only ever fires for the
         // same kind of "appeared fresh, racing an already in-flight lower-
         // priority MOVE_TO" case the ROUTINE_PREEMPTED_BY_GOAL block above
         // exists for.
         if ((record->ActiveGoalState || record->RoutineGoalState) && record->ActiveActionState
-            && record->ActiveActionState->SourceGoal == GoalType::Regroup)
+            && IsCoordinationSourceGoal(record->ActiveActionState->SourceGoal))
         {
             _actionExecutor.StopMoveTo(*creature);
 
@@ -5854,8 +6193,9 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
     // Milestone 2.11C: ActiveActionState::SourceGoal identifies which of
     // the (2.12F2: now three) independent owners this action belongs to -
     // AgentRecord::ActiveGoalState for every GoalType except GoToWork/
-    // GoHome/Regroup, ::RoutineGoalState for GoToWork/GoHome (see
-    // IsRoutineSourceGoal()), ::GroupCoordinationGoalState for Regroup.
+    // GoHome/Regroup/Roam, ::RoutineGoalState for GoToWork/GoHome (see
+    // IsRoutineSourceGoal()), ::GroupCoordinationGoalState for Regroup/Roam
+    // (see IsCoordinationSourceGoal()).
     // RoutineGoal has no StartedAtMs of its own to cross-check (it is stateless,
     // recomputed fresh every tick - see RoutineGoal.h): Type still matching
     // is the routine-side equivalent of the GoalType+StartedAtMs match
@@ -5867,14 +6207,17 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
     // not otherwise notice.
     // Milestone 2.12F2: a third branch, alongside the Routine/ActiveGoal
     // ones the comment above already documents - GroupCoordinationGoalState
-    // is this attempt's own owner for a Regroup-sourced action, checked
-    // the same Type+StartedAtMs way ActiveGoalState already is (see
-    // GroupCoordinationGoal.h for why this is ephemeral like ActiveGoal,
-    // not stateless like RoutineGoal).
+    // is this attempt's own owner for a Regroup/Roam-sourced action,
+    // checked the same Type+StartedAtMs way ActiveGoalState already is
+    // (see GroupCoordinationGoal.h for why this is ephemeral like
+    // ActiveGoal, not stateless like RoutineGoal). Type == SourceGoal
+    // already distinguishes Regroup from Roam correctly here - no separate
+    // per-intent branch needed, since GroupCoordinationGoal::Type is set
+    // to the SAME sourceGoal DispatchGroupMemberActionProposal() chose.
     bool ownedByCurrentAttempt;
     if (IsRoutineSourceGoal(record->ActiveActionState->SourceGoal))
         ownedByCurrentAttempt = record->RoutineGoalState && record->RoutineGoalState->Type == record->ActiveActionState->SourceGoal;
-    else if (record->ActiveActionState->SourceGoal == GoalType::Regroup)
+    else if (IsCoordinationSourceGoal(record->ActiveActionState->SourceGoal))
         ownedByCurrentAttempt = record->GroupCoordinationGoalState
             && record->GroupCoordinationGoalState->Type == record->ActiveActionState->SourceGoal
             && record->GroupCoordinationGoalState->StartedAtMs == record->ActiveActionState->GoalStartedAtMs;
@@ -5958,8 +6301,11 @@ void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion co
     // GoalInterrupted, ActorDematerialized, ActorDead, EngineStopped all
     // reach this same call), or a completed attempt's own identity would
     // linger and could be misread as still owning a future unrelated
-    // ActiveActionState of the same Type.
-    if (completion.SourceGoal == GoalType::Regroup)
+    // ActiveActionState of the same Type. 2.12G2: IsCoordinationSourceGoal()
+    // (Regroup or Roam), not GoalType::Regroup alone - a completed Roam
+    // attempt must be released here exactly the same way, or a stale
+    // GroupCoordinationGoalState would linger for it.
+    if (IsCoordinationSourceGoal(completion.SourceGoal))
         record.GroupCoordinationGoalState.reset();
 }
 

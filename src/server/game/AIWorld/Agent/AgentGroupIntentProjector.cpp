@@ -29,19 +29,28 @@ std::vector<GroupMemberActionProposal> AgentGroupIntentProjector::Project(AgentG
     // inherit Regroup's own movement semantics (RegroupRadius comparison,
     // GroupMemberActionProposal::SourceIntent) the moment it started being
     // produced, with no compiler warning and no runtime signal that
-    // anything was wrong. Fail-closed instead: only Regroup is implemented
-    // here; None and any future/unrecognized value produce no proposals at
-    // all until this switch is deliberately extended for them.
+    // anything was wrong. Fail-closed instead: only recognized intent
+    // types are handled here (2.12G2: Regroup and Roam); None and any
+    // future/unrecognized value produce no proposals at all until this
+    // switch is deliberately extended for them. Each recognized case picks
+    // ITS OWN trigger radius field, not a shared one - see this class's
+    // own header comment for why RegroupRadius/RoamArrivalRadius must
+    // stay two separate fields rather than one reused across both.
+    float triggerRadius;
     switch (intent.Type)
     {
         case AgentGroupIntentType::Regroup:
+            triggerRadius = profile.RegroupRadius;
+            break;
+        case AgentGroupIntentType::Roam:
+            triggerRadius = profile.RoamArrivalRadius;
             break;
         case AgentGroupIntentType::None:
         default:
             return proposals;
     }
 
-    float regroupRadiusSq = profile.RegroupRadius * profile.RegroupRadius;
+    float triggerRadiusSq = triggerRadius * triggerRadius;
 
     for (CoalitionMemberObservation const& observation : members)
     {
@@ -56,7 +65,7 @@ std::vector<GroupMemberActionProposal> AgentGroupIntentProjector::Project(AgentG
         float dz = observation.Z - intent.Z;
         float distanceSq = dx * dx + dy * dy + dz * dz;
 
-        if (distanceSq <= regroupRadiusSq)
+        if (distanceSq <= triggerRadiusSq)
             continue;
 
         GroupMemberActionProposal proposal;

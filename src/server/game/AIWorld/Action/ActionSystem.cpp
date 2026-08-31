@@ -50,7 +50,11 @@ namespace
     // within it), but deliberately narrower than the routine-commute
     // bound above (a group's own territory is not expected to be nearly
     // as far from a wandering member as a persisted home/work commute
-    // can legitimately be).
+    // can legitimately be). Milestone 2.12G2: shared as-is by Roam - a
+    // roam target is expected to stay well inside RegroupRadius (see
+    // AgentGroupCoordinationProfile.h's own RoamDistance comment), itself
+    // already bounded below this constant, so Roam never needed a wider
+    // bound of its own.
     constexpr float MaxCoordinationMoveToRangeYards = 100.0f;
 }
 
@@ -162,7 +166,10 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     float distanceSq = dx * dx + dy * dy + dz * dz;
 
     bool isRoutineMove = request.SourceGoal == GoalType::GoToWork || request.SourceGoal == GoalType::GoHome;
-    bool isCoordinationMove = request.SourceGoal == GoalType::Regroup;
+    // Milestone 2.12G2: Roam joins Regroup as a coordination-tier source -
+    // both go through DispatchGroupMemberActionProposal(), both are
+    // bounded by the same MaxCoordinationMoveToRangeYards.
+    bool isCoordinationMove = request.SourceGoal == GoalType::Regroup || request.SourceGoal == GoalType::Roam;
     float maxRangeYards = isRoutineMove ? MaxRoutineMoveToRangeYards
         : isCoordinationMove ? MaxCoordinationMoveToRangeYards
         : MaxMoveToRangeYards;

@@ -30,12 +30,16 @@
 // action slot" arbitration RoutineGoal already established as the second
 // tier under Needs-driven ActiveGoalState (see AIWorldMgr::UpdateNeeds()'s
 // own 2.11C/2.12F2 arbitration comments: Emergency ActiveGoal > Normal
-// ActiveGoal > RoutineGoal > Regroup). Type is always GoalType::Regroup
-// today - reusing GoalType (rather than a separate enum), the same reason
-// RoutineGoal.h's own comment already gives for GoToWork/GoHome, is what
-// lets this double as ActionRequest::SourceGoal/ActiveAction::SourceGoal
-// directly, going through the exact same ActionSystem::Validate()/
-// ActionExecutor pipeline every other MOVE_TO source already does.
+// ActiveGoal > RoutineGoal > Regroup/Roam). Type is GoalType::Regroup or,
+// since 2.12G2, GoalType::Roam - whichever group-coordination-sourced
+// MOVE_TO this specific attempt actually is (see
+// DispatchGroupMemberActionProposal()'s own mapping from
+// GroupMemberActionProposal::SourceIntent). Reusing GoalType (rather than
+// a separate enum), the same reason RoutineGoal.h's own comment already
+// gives for GoToWork/GoHome, is what lets this double as
+// ActionRequest::SourceGoal/ActiveAction::SourceGoal directly, going
+// through the exact same ActionSystem::Validate()/ActionExecutor pipeline
+// every other MOVE_TO source already does.
 //
 // Unlike RoutineGoal (stateless, recomputed fresh every Needs tick), this
 // is ephemeral - set only for the duration of one dispatched MOVE_TO

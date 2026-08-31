@@ -51,6 +51,40 @@ struct AgentGroupCoordinationProfile
 
     bool RegroupEnabled = false;
     float RegroupRadius = 0.0f;
+
+    // Milestone 2.12G2: same "declare the shape, wire the rule only when
+    // it is actually needed" discipline as RegroupEnabled/RegroupRadius
+    // above - a profile that has not opted into automatic territory
+    // movement simply leaves RoamEnabled false. RoamDistance is expected
+    // to stay inside RegroupRadius (which itself stays inside LeaveRadius)
+    // - a roam target allowed to land past the group's own RegroupRadius
+    // would have Roam (moving a member out) and Regroup (pulling that
+    // same member back) fight every other pass - see
+    // AIWorldMgr::Initialize()'s own AIWorld.WolfGroupRoamDistance/
+    // AIWorld.DefiasGroupRoamDistance clamp, and
+    // AgentGroupIntentSystem.h's own class comment for the full
+    // RoamDistance < RegroupRadius < LeaveRadius envelope this is meant
+    // to stay inside.
+    bool RoamEnabled = false;
+    float RoamDistance = 0.0f;
+
+    // How often (ms) the deterministic ROAM target itself changes - see
+    // AgentGroupIntentSystem::Evaluate()'s own comment for the phase this
+    // drives. Deliberately NOT how often RunCoalitionCoordination()
+    // re-evaluates (that stays the shared AIWorld.GroupCoordinationIntervalMs,
+    // unchanged since 2.12F2) - a group can be re-evaluated several times
+    // while still roaming toward the same, still-current target.
+    uint32 RoamIntervalMs = 0;
+
+    // How close (yd) a member must already be to the current ROAM target
+    // before AgentGroupIntentProjector::Project() stops proposing a move
+    // for it - the Roam counterpart to RegroupRadius, but inverted:
+    // RegroupRadius is a TRIGGER threshold ("far enough to bother"),
+    // RoamArrivalRadius is a SATISFIED threshold ("close enough to
+    // stop"). This, not any new per-group timer/attempt-identity state,
+    // is what keeps a settled group standing still between roam phases
+    // instead of re-issuing an identical MOVE_TO every coordination pass.
+    float RoamArrivalRadius = 0.0f;
 };
 
 #endif // AIWORLD_AGENTGROUPCOORDINATIONPROFILE_H
