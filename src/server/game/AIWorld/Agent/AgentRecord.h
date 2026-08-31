@@ -26,6 +26,7 @@
 #include "AgentType.h"
 #include "Define.h"
 #include "Goal/ActiveGoal.h"
+#include "Goal/CoordinationStopEvent.h"
 #include "Goal/GroupCoordinationGoal.h"
 #include "Goal/RoutineActivity.h"
 #include "Goal/RoutineGoal.h"
@@ -136,6 +137,25 @@ struct AgentRecord
     // across restart, the same as ActiveGoalState/RoutineGoalState/
     // ActiveActionState.
     std::optional<GroupCoordinationGoal> GroupCoordinationGoalState;
+
+    // Milestone 2.12G2R P2 fix, round 2 (STATIC review): a historical
+    // record of the most recent time THIS agent's own GroupCoordinationGoalState
+    // was stopped by a genuine production stop path (UpdateNeeds()'s own
+    // COORDINATION_PREEMPTED_BY_GOAL block, or
+    // StopInFlightGroupCoordination()'s own COORDINATION_STOPPED_BY_LIFECYCLE
+    // path) - see CoordinationStopEvent.h for why this exists and why a
+    // natural ARRIVED completion never writes it. Written synchronously by
+    // those two call sites only, at the exact moment they stop an
+    // in-flight attempt - never by anything else, and never read by any
+    // production code path itself (this is pure observability). Runtime-
+    // only, not persisted across restart, the same as ActiveActionState/
+    // GroupCoordinationGoalState. Deliberately never cleared/reset once
+    // written (the 2.12G2R lifecycle test hooks that read this always
+    // compare its own StartedAtMs against a specific attempt identity
+    // they themselves captured, so a stale event from an older, different
+    // attempt can never be mistaken for a current one - there is nothing
+    // for clearing it early to protect against).
+    std::optional<CoordinationStopEvent> LastCoordinationStop;
 
     // Milestone 2.11D: what the agent is actually doing right now at its
     // routine destination (Work/Rest), or empty - see

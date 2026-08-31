@@ -250,30 +250,67 @@ class TC_GAME_API AIWorldMgr
         // caller decides what to do once this returns true.
         bool HasActiveCoordinationMoveTo(AgentRecord const& record, GoalType goalType, GroupId requiredSourceGroup = GroupId{}) const;
 
-        // Milestone 2.12G2R P2 fix (STATIC review): the narrower,
-        // bookkeeping-only half of HasActiveCoordinationMoveTo()'s own
-        // six-part proof - just AgentRecord's own ActiveActionState/
-        // GroupCoordinationGoalState identity, matching a SPECIFIC
-        // previously-captured (sourceGroup, startedAtMs) attempt, without
-        // also re-checking Materialized/live-creature/engine-generator
-        // liveness. Every stop/preemption/completion path in this file
-        // (dematerialize/death cleanup, StopInFlightGroupCoordination(),
-        // UpdateNeeds()'s own preemption blocks, HandleActionCompletion())
-        // clears ActiveActionState and GroupCoordinationGoalState TOGETHER
-        // for a coordination-owned attempt, never independently - so this
-        // alone is both necessary and sufficient to detect "this specific
-        // captured attempt's own bookkeeping has concluded". Deliberately
-        // NOT HasActiveCoordinationMoveTo() itself for this purpose: that
-        // method's Materialized/live-creature/generator checks exist to
-        // prove an attempt genuinely IS running (fail closed toward "not
-        // proven active" - the right direction for deciding WHEN to
-        // trigger a hook), which is the WRONG direction for polling
-        // "has it stopped" - a transient live-creature-resolution hiccup
-        // (e.g. between grid ticks) must never be misread as the attempt
-        // itself having concluded. Used by the three 2.12G2R hooks below,
-        // in their own postcondition-verification phase, to know when a
-        // triggered lifecycle action has actually taken effect.
-        bool HasMatchingCoordinationAttempt(AgentRecord const& record, GoalType goalType, GroupId sourceGroup, uint64 startedAtMs) const;
+        // Milestone 2.12G2R P2 fix, round 2 (STATIC review): the four
+        // independent facts VerifyCoordinationStop() below reports -
+        // returned as a named struct, not a single bool, specifically so
+        // a FAILED log can say precisely which one(s), if any, did not
+        // hold, and so a caller never has to conflate "did the expected
+        // stop event happen" with "is the bookkeeping now fully clean"
+        // the way an earlier, single-bool HasMatchingCoordinationAttempt()
+        // (round 1, now removed) accidentally allowed: that helper
+        // returned false the moment ANY ONE of its own checked fields
+        // stopped matching, which "the attempt concluded" does NOT
+        // require to mean ALL of them did - a partially-cleared state
+        // (e.g. ActiveActionState gone but GroupCoordinationGoalState
+        // still lingering) would have silently passed verification too.
+        struct CoordinationStopVerification
+        {
+            // AgentRecord::LastCoordinationStop names this EXACT captured
+            // attempt (same Reason/SourceGoal/SourceGroup/StartedAtMs) -
+            // see CoordinationStopEvent.h for why this is the one fact
+            // that actually distinguishes a genuine production stop from
+            // the attempt simply having arrived naturally in the
+            // meantime (which never writes this event at all).
+            bool StopEventMatches = false;
+
+            // The captured attempt's own GroupCoordinationGoalState/
+            // ActiveActionState are independently re-confirmed gone from
+            // AgentRecord's own CURRENT state, not merely inferred from
+            // StopEventMatches - defense in depth against the event
+            // itself somehow having been recorded without the state
+            // actually being cleared.
+            bool GroupCoordinationGoalGone = false;
+            bool ActiveActionStateGone = false;
+
+            // Straight from the matching event's own freshly-observed
+            // EngineGeneratorConfirmedStopped (false, i.e. not confirmed,
+            // if StopEventMatches itself is false) - see
+            // CoordinationStopEvent.h for why this must come from the
+            // event itself, recorded at the exact synchronous stop
+            // moment, rather than the verifying hook re-querying the live
+            // engine generator on its own later (a legitimate NEW action
+            // may have already started its own generator of the same
+            // type by then).
+            bool EngineGeneratorGone = false;
+
+            bool FullyConfirmed() const { return StopEventMatches && GroupCoordinationGoalGone && ActiveActionStateGone && EngineGeneratorGone; }
+        };
+
+        // Milestone 2.12G2R P2 fix, round 2 (STATIC review): the shared
+        // provenance-aware postcondition check the three active-Roam
+        // lifecycle test hooks below poll in their own VERIFY phase - see
+        // CoordinationStopVerification's own comment for why this reports
+        // four independent facts instead of one combined bool.
+        // expectedReason distinguishes CheckTestPreemptOnActiveRoam()'s
+        // own PreemptedByGoal from CheckTestLeaveOnActiveRoam()/
+        // CheckTestDissolveOnActiveRoam()'s own StoppedByLifecycle - a
+        // matching-identity event recorded for the WRONG reason (e.g. the
+        // agent's Roam attempt happened to be preempted by an unrelated
+        // individual goal while a leave hook was waiting for a lifecycle
+        // stop) must not be accepted as proof of the specific production
+        // path each hook is actually trying to prove.
+        CoordinationStopVerification VerifyCoordinationStop(AgentRecord const& record, CoordinationStopReason expectedReason,
+            GoalType goalType, GroupId sourceGroup, uint64 startedAtMs) const;
 
         // Milestone 2.12F3 test hook: the runtime-proof counterpart to
         // RunTestDissolveGroup() - gated behind
@@ -351,7 +388,23 @@ class TC_GAME_API AIWorldMgr
         // triggering action was SUBMITTED, before anything had actually
         // been confirmed to happen; the targeted ROAM attempt could
         // naturally have ended on its own (ARRIVED) moments later, and the
-        // hook would still have silently reported success. Now:
+        // hook would still have silently reported success.
+        //
+        // Milestone 2.12G2R P2 fix, round 2 (STATIC review): VERIFY itself
+        // was still not enough - polling "is the old attempt's bookkeeping
+        // gone" cannot tell WHY it is gone (a natural ARRIVED clears the
+        // exact same fields a genuine preemption/lifecycle stop does), and
+        // preempt's own re-derivation of "is GetFood active NOW" could
+        // itself go stale between polls (GetFood could finish and release
+        // ActiveGoalState again before the next ~5s coordination pass ever
+        // polls). VERIFY now instead waits for AgentRecord::
+        // LastCoordinationStop (CoordinationStopEvent.h) - a record
+        // written SYNCHRONOUSLY by the real production stop sites
+        // themselves (UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL
+        // block, StopInFlightGroupCoordination()'s own
+        // COORDINATION_STOPPED_BY_LIFECYCLE path), at the exact moment
+        // they stop an attempt - never speculatively, never by a test
+        // hook itself. Full shape:
         //   1. TRIGGER phase (*Triggered false): waits for
         //      HasActiveCoordinationMoveTo(..., Roam) to prove a real
         //      attempt is active, captures that exact attempt's own
@@ -361,15 +414,17 @@ class TC_GAME_API AIWorldMgr
         //      verification deadline) - never sets *Fired yet.
         //   2. VERIFY phase (*Triggered true): polled on every subsequent
         //      RunCoalitionCoordination()-gated pass via
-        //      HasMatchingCoordinationAttempt() (or, for leave/dissolve,
-        //      also membership/group existence) until the captured
-        //      attempt(s) are confirmed concluded, or the verification
-        //      deadline passes. Only THEN sets *Fired true, and logs
-        //      PASSED only if the postcondition each hook's own comment
-        //      below lists actually holds - FAILED otherwise (natural
-        //      ARRIVED before the trigger could take effect, timeout, or
-        //      an error from the triggering request itself), never
-        //      CONFIRMED/PASSED on an unverified assumption.
+        //      VerifyCoordinationStop() (with the expectedReason each
+        //      hook's own comment below names) until it reports
+        //      StopEventMatches - the ONLY thing that gates leaving this
+        //      phase - or the verification deadline passes. Only once
+        //      StopEventMatches is true does the hook set *Fired true and
+        //      decide PASSED/FAILED, from CoordinationStopVerification's
+        //      remaining fields plus whatever additional postcondition
+        //      each hook's own comment below lists - never CONFIRMED/
+        //      PASSED on an unverified assumption, and never purely from
+        //      re-deriving current live state (which could itself have
+        //      already moved on by poll time).
 
         // AIWorld.TestPreemptOnActiveRoamAgentId (default 0 = disabled):
         // TRIGGER - once the configured AgentId is observed genuinely
@@ -391,20 +446,19 @@ class TC_GAME_API AIWorldMgr
         // UpdateNeeds()'s own existing, unmodified
         // COORDINATION_PREEMPTED_BY_GOAL block is what actually stops the
         // in-flight Roam MOVE_TO once that happens.
-        // VERIFY - PASSED only once the captured attempt's own
-        // bookkeeping has concluded (!HasMatchingCoordinationAttempt(),
-        // which by construction proves the original GroupCoordinationGoalState
-        // AND the matching ActiveActionState are both gone - see that
-        // method's own comment for why checking just these two together
-        // is equivalent to also confirming the attempt's own AIWorld
-        // MOVE_TO generator is gone, since StopMoveTo() always runs
-        // before either is ever reset) AND record->ActiveGoalState now
-        // shows a real Type == GetFood individual goal active (proving a
-        // genuine higher-priority goal, not merely "the attempt ended for
-        // some other reason"). FAILED on timeout (attempt never
-        // concluded) or on the attempt concluding without GetFood active
-        // (most likely a natural ARRIVED that happened to race ahead of
-        // preemption).
+        // VERIFY - polls VerifyCoordinationStop(..., PreemptedByGoal, Roam,
+        // capturedGroup, capturedStartedAtMs). PASSED only once
+        // StopEventMatches AND GroupCoordinationGoalGone AND
+        // ActiveActionStateGone AND EngineGeneratorGone all hold AND
+        // record->ActiveGoalState shows a real Type == GetFood individual
+        // goal active RIGHT NOW (checked in that same poll, immediately
+        // after StopEventMatches becomes true - proving a genuine
+        // higher-priority goal actually caused this specific stop, not
+        // merely that the stop happened to be tagged PreemptedByGoal for
+        // some other reason). FAILED on a verification timeout (the
+        // expected stop event never observed - most likely a natural
+        // ARRIVED that never produces one at all) or if the event is
+        // observed but GetFood is not active in that same poll.
         void CheckTestPreemptOnActiveRoam();
 
         // AIWorld.TestLeaveOnActiveRoamAgentId (default 0 = disabled):
@@ -413,17 +467,19 @@ class TC_GAME_API AIWorldMgr
         // GroupCoordinationGoalState::SourceGroup via the existing
         // RequestLeaveGroupWithPolicy() entry point - never a direct
         // AgentGroupRegistry::RemoveMember() or membership-table mutation.
-        // VERIFY - PASSED only once the agent is confirmed no longer a
-        // member of the captured group (queried fresh from
-        // _groupRegistry, not merely trusted from the leave request's own
-        // completion callback) AND the captured attempt's own bookkeeping
-        // has separately concluded too (!HasMatchingCoordinationAttempt())
-        // - proving RequestLeaveGroupWithPolicy()'s own existing
-        // StopGroupCoordinationForMember() call, not just the membership
-        // edge, actually stopped the in-flight movement. FAILED on
-        // timeout (still a member) or if membership was removed but the
-        // captured attempt's own coordination goal/movement somehow
-        // was not.
+        // VERIFY - polls VerifyCoordinationStop(..., StoppedByLifecycle,
+        // Roam, capturedGroup, capturedStartedAtMs) AND, independently,
+        // fresh membership (queried from _groupRegistry, never trusted
+        // from the leave request's own completion callback). PASSED only
+        // once StopEventMatches AND GroupCoordinationGoalGone AND
+        // ActiveActionStateGone AND EngineGeneratorGone all hold AND the
+        // agent is confirmed no longer a member - proving
+        // RequestLeaveGroupWithPolicy()'s own existing
+        // StopGroupCoordinationForMember() call, tagged with the correct
+        // lifecycle reason, actually stopped the in-flight movement, not
+        // just that the membership edge changed. FAILED on a verification
+        // timeout or if membership was removed without the matching
+        // StoppedByLifecycle event ever being observed.
         void CheckTestLeaveOnActiveRoam();
 
         // AIWorld.TestDissolveOnActiveRoamGroupId (default 0 = disabled):
@@ -439,14 +495,19 @@ class TC_GAME_API AIWorldMgr
         // RequestDissolveGroupWithPolicy() - never a direct
         // AgentGroupRegistry mutation, never a raw StopMoveTo() called
         // from the hook itself, never a DB DELETE.
-        // VERIFY - PASSED only once the group itself no longer resolves
-        // in _groupRegistry AND every captured member's own attempt has
-        // separately concluded (!HasMatchingCoordinationAttempt() for
-        // each) - proving RequestDissolveGroup()'s own
-        // StopGroupCoordinationForMember() call actually stopped ALL of
-        // them, not just that the dissolve itself committed. FAILED on
-        // timeout (group still resolves) or if the group is gone but any
-        // captured member still shows its original attempt active.
+        // VERIFY - waits for the group itself to no longer resolve in
+        // _groupRegistry, then polls VerifyCoordinationStop(...,
+        // StoppedByLifecycle, Roam, groupId, startedAtMs) for EVERY
+        // captured member independently. PASSED only once the group is
+        // gone AND every captured member's own StopEventMatches AND
+        // GroupCoordinationGoalGone AND ActiveActionStateGone AND
+        // EngineGeneratorGone all hold - proving RequestDissolveGroup()'s
+        // own StopGroupCoordinationForMember() call, tagged with the
+        // correct lifecycle reason, actually stopped ALL of them, not
+        // just that the dissolve itself committed. FAILED on a
+        // verification timeout (group still resolves) or if the group is
+        // gone but any captured member's own matching stop event was
+        // never observed.
         void CheckTestDissolveOnActiveRoam();
 
         // Milestone 2.12E4C2 P2 fix (STATIC review): one-shot, gated
