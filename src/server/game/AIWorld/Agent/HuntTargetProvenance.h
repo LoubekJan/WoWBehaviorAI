@@ -53,9 +53,28 @@
 // G3A/G3B/G3C/G3D split) to decide whether it is still trustworthy
 // enough to act on. A HuntTargetProvenance is never itself re-validated
 // in place; a caller either has a fresh one or does not.
+//
+// TargetEntry (2.12G3A follow-up, STATIC review): the target's own
+// creature template entry - added so a generic HuntIntentSystem/
+// HuntIntentProjector (2.12G3B) can decide "is this an allowed kind of
+// prey?" purely from data (comparing TargetEntry against whatever a
+// profile names as eligible), the same "never branch on which species
+// this is" discipline AgentGroupIntentSystem already holds for REGROUP/
+// ROAM - without this field, expressing a per-profile eligible-prey
+// policy would have forced a species-specific branch (a WolfLoose-only
+// "is this a rabbit?" check) directly into what is meant to stay a
+// generic pipeline. 0 (the zero value/default, ObjectGuid's own
+// TargetGuid.IsEmpty() already covers "no target at all") is never a
+// real creature entry and must fail closed the same way an empty
+// TargetGuid does.
+//
+// G3A-G3D HUNT is currently restricted to persistent non-instance/
+// base-world targets. Instance-aware target identity is outside this
+// milestone. A target outside the group's base-world map must fail closed.
 struct HuntTargetProvenance
 {
     ObjectGuid TargetGuid;
+    uint32 TargetEntry = 0;
 
     uint32 MapId = 0;
     float X = 0.0f;
