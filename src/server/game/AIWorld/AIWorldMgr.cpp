@@ -44,6 +44,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -3836,6 +3837,78 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
         check("profile.Kind mismatch selects nullopt", !mismatchedIntent.has_value());
     }
 
+    // group.ProfileId mismatch (an unclassified/manually-owned LOOSE group
+    // vs. a real profile) fails closed too - this is the actual guard that
+    // stops WolfLoose HUNT selection from applying to every LOOSE group
+    // regardless of provenance, mirroring RunGroupIntentSmokeTest()'s own
+    // "group.ProfileId mismatch" case.
+    {
+        AgentGroupRecord unclassifiedGroup = group;
+        unclassifiedGroup.ProfileId = CoalitionFormationProfileId::Invalid;
+
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(unclassifiedGroup, profile, members, targets, nowMs);
+        check("group.ProfileId mismatch selects nullopt", !intent.has_value());
+    }
+
+    // An unconfigured policy (HuntTargetCreatureEntry == 0) can select
+    // nothing - the same "zero means disabled" reading RoamIntervalMs == 0
+    // already gets for ROAM.
+    {
+        AgentGroupCoordinationProfile zeroEntryProfile = profile;
+        zeroEntryProfile.HuntTargetCreatureEntry = 0;
+
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, zeroEntryProfile, members, targets, nowMs);
+        check("HuntTargetCreatureEntry == 0 selects nullopt", !intent.has_value());
+    }
+
+    // HuntAcquisitionRadius <= 0, or non-finite (NaN/Inf), both fail closed
+    // - a NaN radius in particular must never reach the per-observation
+    // Distance comparison, where it would silently break every comparison
+    // against it.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+
+        AgentGroupCoordinationProfile zeroRadiusProfile = profile;
+        zeroRadiusProfile.HuntAcquisitionRadius = 0.0f;
+        std::optional<HuntIntent> zeroIntent = huntIntentSystem.Evaluate(group, zeroRadiusProfile, members, targets, nowMs);
+        check("HuntAcquisitionRadius == 0 selects nullopt", !zeroIntent.has_value());
+
+        AgentGroupCoordinationProfile negativeRadiusProfile = profile;
+        negativeRadiusProfile.HuntAcquisitionRadius = -10.0f;
+        std::optional<HuntIntent> negativeIntent = huntIntentSystem.Evaluate(group, negativeRadiusProfile, members, targets, nowMs);
+        check("negative HuntAcquisitionRadius selects nullopt", !negativeIntent.has_value());
+
+        AgentGroupCoordinationProfile nanRadiusProfile = profile;
+        nanRadiusProfile.HuntAcquisitionRadius = std::numeric_limits<float>::quiet_NaN();
+        std::optional<HuntIntent> nanIntent = huntIntentSystem.Evaluate(group, nanRadiusProfile, members, targets, nowMs);
+        check("NaN HuntAcquisitionRadius selects nullopt", !nanIntent.has_value());
+    }
+
+    // An unconfigured max observation age (HuntObservationMaxAgeMs == 0)
+    // can select nothing either.
+    {
+        AgentGroupCoordinationProfile zeroMaxAgeProfile = profile;
+        zeroMaxAgeProfile.HuntObservationMaxAgeMs = 0;
+
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, zeroMaxAgeProfile, members, targets, nowMs);
+        check("HuntObservationMaxAgeMs == 0 selects nullopt", !intent.has_value());
+    }
+
+    // nowMs == 0 is never a real CurrentTimeMs() reading - selects nullopt.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, 0);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, uint64(0));
+        check("nowMs == 0 selects nullopt", !intent.has_value());
+    }
+
     // Empty TargetGuid -> nullopt.
     {
         HuntTargetProvenance target = makeTarget(ObjectGuid::Empty, huntCreatureEntry, true, 0, nowMs - 1000);
@@ -3844,12 +3917,36 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
         check("empty TargetGuid selects nullopt", !intent.has_value());
     }
 
-    // TargetEntry not matching the profile's own eligible entry -> nullopt.
+    // A non-creature GUID (e.g. a Player) paired with a self-reported
+    // TargetEntry must never be trusted purely on TargetEntry's own say-so.
+    {
+        ObjectGuid playerGuid = ObjectGuid::Create<HighGuid::Player>(400);
+        HuntTargetProvenance target = makeTarget(playerGuid, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("non-creature GUID selects nullopt", !intent.has_value());
+    }
+
+    // TargetEntry must be provably the SAME entry already encoded inside
+    // TargetGuid itself - a GUID whose own embedded entry disagrees with
+    // the declared TargetEntry fails closed here, before profile
+    // eligibility is even considered.
     {
         HuntTargetProvenance target = makeTarget(targetGuidA, otherCreatureEntry, true, 0, nowMs - 1000);
         std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
         std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
-        check("mismatched TargetEntry selects nullopt", !intent.has_value());
+        check("TargetGuid's own embedded entry disagreeing with declared TargetEntry selects nullopt", !intent.has_value());
+    }
+
+    // An internally-consistent GUID/TargetEntry pair (the GUID's own
+    // embedded entry matches the declared TargetEntry) that simply is not
+    // the profile's own eligible entry still fails closed.
+    {
+        ObjectGuid otherEntryGuid = ObjectGuid::Create<HighGuid::Unit>(otherCreatureEntry, 300);
+        HuntTargetProvenance target = makeTarget(otherEntryGuid, otherCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("TargetEntry not matching the profile's own eligible entry selects nullopt", !intent.has_value());
     }
 
     // Dead target -> nullopt.
@@ -3902,6 +3999,21 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
         check("out-of-radius target selects nullopt", !intent.has_value());
     }
 
+    // A negative or NaN Distance previously passed the single
+    // "> HuntAcquisitionRadius" comparison unrejected - both must fail
+    // closed now.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+
+        std::vector<HuntTargetObservation> negativeTargets{ makeSighting(AgentId{ 1 }, target, -5.0f, true) };
+        std::optional<HuntIntent> negativeIntent = huntIntentSystem.Evaluate(group, profile, members, negativeTargets, nowMs);
+        check("negative Distance selects nullopt", !negativeIntent.has_value());
+
+        std::vector<HuntTargetObservation> nanTargets{ makeSighting(AgentId{ 1 }, target, std::numeric_limits<float>::quiet_NaN(), true) };
+        std::optional<HuntIntent> nanIntent = huntIntentSystem.Evaluate(group, profile, members, nanTargets, nowMs);
+        check("NaN Distance selects nullopt", !nanIntent.has_value());
+    }
+
     // An unloaded, dead, or non-member observer's sighting is never
     // trusted, regardless of how valid the target itself otherwise is.
     {
@@ -3934,6 +4046,21 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
         std::vector<HuntTargetObservation> differentMapTargets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
         std::optional<HuntIntent> differentMapIntent = huntIntentSystem.Evaluate(group, profile, differentMapObserverMembers, differentMapTargets, nowMs);
         check("observer on a different map than the group's own territory selects nullopt", !differentMapIntent.has_value());
+    }
+
+    // Two conflicting CoalitionMemberObservation entries for the SAME
+    // MemberId (disagreeing on Alive) make that observer's own state
+    // unresolvable - its sighting is rejected, never resolved by trusting
+    // whichever entry happened to come first in members.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<CoalitionMemberObservation> conflictingObserverMembers{
+            makeMember(AgentId{ 1 }, true, true, 0),
+            makeMember(AgentId{ 1 }, true, false, 0)
+        };
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, conflictingObserverMembers, targets, nowMs);
+        check("conflicting member observations of the same observer selects nullopt", !intent.has_value());
     }
 
     // Of two valid targets, the nearer one wins.
@@ -3981,6 +4108,54 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
         std::optional<HuntIntent> reorderedIntent = huntIntentSystem.Evaluate(group, profile, members, reorderedTargets, nowMs);
         check("equal-distance tie-break does not depend on candidate order",
             reorderedIntent.has_value() && reorderedIntent->Target.TargetGuid == expectedWinner);
+    }
+
+    // Two observations of the SAME TargetGuid, sharing the exact same
+    // (ObservedAtMs, Observer) pair, but disagreeing on Distance, make that
+    // whole TargetGuid ambiguous - excluded entirely from selection, never
+    // resolved by trusting whichever happened to come first in targets.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> conflictingTargets{
+            makeSighting(AgentId{ 1 }, target, 10.0f, true),
+            makeSighting(AgentId{ 1 }, target, 25.0f, true)
+        };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, conflictingTargets, nowMs);
+        check("conflicting duplicate observations of the same target selects nullopt", !intent.has_value());
+
+        std::vector<HuntTargetObservation> reorderedConflictingTargets{
+            makeSighting(AgentId{ 1 }, target, 25.0f, true),
+            makeSighting(AgentId{ 1 }, target, 10.0f, true)
+        };
+        std::optional<HuntIntent> reorderedIntent = huntIntentSystem.Evaluate(group, profile, members, reorderedConflictingTargets, nowMs);
+        check("conflicting duplicate exclusion does not depend on candidate order", !reorderedIntent.has_value());
+    }
+
+    // An EXACT duplicate observation (every field identical) of the same
+    // target is harmless and does not make the target ambiguous.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> exactDuplicateTargets{
+            makeSighting(AgentId{ 1 }, target, 10.0f, true),
+            makeSighting(AgentId{ 1 }, target, 10.0f, true)
+        };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, exactDuplicateTargets, nowMs);
+        check("an exact duplicate observation does not make the target ambiguous",
+            intent.has_value() && intent->Target.TargetGuid == targetGuidA);
+    }
+
+    // Of two observations of the SAME target from two different observers
+    // at two different times, the freshest one's own provenance wins.
+    {
+        HuntTargetProvenance freshTarget = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 500);
+        HuntTargetProvenance staleTarget = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 3000);
+        std::vector<HuntTargetObservation> targets{
+            makeSighting(AgentId{ 2 }, staleTarget, 5.0f, true),
+            makeSighting(AgentId{ 1 }, freshTarget, 15.0f, true)
+        };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("of two observations of the same target, the freshest one wins",
+            intent.has_value() && intent->Target.ObservedAtMs == nowMs - 500);
     }
 
     // ---- Projection (HuntIntentProjector::Project()) ----
