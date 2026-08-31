@@ -230,6 +230,26 @@ class TC_GAME_API AIWorldMgr
         // makes repeatable.
         void RunTestDissolveGroup(GroupId groupId);
 
+        // Milestone 2.12G2R: the shared ownership-tuple proof that a
+        // specific AgentRecord currently has a GENUINELY in-flight,
+        // coordination-sourced MOVE_TO (Regroup or Roam) - generalizes the
+        // exact fail-closed six-part proof CheckTestDissolveOnActiveRegroup()
+        // itself established for Regroup alone (2.12F3 P3 fix, round 2 -
+        // see its own comment below for why each part is needed), so that
+        // hook (refactored to call this instead of re-deriving the check
+        // inline) and the three new active-Roam test hooks below all share
+        // ONE definition rather than four independently-maintained copies
+        // that could silently drift apart. requiredSourceGroup, if
+        // non-empty, additionally requires GroupCoordinationGoalState::
+        // SourceGroup to name that exact group - the two dissolve hooks'
+        // own need, each scanning one specific group's own members;
+        // GroupId{} (the default/disabled value) accepts any currently-
+        // owning group - the preempt/leave hooks' own need, which target
+        // one specific AgentId rather than one specific GroupId. Pure
+        // read-only proof, never mutates record or anything else - the
+        // caller decides what to do once this returns true.
+        bool HasActiveCoordinationMoveTo(AgentRecord const& record, GoalType goalType, GroupId requiredSourceGroup = GroupId{}) const;
+
         // Milestone 2.12F3 test hook: the runtime-proof counterpart to
         // RunTestDissolveGroup() - gated behind
         // AIWorld.TestDissolveOnActiveRegroupGroupId (default 0 = disabled,
@@ -282,6 +302,73 @@ class TC_GAME_API AIWorldMgr
         // vanishes later; without this, a vanished target would otherwise
         // be polled once per coordination pass forever.
         void CheckTestDissolveOnActiveRegroup();
+
+        // Milestone 2.12G2R: the ROAM lifecycle runtime closure - three
+        // test hooks (preempt via a real individual goal, leave and
+        // dissolve via AgentGroupOperationSource::Manual) proving that the
+        // exact production paths already proven for Regroup
+        // (2.12F3's own emergency-preemption and dissolve-during-active-
+        // REGROUP proofs) work identically for Roam, since 2.12G2 itself
+        // only proved formation/target/dispatch/arrival, never lifecycle.
+        // All three share HasActiveCoordinationMoveTo()'s own ownership-
+        // tuple proof (GoalType::Roam) rather than re-deriving it, are
+        // called from Update() only right after a RunCoalitionCoordination()
+        // pass actually runs (same reasoning as CheckTestDissolveOnActiveRegroup()'s
+        // own comment - Roam is only ever freshly dispatched from inside
+        // that same pass), and each fires at most once ever, gated behind
+        // its own config key AND its own *Fired latch, exactly the same
+        // "costs nothing once disabled or fired" contract every other
+        // AIWorld.Test* hook in this file already gives.
+
+        // AIWorld.TestPreemptOnActiveRoamAgentId (default 0 = disabled):
+        // once the configured AgentId is observed genuinely mid-ROAM,
+        // raises its own AgentRecord::Needs.Hunger to 1.0 - the ONLY thing
+        // this hook touches. This is deliberately NOT SafetyPressure/
+        // FLEE_DANGER: SafetyPressure is fully recomputed from live
+        // InCombat/MemorySafetyPressure every single NeedsSystem::Update()
+        // call (see NeedsSystem.cpp), so setting it directly here would be
+        // silently overwritten before GoalSystem ever saw it; Hunger
+        // instead drifts additively (also NeedsSystem::Update()), so this
+        // sticks the same way a real FoodShortage WorldEvent's own
+        // organic push toward GoalSystem's GoalCandidateThreshold (0.80)
+        // would. Setting it does NOT itself activate a goal or touch
+        // ActiveGoalState/ActiveActionState/GroupCoordinationGoalState/
+        // registry/membership in any way - the next real UpdateNeeds()
+        // pass's own unmodified GoalSystem::GenerateCandidates()/
+        // UpdateActiveGoal() is what actually activates GET_FOOD as a
+        // real Normal-priority ActiveGoal, and UpdateNeeds()'s own
+        // existing, unmodified COORDINATION_PREEMPTED_BY_GOAL block is
+        // what actually stops the in-flight Roam MOVE_TO once that
+        // happens - proving that whole path end to end, not a synthetic
+        // shortcut around it.
+        void CheckTestPreemptOnActiveRoam();
+
+        // AIWorld.TestLeaveOnActiveRoamAgentId (default 0 = disabled):
+        // once the configured AgentId is observed genuinely mid-ROAM,
+        // requests a Manual leave for it from its own current
+        // GroupCoordinationGoalState::SourceGroup via the existing
+        // RequestLeaveGroupWithPolicy() entry point - never a direct
+        // AgentGroupRegistry::RemoveMember() or membership-table mutation.
+        // What actually stops the in-flight movement (if the leave is
+        // confirmed) is RequestLeaveGroupWithPolicy()'s own existing
+        // StopGroupCoordinationForMember() call for the one member who
+        // just left - proving that path for Roam the same way
+        // CheckTestDissolveOnActiveRegroup() already proved
+        // RequestDissolveGroup()'s own equivalent call for Regroup.
+        void CheckTestLeaveOnActiveRoam();
+
+        // AIWorld.TestDissolveOnActiveRoamGroupId (default 0 = disabled):
+        // the Roam counterpart to CheckTestDissolveOnActiveRegroup() -
+        // once any member of the configured group is observed genuinely
+        // mid-ROAM (HasActiveCoordinationMoveTo(..., GoalType::Roam,
+        // configured group)), requests a Manual dissolve through the same
+        // RequestDissolveGroupWithPolicy() entry point, proving
+        // RequestDissolveGroup()'s own StopGroupCoordinationForMember()
+        // call stops a real in-flight Roam the same way it was already
+        // proven for Regroup. Also self-disables if the configured group
+        // no longer resolves at all - same reasoning as
+        // CheckTestDissolveOnActiveRegroup()'s own round-3 fix.
+        void CheckTestDissolveOnActiveRoam();
 
         // Milestone 2.12E4C2 P2 fix (STATIC review): one-shot, gated
         // behind AIWorld.AdoptGroupId (default 0 = disabled) - the
@@ -2018,6 +2105,29 @@ class TC_GAME_API AIWorldMgr
         // configured at a time. Reset to false every Initialize(), before
         // the existence check above can set it back to true.
         bool _testDissolveOnActiveRegroupFired = false;
+
+        // Milestone 2.12G2R test hooks: AIWorld.TestPreemptOnActiveRoamAgentId/
+        // AIWorld.TestLeaveOnActiveRoamAgentId (AgentId{} disabled) and
+        // AIWorld.TestDissolveOnActiveRoamGroupId (GroupId{} disabled) -
+        // same shape/lifetime as _testDissolveOnActiveRegroupGroupId/
+        // _testDissolveOnActiveRegroupFired above, just one id + one fired
+        // latch per hook, since all three are independent and can be
+        // enabled/tested one at a time. Reloaded fresh every Initialize()
+        // (fail-closed against a negative config value before ever being
+        // stored here, same as the Regroup hook), and each own *Fired
+        // latch is set true up front at Initialize() if its configured id
+        // does not resolve, or by its own Check* method once it either
+        // submits its one request or the target later stops resolving at
+        // all - see CheckTestPreemptOnActiveRoam()/CheckTestLeaveOnActiveRoam()/
+        // CheckTestDissolveOnActiveRoam()'s own comments.
+        AgentId _testPreemptOnActiveRoamAgentId;
+        bool _testPreemptOnActiveRoamFired = false;
+
+        AgentId _testLeaveOnActiveRoamAgentId;
+        bool _testLeaveOnActiveRoamFired = false;
+
+        GroupId _testDissolveOnActiveRoamGroupId;
+        bool _testDissolveOnActiveRoamFired = false;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in

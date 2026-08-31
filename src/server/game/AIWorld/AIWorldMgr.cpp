@@ -1299,6 +1299,88 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         }
     }
 
+    // Milestone 2.12G2R: the ROAM lifecycle runtime closure - three
+    // independent one-shot test hooks, same fail-closed parsing/existence-
+    // check shape as AIWorld.TestDissolveOnActiveRegroupGroupId above, just
+    // an AgentId for the two agent-scoped hooks (preempt/leave) and a
+    // GroupId for the group-scoped one (dissolve). See CheckTestPreemptOnActiveRoam()/
+    // CheckTestLeaveOnActiveRoam()/CheckTestDissolveOnActiveRoam()'s own
+    // comments for what each actually does once triggered.
+    int32 testPreemptOnActiveRoamAgentIdRaw = sConfigMgr->GetIntDefault("AIWorld.TestPreemptOnActiveRoamAgentId", 0);
+    if (testPreemptOnActiveRoamAgentIdRaw < 0)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestPreemptOnActiveRoamAgentId ({}) is negative, which cannot name a real AgentId, disabling this test hook",
+            testPreemptOnActiveRoamAgentIdRaw);
+        testPreemptOnActiveRoamAgentIdRaw = 0;
+    }
+    _testPreemptOnActiveRoamAgentId = AgentId{ uint64(testPreemptOnActiveRoamAgentIdRaw) };
+    _testPreemptOnActiveRoamFired = false;
+
+    if (_testPreemptOnActiveRoamAgentId)
+    {
+        if (!_registry.Find(_testPreemptOnActiveRoamAgentId))
+        {
+            TC_LOG_ERROR("ai.world", "AIWorld.TestPreemptOnActiveRoamAgentId={} does not resolve to a registered agent, disabling this test hook",
+                _testPreemptOnActiveRoamAgentId.Value);
+            _testPreemptOnActiveRoamFired = true;
+        }
+        else
+        {
+            TC_LOG_INFO("ai.world", "AI test preempt-on-active-roam: watching agent={} for an active ROAM (AIWorld.TestPreemptOnActiveRoamAgentId)",
+                _testPreemptOnActiveRoamAgentId.Value);
+        }
+    }
+
+    int32 testLeaveOnActiveRoamAgentIdRaw = sConfigMgr->GetIntDefault("AIWorld.TestLeaveOnActiveRoamAgentId", 0);
+    if (testLeaveOnActiveRoamAgentIdRaw < 0)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestLeaveOnActiveRoamAgentId ({}) is negative, which cannot name a real AgentId, disabling this test hook",
+            testLeaveOnActiveRoamAgentIdRaw);
+        testLeaveOnActiveRoamAgentIdRaw = 0;
+    }
+    _testLeaveOnActiveRoamAgentId = AgentId{ uint64(testLeaveOnActiveRoamAgentIdRaw) };
+    _testLeaveOnActiveRoamFired = false;
+
+    if (_testLeaveOnActiveRoamAgentId)
+    {
+        if (!_registry.Find(_testLeaveOnActiveRoamAgentId))
+        {
+            TC_LOG_ERROR("ai.world", "AIWorld.TestLeaveOnActiveRoamAgentId={} does not resolve to a registered agent, disabling this test hook",
+                _testLeaveOnActiveRoamAgentId.Value);
+            _testLeaveOnActiveRoamFired = true;
+        }
+        else
+        {
+            TC_LOG_INFO("ai.world", "AI test leave-on-active-roam: watching agent={} for an active ROAM (AIWorld.TestLeaveOnActiveRoamAgentId)",
+                _testLeaveOnActiveRoamAgentId.Value);
+        }
+    }
+
+    int32 testDissolveOnActiveRoamGroupIdRaw = sConfigMgr->GetIntDefault("AIWorld.TestDissolveOnActiveRoamGroupId", 0);
+    if (testDissolveOnActiveRoamGroupIdRaw < 0)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestDissolveOnActiveRoamGroupId ({}) is negative, which cannot name a real GroupId, disabling this test hook",
+            testDissolveOnActiveRoamGroupIdRaw);
+        testDissolveOnActiveRoamGroupIdRaw = 0;
+    }
+    _testDissolveOnActiveRoamGroupId = GroupId{ uint64(testDissolveOnActiveRoamGroupIdRaw) };
+    _testDissolveOnActiveRoamFired = false;
+
+    if (_testDissolveOnActiveRoamGroupId)
+    {
+        if (!_groupRegistry.Find(_testDissolveOnActiveRoamGroupId))
+        {
+            TC_LOG_ERROR("ai.world", "AIWorld.TestDissolveOnActiveRoamGroupId={} does not resolve to a registered group, disabling this test hook",
+                _testDissolveOnActiveRoamGroupId.Value);
+            _testDissolveOnActiveRoamFired = true;
+        }
+        else
+        {
+            TC_LOG_INFO("ai.world", "AI test dissolve-on-active-roam: watching group={} for an active ROAM (AIWorld.TestDissolveOnActiveRoamGroupId)",
+                _testDissolveOnActiveRoamGroupId.Value);
+        }
+    }
+
     // Milestone 2.12E4C2 P2 fix (STATIC review): runs right after the
     // dissolve hook above, for the same reason - a one-shot corrective
     // action that must run before AIWorld.WolfGroupAutoFormation's/
@@ -1529,6 +1611,40 @@ void AIWorldMgr::RunTestDissolveGroup(GroupId groupId)
         });
 }
 
+// Milestone 2.12G2R: extracted from CheckTestDissolveOnActiveRegroup()'s
+// own inline loop body (2.12F3 P3 fix, round 2's six-part fail-closed
+// ownership-tuple proof, unchanged in substance) so the three active-Roam
+// test hooks below can share the exact same proof, generalized only over
+// which GoalType and (optionally) which specific SourceGroup to require -
+// see this method's own declaration comment in AIWorldMgr.h for the full
+// reasoning. Behavior for the Regroup call site below is byte-identical
+// to before this refactor.
+bool AIWorldMgr::HasActiveCoordinationMoveTo(AgentRecord const& record, GoalType goalType, GroupId requiredSourceGroup) const
+{
+    if (!record.ActiveActionState || record.ActiveActionState->Type != ActionType::MoveTo
+        || record.ActiveActionState->SourceGoal != goalType)
+        return false;
+
+    if (!record.GroupCoordinationGoalState || record.GroupCoordinationGoalState->Type != goalType)
+        return false;
+
+    if (requiredSourceGroup && record.GroupCoordinationGoalState->SourceGroup != requiredSourceGroup)
+        return false;
+
+    if (record.GroupCoordinationGoalState->StartedAtMs != record.ActiveActionState->GoalStartedAtMs)
+        return false;
+
+    if (record.WorldState != AgentWorldState::Materialized)
+        return false;
+
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
+    Creature* creature = ResolveLiveCreature(record, map);
+    if (!creature || !HasOwnMoveToGenerator(*creature))
+        return false;
+
+    return true;
+}
+
 // Milestone 2.12F3 test hook: called from Update(), only right after a
 // RunCoalitionCoordination() pass actually runs (2.12F3 P3 fix, round 2,
 // STATIC review - an earlier version polled every single world tick
@@ -1628,23 +1744,7 @@ void AIWorldMgr::CheckTestDissolveOnActiveRegroup()
         if (!record)
             continue;
 
-        if (!record->ActiveActionState || record->ActiveActionState->Type != ActionType::MoveTo
-            || record->ActiveActionState->SourceGoal != GoalType::Regroup)
-            continue;
-
-        if (!record->GroupCoordinationGoalState || record->GroupCoordinationGoalState->Type != GoalType::Regroup
-            || record->GroupCoordinationGoalState->SourceGroup != _testDissolveOnActiveRegroupGroupId)
-            continue;
-
-        if (record->GroupCoordinationGoalState->StartedAtMs != record->ActiveActionState->GoalStartedAtMs)
-            continue;
-
-        if (record->WorldState != AgentWorldState::Materialized)
-            continue;
-
-        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-        Creature* creature = ResolveLiveCreature(*record, map);
-        if (!creature || !HasOwnMoveToGenerator(*creature))
+        if (!HasActiveCoordinationMoveTo(*record, GoalType::Regroup, _testDissolveOnActiveRegroupGroupId))
             continue;
 
         anyMemberRegrouping = true;
@@ -1681,6 +1781,143 @@ void AIWorldMgr::CheckTestDissolveOnActiveRegroup()
                 TC_LOG_INFO("ai.world", "AI test dissolve-on-active-regroup CONFIRMED: group={} dissolved after active-REGROUP trigger", groupId.Value);
             else
                 TC_LOG_ERROR("ai.world", "AI test dissolve-on-active-regroup FAILED: group={} could not be dissolved", groupId.Value);
+        });
+}
+
+// Milestone 2.12G2R: called from Update() only right after a
+// RunCoalitionCoordination() pass actually runs - same reasoning as
+// CheckTestDissolveOnActiveRegroup()'s own comment (a Roam MOVE_TO is
+// only ever freshly dispatched from inside that same pass). Once the
+// configured agent is genuinely mid-ROAM (HasActiveCoordinationMoveTo()),
+// raises its own AgentRecord::Needs.Hunger to 1.0 - see this method's own
+// declaration comment in AIWorldMgr.h for why Hunger, not SafetyPressure,
+// and why this alone is enough to prove the existing production
+// preemption path end to end without this hook itself touching any
+// goal/action/registry state.
+void AIWorldMgr::CheckTestPreemptOnActiveRoam()
+{
+    AgentRecord* record = _registry.Find(_testPreemptOnActiveRoamAgentId);
+    if (!record)
+    {
+        // Same reasoning as CheckTestDissolveOnActiveRegroup()'s own
+        // round-3 fix - the configured agent could in principle stop
+        // resolving (e.g. a future admin removal path) before this hook
+        // ever observes an active ROAM; disable outright rather than poll
+        // a target that can never resolve again for the rest of this
+        // process's lifetime.
+        TC_LOG_ERROR("ai.world", "AIWorld.TestPreemptOnActiveRoamAgentId={} no longer resolves to a registered agent, disabling this test hook",
+            _testPreemptOnActiveRoamAgentId.Value);
+        _testPreemptOnActiveRoamFired = true;
+        return;
+    }
+
+    if (!HasActiveCoordinationMoveTo(*record, GoalType::Roam))
+        return;
+
+    _testPreemptOnActiveRoamFired = true;
+
+    TC_LOG_INFO("ai.world", "AI test preempt-on-active-roam: agent={} has an active ROAM in flight, raising Hunger to 1.0 to trigger production GET_FOOD preemption (AIWorld.TestPreemptOnActiveRoamAgentId)",
+        record->Id.Value);
+
+    record->Needs.Hunger = 1.0f;
+}
+
+// Milestone 2.12G2R: same call-site reasoning as CheckTestPreemptOnActiveRoam()
+// above. Once the configured agent is genuinely mid-ROAM, requests a
+// Manual leave for it from its own current GroupCoordinationGoalState::
+// SourceGroup - never a direct AgentGroupRegistry::RemoveMember() or
+// membership-table mutation. What actually stops the in-flight movement
+// (if the leave is confirmed) is RequestLeaveGroupWithPolicy()'s own
+// existing StopGroupCoordinationForMember() call for the one member who
+// just left - proving that path for Roam the same way
+// CheckTestDissolveOnActiveRegroup() already proved RequestDissolveGroup()'s
+// own equivalent call for Regroup. Logs CONFIRMED, not PASSED, for the
+// same reason the dissolve hook does - success alone only proves the
+// leave itself committed, not that it actually stopped a still-running
+// ROAM (which could naturally have already ended on its own first).
+void AIWorldMgr::CheckTestLeaveOnActiveRoam()
+{
+    AgentRecord* record = _registry.Find(_testLeaveOnActiveRoamAgentId);
+    if (!record)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestLeaveOnActiveRoamAgentId={} no longer resolves to a registered agent, disabling this test hook",
+            _testLeaveOnActiveRoamAgentId.Value);
+        _testLeaveOnActiveRoamFired = true;
+        return;
+    }
+
+    if (!HasActiveCoordinationMoveTo(*record, GoalType::Roam))
+        return;
+
+    _testLeaveOnActiveRoamFired = true;
+
+    AgentId memberId = _testLeaveOnActiveRoamAgentId;
+    GroupId groupId = record->GroupCoordinationGoalState->SourceGroup;
+
+    TC_LOG_INFO("ai.world", "AI test leave-on-active-roam: agent={} group={} has an active ROAM in flight, requesting Manual leave (AIWorld.TestLeaveOnActiveRoamAgentId)",
+        memberId.Value, groupId.Value);
+
+    RequestLeaveGroupWithPolicy(groupId, memberId, AgentGroupOperationSource::Manual,
+        [memberId, groupId](bool success, AgentGroupPolicyDecision decision)
+        {
+            if (success)
+                TC_LOG_INFO("ai.world", "AI test leave-on-active-roam CONFIRMED: agent={} left group={} after active-ROAM trigger", memberId.Value, groupId.Value);
+            else
+                TC_LOG_ERROR("ai.world", "AI test leave-on-active-roam FAILED: agent={} could not leave group={} (decision={})",
+                    memberId.Value, groupId.Value, ToString(decision));
+        });
+}
+
+// Milestone 2.12G2R: the Roam counterpart to CheckTestDissolveOnActiveRegroup() -
+// same call-site reasoning, same fail-closed "target stopped resolving"
+// self-disable, same RequestDissolveGroupWithPolicy(..., Manual) entry
+// point, just scanning for GoalType::Roam instead of ::Regroup via the
+// shared HasActiveCoordinationMoveTo() helper.
+void AIWorldMgr::CheckTestDissolveOnActiveRoam()
+{
+    AgentGroupRecord const* group = _groupRegistry.Find(_testDissolveOnActiveRoamGroupId);
+    if (!group)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestDissolveOnActiveRoamGroupId={} no longer resolves to a registered group, disabling this test hook",
+            _testDissolveOnActiveRoamGroupId.Value);
+        _testDissolveOnActiveRoamFired = true;
+        return;
+    }
+
+    bool anyMemberRoaming = false;
+    AgentId roamingMember;
+
+    for (AgentGroupMembership const& membership : group->Members)
+    {
+        AgentRecord const* record = _registry.Find(membership.Member);
+        if (!record)
+            continue;
+
+        if (!HasActiveCoordinationMoveTo(*record, GoalType::Roam, _testDissolveOnActiveRoamGroupId))
+            continue;
+
+        anyMemberRoaming = true;
+        roamingMember = membership.Member;
+        break;
+    }
+
+    if (!anyMemberRoaming)
+        return;
+
+    _testDissolveOnActiveRoamFired = true;
+
+    GroupId groupId = _testDissolveOnActiveRoamGroupId;
+
+    TC_LOG_INFO("ai.world", "AI test dissolve-on-active-roam: group={} member={} has an active ROAM in flight, requesting Manual dissolve (AIWorld.TestDissolveOnActiveRoamGroupId)",
+        groupId.Value, roamingMember.Value);
+
+    RequestDissolveGroupWithPolicy(groupId, AgentGroupOperationSource::Manual,
+        [groupId](bool success)
+        {
+            if (success)
+                TC_LOG_INFO("ai.world", "AI test dissolve-on-active-roam CONFIRMED: group={} dissolved after active-ROAM trigger", groupId.Value);
+            else
+                TC_LOG_ERROR("ai.world", "AI test dissolve-on-active-roam FAILED: group={} could not be dissolved", groupId.Value);
         });
 }
 
@@ -4431,6 +4668,23 @@ void AIWorldMgr::Update(uint32 diff)
             // or once fired.
             if (_testDissolveOnActiveRegroupGroupId && !_testDissolveOnActiveRegroupFired)
                 CheckTestDissolveOnActiveRegroup();
+
+            // Milestone 2.12G2R: same "checked only right after a
+            // RunCoalitionCoordination() pass actually ran" reasoning as
+            // the Regroup hook immediately above - a Roam MOVE_TO is only
+            // ever freshly dispatched from inside that same pass. Each
+            // gated on its own config being set AND not yet fired, so all
+            // three cost nothing once disabled or fired - and only one is
+            // meant to be enabled at a time per 2.12G2R's own test
+            // sequence (preempt, then leave, then dissolve last).
+            if (_testPreemptOnActiveRoamAgentId && !_testPreemptOnActiveRoamFired)
+                CheckTestPreemptOnActiveRoam();
+
+            if (_testLeaveOnActiveRoamAgentId && !_testLeaveOnActiveRoamFired)
+                CheckTestLeaveOnActiveRoam();
+
+            if (_testDissolveOnActiveRoamGroupId && !_testDissolveOnActiveRoamFired)
+                CheckTestDissolveOnActiveRoam();
         }
     }
 
