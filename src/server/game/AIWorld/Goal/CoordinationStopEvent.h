@@ -21,48 +21,83 @@
 #include "Agent/GroupId.h"
 #include "Define.h"
 #include "GoalType.h"
+#include <optional>
 
 // Milestone 2.12G2R P2 fix, round 2 (STATIC review): a group-coordination-
-// owned MOVE_TO (GroupCoordinationGoal.h) can stop for two genuinely
-// different production reasons - AIWorldMgr::UpdateNeeds()'s own
+// owned MOVE_TO (GroupCoordinationGoal.h) can stop for genuinely different
+// production reasons - AIWorldMgr::UpdateNeeds()'s own
 // COORDINATION_PREEMPTED_BY_GOAL block (a higher-priority individual goal
-// took the action slot back) and AIWorldMgr::StopInFlightGroupCoordination()'s
+// took the action slot back), AIWorldMgr::StopInFlightGroupCoordination()'s
 // own COORDINATION_STOPPED_BY_LIFECYCLE path (a confirmed Leave/Dissolve
-// stopped it) - and, separately, it can also simply ARRIVE at its own
-// destination (AIWorldMgr::HandleActionCompletion()), which is not a
-// "stop" in this sense at all. From OUTSIDE AgentRecord, all three end
-// states look identical: ActiveActionState/GroupCoordinationGoalState both
-// gone. That ambiguity is exactly what let the 2.12G2R lifecycle test
-// hooks (CheckTestPreemptOnActiveRoam()/CheckTestLeaveOnActiveRoam()/
+// stopped it), or that SAME shared method's COORDINATION_STOPPED_BY_MEMBERSHIP_AMBIGUITY
+// path (2.12G2R P2 fix, round 3, STATIC review - a confirmed Join made
+// membership newly ambiguous; see ReconcileGroupCoordinationForMember())
+// - and, separately, it can also simply ARRIVE at its own destination
+// (AIWorldMgr::HandleActionCompletion()), which is not a "stop" in this
+// sense at all. From OUTSIDE AgentRecord, all of these end states look
+// identical: ActiveActionState/GroupCoordinationGoalState both gone. That
+// ambiguity is exactly what let the 2.12G2R lifecycle test hooks
+// (CheckTestPreemptOnActiveRoam()/CheckTestLeaveOnActiveRoam()/
 // CheckTestDissolveOnActiveRoam()) report a false PASSED whenever a
 // natural ARRIVED happened to race ahead of the production stop they were
-// actually trying to prove - polling "is the old attempt gone" after the
-// fact cannot tell WHY it is gone.
+// actually trying to prove, or whenever a membership-ambiguity stop
+// happened to be mistaken for the specific lifecycle stop a leave/dissolve
+// hook was waiting for - polling "is the old attempt gone" after the fact
+// cannot tell WHY it is gone.
 //
 // AgentRecord::LastCoordinationStop closes that gap: written synchronously,
 // at the exact same moment (the same call, immediately after
 // ActionExecutor::StopMoveTo() already ran and immediately before
-// ActiveActionState/GroupCoordinationGoalState are reset) by the two real
+// ActiveActionState/GroupCoordinationGoalState are reset) by the real
 // production stop sites above - never by a test hook itself, never
 // speculatively. A test hook that captured an attempt's own identity
 // (SourceGroup, StartedAtMs) before triggering a lifecycle action can then
 // wait for LastCoordinationStop to report that EXACT identity with the
 // EXPECTED Reason, which is only ever true if that specific production
 // stop path genuinely ran for that specific attempt - a natural ARRIVED
-// never writes this at all, so it can never be mistaken for one.
+// never writes this at all, so it can never be mistaken for one, and a
+// membership-ambiguity stop is tagged with its own distinct Reason, so it
+// can never be mistaken for a Leave/Dissolve-sourced one either.
 enum class CoordinationStopReason : uint8
 {
     PreemptedByGoal,
-    StoppedByLifecycle
+    StoppedByLifecycle,
+    StoppedByMembershipAmbiguity
 };
 
 inline char const* ToString(CoordinationStopReason reason)
 {
     switch (reason)
     {
-        case CoordinationStopReason::PreemptedByGoal:    return "PREEMPTED_BY_GOAL";
-        case CoordinationStopReason::StoppedByLifecycle: return "STOPPED_BY_LIFECYCLE";
-        default:                                         return "UNKNOWN";
+        case CoordinationStopReason::PreemptedByGoal:             return "PREEMPTED_BY_GOAL";
+        case CoordinationStopReason::StoppedByLifecycle:          return "STOPPED_BY_LIFECYCLE";
+        case CoordinationStopReason::StoppedByMembershipAmbiguity: return "STOPPED_BY_MEMBERSHIP_AMBIGUITY";
+        default:                                                  return "UNKNOWN";
+    }
+}
+
+// Milestone 2.12G2R P2 fix, round 3 (STATIC review): which higher-priority
+// owner actually preempted a coordination-owned MOVE_TO - only meaningful
+// when CoordinationStopEvent::Reason == PreemptedByGoal. UpdateNeeds()'s
+// own COORDINATION_PREEMPTED_BY_GOAL block fires on EITHER
+// AgentRecord::ActiveGoalState or ::RoutineGoalState being set (see its
+// own comment) - this records honestly which one it actually was,
+// captured synchronously at the exact stop moment, so a verifying test
+// hook never has to re-derive "what preempted this" from AgentRecord's
+// own CURRENT (possibly already-moved-on) state.
+enum class CoordinationPreemptingOwner : uint8
+{
+    ActiveGoal,
+    RoutineGoal
+};
+
+inline char const* ToString(CoordinationPreemptingOwner owner)
+{
+    switch (owner)
+    {
+        case CoordinationPreemptingOwner::ActiveGoal:  return "ACTIVE_GOAL";
+        case CoordinationPreemptingOwner::RoutineGoal: return "ROUTINE_GOAL";
+        default:                                       return "UNKNOWN";
     }
 }
 
@@ -78,16 +113,35 @@ struct CoordinationStopEvent
     GroupId SourceGroup;
     uint64 StartedAtMs = 0;
 
-    // Milestone 2.12G2R P2 fix, round 2 (STATIC review): freshly re-
-    // observed (HasOwnMoveToGenerator(), called again right after
-    // StopMoveTo() at the exact write site) at the moment this event is
-    // recorded - not assumed true just because StopMoveTo() was called.
-    // A verifying test hook trusts this recorded fact rather than
-    // re-querying the live engine generator itself later, since a
-    // legitimate NEW action may have already started its own generator
-    // of the same type by the time it polls, which would otherwise be
-    // indistinguishable from the OLD, stale one still running.
-    bool EngineGeneratorConfirmedStopped = false;
+    // Milestone 2.12G2R P2 fix, round 3 (STATIC review): two SEPARATE
+    // freshly-observed facts, not one - an earlier version only checked
+    // HasOwnMoveToGenerator() AFTER calling StopMoveTo(), which reads
+    // true ("confirmed stopped") just as readily when nothing was running
+    // in the first place (e.g. the attempt had already arrived naturally
+    // moments before this stop path even ran, and StopMoveTo() found
+    // nothing to remove) as when a genuinely in-flight movement was just
+    // interrupted - the two cases are NOT the same claim, and only the
+    // second one is actual evidence this stop path did meaningful work.
+    // WasRunningBeforeStop is observed BEFORE StopMoveTo() is called;
+    // ConfirmedStoppedAfterStop is observed again right after. Both
+    // default false (unverified, not "assumed true") - if the record's
+    // own Creature cannot be resolved at all (not Materialized, or
+    // ResolveLiveCreature() fails), NEITHER can be honestly confirmed one
+    // way or the other, and both are deliberately left false rather than
+    // defaulted to a claimed success.
+    bool EngineGeneratorWasRunningBeforeStop = false;
+    bool EngineGeneratorConfirmedStoppedAfterStop = false;
+
+    // Milestone 2.12G2R P2 fix, round 3 (STATIC review): only set when
+    // Reason == PreemptedByGoal - see CoordinationPreemptingOwner's own
+    // comment for why this must be captured HERE, synchronously, rather
+    // than a verifying test hook re-deriving "what is ActiveGoalState
+    // right now" on a later poll (which could already have changed -
+    // the preempting goal itself may have already finished, or a
+    // completely different one may have taken its place, by the time
+    // anything else gets a chance to look).
+    std::optional<CoordinationPreemptingOwner> PreemptingOwner;
+    std::optional<GoalType> PreemptingGoal;
 
     uint64 StoppedAtMs = 0;
 };

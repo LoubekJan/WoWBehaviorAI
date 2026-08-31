@@ -1697,7 +1697,25 @@ AIWorldMgr::CoordinationStopVerification AIWorldMgr::VerifyCoordinationStop(Agen
         || record.ActiveActionState->SourceGoal != goalType
         || record.ActiveActionState->GoalStartedAtMs != startedAtMs;
 
-    result.EngineGeneratorGone = result.StopEventMatches && record.LastCoordinationStop->EngineGeneratorConfirmedStopped;
+    // Milestone 2.12G2R P2 fix, round 3 (STATIC review): BOTH halves
+    // required, not just the "after" one - see CoordinationStopEvent.h's
+    // own comment for why a stop that found nothing running in the first
+    // place is not genuine evidence of a production stop interrupting a
+    // live movement.
+    result.EngineGeneratorGone = result.StopEventMatches
+        && record.LastCoordinationStop->EngineGeneratorWasRunningBeforeStop
+        && record.LastCoordinationStop->EngineGeneratorConfirmedStoppedAfterStop;
+
+    // Milestone 2.12G2R P2 fix, round 3 (STATIC review): forwarded
+    // straight from the matching event itself - see
+    // CoordinationPreemptingOwner's own comment for why this must come
+    // from the event, captured synchronously at the stop moment, not
+    // re-derived by a caller from AgentRecord's own CURRENT state.
+    if (result.StopEventMatches)
+    {
+        result.PreemptingOwner = record.LastCoordinationStop->PreemptingOwner;
+        result.PreemptingGoal = record.LastCoordinationStop->PreemptingGoal;
+    }
 
     return result;
 }
@@ -1901,19 +1919,25 @@ void AIWorldMgr::CheckTestPreemptOnActiveRoam()
 
     _testPreemptOnActiveRoamFired = true;
 
-    // The matching stop event alone already proves a genuine preemption
-    // caused this stop (see CoordinationStopEvent.h) - checked in this
-    // SAME poll, immediately, rather than re-derived later, so it cannot
-    // itself have gone stale by the time this decision is made.
-    bool higherGoalActive = record->ActiveGoalState.has_value() && record->ActiveGoalState->Type == GoalType::GetFood;
+    // Milestone 2.12G2R P2 fix, round 3 (STATIC review): read straight
+    // from the matching event's own PreemptingGoal - captured
+    // synchronously by UpdateNeeds() itself at the exact stop moment,
+    // NOT re-derived from record->ActiveGoalState's own CURRENT state
+    // here, which could already have moved on by this later poll (the
+    // preempting goal may have already finished, or a different one may
+    // have taken its place, in the time since the stop actually
+    // happened).
+    bool preemptedByGetFood = verification.PreemptingGoal.has_value() && *verification.PreemptingGoal == GoalType::GetFood;
 
-    if (verification.FullyConfirmed() && higherGoalActive)
-        TC_LOG_INFO("ai.world", "AI test preempt-on-active-roam PASSED: agent={} group={} a genuine PreemptedByGoal stop was observed for the original ROAM attempt, coordination state/engine generator are fully clear, and a real individual GET_FOOD goal owns the action slot",
+    if (verification.FullyConfirmed() && preemptedByGetFood)
+        TC_LOG_INFO("ai.world", "AI test preempt-on-active-roam PASSED: agent={} group={} a genuine PreemptedByGoal stop was observed for the original ROAM attempt, coordination state/engine generator are fully clear, and the recorded preemptor was a real individual GET_FOOD goal",
             record->Id.Value, _testPreemptOnActiveRoamCapturedGroup.Value);
     else
-        TC_LOG_ERROR("ai.world", "AI test preempt-on-active-roam FAILED: agent={} group={} stopEventMatches={} groupCoordinationGoalGone={} activeActionStateGone={} engineGeneratorGone={} higherGoalActive={}",
+        TC_LOG_ERROR("ai.world", "AI test preempt-on-active-roam FAILED: agent={} group={} stopEventMatches={} groupCoordinationGoalGone={} activeActionStateGone={} engineGeneratorGone={} preemptingOwner={} preemptingGoal={} preemptedByGetFood={}",
             record->Id.Value, _testPreemptOnActiveRoamCapturedGroup.Value, verification.StopEventMatches,
-            verification.GroupCoordinationGoalGone, verification.ActiveActionStateGone, verification.EngineGeneratorGone, higherGoalActive);
+            verification.GroupCoordinationGoalGone, verification.ActiveActionStateGone, verification.EngineGeneratorGone,
+            verification.PreemptingOwner ? ToString(*verification.PreemptingOwner) : "NONE",
+            verification.PreemptingGoal ? ToString(*verification.PreemptingGoal) : "NONE", preemptedByGetFood);
 }
 
 // Milestone 2.12G2R P2 fix, round 2 (STATIC review): TRIGGER/VERIFY
@@ -4673,7 +4697,7 @@ uint32 AIWorldMgr::CountCoordinationEnabledMemberships(AgentId member) const
     return count;
 }
 
-void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* reason)
+void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* reason, CoordinationStopReason stopReason)
 {
     // 2.12F2 P3 fix (STATIC review): captured before the reset below, not
     // after - the old (pre-refactor) StopGroupCoordinationForMember() body
@@ -4701,22 +4725,23 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     if (!record.ActiveActionState || !IsCoordinationSourceGoal(record.ActiveActionState->SourceGoal))
         return;
 
-    // Milestone 2.12G2R P2 fix, round 2 (STATIC review): captured before
+    // Milestone 2.12G2R P2 fix, round 3 (STATIC review): captured before
     // the reset below - see CoordinationStopEvent.h's own comment for why
     // this exists (a verifying test hook needs to know THIS specific
-    // attempt was stopped BY a genuine lifecycle action - Leave/Dissolve
-    // confirmation, or the membership-ambiguity reconciliation this same
-    // shared method also serves - not merely that it is gone, which a
-    // natural ARRIVED would also produce). EngineGeneratorConfirmedStopped
-    // defaults true here (no live creature resolves below == nothing
-    // could be running) and is only set false-then-true again from a
-    // freshly re-observed check if a live creature actually does.
+    // attempt was stopped BY a genuine production stop path, tagged with
+    // the CALLER's own stopReason - StoppedByLifecycle or
+    // StoppedByMembershipAmbiguity, never a shared/ambiguous one - not
+    // merely that it is gone, which a natural ARRIVED would also
+    // produce). Both engine-generator fields default false (unverified) -
+    // if no live Creature resolves below, NEITHER can be honestly
+    // confirmed, and leaving them false (never defaulted to a claimed
+    // success) is the correct fail-closed outcome, not "assume nothing
+    // was running so trivially count as stopped".
     CoordinationStopEvent stopEvent;
-    stopEvent.Reason = CoordinationStopReason::StoppedByLifecycle;
+    stopEvent.Reason = stopReason;
     stopEvent.SourceGoal = record.ActiveActionState->SourceGoal;
     stopEvent.SourceGroup = sourceGroup;
     stopEvent.StartedAtMs = record.ActiveActionState->GoalStartedAtMs;
-    stopEvent.EngineGeneratorConfirmedStopped = true;
     stopEvent.StoppedAtMs = CurrentTimeMs();
 
     if (record.WorldState == AgentWorldState::Materialized)
@@ -4724,6 +4749,19 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
         if (Creature* creature = ResolveLiveCreature(record, map))
         {
+            // Milestone 2.12G2R P2 fix, round 3 (STATIC review): observed
+            // BEFORE StopMoveTo() is called, not just after - an earlier
+            // version only checked HasOwnMoveToGenerator() AFTER
+            // StopMoveTo() ran, which reads "confirmed stopped" just as
+            // readily when nothing was running in the first place (the
+            // attempt had already arrived naturally moments before this
+            // call, so StopMoveTo() found nothing to remove) as when a
+            // genuinely in-flight movement was actually just interrupted -
+            // only the latter is real evidence this stop path did
+            // meaningful work, which is exactly what a verifying test hook
+            // needs to be able to tell apart.
+            stopEvent.EngineGeneratorWasRunningBeforeStop = HasOwnMoveToGenerator(*creature);
+
             _actionExecutor.StopMoveTo(*creature);
 
             TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={} sourceGoal={} sourceGroup={}",
@@ -4731,7 +4769,7 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
 
             // Freshly re-observed right after StopMoveTo() just ran, not
             // assumed true - see CoordinationStopEvent.h's own comment.
-            stopEvent.EngineGeneratorConfirmedStopped = !HasOwnMoveToGenerator(*creature);
+            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = !HasOwnMoveToGenerator(*creature);
         }
     }
 
@@ -4745,7 +4783,7 @@ void AIWorldMgr::StopGroupCoordinationForMember(AgentId memberId, GroupId groupI
     if (!record || !record->GroupCoordinationGoalState || record->GroupCoordinationGoalState->SourceGroup != groupId)
         return;
 
-    StopInFlightGroupCoordination(*record, "COORDINATION_STOPPED_BY_LIFECYCLE");
+    StopInFlightGroupCoordination(*record, "COORDINATION_STOPPED_BY_LIFECYCLE", CoordinationStopReason::StoppedByLifecycle);
 }
 
 void AIWorldMgr::ReconcileGroupCoordinationForMember(AgentId memberId)
@@ -4772,7 +4810,7 @@ void AIWorldMgr::ReconcileGroupCoordinationForMember(AgentId memberId)
     if (CountCoordinationEnabledMemberships(memberId) <= 1)
         return;
 
-    StopInFlightGroupCoordination(*record, "COORDINATION_STOPPED_BY_MEMBERSHIP_AMBIGUITY");
+    StopInFlightGroupCoordination(*record, "COORDINATION_STOPPED_BY_MEMBERSHIP_AMBIGUITY", CoordinationStopReason::StoppedByMembershipAmbiguity);
 }
 
 void AIWorldMgr::Update(uint32 diff)
@@ -6316,26 +6354,55 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         if ((record->ActiveGoalState || record->RoutineGoalState) && record->ActiveActionState
             && IsCoordinationSourceGoal(record->ActiveActionState->SourceGoal))
         {
+            // Milestone 2.12G2R P2 fix, round 3 (STATIC review): observed
+            // BEFORE StopMoveTo() is called - see StopInFlightGroupCoordination()'s
+            // own comment for why "confirmed stopped after" alone is not
+            // honest evidence of a genuine interruption unless it is also
+            // known something was actually running beforehand. `creature`
+            // is already guaranteed live/non-null this far into
+            // UpdateNeeds()'s own per-agent loop (see its own `if
+            // (!creature) continue;` above), so unlike
+            // StopInFlightGroupCoordination() there is no "cannot resolve
+            // a live Creature at all" case to handle here.
+            bool generatorWasRunning = HasOwnMoveToGenerator(*creature);
+
             _actionExecutor.StopMoveTo(*creature);
 
             TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=COORDINATION_PREEMPTED_BY_GOAL sourceGoal={}",
                 record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal));
 
-            // Milestone 2.12G2R P2 fix, round 2 (STATIC review): recorded
+            // Milestone 2.12G2R P2 fix, round 2/3 (STATIC review): recorded
             // BEFORE the resets below erase the very state this event
-            // needs to describe - see CoordinationStopEvent.h for why
-            // this exists (a verifying test hook needs to know THIS
-            // specific attempt was stopped BY a genuine preemption, not
-            // merely that it is gone, which a natural ARRIVED would also
-            // produce). EngineGeneratorConfirmedStopped is freshly
-            // re-observed here, right after StopMoveTo() just ran, not
-            // assumed true.
+            // needs to describe - see CoordinationStopEvent.h for why this
+            // exists (a verifying test hook needs to know THIS specific
+            // attempt was stopped BY a genuine preemption, not merely that
+            // it is gone, which a natural ARRIVED would also produce).
+            // PreemptingOwner/PreemptingGoal capture WHICH of
+            // ActiveGoalState/RoutineGoalState actually did the preempting
+            // (ActiveGoalState takes precedence when both happen to be
+            // set, matching this same if-condition's own OR and this
+            // file's own established ActiveGoalState > RoutineGoalState
+            // arbitration) - captured synchronously, right here, so a
+            // verifying test hook never has to re-derive "what preempted
+            // this" from AgentRecord's own CURRENT state on some later
+            // poll, which could already have moved on.
             CoordinationStopEvent stopEvent;
             stopEvent.Reason = CoordinationStopReason::PreemptedByGoal;
             stopEvent.SourceGoal = record->ActiveActionState->SourceGoal;
             stopEvent.SourceGroup = record->GroupCoordinationGoalState->SourceGroup;
             stopEvent.StartedAtMs = record->ActiveActionState->GoalStartedAtMs;
-            stopEvent.EngineGeneratorConfirmedStopped = !HasOwnMoveToGenerator(*creature);
+            stopEvent.EngineGeneratorWasRunningBeforeStop = generatorWasRunning;
+            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = !HasOwnMoveToGenerator(*creature);
+            if (record->ActiveGoalState)
+            {
+                stopEvent.PreemptingOwner = CoordinationPreemptingOwner::ActiveGoal;
+                stopEvent.PreemptingGoal = record->ActiveGoalState->Type;
+            }
+            else if (record->RoutineGoalState)
+            {
+                stopEvent.PreemptingOwner = CoordinationPreemptingOwner::RoutineGoal;
+                stopEvent.PreemptingGoal = record->RoutineGoalState->Type;
+            }
             stopEvent.StoppedAtMs = nowMs;
             record->LastCoordinationStop = stopEvent;
 

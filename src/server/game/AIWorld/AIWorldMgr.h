@@ -282,16 +282,26 @@ class TC_GAME_API AIWorldMgr
             bool GroupCoordinationGoalGone = false;
             bool ActiveActionStateGone = false;
 
-            // Straight from the matching event's own freshly-observed
-            // EngineGeneratorConfirmedStopped (false, i.e. not confirmed,
-            // if StopEventMatches itself is false) - see
-            // CoordinationStopEvent.h for why this must come from the
-            // event itself, recorded at the exact synchronous stop
-            // moment, rather than the verifying hook re-querying the live
-            // engine generator on its own later (a legitimate NEW action
-            // may have already started its own generator of the same
-            // type by then).
+            // Milestone 2.12G2R P2 fix, round 3 (STATIC review): straight
+            // from the matching event's own EngineGeneratorWasRunningBeforeStop
+            // AND EngineGeneratorConfirmedStoppedAfterStop, both required -
+            // see CoordinationStopEvent.h for why checking only the
+            // "after" half (an earlier version) let a stop that found
+            // nothing running in the first place (the attempt had already
+            // arrived naturally) be misread as genuine evidence of a
+            // production stop interrupting a live movement. False whenever
+            // StopEventMatches itself is false.
             bool EngineGeneratorGone = false;
+
+            // Milestone 2.12G2R P2 fix, round 3 (STATIC review): only
+            // meaningful (and only ever set) when the matching event's own
+            // Reason == PreemptedByGoal - straight from that event's own
+            // PreemptingOwner/PreemptingGoal, captured synchronously at the
+            // exact stop moment by the production code itself, never
+            // re-derived by a caller from AgentRecord's own CURRENT (and
+            // possibly already-moved-on) ActiveGoalState/RoutineGoalState.
+            std::optional<CoordinationPreemptingOwner> PreemptingOwner;
+            std::optional<GoalType> PreemptingGoal;
 
             bool FullyConfirmed() const { return StopEventMatches && GroupCoordinationGoalGone && ActiveActionStateGone && EngineGeneratorGone; }
         };
@@ -449,16 +459,19 @@ class TC_GAME_API AIWorldMgr
         // VERIFY - polls VerifyCoordinationStop(..., PreemptedByGoal, Roam,
         // capturedGroup, capturedStartedAtMs). PASSED only once
         // StopEventMatches AND GroupCoordinationGoalGone AND
-        // ActiveActionStateGone AND EngineGeneratorGone all hold AND
-        // record->ActiveGoalState shows a real Type == GetFood individual
-        // goal active RIGHT NOW (checked in that same poll, immediately
-        // after StopEventMatches becomes true - proving a genuine
-        // higher-priority goal actually caused this specific stop, not
-        // merely that the stop happened to be tagged PreemptedByGoal for
-        // some other reason). FAILED on a verification timeout (the
-        // expected stop event never observed - most likely a natural
-        // ARRIVED that never produces one at all) or if the event is
-        // observed but GetFood is not active in that same poll.
+        // ActiveActionStateGone AND EngineGeneratorGone all hold AND the
+        // SAME matching event's own PreemptingGoal == GetFood (2.12G2R P2
+        // fix, round 3, STATIC review: read from CoordinationStopVerification::
+        // PreemptingGoal - captured synchronously by UpdateNeeds() itself
+        // at the exact stop moment, NOT re-derived from AgentRecord::
+        // ActiveGoalState's own CURRENT state on this later poll, which
+        // could already have moved on - the preempting goal may have
+        // already finished, or a different one may have taken its place,
+        // by the time this hook gets a chance to look). FAILED on a
+        // verification timeout (the expected stop event never observed -
+        // most likely a natural ARRIVED, which never produces one at all)
+        // or if the event is observed but was not genuinely caused by a
+        // GetFood preemption.
         void CheckTestPreemptOnActiveRoam();
 
         // AIWorld.TestLeaveOnActiveRoamAgentId (default 0 = disabled):
@@ -1531,7 +1544,21 @@ class TC_GAME_API AIWorldMgr
         // and clear ActiveActionState too. reason is a literal describing
         // WHY this particular caller stopped it, logged the same way -
         // callers never share one generic reason string.
-        void StopInFlightGroupCoordination(AgentRecord& record, char const* reason);
+        //
+        // Milestone 2.12G2R P2 fix, round 3 (STATIC review): stopReason is
+        // a SEPARATE, structured counterpart to the free-text `reason`
+        // above, recorded into AgentRecord::LastCoordinationStop
+        // (CoordinationStopEvent.h) - this method is shared by two
+        // genuinely different callers (StopGroupCoordinationForMember(),
+        // a confirmed Leave/Dissolve; ReconcileGroupCoordinationForMember(),
+        // a confirmed Join making membership newly ambiguous), and an
+        // earlier version always recorded CoordinationStopReason::
+        // StoppedByLifecycle regardless of which one actually called it -
+        // a verifying test hook waiting specifically for a Leave/Dissolve-
+        // sourced stop could then have accepted a membership-ambiguity
+        // stop as false evidence of the wrong production path. Each
+        // caller now passes its own distinct reason explicitly.
+        void StopInFlightGroupCoordination(AgentRecord& record, char const* reason, CoordinationStopReason stopReason);
 
         // Milestone 2.12F2 P2 fix (STATIC review): the one place an
         // in-flight Regroup/Roam attempt (AgentRecord::

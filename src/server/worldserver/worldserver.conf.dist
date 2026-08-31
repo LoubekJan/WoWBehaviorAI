@@ -3733,11 +3733,15 @@ AIWorld.TestDissolveOnActiveRegroupGroupId = 0
 #        Description: Milestone 2.12G2R test hook (P2 fix, round 2, STATIC review: VERIFY is now
 #                     provenance-aware, not just "is the old attempt's bookkeeping gone" - polling that
 #                     alone cannot tell a genuine preemption apart from the attempt simply having
-#                     arrived naturally, since a natural ARRIVED clears the exact same fields) - the
-#                     ROAM lifecycle runtime closure counterpart to
-#                     AIWorld.TestDissolveOnActiveRegroupGroupId, proving individual-goal preemption for
-#                     ROAM the same way 2.12F3 already proved it for REGROUP. When set to an existing
-#                     AgentId: TRIGGER - waits (checked only right after each
+#                     arrived naturally, since a natural ARRIVED clears the exact same fields; P2 fix,
+#                     round 3, STATIC review: the recorded stop event now separately confirms the engine
+#                     generator was actually RUNNING before the stop, not just gone after it - a stop
+#                     that found nothing running in the first place is not genuine evidence either - and
+#                     the actual preempting goal is captured synchronously at the stop moment rather than
+#                     re-derived from live state on a later poll) - the ROAM lifecycle runtime closure
+#                     counterpart to AIWorld.TestDissolveOnActiveRegroupGroupId, proving individual-goal
+#                     preemption for ROAM the same way 2.12F3 already proved it for REGROUP. When set to
+#                     an existing AgentId: TRIGGER - waits (checked only right after each
 #                     RunCoalitionCoordination() pass, via AIWorldMgr::CheckTestPreemptOnActiveRoam())
 #                     until that agent is actually observed mid-ROAM (AIWorldMgr::
 #                     HasActiveCoordinationMoveTo()), captures that exact attempt's own identity, then
@@ -3753,14 +3757,16 @@ AIWorld.TestDissolveOnActiveRegroupGroupId = 0
 #                     a real Normal-priority individual goal, and the existing, unmodified
 #                     COORDINATION_PREEMPTED_BY_GOAL preemption path is what actually stops the
 #                     in-flight ROAM movement once that happens - and, at that exact synchronous moment,
-#                     records AgentRecord::LastCoordinationStop (Reason=PreemptedByGoal). VERIFY - polls
+#                     records AgentRecord::LastCoordinationStop (Reason=PreemptedByGoal,
+#                     PreemptingGoal=GET_FOOD if that is genuinely what preempted it). VERIFY - polls
 #                     AIWorldMgr::VerifyCoordinationStop() on every subsequent pass until that specific
 #                     recorded event is observed for the captured attempt's own identity; only then logs
-#                     PASSED, and only if the coordination goal/action/engine generator are all
-#                     independently confirmed gone too AND a real individual GET_FOOD goal is active in
-#                     that same poll. FAILED on a verification timeout (30s, the expected event never
-#                     observed - most likely a natural ARRIVED, which never records one) or if the event
-#                     is observed but any of those remaining checks does not hold, never an unverified
+#                     PASSED, and only if the coordination goal/action/engine generator (both "was
+#                     running before" and "confirmed stopped after") are all independently confirmed gone
+#                     too AND that SAME recorded event's own PreemptingGoal is GET_FOOD. FAILED on a
+#                     verification timeout (30s, the expected event never observed - most likely a
+#                     natural ARRIVED, which never records one) or if the event is observed but any of
+#                     those remaining checks does not hold, never an unverified
 #                     CONFIRMED. Fires at most once ever (after the full TRIGGER+VERIFY cycle concludes,
 #                     PASSED or FAILED); also disables itself if the configured AgentId does not resolve
 #                     to a registered agent right after startup load, or later stops resolving at all.
@@ -3777,13 +3783,19 @@ AIWorld.TestPreemptOnActiveRoamAgentId = 0
 #    AIWorld.TestLeaveOnActiveRoamAgentId
 #        Description: Milestone 2.12G2R test hook (P2 fix, round 2, STATIC review: VERIFY is now
 #                     provenance-aware - see AIWorld.TestPreemptOnActiveRoamAgentId's own comment for
-#                     why) - the ROAM lifecycle runtime closure counterpart proving a confirmed Manual
-#                     leave stops an in-flight ROAM the same way it is already proven for REGROUP. When
-#                     set to an existing AgentId: TRIGGER - waits (same cadence/ownership-tuple proof as
-#                     AIWorld.TestPreemptOnActiveRoamAgentId above, via AIWorldMgr::
-#                     CheckTestLeaveOnActiveRoam()) until that agent is actually observed mid-ROAM,
-#                     captures that exact attempt's own identity, then requests a Manual leave for it
-#                     from its own current coordination group through the existing
+#                     why; P2 fix, round 3, STATIC review: the recorded stop event is tagged with its
+#                     own distinct StoppedByLifecycle reason - AIWorldMgr::StopInFlightGroupCoordination(),
+#                     the shared method this and the membership-ambiguity reconciliation path both use,
+#                     no longer records the same reason for both, so an unrelated ambiguity-triggered
+#                     stop can never be mistaken for THIS specific lifecycle stop - and the engine
+#                     generator check now separately confirms it was actually running before the stop,
+#                     not just gone after it) - the ROAM lifecycle runtime closure counterpart proving a
+#                     confirmed Manual leave stops an in-flight ROAM the same way it is already proven
+#                     for REGROUP. When set to an existing AgentId: TRIGGER - waits (same
+#                     cadence/ownership-tuple proof as AIWorld.TestPreemptOnActiveRoamAgentId above, via
+#                     AIWorldMgr::CheckTestLeaveOnActiveRoam()) until that agent is actually observed
+#                     mid-ROAM, captures that exact attempt's own identity, then requests a Manual leave
+#                     for it from its own current coordination group through the existing
 #                     RequestLeaveGroupWithPolicy(..., Manual) path - never a direct AgentGroupRegistry
 #                     membership mutation. What actually stops the in-flight movement (if the leave is
 #                     confirmed) is RequestLeaveGroupWithPolicy()'s own existing
@@ -3793,7 +3805,8 @@ AIWorld.TestPreemptOnActiveRoamAgentId = 0
 #                     that specific recorded event is observed for the captured attempt's own identity,
 #                     AND independently confirms the agent is no longer a member (queried fresh from the
 #                     registry, never trusted from the leave request's own completion callback). Only
-#                     then logs PASSED, and only if the coordination goal/action/engine generator are
+#                     then logs PASSED, and only if the coordination goal/action/engine generator (both
+#                     "was running before" and "confirmed stopped after") are
 #                     all independently confirmed gone too. FAILED on a verification timeout (30s, the
 #                     expected event never observed) or if membership was removed without it, never an
 #                     unverified CONFIRMED. Fires at most once ever (after the full TRIGGER+VERIFY cycle
@@ -3814,7 +3827,9 @@ AIWorld.TestLeaveOnActiveRoamAgentId = 0
 #                     provenance-aware, same reasoning as AIWorld.TestPreemptOnActiveRoamAgentId's own
 #                     comment; still also captures EVERY currently-roaming member of the configured
 #                     group, not just the first one found - a group-wide dissolve must be proven to stop
-#                     every one of them) - the direct ROAM counterpart to
+#                     every one of them; P2 fix, round 3, STATIC review: same distinct StoppedByLifecycle
+#                     reason and "was running before/confirmed stopped after" engine generator split as
+#                     AIWorld.TestLeaveOnActiveRoamAgentId's own comment) - the direct ROAM counterpart to
 #                     AIWorld.TestDissolveOnActiveRegroupGroupId. When set to an existing GroupId:
 #                     TRIGGER - waits until at least one member is actually observed mid-ROAM
 #                     (AIWorldMgr::HasActiveCoordinationMoveTo()), captures every currently-roaming
@@ -3828,7 +3843,8 @@ AIWorld.TestLeaveOnActiveRoamAgentId = 0
 #                     in _groupRegistry, then polls AIWorldMgr::VerifyCoordinationStop() independently
 #                     for EVERY captured member. Only then logs PASSED, and only if every captured
 #                     member's own recorded event is observed AND its own coordination goal/action/engine
-#                     generator are all independently confirmed gone too. FAILED on a verification
+#                     generator (both "was running before" and "confirmed stopped after") are all
+#                     independently confirmed gone too. FAILED on a verification
 #                     timeout (30s, group still resolves) or if the group is gone but any captured
 #                     member's own expected event was never observed, never an
 #                     unverified CONFIRMED. Fires at most once ever (after the full TRIGGER+VERIFY cycle
