@@ -42,6 +42,8 @@
 #include "Agent/CoalitionMaintenanceSystem.h"
 #include "Agent/GroupId.h"
 #include "Agent/GroupMemberActionProposal.h"
+#include "Agent/HuntIntentProjector.h"
+#include "Agent/HuntIntentSystem.h"
 #include "Define.h"
 #include "Event/EventBus.h"
 #include "Event/WorldEvent.h"
@@ -748,6 +750,39 @@ class TC_GAME_API AIWorldMgr
         // itself holds to. Always runs when this method is called at all
         // (see AIWorld.TestGroupIntentProjector).
         void RunGroupIntentProjectorSmokeTest() const;
+
+        // Milestone 2.12G3B: manual proof of HuntIntentSystem's and
+        // HuntIntentProjector's own rules, entirely pure - synthetic
+        // AgentGroupRecord/AgentGroupCoordinationProfile/
+        // CoalitionMemberObservation/HuntTargetObservation/HuntIntent
+        // values built on the stack, fed straight to stack-local
+        // HuntIntentSystem::Evaluate()/HuntIntentProjector::Project()
+        // instances, no registry/DB/AIWorldMgr member state touched at all
+        // (the same "pure layer first, zero orchestration" scoping
+        // RunGroupIntentSmokeTest()/RunGroupIntentProjectorSmokeTest()
+        // already established for 2.12F1/F2 - this milestone deliberately
+        // adds no GoalType::Hunt, ActionSystem wiring, or
+        // RunCoalitionCoordination() integration, see HuntIntentSystem.h/
+        // HuntIntentProjector.h's own class comments). Exercises every
+        // rule HuntIntentSystem.cpp/HuntIntentProjector.cpp implement,
+        // including: a valid target selects a HuntIntent; a disabled or
+        // mismatched profile selects nullopt; an empty GUID, wrong
+        // creature entry, dead target, stale/future-dated observation,
+        // different-map target, missing line-of-sight, or an
+        // out-of-radius target is each individually rejected; an
+        // unloaded/dead/non-member observer's sighting is never trusted;
+        // of two valid targets the nearer one wins, with a stable
+        // TargetGuid tie-break on equal distance; reordering the input
+        // candidates never changes the result; StartedAtMs equals nowMs
+        // while Target.ObservedAtMs is preserved unchanged, never
+        // conflated with the attempt timestamp; and on the projection
+        // side, two valid members get two proposals, an unloaded/dead/
+        // different-map member gets none, an invalid intent produces no
+        // proposals at all, and every produced proposal carries the exact
+        // target/group/attempt timestamp the intent itself had. Always
+        // runs when this method is called at all (see
+        // AIWorld.TestHuntIntent).
+        void RunHuntIntentSmokeTest() const;
 
         // Milestone 2.12F4A: manual proof only, gated behind
         // AIWorld.TestControlMode (default 0 = disabled) - runs at most once,

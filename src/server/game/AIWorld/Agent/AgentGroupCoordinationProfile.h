@@ -91,6 +91,29 @@ struct AgentGroupCoordinationProfile
     // is what keeps a settled group standing still between roam phases
     // instead of re-issuing an identical MOVE_TO every coordination pass.
     float RoamArrivalRadius = 0.0f;
+
+    // Milestone 2.12G3B: same "declare the shape, wire the rule only when
+    // it is actually needed" discipline every other coordination behavior
+    // in this struct already follows - a profile that has not opted into
+    // automatic HUNT selection simply leaves HuntEnabled false.
+    // HuntTargetCreatureEntry is deliberately the first, narrowest
+    // possible eligibility policy (one allowed creature entry, not a set
+    // or a species-kind enum) - HuntIntentSystem/HuntIntentProjector never
+    // branch on WHICH profile this is (no WolfLoose/DefiasLoose special
+    // case anywhere in their own logic), only on this already-resolved
+    // generic value, the same way RegroupRadius/RoamDistance already let
+    // REGROUP/ROAM stay entirely generic. HuntAcquisitionRadius bounds how
+    // far a candidate target may be from the OBSERVING member (see
+    // HuntTargetObservation::Distance) - a trigger threshold, the
+    // HUNT counterpart to RegroupRadius. HuntObservationMaxAgeMs bounds how
+    // old (nowMs - HuntTargetObservation::Target.ObservedAtMs) an
+    // observation may be before it is too stale to select a hunt from -
+    // both 0 (the zero/default value) fail closed, the same way
+    // RoamIntervalMs == 0 already disables ROAM regardless of RoamEnabled.
+    bool HuntEnabled = false;
+    uint32 HuntTargetCreatureEntry = 0;
+    float HuntAcquisitionRadius = 0.0f;
+    uint32 HuntObservationMaxAgeMs = 0;
 };
 
 #endif // AIWORLD_AGENTGROUPCOORDINATIONPROFILE_H

@@ -833,6 +833,11 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // own comment.
     bool testGroupIntentProjector = sConfigMgr->GetBoolDefault("AIWorld.TestGroupIntentProjector", false);
 
+    // Milestone 2.12G3B: off by default - see RunHuntIntentSmokeTest()'s
+    // own comment. Read here for the same reason the other pure smoke
+    // test toggles are: sits next to them rather than off on its own.
+    bool testHuntIntent = sConfigMgr->GetBoolDefault("AIWorld.TestHuntIntent", false);
+
     // Milestone 2.12F4A: off by default (0 - the same 0-means-disabled
     // convention every other AgentId-keyed test hook in this file already
     // uses) - see RunControlModeSmokeTest()'s own comment. Names a real,
@@ -1457,6 +1462,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // own pure-layer commit deliberately adds none).
     if (testGroupIntentProjector)
         RunGroupIntentProjectorSmokeTest();
+
+    // Milestone 2.12G3B: manual proof only, gated behind
+    // AIWorld.TestHuntIntent (default off) - see RunHuntIntentSmokeTest()'s
+    // own comment. Entirely pure, no GoalType::Hunt/ActionSystem/
+    // RunCoalitionCoordination() integration at all yet (this milestone's
+    // own pure-layer commit deliberately adds none).
+    if (testHuntIntent)
+        RunHuntIntentSmokeTest();
 
     // Milestone 2.12F4A: manual proof only, gated behind
     // AIWorld.TestControlMode (default 0/disabled) - see
@@ -3682,6 +3695,365 @@ void AIWorldMgr::RunGroupIntentProjectorSmokeTest() const
     }
 
     TC_LOG_INFO("ai.world", "AI group intent projector smoke test {}", allPassed ? "PASSED" : "FAILED");
+}
+
+// Milestone 2.12G3B: manual proof of HuntIntentSystem::Evaluate()'s and
+// HuntIntentProjector::Project()'s own rules, entirely pure - synthetic
+// AgentGroupRecord/AgentGroupCoordinationProfile/CoalitionMemberObservation/
+// HuntTargetObservation/HuntIntent values built on the stack, fed straight
+// to stack-local HuntIntentSystem/HuntIntentProjector instances, no
+// registry/DB/AIWorldMgr member state touched at all, and no live
+// Creature*/Map*/Unit* or ObjectAccessor lookup anywhere (the same "pure
+// layer first, zero orchestration" scoping RunGroupIntentSmokeTest()/
+// RunGroupIntentProjectorSmokeTest() already established for 2.12F1/F2 -
+// this milestone deliberately adds no GoalType::Hunt, no combat
+// ActionType, no ActionSystem wiring, and no RunCoalitionCoordination()
+// integration; see HuntIntentSystem.h/HuntIntentProjector.h's own class
+// comments). Always runs when this method is called at all (see
+// AIWorld.TestHuntIntent).
+void AIWorldMgr::RunHuntIntentSmokeTest() const
+{
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI HUNT intent smoke test: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI HUNT intent smoke test: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    HuntIntentSystem huntIntentSystem;
+    HuntIntentProjector huntIntentProjector;
+
+    constexpr uint64 nowMs = 100000;
+    constexpr uint32 huntCreatureEntry = 5000;
+    constexpr uint32 otherCreatureEntry = 5001;
+
+    AgentGroupCoordinationProfile profile;
+    profile.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    profile.Kind = AgentGroupKind::Loose;
+    profile.HuntEnabled = true;
+    profile.HuntTargetCreatureEntry = huntCreatureEntry;
+    profile.HuntAcquisitionRadius = 40.0f;
+    profile.HuntObservationMaxAgeMs = 5000;
+
+    AgentGroupRecord group;
+    group.Id = GroupId{ 1 };
+    group.Kind = AgentGroupKind::Loose;
+    group.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    group.TerritoryMapId = 0;
+    group.TerritoryX = 0.0f;
+    group.TerritoryY = 0.0f;
+    group.TerritoryZ = 0.0f;
+    group.Members.push_back(AgentGroupMembership{ AgentId{ 1 }, 0 });
+    group.Members.push_back(AgentGroupMembership{ AgentId{ 2 }, 0 });
+
+    auto makeMember = [](AgentId id, bool materialized, bool alive, uint32 mapId)
+    {
+        CoalitionMemberObservation observation;
+        observation.MemberId = id;
+        observation.Materialized = materialized;
+        observation.Alive = alive;
+        observation.MapId = mapId;
+        return observation;
+    };
+
+    std::vector<CoalitionMemberObservation> members{
+        makeMember(AgentId{ 1 }, true, true, 0),
+        makeMember(AgentId{ 2 }, true, true, 0)
+    };
+
+    auto makeTarget = [](ObjectGuid guid, uint32 entry, bool alive, uint32 mapId, uint64 observedAtMs)
+    {
+        HuntTargetProvenance target;
+        target.TargetGuid = guid;
+        target.TargetEntry = entry;
+        target.Alive = alive;
+        target.MapId = mapId;
+        target.ObservedAtMs = observedAtMs;
+        return target;
+    };
+
+    auto makeSighting = [](AgentId observer, HuntTargetProvenance const& target, float distance, bool los)
+    {
+        HuntTargetObservation observation;
+        observation.Observer = observer;
+        observation.Target = target;
+        observation.Distance = distance;
+        observation.LineOfSight = los;
+        return observation;
+    };
+
+    ObjectGuid targetGuidA = ObjectGuid::Create<HighGuid::Unit>(huntCreatureEntry, 100);
+    ObjectGuid targetGuidB = ObjectGuid::Create<HighGuid::Unit>(huntCreatureEntry, 200);
+
+    // ---- Intent selection (HuntIntentSystem::Evaluate()) ----
+
+    // A validly observed target -> a HuntIntent is produced, naming that
+    // exact target, with StartedAtMs == nowMs while Target.ObservedAtMs is
+    // preserved unchanged (the attempt identity and the target-freshness
+    // clock are two different fields, never conflated - see HuntIntent.h).
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("valid target produces a HuntIntent naming that exact target",
+            intent.has_value() && intent->Group == group.Id && intent->Target.TargetGuid == targetGuidA);
+        check("StartedAtMs equals nowMs; Target.ObservedAtMs stays the original observation time, not the attempt time",
+            intent.has_value() && intent->StartedAtMs == nowMs && intent->Target.ObservedAtMs == nowMs - 1000);
+    }
+
+    // HuntEnabled=false -> nullopt even for an otherwise-textbook target.
+    {
+        AgentGroupCoordinationProfile disabledProfile = profile;
+        disabledProfile.HuntEnabled = false;
+
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, disabledProfile, members, targets, nowMs);
+        check("HuntEnabled=false selects nullopt", !intent.has_value());
+    }
+
+    // Invalid profile, and a profile.Kind mismatch, both fail closed to
+    // nullopt - the same three-way profile guard AgentGroupIntentSystem
+    // already holds to.
+    {
+        AgentGroupCoordinationProfile invalidProfile = profile;
+        invalidProfile.ProfileId = CoalitionFormationProfileId::Invalid;
+
+        AgentGroupCoordinationProfile mismatchedProfile = profile;
+        mismatchedProfile.Kind = AgentGroupKind::Stable;
+
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+
+        std::optional<HuntIntent> invalidIntent = huntIntentSystem.Evaluate(group, invalidProfile, members, targets, nowMs);
+        std::optional<HuntIntent> mismatchedIntent = huntIntentSystem.Evaluate(group, mismatchedProfile, members, targets, nowMs);
+        check("Invalid profile selects nullopt", !invalidIntent.has_value());
+        check("profile.Kind mismatch selects nullopt", !mismatchedIntent.has_value());
+    }
+
+    // Empty TargetGuid -> nullopt.
+    {
+        HuntTargetProvenance target = makeTarget(ObjectGuid::Empty, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("empty TargetGuid selects nullopt", !intent.has_value());
+    }
+
+    // TargetEntry not matching the profile's own eligible entry -> nullopt.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, otherCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("mismatched TargetEntry selects nullopt", !intent.has_value());
+    }
+
+    // Dead target -> nullopt.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, false, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("dead target selects nullopt", !intent.has_value());
+    }
+
+    // Stale observation (older than HuntObservationMaxAgeMs) -> nullopt.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - profile.HuntObservationMaxAgeMs - 1);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("stale observation selects nullopt", !intent.has_value());
+    }
+
+    // Future-dated ObservedAtMs (> nowMs) -> nullopt - never trustworthy,
+    // regardless of how small the offset is.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs + 1);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("future-dated observation selects nullopt", !intent.has_value());
+    }
+
+    // Target on a different map than the group's own territory -> nullopt
+    // (2.12G3A: HUNT is restricted to the group's own base-world map).
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 1, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("different-map target selects nullopt", !intent.has_value());
+    }
+
+    // No line-of-sight -> nullopt.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, 10.0f, false) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("missing line-of-sight selects nullopt", !intent.has_value());
+    }
+
+    // Distance beyond HuntAcquisitionRadius -> nullopt.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{ makeSighting(AgentId{ 1 }, target, profile.HuntAcquisitionRadius + 1.0f, true) };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("out-of-radius target selects nullopt", !intent.has_value());
+    }
+
+    // An unloaded, dead, or non-member observer's sighting is never
+    // trusted, regardless of how valid the target itself otherwise is.
+    {
+        HuntTargetProvenance target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+
+        std::vector<CoalitionMemberObservation> unloadedObserverMembers{
+            makeMember(AgentId{ 1 }, false, false, 0),
+            makeMember(AgentId{ 2 }, true, true, 0)
+        };
+        std::vector<HuntTargetObservation> unloadedTargets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> unloadedIntent = huntIntentSystem.Evaluate(group, profile, unloadedObserverMembers, unloadedTargets, nowMs);
+        check("unloaded observer's sighting selects nullopt", !unloadedIntent.has_value());
+
+        std::vector<CoalitionMemberObservation> deadObserverMembers{
+            makeMember(AgentId{ 1 }, true, false, 0),
+            makeMember(AgentId{ 2 }, true, true, 0)
+        };
+        std::vector<HuntTargetObservation> deadTargets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> deadIntent = huntIntentSystem.Evaluate(group, profile, deadObserverMembers, deadTargets, nowMs);
+        check("dead observer's sighting selects nullopt", !deadIntent.has_value());
+
+        std::vector<HuntTargetObservation> nonMemberTargets{ makeSighting(AgentId{ 99 }, target, 10.0f, true) };
+        std::optional<HuntIntent> nonMemberIntent = huntIntentSystem.Evaluate(group, profile, members, nonMemberTargets, nowMs);
+        check("non-member observer's sighting selects nullopt", !nonMemberIntent.has_value());
+
+        std::vector<CoalitionMemberObservation> differentMapObserverMembers{
+            makeMember(AgentId{ 1 }, true, true, 1),
+            makeMember(AgentId{ 2 }, true, true, 0)
+        };
+        std::vector<HuntTargetObservation> differentMapTargets{ makeSighting(AgentId{ 1 }, target, 10.0f, true) };
+        std::optional<HuntIntent> differentMapIntent = huntIntentSystem.Evaluate(group, profile, differentMapObserverMembers, differentMapTargets, nowMs);
+        check("observer on a different map than the group's own territory selects nullopt", !differentMapIntent.has_value());
+    }
+
+    // Of two valid targets, the nearer one wins.
+    {
+        HuntTargetProvenance nearTarget = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        HuntTargetProvenance farTarget = makeTarget(targetGuidB, huntCreatureEntry, true, 0, nowMs - 1000);
+        std::vector<HuntTargetObservation> targets{
+            makeSighting(AgentId{ 1 }, nearTarget, 10.0f, true),
+            makeSighting(AgentId{ 2 }, farTarget, 20.0f, true)
+        };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("of two valid targets, the nearer one wins",
+            intent.has_value() && intent->Target.TargetGuid == targetGuidA);
+
+        // Reordering the same two candidates never changes the result.
+        std::vector<HuntTargetObservation> reorderedTargets{
+            makeSighting(AgentId{ 2 }, farTarget, 20.0f, true),
+            makeSighting(AgentId{ 1 }, nearTarget, 10.0f, true)
+        };
+        std::optional<HuntIntent> reorderedIntent = huntIntentSystem.Evaluate(group, profile, members, reorderedTargets, nowMs);
+        check("reordering candidates does not change the selected target",
+            reorderedIntent.has_value() && reorderedIntent->Target.TargetGuid == intent->Target.TargetGuid);
+    }
+
+    // Equal distance -> a stable TargetGuid tie-break (the lower raw GUID
+    // value wins), never dependent on which order the candidates were
+    // given in.
+    {
+        HuntTargetProvenance targetA = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        HuntTargetProvenance targetB = makeTarget(targetGuidB, huntCreatureEntry, true, 0, nowMs - 1000);
+        ObjectGuid expectedWinner = targetGuidA.GetRawValue() < targetGuidB.GetRawValue() ? targetGuidA : targetGuidB;
+
+        std::vector<HuntTargetObservation> targets{
+            makeSighting(AgentId{ 1 }, targetA, 15.0f, true),
+            makeSighting(AgentId{ 2 }, targetB, 15.0f, true)
+        };
+        std::optional<HuntIntent> intent = huntIntentSystem.Evaluate(group, profile, members, targets, nowMs);
+        check("equal-distance candidates use a stable lower-TargetGuid tie-break",
+            intent.has_value() && intent->Target.TargetGuid == expectedWinner);
+
+        std::vector<HuntTargetObservation> reorderedTargets{
+            makeSighting(AgentId{ 2 }, targetB, 15.0f, true),
+            makeSighting(AgentId{ 1 }, targetA, 15.0f, true)
+        };
+        std::optional<HuntIntent> reorderedIntent = huntIntentSystem.Evaluate(group, profile, members, reorderedTargets, nowMs);
+        check("equal-distance tie-break does not depend on candidate order",
+            reorderedIntent.has_value() && reorderedIntent->Target.TargetGuid == expectedWinner);
+    }
+
+    // ---- Projection (HuntIntentProjector::Project()) ----
+
+    HuntIntent validIntent;
+    validIntent.Group = group.Id;
+    validIntent.Target = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+    validIntent.StartedAtMs = nowMs;
+
+    // Two materialized/alive/same-map members -> two proposals, each
+    // carrying the exact target/group/attempt timestamp the intent itself
+    // had. HuntProposal.h itself never declares a pointer-typed field, so
+    // "no proposal contains a pointer" is a structural guarantee of that
+    // struct's own shape, not something a runtime condition below needs to
+    // (or can) independently re-verify.
+    {
+        std::vector<HuntProposal> proposals = huntIntentProjector.Project(validIntent, members);
+        check("two valid members produce two proposals", proposals.size() == 2);
+
+        bool everyProposalMatchesIntent = true;
+        for (HuntProposal const& proposal : proposals)
+        {
+            if (proposal.SourceGroup != validIntent.Group || proposal.StartedAtMs != validIntent.StartedAtMs ||
+                proposal.Target.TargetGuid != validIntent.Target.TargetGuid || proposal.Target.TargetEntry != validIntent.Target.TargetEntry ||
+                proposal.Target.MapId != validIntent.Target.MapId || proposal.Target.Alive != validIntent.Target.Alive ||
+                proposal.Target.ObservedAtMs != validIntent.Target.ObservedAtMs)
+            {
+                everyProposalMatchesIntent = false;
+            }
+        }
+        check("every proposal carries the exact target/group/attempt timestamp the intent had", everyProposalMatchesIntent);
+    }
+
+    // Unloaded member -> no proposal for it.
+    {
+        std::vector<CoalitionMemberObservation> unloadedMembers{
+            makeMember(AgentId{ 1 }, false, false, 0),
+            makeMember(AgentId{ 2 }, true, true, 0)
+        };
+        std::vector<HuntProposal> proposals = huntIntentProjector.Project(validIntent, unloadedMembers);
+        check("unloaded member gets no proposal", proposals.size() == 1 && proposals[0].Member == AgentId{ 2 });
+    }
+
+    // Dead member -> no proposal for it.
+    {
+        std::vector<CoalitionMemberObservation> deadMembers{
+            makeMember(AgentId{ 1 }, true, false, 0),
+            makeMember(AgentId{ 2 }, true, true, 0)
+        };
+        std::vector<HuntProposal> proposals = huntIntentProjector.Project(validIntent, deadMembers);
+        check("dead member gets no proposal", proposals.size() == 1 && proposals[0].Member == AgentId{ 2 });
+    }
+
+    // Member on a different map than the target -> no proposal for it.
+    {
+        std::vector<CoalitionMemberObservation> differentMapMembers{
+            makeMember(AgentId{ 1 }, true, true, 1),
+            makeMember(AgentId{ 2 }, true, true, 0)
+        };
+        std::vector<HuntProposal> proposals = huntIntentProjector.Project(validIntent, differentMapMembers);
+        check("different-map member gets no proposal", proposals.size() == 1 && proposals[0].Member == AgentId{ 2 });
+    }
+
+    // An invalid intent (default-constructed: no Group, empty Target)
+    // produces no proposals at all, regardless of how many valid members
+    // are given.
+    {
+        HuntIntent invalidIntent;
+        std::vector<HuntProposal> proposals = huntIntentProjector.Project(invalidIntent, members);
+        check("invalid intent produces no proposals", proposals.empty());
+    }
+
+    TC_LOG_INFO("ai.world", "AI HUNT intent smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
 // Milestone 2.12F4A: manual proof only, gated behind AIWorld.TestControlMode
