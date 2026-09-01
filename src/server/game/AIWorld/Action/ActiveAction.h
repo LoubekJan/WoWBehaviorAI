@@ -19,6 +19,7 @@
 #define AIWORLD_ACTIVEACTION_H
 
 #include "ActionPosition.h"
+#include "ActionTargetRef.h"
 #include "ActionType.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
@@ -55,6 +56,17 @@ struct ActiveAction
 
     uint64 StartedAtMs = 0;
     std::optional<ActionPosition> Destination;
+
+    // Milestone 2.12G3C2 P2 fix (STATIC review): which external entity
+    // this action is approaching - nullopt for every SourceGoal except
+    // GoalType::Hunt, the same "empty/unset for every ActionType/GoalType
+    // that doesn't use it" convention Destination itself already holds.
+    // Carried alongside GoalStartedAtMs so a HUNT completion/ownership
+    // check can verify not just "same goal attempt" but "same target",
+    // closing a gap where GroupCoordinationGoal/ActiveActionState could
+    // otherwise agree on Type+StartedAtMs while silently disagreeing on
+    // WHICH target the attempt was actually for.
+    std::optional<ActionTargetRef> Target;
 };
 
 #endif // AIWORLD_ACTIVEACTION_H

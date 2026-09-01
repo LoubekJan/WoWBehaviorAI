@@ -1458,9 +1458,15 @@ class TC_GAME_API AIWorldMgr
         // proposals are appended to this pass's own combined batch.
         //
         // Milestone 2.12G3C2: REGROUP > already in-flight HUNT > newly
-        // selected HUNT > ROAM. REGROUP is checked first and, on a hit,
-        // dispatched immediately (unchanged priority over everything
-        // else). Otherwise HUNT is always considered next, regardless of
+        // selected HUNT > ROAM. REGROUP is checked first; on a hit, any
+        // in-flight HUNT this group's own members currently own is stopped
+        // FIRST (StopInFlightGroupCoordination(), CoordinationStopReason::
+        // PreemptedByRegroup - 2.12G3C2 P2 fix, STATIC review: outranking
+        // HUNT on paper is worthless if DispatchGroupMemberActionProposal()'s
+        // own "member already has an ActiveActionState" gate then silently
+        // drops the REGROUP proposal against a still-busy member), and only
+        // then is REGROUP projected/dispatched. Otherwise HUNT is always
+        // considered next, regardless of
         // whether this group's own Regroup/Roam intent.Type came back Roam
         // or None - see ResolveHuntIntentForGroup()/HasInFlightHuntAttempt()
         // for how an already in-flight attempt keeps owning this group's
@@ -1481,9 +1487,14 @@ class TC_GAME_API AIWorldMgr
         // (ShortTermMemory::GetActiveForAgent(), the same TTL'd/
         // deduplicated retrieval MemoryRetrieval's own decision-context
         // path already uses), converting each active CreatureSeen record
-        // into one HuntTargetObservation: Target.TargetGuid/TargetEntry
-        // from MemoryRecord::Target.Guid/Entry, Target.MapId/X/Y/Z from
-        // MemoryRecord::Location, Target.ObservedAtMs from
+        // into one HuntTargetObservation: Observer from MemoryRecord::Owner
+        // itself (2.12G3C2 P3 fix, STATIC review - the record's own
+        // claimed owner, never the group.Members loop variable used to
+        // fetch it; provenance must not be reassigned in this conversion -
+        // HuntIntentSystem::Evaluate() is what verifies this Observer
+        // actually names a real member of the group), Target.TargetGuid/
+        // TargetEntry from MemoryRecord::Target.Guid/Entry, Target.MapId/
+        // X/Y/Z from MemoryRecord::Location, Target.ObservedAtMs from
         // MemoryRecord::LastObservedAtMs, Distance/LineOfSight from
         // MemoryRecord::LastDistance/LastLineOfSight. Target.Alive is
         // always set true - PerceptionSystem::ObserveNearbyCreature()
@@ -1517,16 +1528,25 @@ class TC_GAME_API AIWorldMgr
         // CollectHuntTargetObservations()'s own output) is free to select
         // any eligible target. If every such member agrees on the exact
         // same (TargetGuid, TargetEntry, StartedAtMs) tuple, that identity
-        // is REUSED verbatim - never re-selected - and this call looks
-        // for the FRESHEST HuntTargetObservation naming that exact
-        // TargetGuid this pass (largest Target.ObservedAtMs, the same
-        // reduction HuntIntentSystem::Evaluate() itself already applies,
-        // so this never depends on input order either) to rebuild a full
-        // HuntTargetProvenance (position/alive/map) for projection; if no
-        // such observation exists this pass, this returns nullopt
-        // (nothing NEW to propose - the
-        // already in-flight members are left entirely untouched either
-        // way, never by this method). If members DISAGREE on that tuple,
+        // is REUSED - never re-selected from scratch. Milestone 2.12G3C2
+        // P2 fix (STATIC review): "reused" does NOT mean hand-picking the
+        // freshest matching observation outside the normal rule set - this
+        // call filters CollectHuntTargetObservations()'s own output down
+        // to ONLY the pinned TargetGuid and sends that filtered set
+        // through the exact same HuntIntentSystem::Evaluate() a fresh
+        // selection uses, so staleness (HuntObservationMaxAgeMs), observer
+        // alive/materialized/same-map, LOS/acquisition-distance, profile
+        // entry eligibility, and conflicting-duplicate detection all still
+        // apply to the pinned target every single pass, not just at the
+        // moment it was first selected. Only Evaluate()'s own resulting
+        // StartedAtMs is overridden with the pinned attempt's own stable
+        // identity afterward. If Evaluate() itself returns nullopt (the
+        // pinned target no longer passes its own rules this pass), this
+        // returns nullopt too - nothing NEW to propose; already in-flight
+        // members are left entirely untouched either way, never by this
+        // method (see ReconcileActiveHuntTargetsForGroup() for their own
+        // separate target-validity lifecycle). If members DISAGREE on that
+        // tuple,
         // the group's own HUNT state is ambiguous - logged, and nullopt
         // is returned unconditionally, exactly the same "cannot safely
         // pick a winner" fail-closed choice CountCoordinationEnabledMemberships()'s
@@ -1712,16 +1732,20 @@ class TC_GAME_API AIWorldMgr
         // alive; that live target's own Entry/MapId honestly match the
         // proposal's own claimed Target.TargetEntry/Target.MapId; the
         // target is not the member itself; the target is still
-        // IsValidAttackTarget() for this member; the member's own live
-        // distance to the target is within profile.HuntAcquisitionRadius
-        // AND within ActionSystem::CoordinationMoveToRangeYards() (the
-        // same UNREACHABLE semantics DispatchGroupMemberActionProposal()
-        // already established, applied against the target's live position
-        // rather than a fixed proposal point); the member has line-of-sight
-        // to the target's live position; that live position's own
-        // coordinates are finite; and PathGenerator finds a real navigable
-        // path to it (PATHFIND_NOPATH only - the same convention Roam's
-        // own dispatch-time path check already uses).
+        // IsValidAttackTarget() for this member; the target's live
+        // position is loaded into locals and confirmed finite (2.12G3C2 P2
+        // fix, STATIC review: BEFORE any distance/LOS/PathGenerator/
+        // Destination use - an earlier version called IsWithinLOS() and
+        // computed distance against the live target directly, checking
+        // isfinite() only afterward); the member's own live distance to
+        // the target is within profile.HuntAcquisitionRadius AND within
+        // ActionSystem::CoordinationMoveToRangeYards() (the same
+        // UNREACHABLE semantics DispatchGroupMemberActionProposal() already
+        // established, applied against the target's live position rather
+        // than a fixed proposal point); the member has line-of-sight to
+        // the target's live position; and PathGenerator finds a real
+        // navigable path to it (PATHFIND_NOPATH only - the same convention
+        // Roam's own dispatch-time path check already uses).
         //
         // The MOVE_TO Destination built from all of this is the target's
         // ACTUAL CURRENT position (live Creature::GetPosition*()), never
@@ -1741,7 +1765,13 @@ class TC_GAME_API AIWorldMgr
         // TargetGuid/TargetEntry/TargetObservedAtMs, the latter from
         // proposal.Target.ObservedAtMs) BEFORE calling ActionSystem::
         // Validate(), the same order/rollback-on-rejection discipline
-        // DispatchGroupMemberActionProposal() already holds to.
+        // DispatchGroupMemberActionProposal() already holds to. On a
+        // successfully started MOVE_TO, the resulting ActiveAction also
+        // carries Target (2.12G3C2 P2 fix, STATIC review: the same
+        // ActionTargetRef the request itself used) - see
+        // ActiveAction::Target's own comment for why a HUNT completion
+        // needs this to verify target identity, not just goal-attempt
+        // identity, before treating it as owned by the current attempt.
         void DispatchHuntProposal(HuntProposal const& proposal);
 
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): how many

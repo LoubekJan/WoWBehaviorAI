@@ -4973,8 +4973,14 @@ std::vector<HuntTargetObservation> AIWorldMgr::CollectHuntTargetObservations(Age
             if (memory.Type != ObservationType::CreatureSeen)
                 continue;
 
+            // 2.12G3C2 P3 fix (STATIC review): the record's own claimed
+            // Owner, not the membership.Member loop variable used to fetch
+            // it - provenance must not be reassigned in the conversion;
+            // HuntIntentSystem::Evaluate() itself is what verifies this
+            // Observer actually names a real, materialized/alive/same-map
+            // member of the group.
             HuntTargetObservation observation;
-            observation.Observer = membership.Member;
+            observation.Observer = memory.Owner;
             observation.Target.TargetGuid = memory.Target.Guid;
             observation.Target.TargetEntry = memory.Target.Entry;
             observation.Target.MapId = memory.Location.MapId;
@@ -5281,36 +5287,35 @@ std::optional<HuntIntent> AIWorldMgr::ResolveHuntIntentForGroup(AgentGroupRecord
 
     if (pinnedGoal)
     {
-        // An in-flight attempt already exists - the SAME target/attempt
-        // identity must be reused, never a freshly-selected one, while it
-        // is still active. Only a fresh sighting of this EXACT target this
-        // pass can produce a new proposal for a currently-idle member; if
-        // none exists, nothing new is projected this pass - already
-        // in-flight members are untouched either way (see
-        // ReconcileActiveHuntTargetsForGroup() for their own separate
-        // target-validity lifecycle). If more than one member freshly
-        // observed this exact target this same pass, the FRESHEST
-        // observation wins (largest Target.ObservedAtMs) - the same
-        // reduction HuntIntentSystem::Evaluate() itself already applies,
-        // so this never depends on huntObservations' own vector order.
-        HuntTargetObservation const* freshest = nullptr;
+        // Milestone 2.12G3C2 P2 fix (STATIC review): an in-flight attempt
+        // already exists - the SAME target/attempt identity must be
+        // reused, never a freshly-selected one, while it is still active.
+        // An earlier version hand-picked the freshest observation naming
+        // this exact TargetGuid purely by GUID+timestamp, which bypassed
+        // every OTHER fail-closed rule HuntIntentSystem::Evaluate() itself
+        // enforces - staleness against HuntObservationMaxAgeMs, observer
+        // alive/materialized/same-map, LOS/acquisition-distance, profile
+        // entry eligibility, and conflicting-duplicate detection. Filter
+        // huntObservations down to ONLY this pinned TargetGuid and send
+        // that filtered set through the SAME Evaluate() every fresh
+        // selection already goes through - if this target no longer
+        // passes even one of those rules, Evaluate() itself now correctly
+        // returns nullopt, exactly the same fail-closed outcome a fresh
+        // selection would give it. Only the resulting StartedAtMs is
+        // overridden with the pinned attempt's own stable identity - never
+        // Evaluate()'s own nowMs - so every member dispatched into this
+        // same ongoing attempt keeps a consistent one.
+        std::vector<HuntTargetObservation> pinnedObservations;
         for (HuntTargetObservation const& observation : huntObservations)
-        {
-            if (observation.Target.TargetGuid != pinnedGoal->TargetGuid)
-                continue;
+            if (observation.Target.TargetGuid == pinnedGoal->TargetGuid)
+                pinnedObservations.push_back(observation);
 
-            if (!freshest || observation.Target.ObservedAtMs > freshest->Target.ObservedAtMs)
-                freshest = &observation;
-        }
-
-        if (!freshest)
+        std::optional<HuntIntent> reevaluated = _huntIntentSystem.Evaluate(group, profile, observations, pinnedObservations, nowMs);
+        if (!reevaluated)
             return std::nullopt;
 
-        HuntIntent intent;
-        intent.Group = group.Id;
-        intent.Target = freshest->Target;
-        intent.StartedAtMs = pinnedGoal->StartedAtMs;
-        return intent;
+        reevaluated->StartedAtMs = pinnedGoal->StartedAtMs;
+        return reevaluated;
     }
 
     return _huntIntentSystem.Evaluate(group, profile, observations, huntObservations, nowMs);
@@ -5487,8 +5492,32 @@ void AIWorldMgr::RunCoalitionCoordination()
         // be left mid-hunt while it is also trying to pull itself back
         // together, the same reasoning REGROUP already outranked ROAM for
         // (see AgentGroupIntentSystem.h's own comment).
+        //
+        // Milestone 2.12G3C2 P2 fix (STATIC review): outranking on PAPER is
+        // not enough - DispatchGroupMemberActionProposal() itself refuses
+        // any member that already has an ActiveActionState, so a REGROUP
+        // proposal for a member still mid-HUNT would previously just be
+        // silently dropped there, leaving the HUNT running unopposed
+        // despite REGROUP's own declared priority. Stop any in-flight HUNT
+        // for THIS group's own members FIRST - clearing both
+        // ActiveActionState and GroupCoordinationGoalState via the same
+        // StopInFlightGroupCoordination() every other production stop path
+        // already uses - so the REGROUP proposal about to be dispatched
+        // below actually finds an idle member, not a busy one.
         if (intent.Type == AgentGroupIntentType::Regroup)
         {
+            for (AgentGroupMembership const& membership : group->Members)
+            {
+                AgentRecord* member = _registry.Find(membership.Member);
+                if (!member || !member->GroupCoordinationGoalState)
+                    continue;
+
+                if (member->GroupCoordinationGoalState->Type != GoalType::Hunt || member->GroupCoordinationGoalState->SourceGroup != group->Id)
+                    continue;
+
+                StopInFlightGroupCoordination(*member, "COORDINATION_STOPPED_BY_REGROUP_PREEMPTION", CoordinationStopReason::PreemptedByRegroup);
+            }
+
             std::vector<GroupMemberActionProposal> groupProposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
             proposals.insert(proposals.end(), groupProposals.begin(), groupProposals.end());
             continue;
@@ -5947,9 +5976,23 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     if (!creature->IsValidAttackTarget(target))
         return;
 
-    float rangeDx = target->GetPositionX() - creature->GetPositionX();
-    float rangeDy = target->GetPositionY() - creature->GetPositionY();
-    float rangeDz = target->GetPositionZ() - creature->GetPositionZ();
+    // Milestone 2.12G3C2 P2 fix (STATIC review): loaded into locals and
+    // verified finite HERE, before ANY use for distance/LOS/pathing/
+    // destination below - an earlier version used target->GetPosition*()
+    // directly for distance and IsWithinLOS() first, only checking
+    // isfinite() afterward, so a non-finite position could already have
+    // reached both.
+    uint32 targetMapId = target->GetMapId();
+    float targetX = target->GetPositionX();
+    float targetY = target->GetPositionY();
+    float targetZ = target->GetPositionZ();
+
+    if (!std::isfinite(targetX) || !std::isfinite(targetY) || !std::isfinite(targetZ))
+        return;
+
+    float rangeDx = targetX - creature->GetPositionX();
+    float rangeDy = targetY - creature->GetPositionY();
+    float rangeDz = targetZ - creature->GetPositionZ();
     float rangeDistanceSq = rangeDx * rangeDx + rangeDy * rangeDy + rangeDz * rangeDz;
 
     if (rangeDistanceSq > profile->HuntAcquisitionRadius * profile->HuntAcquisitionRadius)
@@ -5963,10 +6006,7 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
         return;
     }
 
-    if (!creature->IsWithinLOS(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()))
-        return;
-
-    if (!std::isfinite(target->GetPositionX()) || !std::isfinite(target->GetPositionY()) || !std::isfinite(target->GetPositionZ()))
+    if (!creature->IsWithinLOS(targetX, targetY, targetZ))
         return;
 
     // Same PathGenerator/PATHFIND_NOPATH convention Roam's own dispatch-time
@@ -5974,7 +6014,7 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     // is still accepted, only PATHFIND_NOPATH (MoveSplineInit's own
     // straight-line fallback) is rejected.
     PathGenerator huntPath(creature);
-    bool pathCalculated = huntPath.CalculatePath(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), false);
+    bool pathCalculated = huntPath.CalculatePath(targetX, targetY, targetZ, false);
     if (!pathCalculated || (huntPath.GetPathType() & PATHFIND_NOPATH))
     {
         TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} has no navigable path to its own live target - UNREACHABLE, no automatic HUNT approach attempted this pass",
@@ -5988,10 +6028,10 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     // never proposal.Target.X/Y/Z, which came from a HuntTargetObservation
     // that can already be stale by the time this runs.
     ActionPosition destination;
-    destination.MapId = target->GetMapId();
-    destination.X = target->GetPositionX();
-    destination.Y = target->GetPositionY();
-    destination.Z = target->GetPositionZ();
+    destination.MapId = targetMapId;
+    destination.X = targetX;
+    destination.Y = targetY;
+    destination.Z = targetZ;
 
     ActionRequest moveRequest;
     moveRequest.Actor = proposal.Member;
@@ -6036,10 +6076,10 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     moveContext.TargetAttackable = creature->IsValidAttackTarget(target);
     moveContext.TargetGuid = target->GetGUID();
     moveContext.TargetEntry = target->GetEntry();
-    moveContext.TargetMapId = target->GetMapId();
-    moveContext.TargetX = target->GetPositionX();
-    moveContext.TargetY = target->GetPositionY();
-    moveContext.TargetZ = target->GetPositionZ();
+    moveContext.TargetMapId = targetMapId;
+    moveContext.TargetX = targetX;
+    moveContext.TargetY = targetY;
+    moveContext.TargetZ = targetZ;
 
     ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
 
@@ -6070,6 +6110,7 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     action.GoalStartedAtMs = moveRequest.GoalStartedAtMs;
     action.StartedAtMs = nowMs;
     action.Destination = moveRequest.Destination;
+    action.Target = moveRequest.Target;
     record->ActiveActionState = action;
 }
 
@@ -6130,6 +6171,15 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     // ambiguity stop line - which group did this attempt belong to.
     GroupId sourceGroup = record.GroupCoordinationGoalState ? record.GroupCoordinationGoalState->SourceGroup : GroupId{};
 
+    // Milestone 2.12G3C2 P2 fix (STATIC review): captured here too, for
+    // the exact same reason sourceGroup already is - once
+    // GroupCoordinationGoalState is reset below, its own TargetGuid/
+    // TargetEntry are gone, and CoordinationStopEvent would have no way to
+    // honestly record WHICH target a HUNT-owned attempt was actually
+    // stopped for.
+    ObjectGuid sourceTargetGuid = record.GroupCoordinationGoalState ? record.GroupCoordinationGoalState->TargetGuid : ObjectGuid::Empty;
+    uint32 sourceTargetEntry = record.GroupCoordinationGoalState ? record.GroupCoordinationGoalState->TargetEntry : 0;
+
     record.GroupCoordinationGoalState.reset();
 
     // Defensive - by the ownership invariant DispatchGroupMemberActionProposal()
@@ -6163,6 +6213,8 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     stopEvent.SourceGoal = record.ActiveActionState->SourceGoal;
     stopEvent.SourceGroup = sourceGroup;
     stopEvent.StartedAtMs = record.ActiveActionState->GoalStartedAtMs;
+    stopEvent.TargetGuid = sourceTargetGuid;
+    stopEvent.TargetEntry = sourceTargetEntry;
     stopEvent.StoppedAtMs = CurrentTimeMs();
 
     if (record.WorldState == AgentWorldState::Materialized)
@@ -7812,6 +7864,13 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             stopEvent.SourceGoal = record->ActiveActionState->SourceGoal;
             stopEvent.SourceGroup = record->GroupCoordinationGoalState->SourceGroup;
             stopEvent.StartedAtMs = record->ActiveActionState->GoalStartedAtMs;
+            // Milestone 2.12G3C2 P2 fix (STATIC review): captured HERE,
+            // while GroupCoordinationGoalState is still set (its own reset
+            // below would otherwise erase this before it could ever be
+            // recorded) - see CoordinationStopEvent::TargetGuid's own
+            // comment.
+            stopEvent.TargetGuid = record->GroupCoordinationGoalState->TargetGuid;
+            stopEvent.TargetEntry = record->GroupCoordinationGoalState->TargetEntry;
             stopEvent.EngineGeneratorWasRunningBeforeStop = generatorWasRunning;
             stopEvent.EngineGeneratorConfirmedStoppedAfterStop = !HasOwnMoveToGenerator(*creature);
             if (record->ActiveGoalState)
@@ -8423,9 +8482,24 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
     if (IsRoutineSourceGoal(record->ActiveActionState->SourceGoal))
         ownedByCurrentAttempt = record->RoutineGoalState && record->RoutineGoalState->Type == record->ActiveActionState->SourceGoal;
     else if (IsCoordinationSourceGoal(record->ActiveActionState->SourceGoal))
+    {
         ownedByCurrentAttempt = record->GroupCoordinationGoalState
             && record->GroupCoordinationGoalState->Type == record->ActiveActionState->SourceGoal
             && record->GroupCoordinationGoalState->StartedAtMs == record->ActiveActionState->GoalStartedAtMs;
+
+        // Milestone 2.12G3C2 P2 fix (STATIC review): HUNT additionally
+        // carries target identity (ActiveAction::Target,
+        // GroupCoordinationGoal::TargetGuid/TargetEntry) - Type+StartedAtMs
+        // matching alone is not proof this completion belongs to the same
+        // TARGET-directed attempt, only the same goal-attempt slot. A
+        // no-op for Regroup/Roam, which carry no Target at all.
+        if (ownedByCurrentAttempt && record->ActiveActionState->SourceGoal == GoalType::Hunt)
+        {
+            ownedByCurrentAttempt = record->ActiveActionState->Target
+                && record->ActiveActionState->Target->Guid == record->GroupCoordinationGoalState->TargetGuid
+                && record->ActiveActionState->Target->Entry == record->GroupCoordinationGoalState->TargetEntry;
+        }
+    }
     else
         ownedByCurrentAttempt = record->ActiveGoalState && record->ActiveGoalState->Type == record->ActiveActionState->SourceGoal
             && record->ActiveGoalState->StartedAtMs == record->ActiveActionState->GoalStartedAtMs;

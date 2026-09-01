@@ -21,6 +21,7 @@
 #include "Agent/GroupId.h"
 #include "Define.h"
 #include "GoalType.h"
+#include "ObjectGuid.h"
 #include <optional>
 
 // Milestone 2.12G2R P2 fix, round 2 (STATIC review): a group-coordination-
@@ -73,7 +74,16 @@ enum class CoordinationStopReason : uint8
     // means something entirely different: the GROUP itself, or this
     // member's own membership in it, stopped applying - not a fact about
     // the target at all).
-    StoppedByTargetInvalid
+    StoppedByTargetInvalid,
+    // Milestone 2.12G3C2 P2 fix (STATIC review): a HUNT-owned in-flight
+    // MOVE_TO was stopped because its own group's REGROUP intent fired -
+    // see AIWorldMgr::RunCoalitionCoordination()'s own REGROUP branch.
+    // Deliberately its own distinct reason, never folded into the generic
+    // PreemptedByGoal (which means an INDIVIDUAL member's own Emergency/
+    // Normal ActiveGoal or RoutineGoal took the action slot back, a
+    // completely different kind of priority than one GROUP-coordination
+    // intent - REGROUP - outranking another - HUNT).
+    PreemptedByRegroup
 };
 
 inline char const* ToString(CoordinationStopReason reason)
@@ -84,6 +94,7 @@ inline char const* ToString(CoordinationStopReason reason)
         case CoordinationStopReason::StoppedByLifecycle:          return "STOPPED_BY_LIFECYCLE";
         case CoordinationStopReason::StoppedByMembershipAmbiguity: return "STOPPED_BY_MEMBERSHIP_AMBIGUITY";
         case CoordinationStopReason::StoppedByTargetInvalid:      return "STOPPED_BY_TARGET_INVALID";
+        case CoordinationStopReason::PreemptedByRegroup:          return "PREEMPTED_BY_REGROUP";
         default:                                                  return "UNKNOWN";
     }
 }
@@ -124,6 +135,19 @@ struct CoordinationStopEvent
     GoalType SourceGoal;
     GroupId SourceGroup;
     uint64 StartedAtMs = 0;
+
+    // Milestone 2.12G3C2 P2 fix (STATIC review): the stopped attempt's own
+    // target identity - only meaningful when SourceGoal == GoalType::Hunt,
+    // default-empty/0 for every other SourceGoal (Regroup/Roam name no
+    // target at all). Captured synchronously from GroupCoordinationGoal::
+    // TargetGuid/TargetEntry, BEFORE GroupCoordinationGoalState is reset by
+    // any of this event's own production stop sites - without this, a
+    // verifying caller (or HandleActionCompletion()'s own ownership check)
+    // has no way to confirm WHICH target this specific stop/completion
+    // actually applied to, only that "a Hunt attempt of this SourceGroup/
+    // StartedAtMs" did.
+    ObjectGuid TargetGuid;
+    uint32 TargetEntry = 0;
 
     // Milestone 2.12G2R P2 fix, round 3 (STATIC review): two SEPARATE
     // freshly-observed facts, not one - an earlier version only checked
