@@ -94,10 +94,14 @@ class TC_GAME_API ActionSystem
         // request.SourceGoal == GoalType::Hunt, after that method's own
         // generic Destination existence/map/finite checks already passed
         // but before its range/ActorMovementBusy checks run. Proves the
-        // request's claimed target (ActionRequest::Target) is real and
-        // honestly agrees with what the caller actually resolved
+        // request's claimed target (ActionRequest::Target) is internally
+        // honest - not just present, but a real creature GUID whose own
+        // embedded entry actually matches its claimed Entry (2.12G3C1 P2
+        // fix, STATIC review: closes the same GUID/entry-binding gap
+        // 2.12G3B's own review already found in HuntTargetProvenance) -
+        // and honestly agrees with what the caller actually resolved
         // (ActionValidationContext::TargetResolved/TargetAlive/
-        // TargetAttackable/TargetGuid/TargetEntry/TargetMapId/X/Y/Z) and
+        // TargetAttackable/TargetGuid/TargetEntry/TargetMapId/X/Y/Z), and
         // that the request's own Destination is provably that target's
         // actual current position, not merely a geometrically-plausible
         // point nearby - see ActionRequest::Target's own comment and

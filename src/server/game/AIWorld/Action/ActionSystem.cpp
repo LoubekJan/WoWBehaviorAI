@@ -218,6 +218,21 @@ ActionValidationResult ActionSystem::ValidateHuntTarget(ActionRequest const& req
     if (!request.Target || request.Target->Guid.IsEmpty() || request.Target->Entry == 0)
         return { false, ActionRejectReason::TargetMissing };
 
+    // 2.12G3C1 P2 fix (STATIC review): request.Target->Guid/Entry are
+    // otherwise only checked for self-consistency against each other and
+    // against context - a self-consistent but still-invalid pair (a
+    // non-creature GUID, or a creature GUID whose own embedded entry
+    // disagrees with the claimed Entry) would otherwise pass unrejected,
+    // the same GUID/entry-binding gap 2.12G3B's own STATIC review already
+    // closed for HuntTargetProvenance. TargetGuid must provably BE a
+    // creature, and Entry must provably be the SAME entry already encoded
+    // inside it - never trusted as an independent, freely-set field.
+    if (!request.Target->Guid.IsCreature())
+        return { false, ActionRejectReason::TargetIdentityMismatch };
+
+    if (request.Target->Guid.GetEntry() != request.Target->Entry)
+        return { false, ActionRejectReason::TargetEntryMismatch };
+
     // context.* below is AIWorldMgr's own authoritative, freshly-resolved
     // reality - never the request's claim. Each is checked independently
     // so a caller can tell exactly which fact about the target failed,

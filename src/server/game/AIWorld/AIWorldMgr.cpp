@@ -4378,6 +4378,43 @@ void AIWorldMgr::RunHuntActionValidationSmokeTest() const
             !result.Allowed && result.Reason == ActionRejectReason::TargetMissing);
     }
 
+    // request AND context self-consistently agree on a non-creature GUID
+    // (e.g. a Player) - self-consistency alone must never be enough; the
+    // GUID must provably BE a creature.
+    {
+        ObjectGuid playerGuid = ObjectGuid::Create<HighGuid::Player>(400);
+
+        ActionRequest request = makeValidRequest();
+        request.Target->Guid = playerGuid;
+
+        ActionValidationContext context = makeValidContext();
+        context.TargetGuid = playerGuid;
+
+        ActionValidationResult result = _actionSystem.Validate(request, context);
+        check("self-consistent non-creature GUID is REJECTED with TargetIdentityMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetIdentityMismatch);
+    }
+
+    // request AND context self-consistently agree on a creature GUID whose
+    // own embedded entry disagrees with the claimed Entry - self-
+    // consistency alone must never be enough; Entry must provably be the
+    // SAME entry already encoded inside the GUID itself.
+    {
+        ObjectGuid mismatchedEntryGuid = ObjectGuid::Create<HighGuid::Unit>(otherCreatureEntry, 300);
+
+        ActionRequest request = makeValidRequest();
+        request.Target->Guid = mismatchedEntryGuid;
+        request.Target->Entry = huntCreatureEntry;
+
+        ActionValidationContext context = makeValidContext();
+        context.TargetGuid = mismatchedEntryGuid;
+        context.TargetEntry = huntCreatureEntry;
+
+        ActionValidationResult result = _actionSystem.Validate(request, context);
+        check("self-consistent GUID/entry pair whose GUID-embedded entry disagrees with Entry is REJECTED with TargetEntryMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetEntryMismatch);
+    }
+
     // context.TargetResolved == false.
     {
         ActionValidationContext context = makeValidContext();
