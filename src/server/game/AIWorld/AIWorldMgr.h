@@ -784,6 +784,35 @@ class TC_GAME_API AIWorldMgr
         // AIWorld.TestHuntIntent).
         void RunHuntIntentSmokeTest() const;
 
+        // Milestone 2.12G3C1: manual proof of ActionSystem::Validate()'s own
+        // authoritative HUNT approach validation contract, entirely pure -
+        // synthetic ActionRequest/ActionValidationContext values built on
+        // the stack, fed straight to _actionSystem.Validate(), no
+        // registry/DB/live Creature/Map/grid access at all, and no
+        // ActionExecutor/movement (the same "pure layer first" scoping
+        // RunControlModeSmokeTest() already established for the ControlMode
+        // gate - this milestone deliberately adds no
+        // RunCoalitionCoordination()/DispatchHuntProposal() wiring, see
+        // ActionSystem::ValidateHuntTarget()'s own class comment).
+        // Exercises: a fully honest HUNT approach (MoveTo, SourceGoal=Hunt,
+        // Target naming the exact context-resolved target, Destination
+        // exactly matching the target's own current position) is ALLOWED;
+        // a missing Target, empty GUID, or zero Entry, an unresolved/dead/
+        // non-attackable context target, a request Target GUID/Entry that
+        // disagrees with the context's own resolved GUID/Entry, a target
+        // not on the actor's own map, a Destination not on the actor's own
+        // map, a Destination that does not match the target's own current
+        // position (including a non-finite target position), and a target
+        // beyond the shared coordination MOVE_TO range are each
+        // individually rejected with their own distinct
+        // ActionRejectReason; the pre-existing ControlMode/materialized/
+        // alive/goal-honesty/ActorMovementBusy common checks still apply
+        // unchanged to a HUNT request; and an ordinary Regroup/Roam MoveTo
+        // (no Target at all) still validates exactly as it did before this
+        // milestone. Always runs when this method is called at all (see
+        // AIWorld.TestHuntActionValidation).
+        void RunHuntActionValidationSmokeTest() const;
+
         // Milestone 2.12F4A: manual proof only, gated behind
         // AIWorld.TestControlMode (default 0 = disabled) - runs at most once,
         // from Initialize(), only against a real, already-registered AgentId

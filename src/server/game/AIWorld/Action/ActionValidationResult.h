@@ -53,7 +53,40 @@ enum class ActionRejectReason : uint8
     // ExpectedRoutineActivity/RoutineActivityStartedAtMs - the same
     // "independent authoritative fields, not just the generic ActiveGoal
     // pair" pattern EatContinuationMismatch already uses.
-    RoutineActivityMismatch
+    RoutineActivityMismatch,
+    // Milestone 2.12G3C1: a HUNT approach (MoveTo, SourceGoal=Hunt) whose
+    // ActionRequest::Target is missing, or names an empty GUID or a zero
+    // Entry - none of which can ever honestly name a real creature target.
+    // See ActionSystem::ValidateMoveTo()'s own HUNT-specific block.
+    TargetMissing,
+    // ActionValidationContext::TargetResolved is false - the caller could
+    // not resolve any live target for this request at all.
+    TargetNotResolved,
+    // The resolved target exists but ActionValidationContext::TargetAlive
+    // is false.
+    TargetDead,
+    // The resolved target exists and is alive, but
+    // ActionValidationContext::TargetAttackable is false for this actor.
+    TargetNotAttackable,
+    // ActionRequest::Target->Guid does not match
+    // ActionValidationContext::TargetGuid - the request does not honestly
+    // name the same target the caller actually resolved.
+    TargetIdentityMismatch,
+    // ActionRequest::Target->Entry does not match
+    // ActionValidationContext::TargetEntry.
+    TargetEntryMismatch,
+    // Either the resolved target is not on the actor's own current map
+    // (ActionValidationContext::TargetMapId != MapId), or the request's
+    // own Destination is not on the target's map - a HUNT approach can
+    // only ever be validated against a target actually reachable from the
+    // actor's own current map.
+    TargetMapMismatch,
+    // Either ActionValidationContext::TargetX/Y/Z is not finite, or the
+    // request's own Destination does not match the target's actual current
+    // position - a HUNT approach's Destination must be provably where the
+    // target actually is right now, not merely a geometrically-valid
+    // MoveTo destination that happens to be nearby.
+    TargetPositionMismatch
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -77,6 +110,14 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::ActorInCombat:          return "ACTOR_IN_COMBAT";
         case ActionRejectReason::EatContinuationMismatch: return "EAT_CONTINUATION_MISMATCH";
         case ActionRejectReason::RoutineActivityMismatch: return "ROUTINE_ACTIVITY_MISMATCH";
+        case ActionRejectReason::TargetMissing:           return "TARGET_MISSING";
+        case ActionRejectReason::TargetNotResolved:       return "TARGET_NOT_RESOLVED";
+        case ActionRejectReason::TargetDead:              return "TARGET_DEAD";
+        case ActionRejectReason::TargetNotAttackable:     return "TARGET_NOT_ATTACKABLE";
+        case ActionRejectReason::TargetIdentityMismatch:  return "TARGET_IDENTITY_MISMATCH";
+        case ActionRejectReason::TargetEntryMismatch:     return "TARGET_ENTRY_MISMATCH";
+        case ActionRejectReason::TargetMapMismatch:       return "TARGET_MAP_MISMATCH";
+        case ActionRejectReason::TargetPositionMismatch:  return "TARGET_POSITION_MISMATCH";
         default:                                         return "UNKNOWN";
     }
 }

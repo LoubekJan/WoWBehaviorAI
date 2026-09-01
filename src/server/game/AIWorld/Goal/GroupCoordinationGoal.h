@@ -21,6 +21,7 @@
 #include "Agent/GroupId.h"
 #include "Define.h"
 #include "GoalType.h"
+#include "ObjectGuid.h"
 
 // Milestone 2.12F2: an agent's own goal-like state sourced from GROUP
 // coordination (AIWorldMgr::DispatchGroupMemberActionProposal(), itself
@@ -78,11 +79,29 @@
 // invalidated by anything else - this is deliberately the one exception,
 // scoped narrowly to "the group this attempt's own identity names just
 // stopped applying to this member".
+// Milestone 2.12G3C1: target provenance, for HUNT's own future lifecycle
+// control (2.12G3C2's reconciliation/stop-on-target-invalid path, not
+// wired up by this milestone). Regroup/Roam leave these at their default,
+// empty values - they name no external entity at all, only a fixed point
+// (see AgentGroupIntent.h). For Hunt, a dispatched attempt's own full
+// identity is the tuple (GoalType::Hunt, SourceGroup, StartedAtMs,
+// TargetGuid, TargetEntry) - StartedAtMs alone (this attempt's own
+// identity, mirroring HuntIntent::StartedAtMs) is not enough to tell two
+// different HUNT attempts against two different targets apart, the way it
+// already is enough for Regroup/Roam (which never name a target at all).
+// TargetObservedAtMs is carried separately from StartedAtMs for the same
+// reason HuntTargetProvenance::ObservedAtMs is kept independent of
+// HuntIntent::StartedAtMs - attempt identity and target-freshness are two
+// different stale-response questions (see HuntIntent.h).
 struct GroupCoordinationGoal
 {
     GoalType Type = GoalType::Regroup;
     GroupId SourceGroup;
     uint64 StartedAtMs = 0;
+
+    ObjectGuid TargetGuid;
+    uint32 TargetEntry = 0;
+    uint64 TargetObservedAtMs = 0;
 };
 
 #endif // AIWORLD_GROUPCOORDINATIONGOAL_H

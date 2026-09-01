@@ -3962,6 +3962,20 @@ AIWorld.TestGroupIntentProjector = 0
 AIWorld.TestHuntIntent = 0
 
 #
+#    AIWorld.TestHuntActionValidation
+#        Description: Milestone 2.12G3C1 - when true, runs a one-shot manual proof at startup of
+#                     ActionSystem::Validate()'s own authoritative HUNT approach validation contract
+#                     (see AIWorldMgr::RunHuntActionValidationSmokeTest()). Entirely pure - synthetic
+#                     ActionRequest/ActionValidationContext values built on the stack, no registry/DB
+#                     touched at all, no live Creature/Map/grid access, no ActionExecutor/physical
+#                     movement, no RunCoalitionCoordination()/DispatchHuntProposal() integration yet
+#                     (this milestone's own contract commit adds none - that is 2.12G3C2's job). Off
+#                     by default - this is a manual verification aid, not a feature.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestHuntActionValidation = 0
+
+#
 #    AIWorld.TestControlMode
 #        Description: Milestone 2.12F4A - when set to an existing, already-registered AgentId,
 #                     runs a one-shot manual proof at startup of ActionSystem::Validate()'s own

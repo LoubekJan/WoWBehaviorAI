@@ -54,7 +54,12 @@ namespace
     // roam target is expected to stay well inside RegroupRadius (see
     // AgentGroupCoordinationProfile.h's own RoamDistance comment), itself
     // already bounded below this constant, so Roam never needed a wider
-    // bound of its own.
+    // bound of its own. Milestone 2.12G3C1: shared as-is by Hunt too - a
+    // HUNT target is bounded by its own profile's HuntAcquisitionRadius
+    // (see AgentGroupCoordinationProfile.h), which a caller is expected to
+    // configure well inside this constant the same way RoamDistance
+    // already is; this bound exists as ActionSystem's own independent,
+    // authoritative backstop regardless of what any profile claims.
     constexpr float MaxCoordinationMoveToRangeYards = 100.0f;
 }
 
@@ -153,6 +158,19 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     if (!std::isfinite(request.Destination->X) || !std::isfinite(request.Destination->Y) || !std::isfinite(request.Destination->Z))
         return { false, ActionRejectReason::DestinationNotFinite };
 
+    // Milestone 2.12G3C1: HUNT-specific target-identity requirements, run
+    // only for SourceGoal == GoalType::Hunt, only once the generic
+    // Destination existence/map/finite checks above already passed, and
+    // only BEFORE the range/ActorMovementBusy checks below - a HUNT
+    // approach must never be ALLOWED on Destination geometry alone (see
+    // ValidateHuntTarget()'s own comment).
+    if (request.SourceGoal == GoalType::Hunt)
+    {
+        ActionValidationResult huntTargetResult = ValidateHuntTarget(request, context);
+        if (!huntTargetResult.Allowed)
+            return huntTargetResult;
+    }
+
     // AI must not be able to send MOVE_TO to an arbitrary point on the
     // map - bounded to a fixed range from the actor's own current
     // position, checked after the finite check so a non-finite coordinate
@@ -166,10 +184,11 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     float distanceSq = dx * dx + dy * dy + dz * dz;
 
     bool isRoutineMove = request.SourceGoal == GoalType::GoToWork || request.SourceGoal == GoalType::GoHome;
-    // Milestone 2.12G2: Roam joins Regroup as a coordination-tier source -
-    // both go through DispatchGroupMemberActionProposal(), both are
-    // bounded by the same MaxCoordinationMoveToRangeYards.
-    bool isCoordinationMove = request.SourceGoal == GoalType::Regroup || request.SourceGoal == GoalType::Roam;
+    // Milestone 2.12G2/2.12G3C1: Roam and Hunt join Regroup as
+    // coordination-tier sources - all three are bounded by the same
+    // MaxCoordinationMoveToRangeYards.
+    bool isCoordinationMove = request.SourceGoal == GoalType::Regroup || request.SourceGoal == GoalType::Roam ||
+        request.SourceGoal == GoalType::Hunt;
     float maxRangeYards = isRoutineMove ? MaxRoutineMoveToRangeYards
         : isCoordinationMove ? MaxCoordinationMoveToRangeYards
         : MaxMoveToRangeYards;
@@ -186,6 +205,63 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
     // true (the actor could be anywhere after a 20-30s flee).
     if (context.HasActiveMovement)
         return { false, ActionRejectReason::ActorMovementBusy };
+
+    return { true, ActionRejectReason::None };
+}
+
+ActionValidationResult ActionSystem::ValidateHuntTarget(ActionRequest const& request, ActionValidationContext const& context) const
+{
+    // None of these can ever honestly name a real creature target - see
+    // ActionTargetRef.h/ActionRequest::Target's own comment. Grouped under
+    // one reason (rather than three) since all three represent the same
+    // underlying fact: the request does not carry a real target claim.
+    if (!request.Target || request.Target->Guid.IsEmpty() || request.Target->Entry == 0)
+        return { false, ActionRejectReason::TargetMissing };
+
+    // context.* below is AIWorldMgr's own authoritative, freshly-resolved
+    // reality - never the request's claim. Each is checked independently
+    // so a caller can tell exactly which fact about the target failed,
+    // rather than one undifferentiated rejection.
+    if (!context.TargetResolved)
+        return { false, ActionRejectReason::TargetNotResolved };
+
+    if (!context.TargetAlive)
+        return { false, ActionRejectReason::TargetDead };
+
+    if (!context.TargetAttackable)
+        return { false, ActionRejectReason::TargetNotAttackable };
+
+    // The request must honestly name the SAME target the caller actually
+    // resolved - not merely claim a Guid/Entry that happens to pass the
+    // checks above on their own.
+    if (request.Target->Guid != context.TargetGuid)
+        return { false, ActionRejectReason::TargetIdentityMismatch };
+
+    if (request.Target->Entry != context.TargetEntry)
+        return { false, ActionRejectReason::TargetEntryMismatch };
+
+    // The target itself must be on the actor's own current map - a HUNT
+    // approach can never legitimately cross maps.
+    if (context.TargetMapId != context.MapId)
+        return { false, ActionRejectReason::TargetMapMismatch };
+
+    // Destination must be on the target's own map too - already implied
+    // by the two checks above (both already equal context.MapId once they
+    // pass), but checked explicitly rather than relied on transitively, in
+    // case either check's own wiring ever changes independently.
+    if (request.Destination->MapId != context.TargetMapId)
+        return { false, ActionRejectReason::TargetMapMismatch };
+
+    if (!std::isfinite(context.TargetX) || !std::isfinite(context.TargetY) || !std::isfinite(context.TargetZ))
+        return { false, ActionRejectReason::TargetPositionMismatch };
+
+    // The request's own Destination must be provably where the target
+    // ACTUALLY is right now - not merely a geometrically-valid MoveTo
+    // destination that happens to be nearby. This is the check that closes
+    // off "geometry alone is enough" - see this method's own header
+    // comment.
+    if (request.Destination->X != context.TargetX || request.Destination->Y != context.TargetY || request.Destination->Z != context.TargetZ)
+        return { false, ActionRejectReason::TargetPositionMismatch };
 
     return { true, ActionRejectReason::None };
 }

@@ -79,12 +79,32 @@ class TC_GAME_API ActionSystem
         // honestly names it). Checks the destination exists, is on the
         // actor's own map, has finite coordinates, and is within a bounded
         // range - see ActionSystem.cpp for the exact distances (GoToWork/
-        // GoHome get the widest, routine-commute bound; Regroup - 2.12F2 -
-        // gets a narrower-than-routine-but-wider-than-default bound, wide
-        // enough to reach a member from anywhere within a Loose group's
-        // own LeaveRadius; every other GoalType keeps the original
-        // reactive-goal bound).
+        // GoHome get the widest, routine-commute bound; Regroup/Roam/Hunt -
+        // 2.12F2/2.12G2/2.12G3C1 - share a narrower-than-routine-but-wider-
+        // than-default bound, wide enough to reach a member from anywhere
+        // within a Loose group's own LeaveRadius; every other GoalType
+        // keeps the original reactive-goal bound). Milestone 2.12G3C1: for
+        // SourceGoal == GoalType::Hunt specifically, this geometric check
+        // alone is not enough - see ValidateHuntTarget() below, invoked
+        // from within this method, for the additional target-identity
+        // requirements a HUNT approach must also satisfy.
         ActionValidationResult ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const;
+
+        // Milestone 2.12G3C1: invoked from ValidateMoveTo() only when
+        // request.SourceGoal == GoalType::Hunt, after that method's own
+        // generic Destination existence/map/finite checks already passed
+        // but before its range/ActorMovementBusy checks run. Proves the
+        // request's claimed target (ActionRequest::Target) is real and
+        // honestly agrees with what the caller actually resolved
+        // (ActionValidationContext::TargetResolved/TargetAlive/
+        // TargetAttackable/TargetGuid/TargetEntry/TargetMapId/X/Y/Z) and
+        // that the request's own Destination is provably that target's
+        // actual current position, not merely a geometrically-plausible
+        // point nearby - see ActionRequest::Target's own comment and
+        // ActionRejectReason's TargetMissing..TargetPositionMismatch
+        // values for the exact rule set. A HUNT approach must never be
+        // ALLOWED on Destination geometry alone.
+        ActionValidationResult ValidateHuntTarget(ActionRequest const& request, ActionValidationContext const& context) const;
 
         // Milestone 2.8G/2.8G P2 fix: Eat-specific, run only once the
         // common checks above already passed. Unlike MoveTo, Eat is tied

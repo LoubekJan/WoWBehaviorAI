@@ -839,6 +839,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // test toggles are: sits next to them rather than off on its own.
     bool testHuntIntent = sConfigMgr->GetBoolDefault("AIWorld.TestHuntIntent", false);
 
+    // Milestone 2.12G3C1: off by default - see
+    // RunHuntActionValidationSmokeTest()'s own comment.
+    bool testHuntActionValidation = sConfigMgr->GetBoolDefault("AIWorld.TestHuntActionValidation", false);
+
     // Milestone 2.12F4A: off by default (0 - the same 0-means-disabled
     // convention every other AgentId-keyed test hook in this file already
     // uses) - see RunControlModeSmokeTest()'s own comment. Names a real,
@@ -1471,6 +1475,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // own pure-layer commit deliberately adds none).
     if (testHuntIntent)
         RunHuntIntentSmokeTest();
+
+    // Milestone 2.12G3C1: manual proof only, gated behind
+    // AIWorld.TestHuntActionValidation (default off) - see
+    // RunHuntActionValidationSmokeTest()'s own comment. Entirely pure, no
+    // RunCoalitionCoordination()/DispatchHuntProposal() integration at all
+    // yet (this milestone's own contract commit deliberately adds none).
+    if (testHuntActionValidation)
+        RunHuntActionValidationSmokeTest();
 
     // Milestone 2.12F4A: manual proof only, gated behind
     // AIWorld.TestControlMode (default 0/disabled) - see
@@ -4255,6 +4267,303 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
     }
 
     TC_LOG_INFO("ai.world", "AI HUNT intent smoke test {}", allPassed ? "PASSED" : "FAILED");
+}
+
+// Milestone 2.12G3C1: manual proof of ActionSystem::Validate()'s own
+// authoritative HUNT approach validation contract, entirely pure -
+// synthetic ActionRequest/ActionValidationContext values built on the
+// stack, fed straight to _actionSystem.Validate(), no registry/DB/live
+// Creature/Map/grid access at all, no ActionExecutor/movement (the same
+// "pure layer first" scoping RunControlModeSmokeTest() already
+// established for the ControlMode gate - this milestone deliberately adds
+// no RunCoalitionCoordination()/DispatchHuntProposal() integration, see
+// ActionSystem::ValidateHuntTarget()'s own class comment). Always runs
+// when this method is called at all (see AIWorld.TestHuntActionValidation).
+void AIWorldMgr::RunHuntActionValidationSmokeTest() const
+{
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI HUNT action validation smoke test: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI HUNT action validation smoke test: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    constexpr uint32 huntCreatureEntry = 5000;
+    constexpr uint32 otherCreatureEntry = 5001;
+    ObjectGuid targetGuid = ObjectGuid::Create<HighGuid::Unit>(huntCreatureEntry, 100);
+    ObjectGuid otherGuid = ObjectGuid::Create<HighGuid::Unit>(huntCreatureEntry, 200);
+
+    // A fully honest HUNT approach: request.Target names exactly what the
+    // context claims to have resolved, and request.Destination is exactly
+    // the target's own current position. Every subsequent case below
+    // starts from a copy of this pair and breaks exactly one fact.
+    auto makeValidRequest = [&]()
+    {
+        ActionRequest request;
+        request.Actor = AgentId{ 1 };
+        request.Type = ActionType::MoveTo;
+        request.SourceGoal = GoalType::Hunt;
+        request.GoalStartedAtMs = 1000;
+        request.Target = ActionTargetRef{ targetGuid, huntCreatureEntry };
+
+        ActionPosition destination;
+        destination.MapId = 0;
+        destination.X = 25.0f;
+        destination.Y = 0.0f;
+        destination.Z = 0.0f;
+        request.Destination = destination;
+        return request;
+    };
+
+    auto makeValidContext = [&]()
+    {
+        ActionValidationContext context;
+        context.Materialized = true;
+        context.Alive = true;
+        context.ControlMode = AgentControlMode::AIWorldControlled;
+        context.ActiveGoalType = GoalType::Hunt;
+        context.ActiveGoalStartedAtMs = 1000;
+        context.MapId = 0;
+        context.X = 0.0f;
+        context.Y = 0.0f;
+        context.Z = 0.0f;
+        context.HasActiveMovement = false;
+        context.TargetResolved = true;
+        context.TargetAlive = true;
+        context.TargetAttackable = true;
+        context.TargetGuid = targetGuid;
+        context.TargetEntry = huntCreatureEntry;
+        context.TargetMapId = 0;
+        context.TargetX = 25.0f;
+        context.TargetY = 0.0f;
+        context.TargetZ = 0.0f;
+        return context;
+    };
+
+    // A fully honest HUNT approach is ALLOWED.
+    {
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), makeValidContext());
+        check("valid HUNT approach is ALLOWED", result.Allowed && result.Reason == ActionRejectReason::None);
+    }
+
+    // request.Target missing entirely.
+    {
+        ActionRequest request = makeValidRequest();
+        request.Target.reset();
+        ActionValidationResult result = _actionSystem.Validate(request, makeValidContext());
+        check("request without a Target is REJECTED with TargetMissing",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetMissing);
+    }
+
+    // request.Target->Guid empty.
+    {
+        ActionRequest request = makeValidRequest();
+        request.Target->Guid = ObjectGuid::Empty;
+        ActionValidationResult result = _actionSystem.Validate(request, makeValidContext());
+        check("empty request target GUID is REJECTED with TargetMissing",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetMissing);
+    }
+
+    // request.Target->Entry == 0.
+    {
+        ActionRequest request = makeValidRequest();
+        request.Target->Entry = 0;
+        ActionValidationResult result = _actionSystem.Validate(request, makeValidContext());
+        check("zero request target entry is REJECTED with TargetMissing",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetMissing);
+    }
+
+    // context.TargetResolved == false.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.TargetResolved = false;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("unresolved context target is REJECTED with TargetNotResolved",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetNotResolved);
+    }
+
+    // context.TargetAlive == false.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.TargetAlive = false;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("dead context target is REJECTED with TargetDead",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetDead);
+    }
+
+    // context.TargetAttackable == false.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.TargetAttackable = false;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("non-attackable context target is REJECTED with TargetNotAttackable",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetNotAttackable);
+    }
+
+    // request.Target->Guid disagrees with context.TargetGuid.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.TargetGuid = otherGuid;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("request/context target GUID mismatch is REJECTED with TargetIdentityMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetIdentityMismatch);
+    }
+
+    // request.Target->Entry disagrees with context.TargetEntry.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.TargetEntry = otherCreatureEntry;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("request/context target entry mismatch is REJECTED with TargetEntryMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetEntryMismatch);
+    }
+
+    // Target itself not on the actor's own map.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.TargetMapId = 1;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("target on a different map than the actor is REJECTED with TargetMapMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetMapMismatch);
+    }
+
+    // request.Destination on a different map than the actor - the
+    // pre-existing generic DestinationMapMismatch check still applies to a
+    // HUNT request exactly as it does to any other MoveTo.
+    {
+        ActionRequest request = makeValidRequest();
+        request.Destination->MapId = 1;
+        ActionValidationResult result = _actionSystem.Validate(request, makeValidContext());
+        check("destination on a different map than the actor is REJECTED with the pre-existing DestinationMapMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::DestinationMapMismatch);
+    }
+
+    // request.Destination does not match the target's own current position.
+    {
+        ActionRequest request = makeValidRequest();
+        request.Destination->Y = 5.0f;
+        ActionValidationResult result = _actionSystem.Validate(request, makeValidContext());
+        check("destination not matching the target's own current position is REJECTED with TargetPositionMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetPositionMismatch);
+    }
+
+    // context.TargetX/Y/Z not finite.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.TargetX = std::numeric_limits<float>::quiet_NaN();
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("non-finite target position is REJECTED with TargetPositionMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetPositionMismatch);
+    }
+
+    // context.ControlMode != AIWorldControlled - the pre-existing mandatory
+    // ControlMode gate still applies unconditionally to a HUNT request.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.ControlMode = AgentControlMode::ObserveOnly;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("ObserveOnly actor is REJECTED with the pre-existing ControlModeNotAllowed",
+            !result.Allowed && result.Reason == ActionRejectReason::ControlModeNotAllowed);
+    }
+
+    // Actor not materialized / dead - the pre-existing common checks still
+    // apply unconditionally to a HUNT request.
+    {
+        ActionValidationContext unmaterializedContext = makeValidContext();
+        unmaterializedContext.Materialized = false;
+        ActionValidationResult unmaterializedResult = _actionSystem.Validate(makeValidRequest(), unmaterializedContext);
+        check("unmaterialized actor is REJECTED with the pre-existing ActorNotMaterialized",
+            !unmaterializedResult.Allowed && unmaterializedResult.Reason == ActionRejectReason::ActorNotMaterialized);
+
+        ActionValidationContext deadContext = makeValidContext();
+        deadContext.Alive = false;
+        ActionValidationResult deadResult = _actionSystem.Validate(makeValidRequest(), deadContext);
+        check("dead actor is REJECTED with the pre-existing ActorDead",
+            !deadResult.Allowed && deadResult.Reason == ActionRejectReason::ActorDead);
+    }
+
+    // Goal type/timestamp dishonesty - the pre-existing common
+    // SourceGoal/GoalStartedAtMs honesty checks still apply unconditionally
+    // to a HUNT request.
+    {
+        ActionValidationContext goalMismatchContext = makeValidContext();
+        goalMismatchContext.ActiveGoalType = GoalType::GetFood;
+        ActionValidationResult goalMismatchResult = _actionSystem.Validate(makeValidRequest(), goalMismatchContext);
+        check("goal type mismatch is REJECTED with the pre-existing GoalMismatch",
+            !goalMismatchResult.Allowed && goalMismatchResult.Reason == ActionRejectReason::GoalMismatch);
+
+        ActionValidationContext timestampMismatchContext = makeValidContext();
+        timestampMismatchContext.ActiveGoalStartedAtMs = 999;
+        ActionValidationResult timestampMismatchResult = _actionSystem.Validate(makeValidRequest(), timestampMismatchContext);
+        check("goal attempt timestamp mismatch is REJECTED with the pre-existing GoalMismatch",
+            !timestampMismatchResult.Allowed && timestampMismatchResult.Reason == ActionRejectReason::GoalMismatch);
+    }
+
+    // context.HasActiveMovement - the pre-existing common ActorMovementBusy
+    // check still applies unconditionally to a HUNT request.
+    {
+        ActionValidationContext context = makeValidContext();
+        context.HasActiveMovement = true;
+        ActionValidationResult result = _actionSystem.Validate(makeValidRequest(), context);
+        check("actor with an already-active movement is REJECTED with the pre-existing ActorMovementBusy",
+            !result.Allowed && result.Reason == ActionRejectReason::ActorMovementBusy);
+    }
+
+    // Target beyond the shared coordination MOVE_TO range - Destination
+    // still exactly matches the target's own current position (so
+    // TargetPositionMismatch does not fire first), but that position is
+    // farther from the actor than ActionSystem::CoordinationMoveToRangeYards().
+    {
+        ActionRequest request = makeValidRequest();
+        ActionValidationContext context = makeValidContext();
+        float farX = ActionSystem::CoordinationMoveToRangeYards() + 50.0f;
+        request.Destination->X = farX;
+        context.TargetX = farX;
+        ActionValidationResult result = _actionSystem.Validate(request, context);
+        check("target beyond the shared coordination MOVE_TO range is REJECTED with the pre-existing DestinationTooFar",
+            !result.Allowed && result.Reason == ActionRejectReason::DestinationTooFar);
+    }
+
+    // An ordinary Regroup MoveTo (no Target at all) still validates exactly
+    // as it did before this milestone - HUNT's own additional checks must
+    // never leak into a non-Hunt SourceGoal.
+    {
+        ActionRequest request;
+        request.Actor = AgentId{ 1 };
+        request.Type = ActionType::MoveTo;
+        request.SourceGoal = GoalType::Regroup;
+        request.GoalStartedAtMs = 1000;
+
+        ActionPosition destination;
+        destination.MapId = 0;
+        destination.X = 10.0f;
+        destination.Y = 0.0f;
+        destination.Z = 0.0f;
+        request.Destination = destination;
+
+        ActionValidationContext context;
+        context.Materialized = true;
+        context.Alive = true;
+        context.ControlMode = AgentControlMode::AIWorldControlled;
+        context.ActiveGoalType = GoalType::Regroup;
+        context.ActiveGoalStartedAtMs = 1000;
+        context.MapId = 0;
+        context.X = 0.0f;
+        context.Y = 0.0f;
+        context.Z = 0.0f;
+        context.HasActiveMovement = false;
+
+        ActionValidationResult result = _actionSystem.Validate(request, context);
+        check("an ordinary Regroup MoveTo without a Target is unaffected and still ALLOWED",
+            result.Allowed && result.Reason == ActionRejectReason::None);
+    }
+
+    TC_LOG_INFO("ai.world", "AI HUNT action validation smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
 // Milestone 2.12F4A: manual proof only, gated behind AIWorld.TestControlMode

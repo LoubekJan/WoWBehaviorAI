@@ -61,6 +61,25 @@
 // must be able to name each honestly rather than reporting every group-
 // coordination MOVE_TO as REGROUP regardless of which one actually
 // produced it.
+//
+// Hunt (2.12G3C1) joins Regroup/Roam as a third sibling at that same
+// LOWEST tier: Emergency ActiveGoal > Normal ActiveGoal > RoutineGoal >
+// Regroup/Roam/Hunt. Unlike Regroup/Roam, it does NOT get its own
+// AgentGroupIntentType value - HUNT's group-level intent is already named
+// by the separate, purpose-built HuntIntent (2.12G3A/G3B), which
+// decomposes directly into per-member HuntProposal values without ever
+// passing through AgentGroupIntent/AgentGroupIntentProjector at all. This
+// GoalType exists purely so that per-member decomposition can still
+// double as ActionRequest::SourceGoal/GroupCoordinationGoal::Type/
+// ActiveAction::SourceGoal directly, the same "reuse the existing MOVE_TO
+// pipeline, don't invent a parallel one" reasoning every other
+// GroupCoordinationGoal-sourced GoalType already gives - HUNT's own
+// MOVE_TO (the "approach" leg, 2.12G3C1) still goes through
+// ActionType::MoveTo/ActionSystem::Validate()/ActionExecutor exactly like
+// Regroup/Roam; only the target-identity requirements it additionally
+// enforces (see ActionSystem::ValidateMoveTo()) differ from them. No
+// physical attack/combat ActionType exists for Hunt yet - that remains
+// out of scope until a later milestone explicitly adds it.
 enum class GoalType : uint8
 {
     GetFood,
@@ -68,7 +87,8 @@ enum class GoalType : uint8
     GoToWork,
     GoHome,
     Regroup,
-    Roam
+    Roam,
+    Hunt
 };
 
 inline char const* ToString(GoalType type)
@@ -81,6 +101,7 @@ inline char const* ToString(GoalType type)
         case GoalType::GoHome:     return "GO_HOME";
         case GoalType::Regroup:    return "REGROUP";
         case GoalType::Roam:       return "ROAM";
+        case GoalType::Hunt:       return "HUNT";
         default:                   return "UNKNOWN";
     }
 }

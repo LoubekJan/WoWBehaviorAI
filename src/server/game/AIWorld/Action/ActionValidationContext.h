@@ -121,6 +121,41 @@ struct ActionValidationContext
     // of what it claims.
     std::optional<RoutineActivityType> ExpectedRoutineActivity;
     uint64 RoutineActivityStartedAtMs = 0;
+
+    // Milestone 2.12G3C1: authoritative HUNT target facts - resolved by
+    // AIWorldMgr on the world thread immediately before validation (never
+    // trusted from the ActionRequest being validated), the same "reality,
+    // not the request's claim" discipline FleeSourceGuid/ArrivedDestination
+    // already hold. Only meaningful for a MoveTo request whose SourceGoal
+    // is GoalType::Hunt. All defaults are fail-closed: an
+    // ActionValidationContext a caller forgot to populate these on gets a
+    // REJECTED HUNT approach, never an ALLOWED one, the same reasoning
+    // ControlMode's own ObserveOnly default already documents.
+    //
+    // TargetResolved/TargetAlive/TargetAttackable are independent booleans,
+    // not folded into one "target ok" flag - ActionSystem::Validate()
+    // reports which specific one failed (TargetNotResolved/TargetDead/
+    // TargetNotAttackable) rather than a single undifferentiated rejection.
+    // TargetGuid/TargetEntry are what the caller actually resolved this
+    // target's identity to be - compared against ActionRequest::Target's
+    // own claimed Guid/Entry (TargetIdentityMismatch/TargetEntryMismatch).
+    // TargetMapId/X/Y/Z are the target's own current, live position - never
+    // a stale memory/observation snapshot - compared against the request's
+    // own Destination (TargetMapMismatch/TargetPositionMismatch); a HUNT
+    // approach's Destination must be provably where the target actually
+    // is right now, not merely a geometrically-valid MoveTo destination
+    // that happens to be nearby.
+    bool TargetResolved = false;
+    bool TargetAlive = false;
+    bool TargetAttackable = false;
+
+    ObjectGuid TargetGuid;
+    uint32 TargetEntry = 0;
+
+    uint32 TargetMapId = 0;
+    float TargetX = 0.0f;
+    float TargetY = 0.0f;
+    float TargetZ = 0.0f;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

@@ -19,6 +19,7 @@
 #define AIWORLD_ACTIONREQUEST_H
 
 #include "ActionPosition.h"
+#include "ActionTargetRef.h"
 #include "Agent/AgentId.h"
 #include "ActionType.h"
 #include "Define.h"
@@ -64,6 +65,20 @@ struct ActionRequest
     // actor's current map, has finite coordinates, and is within a bounded
     // range - see ActionSystem::ValidateMoveTo().
     std::optional<ActionPosition> Destination;
+
+    // Milestone 2.12G3C1: which external entity this request claims to be
+    // approaching - only meaningful for a MoveTo request whose SourceGoal
+    // is GoalType::Hunt (nullopt for every other request, the same
+    // "empty/unset for every ActionType/GoalType that doesn't use it"
+    // convention FleeFromGuid/Destination already hold). Validate() checks
+    // this is present and names a real (non-empty GUID, non-zero Entry)
+    // target, and that it honestly agrees with
+    // ActionValidationContext::TargetGuid/TargetEntry - the caller's own
+    // authoritative, freshly-resolved facts, never trusted just because
+    // the request repeats them - before it ever considers the request's
+    // Destination geometrically valid. See ActionSystem::ValidateMoveTo()/
+    // ActionTargetRef.h.
+    std::optional<ActionTargetRef> Target;
 };
 
 #endif // AIWORLD_ACTIONREQUEST_H
