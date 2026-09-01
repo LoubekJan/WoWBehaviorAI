@@ -3887,6 +3887,11 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
         nanRadiusProfile.HuntAcquisitionRadius = std::numeric_limits<float>::quiet_NaN();
         std::optional<HuntIntent> nanIntent = huntIntentSystem.Evaluate(group, nanRadiusProfile, members, targets, nowMs);
         check("NaN HuntAcquisitionRadius selects nullopt", !nanIntent.has_value());
+
+        AgentGroupCoordinationProfile infiniteRadiusProfile = profile;
+        infiniteRadiusProfile.HuntAcquisitionRadius = std::numeric_limits<float>::infinity();
+        std::optional<HuntIntent> infiniteIntent = huntIntentSystem.Evaluate(group, infiniteRadiusProfile, members, targets, nowMs);
+        check("infinite HuntAcquisitionRadius selects nullopt", !infiniteIntent.has_value());
     }
 
     // An unconfigured max observation age (HuntObservationMaxAgeMs == 0)
@@ -4012,6 +4017,27 @@ void AIWorldMgr::RunHuntIntentSmokeTest() const
         std::vector<HuntTargetObservation> nanTargets{ makeSighting(AgentId{ 1 }, target, std::numeric_limits<float>::quiet_NaN(), true) };
         std::optional<HuntIntent> nanIntent = huntIntentSystem.Evaluate(group, profile, members, nanTargets, nowMs);
         check("NaN Distance selects nullopt", !nanIntent.has_value());
+
+        std::vector<HuntTargetObservation> infiniteTargets{ makeSighting(AgentId{ 1 }, target, std::numeric_limits<float>::infinity(), true) };
+        std::optional<HuntIntent> infiniteIntent = huntIntentSystem.Evaluate(group, profile, members, infiniteTargets, nowMs);
+        check("infinite Distance selects nullopt", !infiniteIntent.has_value());
+    }
+
+    // Non-finite target coordinates (NaN or Inf) must never propagate into
+    // a produced HuntIntent/HuntProposal, even though this class's own
+    // selection math never reads them directly.
+    {
+        HuntTargetProvenance nanCoordinateTarget = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        nanCoordinateTarget.X = std::numeric_limits<float>::quiet_NaN();
+        std::vector<HuntTargetObservation> nanCoordinateTargets{ makeSighting(AgentId{ 1 }, nanCoordinateTarget, 10.0f, true) };
+        std::optional<HuntIntent> nanCoordinateIntent = huntIntentSystem.Evaluate(group, profile, members, nanCoordinateTargets, nowMs);
+        check("NaN target coordinate selects nullopt", !nanCoordinateIntent.has_value());
+
+        HuntTargetProvenance infiniteCoordinateTarget = makeTarget(targetGuidA, huntCreatureEntry, true, 0, nowMs - 1000);
+        infiniteCoordinateTarget.Z = std::numeric_limits<float>::infinity();
+        std::vector<HuntTargetObservation> infiniteCoordinateTargets{ makeSighting(AgentId{ 1 }, infiniteCoordinateTarget, 10.0f, true) };
+        std::optional<HuntIntent> infiniteCoordinateIntent = huntIntentSystem.Evaluate(group, profile, members, infiniteCoordinateTargets, nowMs);
+        check("infinite target coordinate selects nullopt", !infiniteCoordinateIntent.has_value());
     }
 
     // An unloaded, dead, or non-member observer's sighting is never
