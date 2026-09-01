@@ -295,6 +295,15 @@ class TC_GAME_API AIWorldMgr
         //     _groupRegistry, AND record.Id is still actually one of its
         //     Members (never trusts that either still holds by the time
         //     this specific poll runs);
+        //   - the member's own re-resolved live Creature IsAlive()
+        //     (2.12G3D1 P2 fix, STATIC review: ResolveLiveCreature() only
+        //     looks up a pointer by spawn, it does not itself check
+        //     liveness - HasActiveCoordinationMoveTo() above never claimed
+        //     to either, so this method checks it explicitly to actually
+        //     satisfy its own declared "materialized/alive actor"
+        //     requirement, without changing HasActiveCoordinationMoveTo()
+        //     itself and risking the older Regroup/Roam test hooks that
+        //     already share it);
         //   - the target transiently resolves live by its exact Guid
         //     (ObjectAccessor::GetCreature(), never a force-load, never
         //     stored past this call) and IsAlive();

@@ -1831,9 +1831,13 @@ std::optional<AIWorldMgr::TestHuntAttemptIdentity> AIWorldMgr::CaptureActiveHunt
     // never stored past this call. HasActiveCoordinationMoveTo() already
     // proved the MEMBER's own live Creature resolves; this re-resolves it
     // fresh rather than threading a pointer through from that call.
+    // 2.12G3D1 P2 fix (STATIC review): ResolveLiveCreature() only looks up
+    // a pointer by spawn - it does not check liveness. IsAlive() must be
+    // checked explicitly here to actually satisfy the declared
+    // "materialized/alive actor" fail-closed requirement.
     Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
     Creature* creature = ResolveLiveCreature(record, map);
-    if (!creature)
+    if (!creature || !creature->IsAlive())
         return std::nullopt;
 
     Creature* target = ObjectAccessor::GetCreature(*creature, record.ActiveActionState->Target->Guid);
