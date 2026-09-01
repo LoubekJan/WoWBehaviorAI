@@ -62,7 +62,18 @@ enum class CoordinationStopReason : uint8
 {
     PreemptedByGoal,
     StoppedByLifecycle,
-    StoppedByMembershipAmbiguity
+    StoppedByMembershipAmbiguity,
+    // Milestone 2.12G3C2: a HUNT-owned in-flight MOVE_TO was stopped
+    // because its own target stopped being valid - no longer resolvable
+    // (unloaded/despawned), dead, on a different map, its GUID/entry no
+    // longer matching what this attempt's own GroupCoordinationGoal
+    // recorded, or no longer attackable - see
+    // AIWorldMgr::ReconcileActiveHuntTargetsForGroup(). Deliberately its
+    // own distinct reason, never folded into StoppedByLifecycle (which
+    // means something entirely different: the GROUP itself, or this
+    // member's own membership in it, stopped applying - not a fact about
+    // the target at all).
+    StoppedByTargetInvalid
 };
 
 inline char const* ToString(CoordinationStopReason reason)
@@ -72,6 +83,7 @@ inline char const* ToString(CoordinationStopReason reason)
         case CoordinationStopReason::PreemptedByGoal:             return "PREEMPTED_BY_GOAL";
         case CoordinationStopReason::StoppedByLifecycle:          return "STOPPED_BY_LIFECYCLE";
         case CoordinationStopReason::StoppedByMembershipAmbiguity: return "STOPPED_BY_MEMBERSHIP_AMBIGUITY";
+        case CoordinationStopReason::StoppedByTargetInvalid:      return "STOPPED_BY_TARGET_INVALID";
         default:                                                  return "UNKNOWN";
     }
 }

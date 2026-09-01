@@ -4242,6 +4242,54 @@ AIWorld.WolfGroupRoamIntervalMs = 15000
 AIWorld.WolfGroupRoamArrivalRadius = 5.0
 
 #
+#    AIWorld.WolfGroupHuntEnabled
+#        Description: Milestone 2.12G3C2 - whether WolfLoose groups may automatically select and
+#                     approach a HUNT target from generic CreatureSeen memory observations, through
+#                     the same generic HuntIntentSystem/HuntIntentProjector/ActionSystem pipeline
+#                     every other profile-driven coordination behavior already uses. No species-
+#                     specific orchestration exists anywhere for this. Entry 0 (the default) combined
+#                     with this set to true is a misconfiguration - see
+#                     AIWorld.WolfGroupHuntTargetCreatureEntry's own comment - and disables HUNT for
+#                     this profile with a logged ERROR rather than silently matching nothing.
+#        Default:     0 - (Disabled)
+
+AIWorld.WolfGroupHuntEnabled = 0
+
+#
+#    AIWorld.WolfGroupHuntTargetCreatureEntry
+#        Description: Milestone 2.12G3C2 - the one creature template entry WolfLoose HUNT is allowed
+#                     to select as a target - the first, narrowest possible profile-driven eligibility
+#                     policy (HuntIntentSystem never branches on which profile this is, only on this
+#                     already-resolved value). 0 is never a real creature entry and always fails
+#                     closed, the same way an empty target GUID does.
+#        Default:     0 - (never a real entry; HUNT stays effectively disabled until set)
+
+AIWorld.WolfGroupHuntTargetCreatureEntry = 0
+
+#
+#    AIWorld.WolfGroupHuntAcquisitionRadius
+#        Description: Milestone 2.12G3C2 - the maximum distance (in yards), from BOTH the observing
+#                     member at target-selection time and the actually-dispatching member at dispatch
+#                     time, a HUNT target may be. Independently bounded by ActionSystem's own
+#                     CoordinationMoveToRangeYards() backstop regardless of this value.
+#        Important:   Values <= 0 or non-finite, combined with HuntEnabled=true, disable WolfLoose
+#                     HUNT with a logged ERROR.
+#        Default:     30.0
+
+AIWorld.WolfGroupHuntAcquisitionRadius = 30.0
+
+#
+#    AIWorld.WolfGroupHuntObservationMaxAgeMs
+#        Description: Milestone 2.12G3C2 - the maximum age (in milliseconds) of a CreatureSeen memory
+#                     observation HuntIntentSystem will still trust when selecting a target - older
+#                     observations fail closed, never selected regardless of how otherwise valid they
+#                     look.
+#        Important:   0, combined with HuntEnabled=true, disables WolfLoose HUNT with a logged ERROR.
+#        Default:     5000
+
+AIWorld.WolfGroupHuntObservationMaxAgeMs = 5000
+
+#
 ###################################################################################################
 # AI WORLD - 2.12G1 DEFIAS LOOSE (second coalition profile)
 #
@@ -4385,6 +4433,41 @@ AIWorld.DefiasGroupRoamIntervalMs = 15000
 #        Default:     5.0
 
 AIWorld.DefiasGroupRoamArrivalRadius = 5.0
+
+#
+#    AIWorld.DefiasGroupHuntEnabled
+#        Description: Milestone 2.12G3C2 - see AIWorld.WolfGroupHuntEnabled's own comment (identical
+#                     logic, different profile).
+#        Default:     0 - (Disabled)
+
+AIWorld.DefiasGroupHuntEnabled = 0
+
+#
+#    AIWorld.DefiasGroupHuntTargetCreatureEntry
+#        Description: Milestone 2.12G3C2 - see AIWorld.WolfGroupHuntTargetCreatureEntry's own comment
+#                     (identical logic, different profile).
+#        Default:     0 - (never a real entry; HUNT stays effectively disabled until set)
+
+AIWorld.DefiasGroupHuntTargetCreatureEntry = 0
+
+#
+#    AIWorld.DefiasGroupHuntAcquisitionRadius
+#        Description: Milestone 2.12G3C2 - see AIWorld.WolfGroupHuntAcquisitionRadius's own comment
+#                     (identical logic, different profile).
+#        Important:   Values <= 0 or non-finite, combined with HuntEnabled=true, disable DefiasLoose
+#                     HUNT with a logged ERROR.
+#        Default:     30.0
+
+AIWorld.DefiasGroupHuntAcquisitionRadius = 30.0
+
+#
+#    AIWorld.DefiasGroupHuntObservationMaxAgeMs
+#        Description: Milestone 2.12G3C2 - see AIWorld.WolfGroupHuntObservationMaxAgeMs's own comment
+#                     (identical logic, different profile).
+#        Important:   0, combined with HuntEnabled=true, disables DefiasLoose HUNT with a logged ERROR.
+#        Default:     5000
+
+AIWorld.DefiasGroupHuntObservationMaxAgeMs = 5000
 
 #
 #    AIWorld.GroupCoordinationIntervalMs

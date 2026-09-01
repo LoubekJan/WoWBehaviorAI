@@ -1456,7 +1456,126 @@ class TC_GAME_API AIWorldMgr
         // _agentGroupIntentSystem.Evaluate(), and - only if the result is
         // Regroup or Roam - _agentGroupIntentProjector.Project(), whose
         // proposals are appended to this pass's own combined batch.
+        //
+        // Milestone 2.12G3C2: REGROUP > already in-flight HUNT > newly
+        // selected HUNT > ROAM. REGROUP is checked first and, on a hit,
+        // dispatched immediately (unchanged priority over everything
+        // else). Otherwise HUNT is always considered next, regardless of
+        // whether this group's own Regroup/Roam intent.Type came back Roam
+        // or None - see ResolveHuntIntentForGroup()/HasInFlightHuntAttempt()
+        // for how an already in-flight attempt keeps owning this group's
+        // action slot (even producing no NEW proposal this pass) rather
+        // than letting a settling ROAM phase steal it back mid-hunt. Only
+        // once HUNT claims nothing at all this pass - no in-flight
+        // attempt, no fresh selection - does ROAM's own existing rules
+        // apply, unchanged from 2.12G2. ReconcileActiveHuntTargetsForGroup()
+        // runs once per discovered group, before any of the above, so a
+        // just-invalidated in-flight HUNT target is stopped before this
+        // same pass decides what (if anything) replaces it.
         void RunCoalitionCoordination();
+
+        // Milestone 2.12G3C2: production HUNT target observation
+        // collection - explicitly NOT a new unbounded spatial scan. Reuses
+        // whatever CreatureSeen memories PerceptionSystem already wrote
+        // into _shortTermMemory for each of group's own members
+        // (ShortTermMemory::GetActiveForAgent(), the same TTL'd/
+        // deduplicated retrieval MemoryRetrieval's own decision-context
+        // path already uses), converting each active CreatureSeen record
+        // into one HuntTargetObservation: Target.TargetGuid/TargetEntry
+        // from MemoryRecord::Target.Guid/Entry, Target.MapId/X/Y/Z from
+        // MemoryRecord::Location, Target.ObservedAtMs from
+        // MemoryRecord::LastObservedAtMs, Distance/LineOfSight from
+        // MemoryRecord::LastDistance/LastLineOfSight. Target.Alive is
+        // always set true - PerceptionSystem::ObserveNearbyCreature()
+        // itself only ever produces a CreatureSeen Observation for a
+        // target that IS alive at observation time (see its own
+        // `if (!seen.IsAlive()) return std::nullopt;` guard), so this is
+        // an honest fact about how the record was created, not an
+        // assumption that it is STILL true now - HuntIntentSystem's own
+        // staleness/max-age check is what actually protects against a
+        // since-died target's memory record being trusted past its
+        // freshness window, and DispatchHuntProposal()'s own live
+        // re-resolution is what protects against one trusted right up to
+        // dispatch time. No live Creature*/Unit*, no force-load, no
+        // registry mutation - a plain read of already-collected memory.
+        std::vector<HuntTargetObservation> CollectHuntTargetObservations(AgentGroupRecord const& group, uint64 nowMs) const;
+
+        // Milestone 2.12G3C2: what (if anything) this group's own HUNT
+        // should target this pass - the one place that reconstructs an
+        // already in-flight attempt's own identity purely from its
+        // members' own AgentRecord::GroupCoordinationGoalState, rather
+        // than a separate manager-level pin map the way ROAM's own
+        // _roamAttemptPinnedNowMs is (HUNT's own target/attempt identity
+        // already lives on every dispatched member's own
+        // GroupCoordinationGoalState - see GroupCoordinationGoal.h's own
+        // 2.12G3C1 comment - so a second, independently-tracked copy of
+        // the same fact would just be a new place for the two to silently
+        // disagree). Scans group.Members for any whose
+        // GroupCoordinationGoalState has Type == GoalType::Hunt and
+        // SourceGroup == group.Id: if none exist, no attempt is in
+        // flight, and a fresh HuntIntentSystem::Evaluate() (fed
+        // CollectHuntTargetObservations()'s own output) is free to select
+        // any eligible target. If every such member agrees on the exact
+        // same (TargetGuid, TargetEntry, StartedAtMs) tuple, that identity
+        // is REUSED verbatim - never re-selected - and this call looks
+        // for the FRESHEST HuntTargetObservation naming that exact
+        // TargetGuid this pass (largest Target.ObservedAtMs, the same
+        // reduction HuntIntentSystem::Evaluate() itself already applies,
+        // so this never depends on input order either) to rebuild a full
+        // HuntTargetProvenance (position/alive/map) for projection; if no
+        // such observation exists this pass, this returns nullopt
+        // (nothing NEW to propose - the
+        // already in-flight members are left entirely untouched either
+        // way, never by this method). If members DISAGREE on that tuple,
+        // the group's own HUNT state is ambiguous - logged, and nullopt
+        // is returned unconditionally, exactly the same "cannot safely
+        // pick a winner" fail-closed choice CountCoordinationEnabledMemberships()'s
+        // own overlap arbitration already makes for cross-group ambiguity,
+        // applied here to a single group's own internally-inconsistent
+        // state instead.
+        std::optional<HuntIntent> ResolveHuntIntentForGroup(AgentGroupRecord const& group, AgentGroupCoordinationProfile const& profile,
+            std::vector<CoalitionMemberObservation> const& observations, uint64 nowMs) const;
+
+        // Milestone 2.12G3C2: the HUNT counterpart to HasInFlightRoamAttempt() -
+        // whether ANY current member of group still has an in-flight HUNT
+        // attempt SOURCED FROM THIS GROUP (GroupCoordinationGoalState set,
+        // Type == GoalType::Hunt, SourceGroup == group.Id), regardless of
+        // whether that attempt's own identity is internally consistent
+        // across members. Used by RunCoalitionCoordination() purely to
+        // decide whether HUNT owns this group's action slot this pass EVEN
+        // WHEN ResolveHuntIntentForGroup() itself returns nullopt (an
+        // in-flight attempt with nothing NEW to propose this pass must
+        // still block ROAM from claiming the slot back mid-hunt).
+        bool HasInFlightHuntAttempt(AgentGroupRecord const& group) const;
+
+        // Milestone 2.12G3C2: re-validates every current member of group
+        // whose GroupCoordinationGoalState is an in-flight HUNT attempt
+        // (Type == GoalType::Hunt, SourceGroup == group.Id) against LIVE
+        // target reality - never against the memory-derived
+        // HuntTargetProvenance that originally selected it, which can
+        // already be stale by the time this runs. For each such member
+        // with a live, resolvable, Materialized+Alive Creature: transiently
+        // resolves the target by its own stored TargetGuid
+        // (ObjectAccessor::GetCreature(), a plain already-loaded-object
+        // lookup - never a force-load), then requires ALL of: the target
+        // resolves at all; is alive; is on the SAME map as this member's
+        // own live Creature; its own live Entry still matches the stored
+        // TargetEntry; and it is still IsValidAttackTarget() for this
+        // member. The first fact that fails calls
+        // StopInFlightGroupCoordination(..., CoordinationStopReason::
+        // StoppedByTargetInvalid) for that member - never a partial/
+        // best-effort stop, and never anything beyond what
+        // StopInFlightGroupCoordination() itself already does (engine
+        // MoveTo stop, ActiveActionState/GroupCoordinationGoalState
+        // cleared, LastCoordinationStop recorded). A member that cannot be
+        // resolved live at all (not Materialized, or ResolveLiveCreature()
+        // fails) is left untouched THIS call - neither confirmed valid nor
+        // invalidated, since there is nothing here to honestly check
+        // either way; existing dematerialization handling elsewhere is
+        // what governs that member's own state, not this method. Called
+        // once per discovered group, from within RunCoalitionCoordination()'s
+        // own bounded per-pass loop - no separate unbounded scan.
+        void ReconcileActiveHuntTargetsForGroup(AgentGroupRecord const& group);
 
         // Milestone 2.12F2: the one place a GroupMemberActionProposal
         // (AgentGroupIntentProjector's own output - a group-level intent
@@ -1561,19 +1680,84 @@ class TC_GAME_API AIWorldMgr
         // which is stateless and needs no such rollback).
         void DispatchGroupMemberActionProposal(GroupMemberActionProposal const& proposal);
 
+        // Milestone 2.12G3C2: the HUNT counterpart to
+        // DispatchGroupMemberActionProposal() - turns a HuntProposal
+        // (HuntIntentProjector's own output, still only a proposal, never
+        // an authorization) into a real, individually-validated MOVE_TO
+        // ActionRequest, revalidating everything fresh rather than
+        // trusting anything resolved earlier this same pass. Fail-closed
+        // order: proposal.Member resolves in _registry; the member is
+        // AIWorldControlled; proposal.SourceGroup resolves in
+        // _groupRegistry; that group has no lifecycle operation currently
+        // pending (2.12G3C2's own extra defense-in-depth check - unlike
+        // DispatchGroupMemberActionProposal(), which relies entirely on
+        // RunCoalitionCoordination()'s own upstream discovery-time filter);
+        // proposal.Member is still actually one of the group's Members;
+        // the group's own profile still resolves and still has HuntEnabled;
+        // the member is Materialized; no ActiveGoalState/RoutineGoalState
+        // (HUNT is the same LOWEST tier as Regroup/Roam); no
+        // ActiveActionState already running; no GroupCoordinationGoalState
+        // already set (an explicit, independent re-check of the same
+        // invariant ActiveActionState's own check already implies, kept
+        // separate because HUNT's own GroupCoordinationGoalState carries
+        // target identity that must never be silently overwritten); the
+        // member does not structurally belong to more than one
+        // coordination-enabled group (CountCoordinationEnabledMemberships(),
+        // re-checked here too, never trusting that
+        // RunCoalitionCoordination()'s own upstream arbitration still
+        // holds by the time this specific proposal runs); the member's own
+        // live Creature resolves and is alive; the proposal's own claimed
+        // target resolves live by its exact TargetGuid
+        // (ObjectAccessor::GetCreature(), never a force-load) and is
+        // alive; that live target's own Entry/MapId honestly match the
+        // proposal's own claimed Target.TargetEntry/Target.MapId; the
+        // target is not the member itself; the target is still
+        // IsValidAttackTarget() for this member; the member's own live
+        // distance to the target is within profile.HuntAcquisitionRadius
+        // AND within ActionSystem::CoordinationMoveToRangeYards() (the
+        // same UNREACHABLE semantics DispatchGroupMemberActionProposal()
+        // already established, applied against the target's live position
+        // rather than a fixed proposal point); the member has line-of-sight
+        // to the target's live position; that live position's own
+        // coordinates are finite; and PathGenerator finds a real navigable
+        // path to it (PATHFIND_NOPATH only - the same convention Roam's
+        // own dispatch-time path check already uses).
+        //
+        // The MOVE_TO Destination built from all of this is the target's
+        // ACTUAL CURRENT position (live Creature::GetPosition*()), never
+        // proposal.Target.X/Y/Z - those came from a HuntTargetObservation
+        // that can already be stale by the time this runs; only the live,
+        // just-reconfirmed position is ever actually moved toward.
+        // ActionRequest::SourceGoal/GoalStartedAtMs are GoalType::Hunt/
+        // proposal.StartedAtMs (the group-wide HUNT ATTEMPT's own stable
+        // identity - deliberately NOT a fresh per-dispatch CurrentTimeMs()
+        // the way Regroup/Roam use, so every member subsequently dispatched
+        // into the SAME ongoing attempt, across however many
+        // RunCoalitionCoordination() passes it spans, gets the exact same
+        // StartedAtMs - see ResolveHuntIntentForGroup()'s own comment for
+        // why that stability is what lets it recognize them all as one
+        // attempt rather than reporting a false ambiguity). Sets
+        // record->GroupCoordinationGoalState (Type/SourceGroup/StartedAtMs/
+        // TargetGuid/TargetEntry/TargetObservedAtMs, the latter from
+        // proposal.Target.ObservedAtMs) BEFORE calling ActionSystem::
+        // Validate(), the same order/rollback-on-rejection discipline
+        // DispatchGroupMemberActionProposal() already holds to.
+        void DispatchHuntProposal(HuntProposal const& proposal);
+
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): how many
         // currently-registered groups member belongs to whose own resolved
-        // profile has RegroupEnabled or, since 2.12G2, RoamEnabled - the
-        // one shared definition of "coordination-ambiguous membership"
-        // both RunCoalitionCoordination()'s own overlap arbitration and
+        // profile has RegroupEnabled, RoamEnabled, or (2.12G3C2) HuntEnabled -
+        // the one shared definition of "coordination-ambiguous membership"
+        // both RunCoalitionCoordination()'s own overlap arbitration (for
+        // Regroup/Roam AND Hunt proposals alike) and
         // ReconcileGroupCoordinationForMember() now use, via
         // AgentGroupRegistry::GetGroupsOfMember() (O(k) where k is however
         // many groups member is actually in, almost always 0 or 1 - see
-        // that method's own comment). Milestone 2.12G2: deliberately
-        // RegroupEnabled OR RoamEnabled, not RegroupEnabled alone - see
-        // this method's own definition for why scoping this safety net to
-        // only the first coordination behavior that ever existed would
-        // have left a real gap the moment a second one (Roam) was added.
+        // that method's own comment). Deliberately an OR across all three
+        // capabilities, not any one alone - see this method's own
+        // definition for why scoping this safety net to only the
+        // capabilities that existed when it was first written would leave
+        // a real gap the moment a new one is added.
         uint32 CountCoordinationEnabledMemberships(AgentId member) const;
 
         // Milestone 2.12G2 P2 fix (STATIC review): whether ANY current
@@ -2199,6 +2383,13 @@ class TC_GAME_API AIWorldMgr
         // RunCoalitionCoordination().
         AgentGroupIntentSystem _agentGroupIntentSystem;
         AgentGroupIntentProjector _agentGroupIntentProjector;
+
+        // Milestone 2.12G3B: pure decision systems - see their own class
+        // comments. Stateless, called only from RunCoalitionCoordination()/
+        // ResolveHuntIntentForGroup(), the same way _agentGroupIntentSystem/
+        // _agentGroupIntentProjector already are for Regroup/Roam.
+        HuntIntentSystem _huntIntentSystem;
+        HuntIntentProjector _huntIntentProjector;
 
         // Milestone 2.12F2: AIWorldMgr's own one existing
         // AgentGroupCoordinationProfile, paired with

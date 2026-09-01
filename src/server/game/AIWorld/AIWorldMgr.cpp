@@ -35,6 +35,7 @@
 #include "Metric.h"
 #include "MotionMaster.h"
 #include "MovementDefines.h"
+#include "ObjectAccessor.h"
 #include "PathGenerator.h"
 #include "Player.h"
 #include "PointMovementGenerator.h"
@@ -98,17 +99,21 @@ namespace
         return type == GoalType::GoToWork || type == GoalType::GoHome;
     }
 
-    // Milestone 2.12G2: the group-coordination counterpart to
+    // Milestone 2.12G2/2.12G3C2: the group-coordination counterpart to
     // IsRoutineSourceGoal() above - the single place that knows
-    // GoalType::Regroup/Roam are both GroupCoordinationGoalState-owned
+    // GoalType::Regroup/Roam/Hunt are all GroupCoordinationGoalState-owned
     // source tags (see GroupCoordinationGoal.h), so every ownership/
     // preemption/stop check that used to compare only against
     // GoalType::Regroup now goes through here instead of silently
-    // treating a Roam-sourced attempt as if it belonged to no owner at
-    // all.
+    // treating a Roam- or Hunt-sourced attempt as if it belonged to no
+    // owner at all. Extending this one function is what makes HUNT
+    // automatically inherit the exact same Emergency/Normal ActiveGoal and
+    // RoutineGoal preemption UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL
+    // block already enforces for Regroup/Roam - no separate Hunt-specific
+    // preemption logic exists anywhere.
     bool IsCoordinationSourceGoal(GoalType type)
     {
-        return type == GoalType::Regroup || type == GoalType::Roam;
+        return type == GoalType::Regroup || type == GoalType::Roam || type == GoalType::Hunt;
     }
 
     // Milestone 2.12D P2 fix (STATIC review): every AgentRecord now names a
@@ -656,6 +661,31 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         wolfGroupRoamArrivalRadius = wolfGroupRoamDistance * 0.5f;
     }
 
+    // Milestone 2.12G3C2: off by default (AIWorld.WolfGroupHuntEnabled) -
+    // the same "not-yet-runtime-verified capability defaults off" discipline
+    // every other new coordination behavior gets. Validated the exact same
+    // way HuntIntentSystem::Evaluate() itself already fails closed
+    // (HuntTargetCreatureEntry == 0, or HuntAcquisitionRadius non-finite/
+    // <= 0) - re-checked here purely for OPERATOR VISIBILITY: without this,
+    // an admin who sets WolfGroupHuntEnabled=1 but leaves
+    // HuntTargetCreatureEntry at its 0 default would see HUNT silently
+    // never trigger, with no log line explaining why. HuntIntentSystem's
+    // own fail-closed checks are the actual safety guarantee either way -
+    // this config-time check adds visibility, not a second independent
+    // enforcement point.
+    bool wolfGroupHuntEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupHuntEnabled", false);
+    uint32 wolfGroupHuntTargetCreatureEntry = uint32(sConfigMgr->GetIntDefault("AIWorld.WolfGroupHuntTargetCreatureEntry", 0));
+    float wolfGroupHuntAcquisitionRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupHuntAcquisitionRadius", 30.0f);
+    uint32 wolfGroupHuntObservationMaxAgeMs = uint32(std::max(0, sConfigMgr->GetIntDefault("AIWorld.WolfGroupHuntObservationMaxAgeMs", 5000)));
+
+    if (wolfGroupHuntEnabled && (wolfGroupHuntTargetCreatureEntry == 0 || !std::isfinite(wolfGroupHuntAcquisitionRadius) ||
+        wolfGroupHuntAcquisitionRadius <= 0.0f || wolfGroupHuntObservationMaxAgeMs == 0))
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.WolfGroupHuntEnabled is set, but HuntTargetCreatureEntry={}/HuntAcquisitionRadius={:.1f}/HuntObservationMaxAgeMs={} is invalid - disabling WolfLoose HUNT",
+            wolfGroupHuntTargetCreatureEntry, wolfGroupHuntAcquisitionRadius, wolfGroupHuntObservationMaxAgeMs);
+        wolfGroupHuntEnabled = false;
+    }
+
     _wolfLooseCoordinationProfile.ProfileId = CoalitionFormationProfileId::WolfLoose;
     _wolfLooseCoordinationProfile.Kind = AgentGroupKind::Loose;
     _wolfLooseCoordinationProfile.RegroupEnabled = wolfGroupRegroupEnabled;
@@ -664,9 +694,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseCoordinationProfile.RoamDistance = wolfGroupRoamDistance;
     _wolfLooseCoordinationProfile.RoamIntervalMs = wolfGroupRoamIntervalMs;
     _wolfLooseCoordinationProfile.RoamArrivalRadius = wolfGroupRoamArrivalRadius;
+    _wolfLooseCoordinationProfile.HuntEnabled = wolfGroupHuntEnabled;
+    _wolfLooseCoordinationProfile.HuntTargetCreatureEntry = wolfGroupHuntTargetCreatureEntry;
+    _wolfLooseCoordinationProfile.HuntAcquisitionRadius = wolfGroupHuntAcquisitionRadius;
+    _wolfLooseCoordinationProfile.HuntObservationMaxAgeMs = wolfGroupHuntObservationMaxAgeMs;
 
-    TC_LOG_INFO("ai.world", "AI wolf coalition coordination configured regroupEnabled={} regroupRadius={:.1f} roamEnabled={} roamDistance={:.1f} roamIntervalMs={} roamArrivalRadius={:.1f}",
-        wolfGroupRegroupEnabled, wolfGroupRegroupRadius, wolfGroupRoamEnabled, wolfGroupRoamDistance, wolfGroupRoamIntervalMs, wolfGroupRoamArrivalRadius);
+    TC_LOG_INFO("ai.world", "AI wolf coalition coordination configured regroupEnabled={} regroupRadius={:.1f} roamEnabled={} roamDistance={:.1f} roamIntervalMs={} roamArrivalRadius={:.1f} "
+        "huntEnabled={} huntTargetCreatureEntry={} huntAcquisitionRadius={:.1f} huntObservationMaxAgeMs={}",
+        wolfGroupRegroupEnabled, wolfGroupRegroupRadius, wolfGroupRoamEnabled, wolfGroupRoamDistance, wolfGroupRoamIntervalMs, wolfGroupRoamArrivalRadius,
+        wolfGroupHuntEnabled, wolfGroupHuntTargetCreatureEntry, wolfGroupHuntAcquisitionRadius, wolfGroupHuntObservationMaxAgeMs);
 
     // Milestone 2.12G1: same shape as WolfLoose above - RegroupRadius is
     // still Coordination-layer config (see AIWorld.WolfGroupRegroupRadius's
@@ -744,6 +780,22 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         defiasGroupRoamArrivalRadius = defiasGroupRoamDistance * 0.5f;
     }
 
+    // Milestone 2.12G3C2: same shape as WolfLoose above - see its own
+    // comment for why this config-time check is visibility-only,
+    // HuntIntentSystem::Evaluate() already fails closed either way.
+    bool defiasGroupHuntEnabled = sConfigMgr->GetBoolDefault("AIWorld.DefiasGroupHuntEnabled", false);
+    uint32 defiasGroupHuntTargetCreatureEntry = uint32(sConfigMgr->GetIntDefault("AIWorld.DefiasGroupHuntTargetCreatureEntry", 0));
+    float defiasGroupHuntAcquisitionRadius = sConfigMgr->GetFloatDefault("AIWorld.DefiasGroupHuntAcquisitionRadius", 30.0f);
+    uint32 defiasGroupHuntObservationMaxAgeMs = uint32(std::max(0, sConfigMgr->GetIntDefault("AIWorld.DefiasGroupHuntObservationMaxAgeMs", 5000)));
+
+    if (defiasGroupHuntEnabled && (defiasGroupHuntTargetCreatureEntry == 0 || !std::isfinite(defiasGroupHuntAcquisitionRadius) ||
+        defiasGroupHuntAcquisitionRadius <= 0.0f || defiasGroupHuntObservationMaxAgeMs == 0))
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.DefiasGroupHuntEnabled is set, but HuntTargetCreatureEntry={}/HuntAcquisitionRadius={:.1f}/HuntObservationMaxAgeMs={} is invalid - disabling DefiasLoose HUNT",
+            defiasGroupHuntTargetCreatureEntry, defiasGroupHuntAcquisitionRadius, defiasGroupHuntObservationMaxAgeMs);
+        defiasGroupHuntEnabled = false;
+    }
+
     _defiasLooseCoordinationProfile.ProfileId = CoalitionFormationProfileId::DefiasLoose;
     _defiasLooseCoordinationProfile.Kind = AgentGroupKind::Loose;
     _defiasLooseCoordinationProfile.RegroupEnabled = defiasGroupRegroupEnabled;
@@ -752,9 +804,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _defiasLooseCoordinationProfile.RoamDistance = defiasGroupRoamDistance;
     _defiasLooseCoordinationProfile.RoamIntervalMs = defiasGroupRoamIntervalMs;
     _defiasLooseCoordinationProfile.RoamArrivalRadius = defiasGroupRoamArrivalRadius;
+    _defiasLooseCoordinationProfile.HuntEnabled = defiasGroupHuntEnabled;
+    _defiasLooseCoordinationProfile.HuntTargetCreatureEntry = defiasGroupHuntTargetCreatureEntry;
+    _defiasLooseCoordinationProfile.HuntAcquisitionRadius = defiasGroupHuntAcquisitionRadius;
+    _defiasLooseCoordinationProfile.HuntObservationMaxAgeMs = defiasGroupHuntObservationMaxAgeMs;
 
-    TC_LOG_INFO("ai.world", "AI defias coalition coordination configured regroupEnabled={} regroupRadius={:.1f} roamEnabled={} roamDistance={:.1f} roamIntervalMs={} roamArrivalRadius={:.1f}",
-        defiasGroupRegroupEnabled, defiasGroupRegroupRadius, defiasGroupRoamEnabled, defiasGroupRoamDistance, defiasGroupRoamIntervalMs, defiasGroupRoamArrivalRadius);
+    TC_LOG_INFO("ai.world", "AI defias coalition coordination configured regroupEnabled={} regroupRadius={:.1f} roamEnabled={} roamDistance={:.1f} roamIntervalMs={} roamArrivalRadius={:.1f} "
+        "huntEnabled={} huntTargetCreatureEntry={} huntAcquisitionRadius={:.1f} huntObservationMaxAgeMs={}",
+        defiasGroupRegroupEnabled, defiasGroupRegroupRadius, defiasGroupRoamEnabled, defiasGroupRoamDistance, defiasGroupRoamIntervalMs, defiasGroupRoamArrivalRadius,
+        defiasGroupHuntEnabled, defiasGroupHuntTargetCreatureEntry, defiasGroupHuntAcquisitionRadius, defiasGroupHuntObservationMaxAgeMs);
 
     int32 groupCoordinationIntervalMs = sConfigMgr->GetIntDefault("AIWorld.GroupCoordinationIntervalMs", 5000);
     if (groupCoordinationIntervalMs < 1000)
@@ -4902,6 +4960,43 @@ std::vector<CoalitionMemberObservation> AIWorldMgr::CollectCoalitionMemberObserv
     return observations;
 }
 
+std::vector<HuntTargetObservation> AIWorldMgr::CollectHuntTargetObservations(AgentGroupRecord const& group, uint64 nowMs) const
+{
+    std::vector<HuntTargetObservation> observations;
+
+    for (AgentGroupMembership const& membership : group.Members)
+    {
+        std::vector<MemoryRecord> records = _shortTermMemory.GetActiveForAgent(membership.Member, nowMs);
+
+        for (MemoryRecord const& memory : records)
+        {
+            if (memory.Type != ObservationType::CreatureSeen)
+                continue;
+
+            HuntTargetObservation observation;
+            observation.Observer = membership.Member;
+            observation.Target.TargetGuid = memory.Target.Guid;
+            observation.Target.TargetEntry = memory.Target.Entry;
+            observation.Target.MapId = memory.Location.MapId;
+            observation.Target.X = memory.Location.X;
+            observation.Target.Y = memory.Location.Y;
+            observation.Target.Z = memory.Location.Z;
+            // PerceptionSystem::ObserveNearbyCreature() only ever produces
+            // a CreatureSeen Observation for a target alive AT OBSERVATION
+            // TIME - see this method's own declaration comment for why
+            // that is an honest fact about this record, not an assumption
+            // it still holds now.
+            observation.Target.Alive = true;
+            observation.Target.ObservedAtMs = memory.LastObservedAtMs;
+            observation.Distance = memory.LastDistance;
+            observation.LineOfSight = memory.LastLineOfSight;
+            observations.push_back(observation);
+        }
+    }
+
+    return observations;
+}
+
 std::optional<CoalitionMaintenanceProfile> AIWorldMgr::ResolveMaintenanceProfile(CoalitionFormationProfileId profileId) const
 {
     if (profileId == CoalitionFormationProfileId::WolfLoose)
@@ -5123,6 +5218,147 @@ std::optional<AgentGroupCoordinationProfile> AIWorldMgr::ResolveCoordinationProf
     return std::nullopt;
 }
 
+bool AIWorldMgr::HasInFlightHuntAttempt(AgentGroupRecord const& group) const
+{
+    for (AgentGroupMembership const& membership : group.Members)
+    {
+        AgentRecord const* member = _registry.Find(membership.Member);
+        if (!member || !member->GroupCoordinationGoalState)
+            continue;
+
+        if (member->GroupCoordinationGoalState->Type == GoalType::Hunt
+            && member->GroupCoordinationGoalState->SourceGroup == group.Id)
+            return true;
+    }
+
+    return false;
+}
+
+std::optional<HuntIntent> AIWorldMgr::ResolveHuntIntentForGroup(AgentGroupRecord const& group, AgentGroupCoordinationProfile const& profile,
+    std::vector<CoalitionMemberObservation> const& observations, uint64 nowMs) const
+{
+    // Reconstruct in-flight HUNT identity purely from members' own
+    // GroupCoordinationGoalState - see this method's own header comment
+    // for why no separate manager-level pin exists.
+    std::optional<GroupCoordinationGoal> pinnedGoal;
+    bool ambiguous = false;
+
+    for (AgentGroupMembership const& membership : group.Members)
+    {
+        AgentRecord const* member = _registry.Find(membership.Member);
+        if (!member || !member->GroupCoordinationGoalState)
+            continue;
+
+        GroupCoordinationGoal const& goal = *member->GroupCoordinationGoalState;
+        if (goal.Type != GoalType::Hunt || goal.SourceGroup != group.Id)
+            continue;
+
+        if (ambiguous)
+            continue;
+
+        if (!pinnedGoal)
+        {
+            pinnedGoal = goal;
+            continue;
+        }
+
+        if (pinnedGoal->TargetGuid != goal.TargetGuid || pinnedGoal->TargetEntry != goal.TargetEntry ||
+            pinnedGoal->StartedAtMs != goal.StartedAtMs)
+        {
+            ambiguous = true;
+            pinnedGoal.reset();
+        }
+    }
+
+    if (ambiguous)
+    {
+        TC_LOG_ERROR("ai.world", "AI HUNT coordination: group={} members disagree on their own in-flight HUNT attempt identity - ambiguous, dispatching nothing new this pass",
+            group.Id.Value);
+        return std::nullopt;
+    }
+
+    std::vector<HuntTargetObservation> huntObservations = CollectHuntTargetObservations(group, nowMs);
+
+    if (pinnedGoal)
+    {
+        // An in-flight attempt already exists - the SAME target/attempt
+        // identity must be reused, never a freshly-selected one, while it
+        // is still active. Only a fresh sighting of this EXACT target this
+        // pass can produce a new proposal for a currently-idle member; if
+        // none exists, nothing new is projected this pass - already
+        // in-flight members are untouched either way (see
+        // ReconcileActiveHuntTargetsForGroup() for their own separate
+        // target-validity lifecycle). If more than one member freshly
+        // observed this exact target this same pass, the FRESHEST
+        // observation wins (largest Target.ObservedAtMs) - the same
+        // reduction HuntIntentSystem::Evaluate() itself already applies,
+        // so this never depends on huntObservations' own vector order.
+        HuntTargetObservation const* freshest = nullptr;
+        for (HuntTargetObservation const& observation : huntObservations)
+        {
+            if (observation.Target.TargetGuid != pinnedGoal->TargetGuid)
+                continue;
+
+            if (!freshest || observation.Target.ObservedAtMs > freshest->Target.ObservedAtMs)
+                freshest = &observation;
+        }
+
+        if (!freshest)
+            return std::nullopt;
+
+        HuntIntent intent;
+        intent.Group = group.Id;
+        intent.Target = freshest->Target;
+        intent.StartedAtMs = pinnedGoal->StartedAtMs;
+        return intent;
+    }
+
+    return _huntIntentSystem.Evaluate(group, profile, observations, huntObservations, nowMs);
+}
+
+void AIWorldMgr::ReconcileActiveHuntTargetsForGroup(AgentGroupRecord const& group)
+{
+    for (AgentGroupMembership const& membership : group.Members)
+    {
+        AgentRecord* member = _registry.Find(membership.Member);
+        if (!member || !member->GroupCoordinationGoalState)
+            continue;
+
+        GroupCoordinationGoal const& goal = *member->GroupCoordinationGoalState;
+        if (goal.Type != GoalType::Hunt || goal.SourceGroup != group.Id)
+            continue;
+
+        // Nothing here can be honestly checked one way or the other for a
+        // member with no live Creature - left untouched, never invalidated
+        // just because it currently cannot be verified (the same
+        // "cannot resolve, cannot claim" discipline
+        // StopInFlightGroupCoordination() itself already holds for its own
+        // engine-generator facts). Existing dematerialization handling
+        // elsewhere governs this member's own state independent of HUNT.
+        if (member->WorldState != AgentWorldState::Materialized)
+            continue;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(member->MapId);
+        Creature* creature = ResolveLiveCreature(*member, map);
+        if (!creature)
+            continue;
+
+        // Transient, already-loaded-object lookup only - never a
+        // force-load (ObjectAccessor::GetCreature() -> Map::GetCreature()).
+        Creature* target = ObjectAccessor::GetCreature(*creature, goal.TargetGuid);
+
+        bool targetValid = target && target->IsAlive() && target->GetMapId() == creature->GetMapId() &&
+            target->GetEntry() == goal.TargetEntry && creature->IsValidAttackTarget(target);
+
+        if (!targetValid)
+        {
+            TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} target guid={} entry={} is no longer valid - stopping in-flight HUNT approach",
+                member->Id.Value, group.Id.Value, goal.TargetGuid.GetRawValue(), goal.TargetEntry);
+            StopInFlightGroupCoordination(*member, "COORDINATION_STOPPED_BY_TARGET_INVALID", CoordinationStopReason::StoppedByTargetInvalid);
+        }
+    }
+}
+
 void AIWorldMgr::RunCoalitionCoordination()
 {
     // Same two-stage bounded-discovery shape RunCoalitionMaintenance()
@@ -5156,6 +5392,14 @@ void AIWorldMgr::RunCoalitionCoordination()
     // per group - purely so the overlap check below runs once per proposal
     // in a single pass over `proposals`, not interleaved with dispatch.
     std::vector<GroupMemberActionProposal> proposals;
+
+    // Milestone 2.12G3C2: HUNT's own combined batch, entirely separate
+    // from `proposals` above - HuntProposal is a different type (carries a
+    // full HuntTargetProvenance, not a flat MapId/X/Y/Z point) and gets
+    // its own overlap-arbitration/dispatch loop below, sharing
+    // CountCoordinationEnabledMemberships()'s own definition of
+    // "coordination-ambiguous" with the Regroup/Roam batch.
+    std::vector<HuntProposal> huntProposals;
 
     // Milestone 2.12G2: one shared `nowMs` for this whole pass, not a
     // fresh CurrentTimeMs() per group - AgentGroupIntentSystem::Evaluate()'s
@@ -5194,6 +5438,14 @@ void AIWorldMgr::RunCoalitionCoordination()
         if (!profile)
             continue;
 
+        // Milestone 2.12G3C2: reconcile every member's own in-flight HUNT
+        // attempt against LIVE target reality before this pass decides
+        // anything new - see ReconcileActiveHuntTargetsForGroup()'s own
+        // comment. Unconditional, not gated on profile->HuntEnabled: an
+        // attempt already in flight must still be honestly reconciled
+        // even if this profile's own config no longer enables HUNT.
+        ReconcileActiveHuntTargetsForGroup(*group);
+
         // Milestone 2.12G2 P2 fix (STATIC review): a ROAM target is a
         // pure function of nowMs (via nowMs / profile.RoamIntervalMs in
         // AgentGroupIntentSystem::Evaluate()) - without pinning, a phase
@@ -5230,13 +5482,45 @@ void AIWorldMgr::RunCoalitionCoordination()
         std::vector<CoalitionMemberObservation> observations = CollectCoalitionMemberObservations(*group);
         AgentGroupIntent intent = _agentGroupIntentSystem.Evaluate(*group, *profile, observations, effectiveNowMs);
 
-        // Milestone 2.12G2: explicit two-value check, not "!= None" - the
-        // same fail-closed discipline AgentGroupIntentProjector::Project()
-        // already holds to (see its own 2.12F2 P3 fix comment) applied
-        // here too, so a future third AgentGroupIntentType is never
-        // silently forwarded to Project() just because it happens to be
-        // non-None.
-        if (intent.Type != AgentGroupIntentType::Regroup && intent.Type != AgentGroupIntentType::Roam)
+        // Milestone 2.12G3C2: REGROUP always outranks everything else,
+        // including an already-active HUNT - a dispersed group must never
+        // be left mid-hunt while it is also trying to pull itself back
+        // together, the same reasoning REGROUP already outranked ROAM for
+        // (see AgentGroupIntentSystem.h's own comment).
+        if (intent.Type == AgentGroupIntentType::Regroup)
+        {
+            std::vector<GroupMemberActionProposal> groupProposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
+            proposals.insert(proposals.end(), groupProposals.begin(), groupProposals.end());
+            continue;
+        }
+
+        // Milestone 2.12G3C2: HUNT outranks ROAM - an already in-flight
+        // HUNT attempt (reconstructed purely from members' own
+        // GroupCoordinationGoalState by ResolveHuntIntentForGroup()/
+        // HasInFlightHuntAttempt(), never a separate manager-level pin)
+        // keeps owning this group's action slot even on a pass where it
+        // has nothing NEW to propose, so a still-settling ROAM phase can
+        // never steal it back mid-hunt. Checked regardless of whether
+        // intent.Type above came back Roam or None - HUNT selection is
+        // entirely independent of AgentGroupIntentSystem's own Regroup/
+        // Roam rules.
+        bool huntInFlight = profile->HuntEnabled && HasInFlightHuntAttempt(*group);
+        std::optional<HuntIntent> huntIntent;
+        if (profile->HuntEnabled)
+            huntIntent = ResolveHuntIntentForGroup(*group, *profile, observations, nowMs);
+
+        if (huntIntent)
+        {
+            std::vector<HuntProposal> groupHuntProposals = _huntIntentProjector.Project(*huntIntent, observations);
+            huntProposals.insert(huntProposals.end(), groupHuntProposals.begin(), groupHuntProposals.end());
+        }
+
+        if (huntInFlight || huntIntent)
+            continue;
+
+        // Neither REGROUP nor HUNT claimed this group's action slot this
+        // pass - ROAM's own existing 2.12G2 rules apply unchanged.
+        if (intent.Type != AgentGroupIntentType::Roam)
             continue;
 
         // Milestone 2.12G2 P2 fix (STATIC review): record the nowMs this
@@ -5249,8 +5533,7 @@ void AIWorldMgr::RunCoalitionCoordination()
         // group (this call itself used it as effectiveNowMs above), it
         // must not be clobbered with a slightly-later value from this
         // same pass.
-        if (intent.Type == AgentGroupIntentType::Roam)
-            _roamAttemptPinnedNowMs.try_emplace(groupId.Value, effectiveNowMs);
+        _roamAttemptPinnedNowMs.try_emplace(groupId.Value, effectiveNowMs);
 
         std::vector<GroupMemberActionProposal> groupProposals = _agentGroupIntentProjector.Project(intent, *profile, observations);
         proposals.insert(proposals.end(), groupProposals.begin(), groupProposals.end());
@@ -5310,6 +5593,28 @@ void AIWorldMgr::RunCoalitionCoordination()
         }
 
         DispatchGroupMemberActionProposal(proposal);
+    }
+
+    // Milestone 2.12G3C2: the HUNT counterpart to the overlap-arbitration
+    // loop above - the exact same CountCoordinationEnabledMemberships()
+    // definition of "coordination-ambiguous membership" (now also
+    // covering HuntEnabled), applied to `huntProposals` in its own
+    // separate pass since HuntProposal is a different type from
+    // GroupMemberActionProposal.
+    std::unordered_set<uint64> loggedHuntOverlap;
+    for (HuntProposal const& huntProposal : huntProposals)
+    {
+        uint32 coordinationEnabledMemberships = CountCoordinationEnabledMemberships(huntProposal.Member);
+
+        if (coordinationEnabledMemberships > 1)
+        {
+            if (loggedHuntOverlap.insert(huntProposal.Member.Value).second)
+                TC_LOG_DEBUG("ai.world", "AI group coordination: member={} belongs to {} coordination-enabled groups at once, dispatching no HUNT for it this pass (one of them: group={})",
+                    huntProposal.Member.Value, coordinationEnabledMemberships, huntProposal.SourceGroup.Value);
+            continue;
+        }
+
+        DispatchHuntProposal(huntProposal);
     }
 }
 
@@ -5571,6 +5876,203 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     record->ActiveActionState = action;
 }
 
+void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
+{
+    AgentRecord* record = _registry.Find(proposal.Member);
+    if (!record)
+        return;
+
+    if (record->ControlMode != AgentControlMode::AIWorldControlled)
+        return;
+
+    AgentGroupRecord const* group = _groupRegistry.Find(proposal.SourceGroup);
+    if (!group)
+        return;
+
+    // 2.12G3C2's own extra defense-in-depth check - unlike
+    // DispatchGroupMemberActionProposal(), which relies entirely on
+    // RunCoalitionCoordination()'s own upstream discovery-time filter,
+    // never trust that a lifecycle operation could not have started
+    // between this proposal's own construction and this specific dispatch.
+    if (_groupLifecycleSystem.HasPendingOperation(proposal.SourceGroup))
+        return;
+
+    bool stillMember = std::any_of(group->Members.begin(), group->Members.end(),
+        [&proposal](AgentGroupMembership const& membership) { return membership.Member == proposal.Member; });
+    if (!stillMember)
+        return;
+
+    std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
+    if (!profile || !profile->HuntEnabled)
+        return;
+
+    if (record->WorldState != AgentWorldState::Materialized)
+        return;
+
+    if (record->ActiveGoalState || record->RoutineGoalState)
+        return;
+
+    if (record->ActiveActionState)
+        return;
+
+    // Explicit, independent re-check of the same invariant
+    // ActiveActionState's own check already implies under normal
+    // operation - kept separate because HUNT's own GroupCoordinationGoalState
+    // carries target identity that must never be silently overwritten.
+    if (record->GroupCoordinationGoalState)
+        return;
+
+    if (CountCoordinationEnabledMemberships(proposal.Member) > 1)
+        return;
+
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+    Creature* creature = ResolveLiveCreature(*record, map);
+    if (!creature || !creature->IsAlive())
+        return;
+
+    // Transient, already-loaded-object lookup only - never a force-load.
+    Creature* target = ObjectAccessor::GetCreature(*creature, proposal.Target.TargetGuid);
+    if (!target || !target->IsAlive())
+        return;
+
+    // The request must be an honest continuation of what was actually
+    // resolved, not proposal.Target's own (possibly stale) claim - see
+    // this method's own header comment.
+    if (target->GetEntry() != proposal.Target.TargetEntry || target->GetMapId() != proposal.Target.MapId)
+        return;
+
+    if (target == creature)
+        return;
+
+    if (!creature->IsValidAttackTarget(target))
+        return;
+
+    float rangeDx = target->GetPositionX() - creature->GetPositionX();
+    float rangeDy = target->GetPositionY() - creature->GetPositionY();
+    float rangeDz = target->GetPositionZ() - creature->GetPositionZ();
+    float rangeDistanceSq = rangeDx * rangeDx + rangeDy * rangeDy + rangeDz * rangeDz;
+
+    if (rangeDistanceSq > profile->HuntAcquisitionRadius * profile->HuntAcquisitionRadius)
+        return;
+
+    float maxCoordinationRangeYards = ActionSystem::CoordinationMoveToRangeYards();
+    if (rangeDistanceSq > maxCoordinationRangeYards * maxCoordinationRangeYards)
+    {
+        TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} is farther than the {:.1f}yd range bound from its own live target - UNREACHABLE, no automatic HUNT approach attempted this pass",
+            record->Id.Value, proposal.SourceGroup.Value, maxCoordinationRangeYards);
+        return;
+    }
+
+    if (!creature->IsWithinLOS(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()))
+        return;
+
+    if (!std::isfinite(target->GetPositionX()) || !std::isfinite(target->GetPositionY()) || !std::isfinite(target->GetPositionZ()))
+        return;
+
+    // Same PathGenerator/PATHFIND_NOPATH convention Roam's own dispatch-time
+    // path check already uses - PATHFIND_INCOMPLETE (a real, partial path)
+    // is still accepted, only PATHFIND_NOPATH (MoveSplineInit's own
+    // straight-line fallback) is rejected.
+    PathGenerator huntPath(creature);
+    bool pathCalculated = huntPath.CalculatePath(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), false);
+    if (!pathCalculated || (huntPath.GetPathType() & PATHFIND_NOPATH))
+    {
+        TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} has no navigable path to its own live target - UNREACHABLE, no automatic HUNT approach attempted this pass",
+            record->Id.Value, proposal.SourceGroup.Value);
+        return;
+    }
+
+    uint64 nowMs = CurrentTimeMs();
+
+    // The MOVE_TO destination is the target's ACTUAL CURRENT position -
+    // never proposal.Target.X/Y/Z, which came from a HuntTargetObservation
+    // that can already be stale by the time this runs.
+    ActionPosition destination;
+    destination.MapId = target->GetMapId();
+    destination.X = target->GetPositionX();
+    destination.Y = target->GetPositionY();
+    destination.Z = target->GetPositionZ();
+
+    ActionRequest moveRequest;
+    moveRequest.Actor = proposal.Member;
+    moveRequest.Type = ActionType::MoveTo;
+    moveRequest.SourceGoal = GoalType::Hunt;
+    // Deliberately the group-wide HUNT ATTEMPT's own stable identity, not
+    // a fresh per-dispatch CurrentTimeMs() - see this method's own header
+    // comment for why every member subsequently dispatched into the SAME
+    // ongoing attempt must get the exact same value.
+    moveRequest.GoalStartedAtMs = proposal.StartedAtMs;
+    moveRequest.Destination = destination;
+    moveRequest.Target = ActionTargetRef{ target->GetGUID(), target->GetEntry() };
+
+    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} destination=({:.1f},{:.1f},{:.1f}) target={} sourceGroup={} sourceGroupProfile={}",
+        record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
+        destination.X, destination.Y, destination.Z, target->GetEntry(), proposal.SourceGroup.Value, ToString(group->ProfileId));
+
+    // Set BEFORE Validate() - the same order/rollback-on-rejection
+    // discipline DispatchGroupMemberActionProposal() already holds to.
+    GroupCoordinationGoal coordinationGoal;
+    coordinationGoal.Type = GoalType::Hunt;
+    coordinationGoal.SourceGroup = proposal.SourceGroup;
+    coordinationGoal.StartedAtMs = proposal.StartedAtMs;
+    coordinationGoal.TargetGuid = target->GetGUID();
+    coordinationGoal.TargetEntry = target->GetEntry();
+    coordinationGoal.TargetObservedAtMs = proposal.Target.ObservedAtMs;
+    record->GroupCoordinationGoalState = coordinationGoal;
+
+    ActionValidationContext moveContext;
+    moveContext.Materialized = true;
+    moveContext.Alive = true;
+    moveContext.ControlMode = record->ControlMode;
+    moveContext.ActiveGoalType = GoalType::Hunt;
+    moveContext.ActiveGoalStartedAtMs = proposal.StartedAtMs;
+    moveContext.MapId = creature->GetMapId();
+    moveContext.X = creature->GetPositionX();
+    moveContext.Y = creature->GetPositionY();
+    moveContext.Z = creature->GetPositionZ();
+    moveContext.HasActiveMovement = creature->GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) != nullptr;
+    moveContext.TargetResolved = true;
+    moveContext.TargetAlive = target->IsAlive();
+    moveContext.TargetAttackable = creature->IsValidAttackTarget(target);
+    moveContext.TargetGuid = target->GetGUID();
+    moveContext.TargetEntry = target->GetEntry();
+    moveContext.TargetMapId = target->GetMapId();
+    moveContext.TargetX = target->GetPositionX();
+    moveContext.TargetY = target->GetPositionY();
+    moveContext.TargetZ = target->GetPositionZ();
+
+    ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
+
+    TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+        record->Id.Value, ToString(moveRequest.Type), moveValidation.Allowed ? "ALLOWED" : "REJECTED",
+        ToString(moveValidation.Reason));
+
+    if (!moveValidation.Allowed)
+    {
+        record->GroupCoordinationGoalState.reset();
+        return;
+    }
+
+    ActionResult moveResult = _actionExecutor.ExecuteMoveTo(moveRequest, *creature);
+
+    TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+        record->Id.Value, ToString(moveResult.Type), ToString(moveResult.Status), ToString(moveResult.Reason));
+
+    if (moveResult.Status != ActionExecutionStatus::Started)
+    {
+        record->GroupCoordinationGoalState.reset();
+        return;
+    }
+
+    ActiveAction action;
+    action.Type = moveRequest.Type;
+    action.SourceGoal = moveRequest.SourceGoal;
+    action.GoalStartedAtMs = moveRequest.GoalStartedAtMs;
+    action.StartedAtMs = nowMs;
+    action.Destination = moveRequest.Destination;
+    record->ActiveActionState = action;
+}
+
 bool AIWorldMgr::HasInFlightRoamAttempt(AgentGroupRecord const& group) const
 {
     for (AgentGroupMembership const& membership : group.Members)
@@ -5596,20 +6098,20 @@ uint32 AIWorldMgr::CountCoordinationEnabledMemberships(AgentId member) const
         if (!group)
             continue;
 
-        // Milestone 2.12G2: RegroupEnabled OR RoamEnabled, not
-        // RegroupEnabled alone - "coordination-ambiguous membership" is a
-        // fact about whether more than one group could dispatch SOME
-        // automatic movement for this member, regardless of which
-        // specific intent each one would actually propose. Scoping this
-        // to RegroupEnabled only would have let a member belong to one
-        // RegroupEnabled group and one RoamEnabled-only group at once
+        // Milestone 2.12G2/2.12G3C2: RegroupEnabled OR RoamEnabled OR
+        // HuntEnabled, not any one alone - "coordination-ambiguous
+        // membership" is a fact about whether more than one group could
+        // dispatch SOME automatic movement for this member, regardless of
+        // which specific intent each one would actually propose. Scoping
+        // this to fewer than all three would have let a member belong to
+        // one RegroupEnabled group and one HuntEnabled-only group at once
         // with neither this overlap check nor
         // ReconcileGroupCoordinationForMember() ever noticing - exactly
         // the kind of safety net G1's own STATIC review already warned
         // must generalize with the capability, not stay hard-coded to
-        // whichever one existed first.
+        // whichever ones existed first.
         std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
-        if (profile && (profile->RegroupEnabled || profile->RoamEnabled))
+        if (profile && (profile->RegroupEnabled || profile->RoamEnabled || profile->HuntEnabled))
             ++count;
     }
 
