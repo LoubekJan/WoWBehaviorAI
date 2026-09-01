@@ -3,8 +3,8 @@
 > **Aktualizováno:** 2026-09-01  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `012a1995c18f1b6db26df4f7688c154e23520a0e`  
-> **Detailní roadmap sync před tímto commitem:** `e4eabd63b838f3ef76daa2cfde482d717bf92275`
+> **Aktuální code baseline před tímto docs commitem:** `e09583e64af0a681379f74e7c480ca39a2b2e689`  
+> **Detailní roadmap sync před tímto commitem:** `08cc4b20386b9fbeb4905c6d49d6dc8909bfe59e`
 
 ## Základní invariant
 
@@ -69,7 +69,7 @@ Platí pro všechny další milníky:
 | 2.12F4C/F4D — world-scale hardening (O(1) index, bounded recurring work) + full-world bootstrap | **DEFERRED — not required for single-location work; required before any eventual full-world rollout, see 2.12F4C's own Priorita** |
 | 2.12G1 — druhý coalition profile (genericity proof) | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
-| 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B CLOSED, G3C NEXT** |
+| 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B/G3C1 CLOSED, G3C2 NEXT** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
 | 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
@@ -857,7 +857,7 @@ AIWorld.TestDissolveOnActiveRoamGroupId = 0
 
 ## 2.12G3 — generic HUNT / coordinated combat preparation
 
-**Stav: IN PROGRESS — G3A a G3B CLOSED (viz jejich vlastní sekce níže), G3C je další krok.**
+**Stav: IN PROGRESS — G3A, G3B a G3C1 CLOSED (viz jejich vlastní sekce níže), G3C2 je další krok.**
 
 Až po stabilním G1/G2 (tedy až po `2.12G2R` closure výše) — první commit ještě neútočí, jen navrhuje kontrakt.
 
@@ -895,7 +895,8 @@ Runtime gate má nejdřív dokazovat correctness a ownership, ne „chytré sme�
 
 - **G3A** — pure DTO a target provenance contract (`HuntIntent`/`HuntProposal` shape, žádná orchestrace) — **CLOSED, viz `2.12G3A` níže**;
 - **G3B** — intent/projector a pure smoke testy (stejná disciplína jako `2.12F1`/`2.12F2`) — **CLOSED, viz `2.12G3B` níže**;
-- **G3C** — per-member validation a ownership/preemption (stejná disciplína jako `2.12F2`/`2.12F3`) — **NEXT**;
+- **G3C1** — autoritativní validační kontrakt (`GoalType::Hunt`, `ActionTargetRef`, target facts v `ActionValidationContext`, `ActionSystem::ValidateHuntTarget()`) — **CLOSED, viz `2.12G3C1` níže**;
+- **G3C2** — produkční observation/dispatch wiring, ownership/preemption, lifecycle stop na invalid target — **NEXT**;
 - **G3D** — runtime proof: target death/unload/leave/dissolve během aktivního HUNT bezpečně ruší stale group-owned intent.
 
 ## 2.12G3A — HUNT DTO/provenance contract
@@ -940,7 +941,52 @@ Po proofu musí zůstat:
 AIWorld.TestHuntIntent = 0
 ```
 
-Další krok je `2.12G3C`: live revalidation, membership a individual ownership/preemption. Combat execution ani `AttackStart` se zatím stále nepřidávají.
+Další krok je `2.12G3C1`: autoritativní validační kontrakt pro HUNT approach. Combat execution ani `AttackStart` se zatím stále nepřidávají.
+
+## 2.12G3C1 — HUNT approach validation contract
+
+**Stav: CLOSED / STATIC + BUILD + RUNTIME GATE PASS.**
+
+```text
+STATIC                              PASS
+BUILD/start serveru                 PASS
+valid HUNT approach                 PASS
+fail-closed případy                 PASS
+GUID/entry binding                  PASS
+REGROUP kompatibilita               PASS
+fatal/assert/DB/config chyby        0
+
+2.12G3C1 = CLOSED
+```
+
+Autoritativní validační kontrakt, který musí splnit každý budoucí HUNT approach `MOVE_TO`, ještě bez jakéhokoliv produkčního dispatch nebo fyzického pohybu:
+
+```text
+HuntProposal
+    ↓
+live facts converted to value context
+    ↓
+ActionRequest(MOVE_TO, SourceGoal=HUNT, target identity)
+    ↓
+ActionSystem authoritative validation
+    ↓
+ALLOWED / REJECTED
+```
+
+- `GoalType::Hunt` — stejná nejnižší group-coordination priorita jako Regroup/Roam (Emergency ActiveGoal > Normal ActiveGoal > RoutineGoal > Regroup/Roam/Hunt); záměrně žádný nový `AgentGroupIntentType::Hunt` (HUNT už má vlastní `HuntIntent`, viz `2.12G3A`);
+- `ActionTargetRef` (`Guid`/`Entry`) + `ActionRequest::Target` — co request tvrdí o svém cíli, pure value, nikdy live pointer;
+- `ActionValidationContext` rozšířen o autoritativní, fail-closed target facts (`TargetResolved`/`TargetAlive`/`TargetAttackable`/`TargetGuid`/`TargetEntry`/`TargetMapId`/`TargetX`/`Y`/`Z`) — reálně zjištěné volajícím na world threadu, nikdy tvrzení requestu;
+- osm nových `ActionRejectReason` hodnot (`TargetMissing`/`TargetNotResolved`/`TargetDead`/`TargetNotAttackable`/`TargetIdentityMismatch`/`TargetEntryMismatch`/`TargetMapMismatch`/`TargetPositionMismatch`), každá s vlastním `ToString()`;
+- `ActionSystem::ValidateHuntTarget()` — kromě běžné bounded MoveTo validace (sdílený `MaxCoordinationMoveToRangeYards` s Regroup/Roam) navíc: request nese reálný target claim; GUID musí být prokazatelně creature a jeho embedded entry musí odpovídat deklarovanému Entry (STATIC review fix — self-consistent, ale neplatná dvojice jinak projde); request GUID/Entry se musí shodovat s autoritativním context GUID/Entry; target je na mapě actora; destination map odpovídá target mapě; destination přesně odpovídá aktuální target pozici; všechny target souřadnice jsou finite. Request nikdy neprojde jen na základě geometricky validní destination;
+- `GroupCoordinationGoal` rozšířen o `TargetGuid`/`TargetEntry`/`TargetObservedAtMs` (u Regroup/Roam defaultně prázdné) — HUNT attempt identity kontrakt pro budoucí `2.12G3C2` lifecycle gate, zatím nezapojený.
+
+Po proofu musí zůstat:
+
+```ini
+AIWorld.TestHuntActionValidation = 0
+```
+
+Další krok je `2.12G3C2`: produkční sběr live target facts (ze `_shortTermMemory`), dispatch HUNT `MOVE_TO`, ownership/preemption a lifecycle zastavení při zneplatnění cíle. Stále bez `ActionType::Attack`, `AttackStart`, `CombatStart`, threat mutation, spell cast, damage nebo species-specific `RunWolfHunt()`/`RunDefiasHunt()`.
 
 ## 2.12G4 — roles / leader pouze pokud je skutečně potřeba
 
@@ -1148,16 +1194,17 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 10. [x] 2.12G2/G2R — generic ROAM včetně preemption/leave/dissolve lifecycle closure.
 11. [x] 2.12G3A — pure HUNT DTO a explicitní target provenance contract.
 12. [x] 2.12G3B — pure HUNT intent/projector a pure smoke testy.
-13. [ ] 2.12G3C — per-member HUNT validation a ownership/preemption.
-14. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
-15. [ ] 2.13A — actual local LLM inference path.
-16. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
-17. [ ] 2.13C — player-facing dynamic task lifecycle.
-18. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
-19. [ ] 2.14 — emergent end-to-end world event slice.
-20. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
-21. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
-22. [ ] Etapa 4 — Living World composition.
+13. [x] 2.12G3C1 — autoritativní HUNT approach validation contract.
+14. [ ] 2.12G3C2 — produkční observation/dispatch wiring, ownership/preemption, lifecycle stop na invalid target.
+15. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
+16. [ ] 2.13A — actual local LLM inference path.
+17. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
+18. [ ] 2.13C — player-facing dynamic task lifecycle.
+19. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
+20. [ ] 2.14 — emergent end-to-end world event slice.
+21. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
+22. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
+23. [ ] Etapa 4 — Living World composition.
 
 ---
 
