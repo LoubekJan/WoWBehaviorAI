@@ -1477,6 +1477,35 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         }
     }
 
+    // Milestone 2.12G3D1: same fail-closed parsing/existence-check shape
+    // as the active-Roam hooks above - see CheckTestObserveActiveHunt()'s
+    // own comment for what this purely-observational hook actually does
+    // once triggered (nothing changes/starts; it only logs).
+    int32 testObserveActiveHuntAgentIdRaw = sConfigMgr->GetIntDefault("AIWorld.TestObserveActiveHuntAgentId", 0);
+    if (testObserveActiveHuntAgentIdRaw < 0)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestObserveActiveHuntAgentId ({}) is negative, which cannot name a real AgentId, disabling this test hook",
+            testObserveActiveHuntAgentIdRaw);
+        testObserveActiveHuntAgentIdRaw = 0;
+    }
+    _testObserveActiveHuntAgentId = AgentId{ uint64(testObserveActiveHuntAgentIdRaw) };
+    _testObserveActiveHuntFired = false;
+
+    if (_testObserveActiveHuntAgentId)
+    {
+        if (!_registry.Find(_testObserveActiveHuntAgentId))
+        {
+            TC_LOG_ERROR("ai.world", "AIWorld.TestObserveActiveHuntAgentId={} does not resolve to a registered agent, disabling this test hook",
+                _testObserveActiveHuntAgentId.Value);
+            _testObserveActiveHuntFired = true;
+        }
+        else
+        {
+            TC_LOG_INFO("ai.world", "AI test observe-active-hunt: watching agent={} for a fully-owned in-flight HUNT approach (AIWorld.TestObserveActiveHuntAgentId)",
+                _testObserveActiveHuntAgentId.Value);
+        }
+    }
+
     // Milestone 2.12E4C2 P2 fix (STATIC review): runs right after the
     // dissolve hook above, for the same reason - a one-shot corrective
     // action that must run before AIWorld.WolfGroupAutoFormation's/
@@ -1755,6 +1784,78 @@ bool AIWorldMgr::HasActiveCoordinationMoveTo(AgentRecord const& record, GoalType
         return false;
 
     return true;
+}
+
+std::optional<AIWorldMgr::TestHuntAttemptIdentity> AIWorldMgr::CaptureActiveHuntAttempt(AgentRecord const& record) const
+{
+    // Reuses the exact same six-part ownership-tuple proof
+    // HasActiveCoordinationMoveTo() already established for Regroup/Roam -
+    // generalized here, not duplicated - then extended below with HUNT's
+    // own additional target-identity requirements. GroupId{} accepts any
+    // currently-owning group; this hook watches one specific AgentId, not
+    // one specific GroupId.
+    if (!HasActiveCoordinationMoveTo(record, GoalType::Hunt))
+        return std::nullopt;
+
+    if (!record.ActiveActionState->Target)
+        return std::nullopt;
+
+    // ActiveAction and GroupCoordinationGoal must agree on WHICH target
+    // this attempt is for, not merely on goal/group/timestamp.
+    if (record.ActiveActionState->Target->Guid != record.GroupCoordinationGoalState->TargetGuid ||
+        record.ActiveActionState->Target->Entry != record.GroupCoordinationGoalState->TargetEntry)
+        return std::nullopt;
+
+    // The same GUID/entry-binding discipline ActionSystem::
+    // ValidateHuntTarget() already enforces at dispatch time, re-proven
+    // here rather than trusted to still hold.
+    if (!record.ActiveActionState->Target->Guid.IsCreature())
+        return std::nullopt;
+
+    if (record.ActiveActionState->Target->Guid.GetEntry() != record.ActiveActionState->Target->Entry)
+        return std::nullopt;
+
+    // Never trusts that SourceGroup/membership still hold by the time this
+    // specific poll runs.
+    GroupId sourceGroup = record.GroupCoordinationGoalState->SourceGroup;
+    AgentGroupRecord const* group = _groupRegistry.Find(sourceGroup);
+    if (!group)
+        return std::nullopt;
+
+    bool stillMember = std::any_of(group->Members.begin(), group->Members.end(),
+        [&record](AgentGroupMembership const& membership) { return membership.Member == record.Id; });
+    if (!stillMember)
+        return std::nullopt;
+
+    // Transient, already-loaded-object lookup only - never a force-load,
+    // never stored past this call. HasActiveCoordinationMoveTo() already
+    // proved the MEMBER's own live Creature resolves; this re-resolves it
+    // fresh rather than threading a pointer through from that call.
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
+    Creature* creature = ResolveLiveCreature(record, map);
+    if (!creature)
+        return std::nullopt;
+
+    Creature* target = ObjectAccessor::GetCreature(*creature, record.ActiveActionState->Target->Guid);
+    if (!target || !target->IsAlive())
+        return std::nullopt;
+
+    if (target->GetMapId() != creature->GetMapId())
+        return std::nullopt;
+
+    if (target->GetEntry() != record.ActiveActionState->Target->Entry)
+        return std::nullopt;
+
+    if (!creature->IsValidAttackTarget(target))
+        return std::nullopt;
+
+    TestHuntAttemptIdentity identity;
+    identity.Member = record.Id;
+    identity.SourceGroup = sourceGroup;
+    identity.StartedAtMs = record.ActiveActionState->GoalStartedAtMs;
+    identity.Target = *record.ActiveActionState->Target;
+    identity.TargetObservedAtMs = record.GroupCoordinationGoalState->TargetObservedAtMs;
+    return identity;
 }
 
 // Milestone 2.12G2R P2 fix, round 2 (STATIC review): see
@@ -2212,6 +2313,31 @@ void AIWorldMgr::CheckTestDissolveOnActiveRoam()
     else
         TC_LOG_ERROR("ai.world", "AI test dissolve-on-active-roam FAILED: group={} dissolved but not every captured ROAM attempt was genuinely confirmed stopped",
             _testDissolveOnActiveRoamGroupId.Value);
+}
+
+void AIWorldMgr::CheckTestObserveActiveHunt()
+{
+    AgentRecord const* record = _registry.Find(_testObserveActiveHuntAgentId);
+    if (!record)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestObserveActiveHuntAgentId={} no longer resolves to a registered agent, disabling this test hook",
+            _testObserveActiveHuntAgentId.Value);
+        _testObserveActiveHuntFired = true;
+        return;
+    }
+
+    // Purely observational - never submits an action, never mutates
+    // record, never calls StopMoveTo(). Simply polls until a fully-owned
+    // in-flight HUNT approach is genuinely observed.
+    std::optional<TestHuntAttemptIdentity> identity = CaptureActiveHuntAttempt(*record);
+    if (!identity)
+        return;
+
+    TC_LOG_INFO("ai.world", "AI HUNT approach runtime test PASSED: agent={} group={} startedAtMs={} targetGuid={} targetEntry={} targetObservedAtMs={} engineGeneratorRunning=true",
+        identity->Member.Value, identity->SourceGroup.Value, identity->StartedAtMs,
+        identity->Target.Guid.ToString(), identity->Target.Entry, identity->TargetObservedAtMs);
+
+    _testObserveActiveHuntFired = true;
 }
 
 void AIWorldMgr::RunGroupProfileAdoption(GroupId groupId, CoalitionFormationProfileId profileId)
@@ -6404,6 +6530,13 @@ void AIWorldMgr::Update(uint32 diff)
 
             if (_testDissolveOnActiveRoamGroupId && !_testDissolveOnActiveRoamFired)
                 CheckTestDissolveOnActiveRoam();
+
+            // Milestone 2.12G3D1: same "checked only right after a
+            // RunCoalitionCoordination() pass actually ran" reasoning as
+            // the hooks above - a HUNT MOVE_TO is only ever freshly
+            // dispatched from inside that same pass (DispatchHuntProposal()).
+            if (_testObserveActiveHuntAgentId && !_testObserveActiveHuntFired)
+                CheckTestObserveActiveHunt();
         }
     }
 

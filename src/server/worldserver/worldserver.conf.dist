@@ -3862,6 +3862,32 @@ AIWorld.TestLeaveOnActiveRoamAgentId = 0
 AIWorld.TestDissolveOnActiveRoamGroupId = 0
 
 #
+#    AIWorld.TestObserveActiveHuntAgentId
+#        Description: Milestone 2.12G3D1 - a non-invasive, read-only runtime proof that a real,
+#                     production-dispatched HUNT approach for the configured agent reaches a fully-owned
+#                     state: ActiveActionState is a MoveTo/Hunt attempt with a Target, GroupCoordinationGoalState
+#                     agrees on the same Hunt/group/timestamp/target identity, that target's GUID is
+#                     provably a creature whose own embedded entry matches, the member is Materialized
+#                     with a live Creature, the target transiently resolves live and is alive/same-map/
+#                     same-entry/attackable, and the engine's own MoveTo generator is actually running.
+#                     Checked only right after a RunCoalitionCoordination() pass actually runs (a HUNT
+#                     MOVE_TO is only ever freshly dispatched from inside that same pass). Unlike the
+#                     active-Roam TRIGGER/VERIFY hooks above, this hook changes and starts NOTHING - it
+#                     never submits an action, never mutates AgentRecord, never calls StopMoveTo() - it
+#                     only polls and logs. On the first pass the full ownership proof holds, logs PASSED
+#                     with the captured identity (agent/group/startedAtMs/targetGuid/targetEntry/
+#                     targetObservedAtMs) and fires at most once ever.
+#        Important:   Must name an existing AgentId; a negative value is rejected (logged, disabled)
+#                     rather than silently reinterpreted. Also disables itself if the configured AgentId
+#                     does not resolve to a registered agent right after startup load, or later stops
+#                     resolving at all. Requires AIWorld.GroupCoordination = 1 and the target group's own
+#                     profile HuntEnabled to ever observe the condition it waits for. Set back to 0 after
+#                     the one run it was needed for.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestObserveActiveHuntAgentId = 0
+
+#
 #    AIWorld.AdoptGroupId
 #    AIWorld.AdoptGroupProfileId
 #        Description: Milestone 2.12E4C2 P2 fix (STATIC review) - the controlled legacy-

@@ -252,6 +252,62 @@ class TC_GAME_API AIWorldMgr
         // caller decides what to do once this returns true.
         bool HasActiveCoordinationMoveTo(AgentRecord const& record, GoalType goalType, GroupId requiredSourceGroup = GroupId{}) const;
 
+        // Milestone 2.12G3D1: one captured HUNT attempt's own full
+        // identity - what CaptureActiveHuntAttempt() below returns once
+        // every one of its own fail-closed checks has held. Pure value:
+        // no Creature*/Unit*/Map*, nothing this struct itself resolved
+        // stays alive past the call that produced it.
+        struct TestHuntAttemptIdentity
+        {
+            AgentId Member;
+            GroupId SourceGroup;
+            uint64 StartedAtMs = 0;
+            ActionTargetRef Target;
+            uint64 TargetObservedAtMs = 0;
+        };
+
+        // Milestone 2.12G3D1: CheckTestObserveActiveHunt()'s own read-only
+        // proof that a specific AgentRecord currently has a GENUINELY
+        // in-flight, fully-owned HUNT approach - built on top of
+        // HasActiveCoordinationMoveTo(record, GoalType::Hunt) (the exact
+        // same six-part ownership-tuple proof Regroup/Roam already share -
+        // generalized here, not duplicated) and then extended with HUNT's
+        // own additional target-identity requirements, in order:
+        //   - HasActiveCoordinationMoveTo(record, GoalType::Hunt) itself
+        //     already requires ActiveActionState::Type == MoveTo,
+        //     ::SourceGoal == Hunt, GroupCoordinationGoalState::Type ==
+        //     Hunt, the two attempts' own StartedAtMs/GoalStartedAtMs
+        //     identity matching, the member Materialized with a live,
+        //     transiently-resolved Creature, and HasOwnMoveToGenerator()
+        //     actually true on it;
+        //   - record.ActiveActionState->Target exists;
+        //   - that Target's own Guid/Entry match
+        //     GroupCoordinationGoalState::TargetGuid/TargetEntry exactly -
+        //     ActiveAction and GroupCoordinationGoal must agree on WHICH
+        //     target this attempt is for, not merely on goal/group/
+        //     timestamp;
+        //   - that Guid provably IS a creature, and its own embedded entry
+        //     matches the declared Entry (the same GUID/entry-binding
+        //     discipline ActionSystem::ValidateHuntTarget() already
+        //     enforces at dispatch time, re-proven here rather than
+        //     trusted to still hold);
+        //   - GroupCoordinationGoalState::SourceGroup still resolves in
+        //     _groupRegistry, AND record.Id is still actually one of its
+        //     Members (never trusts that either still holds by the time
+        //     this specific poll runs);
+        //   - the target transiently resolves live by its exact Guid
+        //     (ObjectAccessor::GetCreature(), never a force-load, never
+        //     stored past this call) and IsAlive();
+        //   - that live target is on the SAME map as the member's own
+        //     live Creature, its own live Entry still matches the
+        //     declared one, and it is still IsValidAttackTarget() for
+        //     this member.
+        // Returns nullopt the instant any one of these does not hold - no
+        // partial/best-effort identity is ever returned. Never mutates
+        // record or anything else; the caller decides what to do (here,
+        // only log) once this returns a value.
+        std::optional<TestHuntAttemptIdentity> CaptureActiveHuntAttempt(AgentRecord const& record) const;
+
         // Milestone 2.12G2R P2 fix, round 2 (STATIC review): the four
         // independent facts VerifyCoordinationStop() below reports -
         // returned as a named struct, not a single bool, specifically so
@@ -524,6 +580,35 @@ class TC_GAME_API AIWorldMgr
         // gone but any captured member's own matching stop event was
         // never observed.
         void CheckTestDissolveOnActiveRoam();
+
+        // Milestone 2.12G3D1: AIWorld.TestObserveActiveHuntAgentId
+        // (default 0 = disabled) - a non-invasive, read-only runtime proof
+        // that a real, production-dispatched HUNT approach can reach the
+        // exact same fully-owned state HasActiveCoordinationMoveTo()/
+        // CaptureActiveHuntAttempt() already require, end to end: a
+        // genuine CreatureSeen memory observation -> HuntIntentSystem::
+        // Evaluate() -> HuntIntentProjector::Project() ->
+        // DispatchHuntProposal()'s own live revalidation ->
+        // ActionSystem::Validate() ALLOWED -> a real engine MoveTo
+        // generator actually running, with ActiveAction/
+        // GroupCoordinationGoal agreeing on the exact same target
+        // identity. Unlike the active-Roam TRIGGER/VERIFY hooks above,
+        // this one changes and starts NOTHING - it never submits an
+        // action, never mutates AgentRecord, never calls StopMoveTo() -
+        // purely polls CaptureActiveHuntAttempt() for the one configured
+        // agent. Checked only right after a RunCoalitionCoordination()
+        // pass actually runs (the same cadence-tying reasoning
+        // CheckTestDissolveOnActiveRegroup()'s own comment already gives -
+        // a HUNT MOVE_TO is only ever freshly dispatched from inside that
+        // same pass), gated on _testObserveActiveHuntAgentId being set AND
+        // not yet fired. On the first pass CaptureActiveHuntAttempt()
+        // returns a value, logs PASSED with the full captured identity and
+        // sets the one-shot latch - never fires again for the rest of this
+        // process's lifetime. If the configured agent stops resolving in
+        // _registry entirely (removed/never existed), disables itself with
+        // a logged ERROR the same way the config-time check at
+        // Initialize() already does.
+        void CheckTestObserveActiveHunt();
 
         // Milestone 2.12E4C2 P2 fix (STATIC review): one-shot, gated
         // behind AIWorld.AdoptGroupId (default 0 = disabled) - the
@@ -2608,6 +2693,16 @@ class TC_GAME_API AIWorldMgr
         bool _testDissolveOnActiveRoamTriggered = false;
         std::vector<TestRoamAttemptIdentity> _testDissolveOnActiveRoamCapturedMembers;
         uint64 _testDissolveOnActiveRoamVerifyDeadlineMs = 0;
+
+        // Milestone 2.12G3D1: AIWorld.TestObserveActiveHuntAgentId
+        // (AgentId{} = disabled) - same fail-closed parsing/existence-check
+        // shape as the active-Roam hooks above, reloaded fresh every
+        // Initialize() so a runtime reload never resumes a stale latch
+        // from a previous run. No TRIGGER/Captured*/VerifyDeadlineMs
+        // fields - this hook is purely observational, see
+        // CheckTestObserveActiveHunt()'s own comment.
+        AgentId _testObserveActiveHuntAgentId;
+        bool _testObserveActiveHuntFired = false;
 
         // AIWorld.DecisionMaxInFlight - the hard global cap RunDecisionScheduler()
         // admits against and AIClient itself separately enforces (defense in
