@@ -88,14 +88,16 @@ namespace
     }
 }
 
-std::vector<GoalCandidate> GoalSystem::GenerateCandidates(NeedsState const& needs) const
+std::vector<GoalCandidate> GoalSystem::GenerateCandidates(NeedsState const& needs, bool hasFleeSource) const
 {
     std::vector<GoalCandidate> candidates;
 
     if (needs.Hunger >= GoalCandidateThreshold)
         candidates.push_back({ GoalType::GetFood, GoalPriority::Normal, GoalSource::Needs, needs.Hunger });
 
-    if (needs.SafetyPressure >= GoalCandidateThreshold)
+    // Milestone 2.12G3D fix (STATIC review): hasFleeSource gates this
+    // candidate's very existence - see this method's own header comment.
+    if (needs.SafetyPressure >= GoalCandidateThreshold && hasFleeSource)
         candidates.push_back({ GoalType::FleeDanger, GoalPriority::Emergency, GoalSource::Needs, needs.SafetyPressure });
 
     return candidates;

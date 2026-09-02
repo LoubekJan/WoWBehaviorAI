@@ -24,6 +24,7 @@
 #include "Agent/AgentSnapshot.h"
 #include "Agent/CoalitionFormationProfileKind.h"
 #include "Agent/CoalitionMaintenanceSystem.h"
+#include "CombatManager.h"
 #include "Config.h"
 #include "Creature.h"
 #include "GameTime.h"
@@ -99,6 +100,72 @@ namespace
     {
         Unit* victim = actor.GetVictim();
         return victim && victim->GetGUID() == targetGuid;
+    }
+
+    // Milestone 2.12G3D fix (STATIC review): "in combat" must not, by
+    // itself, mean "in danger" for NeedsSystem::SafetyPressure purposes
+    // once an agent can voluntarily start its OWN combat (HUNT). An
+    // earlier version fed creature.IsInCombat() into
+    // NeedsUpdateContext::InCombat unconditionally, which meant the
+    // instant ExecuteAttack() put the actor into real engine combat,
+    // SafetyPressure jumped to 1.0, FLEE_DANGER activated as an Emergency
+    // goal, and UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL block
+    // immediately stopped the HUNT attempt that was working fine - for a
+    // "danger" that was entirely the agent's own chosen fight, with no
+    // actual external threat to flee from at all (NoFleeSource).
+    //
+    // Ownership must be PROVEN, never assumed, through the full identity
+    // chain: GroupCoordinationGoalState is Type==Hunt and
+    // Phase==HuntPhase::Engaging; ActiveActionState is Type==Attack,
+    // SourceGoal==Hunt, the SAME GoalStartedAtMs as the goal, and its own
+    // Target Guid/Entry agree with the goal's TargetGuid/TargetEntry; and
+    // the actor's own LIVE Unit::GetVictim() is provably that exact same
+    // target right now - not merely a stored-value match, but an
+    // engine-confirmed fact (the same "never inferred, always checked"
+    // discipline ownsStoppedMovement in StopInFlightGroupCoordination()
+    // already holds to). If ANY link disagrees, this returns false - still
+    // fully counted as dangerous, fail-closed toward safety, never toward
+    // silently swallowing a real threat.
+    //
+    // Even with ownership fully proven, this returns false as soon as ANY
+    // OTHER combat reference exists (CombatManager::GetPvECombatRefs()/
+    // GetPvPCombatRefs(), keyed by the other unit's own GUID) - a second
+    // attacker, or anything else that is not the owned HUNT target, is
+    // still real, external danger. This is deliberately not a blanket
+    // "HUNT means never flee" rule: a genuine external threat must always
+    // still be able to win.
+    bool IsExclusivelyOwnedHuntCombat(AgentRecord const& record, Creature& creature)
+    {
+        if (!creature.IsInCombat())
+            return false;
+
+        if (!record.GroupCoordinationGoalState || record.GroupCoordinationGoalState->Type != GoalType::Hunt ||
+            record.GroupCoordinationGoalState->Phase != HuntPhase::Engaging)
+            return false;
+
+        GroupCoordinationGoal const& goal = *record.GroupCoordinationGoalState;
+
+        if (!record.ActiveActionState || record.ActiveActionState->Type != ActionType::Attack ||
+            record.ActiveActionState->SourceGoal != GoalType::Hunt ||
+            record.ActiveActionState->GoalStartedAtMs != goal.StartedAtMs ||
+            !record.ActiveActionState->Target ||
+            record.ActiveActionState->Target->Guid != goal.TargetGuid ||
+            record.ActiveActionState->Target->Entry != goal.TargetEntry)
+            return false;
+
+        Unit* victim = creature.GetVictim();
+        if (!victim || victim->GetGUID() != goal.TargetGuid)
+            return false;
+
+        for (auto const& pveRef : creature.GetCombatManager().GetPvECombatRefs())
+            if (pveRef.first != goal.TargetGuid)
+                return false;
+
+        for (auto const& pvpRef : creature.GetCombatManager().GetPvPCombatRefs())
+            if (pvpRef.first != goal.TargetGuid)
+                return false;
+
+        return true;
     }
 
     // Milestone 2.11C: the single place that knows GoalType::GoToWork/
@@ -8831,7 +8898,14 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         context.Health = creature->GetHealth();
         context.MaxHealth = creature->GetMaxHealth();
         context.Alive = creature->IsAlive();
-        context.InCombat = creature->IsInCombat();
+
+        // Milestone 2.12G3D fix (STATIC review): excludes combat that is
+        // PROVABLY and EXCLUSIVELY this agent's own currently-owned HUNT
+        // engagement - see IsExclusivelyOwnedHuntCombat()'s own comment.
+        // Any other combat (a real external threat, or a HUNT whose
+        // ownership does not fully check out) still reads as InCombat==true
+        // here, unchanged - this is never a blanket "HUNT means safe" rule.
+        context.InCombat = creature->IsInCombat() && !IsExclusivelyOwnedHuntCombat(*record, *creature);
 
         // Same deterministic retrieval pipeline CaptureAgentContext()
         // already runs at snapshot cadence - reused here at Needs cadence
@@ -8980,7 +9054,17 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // triggered NeedsThresholdEvent above - a candidate must exist for
         // as long as its Need stays at/above threshold, not just on the
         // tick it crosses.
-        std::vector<GoalCandidate> candidates = _goalSystem.GenerateCandidates(record->Needs);
+        //
+        // Milestone 2.12G3D fix (STATIC review): hasFleeSource resolved
+        // HERE, from the actor's own live ThreatManager::GetCurrentVictim()
+        // - the same engine-authoritative source the FLEE dispatch block
+        // below (and ActionSystem::ValidateFlee()) is itself checked
+        // against - so GenerateCandidates() can refuse to even produce a
+        // FleeDanger candidate this tick without one. See GoalSystem::
+        // GenerateCandidates()'s own header comment for why an infeasible
+        // candidate must never be allowed to win selection at all.
+        bool hasFleeSource = creature->GetThreatManager().GetCurrentVictim() != nullptr;
+        std::vector<GoalCandidate> candidates = _goalSystem.GenerateCandidates(record->Needs, hasFleeSource);
         for (GoalCandidate const& candidate : candidates)
         {
             TC_LOG_DEBUG("ai.world", "AI goal candidate agent={} type={} priority={} utility={:.4f} source={}",

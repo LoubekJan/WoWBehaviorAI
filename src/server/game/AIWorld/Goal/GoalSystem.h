@@ -40,7 +40,26 @@
 class TC_GAME_API GoalSystem
 {
     public:
-        std::vector<GoalCandidate> GenerateCandidates(NeedsState const& needs) const;
+        // Milestone 2.12G3D fix (STATIC review): hasFleeSource is a plain
+        // caller-resolved fact (AIWorldMgr::UpdateNeeds(), from the
+        // actor's own live ThreatManager::GetCurrentVictim() - the same
+        // engine-authoritative source ActionSystem::ValidateFlee() itself
+        // is checked against) - this class still never sees a Creature*/
+        // ThreatManager directly, the same "pure value transform" contract
+        // this class's own header comment already establishes. A
+        // FleeDanger candidate is never generated at all when false, even
+        // if SafetyPressure is at its maximum: an infeasible FLEE_DANGER
+        // would otherwise still win goal selection (Emergency always
+        // outranks Normal), preempt/destroy a currently-working lower-
+        // priority action (see UpdateNeeds()'s own COORDINATION_PREEMPTED_BY_GOAL
+        // block), then fail ActionSystem::Validate() with NoFleeSource and
+        // sit there uselessly until its own 30s timeout - a real,
+        // observed "phantom flee" failure mode once an agent's OWN
+        // voluntary combat (HUNT) could itself be mistaken for danger with
+        // nothing to actually flee from. This is not a blanket "never
+        // flee" rule: a genuine external threat always resolves a real
+        // fleeSource, so this never suppresses a real emergency.
+        std::vector<GoalCandidate> GenerateCandidates(NeedsState const& needs, bool hasFleeSource) const;
 
         // Milestone 2.7B1/2.7B2: current is the agent's existing ActiveGoal
         // (or empty if it has none); candidates is this tick's
