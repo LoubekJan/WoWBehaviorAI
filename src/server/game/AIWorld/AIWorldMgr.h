@@ -1991,20 +1991,34 @@ class TC_GAME_API AIWorldMgr
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): the shared
         // mechanics both StopGroupCoordinationForMember() and
         // ReconcileGroupCoordinationForMember() need - captures
-        // record.GroupCoordinationGoalState's own SourceGroup (2.12F2 P3
-        // fix, round 3, STATIC review - folding both former callers' own
-        // separate bodies into this one shared helper had silently dropped
-        // this GroupId from the stop log; captured here, before the reset
-        // below, since there is nowhere left to read it from afterward),
-        // then unconditionally clears record.GroupCoordinationGoalState.
-        // Only if record.ActiveActionState is actually the matching
-        // in-flight Regroup/Roam (2.12G2: IsCoordinationSourceGoal(), never
-        // assumed - see this method's own body comment for why) does it go
-        // on to stop the underlying engine movement (if a live Creature
-        // still resolves), logging that captured SourceGroup alongside it,
-        // and clear ActiveActionState too. reason is a literal describing
-        // WHY this particular caller stopped it, logged the same way -
-        // callers never share one generic reason string.
+        // record.GroupCoordinationGoalState's OWN identity in full
+        // (Type/SourceGroup/StartedAtMs/TargetGuid/TargetEntry) before
+        // unconditionally clearing it, then records a CoordinationStopEvent
+        // sourced entirely from that captured value - never from
+        // record.ActiveActionState (2.12G3D2A P2 fix, STATIC review: an
+        // earlier version sourced SourceGoal/StartedAtMs from
+        // ActiveActionState and returned WITHOUT recording anything at all
+        // if it was absent, which silently dropped provenance for
+        // HuntPhase::AtTarget - 2.12G3D2A - a member can legitimately own
+        // an attempt with NO ActiveActionState at all, since nothing is
+        // currently running; target-invalid/leave/dissolve/preemption
+        // stopping such a member must still honestly record WHAT was
+        // stopped). The ownership invariant Dispatch*Proposal() already
+        // establishes - both fields, whenever they coexist, always agree
+        // on Type/StartedAtMs - means this is always at least as correct
+        // for Regroup/Roam (which never have an AtTarget-equivalent state)
+        // as the old ActiveActionState-sourced version. The underlying
+        // engine movement is still only actually stopped (StopMoveTo(),
+        // if a live Creature resolves) and observed
+        // (EngineGeneratorWasRunningBeforeStop/ConfirmedStoppedAfterStop)
+        // unconditionally whenever a live Creature resolves - honestly
+        // reading false/false for an AtTarget member with nothing running,
+        // never skipped. record.ActiveActionState itself is only ever
+        // reset if it is actually the matching in-flight coordination
+        // action (2.12G2: IsCoordinationSourceGoal(), never assumed) -
+        // absent entirely for AtTarget, which is not an error. reason is a
+        // literal describing WHY this particular caller stopped it, logged
+        // the same way - callers never share one generic reason string.
         //
         // Milestone 2.12G2R P2 fix, round 3 (STATIC review): stopReason is
         // a SEPARATE, structured counterpart to the free-text `reason`

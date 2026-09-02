@@ -4964,6 +4964,67 @@ void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
         }
     }
 
+    // Milestone 2.12G3D2A P2 fix (STATIC review): StopInFlightGroupCoordination()
+    // must still honestly record a CoordinationStopEvent for a
+    // HuntPhase::AtTarget member - one with NO ActiveActionState at all,
+    // since nothing is currently running. WorldState is deliberately left
+    // at its own default (AgentWorldState::Abstract, "not materialized")
+    // so this exercises the pure value path only - no live Map/Creature
+    // lookup is ever attempted, matching this whole smoke test's own
+    // registry-free scope.
+    {
+        AgentRecord record;
+        record.Id = AgentId{ 1 };
+
+        GroupCoordinationGoal goal;
+        goal.Type = GoalType::Hunt;
+        goal.SourceGroup = GroupId{ 1 };
+        goal.StartedAtMs = 1000;
+        goal.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(5000, 100);
+        goal.TargetEntry = 5000;
+        goal.TargetObservedAtMs = 500;
+        goal.Phase = HuntPhase::AtTarget;
+        record.GroupCoordinationGoalState = goal;
+        // Deliberately no ActiveActionState - this is exactly what
+        // HuntPhase::AtTarget means.
+
+        StopInFlightGroupCoordination(record, "SMOKE_TEST_AT_TARGET_STOP", CoordinationStopReason::StoppedByTargetInvalid);
+
+        check("stopping an AtTarget member releases GroupCoordinationGoalState",
+            !record.GroupCoordinationGoalState.has_value());
+        check("stopping an AtTarget member records a CoordinationStopEvent (not silently dropped)",
+            record.LastCoordinationStop.has_value());
+        check("the recorded stop event carries the AtTarget goal's own exact identity",
+            record.LastCoordinationStop && record.LastCoordinationStop->Reason == CoordinationStopReason::StoppedByTargetInvalid &&
+            record.LastCoordinationStop->SourceGoal == GoalType::Hunt &&
+            record.LastCoordinationStop->SourceGroup == GroupId{ 1 } &&
+            record.LastCoordinationStop->StartedAtMs == 1000 &&
+            record.LastCoordinationStop->TargetGuid == goal.TargetGuid &&
+            record.LastCoordinationStop->TargetEntry == 5000);
+        check("the recorded stop event never claims an engine generator was running",
+            record.LastCoordinationStop && !record.LastCoordinationStop->EngineGeneratorWasRunningBeforeStop &&
+            !record.LastCoordinationStop->EngineGeneratorConfirmedStoppedAfterStop);
+    }
+
+    // The same stop path for a member still genuinely Approaching (a live
+    // ActiveActionState present) continues to record identity correctly
+    // too - regression check that the 2.12G3D2A rework did not change
+    // this already-established case.
+    {
+        AgentRecord record = makeCoordinationRecord(GoalType::Hunt, 1000);
+
+        StopInFlightGroupCoordination(record, "SMOKE_TEST_APPROACHING_STOP", CoordinationStopReason::StoppedByLifecycle);
+
+        check("stopping an Approaching member releases both ActiveActionState and GroupCoordinationGoalState",
+            !record.ActiveActionState.has_value() && !record.GroupCoordinationGoalState.has_value());
+        check("the recorded stop event still carries the correct identity while Approaching",
+            record.LastCoordinationStop && record.LastCoordinationStop->Reason == CoordinationStopReason::StoppedByLifecycle &&
+            record.LastCoordinationStop->SourceGoal == GoalType::Hunt &&
+            record.LastCoordinationStop->SourceGroup == GroupId{ 1 } &&
+            record.LastCoordinationStop->StartedAtMs == 1000 &&
+            record.LastCoordinationStop->TargetEntry == 5000);
+    }
+
     TC_LOG_INFO("ai.world", "AI HUNT arrival ownership smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
@@ -6447,9 +6508,11 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
             return;
         }
 
-        if (huntDiagnosticsEnabled)
-            TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} stage=REAPPROACH result=APPROACHING group={} target={} targetEntry={} startedAtMs={}",
-                proposal.Member.Value, proposal.SourceGroup.Value, target->GetGUID().ToString(), target->GetEntry(), proposal.StartedAtMs);
+        // Milestone 2.12G3D2A P3 fix (STATIC review): the "stage=REAPPROACH
+        // result=APPROACHING" diagnostic itself is logged much later, only
+        // after a genuinely successful ExecuteMoveTo() - not here, where
+        // range/LOS/PathGenerator/Validate()/Execute() could still reject
+        // this re-approach attempt.
     }
 
     float rangeDx = targetX - creature->GetPositionX();
@@ -6519,6 +6582,21 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
         record->Id.Value, ToString(moveRequest.Type), ToString(moveRequest.SourceGoal),
         destination.X, destination.Y, destination.Z, target->GetEntry(), proposal.SourceGroup.Value, ToString(group->ProfileId));
 
+    // Milestone 2.12G3D2A P2 fix (STATIC review): captured BEFORE
+    // overwriting below, so a validation/execution failure can restore it
+    // rather than unconditionally resetting to nullopt. For a fresh
+    // dispatch (alreadyAtTargetForThisAttempt == false) this is already
+    // nullopt, so the restore-on-failure path below is a no-op and
+    // behavior is unchanged from before this fix. For a re-approach, this
+    // is the member's own existing AtTarget-phase GroupCoordinationGoalState -
+    // resetting to nullopt on a failed re-approach attempt would silently
+    // discard a still-valid, still-owned HUNT attempt's own pin (a
+    // single-member group would then have nothing left to reconstruct
+    // that attempt's own identity from, and the next pass would freshly
+    // select the target again under a NEW StartedAtMs, breaking stable
+    // attempt identity).
+    std::optional<GroupCoordinationGoal> previousCoordinationGoal = record->GroupCoordinationGoalState;
+
     // Set BEFORE Validate() - the same order/rollback-on-rejection
     // discipline DispatchGroupMemberActionProposal() already holds to.
     GroupCoordinationGoal coordinationGoal;
@@ -6565,7 +6643,11 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
 
     if (!moveValidation.Allowed)
     {
-        record->GroupCoordinationGoalState.reset();
+        if (alreadyAtTargetForThisAttempt && huntDiagnosticsEnabled)
+            TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} stage=REAPPROACH result=ROLLED_BACK reason=VALIDATION_REJECTED",
+                proposal.Member.Value);
+
+        record->GroupCoordinationGoalState = previousCoordinationGoal;
         return;
     }
 
@@ -6576,7 +6658,11 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
 
     if (moveResult.Status != ActionExecutionStatus::Started)
     {
-        record->GroupCoordinationGoalState.reset();
+        if (alreadyAtTargetForThisAttempt && huntDiagnosticsEnabled)
+            TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} stage=REAPPROACH result=ROLLED_BACK reason=EXECUTION_FAILED",
+                proposal.Member.Value);
+
+        record->GroupCoordinationGoalState = previousCoordinationGoal;
         return;
     }
 
@@ -6587,6 +6673,17 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     action.StartedAtMs = nowMs;
     action.Destination = moveRequest.Destination;
     action.Target = moveRequest.Target;
+
+    // Milestone 2.12G3D2A P3 fix (STATIC review): moved here, after a
+    // genuinely successful ExecuteMoveTo() and ActiveActionState
+    // creation, not at the moment re-approach eligibility was merely
+    // determined (before range/LOS/PathGenerator/Validate()/Execute()
+    // could still reject it) - an earlier version logged this too early
+    // and could claim APPROACHING even when the re-approach never
+    // actually started.
+    if (alreadyAtTargetForThisAttempt && huntDiagnosticsEnabled)
+        TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} stage=REAPPROACH result=APPROACHING group={} target={} targetEntry={} startedAtMs={}",
+            proposal.Member.Value, proposal.SourceGroup.Value, target->GetGUID().ToString(), target->GetEntry(), proposal.StartedAtMs);
     record->ActiveActionState = action;
 }
 
@@ -6637,39 +6734,29 @@ uint32 AIWorldMgr::CountCoordinationEnabledMemberships(AgentId member) const
 
 void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* reason, CoordinationStopReason stopReason)
 {
-    // 2.12F2 P3 fix (STATIC review): captured before the reset below, not
-    // after - the old (pre-refactor) StopGroupCoordinationForMember() body
-    // logged this same GroupId; folding both callers into this shared
-    // helper silently dropped it from the stop log. Runtime
-    // identity/ownership was never affected (GroupCoordinationGoalState
-    // still gets cleared the same way either order), but this GroupId is
-    // exactly the provenance an operator needs when reading a lifecycle/
-    // ambiguity stop line - which group did this attempt belong to.
-    GroupId sourceGroup = record.GroupCoordinationGoalState ? record.GroupCoordinationGoalState->SourceGroup : GroupId{};
-
-    // Milestone 2.12G3C2 P2 fix (STATIC review): captured here too, for
-    // the exact same reason sourceGroup already is - once
-    // GroupCoordinationGoalState is reset below, its own TargetGuid/
-    // TargetEntry are gone, and CoordinationStopEvent would have no way to
-    // honestly record WHICH target a HUNT-owned attempt was actually
-    // stopped for.
-    ObjectGuid sourceTargetGuid = record.GroupCoordinationGoalState ? record.GroupCoordinationGoalState->TargetGuid : ObjectGuid::Empty;
-    uint32 sourceTargetEntry = record.GroupCoordinationGoalState ? record.GroupCoordinationGoalState->TargetEntry : 0;
+    // Milestone 2.12G3D2A P2 fix (STATIC review): captured BEFORE the
+    // reset below, and used as the SOLE source of this stop event's own
+    // identity (Type/SourceGroup/StartedAtMs/TargetGuid/TargetEntry) -
+    // never ActiveActionState's own SourceGoal/GoalStartedAtMs, which
+    // HuntPhase::AtTarget (2.12G3D2A) means may legitimately not exist at
+    // all: ownership can persist with NO ActiveActionState (nothing is
+    // currently running). By the ownership invariant Dispatch*Proposal()
+    // already establishes - GroupCoordinationGoalState and
+    // ActiveActionState, whenever BOTH exist, always agree on Type/
+    // StartedAtMs, since both are set together and neither is ever
+    // modified independently - sourcing identity from
+    // GroupCoordinationGoalState alone is always at least as correct as
+    // the previous ActiveActionState-sourced version for Regroup/Roam
+    // (which never have an AtTarget-equivalent state), and is now also
+    // the only source that still works once ActiveActionState is gone.
+    std::optional<GroupCoordinationGoal> priorCoordinationGoal = record.GroupCoordinationGoalState;
 
     record.GroupCoordinationGoalState.reset();
 
-    // Defensive - by the ownership invariant DispatchGroupMemberActionProposal()
-    // establishes, GroupCoordinationGoalState being set means ActiveActionState
-    // should be the matching in-flight Regroup/Roam (2.12G2:
-    // IsCoordinationSourceGoal(), not GoalType::Regroup alone), but this
-    // never assumes that without checking: a member dematerializing/dying/
-    // being preempted by a higher-priority goal the SAME tick one of this
-    // method's own callers happens to run would already have cleared
-    // ActiveActionState (see UpdateNeeds()'s own cleanup/preemption
-    // blocks) while both callers' own ordering (from a
-    // TransactionCallbackProcessor completion, not from inside
-    // UpdateNeeds() itself) cannot guarantee which ran first this tick.
-    if (!record.ActiveActionState || !IsCoordinationSourceGoal(record.ActiveActionState->SourceGoal))
+    // Nothing was owned at all, or it was not a coordination-sourced goal
+    // (should not happen given this field's own contract, but never
+    // assumed) - nothing to record.
+    if (!priorCoordinationGoal || !IsCoordinationSourceGoal(priorCoordinationGoal->Type))
         return;
 
     // Milestone 2.12G2R P2 fix, round 3 (STATIC review): captured before
@@ -6683,14 +6770,17 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     // if no live Creature resolves below, NEITHER can be honestly
     // confirmed, and leaving them false (never defaulted to a claimed
     // success) is the correct fail-closed outcome, not "assume nothing
-    // was running so trivially count as stopped".
+    // was running so trivially count as stopped". Milestone 2.12G3D2A:
+    // this is exactly the honest outcome for a HuntPhase::AtTarget stop
+    // too - there genuinely is no engine movement to observe running, so
+    // both fields correctly read false rather than being skipped/assumed.
     CoordinationStopEvent stopEvent;
     stopEvent.Reason = stopReason;
-    stopEvent.SourceGoal = record.ActiveActionState->SourceGoal;
-    stopEvent.SourceGroup = sourceGroup;
-    stopEvent.StartedAtMs = record.ActiveActionState->GoalStartedAtMs;
-    stopEvent.TargetGuid = sourceTargetGuid;
-    stopEvent.TargetEntry = sourceTargetEntry;
+    stopEvent.SourceGoal = priorCoordinationGoal->Type;
+    stopEvent.SourceGroup = priorCoordinationGoal->SourceGroup;
+    stopEvent.StartedAtMs = priorCoordinationGoal->StartedAtMs;
+    stopEvent.TargetGuid = priorCoordinationGoal->TargetGuid;
+    stopEvent.TargetEntry = priorCoordinationGoal->TargetEntry;
     stopEvent.StoppedAtMs = CurrentTimeMs();
 
     if (record.WorldState == AgentWorldState::Materialized)
@@ -6708,13 +6798,17 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
             // genuinely in-flight movement was actually just interrupted -
             // only the latter is real evidence this stop path did
             // meaningful work, which is exactly what a verifying test hook
-            // needs to be able to tell apart.
+            // needs to be able to tell apart. Milestone 2.12G3D2A:
+            // observed UNCONDITIONALLY here, regardless of whether
+            // ActiveActionState exists - a HuntPhase::AtTarget member
+            // legitimately has none, and this must honestly report "was
+            // nothing running" rather than skip the observation entirely.
             stopEvent.EngineGeneratorWasRunningBeforeStop = HasOwnMoveToGenerator(*creature);
 
             _actionExecutor.StopMoveTo(*creature);
 
             TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={} sourceGoal={} sourceGroup={}",
-                record.Id.Value, ToString(ActionType::MoveTo), reason, ToString(record.ActiveActionState->SourceGoal), sourceGroup.Value);
+                record.Id.Value, ToString(ActionType::MoveTo), reason, ToString(stopEvent.SourceGoal), stopEvent.SourceGroup.Value);
 
             // Freshly re-observed right after StopMoveTo() just ran, not
             // assumed true - see CoordinationStopEvent.h's own comment.
@@ -6723,7 +6817,15 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     }
 
     record.LastCoordinationStop = stopEvent;
-    record.ActiveActionState.reset();
+
+    // Milestone 2.12G3D2A: only ever reset an ActiveActionState that
+    // actually belongs to THIS coordination attempt - defensive, the same
+    // "never assume, always check" discipline this method already held
+    // before this milestone (see the comment this replaced). Absent
+    // entirely for HuntPhase::AtTarget, which is not an error - there is
+    // simply nothing left to reset.
+    if (record.ActiveActionState && IsCoordinationSourceGoal(record.ActiveActionState->SourceGoal))
+        record.ActiveActionState.reset();
 }
 
 void AIWorldMgr::StopGroupCoordinationForMember(AgentId memberId, GroupId groupId)
