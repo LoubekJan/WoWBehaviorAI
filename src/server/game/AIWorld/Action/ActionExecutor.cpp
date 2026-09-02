@@ -16,6 +16,7 @@
  */
 
 #include "ActionExecutor.h"
+#include "CombatManager.h"
 #include "Creature.h"
 #include "MotionMaster.h"
 #include "MovementDefines.h"
@@ -252,33 +253,49 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
 
 void ActionExecutor::StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const
 {
-    // Milestone 2.12G3D P2 fix (STATIC review): nothing below runs unless
-    // the actor's own CURRENT victim still IS the exact target this HUNT
-    // attempt owns - see this method's own header comment for the two bugs
-    // this closes. A no-op (not even a MotionMaster touch) if the actor is
-    // not currently attacking ownedTargetGuid at all (already stopped, or
-    // desynced onto some other victim this call has no business touching).
+    // Milestone 2.12G3D P2 fix (STATIC review): only touches the melee-
+    // attack/chase relationship if the actor's own CURRENT victim still IS
+    // ownedTargetGuid - never RemoveAllAttackers()/CombatStop(), which
+    // would also affect an unrelated victim or unrelated attackers. A
+    // no-op here (not the whole method - see below) if the actor is not
+    // currently attacking ownedTargetGuid at all.
     Unit* victim = actor.GetVictim();
-    if (!victim || victim->GetGUID() != ownedTargetGuid)
-        return;
+    if (victim && victim->GetGUID() == ownedTargetGuid)
+    {
+        // Targeted only - never Unit::CombatStop(), which also calls
+        // RemoveAllAttackers() and would silently force every OTHER unit
+        // currently attacking this actor to stop fighting it too, an
+        // effect entirely unrelated to ending THIS HUNT attempt's own
+        // attack on ownedTargetGuid.
+        actor.AttackStop();
 
-    // Targeted only - never Unit::CombatStop(), which also calls
-    // RemoveAllAttackers() and would silently force every OTHER unit
-    // currently attacking this actor to stop fighting it too, an effect
-    // entirely unrelated to ending THIS HUNT attempt's own attack on
-    // ownedTargetGuid.
-    actor.AttackStop();
+        MotionMaster* motion = actor.GetMotionMaster();
 
-    MotionMaster* motion = actor.GetMotionMaster();
+        // Same "only halt the active spline if our own generator was
+        // actually the one running" discipline StopMoveTo()/StopFlee()
+        // already apply - AttackStop() above does not touch MotionMaster
+        // at all, so the chase generator ExecuteAttack() started (if any)
+        // is still present here.
+        bool wasActiveChase = motion->GetCurrentMovementGeneratorType() == CHASE_MOTION_TYPE;
 
-    // Same "only halt the active spline if our own generator was actually
-    // the one running" discipline StopMoveTo()/StopFlee() already apply -
-    // AttackStop() above does not touch MotionMaster at all, so the chase
-    // generator ExecuteAttack() started (if any) is still present here.
-    bool wasActiveChase = motion->GetCurrentMovementGeneratorType() == CHASE_MOTION_TYPE;
+        motion->Remove(CHASE_MOTION_TYPE);
 
-    motion->Remove(CHASE_MOTION_TYPE);
+        if (wasActiveChase)
+            actor.StopMoving();
+    }
 
-    if (wasActiveChase)
-        actor.StopMoving();
+    // Milestone 2.12G3D P2 fix, round 2 (STATIC review): independent of
+    // the block above - AttackStop() never ends the underlying PvE
+    // combat/threat reference at all (CombatManager.h's own dev doc: "To
+    // end combat between two units, find their CombatReference and call
+    // EndCombat"). Looked up directly by ownedTargetGuid regardless of
+    // whatever the actor's CURRENT victim happens to be, since a combat
+    // reference with THIS HUNT attempt's own target can still exist even
+    // when GetVictim() no longer names it (or never did). EndCombat()
+    // itself removes the reference from both units' own CombatManager -
+    // the iterator from find() is not used again afterward.
+    auto const& pveCombatRefs = actor.GetCombatManager().GetPvECombatRefs();
+    auto combatRefIt = pveCombatRefs.find(ownedTargetGuid);
+    if (combatRefIt != pveCombatRefs.end())
+        combatRefIt->second->EndCombat();
 }

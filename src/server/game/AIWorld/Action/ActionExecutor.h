@@ -168,30 +168,33 @@ class TC_GAME_API ActionExecutor
 
         // Milestone 2.12G3D P2 fix (STATIC review): ends combat started by
         // ExecuteAttack() - ownedTargetGuid is the HUNT attempt's own
-        // pinned target, and this method touches NOTHING at all unless the
-        // actor's OWN CURRENT victim (Unit::GetVictim()) still IS that
-        // exact target. An earlier version called this unconditionally
-        // whenever a HUNT attempt's own stop path fired, which had two
-        // bugs: (1) it used a plain Unit::CombatStop(), which also calls
-        // RemoveAllAttackers() - clearing every OTHER unit's own attacker
-        // relationship against this actor too, silently forcing unrelated
-        // attackers to stop fighting it; (2) it ran even when the stored
-        // HUNT action named target A but the actor's own live victim had
-        // already become some different B (engine/bookkeeping desync),
-        // which would then stop B's fight instead of - or as well as -
-        // ending A's, neither of which this HUNT attempt has any business
-        // touching. Now: a targeted Unit::AttackStop() only (never
-        // CombatStop()/RemoveAllAttackers() - this ends THIS actor's own
-        // attack relationship with ownedTargetGuid, nothing broader), plus
-        // removing the CHASE_MOTION_TYPE generator MoveChase() started
-        // (AttackStop() itself does not touch MotionMaster) - the same
-        // "find and remove only the generator we started, only halt the
-        // active spline if it was actually still the one running"
-        // discipline StopMoveTo()/StopFlee() already apply to their own
-        // generator types. A no-op (does nothing, including to
-        // MotionMaster) if the actor's current victim is not
-        // ownedTargetGuid - there is nothing of THIS attempt's own left to
-        // stop.
+        // pinned target. Two INDEPENDENT halves, neither gated on the
+        // other:
+        //
+        // (1) the melee-attack/chase relationship (Unit::AttackStop() +
+        // removing the CHASE_MOTION_TYPE generator MoveChase() started) is
+        // only ever touched if the actor's OWN CURRENT victim
+        // (Unit::GetVictim()) still IS ownedTargetGuid - never
+        // RemoveAllAttackers()/CombatStop(), which would also affect every
+        // OTHER unit's own attacker relationship against this actor, or a
+        // different victim this HUNT attempt has no business touching.
+        //
+        // (2) Milestone 2.12G3D P2 fix, round 2 (STATIC review): a targeted
+        // Unit::AttackStop() alone does NOT end the underlying PvE combat/
+        // threat reference at all (see CombatManager.h's own dev doc: "To
+        // end combat between two units, find their CombatReference and
+        // call EndCombat") - without this, the actor could stay
+        // IsInCombat() with ownedTargetGuid (and vice versa - the target
+        // could keep attacking back) even after this HUNT attempt is
+        // fully stopped. So the actor's own PvE CombatReference for
+        // EXACTLY ownedTargetGuid (CombatManager::GetPvECombatRefs(), keyed
+        // by the other unit's GUID) is looked up and ended independently
+        // of whatever the actor's CURRENT victim happens to be - an
+        // earlier version returned immediately whenever the victim did not
+        // match, which meant a still-existing combat reference with the
+        // original HUNT target was never found or ended at all whenever
+        // the actor had already (or never) had it as its literal melee
+        // victim.
         void StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const;
 };
 

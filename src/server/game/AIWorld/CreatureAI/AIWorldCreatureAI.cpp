@@ -40,6 +40,12 @@ AIWorldCreatureAI::AIWorldCreatureAI(Creature* creature) : CreatureAI(creature)
     me->GetMotionMaster()->MoveIdle();
 }
 
+void AIWorldCreatureAI::UpdateAI(uint32 /*diff*/)
+{
+    if (me->GetVictim())
+        DoMeleeAttackIfReady();
+}
+
 void AIWorldCreatureAI::MovementInform(uint32 type, uint32 id)
 {
     ActionEngineEvent event;

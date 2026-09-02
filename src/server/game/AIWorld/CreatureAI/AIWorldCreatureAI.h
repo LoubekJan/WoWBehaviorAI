@@ -71,11 +71,14 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // entirely from AIWorldMgr::Update(), not from here) still decides
         // WHETHER/WHOM to attack; this only carries out melee swings once
         // that decision already landed.
-        void UpdateAI(uint32 /*diff*/) override
-        {
-            if (me->GetVictim())
-                DoMeleeAttackIfReady();
-        }
+        //
+        // Milestone 2.12G3D P2 fix, round 2 (STATIC review): defined in
+        // AIWorldCreatureAI.cpp, not inline here - CreatureAI.h (the base
+        // this class includes) only forward-declares Creature, so an
+        // inline body dereferencing me (a Creature*) made this header not
+        // self-compilable outside a precompiled-header build; the .cpp
+        // already includes Creature.h for MovementInform()'s own use.
+        void UpdateAI(uint32 diff) override;
 
         // Suppresses only the reflex of chasing/meleeing whatever this
         // Creature is attacking - TrinityCore's own combat/threat/damage
