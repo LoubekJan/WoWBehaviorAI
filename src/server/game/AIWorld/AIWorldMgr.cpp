@@ -4863,20 +4863,35 @@ void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
         AgentRecord record;
         record.Id = AgentId{ 1 };
 
+        // Milestone 2.12G3D2A P2 fix, round 2 follow-up (STATIC review):
+        // shared targetGuid, matching StopInFlightGroupCoordination()'s
+        // own ownsStoppedMovement HUNT match (ActiveAction::Target must
+        // agree with GroupCoordinationGoal::TargetGuid/TargetEntry) - an
+        // earlier version of this fixture left ActiveAction::Target unset
+        // even for GoalType::Hunt, which made every existing HUNT stop
+        // test in this function fail ownsStoppedMovement's exact match by
+        // construction, not because of any actual production bug.
+        ObjectGuid targetGuid = ObjectGuid::Create<HighGuid::Unit>(5000, 100);
+
         ActiveAction action;
         action.Type = ActionType::MoveTo;
         action.SourceGoal = type;
         action.GoalStartedAtMs = startedAtMs;
         action.StartedAtMs = startedAtMs;
+
+        if (type == GoalType::Hunt)
+            action.Target = ActionTargetRef{ targetGuid, 5000 };
+
         record.ActiveActionState = action;
 
         GroupCoordinationGoal goal;
         goal.Type = type;
         goal.SourceGroup = GroupId{ 1 };
         goal.StartedAtMs = startedAtMs;
-        goal.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(5000, 100);
+        goal.TargetGuid = targetGuid;
         goal.TargetEntry = 5000;
         goal.TargetObservedAtMs = startedAtMs > 1000 ? startedAtMs - 1000 : 0;
+        goal.Phase = HuntPhase::Approaching;
         record.GroupCoordinationGoalState = goal;
 
         return record;
@@ -5071,6 +5086,52 @@ void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
             record.ActiveActionState.has_value() &&
             record.ActiveActionState->SourceGoal == GoalType::GetFood &&
             record.ActiveActionState->GoalStartedAtMs == 2000);
+    }
+
+    // Milestone 2.12G3D2A P2 fix, round 2 follow-up (STATIC review): the
+    // narrower negative case Type+GoalStartedAtMs alone cannot catch - a
+    // HUNT ActiveActionState that agrees with the GroupCoordinationGoal on
+    // everything EXCEPT the target it is actually approaching (a stale
+    // ActiveActionState surviving a same-attempt re-approach against a
+    // DIFFERENT target than the one this particular stop call is now
+    // acting on, for example). ownsStoppedMovement's HUNT-only target
+    // check must reject this too.
+    {
+        AgentRecord record;
+        record.Id = AgentId{ 1 };
+
+        GroupCoordinationGoal huntGoal;
+        huntGoal.Type = GoalType::Hunt;
+        huntGoal.SourceGroup = GroupId{ 1 };
+        huntGoal.StartedAtMs = 1000;
+        huntGoal.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(5000, 100);
+        huntGoal.TargetEntry = 5000;
+        huntGoal.TargetObservedAtMs = 500;
+        huntGoal.Phase = HuntPhase::Approaching;
+        record.GroupCoordinationGoalState = huntGoal;
+
+        ActiveAction mismatchedTargetAction;
+        mismatchedTargetAction.Type = ActionType::MoveTo;
+        mismatchedTargetAction.SourceGoal = GoalType::Hunt;
+        mismatchedTargetAction.GoalStartedAtMs = 1000;
+        mismatchedTargetAction.StartedAtMs = 1000;
+        mismatchedTargetAction.Target = ActionTargetRef{ ObjectGuid::Create<HighGuid::Unit>(6000, 200), 6000 };
+        record.ActiveActionState = mismatchedTargetAction;
+
+        StopInFlightGroupCoordination(record, "SMOKE_TEST_MISMATCHED_TARGET_STOP", CoordinationStopReason::StoppedByTargetInvalid);
+
+        check("stopping HUNT ownership with a same-timestamp but different-target action still releases the goal",
+            !record.GroupCoordinationGoalState.has_value());
+        check("the recorded stop event still carries the HUNT goal's own identity",
+            record.LastCoordinationStop && record.LastCoordinationStop->Reason == CoordinationStopReason::StoppedByTargetInvalid &&
+            record.LastCoordinationStop->SourceGoal == GoalType::Hunt &&
+            record.LastCoordinationStop->SourceGroup == GroupId{ 1 } &&
+            record.LastCoordinationStop->StartedAtMs == 1000 &&
+            record.LastCoordinationStop->TargetEntry == 5000);
+        check("the mismatched-target HUNT ActiveActionState is left completely untouched",
+            record.ActiveActionState.has_value() &&
+            record.ActiveActionState->Target.has_value() &&
+            record.ActiveActionState->Target->Entry == 6000);
     }
 
     TC_LOG_INFO("ai.world", "AI HUNT arrival ownership smoke test {}", allPassed ? "PASSED" : "FAILED");
