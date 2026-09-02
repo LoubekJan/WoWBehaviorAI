@@ -901,6 +901,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // RunHuntActionValidationSmokeTest()'s own comment.
     bool testHuntActionValidation = sConfigMgr->GetBoolDefault("AIWorld.TestHuntActionValidation", false);
 
+    // Milestone 2.12G3D1: off by default - see
+    // RunHuntArrivalOwnershipSmokeTest()'s own comment.
+    bool testHuntArrivalOwnership = sConfigMgr->GetBoolDefault("AIWorld.TestHuntArrivalOwnership", false);
+
     // Milestone 2.12F4A: off by default (0 - the same 0-means-disabled
     // convention every other AgentId-keyed test hook in this file already
     // uses) - see RunControlModeSmokeTest()'s own comment. Names a real,
@@ -1570,6 +1574,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // yet (this milestone's own contract commit deliberately adds none).
     if (testHuntActionValidation)
         RunHuntActionValidationSmokeTest();
+
+    // Milestone 2.12G3D1: manual proof only, gated behind
+    // AIWorld.TestHuntArrivalOwnership (default off) - see
+    // RunHuntArrivalOwnershipSmokeTest()'s own comment. Entirely pure -
+    // ActionCompletion/AgentRecord are both plain values, no live
+    // Creature/Map/registry access needed to exercise
+    // HandleActionCompletion() directly.
+    if (testHuntArrivalOwnership)
+        RunHuntArrivalOwnershipSmokeTest();
 
     // Milestone 2.12F4A: manual proof only, gated behind
     // AIWorld.TestControlMode (default 0/disabled) - see
@@ -4789,6 +4802,159 @@ void AIWorldMgr::RunHuntActionValidationSmokeTest() const
     }
 
     TC_LOG_INFO("ai.world", "AI HUNT action validation smoke test {}", allPassed ? "PASSED" : "FAILED");
+}
+
+// Milestone 2.12G3D1 P2 fix (runtime finding): manual proof of
+// HandleActionCompletion()'s own HUNT arrival-ownership retention -
+// entirely pure, synthetic AgentRecord/ActionCompletion values built on
+// the stack, fed straight to HandleActionCompletion() itself (both types
+// are plain values - no live Creature/Map/registry access needed). Not
+// const, unlike the other pure Hunt smoke tests above: HandleActionCompletion()
+// itself is a non-const private method (it is the same production
+// method every real MOVE_TO completion already goes through, never a
+// reimplementation), so this cannot be called from a const context.
+//
+// Proves specifically: a genuine SUCCESSFUL Arrived completion for a
+// HUNT-sourced action retains GroupCoordinationGoalState (same group/
+// target/StartedAtMs identity) while still releasing ActiveActionState -
+// the fix that stops RunCoalitionCoordination()'s very next pass from
+// freshly re-selecting the same still-eligible target and dispatching a
+// second, effectively zero-distance MOVE_TO. Every OTHER HUNT completion
+// (Failed/DestinationNotReached, GoalInterrupted, ActorDematerialized,
+// ActorDead, EngineStopped) still releases ownership exactly like before -
+// retaining it there would leave a member that never actually reached
+// its target permanently stuck. Regroup/Roam arrival is also proven
+// unaffected - the retention exception is HUNT-only, never generalized.
+//
+// This does NOT simulate two full RunCoalitionCoordination() passes
+// end to end (that would need a live registry/Map/Creature, the same
+// live-server dependency AIWorld.TestObserveActiveHuntAgentId itself
+// already has, and is out of scope for a pure smoke test) - it instead
+// directly proves the ONE mechanism the loop-prevention actually depends
+// on: that GroupCoordinationGoalState is honestly retained after a HUNT
+// arrival and honestly released after everything else, which is exactly
+// what keeps DispatchHuntProposal()'s own pre-existing
+// GroupCoordinationGoalState re-check (COORDINATION_GOAL) from ever
+// letting a second dispatch through.
+void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
+{
+    bool allPassed = true;
+    auto check = [&allPassed](char const* name, bool condition)
+    {
+        if (condition)
+            TC_LOG_INFO("ai.world", "AI HUNT arrival ownership smoke test: {} PASSED", name);
+        else
+        {
+            TC_LOG_ERROR("ai.world", "AI HUNT arrival ownership smoke test: {} FAILED", name);
+            allPassed = false;
+        }
+    };
+
+    auto makeCoordinationRecord = [](GoalType type, uint64 startedAtMs)
+    {
+        AgentRecord record;
+        record.Id = AgentId{ 1 };
+
+        ActiveAction action;
+        action.Type = ActionType::MoveTo;
+        action.SourceGoal = type;
+        action.GoalStartedAtMs = startedAtMs;
+        action.StartedAtMs = startedAtMs;
+        record.ActiveActionState = action;
+
+        GroupCoordinationGoal goal;
+        goal.Type = type;
+        goal.SourceGroup = GroupId{ 1 };
+        goal.StartedAtMs = startedAtMs;
+        goal.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(5000, 100);
+        goal.TargetEntry = 5000;
+        goal.TargetObservedAtMs = startedAtMs > 1000 ? startedAtMs - 1000 : 0;
+        record.GroupCoordinationGoalState = goal;
+
+        return record;
+    };
+
+    auto makeCompletion = [](AgentId actor, GoalType sourceGoal, uint64 goalStartedAtMs,
+        ActionCompletionStatus status, ActionCompletionReason reason)
+    {
+        ActionCompletion completion;
+        completion.Actor = actor;
+        completion.Type = ActionType::MoveTo;
+        completion.SourceGoal = sourceGoal;
+        completion.GoalStartedAtMs = goalStartedAtMs;
+        completion.Status = status;
+        completion.Reason = reason;
+        completion.CompletedAtMs = goalStartedAtMs + 1000;
+        return completion;
+    };
+
+    // A genuine successful HUNT arrival retains GroupCoordinationGoalState
+    // (the exact same group/target/StartedAtMs identity) while still
+    // releasing ActiveActionState - the movement itself is over, but the
+    // group's own ownership of this attempt is not.
+    {
+        AgentRecord record = makeCoordinationRecord(GoalType::Hunt, 1000);
+        ActionCompletion completion = makeCompletion(record.Id, GoalType::Hunt, 1000,
+            ActionCompletionStatus::Succeeded, ActionCompletionReason::Arrived);
+
+        HandleActionCompletion(record, completion);
+
+        check("a genuine HUNT arrival releases ActiveActionState",
+            !record.ActiveActionState.has_value());
+        check("a genuine HUNT arrival retains GroupCoordinationGoalState",
+            record.GroupCoordinationGoalState.has_value());
+        check("retained ownership keeps the exact same group/target/startedAt identity",
+            record.GroupCoordinationGoalState && record.GroupCoordinationGoalState->Type == GoalType::Hunt &&
+            record.GroupCoordinationGoalState->SourceGroup == GroupId{ 1 } &&
+            record.GroupCoordinationGoalState->StartedAtMs == 1000 &&
+            record.GroupCoordinationGoalState->TargetEntry == 5000);
+    }
+
+    // Every OTHER HUNT completion reason still releases ownership exactly
+    // like before - only a genuine Succeeded/Arrived retains it. Retaining
+    // it for any of these would leave a member that never actually
+    // reached its target permanently stuck, with no path back to being
+    // re-dispatched.
+    {
+        struct FailureCase { ActionCompletionStatus Status; ActionCompletionReason Reason; char const* Name; };
+        FailureCase failureCases[] = {
+            { ActionCompletionStatus::Failed, ActionCompletionReason::DestinationNotReached, "destination not reached" },
+            { ActionCompletionStatus::Failed, ActionCompletionReason::GoalInterrupted, "goal interrupted" },
+            { ActionCompletionStatus::Failed, ActionCompletionReason::ActorDematerialized, "actor dematerialized" },
+            { ActionCompletionStatus::Failed, ActionCompletionReason::ActorDead, "actor dead" },
+            { ActionCompletionStatus::Failed, ActionCompletionReason::EngineStopped, "engine stopped" },
+        };
+
+        for (FailureCase const& failureCase : failureCases)
+        {
+            AgentRecord record = makeCoordinationRecord(GoalType::Hunt, 1000);
+            ActionCompletion completion = makeCompletion(record.Id, GoalType::Hunt, 1000, failureCase.Status, failureCase.Reason);
+
+            HandleActionCompletion(record, completion);
+
+            check("a non-arrival HUNT completion still releases ownership",
+                !record.ActiveActionState.has_value() && !record.GroupCoordinationGoalState.has_value());
+        }
+    }
+
+    // Regroup/Roam arrival still releases ownership unconditionally - the
+    // retention exception is HUNT-only, never generalized to the other
+    // GroupCoordinationGoal-sourced goals.
+    {
+        for (GoalType type : { GoalType::Regroup, GoalType::Roam })
+        {
+            AgentRecord record = makeCoordinationRecord(type, 1000);
+            ActionCompletion completion = makeCompletion(record.Id, type, 1000,
+                ActionCompletionStatus::Succeeded, ActionCompletionReason::Arrived);
+
+            HandleActionCompletion(record, completion);
+
+            check("Regroup/Roam arrival still releases ownership unconditionally",
+                !record.ActiveActionState.has_value() && !record.GroupCoordinationGoalState.has_value());
+        }
+    }
+
+    TC_LOG_INFO("ai.world", "AI HUNT arrival ownership smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
 // Milestone 2.12F4A: manual proof only, gated behind AIWorld.TestControlMode
@@ -8829,7 +8995,45 @@ void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion co
     // (Regroup or Roam), not GoalType::Regroup alone - a completed Roam
     // attempt must be released here exactly the same way, or a stale
     // GroupCoordinationGoalState would linger for it.
-    if (IsCoordinationSourceGoal(completion.SourceGoal))
+    //
+    // Milestone 2.12G3D1 P2 fix (runtime finding): HUNT is the one
+    // deliberate exception, and only for a genuine SUCCESSFUL Arrived
+    // completion - reaching a HUNT target is not "done", it is this
+    // member still owning the group's ongoing attempt with nothing
+    // further to do YET (no combat phase exists in this milestone).
+    // Releasing GroupCoordinationGoalState here the same way Regroup/Roam
+    // do let the very next RunCoalitionCoordination() pass see no
+    // in-flight attempt at all, freshly re-select the SAME still-eligible
+    // target (nothing about arriving makes HuntIntentSystem stop
+    // selecting it - there is no Roam-style arrival radius for HUNT), and
+    // dispatch ANOTHER, effectively zero-distance MOVE_TO - repeating
+    // every single coordination pass. Retaining the SAME (group, target,
+    // StartedAtMs) identity instead means HasInFlightHuntAttempt()/
+    // ResolveHuntIntentForGroup() keep recognizing this as the one
+    // already-owned attempt (the pinned identity is reused, never
+    // re-selected - see ResolveHuntIntentForGroup()'s own comment), and
+    // DispatchHuntProposal()'s own existing GroupCoordinationGoalState
+    // re-check (COORDINATION_GOAL) now correctly refuses to dispatch a
+    // second MOVE_TO for an already-arrived member. Every OTHER HUNT
+    // completion reason (Failed/DestinationNotReached, GoalInterrupted,
+    // ActorDematerialized, ActorDead, EngineStopped) still releases
+    // ownership exactly like Regroup/Roam - retaining it there would
+    // leave a member that never actually reached its target permanently
+    // stuck, with no path back to being re-dispatched. Target-invalid
+    // reconciliation (ReconcileActiveHuntTargetsForGroup()), lifecycle
+    // stops (StopInFlightGroupCoordination(), which resets
+    // GroupCoordinationGoalState unconditionally regardless of whether
+    // ActiveActionState still exists), and individual goal preemption (a
+    // fresh Emergency/Normal ActiveGoalState is never blocked by a
+    // retained GroupCoordinationGoalState - dispatch everywhere else in
+    // this codebase only ever checks ActiveActionState, already reset
+    // above, for busy-ness) all still apply unchanged to a member sitting
+    // in this retained-ownership state.
+    bool retainHuntOwnershipOnArrival = completion.SourceGoal == GoalType::Hunt
+        && completion.Status == ActionCompletionStatus::Succeeded
+        && completion.Reason == ActionCompletionReason::Arrived;
+
+    if (IsCoordinationSourceGoal(completion.SourceGoal) && !retainHuntOwnershipOnArrival)
         record.GroupCoordinationGoalState.reset();
 }
 

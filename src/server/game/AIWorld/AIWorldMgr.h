@@ -907,6 +907,35 @@ class TC_GAME_API AIWorldMgr
         // AIWorld.TestHuntActionValidation).
         void RunHuntActionValidationSmokeTest() const;
 
+        // Milestone 2.12G3D1 P2 fix (runtime finding): manual proof of
+        // HandleActionCompletion()'s own HUNT arrival-ownership retention,
+        // entirely pure - synthetic AgentRecord/ActionCompletion values
+        // built on the stack, fed straight to HandleActionCompletion()
+        // itself (the real production method, not a reimplementation);
+        // both types are plain values, no live Creature/Map/registry
+        // access needed. Not const, unlike the other pure Hunt smoke
+        // tests above - HandleActionCompletion() itself is a non-const
+        // private method, so this cannot be called from a const context.
+        // Exercises: a genuine Succeeded/Arrived completion for a
+        // HUNT-sourced action releases ActiveActionState but RETAINS
+        // GroupCoordinationGoalState with the exact same group/target/
+        // StartedAtMs identity (the fix that stops the very next
+        // RunCoalitionCoordination() pass from freshly re-selecting the
+        // same still-eligible target and dispatching a second,
+        // effectively zero-distance MOVE_TO); every OTHER HUNT completion
+        // reason (Failed/DestinationNotReached, GoalInterrupted,
+        // ActorDematerialized, ActorDead, EngineStopped) still releases
+        // ownership exactly like before; and Regroup/Roam arrival is
+        // proven unaffected - the retention exception is HUNT-only, never
+        // generalized. Deliberately does NOT simulate two full
+        // RunCoalitionCoordination() passes end to end (that needs a live
+        // registry/Map/Creature, out of scope for a pure smoke test - see
+        // AIWorld.TestObserveActiveHuntAgentId for the live-server
+        // equivalent) - it instead directly proves the ONE mechanism the
+        // loop-prevention actually depends on. Always runs when this
+        // method is called at all (see AIWorld.TestHuntArrivalOwnership).
+        void RunHuntArrivalOwnershipSmokeTest();
+
         // Milestone 2.12F4A: manual proof only, gated behind
         // AIWorld.TestControlMode (default 0 = disabled) - runs at most once,
         // from Initialize(), only against a real, already-registered AgentId

@@ -4002,6 +4002,24 @@ AIWorld.TestHuntIntent = 0
 AIWorld.TestHuntActionValidation = 0
 
 #
+#    AIWorld.TestHuntArrivalOwnership
+#        Description: Milestone 2.12G3D1 - when true, runs a one-shot manual proof at startup of
+#                     HandleActionCompletion()'s own HUNT arrival-ownership retention (see AIWorldMgr::
+#                     RunHuntArrivalOwnershipSmokeTest()). Entirely pure - synthetic AgentRecord/
+#                     ActionCompletion values built on the stack, fed straight to the real production
+#                     HandleActionCompletion(), no live Creature/Map/registry access needed. Proves a
+#                     genuine Succeeded/Arrived HUNT completion retains GroupCoordinationGoalState (same
+#                     group/target/StartedAtMs identity) while still releasing ActiveActionState - the
+#                     fix that stops the very next coordination pass from freshly re-selecting the same
+#                     still-eligible target and dispatching a second, zero-distance MOVE_TO - while every
+#                     other HUNT completion reason still releases ownership as before, and Regroup/Roam
+#                     arrival remains unaffected. Off by default - this is a manual verification aid, not
+#                     a feature.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestHuntArrivalOwnership = 0
+
+#
 #    AIWorld.TestControlMode
 #        Description: Milestone 2.12F4A - when set to an existing, already-registered AgentId,
 #                     runs a one-shot manual proof at startup of ActionSystem::Validate()'s own
