@@ -1,10 +1,10 @@
 # AIWorld — Current Roadmap
 
-> **Aktualizováno:** 2026-09-01  
+> **Aktualizováno:** 2026-09-02  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `a03a33063b8b71d6784fc6b7629068f822795882`  
-> **Detailní roadmap sync před tímto commitem:** `5a9966336763841cfa9e401a9a8f60137da61a20`
+> **Aktuální code baseline před tímto docs commitem:** `e0f0eef1cb7ea92547c73f9e8c05b224b3ea1924`  
+> **Detailní roadmap sync před tímto commitem:** `fe5672f48c42314497afd01dac26abe4cfb5c629`
 
 ## Základní invariant
 
@@ -69,7 +69,7 @@ Platí pro všechny další milníky:
 | 2.12F4C/F4D — world-scale hardening (O(1) index, bounded recurring work) + full-world bootstrap | **DEFERRED — not required for single-location work; required before any eventual full-world rollout, see 2.12F4C's own Priorita** |
 | 2.12G1 — druhý coalition profile (genericity proof) | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
-| 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B/G3C1/G3C2 CLOSED, G3D1 (live approach runtime proof) NEXT** |
+| 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B/G3C1/G3C2 CLOSED, G3D1 POSITIVE LIVE APPROACH PROOF PASS (arrival-loop fix required before G3D2)** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
 | 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
@@ -857,7 +857,7 @@ AIWorld.TestDissolveOnActiveRoamGroupId = 0
 
 ## 2.12G3 — generic HUNT / coordinated combat preparation
 
-**Stav: IN PROGRESS — G3A, G3B, G3C1 a G3C2 CLOSED (viz jejich vlastní sekce níže), G3D1 (live approach runtime proof) je další krok.**
+**Stav: IN PROGRESS — G3A, G3B, G3C1 a G3C2 CLOSED, G3D1 POSITIVE LIVE APPROACH PROOF: PASS (viz jejich vlastní sekce níže) - runtime proof ale odhalil P2 post-ARRIVED redispatch smyčku, jejíž oprava musí proběhnout před G3D2.**
 
 Až po stabilním G1/G2 (tedy až po `2.12G2R` closure výše) — první commit ještě neútočí, jen navrhuje kontrakt.
 
@@ -898,7 +898,7 @@ Runtime gate má nejdřív dokazovat correctness a ownership, ne „chytré sme�
 - **G3C1** — autoritativní validační kontrakt (`GoalType::Hunt`, `ActionTargetRef`, target facts v `ActionValidationContext`, `ActionSystem::ValidateHuntTarget()`) — **CLOSED, viz `2.12G3C1` níže**;
 - **G3C2** — produkční observation/dispatch wiring, ownership/preemption, lifecycle stop na invalid target — **CLOSED, viz `2.12G3C2` níže**;
 - **G3D** — runtime proof, dále rozdělený na samostatné commity/review kroky:
-  - **G3D1** — neinvazivní live approach proof: skutečná `CreatureSeen` memory → produkční `HuntIntent`/`HuntProposal` → live revalidace → `ActionSystem` `ALLOWED` → skutečný HUNT `MoveTo` generator → přesně potvrzená ownership identity, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook — **NEXT**;
+  - **G3D1** — neinvazivní live approach proof: skutečná `CreatureSeen` memory → produkční `HuntIntent`/`HuntProposal` → live revalidace → `ActionSystem` `ALLOWED` → skutečný HUNT `MoveTo` generator → přesně potvrzená ownership identity, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook — **POSITIVE LIVE APPROACH PROOF: PASS, viz `2.12G3D1` níže; odhalený post-ARRIVED redispatch bug musí být opraven před G3D2**;
   - **G3D2** — `GET_FOOD` preemption, leave a dissolve během aktivního HUNT;
   - **G3D3** — přesný `StoppedByTargetInvalid` po smrti a unload/despawn targetu;
   - **G3D4** — skutečný `PreemptedByRegroup`.
@@ -1034,6 +1034,42 @@ AIWorld.DefiasGroupHuntTargetCreatureEntry = 0
 ```
 
 Další krok je `2.12G3D1`: neinvazivní live approach proof - target-aware ownership identity nad skutečně běžícím HUNT `MoveTo`, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook. Stále bez útoku ani `AttackStart()`.
+
+## 2.12G3D1 — live approach runtime proof
+
+**Stav: POSITIVE LIVE APPROACH PROOF: PASS.**
+
+```text
+Observation       PASS
+Intent selection  PASS
+Projection        PASS
+Validation        ALLOWED
+MOVE_TO start     PASS
+Ownership proof   PASS
+Engine generator  RUNNING
+Arrival           PASS
+Fatal/errors      0
+
+2.12G3D1 = POSITIVE LIVE APPROACH PROOF: PASS
+```
+
+Skutečný, produkčně dispatchovaný HUNT approach proběhl end to end: skutečná `CreatureSeen` memory → produkční `HuntIntentSystem::Evaluate()` → `HuntIntentProjector::Project()` → `DispatchHuntProposal()`'s vlastní live revalidace → `ActionSystem::Validate()` `ALLOWED` → skutečný engine `MoveTo` generátor → přesně potvrzená ownership identity (`AIWorld.TestObserveActiveHuntAgentId`, read-only, nic nedispatchoval ani nezastavoval). Deterministický nearest-target výběr byl potvrzen i živě: skupina správně zvolila bližší target `214012` na `13.3yd` místo vzdálenějšího `214017` na `33.1yd`. Žádný fatal, assert ani jiná chyba.
+
+**Zjištěný P2 problém (blokuje pokračování na G3D2):** log odhalil, že po `ARRIVED` se stejný HUNT znovu dispatchuje na vzdálenost `0.0yd` a spustí druhý `MoveTo` - `HandleActionCompletion()` dosud uvolňoval `GroupCoordinationGoalState` i pro HUNT stejně jako pro Regroup/Roam, takže další `RunCoalitionCoordination()` pass znovu vybral stále platný cíl a znovu dispatchoval. Oprava (`fix(ai-world): retain HUNT ownership after approach arrival`) zachovává po úspěšném `ARRIVED` stejnou `(group, target, StartedAtMs)` identitu, takže `DispatchHuntProposal()`'s vlastní `GroupCoordinationGoalState` kontrola (`COORDINATION_GOAL`) další dispatch odmítne - target-invalid, leave, dissolve a goal preemption zůstávají funkční beze změny.
+
+Po proofu musí zůstat:
+
+```ini
+AIWorld.TestObserveActiveHuntAgentId = 0
+
+AIWorld.WolfGroupHuntEnabled = 0
+AIWorld.WolfGroupHuntTargetCreatureEntry = 0
+
+AIWorld.DefiasGroupHuntEnabled = 0
+AIWorld.DefiasGroupHuntTargetCreatureEntry = 0
+```
+
+Další krok je oprava opakovaného nulového dispatch po ARRIVED (`fix(ai-world): retain HUNT ownership after approach arrival`), teprve potom `2.12G3D2`: `GET_FOOD` preemption, leave a dissolve během aktivního HUNT. Stále bez útoku ani `AttackStart()`.
 
 ## 2.12G4 — roles / leader pouze pokud je skutečně potřeba
 
@@ -1243,19 +1279,20 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 12. [x] 2.12G3B — pure HUNT intent/projector a pure smoke testy.
 13. [x] 2.12G3C1 — autoritativní HUNT approach validation contract.
 14. [x] 2.12G3C2 — produkční observation/dispatch wiring, ownership/preemption, lifecycle stop na invalid target (CLOSED / STATIC + BUILD + START PASS).
-15. [ ] 2.12G3D1 — neinvazivní live approach runtime proof (target-aware ownership identity, `AIWorld.TestObserveActiveHuntAgentId`).
-16. [ ] 2.12G3D2 — GET_FOOD preemption, leave a dissolve během aktivního HUNT.
-17. [ ] 2.12G3D3 — přesný `StoppedByTargetInvalid` po smrti a unload/despawn targetu.
-18. [ ] 2.12G3D4 — skutečný `PreemptedByRegroup`.
-19. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
-20. [ ] 2.13A — actual local LLM inference path.
-21. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
-22. [ ] 2.13C — player-facing dynamic task lifecycle.
-23. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
-24. [ ] 2.14 — emergent end-to-end world event slice.
-25. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
-26. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
-27. [ ] Etapa 4 — Living World composition.
+15. [x] 2.12G3D1 — neinvazivní live approach runtime proof (target-aware ownership identity, `AIWorld.TestObserveActiveHuntAgentId`) - POSITIVE LIVE APPROACH PROOF: PASS.
+16. [ ] fix(ai-world): retain HUNT ownership after approach arrival - post-ARRIVED redispatch loop found by G3D1's own live proof; blocks G3D2 until fixed.
+17. [ ] 2.12G3D2 — GET_FOOD preemption, leave a dissolve během aktivního HUNT.
+18. [ ] 2.12G3D3 — přesný `StoppedByTargetInvalid` po smrti a unload/despawn targetu.
+19. [ ] 2.12G3D4 — skutečný `PreemptedByRegroup`.
+20. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
+21. [ ] 2.13A — actual local LLM inference path.
+22. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
+23. [ ] 2.13C — player-facing dynamic task lifecycle.
+24. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
+25. [ ] 2.14 — emergent end-to-end world event slice.
+26. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
+27. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
+28. [ ] Etapa 4 — Living World composition.
 
 ---
 
