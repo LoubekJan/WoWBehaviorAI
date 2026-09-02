@@ -9078,6 +9078,82 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // acts on them.
         std::optional<ActiveGoal> previousGoal = record->ActiveGoalState;
         GoalSelectionResult selection = _goalSystem.UpdateActiveGoal(record->ActiveGoalState, record->Needs, candidates, nowMs);
+
+        // Milestone 2.12G3D fix, round 2 (STATIC review): atomic FLEE
+        // feasibility gate - a FleeDanger Activated/Interrupted transition
+        // must not be COMMITTED (record->ActiveGoalState written, which is
+        // what lets the COORDINATION_PREEMPTED_BY_GOAL block below - and
+        // the Interrupted case's own StopMoveTo() just below - stop
+        // whatever lower-priority action is currently working) unless a
+        // hypothetical FLEE ActionRequest, built from a flee source
+        // captured ONCE right here, already proves ALLOWED.
+        //
+        // hasFleeSource above only proves a source existed at candidate-
+        // generation time - it can already be stale by the time selection
+        // is computed a few lines later, and more importantly it says
+        // nothing about whether THIS exact source will still resolve once
+        // this transition's own destructive side effects (StopAttack()
+        // ending the very combat/threat reference that produced it) have
+        // already run. Probing HERE, strictly before ANY commit, and
+        // capturing the SAME Unit*/GUID pair reused for the real dispatch
+        // further below - never a second GetThreatManager().
+        // GetCurrentVictim() call after the destructive stop - is what
+        // makes this genuinely atomic: either the whole transition
+        // (goal commit + HUNT/routine stop + FLEE start) happens with one
+        // single flee source, or none of it happens at all and the
+        // current goal/action is left completely untouched.
+        Unit* capturedFleeSource = nullptr;
+        ObjectGuid capturedFleeSourceGuid;
+
+        if ((selection.Transition == GoalTransition::Activated || selection.Transition == GoalTransition::Interrupted)
+            && selection.Goal->Type == GoalType::FleeDanger)
+        {
+            capturedFleeSource = creature->GetThreatManager().GetCurrentVictim();
+            capturedFleeSourceGuid = capturedFleeSource ? capturedFleeSource->GetGUID() : ObjectGuid::Empty;
+
+            ActionRequest probeRequest;
+            probeRequest.Actor = id;
+            probeRequest.Type = ActionType::Flee;
+            probeRequest.SourceGoal = selection.Goal->Type;
+            probeRequest.GoalStartedAtMs = selection.Goal->StartedAtMs;
+            probeRequest.FleeFromGuid = capturedFleeSourceGuid;
+
+            ActionValidationContext probeContext;
+            probeContext.Materialized = record->WorldState == AgentWorldState::Materialized;
+            probeContext.Alive = context.Alive;
+            probeContext.ControlMode = record->ControlMode;
+            probeContext.ActiveGoalType = selection.Goal->Type;
+            probeContext.ActiveGoalStartedAtMs = selection.Goal->StartedAtMs;
+            probeContext.FleeSourceGuid = capturedFleeSourceGuid;
+
+            ActionValidationResult probeValidation = _actionSystem.Validate(probeRequest, probeContext);
+
+            TC_LOG_DEBUG("ai.world", "AI goal transition probe agent={} candidate=FleeDanger transition={} result={} reason={} fleeFrom={}",
+                record->Id.Value, ToString(selection.Transition), probeValidation.Allowed ? "ALLOWED" : "REJECTED",
+                ToString(probeValidation.Reason), capturedFleeSourceGuid.ToString());
+
+            if (!probeValidation.Allowed)
+            {
+                // Milestone 2.12G3D fix, round 2: reverting selection itself
+                // to "nothing happened" (rather than sprinkling a guard over
+                // every downstream site that reads selection/
+                // record->ActiveGoalState below) is what guarantees the
+                // current goal/action is left COMPLETELY untouched on
+                // reject - the switch below, COORDINATION_PREEMPTED_BY_GOAL,
+                // and the real FLEE dispatch block further down all already
+                // no-op correctly on GoalTransition::None, with no separate
+                // logic to duplicate or drift out of sync.
+                TC_LOG_DEBUG("ai.world", "AI goal transition agent={} FleeDanger {} REJECTED (no feasible flee source) - current goal/action left untouched",
+                    record->Id.Value, ToString(selection.Transition));
+
+                selection.Goal = previousGoal;
+                selection.Transition = GoalTransition::None;
+                selection.Completion.reset();
+                capturedFleeSource = nullptr;
+                capturedFleeSourceGuid = ObjectGuid::Empty;
+            }
+        }
+
         record->ActiveGoalState = selection.Goal;
 
         switch (selection.Transition)
@@ -9689,24 +9765,28 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // Interrupted-into - not every tick it stays active. GET_FOOD gets
         // its own MOVE_TO block below (2.8E) - it does not map to any
         // action here.
+        //
+        // Milestone 2.12G3D fix, round 2 (STATIC review): this block only
+        // ever runs when the atomic probe gate above already validated
+        // ALLOWED for this exact transition (a REJECTED probe reverts
+        // selection.Transition to None, which fails this same condition) -
+        // so capturedFleeSource/capturedFleeSourceGuid are guaranteed
+        // populated here. Reused as-is, NEVER a second
+        // GetThreatManager().GetCurrentVictim() call - by this point
+        // record->ActiveGoalState is already committed and
+        // COORDINATION_PREEMPTED_BY_GOAL above may already have stopped a
+        // HUNT/routine action, which (StopAttack()'s own EndCombat()) can
+        // itself remove the very threat/combat reference a second query
+        // would have depended on.
         if ((selection.Transition == GoalTransition::Activated || selection.Transition == GoalTransition::Interrupted)
             && selection.Goal->Type == GoalType::FleeDanger)
         {
-            // Resolved once here and reused for both the request's claimed
-            // FleeFromGuid and the validation context's actual
-            // FleeSourceGuid - trivially the same value in 2.8B since both
-            // come from this one live lookup in this one synchronous pass,
-            // but this is exactly the engine-authoritative source
-            // ActionSystem::Validate() checks the request's honesty
-            // against.
-            Unit* fleeSource = creature->GetThreatManager().GetCurrentVictim();
-
             ActionRequest request;
             request.Actor = id;
             request.Type = ActionType::Flee;
             request.SourceGoal = selection.Goal->Type;
             request.GoalStartedAtMs = selection.Goal->StartedAtMs;
-            request.FleeFromGuid = fleeSource ? fleeSource->GetGUID() : ObjectGuid::Empty;
+            request.FleeFromGuid = capturedFleeSourceGuid;
 
             TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} fleeFrom={}",
                 record->Id.Value, ToString(request.Type), ToString(request.SourceGoal), request.FleeFromGuid.ToString());
@@ -9725,12 +9805,12 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 record->Id.Value, ToString(request.Type), validation.Allowed ? "ALLOWED" : "REJECTED",
                 ToString(validation.Reason));
 
-            // No fleeSource means Validate() already rejected with
-            // NoFleeSource above, so this dereference is safe - Allowed is
-            // never true without a resolved threat victim.
+            // No captured flee source means Validate() already rejected
+            // with NoFleeSource above, so this dereference is safe -
+            // Allowed is never true without a resolved threat victim.
             if (validation.Allowed)
             {
-                ActionResult executionResult = _actionExecutor.ExecuteFlee(request, *creature, *fleeSource);
+                ActionResult executionResult = _actionExecutor.ExecuteFlee(request, *creature, *capturedFleeSource);
 
                 TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={} targetGuid={}",
                     record->Id.Value, ToString(executionResult.Type), ToString(executionResult.Status),
