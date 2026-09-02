@@ -2007,18 +2007,33 @@ class TC_GAME_API AIWorldMgr
         // establishes - both fields, whenever they coexist, always agree
         // on Type/StartedAtMs - means this is always at least as correct
         // for Regroup/Roam (which never have an AtTarget-equivalent state)
-        // as the old ActiveActionState-sourced version. The underlying
-        // engine movement is still only actually stopped (StopMoveTo(),
-        // if a live Creature resolves) and observed
-        // (EngineGeneratorWasRunningBeforeStop/ConfirmedStoppedAfterStop)
-        // unconditionally whenever a live Creature resolves - honestly
-        // reading false/false for an AtTarget member with nothing running,
-        // never skipped. record.ActiveActionState itself is only ever
-        // reset if it is actually the matching in-flight coordination
-        // action (2.12G2: IsCoordinationSourceGoal(), never assumed) -
-        // absent entirely for AtTarget, which is not an error. reason is a
-        // literal describing WHY this particular caller stopped it, logged
-        // the same way - callers never share one generic reason string.
+        // as the old ActiveActionState-sourced version.
+        //
+        // Milestone 2.12G3D2A P2 fix, round 2 (STATIC review): the engine
+        // is now only ever touched (StopMoveTo(), engine-generator
+        // observation, ActiveActionState reset) when an explicit
+        // ownsStoppedMovement check confirms record.ActiveActionState is
+        // an EXACT match for the captured GroupCoordinationGoal - same
+        // ActionType::MoveTo, same SourceGoal, same GoalStartedAtMs, and
+        // for GoalType::Hunt additionally the same live Target
+        // Guid/Entry. An earlier version called StopMoveTo() unconditionally
+        // for any Materialized member with a coordination-sourced goal,
+        // regardless of whether the CURRENT ActiveActionState actually
+        // belonged to it - since ActionExecutor::StopMoveTo() recognizes
+        // only the shared AIWorld MovePointId, not the source goal, this
+        // could silently stop an unrelated action already in flight for
+        // the same agent (e.g. GetFood dispatched after this coordination
+        // attempt reached HuntPhase::AtTarget), while that unrelated
+        // ActiveActionState was left claiming to still be running.
+        // ownsStoppedMovement is false (engine left untouched, both
+        // engine-generator fields honestly read false/false, and
+        // ActiveActionState left alone) both for a true HuntPhase::AtTarget
+        // member (no ActiveActionState at all) and for a member whose
+        // ActiveActionState belongs to a different attempt entirely -
+        // ownership removal and CoordinationStopEvent recording still
+        // happen unconditionally in both cases. reason is a literal
+        // describing WHY this particular caller stopped it, logged the
+        // same way - callers never share one generic reason string.
         //
         // Milestone 2.12G2R P2 fix, round 3 (STATIC review): stopReason is
         // a SEPARATE, structured counterpart to the free-text `reason`

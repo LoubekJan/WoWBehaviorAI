@@ -5025,6 +5025,54 @@ void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
             record.LastCoordinationStop->TargetEntry == 5000);
     }
 
+    // Milestone 2.12G3D2A P2 fix, round 2 (STATIC review): a member whose
+    // CURRENT ActiveActionState belongs to a different, unrelated goal
+    // (here GetFood, e.g. already dispatched after this HUNT attempt
+    // reached HuntPhase::AtTarget) must NOT have that unrelated action
+    // touched at all when the HUNT ownership itself is stopped - only
+    // ownsStoppedMovement's own exact match (SourceGoal+GoalStartedAtMs,
+    // and for HUNT also Target) may ever gate an engine stop or an
+    // ActiveActionState reset. This is the regression the ROLLED_BACK
+    // diagnostic logs cannot cover on their own, since reaching them
+    // requires a live Creature/Map/registry chain this smoke test has no
+    // access to - this part is fully provable with synthetic values alone.
+    {
+        AgentRecord record;
+        record.Id = AgentId{ 1 };
+
+        GroupCoordinationGoal huntGoal;
+        huntGoal.Type = GoalType::Hunt;
+        huntGoal.SourceGroup = GroupId{ 1 };
+        huntGoal.StartedAtMs = 1000;
+        huntGoal.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(5000, 100);
+        huntGoal.TargetEntry = 5000;
+        huntGoal.TargetObservedAtMs = 500;
+        huntGoal.Phase = HuntPhase::AtTarget;
+        record.GroupCoordinationGoalState = huntGoal;
+
+        ActiveAction unrelatedAction;
+        unrelatedAction.Type = ActionType::MoveTo;
+        unrelatedAction.SourceGoal = GoalType::GetFood;
+        unrelatedAction.GoalStartedAtMs = 2000;
+        unrelatedAction.StartedAtMs = 2000;
+        record.ActiveActionState = unrelatedAction;
+
+        StopInFlightGroupCoordination(record, "SMOKE_TEST_UNRELATED_ACTION_STOP", CoordinationStopReason::StoppedByTargetInvalid);
+
+        check("stopping AtTarget HUNT ownership releases the HUNT goal even with an unrelated action present",
+            !record.GroupCoordinationGoalState.has_value());
+        check("the recorded stop event still carries the HUNT goal's own identity, not the unrelated action's",
+            record.LastCoordinationStop && record.LastCoordinationStop->Reason == CoordinationStopReason::StoppedByTargetInvalid &&
+            record.LastCoordinationStop->SourceGoal == GoalType::Hunt &&
+            record.LastCoordinationStop->SourceGroup == GroupId{ 1 } &&
+            record.LastCoordinationStop->StartedAtMs == 1000 &&
+            record.LastCoordinationStop->TargetEntry == 5000);
+        check("the unrelated GetFood ActiveActionState is left completely untouched",
+            record.ActiveActionState.has_value() &&
+            record.ActiveActionState->SourceGoal == GoalType::GetFood &&
+            record.ActiveActionState->GoalStartedAtMs == 2000);
+    }
+
     TC_LOG_INFO("ai.world", "AI HUNT arrival ownership smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
@@ -6774,6 +6822,36 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     // this is exactly the honest outcome for a HuntPhase::AtTarget stop
     // too - there genuinely is no engine movement to observe running, so
     // both fields correctly read false rather than being skipped/assumed.
+    // Milestone 2.12G3D2A P2 fix, round 2 (STATIC review): StopMoveTo()
+    // (ActionExecutor) recognizes only the shared AIWorld MovePointId - it
+    // cannot itself tell WHICH GoalType/attempt owns whatever engine
+    // movement is currently running - so this method must verify that
+    // BEFORE ever touching the engine, not assume it. Without this, a
+    // member whose current ActiveActionState is unrelated to
+    // priorCoordinationGoal (already reassigned to, say, GetFood, after
+    // this coordination attempt reached HuntPhase::AtTarget or was
+    // otherwise superseded) would have ITS unrelated movement silently
+    // stopped by a coordination-goal cleanup that has nothing to do with
+    // it, while that unrelated ActiveActionState itself is left claiming
+    // to still be in flight. Type+StartedAtMs is enough for Regroup/Roam
+    // (which never name a target), but not for HUNT - see
+    // ActiveAction::Target's own comment for why target identity is
+    // carried separately - so a HUNT match additionally requires the
+    // live ActiveActionState's own Target to still agree with
+    // priorCoordinationGoal's TargetGuid/TargetEntry.
+    bool ownsStoppedMovement =
+        record.ActiveActionState &&
+        record.ActiveActionState->Type == ActionType::MoveTo &&
+        record.ActiveActionState->SourceGoal == priorCoordinationGoal->Type &&
+        record.ActiveActionState->GoalStartedAtMs == priorCoordinationGoal->StartedAtMs;
+
+    if (ownsStoppedMovement && priorCoordinationGoal->Type == GoalType::Hunt)
+    {
+        ownsStoppedMovement = record.ActiveActionState->Target &&
+            record.ActiveActionState->Target->Guid == priorCoordinationGoal->TargetGuid &&
+            record.ActiveActionState->Target->Entry == priorCoordinationGoal->TargetEntry;
+    }
+
     CoordinationStopEvent stopEvent;
     stopEvent.Reason = stopReason;
     stopEvent.SourceGoal = priorCoordinationGoal->Type;
@@ -6783,7 +6861,14 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     stopEvent.TargetEntry = priorCoordinationGoal->TargetEntry;
     stopEvent.StoppedAtMs = CurrentTimeMs();
 
-    if (record.WorldState == AgentWorldState::Materialized)
+    // Milestone 2.12G3D2A P2 fix, round 2: every engine touch below is now
+    // gated on ownsStoppedMovement too - a HuntPhase::AtTarget member (no
+    // ActiveActionState at all) and a member whose ActiveActionState
+    // belongs to an unrelated goal both correctly skip this block, and
+    // both fields are honestly left at their false default (no engine
+    // movement was ever confirmed to belong to this attempt, so neither
+    // "was running" nor "confirmed stopped" can be claimed).
+    if (ownsStoppedMovement && record.WorldState == AgentWorldState::Materialized)
     {
         Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
         if (Creature* creature = ResolveLiveCreature(record, map))
@@ -6798,11 +6883,7 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
             // genuinely in-flight movement was actually just interrupted -
             // only the latter is real evidence this stop path did
             // meaningful work, which is exactly what a verifying test hook
-            // needs to be able to tell apart. Milestone 2.12G3D2A:
-            // observed UNCONDITIONALLY here, regardless of whether
-            // ActiveActionState exists - a HuntPhase::AtTarget member
-            // legitimately has none, and this must honestly report "was
-            // nothing running" rather than skip the observation entirely.
+            // needs to be able to tell apart.
             stopEvent.EngineGeneratorWasRunningBeforeStop = HasOwnMoveToGenerator(*creature);
 
             _actionExecutor.StopMoveTo(*creature);
@@ -6818,13 +6899,15 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
 
     record.LastCoordinationStop = stopEvent;
 
-    // Milestone 2.12G3D2A: only ever reset an ActiveActionState that
-    // actually belongs to THIS coordination attempt - defensive, the same
-    // "never assume, always check" discipline this method already held
-    // before this milestone (see the comment this replaced). Absent
+    // Milestone 2.12G3D2A P2 fix, round 2: reset ActiveActionState only
+    // when ownsStoppedMovement already confirmed it is THIS attempt's own
+    // - the same exact-match check that gated the engine stop above, now
+    // reused here instead of the weaker IsCoordinationSourceGoal(SourceGoal)
+    // check this replaced (which could match a coordination-sourced
+    // ActiveActionState belonging to a DIFFERENT attempt/target). Absent
     // entirely for HuntPhase::AtTarget, which is not an error - there is
     // simply nothing left to reset.
-    if (record.ActiveActionState && IsCoordinationSourceGoal(record.ActiveActionState->SourceGoal))
+    if (ownsStoppedMovement)
         record.ActiveActionState.reset();
 }
 
