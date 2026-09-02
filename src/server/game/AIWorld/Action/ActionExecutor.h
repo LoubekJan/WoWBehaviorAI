@@ -168,16 +168,15 @@ class TC_GAME_API ActionExecutor
 
         // Milestone 2.12G3D P2 fix (STATIC review): ends combat started by
         // ExecuteAttack() - ownedTargetGuid is the HUNT attempt's own
-        // pinned target. Two INDEPENDENT halves, neither gated on the
-        // other:
+        // pinned target. Three INDEPENDENT parts, none gated on either of
+        // the others:
         //
-        // (1) the melee-attack/chase relationship (Unit::AttackStop() +
-        // removing the CHASE_MOTION_TYPE generator MoveChase() started) is
-        // only ever touched if the actor's OWN CURRENT victim
-        // (Unit::GetVictim()) still IS ownedTargetGuid - never
-        // RemoveAllAttackers()/CombatStop(), which would also affect every
-        // OTHER unit's own attacker relationship against this actor, or a
-        // different victim this HUNT attempt has no business touching.
+        // (1) the melee-attack relationship (Unit::AttackStop()) is only
+        // ever touched if the actor's OWN CURRENT victim (Unit::GetVictim())
+        // still IS ownedTargetGuid - never RemoveAllAttackers()/CombatStop(),
+        // which would also affect every OTHER unit's own attacker
+        // relationship against this actor, or a different victim this HUNT
+        // attempt has no business touching.
         //
         // (2) Milestone 2.12G3D P2 fix, round 2 (STATIC review): a targeted
         // Unit::AttackStop() alone does NOT end the underlying PvE combat/
@@ -195,6 +194,26 @@ class TC_GAME_API ActionExecutor
         // original HUNT target was never found or ended at all whenever
         // the actor had already (or never) had it as its literal melee
         // victim.
+        //
+        // (3) Milestone 2.12G3D P2 fix, round 3 (STATIC review, confirmed
+        // in a real fight): the CHASE_MOTION_TYPE generator MoveChase()
+        // started is found and removed by its OWN stored
+        // AbstractFollower::GetTarget() - never gated on Unit::GetVictim()
+        // matching ownedTargetGuid the way part (1) is. TrinityCore already
+        // clears GetVictim() as part of its own death teardown well before
+        // this HUNT stop path ever runs for a defeated target
+        // (AIWorldMgr::ReconcileActiveHuntTargetsForGroup()'s own
+        // TargetDefeated handling), which left an earlier version's
+        // victim-gated chase removal never reached - the CHASE generator
+        // stayed fully present in MOTION_SLOT_ACTIVE, and the NEXT HUNT
+        // attempt's own MOVE_TO was then rejected (ActorMovementBusy)
+        // against a chase toward a corpse. Removed ONLY if the chase
+        // generator's own target is provably ownedTargetGuid - a chase
+        // toward a genuinely different target (this actor has already
+        // moved on to something else entirely) is left completely
+        // untouched, the same "find and remove only the specific instance
+        // we can prove is ours" discipline StopMoveTo() already applies to
+        // its own POINT_MOTION_TYPE generator.
         void StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const;
 };
 

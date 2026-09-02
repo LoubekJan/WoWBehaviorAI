@@ -16,6 +16,7 @@
  */
 
 #include "ActionExecutor.h"
+#include "ChaseMovementGenerator.h"
 #include "CombatManager.h"
 #include "Creature.h"
 #include "MotionMaster.h"
@@ -254,7 +255,7 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
 void ActionExecutor::StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const
 {
     // Milestone 2.12G3D P2 fix (STATIC review): only touches the melee-
-    // attack/chase relationship if the actor's own CURRENT victim still IS
+    // attack relationship if the actor's own CURRENT victim still IS
     // ownedTargetGuid - never RemoveAllAttackers()/CombatStop(), which
     // would also affect an unrelated victim or unrelated attackers. A
     // no-op here (not the whole method - see below) if the actor is not
@@ -268,20 +269,6 @@ void ActionExecutor::StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) con
         // effect entirely unrelated to ending THIS HUNT attempt's own
         // attack on ownedTargetGuid.
         actor.AttackStop();
-
-        MotionMaster* motion = actor.GetMotionMaster();
-
-        // Same "only halt the active spline if our own generator was
-        // actually the one running" discipline StopMoveTo()/StopFlee()
-        // already apply - AttackStop() above does not touch MotionMaster
-        // at all, so the chase generator ExecuteAttack() started (if any)
-        // is still present here.
-        bool wasActiveChase = motion->GetCurrentMovementGeneratorType() == CHASE_MOTION_TYPE;
-
-        motion->Remove(CHASE_MOTION_TYPE);
-
-        if (wasActiveChase)
-            actor.StopMoving();
     }
 
     // Milestone 2.12G3D P2 fix, round 2 (STATIC review): independent of
@@ -298,4 +285,43 @@ void ActionExecutor::StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) con
     auto combatRefIt = pveCombatRefs.find(ownedTargetGuid);
     if (combatRefIt != pveCombatRefs.end())
         combatRefIt->second->EndCombat();
+
+    // Milestone 2.12G3D P2 fix, round 3 (STATIC review, confirmed in a
+    // real fight): the CHASE_MOTION_TYPE generator MoveChase() started is
+    // found and removed by its OWN stored target (AbstractFollower::
+    // GetTarget(), which ChaseMovementGenerator publicly inherits) -
+    // deliberately NOT gated on the victim check above. TrinityCore
+    // already clears Unit::GetVictim() as part of its own death teardown
+    // well before this HUNT stop path ever runs for a defeated target, so
+    // an earlier version's victim-gated chase removal was never reached -
+    // the chase generator stayed fully present in MOTION_SLOT_ACTIVE, and
+    // the actor's NEXT HUNT attempt's own MOVE_TO was then rejected
+    // (ActorMovementBusy) against a chase toward a corpse. Same "find and
+    // remove only the specific instance we can prove is ours" discipline
+    // StopMoveTo() already applies to its own POINT_MOTION_TYPE generator
+    // - a chase toward a genuinely different target (this actor has
+    // already moved on to something else entirely) is left completely
+    // untouched.
+    MotionMaster* motion = actor.GetMotionMaster();
+    MovementGenerator* ownedChase = motion->GetMovementGenerator([ownedTargetGuid](MovementGenerator const* gen)
+    {
+        if (gen->GetMovementGeneratorType() != CHASE_MOTION_TYPE)
+            return false;
+
+        auto const* chase = dynamic_cast<ChaseMovementGenerator const*>(gen);
+        Unit const* chaseTarget = chase ? chase->GetTarget() : nullptr;
+        return chaseTarget && chaseTarget->GetGUID() == ownedTargetGuid;
+    });
+
+    if (!ownedChase)
+        return;
+
+    // Same "only halt the active spline if our own generator was actually
+    // the one running" discipline StopMoveTo()/StopFlee() already apply.
+    bool wasActiveChase = motion->GetCurrentMovementGenerator() == ownedChase;
+
+    motion->Remove(ownedChase);
+
+    if (wasActiveChase)
+        actor.StopMoving();
 }
