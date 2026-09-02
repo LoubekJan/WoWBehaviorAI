@@ -250,15 +250,30 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
     return result;
 }
 
-void ActionExecutor::StopAttack(Creature& actor) const
+void ActionExecutor::StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const
 {
-    actor.CombatStop();
+    // Milestone 2.12G3D P2 fix (STATIC review): nothing below runs unless
+    // the actor's own CURRENT victim still IS the exact target this HUNT
+    // attempt owns - see this method's own header comment for the two bugs
+    // this closes. A no-op (not even a MotionMaster touch) if the actor is
+    // not currently attacking ownedTargetGuid at all (already stopped, or
+    // desynced onto some other victim this call has no business touching).
+    Unit* victim = actor.GetVictim();
+    if (!victim || victim->GetGUID() != ownedTargetGuid)
+        return;
+
+    // Targeted only - never Unit::CombatStop(), which also calls
+    // RemoveAllAttackers() and would silently force every OTHER unit
+    // currently attacking this actor to stop fighting it too, an effect
+    // entirely unrelated to ending THIS HUNT attempt's own attack on
+    // ownedTargetGuid.
+    actor.AttackStop();
 
     MotionMaster* motion = actor.GetMotionMaster();
 
     // Same "only halt the active spline if our own generator was actually
     // the one running" discipline StopMoveTo()/StopFlee() already apply -
-    // CombatStop() above does not touch MotionMaster at all, so the chase
+    // AttackStop() above does not touch MotionMaster at all, so the chase
     // generator ExecuteAttack() started (if any) is still present here.
     bool wasActiveChase = motion->GetCurrentMovementGeneratorType() == CHASE_MOTION_TYPE;
 

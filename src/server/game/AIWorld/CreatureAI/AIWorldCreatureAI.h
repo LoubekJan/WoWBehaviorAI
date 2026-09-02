@@ -35,21 +35,47 @@
 // movement the spawn would otherwise run) so that AIWorld's own
 // Needs -> Goal -> ActionRequest -> ActionSystem pipeline is never racing
 // against a second, TrinityCore-driven decision maker for the same
-// Creature. It does not yet drive anything itself either - UpdateAI() is
-// intentionally empty. 2.8B is where a Validated ActionRequest starts
-// actually calling into GetMotionMaster()/Attack() (from here or wherever
-// the executor ends up living) - until then this Creature simply does
-// nothing on its own, by design.
+// Creature.
+//
+// Milestone 2.12G3D P1 fix (STATIC review): UpdateAI() is no longer
+// unconditionally empty. ActionExecutor::ExecuteAttack() (2.12G3D) calls
+// Unit::Attack() + MoveChase() directly - which sets the victim/chase
+// relationship, but does NOT itself land any melee damage. Real damage
+// only ever comes from UnitAI::DoMeleeAttackIfReady() ->
+// Unit::AttackerStateUpdate(), which nothing was ever calling: TrinityCore's
+// own default AI would normally call this every UpdateAI() tick once
+// AttackStart() set a victim, but THIS class's own AttackStart() override
+// is a deliberate no-op (see its own comment) specifically to suppress
+// TrinityCore's autonomous target SELECTION - it was never meant to also
+// suppress landing damage against a target AIWorld itself already
+// authorized via a validated ATTACK ActionRequest. This override does not
+// select, chase, or engage anything new - it only executes melee swings
+// against whatever victim already exists (Unit::GetVictim(), set solely
+// by ExecuteAttack()'s own Unit::Attack() call), the same "AI proposes via
+// AIWorldMgr, this class only ever carries out an already-authorized
+// action" boundary AttackStart()/MoveInLineOfSight() themselves preserve
+// by staying suppressed.
 class TC_GAME_API AIWorldCreatureAI : public CreatureAI
 {
     public:
         explicit AIWorldCreatureAI(Creature* creature);
 
-        // No autonomous decisions - AIWorld's Needs/Goal/Action pipeline
-        // (driven entirely from AIWorldMgr::Update(), not from here) is
-        // what decides anything this Creature does, and as of 2.8A that
-        // pipeline is still audit-log-only.
-        void UpdateAI(uint32 /*diff*/) override { }
+        // Milestone 2.12G3D P1 fix (STATIC review): the ONE piece of
+        // per-tick engine work this class now does - see this class's own
+        // header comment for why. Still no target selection, no chasing,
+        // no combat decision-making: GetVictim() only reads whatever
+        // Unit::Attack() (ExecuteAttack()) already set, and
+        // DoMeleeAttackIfReady() itself only swings at the actor's own
+        // CURRENT victim on its own weapon timer - it cannot redirect to a
+        // different target. AIWorld's Needs/Goal/Action pipeline (driven
+        // entirely from AIWorldMgr::Update(), not from here) still decides
+        // WHETHER/WHOM to attack; this only carries out melee swings once
+        // that decision already landed.
+        void UpdateAI(uint32 /*diff*/) override
+        {
+            if (me->GetVictim())
+                DoMeleeAttackIfReady();
+        }
 
         // Suppresses only the reflex of chasing/meleeing whatever this
         // Creature is attacking - TrinityCore's own combat/threat/damage

@@ -95,7 +95,20 @@ enum class ActionRejectReason : uint8
     // target this request names is the expected, idempotent case (see
     // AIWorldMgr::DispatchHuntAttack()'s own "already engaged" handling),
     // not a rejection.
-    ActorEngagedWithDifferentTarget
+    ActorEngagedWithDifferentTarget,
+    // Milestone 2.12G3D P2 fix (STATIC review): ActionValidationContext::
+    // TargetWithinAttackRange is false - the FIRST ATTACK for a HUNT
+    // attempt (transitioning HuntPhase::AtTarget -> Engaging) may only
+    // ever start from a freshly-reconfirmed live position, never from a
+    // stale AtTarget phase alone - the target may have moved or been
+    // teleported since arrival, and a retained GroupCoordinationGoal
+    // carries no live position of its own to check this against.
+    TargetOutOfAttackRange,
+    // Milestone 2.12G3D P2 fix (STATIC review): ActionValidationContext::
+    // TargetInLineOfSight is false - the same "never trust a stale phase
+    // alone" reasoning as TargetOutOfAttackRange above, for line of sight
+    // instead of distance.
+    TargetNoLineOfSight
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -128,6 +141,8 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::TargetMapMismatch:       return "TARGET_MAP_MISMATCH";
         case ActionRejectReason::TargetPositionMismatch:  return "TARGET_POSITION_MISMATCH";
         case ActionRejectReason::ActorEngagedWithDifferentTarget: return "ACTOR_ENGAGED_WITH_DIFFERENT_TARGET";
+        case ActionRejectReason::TargetOutOfAttackRange:  return "TARGET_OUT_OF_ATTACK_RANGE";
+        case ActionRejectReason::TargetNoLineOfSight:     return "TARGET_NO_LINE_OF_SIGHT";
         default:                                         return "UNKNOWN";
     }
 }

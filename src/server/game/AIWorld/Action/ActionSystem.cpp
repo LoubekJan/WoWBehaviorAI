@@ -327,6 +327,20 @@ ActionValidationResult ActionSystem::ValidateAttack(ActionRequest const& request
     if (context.TargetMapId != context.MapId)
         return { false, ActionRejectReason::TargetMapMismatch };
 
+    // Milestone 2.12G3D P2 fix (STATIC review): a freshly-resolved live
+    // distance/LOS check, never inferred from HuntPhase::AtTarget alone -
+    // the target may have moved or been teleported away since arrival, and
+    // a stale phase must not be enough on its own to authorize melee
+    // engagement. If either fails, this request is REJECTED outright - the
+    // caller's own existing re-approach MOVE_TO path (DispatchHuntProposal())
+    // is what closes the distance again, never this method silently
+    // treating "not quite there" as good enough for combat.
+    if (!context.TargetWithinAttackRange)
+        return { false, ActionRejectReason::TargetOutOfAttackRange };
+
+    if (!context.TargetInLineOfSight)
+        return { false, ActionRejectReason::TargetNoLineOfSight };
+
     // The actor may only ever be validated to attack ONE live target at a
     // time - already attacking this SAME target is fine (idempotent, the
     // expected case on a pass that merely reconfirms an already-Engaging

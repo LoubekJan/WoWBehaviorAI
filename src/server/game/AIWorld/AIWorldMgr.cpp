@@ -4815,6 +4815,109 @@ void AIWorldMgr::RunHuntActionValidationSmokeTest() const
             result.Allowed && result.Reason == ActionRejectReason::None);
     }
 
+    // Milestone 2.12G3D P3 fix (STATIC review): ActionSystem::ValidateAttack()
+    // itself was never proven pure - only completion/ownership clearing
+    // was. Same entirely-pure, no-live-Creature/Map shape as every other
+    // case in this function: TargetInLineOfSight/TargetWithinAttackRange
+    // are themselves just plain ActionValidationContext facts here, never
+    // computed from a live position - proving Validate()'s own reaction to
+    // them needs no actual LOS/range math, only the caller (AIWorldMgr::
+    // DispatchHuntAttack()) resolving them honestly, which is not this
+    // pure layer's own concern to prove.
+    auto makeValidAttackRequest = [&]()
+    {
+        ActionRequest request;
+        request.Actor = AgentId{ 1 };
+        request.Type = ActionType::Attack;
+        request.SourceGoal = GoalType::Hunt;
+        request.GoalStartedAtMs = 1000;
+        request.SourceGroup = GroupId{ 1 };
+        request.Target = ActionTargetRef{ targetGuid, huntCreatureEntry };
+        return request;
+    };
+
+    auto makeValidAttackContext = [&]()
+    {
+        ActionValidationContext context;
+        context.Materialized = true;
+        context.Alive = true;
+        context.ControlMode = AgentControlMode::AIWorldControlled;
+        context.ActiveGoalType = GoalType::Hunt;
+        context.ActiveGoalStartedAtMs = 1000;
+        context.MapId = 0;
+        context.X = 0.0f;
+        context.Y = 0.0f;
+        context.Z = 0.0f;
+        context.TargetResolved = true;
+        context.TargetAlive = true;
+        context.TargetAttackable = true;
+        context.TargetGuid = targetGuid;
+        context.TargetEntry = huntCreatureEntry;
+        context.TargetMapId = 0;
+        context.TargetX = 2.0f;
+        context.TargetY = 0.0f;
+        context.TargetZ = 0.0f;
+        context.TargetWithinAttackRange = true;
+        context.TargetInLineOfSight = true;
+        context.ActorCurrentVictimGuid = ObjectGuid::Empty;
+        return context;
+    };
+
+    // A fully honest ATTACK is ALLOWED.
+    {
+        ActionValidationResult result = _actionSystem.Validate(makeValidAttackRequest(), makeValidAttackContext());
+        check("valid ATTACK is ALLOWED", result.Allowed && result.Reason == ActionRejectReason::None);
+    }
+
+    // Actor already fighting a DIFFERENT live victim - REJECTED.
+    {
+        ActionValidationContext context = makeValidAttackContext();
+        context.ActorCurrentVictimGuid = otherGuid;
+        ActionValidationResult result = _actionSystem.Validate(makeValidAttackRequest(), context);
+        check("actor already engaged with a different target is REJECTED with ActorEngagedWithDifferentTarget",
+            !result.Allowed && result.Reason == ActionRejectReason::ActorEngagedWithDifferentTarget);
+    }
+
+    // Actor already fighting the SAME target - the expected idempotent
+    // case (AIWorldMgr::DispatchHuntAttack() skips re-calling ExecuteAttack()
+    // for this, but Validate() itself must still ALLOW it).
+    {
+        ActionValidationContext context = makeValidAttackContext();
+        context.ActorCurrentVictimGuid = targetGuid;
+        ActionValidationResult result = _actionSystem.Validate(makeValidAttackRequest(), context);
+        check("actor already engaged with the SAME target is idempotently ALLOWED",
+            result.Allowed && result.Reason == ActionRejectReason::None);
+    }
+
+    // Target outside the initial attack range - REJECTED. HuntPhase::AtTarget
+    // alone is never enough; only a freshly-confirmed live range counts.
+    {
+        ActionValidationContext context = makeValidAttackContext();
+        context.TargetWithinAttackRange = false;
+        ActionValidationResult result = _actionSystem.Validate(makeValidAttackRequest(), context);
+        check("target outside the initial attack range is REJECTED with TargetOutOfAttackRange",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetOutOfAttackRange);
+    }
+
+    // No line of sight to the target - REJECTED.
+    {
+        ActionValidationContext context = makeValidAttackContext();
+        context.TargetInLineOfSight = false;
+        ActionValidationResult result = _actionSystem.Validate(makeValidAttackRequest(), context);
+        check("target with no line of sight is REJECTED with TargetNoLineOfSight",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetNoLineOfSight);
+    }
+
+    // request.Target->Guid disagrees with context.TargetGuid - the request
+    // does not honestly name the same target the caller actually resolved.
+    {
+        ActionRequest request = makeValidAttackRequest();
+        request.Target->Guid = otherGuid;
+        ActionValidationResult result = _actionSystem.Validate(request, makeValidAttackContext());
+        check("ATTACK request naming a different target than resolved is REJECTED with TargetIdentityMismatch",
+            !result.Allowed && result.Reason == ActionRejectReason::TargetIdentityMismatch);
+    }
+
     TC_LOG_INFO("ai.world", "AI HUNT action validation smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
@@ -5957,7 +6060,7 @@ void AIWorldMgr::ReconcileActiveHuntTargetsForGroup(AgentGroupRecord const& grou
                 member->ActiveActionState->GoalStartedAtMs == goal.StartedAtMs &&
                 member->ActiveActionState->Target && member->ActiveActionState->Target->Guid == goal.TargetGuid)
             {
-                _actionExecutor.StopAttack(*creature);
+                _actionExecutor.StopAttack(*creature, goal.TargetGuid);
             }
 
             ActionCompletion completion;
@@ -7141,6 +7244,26 @@ void AIWorldMgr::DispatchHuntAttack(AgentId member, GroupId sourceGroup)
     Unit* currentVictim = creature->GetVictim();
     bool alreadyEngaged = currentVictim && currentVictim->GetGUID() == target->GetGUID();
 
+    // Milestone 2.12G3D P2 fix (STATIC review): freshly re-checked HERE,
+    // from the target's own CURRENT live position - never inferred from
+    // HuntPhase::AtTarget alone, which the retained GroupCoordinationGoal
+    // carries no live position for at all. The target may have moved or
+    // been teleported away since arrival; a stale phase must not be
+    // enough on its own to authorize the FIRST ATTACK. Reuses the exact
+    // same ArrivalToleranceYards bound MOVE_TO arrival/the HUNT
+    // re-approach decision already share (ArrivalTolerance.h), matching
+    // this codebase's own "melee/arrival range" convention rather than
+    // inventing a separate one.
+    ActionPosition targetPosition;
+    targetPosition.MapId = target->GetMapId();
+    targetPosition.X = target->GetPositionX();
+    targetPosition.Y = target->GetPositionY();
+    targetPosition.Z = target->GetPositionZ();
+
+    bool targetWithinAttackRange = IsWithinArrivalTolerance(targetPosition,
+        creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ());
+    bool targetInLineOfSight = creature->IsWithinLOS(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ());
+
     ActionRequest attackRequest;
     attackRequest.Actor = member;
     attackRequest.Type = ActionType::Attack;
@@ -7173,6 +7296,8 @@ void AIWorldMgr::DispatchHuntAttack(AgentId member, GroupId sourceGroup)
     attackContext.TargetY = target->GetPositionY();
     attackContext.TargetZ = target->GetPositionZ();
     attackContext.ActorCurrentVictimGuid = currentVictim ? currentVictim->GetGUID() : ObjectGuid::Empty;
+    attackContext.TargetWithinAttackRange = targetWithinAttackRange;
+    attackContext.TargetInLineOfSight = targetInLineOfSight;
 
     ActionValidationResult attackValidation = _actionSystem.Validate(attackRequest, attackContext);
 
@@ -7364,12 +7489,13 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
         {
             // Milestone 2.12G3D: type-dispatched - a HuntPhase::Engaging
             // member's own ActiveActionState is ActionType::Attack, and
-            // stopping it must call StopAttack() (Unit::CombatStop() + its
-            // own chase-generator cleanup), never StopMoveTo(), which
-            // recognizes only its own POINT_MOTION_TYPE generator and
-            // would silently do nothing for a member that is actually mid-
-            // combat - leaving it still fighting while this method's own
-            // caller believes the attempt was stopped.
+            // stopping it must call StopAttack() (a targeted
+            // Unit::AttackStop() plus its own chase-generator cleanup),
+            // never StopMoveTo(), which recognizes only its own
+            // POINT_MOTION_TYPE generator and would silently do nothing
+            // for a member that is actually mid-combat - leaving it still
+            // fighting while this method's own caller believes the
+            // attempt was stopped.
             bool isAttack = record.ActiveActionState->Type == ActionType::Attack;
 
             // Milestone 2.12G2R P2 fix, round 3 (STATIC review): observed
@@ -7389,7 +7515,7 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
                 : HasOwnMoveToGenerator(*creature);
 
             if (isAttack)
-                _actionExecutor.StopAttack(*creature);
+                _actionExecutor.StopAttack(*creature, priorCoordinationGoal->TargetGuid);
             else
                 _actionExecutor.StopMoveTo(*creature);
 
@@ -9029,7 +9155,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                 : HasOwnMoveToGenerator(*creature);
 
             if (isAttack)
-                _actionExecutor.StopAttack(*creature);
+                _actionExecutor.StopAttack(*creature, record->GroupCoordinationGoalState->TargetGuid);
             else
                 _actionExecutor.StopMoveTo(*creature);
 

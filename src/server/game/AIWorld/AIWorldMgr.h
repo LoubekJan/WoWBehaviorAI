@@ -2005,6 +2005,18 @@ class TC_GAME_API AIWorldMgr
         // there is nothing to roll back on a rejected/failed attempt, the
         // member simply stays AtTarget and is reconsidered next pass.
         //
+        // Milestone 2.12G3D P2 fix (STATIC review): also freshly resolves
+        // the target's own CURRENT live distance/line-of-sight here and
+        // passes both into ActionValidationContext::TargetWithinAttackRange/
+        // TargetInLineOfSight - HuntPhase::AtTarget alone (a retained
+        // value with no live position of its own) is never trusted as
+        // proof the target is still actually reachable for melee; if
+        // either fails, ValidateAttack() rejects and this member simply
+        // stays AtTarget - DispatchHuntProposal()'s own existing
+        // re-approach path (a fresh HuntProposal for the same pinned
+        // attempt, if one is produced this or a later pass) is what closes
+        // the distance again, this method never re-approaches on its own.
+        //
         // Idempotency: if the actor's own current live victim
         // (Unit::GetVictim()) already equals the pinned target, this is
         // treated as already validly Engaging - Validate() still runs (the

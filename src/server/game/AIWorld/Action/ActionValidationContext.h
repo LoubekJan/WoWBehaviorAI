@@ -167,6 +167,24 @@ struct ActionValidationContext
     // the SAME target this request names - only a live victim that
     // disagrees with TargetGuid is rejected (ActorEngagedWithDifferentTarget).
     ObjectGuid ActorCurrentVictimGuid;
+
+    // Milestone 2.12G3D P2 fix (STATIC review): only meaningful for
+    // ActionType::Attack - the actor's own FRESHLY re-checked live
+    // distance/line-of-sight to the target, resolved by AIWorldMgr::
+    // DispatchHuntAttack() the same call it already resolves TargetX/Y/Z
+    // from, never inferred from HuntPhase::AtTarget alone. A retained
+    // GroupCoordinationGoal carries no live position of its own - the
+    // target may have moved or been teleported away since arrival, and
+    // ValidateAttack() must not be able to authorize the FIRST ATTACK
+    // (AtTarget -> Engaging) on a stale phase that no longer reflects
+    // reality. Both default false - the same fail-closed "unset means
+    // reject" discipline TargetAttackable etc. already hold to - so a
+    // caller that forgets to set these explicitly gets a REJECTED ATTACK,
+    // never an ALLOWED one. Once genuinely Engaging, ongoing range/LOS is
+    // the combat/chase system's own concern (MoveChase()), not
+    // re-validated here on every later reconfirmation pass.
+    bool TargetWithinAttackRange = false;
+    bool TargetInLineOfSight = false;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

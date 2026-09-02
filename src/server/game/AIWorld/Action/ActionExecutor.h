@@ -21,6 +21,7 @@
 #include "ActionRequest.h"
 #include "ActionResult.h"
 #include "Define.h"
+#include "ObjectGuid.h"
 
 class Creature;
 class Unit;
@@ -165,23 +166,33 @@ class TC_GAME_API ActionExecutor
         // already holds to.
         ActionResult ExecuteAttack(ActionRequest const& request, Creature& actor, Unit& target) const;
 
-        // Milestone 2.12G3D: ends combat started by ExecuteAttack() -
-        // deliberately a full Unit::CombatStop() (AttackStop() +
-        // RemoveAllAttackers() + ClearInCombat()), not merely AttackStop()
-        // alone, unlike how StopFlee()/StopMoveTo() otherwise leave
-        // combat/threat bookkeeping untouched: AIWorldCreatureAI::
-        // UpdateAI() is deliberately empty (see its own comment), so
-        // nothing else in this pipeline will ever run TrinityCore's normal
-        // "no valid target left, evade/leave combat" reflex for one of our
-        // own agents - if this class does not explicitly end combat here,
-        // nothing ever will, and the actor would stay flagged in combat
-        // indefinitely. Also removes the CHASE_MOTION_TYPE generator
-        // MoveChase() started (CombatStop() itself does not touch
-        // MotionMaster) - the same "find and remove only the generator we
-        // started, only halt the active spline if it was actually still
-        // the one running" discipline StopMoveTo()/StopFlee() already
-        // apply to their own generator types.
-        void StopAttack(Creature& actor) const;
+        // Milestone 2.12G3D P2 fix (STATIC review): ends combat started by
+        // ExecuteAttack() - ownedTargetGuid is the HUNT attempt's own
+        // pinned target, and this method touches NOTHING at all unless the
+        // actor's OWN CURRENT victim (Unit::GetVictim()) still IS that
+        // exact target. An earlier version called this unconditionally
+        // whenever a HUNT attempt's own stop path fired, which had two
+        // bugs: (1) it used a plain Unit::CombatStop(), which also calls
+        // RemoveAllAttackers() - clearing every OTHER unit's own attacker
+        // relationship against this actor too, silently forcing unrelated
+        // attackers to stop fighting it; (2) it ran even when the stored
+        // HUNT action named target A but the actor's own live victim had
+        // already become some different B (engine/bookkeeping desync),
+        // which would then stop B's fight instead of - or as well as -
+        // ending A's, neither of which this HUNT attempt has any business
+        // touching. Now: a targeted Unit::AttackStop() only (never
+        // CombatStop()/RemoveAllAttackers() - this ends THIS actor's own
+        // attack relationship with ownedTargetGuid, nothing broader), plus
+        // removing the CHASE_MOTION_TYPE generator MoveChase() started
+        // (AttackStop() itself does not touch MotionMaster) - the same
+        // "find and remove only the generator we started, only halt the
+        // active spline if it was actually still the one running"
+        // discipline StopMoveTo()/StopFlee() already apply to their own
+        // generator types. A no-op (does nothing, including to
+        // MotionMaster) if the actor's current victim is not
+        // ownedTargetGuid - there is nothing of THIS attempt's own left to
+        // stop.
+        void StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const;
 };
 
 #endif // AIWORLD_ACTIONEXECUTOR_H

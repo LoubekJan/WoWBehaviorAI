@@ -127,6 +127,15 @@ class TC_GAME_API ActionSystem
         // keeps up with it, not a re-validated Destination. Additionally
         // checks the actor is not already engaged with a DIFFERENT live
         // target - see ActionRejectReason::ActorEngagedWithDifferentTarget.
+        //
+        // Milestone 2.12G3D P2 fix (STATIC review): also requires
+        // context.TargetWithinAttackRange/TargetInLineOfSight - both
+        // freshly resolved by the caller from the target's own CURRENT
+        // live position, never inferred from HuntPhase::AtTarget alone.
+        // The target may have moved or been teleported since arrival; the
+        // FIRST ATTACK for an attempt (AtTarget -> Engaging) must not be
+        // authorized on a stale phase, only on reconfirmed reality - see
+        // ActionValidationContext::TargetWithinAttackRange's own comment.
         ActionValidationResult ValidateAttack(ActionRequest const& request, ActionValidationContext const& context) const;
 
         // Milestone 2.8G/2.8G P2 fix: Eat-specific, run only once the
