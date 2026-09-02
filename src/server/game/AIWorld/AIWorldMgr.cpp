@@ -5668,10 +5668,33 @@ void AIWorldMgr::RunCoalitionCoordination()
         if (profile->HuntEnabled)
             huntIntent = ResolveHuntIntentForGroup(*group, *profile, observations, nowMs);
 
+        // Milestone 2.12G3D1 diagnostic-only addition (STATIC review):
+        // traces the INTENT/PROJECT pipeline stages for the ONE watched
+        // agent - never changes state, selection, or dispatch, and never
+        // sets _testObserveActiveHuntFired (only CheckTestObserveActiveHunt()
+        // does that, on a genuine full PASS). Gated on this group actually
+        // containing the watched agent, since HuntIntent itself is a
+        // group-level fact, not a per-member one.
+        bool huntDiagnosticsWatchingThisGroup = _testObserveActiveHuntAgentId && !_testObserveActiveHuntFired &&
+            std::any_of(group->Members.begin(), group->Members.end(),
+                [this](AgentGroupMembership const& membership) { return membership.Member == _testObserveActiveHuntAgentId; });
+
+        if (huntDiagnosticsWatchingThisGroup)
+            TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} group={} stage=INTENT result={}",
+                _testObserveActiveHuntAgentId.Value, group->Id.Value, huntIntent ? "SELECTED" : "NONE");
+
         if (huntIntent)
         {
             std::vector<HuntProposal> groupHuntProposals = _huntIntentProjector.Project(*huntIntent, observations);
             huntProposals.insert(huntProposals.end(), groupHuntProposals.begin(), groupHuntProposals.end());
+
+            if (huntDiagnosticsWatchingThisGroup)
+            {
+                bool proposedForWatchedAgent = std::any_of(groupHuntProposals.begin(), groupHuntProposals.end(),
+                    [this](HuntProposal const& huntProposal) { return huntProposal.Member == _testObserveActiveHuntAgentId; });
+                TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} group={} stage=PROJECT result={}",
+                    _testObserveActiveHuntAgentId.Value, group->Id.Value, proposedForWatchedAgent ? "PROPOSED" : "NO_PROPOSAL");
+            }
         }
 
         if (huntInFlight || huntIntent)
@@ -6037,16 +6060,41 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
 
 void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
 {
+    // Milestone 2.12G3D1 diagnostic-only addition (STATIC review): a
+    // narrow, read-only trace of exactly which fail-closed check rejects
+    // the ONE watched agent's own proposal, if any - never changes state,
+    // selection, or dispatch, and never sets _testObserveActiveHuntFired
+    // (only CheckTestObserveActiveHunt() does that, on a genuine full
+    // PASS). Gated the same way every other AIWorld.TestObserveActiveHuntAgentId
+    // check already is, plus proposal.Member itself - a proposal for any
+    // OTHER member never logs anything here, regardless of watch state.
+    bool huntDiagnosticsEnabled = proposal.Member == _testObserveActiveHuntAgentId && !_testObserveActiveHuntFired;
+    auto logDispatchRejected = [&](char const* reason)
+    {
+        if (huntDiagnosticsEnabled)
+            TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} stage=DISPATCH result=REJECTED reason={}",
+                proposal.Member.Value, reason);
+    };
+
     AgentRecord* record = _registry.Find(proposal.Member);
     if (!record)
+    {
+        logDispatchRejected("AGENT_MISSING");
         return;
+    }
 
     if (record->ControlMode != AgentControlMode::AIWorldControlled)
+    {
+        logDispatchRejected("CONTROL_MODE");
         return;
+    }
 
     AgentGroupRecord const* group = _groupRegistry.Find(proposal.SourceGroup);
     if (!group)
+    {
+        logDispatchRejected("GROUP_MISSING");
         return;
+    }
 
     // 2.12G3C2's own extra defense-in-depth check - unlike
     // DispatchGroupMemberActionProposal(), which relies entirely on
@@ -6054,57 +6102,106 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     // never trust that a lifecycle operation could not have started
     // between this proposal's own construction and this specific dispatch.
     if (_groupLifecycleSystem.HasPendingOperation(proposal.SourceGroup))
+    {
+        logDispatchRejected("LIFECYCLE_PENDING");
         return;
+    }
 
     bool stillMember = std::any_of(group->Members.begin(), group->Members.end(),
         [&proposal](AgentGroupMembership const& membership) { return membership.Member == proposal.Member; });
     if (!stillMember)
+    {
+        logDispatchRejected("NOT_MEMBER");
         return;
+    }
 
     std::optional<AgentGroupCoordinationProfile> profile = ResolveCoordinationProfile(group->ProfileId);
     if (!profile || !profile->HuntEnabled)
+    {
+        logDispatchRejected("PROFILE_DISABLED");
         return;
+    }
 
     if (record->WorldState != AgentWorldState::Materialized)
+    {
+        logDispatchRejected("ACTOR_NOT_MATERIALIZED");
         return;
+    }
 
-    if (record->ActiveGoalState || record->RoutineGoalState)
+    // Milestone 2.12G3D1 diagnostic-only change: split into two checks
+    // (was one combined "ActiveGoalState || RoutineGoalState" check) so
+    // each has its own distinct reason - behaviorally identical, still
+    // rejects on either being set.
+    if (record->ActiveGoalState)
+    {
+        logDispatchRejected("ACTIVE_GOAL");
         return;
+    }
+
+    if (record->RoutineGoalState)
+    {
+        logDispatchRejected("ROUTINE_GOAL");
+        return;
+    }
 
     if (record->ActiveActionState)
+    {
+        logDispatchRejected("ACTIVE_ACTION");
         return;
+    }
 
     // Explicit, independent re-check of the same invariant
     // ActiveActionState's own check already implies under normal
     // operation - kept separate because HUNT's own GroupCoordinationGoalState
     // carries target identity that must never be silently overwritten.
     if (record->GroupCoordinationGoalState)
+    {
+        logDispatchRejected("COORDINATION_GOAL");
         return;
+    }
 
     if (CountCoordinationEnabledMemberships(proposal.Member) > 1)
+    {
+        logDispatchRejected("MEMBERSHIP_AMBIGUOUS");
         return;
+    }
 
     Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
     Creature* creature = ResolveLiveCreature(*record, map);
     if (!creature || !creature->IsAlive())
+    {
+        logDispatchRejected("ACTOR_UNRESOLVED_OR_DEAD");
         return;
+    }
 
     // Transient, already-loaded-object lookup only - never a force-load.
     Creature* target = ObjectAccessor::GetCreature(*creature, proposal.Target.TargetGuid);
     if (!target || !target->IsAlive())
+    {
+        logDispatchRejected("TARGET_UNRESOLVED_OR_DEAD");
         return;
+    }
 
     // The request must be an honest continuation of what was actually
     // resolved, not proposal.Target's own (possibly stale) claim - see
     // this method's own header comment.
     if (target->GetEntry() != proposal.Target.TargetEntry || target->GetMapId() != proposal.Target.MapId)
+    {
+        logDispatchRejected("TARGET_IDENTITY_MISMATCH");
         return;
+    }
 
     if (target == creature)
+    {
+        logDispatchRejected("SELF_TARGET");
         return;
+    }
 
     if (!creature->IsValidAttackTarget(target))
+    {
+        logDispatchRejected("TARGET_NOT_ATTACKABLE");
         return;
+    }
 
     // Milestone 2.12G3C2 P2 fix (STATIC review): loaded into locals and
     // verified finite HERE, before ANY use for distance/LOS/pathing/
@@ -6118,7 +6215,10 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     float targetZ = target->GetPositionZ();
 
     if (!std::isfinite(targetX) || !std::isfinite(targetY) || !std::isfinite(targetZ))
+    {
+        logDispatchRejected("TARGET_POSITION_INVALID");
         return;
+    }
 
     float rangeDx = targetX - creature->GetPositionX();
     float rangeDy = targetY - creature->GetPositionY();
@@ -6126,18 +6226,25 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     float rangeDistanceSq = rangeDx * rangeDx + rangeDy * rangeDy + rangeDz * rangeDz;
 
     if (rangeDistanceSq > profile->HuntAcquisitionRadius * profile->HuntAcquisitionRadius)
+    {
+        logDispatchRejected("TARGET_OUT_OF_RANGE");
         return;
+    }
 
     float maxCoordinationRangeYards = ActionSystem::CoordinationMoveToRangeYards();
     if (rangeDistanceSq > maxCoordinationRangeYards * maxCoordinationRangeYards)
     {
         TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} is farther than the {:.1f}yd range bound from its own live target - UNREACHABLE, no automatic HUNT approach attempted this pass",
             record->Id.Value, proposal.SourceGroup.Value, maxCoordinationRangeYards);
+        logDispatchRejected("TARGET_OUT_OF_RANGE");
         return;
     }
 
     if (!creature->IsWithinLOS(targetX, targetY, targetZ))
+    {
+        logDispatchRejected("TARGET_NO_LOS");
         return;
+    }
 
     // Same PathGenerator/PATHFIND_NOPATH convention Roam's own dispatch-time
     // path check already uses - PATHFIND_INCOMPLETE (a real, partial path)
@@ -6149,6 +6256,7 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     {
         TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} has no navigable path to its own live target - UNREACHABLE, no automatic HUNT approach attempted this pass",
             record->Id.Value, proposal.SourceGroup.Value);
+        logDispatchRejected("TARGET_NO_PATH");
         return;
     }
 

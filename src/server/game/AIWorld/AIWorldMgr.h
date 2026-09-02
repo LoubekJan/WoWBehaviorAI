@@ -1572,6 +1572,17 @@ class TC_GAME_API AIWorldMgr
         // runs once per discovered group, before any of the above, so a
         // just-invalidated in-flight HUNT target is stopped before this
         // same pass decides what (if anything) replaces it.
+        //
+        // Milestone 2.12G3D1 diagnostic-only addition (STATIC review): for
+        // whichever group actually contains the one AgentId currently
+        // watched by AIWorld.TestObserveActiveHuntAgentId (and only while
+        // that hook has not yet fired), logs "stage=INTENT
+        // result=SELECTED|NONE" right after huntIntent is resolved, and -
+        // only when an intent was selected - "stage=PROJECT
+        // result=PROPOSED|NO_PROPOSAL" right after Project(), reporting
+        // specifically whether the watched agent itself received a
+        // proposal. Purely read-only tracing - never changes which branch
+        // is taken and never sets _testObserveActiveHuntFired.
         void RunCoalitionCoordination();
 
         // Milestone 2.12G3C2: production HUNT target observation
@@ -1866,6 +1877,24 @@ class TC_GAME_API AIWorldMgr
         // ActiveAction::Target's own comment for why a HUNT completion
         // needs this to verify target identity, not just goal-attempt
         // identity, before treating it as owned by the current attempt.
+        //
+        // Milestone 2.12G3D1 diagnostic-only addition (STATIC review): if
+        // this specific proposal.Member is the one AgentId currently
+        // watched by AIWorld.TestObserveActiveHuntAgentId (and that hook
+        // has not yet fired), every early return above also logs
+        // "stage=DISPATCH result=REJECTED reason=<...>" naming exactly
+        // which fail-closed check rejected it - one of AGENT_MISSING/
+        // CONTROL_MODE/GROUP_MISSING/LIFECYCLE_PENDING/NOT_MEMBER/
+        // PROFILE_DISABLED/ACTOR_NOT_MATERIALIZED/ACTIVE_GOAL/
+        // ROUTINE_GOAL/ACTIVE_ACTION/COORDINATION_GOAL/
+        // MEMBERSHIP_AMBIGUOUS/ACTOR_UNRESOLVED_OR_DEAD/
+        // TARGET_UNRESOLVED_OR_DEAD/TARGET_IDENTITY_MISMATCH/SELF_TARGET/
+        // TARGET_NOT_ATTACKABLE/TARGET_POSITION_INVALID/
+        // TARGET_OUT_OF_RANGE/TARGET_NO_LOS/TARGET_NO_PATH. Purely
+        // read-only logging - never changes which branch is taken, never
+        // mutates record/anything else, and never sets
+        // _testObserveActiveHuntFired (only CheckTestObserveActiveHunt()
+        // does that, on a genuine full PASS).
         void DispatchHuntProposal(HuntProposal const& proposal);
 
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): how many
