@@ -9102,12 +9102,51 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // (goal commit + HUNT/routine stop + FLEE start) happens with one
         // single flee source, or none of it happens at all and the
         // current goal/action is left completely untouched.
+        //
+        // Milestone 2.12G3D fix, round 3 (STATIC review): gated on
+        // record->ActiveActionState existing - an earlier version probed
+        // (and could revert) this transition for EVERY agent, including
+        // ObserveOnly ones. ActionSystem::Validate()'s mandatory
+        // ControlModeNotAllowed gate (checked first, before NoFleeSource
+        // or anything else) means the probe ALWAYS rejects for ObserveOnly
+        // regardless of whether a real flee source exists, which reverted
+        // selection to None every single Needs tick a danger persisted -
+        // an ObserveOnly agent could then never even reach ActiveGoalState=
+        // FleeDanger, breaking the "may observe/state-track, only must not
+        // physically act" contract (AgentType.h) this whole gate has no
+        // business touching: ObserveOnly can never have a live
+        // ActiveActionState in the first place (Validate() rejects any
+        // request for it unconditionally), so there is nothing physical
+        // this transition could ever destroy for it. The gate below now
+        // only ever probes/reverts when record->ActiveActionState is
+        // actually set - exactly the case where committing the transition
+        // could destroy a currently-working physical action
+        // (COORDINATION_PREEMPTED_BY_GOAL/ROUTINE_PREEMPTED_BY_GOAL/the
+        // Interrupted case's own StopMoveTo() all themselves only ever act
+        // when ActiveActionState exists too). With no ActiveActionState,
+        // the goal transition commits normally (pure state, nothing to
+        // protect) and the REAL FLEE dispatch block further below still
+        // rejects it through ActionSystem exactly as before - ObserveOnly
+        // simply never reaches a physical Flee, the same way it never
+        // reaches any other physical action.
         Unit* capturedFleeSource = nullptr;
         ObjectGuid capturedFleeSourceGuid;
 
+        // Milestone 2.12G3D fix, round 3: an explicit flag, not a re-check
+        // of record->ActiveActionState at dispatch time further below - by
+        // the time the real FLEE dispatch block runs, a probe that DID run
+        // and ALLOWED may already have let COORDINATION_PREEMPTED_BY_GOAL/
+        // ROUTINE_PREEMPTED_BY_GOAL reset ActiveActionState as part of
+        // stopping the now-preempted action, which would make
+        // "!record->ActiveActionState" true there for entirely the wrong
+        // reason (probe DID run) and re-trigger exactly the stale second
+        // GetCurrentVictim() query round 2 already closed.
+        bool feasibilityProbed = false;
+
         if ((selection.Transition == GoalTransition::Activated || selection.Transition == GoalTransition::Interrupted)
-            && selection.Goal->Type == GoalType::FleeDanger)
+            && selection.Goal->Type == GoalType::FleeDanger && record->ActiveActionState)
         {
+            feasibilityProbed = true;
             capturedFleeSource = creature->GetThreatManager().GetCurrentVictim();
             capturedFleeSourceGuid = capturedFleeSource ? capturedFleeSource->GetGUID() : ObjectGuid::Empty;
 
@@ -9766,21 +9805,39 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // its own MOVE_TO block below (2.8E) - it does not map to any
         // action here.
         //
-        // Milestone 2.12G3D fix, round 2 (STATIC review): this block only
-        // ever runs when the atomic probe gate above already validated
-        // ALLOWED for this exact transition (a REJECTED probe reverts
-        // selection.Transition to None, which fails this same condition) -
-        // so capturedFleeSource/capturedFleeSourceGuid are guaranteed
-        // populated here. Reused as-is, NEVER a second
-        // GetThreatManager().GetCurrentVictim() call - by this point
-        // record->ActiveGoalState is already committed and
-        // COORDINATION_PREEMPTED_BY_GOAL above may already have stopped a
-        // HUNT/routine action, which (StopAttack()'s own EndCombat()) can
-        // itself remove the very threat/combat reference a second query
-        // would have depended on.
+        // Milestone 2.12G3D fix, round 2 (STATIC review): whenever the
+        // atomic probe gate above actually ran (feasibilityProbed - only
+        // when a physical ActiveActionState existed to protect), this
+        // block only ever reaches here on its own ALLOWED (a REJECTED
+        // probe reverts selection.Transition to None, which fails this
+        // same condition) - so capturedFleeSource/capturedFleeSourceGuid
+        // are reused as-is, NEVER a second GetThreatManager().
+        // GetCurrentVictim() call - by this point record->ActiveGoalState
+        // is already committed and COORDINATION_PREEMPTED_BY_GOAL above
+        // may already have stopped a HUNT/routine action, which
+        // (StopAttack()'s own EndCombat()) can itself remove the very
+        // threat/combat reference a second query would have depended on.
+        //
+        // Milestone 2.12G3D fix, round 3 (STATIC review): when the probe
+        // did NOT run (no ActiveActionState existed to protect - e.g. an
+        // ObserveOnly agent, or an AIWorldControlled one currently idle),
+        // nothing destructive has happened for this agent in between, so
+        // there is no staleness risk - resolved fresh here instead, the
+        // same single "resolve immediately before use" the original 2.8B
+        // code always did. ActionSystem::Validate() (ControlModeNotAllowed
+        // first, then NoFleeSource) still rejects exactly as before for
+        // ObserveOnly or a genuinely sourceless danger - this fix only
+        // ever changes whether the GOAL TRANSITION itself was allowed to
+        // commit, never what ActionSystem ultimately allows to execute.
         if ((selection.Transition == GoalTransition::Activated || selection.Transition == GoalTransition::Interrupted)
             && selection.Goal->Type == GoalType::FleeDanger)
         {
+            if (!feasibilityProbed)
+            {
+                capturedFleeSource = creature->GetThreatManager().GetCurrentVictim();
+                capturedFleeSourceGuid = capturedFleeSource ? capturedFleeSource->GetGUID() : ObjectGuid::Empty;
+            }
+
             ActionRequest request;
             request.Actor = id;
             request.Type = ActionType::Flee;
