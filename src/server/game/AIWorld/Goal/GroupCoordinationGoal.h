@@ -93,6 +93,36 @@
 // reason HuntTargetProvenance::ObservedAtMs is kept independent of
 // HuntIntent::StartedAtMs - attempt identity and target-freshness are two
 // different stale-response questions (see HuntIntent.h).
+//
+// Milestone 2.12G3D2A: HuntPhase - explicit, only meaningful when Type ==
+// GoalType::Hunt (Regroup/Roam leave it at its default, unread). A HUNT
+// attempt is Approaching while its own MOVE_TO toward the target is
+// genuinely in flight (an ActiveActionState exists alongside this), and
+// AtTarget once that MOVE_TO naturally arrives - the group's own
+// ownership of the attempt does not end on arrival (see
+// AIWorldMgr::HandleActionCompletion()'s own 2.12G3D2A comment), it just
+// has nothing further to do yet (no combat phase exists in this
+// milestone). Deliberately never inferred from "ActiveActionState is
+// absent" - that alone cannot honestly distinguish "just arrived" from
+// "preempted", "target died mid-approach", or any other non-arrival
+// reason ActiveActionState could also be gone for; every place that needs
+// to know whether a member is AtTarget reads this field explicitly.
+enum class HuntPhase : uint8
+{
+    Approaching,
+    AtTarget
+};
+
+inline char const* ToString(HuntPhase phase)
+{
+    switch (phase)
+    {
+        case HuntPhase::Approaching: return "APPROACHING";
+        case HuntPhase::AtTarget:    return "AT_TARGET";
+        default:                     return "UNKNOWN";
+    }
+}
+
 struct GroupCoordinationGoal
 {
     GoalType Type = GoalType::Regroup;
@@ -102,6 +132,7 @@ struct GroupCoordinationGoal
     ObjectGuid TargetGuid;
     uint32 TargetEntry = 0;
     uint64 TargetObservedAtMs = 0;
+    HuntPhase Phase = HuntPhase::Approaching;
 };
 
 #endif // AIWORLD_GROUPCOORDINATIONGOAL_H

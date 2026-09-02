@@ -919,21 +919,27 @@ class TC_GAME_API AIWorldMgr
         // Exercises: a genuine Succeeded/Arrived completion for a
         // HUNT-sourced action releases ActiveActionState but RETAINS
         // GroupCoordinationGoalState with the exact same group/target/
-        // StartedAtMs identity (the fix that stops the very next
-        // RunCoalitionCoordination() pass from freshly re-selecting the
-        // same still-eligible target and dispatching a second,
-        // effectively zero-distance MOVE_TO); every OTHER HUNT completion
-        // reason (Failed/DestinationNotReached, GoalInterrupted,
+        // StartedAtMs identity, explicitly transitioned to
+        // HuntPhase::AtTarget (2.12G3D2A - never merely inferred from
+        // ActiveActionState's own absence, see HuntPhase's own comment in
+        // GroupCoordinationGoal.h); every OTHER HUNT completion reason
+        // (Failed/DestinationNotReached, GoalInterrupted,
         // ActorDematerialized, ActorDead, EngineStopped) still releases
         // ownership exactly like before; and Regroup/Roam arrival is
         // proven unaffected - the retention exception is HUNT-only, never
         // generalized. Deliberately does NOT simulate two full
-        // RunCoalitionCoordination() passes end to end (that needs a live
-        // registry/Map/Creature, out of scope for a pure smoke test - see
-        // AIWorld.TestObserveActiveHuntAgentId for the live-server
-        // equivalent) - it instead directly proves the ONE mechanism the
-        // loop-prevention actually depends on. Always runs when this
-        // method is called at all (see AIWorld.TestHuntArrivalOwnership).
+        // RunCoalitionCoordination() passes end to end, and does NOT
+        // exercise DispatchHuntProposal()'s own re-approach rule
+        // (2.12G3D2A - a member already AtTarget for the SAME attempt is
+        // only re-dispatched once the target has genuinely moved beyond
+        // ArrivalToleranceYards) - both need a live registry/Map/Creature,
+        // out of scope for a pure smoke test; see
+        // AIWorld.TestObserveActiveHuntAgentId's own "stage=ARRIVED"/
+        // "stage=REAPPROACH"/"reason=ALREADY_AT_TARGET" diagnostic logging
+        // for the live-server equivalent. This test instead directly
+        // proves the ONE mechanism the loop-prevention actually depends
+        // on. Always runs when this method is called at all (see
+        // AIWorld.TestHuntArrivalOwnership).
         void RunHuntArrivalOwnershipSmokeTest();
 
         // Milestone 2.12F4A: manual proof only, gated behind
@@ -1850,12 +1856,18 @@ class TC_GAME_API AIWorldMgr
         // the group's own profile still resolves and still has HuntEnabled;
         // the member is Materialized; no ActiveGoalState/RoutineGoalState
         // (HUNT is the same LOWEST tier as Regroup/Roam); no
-        // ActiveActionState already running; no GroupCoordinationGoalState
-        // already set (an explicit, independent re-check of the same
-        // invariant ActiveActionState's own check already implies, kept
-        // separate because HUNT's own GroupCoordinationGoalState carries
-        // target identity that must never be silently overwritten); the
-        // member does not structurally belong to more than one
+        // ActiveActionState already running; and no GroupCoordinationGoalState
+        // already owning a DIFFERENT attempt (a different group/target/
+        // StartedAtMs, or this exact attempt while still Approaching -
+        // ActiveActionState's own check above should already have caught
+        // that, but this is re-verified independently, never assumed).
+        // Milestone 2.12G3D2A: a GroupCoordinationGoalState for THIS EXACT
+        // attempt while HuntPhase::AtTarget is the one case that is NOT an
+        // outright reject - see this method's own header comment below for
+        // the re-approach rule that governs it instead. HUNT's own
+        // GroupCoordinationGoalState carries target identity that must
+        // never be silently overwritten by anything else. The member does
+        // not structurally belong to more than one
         // coordination-enabled group (CountCoordinationEnabledMemberships(),
         // re-checked here too, never trusting that
         // RunCoalitionCoordination()'s own upstream arbitration still
@@ -1871,7 +1883,15 @@ class TC_GAME_API AIWorldMgr
         // fix, STATIC review: BEFORE any distance/LOS/PathGenerator/
         // Destination use - an earlier version called IsWithinLOS() and
         // computed distance against the live target directly, checking
-        // isfinite() only afterward); the member's own live distance to
+        // isfinite() only afterward);
+        // (2.12G3D2A) if this member's own GroupCoordinationGoalState
+        // already names THIS EXACT attempt in HuntPhase::AtTarget, this is
+        // only a genuine re-approach - not an ALREADY_AT_TARGET reject -
+        // if the member's own live position is no longer within
+        // ArrivalToleranceYards (ArrivalTolerance.h - the same shared
+        // tolerance MOVE_TO arrival/Eat/Work-Rest already use) of the
+        // target's own live position; never re-dispatched while still
+        // effectively standing at it; the member's own live distance to
         // the target is within profile.HuntAcquisitionRadius AND within
         // ActionSystem::CoordinationMoveToRangeYards() (the same
         // UNREACHABLE semantics DispatchGroupMemberActionProposal() already
@@ -1897,32 +1917,43 @@ class TC_GAME_API AIWorldMgr
         // attempt rather than reporting a false ambiguity). Sets
         // record->GroupCoordinationGoalState (Type/SourceGroup/StartedAtMs/
         // TargetGuid/TargetEntry/TargetObservedAtMs, the latter from
-        // proposal.Target.ObservedAtMs) BEFORE calling ActionSystem::
-        // Validate(), the same order/rollback-on-rejection discipline
-        // DispatchGroupMemberActionProposal() already holds to. On a
-        // successfully started MOVE_TO, the resulting ActiveAction also
-        // carries Target (2.12G3C2 P2 fix, STATIC review: the same
-        // ActionTargetRef the request itself used) - see
-        // ActiveAction::Target's own comment for why a HUNT completion
-        // needs this to verify target identity, not just goal-attempt
-        // identity, before treating it as owned by the current attempt.
+        // proposal.Target.ObservedAtMs, and Phase always explicitly reset
+        // to HuntPhase::Approaching - 2.12G3D2A, even on the re-approach
+        // path, which may be overwriting an existing AtTarget-phase state)
+        // BEFORE calling ActionSystem::Validate(), the same order/
+        // rollback-on-rejection discipline DispatchGroupMemberActionProposal()
+        // already holds to. On a successfully started MOVE_TO, the
+        // resulting ActiveAction also carries Target (2.12G3C2 P2 fix,
+        // STATIC review: the same ActionTargetRef the request itself
+        // used) - see ActiveAction::Target's own comment for why a HUNT
+        // completion needs this to verify target identity, not just
+        // goal-attempt identity, before treating it as owned by the
+        // current attempt.
         //
-        // Milestone 2.12G3D1 diagnostic-only addition (STATIC review): if
-        // this specific proposal.Member is the one AgentId currently
-        // watched by AIWorld.TestObserveActiveHuntAgentId (and that hook
-        // has not yet fired), every early return above also logs
-        // "stage=DISPATCH result=REJECTED reason=<...>" naming exactly
-        // which fail-closed check rejected it - one of AGENT_MISSING/
-        // CONTROL_MODE/GROUP_MISSING/LIFECYCLE_PENDING/NOT_MEMBER/
-        // PROFILE_DISABLED/ACTOR_NOT_MATERIALIZED/ACTIVE_GOAL/
-        // ROUTINE_GOAL/ACTIVE_ACTION/COORDINATION_GOAL/
-        // MEMBERSHIP_AMBIGUOUS/ACTOR_UNRESOLVED_OR_DEAD/
+        // Milestone 2.12G3D1 diagnostic-only addition (STATIC review),
+        // extended 2.12G3D2A: if this specific proposal.Member is the one
+        // AgentId currently watched by AIWorld.TestObserveActiveHuntAgentId,
+        // every early return above also logs "stage=DISPATCH
+        // result=REJECTED reason=<...>" naming exactly which fail-closed
+        // check rejected it - one of AGENT_MISSING/CONTROL_MODE/
+        // GROUP_MISSING/LIFECYCLE_PENDING/NOT_MEMBER/PROFILE_DISABLED/
+        // ACTOR_NOT_MATERIALIZED/ACTIVE_GOAL/ROUTINE_GOAL/ACTIVE_ACTION/
+        // COORDINATION_GOAL/MEMBERSHIP_AMBIGUOUS/ACTOR_UNRESOLVED_OR_DEAD/
         // TARGET_UNRESOLVED_OR_DEAD/TARGET_IDENTITY_MISMATCH/SELF_TARGET/
         // TARGET_NOT_ATTACKABLE/TARGET_POSITION_INVALID/
-        // TARGET_OUT_OF_RANGE/TARGET_NO_LOS/TARGET_NO_PATH. Purely
-        // read-only logging - never changes which branch is taken, never
-        // mutates record/anything else, and never sets
-        // _testObserveActiveHuntFired (only CheckTestObserveActiveHunt()
+        // ALREADY_AT_TARGET (2.12G3D2A - AtTarget for this exact attempt
+        // and still within ArrivalToleranceYards of the target, so no
+        // re-approach is warranted yet)/TARGET_OUT_OF_RANGE/TARGET_NO_LOS/
+        // TARGET_NO_PATH; and (2.12G3D2A, its own separate log line, not a
+        // rejection) "stage=REAPPROACH result=APPROACHING" when a genuine
+        // re-approach for the SAME attempt actually proceeds. 2.12G3D2A
+        // also drops this diagnostic's own former dependency on
+        // !_testObserveActiveHuntFired - that latch is specific to
+        // CheckTestObserveActiveHunt()'s own one-shot proof, which fires
+        // well before arrival/re-approach could ever be observed. Purely
+        // read-only logging either way - never changes which branch is
+        // taken, never mutates record/anything else, and never itself
+        // sets _testObserveActiveHuntFired (only CheckTestObserveActiveHunt()
         // does that, on a genuine full PASS).
         void DispatchHuntProposal(HuntProposal const& proposal);
 

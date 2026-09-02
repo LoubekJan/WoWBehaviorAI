@@ -4816,26 +4816,34 @@ void AIWorldMgr::RunHuntActionValidationSmokeTest() const
 //
 // Proves specifically: a genuine SUCCESSFUL Arrived completion for a
 // HUNT-sourced action retains GroupCoordinationGoalState (same group/
-// target/StartedAtMs identity) while still releasing ActiveActionState -
-// the fix that stops RunCoalitionCoordination()'s very next pass from
-// freshly re-selecting the same still-eligible target and dispatching a
-// second, effectively zero-distance MOVE_TO. Every OTHER HUNT completion
-// (Failed/DestinationNotReached, GoalInterrupted, ActorDematerialized,
-// ActorDead, EngineStopped) still releases ownership exactly like before -
-// retaining it there would leave a member that never actually reached
-// its target permanently stuck. Regroup/Roam arrival is also proven
-// unaffected - the retention exception is HUNT-only, never generalized.
+// target/StartedAtMs identity), explicitly transitioned to
+// HuntPhase::AtTarget (2.12G3D2A - never merely inferred from
+// ActiveActionState's own absence), while still releasing
+// ActiveActionState - the fix that stops RunCoalitionCoordination()'s
+// very next pass from freshly re-selecting the same still-eligible
+// target and dispatching a second, effectively zero-distance MOVE_TO.
+// Every OTHER HUNT completion (Failed/DestinationNotReached,
+// GoalInterrupted, ActorDematerialized, ActorDead, EngineStopped) still
+// releases ownership exactly like before - retaining it there would
+// leave a member that never actually reached its target permanently
+// stuck. Regroup/Roam arrival is also proven unaffected - the retention
+// exception is HUNT-only, never generalized.
 //
 // This does NOT simulate two full RunCoalitionCoordination() passes
 // end to end (that would need a live registry/Map/Creature, the same
 // live-server dependency AIWorld.TestObserveActiveHuntAgentId itself
 // already has, and is out of scope for a pure smoke test) - it instead
 // directly proves the ONE mechanism the loop-prevention actually depends
-// on: that GroupCoordinationGoalState is honestly retained after a HUNT
-// arrival and honestly released after everything else, which is exactly
-// what keeps DispatchHuntProposal()'s own pre-existing
-// GroupCoordinationGoalState re-check (COORDINATION_GOAL) from ever
-// letting a second dispatch through.
+// on: that GroupCoordinationGoalState is honestly retained (with an
+// honest AtTarget phase) after a HUNT arrival and honestly released
+// after everything else. DispatchHuntProposal()'s own re-approach rule
+// (2.12G3D2A - a member already AtTarget for the SAME attempt is only
+// ever re-dispatched once the target has genuinely moved beyond
+// ArrivalToleranceYards, reusing the same attempt identity) is live-
+// Creature-dependent and is not exercised by this pure test either - see
+// AIWorld.TestObserveActiveHuntAgentId's own "stage=REAPPROACH"/
+// "reason=ALREADY_AT_TARGET" diagnostic logging for that part's live
+// proof.
 void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
 {
     bool allPassed = true;
@@ -4908,6 +4916,8 @@ void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
             record.GroupCoordinationGoalState->SourceGroup == GroupId{ 1 } &&
             record.GroupCoordinationGoalState->StartedAtMs == 1000 &&
             record.GroupCoordinationGoalState->TargetEntry == 5000);
+        check("retained ownership is explicitly transitioned to HuntPhase::AtTarget",
+            record.GroupCoordinationGoalState && record.GroupCoordinationGoalState->Phase == HuntPhase::AtTarget);
     }
 
     // Every OTHER HUNT completion reason still releases ownership exactly
@@ -6231,10 +6241,19 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     // the ONE watched agent's own proposal, if any - never changes state,
     // selection, or dispatch, and never sets _testObserveActiveHuntFired
     // (only CheckTestObserveActiveHunt() does that, on a genuine full
-    // PASS). Gated the same way every other AIWorld.TestObserveActiveHuntAgentId
-    // check already is, plus proposal.Member itself - a proposal for any
-    // OTHER member never logs anything here, regardless of watch state.
-    bool huntDiagnosticsEnabled = proposal.Member == _testObserveActiveHuntAgentId && !_testObserveActiveHuntFired;
+    // PASS).
+    //
+    // Milestone 2.12G3D2A: deliberately NOT also gated on
+    // !_testObserveActiveHuntFired any more - that latch is specific to
+    // CheckTestObserveActiveHunt()'s own one-shot "the approach pipeline
+    // works at all" proof, which fires early (during the very first
+    // Approaching phase). Observing "no further MOVE_TO for a still-
+    // standing target" across several LATER coordination passes is
+    // exactly what this diagnostic now also needs to prove, well after
+    // that earlier latch has already been set - tying dispatch-stage
+    // diagnostics to it would silence them at exactly the point they
+    // become useful.
+    bool huntDiagnosticsEnabled = proposal.Member == _testObserveActiveHuntAgentId;
     auto logDispatchRejected = [&](char const* reason)
     {
         if (huntDiagnosticsEnabled)
@@ -6316,14 +6335,34 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
         return;
     }
 
-    // Explicit, independent re-check of the same invariant
-    // ActiveActionState's own check already implies under normal
-    // operation - kept separate because HUNT's own GroupCoordinationGoalState
-    // carries target identity that must never be silently overwritten.
+    // Milestone 2.12G3D2A: no longer an unconditional reject. A member
+    // already AtTarget for THIS EXACT attempt (same group/target/
+    // StartedAtMs) may still be re-approached if the target has since
+    // moved away - reusing the SAME attempt identity, never a fresh one
+    // (checked further below, once the target's own live position is
+    // resolved). Anything else with a GroupCoordinationGoalState already
+    // set - a different attempt, a different target, or this exact
+    // attempt still Approaching (ActiveActionState's own check above
+    // should already have caught that case, but this is verified
+    // independently, never assumed) - is still refused outright: HUNT's
+    // own GroupCoordinationGoalState carries target identity that must
+    // never be silently overwritten.
+    bool alreadyAtTargetForThisAttempt = false;
     if (record->GroupCoordinationGoalState)
     {
-        logDispatchRejected("COORDINATION_GOAL");
-        return;
+        bool sameAttempt = record->GroupCoordinationGoalState->Type == GoalType::Hunt
+            && record->GroupCoordinationGoalState->SourceGroup == proposal.SourceGroup
+            && record->GroupCoordinationGoalState->TargetGuid == proposal.Target.TargetGuid
+            && record->GroupCoordinationGoalState->TargetEntry == proposal.Target.TargetEntry
+            && record->GroupCoordinationGoalState->StartedAtMs == proposal.StartedAtMs;
+
+        if (!sameAttempt || record->GroupCoordinationGoalState->Phase != HuntPhase::AtTarget)
+        {
+            logDispatchRejected("COORDINATION_GOAL");
+            return;
+        }
+
+        alreadyAtTargetForThisAttempt = true;
     }
 
     if (CountCoordinationEnabledMemberships(proposal.Member) > 1)
@@ -6384,6 +6423,33 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     {
         logDispatchRejected("TARGET_POSITION_INVALID");
         return;
+    }
+
+    // Milestone 2.12G3D2A: a member already AtTarget for this exact
+    // attempt is only re-approached if the target has genuinely moved
+    // away - never while still effectively standing at it. Reuses the
+    // same ArrivalToleranceYards bound MOVE_TO arrival/Eat/Work-Rest
+    // already share (ArrivalTolerance.h), rather than inventing a new
+    // HUNT-specific one. Checked here, before the heavier range/LOS/
+    // PathGenerator work below, since this is the expected common case
+    // every pass a member spends idling at its own target.
+    if (alreadyAtTargetForThisAttempt)
+    {
+        ActionPosition targetPosition;
+        targetPosition.MapId = targetMapId;
+        targetPosition.X = targetX;
+        targetPosition.Y = targetY;
+        targetPosition.Z = targetZ;
+
+        if (IsWithinArrivalTolerance(targetPosition, creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ()))
+        {
+            logDispatchRejected("ALREADY_AT_TARGET");
+            return;
+        }
+
+        if (huntDiagnosticsEnabled)
+            TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} stage=REAPPROACH result=APPROACHING group={} target={} targetEntry={} startedAtMs={}",
+                proposal.Member.Value, proposal.SourceGroup.Value, target->GetGUID().ToString(), target->GetEntry(), proposal.StartedAtMs);
     }
 
     float rangeDx = targetX - creature->GetPositionX();
@@ -6462,6 +6528,12 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     coordinationGoal.TargetGuid = target->GetGUID();
     coordinationGoal.TargetEntry = target->GetEntry();
     coordinationGoal.TargetObservedAtMs = proposal.Target.ObservedAtMs;
+    // Explicit even though it is also HuntPhase's own default - this call
+    // may be overwriting an existing AtTarget-phase GroupCoordinationGoalState
+    // (the re-approach path above), and a freshly (re-)dispatched MOVE_TO
+    // is always Approaching again, never silently inherited from whatever
+    // phase the prior state happened to be in.
+    coordinationGoal.Phase = HuntPhase::Approaching;
     record->GroupCoordinationGoalState = coordinationGoal;
 
     ActionValidationContext moveContext;
@@ -9035,6 +9107,29 @@ void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion co
 
     if (IsCoordinationSourceGoal(completion.SourceGoal) && !retainHuntOwnershipOnArrival)
         record.GroupCoordinationGoalState.reset();
+
+    // Milestone 2.12G3D2A: the retained state's own phase must be set
+    // EXPLICITLY to AtTarget here, never left as whatever it already was
+    // (Approaching, set when this same attempt was originally dispatched)
+    // - see HuntPhase's own comment in GroupCoordinationGoal.h for why
+    // this must never be inferred from ActiveActionState's own absence.
+    if (retainHuntOwnershipOnArrival && record.GroupCoordinationGoalState)
+    {
+        record.GroupCoordinationGoalState->Phase = HuntPhase::AtTarget;
+
+        // Diagnostic-only (STATIC review pattern established for
+        // AIWorld.TestObserveActiveHuntAgentId): purely read-only, no
+        // *Fired dependency - unlike CheckTestObserveActiveHunt()'s own
+        // one-shot PASS, this must keep firing on every arrival for the
+        // watched agent regardless of whether that earlier hook already
+        // latched (arrival always happens well after the first Approaching
+        // capture).
+        if (_testObserveActiveHuntAgentId && record.Id == _testObserveActiveHuntAgentId)
+            TC_LOG_INFO("ai.world", "AI HUNT approach runtime diagnostic: agent={} stage=ARRIVED result=AT_TARGET group={} target={} targetEntry={} startedAtMs={}",
+                record.Id.Value, record.GroupCoordinationGoalState->SourceGroup.Value,
+                record.GroupCoordinationGoalState->TargetGuid.ToString(), record.GroupCoordinationGoalState->TargetEntry,
+                record.GroupCoordinationGoalState->StartedAtMs);
+    }
 }
 
 // World thread only. Milestone 2.11E2 P3 fix: applies mutate, then persists
