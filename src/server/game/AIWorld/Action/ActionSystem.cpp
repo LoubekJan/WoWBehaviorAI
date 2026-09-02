@@ -121,6 +121,8 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
             return ValidateWork(request, context);
         case ActionType::Rest:
             return ValidateRest(request, context);
+        case ActionType::Attack:
+            return ValidateAttack(request, context);
         default:
             return { false, ActionRejectReason::UnsupportedAction };
     }
@@ -277,6 +279,61 @@ ActionValidationResult ActionSystem::ValidateHuntTarget(ActionRequest const& req
     // comment.
     if (request.Destination->X != context.TargetX || request.Destination->Y != context.TargetY || request.Destination->Z != context.TargetZ)
         return { false, ActionRejectReason::TargetPositionMismatch };
+
+    return { true, ActionRejectReason::None };
+}
+
+ActionValidationResult ActionSystem::ValidateAttack(ActionRequest const& request, ActionValidationContext const& context) const
+{
+    // Attack is HUNT-only in this milestone - no other GoalType has a
+    // combat phase yet, the same "tied to one specific GoalType" rule
+    // ValidateEat()/ValidateWork()/ValidateRest() already enforce for
+    // their own single justifying goal.
+    if (*context.ActiveGoalType != GoalType::Hunt)
+        return { false, ActionRejectReason::GoalMismatch };
+
+    // Same GUID/entry-binding requirements ValidateHuntTarget() already
+    // enforces for MOVE_TO - see that method's own comment for why each is
+    // checked independently.
+    if (!request.Target || request.Target->Guid.IsEmpty() || request.Target->Entry == 0)
+        return { false, ActionRejectReason::TargetMissing };
+
+    if (!request.Target->Guid.IsCreature())
+        return { false, ActionRejectReason::TargetIdentityMismatch };
+
+    if (request.Target->Guid.GetEntry() != request.Target->Entry)
+        return { false, ActionRejectReason::TargetEntryMismatch };
+
+    if (!context.TargetResolved)
+        return { false, ActionRejectReason::TargetNotResolved };
+
+    if (!context.TargetAlive)
+        return { false, ActionRejectReason::TargetDead };
+
+    if (!context.TargetAttackable)
+        return { false, ActionRejectReason::TargetNotAttackable };
+
+    if (request.Target->Guid != context.TargetGuid)
+        return { false, ActionRejectReason::TargetIdentityMismatch };
+
+    if (request.Target->Entry != context.TargetEntry)
+        return { false, ActionRejectReason::TargetEntryMismatch };
+
+    // The target must be on the actor's own current map - a HUNT attack
+    // can never legitimately cross maps. Deliberately no Destination/
+    // position-match check beyond this - see this method's own header
+    // comment for why ATTACK never compares against a stale position
+    // snapshot the way ValidateHuntTarget() does for MOVE_TO.
+    if (context.TargetMapId != context.MapId)
+        return { false, ActionRejectReason::TargetMapMismatch };
+
+    // The actor may only ever be validated to attack ONE live target at a
+    // time - already attacking this SAME target is fine (idempotent, the
+    // expected case on a pass that merely reconfirms an already-Engaging
+    // member), but a live victim that disagrees is a genuine conflict this
+    // request must not be allowed to silently override.
+    if (!context.ActorCurrentVictimGuid.IsEmpty() && context.ActorCurrentVictimGuid != context.TargetGuid)
+        return { false, ActionRejectReason::ActorEngagedWithDifferentTarget };
 
     return { true, ActionRejectReason::None };
 }

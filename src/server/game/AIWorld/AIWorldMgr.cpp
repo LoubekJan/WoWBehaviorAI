@@ -87,6 +87,20 @@ namespace
         }, MOTION_SLOT_ACTIVE) != nullptr;
     }
 
+    // Milestone 2.12G3D: the ATTACK counterpart to HasOwnMoveToGenerator()
+    // above - "engine activity we can attribute to this exact attempt" for
+    // a HUNT combat attempt means the actor's own current melee victim
+    // (Unit::GetVictim()) is still this exact target, not merely "the
+    // actor is attacking someone" (a stale ActiveActionState could
+    // otherwise be misread as evidence for combat against an entirely
+    // different, later target). Read-only, the same "never removed, only
+    // read" contract HasOwnMoveToGenerator() itself already holds.
+    bool HasOwnAttackEngagement(Creature& actor, ObjectGuid targetGuid)
+    {
+        Unit* victim = actor.GetVictim();
+        return victim && victim->GetGUID() == targetGuid;
+    }
+
     // Milestone 2.11C: the single place that knows GoalType::GoToWork/
     // GoHome are Action-layer identity tags RoutineSystem produces, never
     // something GoalSystem produces or AgentRecord::ActiveGoalState ever
@@ -5134,6 +5148,89 @@ void AIWorldMgr::RunHuntArrivalOwnershipSmokeTest()
             record.ActiveActionState->Target->Entry == 6000);
     }
 
+    // Milestone 2.12G3D: a TargetDefeated HUNT completion (the target
+    // genuinely died while a member was Engaging it) always releases
+    // ownership - unlike Arrived, which is the ONE reason retained (see
+    // the genuine-arrival block above) - a defeated target ends the whole
+    // HUNT attempt, there is nothing further for the group to own.
+    {
+        AgentRecord record = makeCoordinationRecord(GoalType::Hunt, 1000);
+        record.ActiveActionState->Type = ActionType::Attack;
+        record.GroupCoordinationGoalState->Phase = HuntPhase::Engaging;
+
+        ActionCompletion completion = makeCompletion(record.Id, GoalType::Hunt, 1000,
+            ActionCompletionStatus::Succeeded, ActionCompletionReason::TargetDefeated);
+        completion.Type = ActionType::Attack;
+
+        HandleActionCompletion(record, completion);
+
+        check("a TargetDefeated HUNT completion releases both ActiveActionState and GroupCoordinationGoalState",
+            !record.ActiveActionState.has_value() && !record.GroupCoordinationGoalState.has_value());
+    }
+
+    // Milestone 2.12G3D: StopInFlightGroupCoordination()'s own
+    // ownsStoppedMovement check must recognize an Engaging member's
+    // ActionType::Attack ActiveActionState too, not just MoveTo - the same
+    // exact-match discipline (Type/SourceGoal/GoalStartedAtMs/Target), now
+    // proven for Attack the same way it was already proven for MoveTo
+    // above.
+    {
+        AgentRecord record = makeCoordinationRecord(GoalType::Hunt, 1000);
+        record.ActiveActionState->Type = ActionType::Attack;
+        record.GroupCoordinationGoalState->Phase = HuntPhase::Engaging;
+
+        StopInFlightGroupCoordination(record, "SMOKE_TEST_ENGAGING_STOP", CoordinationStopReason::StoppedByLifecycle);
+
+        check("stopping an Engaging member releases both ActiveActionState and GroupCoordinationGoalState",
+            !record.ActiveActionState.has_value() && !record.GroupCoordinationGoalState.has_value());
+        check("the recorded stop event carries the Engaging attempt's own identity",
+            record.LastCoordinationStop && record.LastCoordinationStop->Reason == CoordinationStopReason::StoppedByLifecycle &&
+            record.LastCoordinationStop->SourceGoal == GoalType::Hunt &&
+            record.LastCoordinationStop->SourceGroup == GroupId{ 1 } &&
+            record.LastCoordinationStop->StartedAtMs == 1000 &&
+            record.LastCoordinationStop->TargetEntry == 5000);
+    }
+
+    // Negative counterpart: an Engaging member whose ActionType::Attack
+    // ActiveActionState names a DIFFERENT target than the HUNT goal being
+    // stopped must be left untouched, the same mismatched-target
+    // regression already proven above for MoveTo, now for Attack.
+    {
+        AgentRecord record;
+        record.Id = AgentId{ 1 };
+
+        GroupCoordinationGoal huntGoal;
+        huntGoal.Type = GoalType::Hunt;
+        huntGoal.SourceGroup = GroupId{ 1 };
+        huntGoal.StartedAtMs = 1000;
+        huntGoal.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(5000, 100);
+        huntGoal.TargetEntry = 5000;
+        huntGoal.TargetObservedAtMs = 500;
+        huntGoal.Phase = HuntPhase::Engaging;
+        record.GroupCoordinationGoalState = huntGoal;
+
+        ActiveAction mismatchedTargetAttack;
+        mismatchedTargetAttack.Type = ActionType::Attack;
+        mismatchedTargetAttack.SourceGoal = GoalType::Hunt;
+        mismatchedTargetAttack.GoalStartedAtMs = 1000;
+        mismatchedTargetAttack.StartedAtMs = 1000;
+        mismatchedTargetAttack.Target = ActionTargetRef{ ObjectGuid::Create<HighGuid::Unit>(6000, 200), 6000 };
+        record.ActiveActionState = mismatchedTargetAttack;
+
+        StopInFlightGroupCoordination(record, "SMOKE_TEST_MISMATCHED_ATTACK_TARGET_STOP", CoordinationStopReason::StoppedByTargetInvalid);
+
+        check("stopping HUNT ownership with a same-timestamp but different-target Attack action still releases the goal",
+            !record.GroupCoordinationGoalState.has_value());
+        check("the recorded stop event still carries the HUNT goal's own identity, not the mismatched Attack action's",
+            record.LastCoordinationStop && record.LastCoordinationStop->Reason == CoordinationStopReason::StoppedByTargetInvalid &&
+            record.LastCoordinationStop->SourceGoal == GoalType::Hunt &&
+            record.LastCoordinationStop->TargetEntry == 5000);
+        check("the mismatched-target Attack ActiveActionState is left completely untouched",
+            record.ActiveActionState.has_value() &&
+            record.ActiveActionState->Target.has_value() &&
+            record.ActiveActionState->Target->Entry == 6000);
+    }
+
     TC_LOG_INFO("ai.world", "AI HUNT arrival ownership smoke test {}", allPassed ? "PASSED" : "FAILED");
 }
 
@@ -5828,6 +5925,59 @@ void AIWorldMgr::ReconcileActiveHuntTargetsForGroup(AgentGroupRecord const& grou
         // force-load (ObjectAccessor::GetCreature() -> Map::GetCreature()).
         Creature* target = ObjectAccessor::GetCreature(*creature, goal.TargetGuid);
 
+        // Milestone 2.12G3D: a genuinely DEAD (resolved, but no longer
+        // alive - never merely unloaded/unresolved, which target==nullptr
+        // already covers below) target, for a member actually Engaging it,
+        // is this HUNT attempt's own SUCCESS outcome - deliberately never
+        // routed through StopInFlightGroupCoordination()'s
+        // StoppedByTargetInvalid path below, which means something
+        // entirely different ("this attempt's own target stopped being a
+        // legitimate one"), not "this attempt's own target was defeated".
+        // A member only Approaching/AtTarget (never actually Engaging) when
+        // its own target happens to die from something else entirely never
+        // fought it at all - that still falls through to the existing
+        // StoppedByTargetInvalid path below, unchanged from before this
+        // milestone (targetValid already reads false for a dead target
+        // there too).
+        if (goal.Phase == HuntPhase::Engaging && target && !target->IsAlive())
+        {
+            TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} target guid={} entry={} was defeated - ending HUNT combat",
+                member->Id.Value, group.Id.Value, goal.TargetGuid.GetRawValue(), goal.TargetEntry);
+
+            // Only ever stops OUR OWN combat - the same exact-match
+            // discipline (Type/SourceGoal/GoalStartedAtMs/Target)
+            // StopInFlightGroupCoordination()'s own ownsStoppedMovement
+            // already established, never assumed just because a HUNT goal
+            // happens to exist. AIWorldCreatureAI::UpdateAI() is
+            // deliberately empty (see its own comment) - nothing else will
+            // ever end this member's own combat state on its own now that
+            // its target is dead, so this call is not optional.
+            if (member->ActiveActionState && member->ActiveActionState->Type == ActionType::Attack &&
+                member->ActiveActionState->SourceGoal == GoalType::Hunt &&
+                member->ActiveActionState->GoalStartedAtMs == goal.StartedAtMs &&
+                member->ActiveActionState->Target && member->ActiveActionState->Target->Guid == goal.TargetGuid)
+            {
+                _actionExecutor.StopAttack(*creature);
+            }
+
+            ActionCompletion completion;
+            completion.Actor = member->Id;
+            completion.Type = ActionType::Attack;
+            completion.SourceGoal = GoalType::Hunt;
+            completion.GoalStartedAtMs = goal.StartedAtMs;
+            completion.Status = ActionCompletionStatus::Succeeded;
+            completion.Reason = ActionCompletionReason::TargetDefeated;
+            completion.CompletedAtMs = CurrentTimeMs();
+
+            // Milestone 2.12G3D: unlike Arrived, TargetDefeated is never
+            // retained (see HandleActionCompletion()'s own
+            // retainHuntOwnershipOnArrival, gated specifically on Reason ==
+            // Arrived) - a defeated target ends the whole HUNT attempt,
+            // GroupCoordinationGoalState is released here.
+            HandleActionCompletion(*member, completion);
+            continue;
+        }
+
         bool targetValid = target && target->IsAlive() && target->GetMapId() == creature->GetMapId() &&
             target->GetEntry() == goal.TargetEntry && creature->IsValidAttackTarget(target);
 
@@ -6013,6 +6163,40 @@ void AIWorldMgr::RunCoalitionCoordination()
         std::optional<HuntIntent> huntIntent;
         if (profile->HuntEnabled)
             huntIntent = ResolveHuntIntentForGroup(*group, *profile, observations, nowMs);
+
+        // Milestone 2.12G3D: dispatch ATTACK for every member of this group
+        // already AtTarget for an in-flight HUNT attempt, with no
+        // ActiveActionState of its own yet - the combat counterpart to the
+        // huntProposals MOVE_TO batch below, but per-member rather than
+        // collected/arbitrated, since starting combat needs no overlap
+        // arbitration (a member is only ever AtTarget for ONE attempt to
+        // begin with, the same CountCoordinationEnabledMemberships()
+        // membership-ambiguity check DispatchHuntAttack() itself re-checks
+        // independently below). Deliberately gated on profile->HuntEnabled,
+        // the same way MOVE_TO dispatch already is - HUNT combat, like HUNT
+        // approach, never starts fresh progress once this group's own
+        // config no longer enables it, even for an attempt already in
+        // flight (see ReconcileActiveHuntTargetsForGroup()'s own comment
+        // for why RECONCILING an existing attempt is unconditional while
+        // ADVANCING one, here, is not). No synchronization barrier - each
+        // eligible member is dispatched independently; a member that is not
+        // yet AtTarget, or that failed this pass's own validation, never
+        // blocks another member of the SAME group already fighting.
+        if (profile->HuntEnabled)
+        {
+            for (AgentGroupMembership const& membership : group->Members)
+            {
+                AgentRecord const* member = _registry.Find(membership.Member);
+                if (!member || !member->GroupCoordinationGoalState || member->ActiveActionState)
+                    continue;
+
+                GroupCoordinationGoal const& memberGoal = *member->GroupCoordinationGoalState;
+                if (memberGoal.Type != GoalType::Hunt || memberGoal.SourceGroup != group->Id || memberGoal.Phase != HuntPhase::AtTarget)
+                    continue;
+
+                DispatchHuntAttack(membership.Member, group->Id);
+            }
+        }
 
         // Milestone 2.12G3D1 diagnostic-only addition (STATIC review):
         // traces the INTENT/PROJECT pipeline stages for the ONE watched
@@ -6796,6 +6980,244 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     record->ActiveActionState = action;
 }
 
+void AIWorldMgr::DispatchHuntAttack(AgentId member, GroupId sourceGroup)
+{
+    // Milestone 2.12G3D: same diagnostic pattern DispatchHuntProposal()
+    // itself already established - purely read-only, never changes state/
+    // selection/dispatch, never sets _testObserveActiveHuntFired.
+    bool huntDiagnosticsEnabled = member == _testObserveActiveHuntAgentId;
+    auto logAttackRejected = [&](char const* reasonText)
+    {
+        if (huntDiagnosticsEnabled)
+            TC_LOG_INFO("ai.world", "AI HUNT combat runtime diagnostic: agent={} stage=ATTACK result=REJECTED reason={}",
+                member.Value, reasonText);
+    };
+
+    AgentRecord* record = _registry.Find(member);
+    if (!record)
+    {
+        logAttackRejected("AGENT_MISSING");
+        return;
+    }
+
+    if (record->ControlMode != AgentControlMode::AIWorldControlled)
+    {
+        logAttackRejected("CONTROL_MODE");
+        return;
+    }
+
+    AgentGroupRecord const* group = _groupRegistry.Find(sourceGroup);
+    if (!group)
+    {
+        logAttackRejected("GROUP_MISSING");
+        return;
+    }
+
+    if (_groupLifecycleSystem.HasPendingOperation(sourceGroup))
+    {
+        logAttackRejected("LIFECYCLE_PENDING");
+        return;
+    }
+
+    bool stillMember = std::any_of(group->Members.begin(), group->Members.end(),
+        [member](AgentGroupMembership const& membership) { return membership.Member == member; });
+    if (!stillMember)
+    {
+        logAttackRejected("NOT_MEMBER");
+        return;
+    }
+
+    if (record->ActiveGoalState)
+    {
+        logAttackRejected("ACTIVE_GOAL");
+        return;
+    }
+
+    if (record->RoutineGoalState)
+    {
+        logAttackRejected("ROUTINE_GOAL");
+        return;
+    }
+
+    if (record->ActiveActionState)
+    {
+        logAttackRejected("ACTIVE_ACTION");
+        return;
+    }
+
+    if (!record->GroupCoordinationGoalState)
+    {
+        logAttackRejected("NO_COORDINATION_GOAL");
+        return;
+    }
+
+    // The caller's own loop filter already checked this before ever
+    // calling DispatchHuntAttack() - re-verified independently here rather
+    // than trusted, the same "never assume, always check" discipline every
+    // other dispatch method in this file already holds to.
+    GroupCoordinationGoal const& goal = *record->GroupCoordinationGoalState;
+    if (goal.Type != GoalType::Hunt || goal.SourceGroup != sourceGroup || goal.Phase != HuntPhase::AtTarget)
+    {
+        logAttackRejected("NOT_AT_TARGET");
+        return;
+    }
+
+    if (CountCoordinationEnabledMemberships(member) > 1)
+    {
+        logAttackRejected("MEMBERSHIP_AMBIGUOUS");
+        return;
+    }
+
+    if (record->WorldState != AgentWorldState::Materialized)
+    {
+        logAttackRejected("ACTOR_NOT_MATERIALIZED");
+        return;
+    }
+
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+    Creature* creature = ResolveLiveCreature(*record, map);
+    if (!creature || !creature->IsAlive())
+    {
+        logAttackRejected("ACTOR_UNRESOLVED_OR_DEAD");
+        return;
+    }
+
+    // Transient, already-loaded-object lookup only - never a force-load.
+    Creature* target = ObjectAccessor::GetCreature(*creature, goal.TargetGuid);
+    if (!target || !target->IsAlive())
+    {
+        logAttackRejected("TARGET_UNRESOLVED_OR_DEAD");
+        return;
+    }
+
+    if (target->GetEntry() != goal.TargetEntry || target->GetMapId() != creature->GetMapId())
+    {
+        logAttackRejected("TARGET_IDENTITY_MISMATCH");
+        return;
+    }
+
+    if (target == creature)
+    {
+        logAttackRejected("SELF_TARGET");
+        return;
+    }
+
+    // The target must not itself be a fellow member of this same group -
+    // friendly fire is never a legitimate HUNT outcome. Checked by live
+    // GUID, not AgentId/SpawnId, since that is the only identity the
+    // engine's own target resolution above actually proves.
+    bool targetIsGroupMember = false;
+    for (AgentGroupMembership const& otherMembership : group->Members)
+    {
+        AgentRecord const* otherMember = _registry.Find(otherMembership.Member);
+        if (!otherMember || otherMember->WorldState != AgentWorldState::Materialized)
+            continue;
+
+        Creature* otherCreature = ResolveLiveCreature(*otherMember, map);
+        if (otherCreature && otherCreature->GetGUID() == target->GetGUID())
+        {
+            targetIsGroupMember = true;
+            break;
+        }
+    }
+
+    if (targetIsGroupMember)
+    {
+        logAttackRejected("TARGET_IS_GROUP_MEMBER");
+        return;
+    }
+
+    if (!creature->IsValidAttackTarget(target))
+    {
+        logAttackRejected("TARGET_NOT_ATTACKABLE");
+        return;
+    }
+
+    // Milestone 2.12G3D: idempotency - if the actor is already, genuinely,
+    // attacking this exact target, ExecuteAttack() must not be called
+    // again (see ActionExecutor::ExecuteAttack()/this method's own header
+    // comment for why) - Validate() still runs regardless, as the
+    // authoritative safety gate.
+    Unit* currentVictim = creature->GetVictim();
+    bool alreadyEngaged = currentVictim && currentVictim->GetGUID() == target->GetGUID();
+
+    ActionRequest attackRequest;
+    attackRequest.Actor = member;
+    attackRequest.Type = ActionType::Attack;
+    attackRequest.SourceGoal = GoalType::Hunt;
+    attackRequest.GoalStartedAtMs = goal.StartedAtMs;
+    attackRequest.SourceGroup = goal.SourceGroup;
+    attackRequest.Target = ActionTargetRef{ target->GetGUID(), target->GetEntry() };
+
+    TC_LOG_DEBUG("ai.world", "AI action request agent={} type={} sourceGoal={} target={} targetEntry={} sourceGroup={}",
+        record->Id.Value, ToString(attackRequest.Type), ToString(attackRequest.SourceGoal),
+        target->GetGUID().ToString(), target->GetEntry(), sourceGroup.Value);
+
+    ActionValidationContext attackContext;
+    attackContext.Materialized = true;
+    attackContext.Alive = true;
+    attackContext.ControlMode = record->ControlMode;
+    attackContext.ActiveGoalType = GoalType::Hunt;
+    attackContext.ActiveGoalStartedAtMs = goal.StartedAtMs;
+    attackContext.MapId = creature->GetMapId();
+    attackContext.X = creature->GetPositionX();
+    attackContext.Y = creature->GetPositionY();
+    attackContext.Z = creature->GetPositionZ();
+    attackContext.TargetResolved = true;
+    attackContext.TargetAlive = target->IsAlive();
+    attackContext.TargetAttackable = creature->IsValidAttackTarget(target);
+    attackContext.TargetGuid = target->GetGUID();
+    attackContext.TargetEntry = target->GetEntry();
+    attackContext.TargetMapId = target->GetMapId();
+    attackContext.TargetX = target->GetPositionX();
+    attackContext.TargetY = target->GetPositionY();
+    attackContext.TargetZ = target->GetPositionZ();
+    attackContext.ActorCurrentVictimGuid = currentVictim ? currentVictim->GetGUID() : ObjectGuid::Empty;
+
+    ActionValidationResult attackValidation = _actionSystem.Validate(attackRequest, attackContext);
+
+    TC_LOG_DEBUG("ai.world", "AI action validation agent={} type={} result={} reason={}",
+        record->Id.Value, ToString(attackRequest.Type), attackValidation.Allowed ? "ALLOWED" : "REJECTED",
+        ToString(attackValidation.Reason));
+
+    if (!attackValidation.Allowed)
+    {
+        logAttackRejected(ToString(attackValidation.Reason));
+        return;
+    }
+
+    if (!alreadyEngaged)
+    {
+        ActionResult attackResult = _actionExecutor.ExecuteAttack(attackRequest, *creature, *target);
+
+        TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={}",
+            record->Id.Value, ToString(attackResult.Type), ToString(attackResult.Status), ToString(attackResult.Reason));
+
+        if (attackResult.Status != ActionExecutionStatus::Started)
+        {
+            logAttackRejected("EXECUTION_FAILED");
+            return;
+        }
+    }
+
+    uint64 nowMs = CurrentTimeMs();
+
+    ActiveAction action;
+    action.Type = ActionType::Attack;
+    action.SourceGoal = GoalType::Hunt;
+    action.GoalStartedAtMs = goal.StartedAtMs;
+    action.StartedAtMs = nowMs;
+    action.Target = attackRequest.Target;
+    record->ActiveActionState = action;
+
+    record->GroupCoordinationGoalState->Phase = HuntPhase::Engaging;
+
+    if (huntDiagnosticsEnabled)
+        TC_LOG_INFO("ai.world", "AI HUNT combat runtime diagnostic: agent={} stage=ATTACK result={} group={} target={} targetEntry={} startedAtMs={}",
+            member.Value, alreadyEngaged ? "ALREADY_ENGAGED" : "STARTED", sourceGroup.Value,
+            target->GetGUID().ToString(), target->GetEntry(), goal.StartedAtMs);
+}
+
 bool AIWorldMgr::HasInFlightRoamAttempt(AgentGroupRecord const& group) const
 {
     for (AgentGroupMembership const& membership : group.Members)
@@ -6900,9 +7322,15 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
     // carried separately - so a HUNT match additionally requires the
     // live ActiveActionState's own Target to still agree with
     // priorCoordinationGoal's TargetGuid/TargetEntry.
+    // Milestone 2.12G3D: MoveTo OR Attack now both qualify - a HuntPhase::
+    // Engaging member's own ActiveActionState is ActionType::Attack, not
+    // MoveTo, and this same exact-match discipline must recognize it too
+    // (see this method's own updated header comment). Regroup/Roam never
+    // have an Attack-type ActiveActionState at all, so this disjunction is
+    // inert for them - only ever widens what HUNT can match.
     bool ownsStoppedMovement =
         record.ActiveActionState &&
-        record.ActiveActionState->Type == ActionType::MoveTo &&
+        (record.ActiveActionState->Type == ActionType::MoveTo || record.ActiveActionState->Type == ActionType::Attack) &&
         record.ActiveActionState->SourceGoal == priorCoordinationGoal->Type &&
         record.ActiveActionState->GoalStartedAtMs == priorCoordinationGoal->StartedAtMs;
 
@@ -6934,8 +7362,18 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record.MapId);
         if (Creature* creature = ResolveLiveCreature(record, map))
         {
+            // Milestone 2.12G3D: type-dispatched - a HuntPhase::Engaging
+            // member's own ActiveActionState is ActionType::Attack, and
+            // stopping it must call StopAttack() (Unit::CombatStop() + its
+            // own chase-generator cleanup), never StopMoveTo(), which
+            // recognizes only its own POINT_MOTION_TYPE generator and
+            // would silently do nothing for a member that is actually mid-
+            // combat - leaving it still fighting while this method's own
+            // caller believes the attempt was stopped.
+            bool isAttack = record.ActiveActionState->Type == ActionType::Attack;
+
             // Milestone 2.12G2R P2 fix, round 3 (STATIC review): observed
-            // BEFORE StopMoveTo() is called, not just after - an earlier
+            // BEFORE the stop call is made, not just after - an earlier
             // version only checked HasOwnMoveToGenerator() AFTER
             // StopMoveTo() ran, which reads "confirmed stopped" just as
             // readily when nothing was running in the first place (the
@@ -6944,17 +7382,27 @@ void AIWorldMgr::StopInFlightGroupCoordination(AgentRecord& record, char const* 
             // genuinely in-flight movement was actually just interrupted -
             // only the latter is real evidence this stop path did
             // meaningful work, which is exactly what a verifying test hook
-            // needs to be able to tell apart.
-            stopEvent.EngineGeneratorWasRunningBeforeStop = HasOwnMoveToGenerator(*creature);
+            // needs to be able to tell apart. Milestone 2.12G3D: the same
+            // reasoning now applies to HasOwnAttackEngagement() for Attack.
+            stopEvent.EngineGeneratorWasRunningBeforeStop = isAttack
+                ? HasOwnAttackEngagement(*creature, priorCoordinationGoal->TargetGuid)
+                : HasOwnMoveToGenerator(*creature);
 
-            _actionExecutor.StopMoveTo(*creature);
+            if (isAttack)
+                _actionExecutor.StopAttack(*creature);
+            else
+                _actionExecutor.StopMoveTo(*creature);
 
             TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason={} sourceGoal={} sourceGroup={}",
-                record.Id.Value, ToString(ActionType::MoveTo), reason, ToString(stopEvent.SourceGoal), stopEvent.SourceGroup.Value);
+                record.Id.Value, ToString(record.ActiveActionState->Type), reason, ToString(stopEvent.SourceGoal), stopEvent.SourceGroup.Value);
 
-            // Freshly re-observed right after StopMoveTo() just ran, not
+            // Freshly re-observed right after the stop call just ran, not
             // assumed true - see CoordinationStopEvent.h's own comment.
-            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = !HasOwnMoveToGenerator(*creature);
+            // Negated in both branches: "confirmed stopped" means the
+            // engine fact is now ABSENT, not present.
+            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = isAttack
+                ? !HasOwnAttackEngagement(*creature, priorCoordinationGoal->TargetGuid)
+                : !HasOwnMoveToGenerator(*creature);
         }
     }
 
@@ -8557,7 +9005,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             && IsCoordinationSourceGoal(record->ActiveActionState->SourceGoal))
         {
             // Milestone 2.12G2R P2 fix, round 3 (STATIC review): observed
-            // BEFORE StopMoveTo() is called - see StopInFlightGroupCoordination()'s
+            // BEFORE the stop call is made - see StopInFlightGroupCoordination()'s
             // own comment for why "confirmed stopped after" alone is not
             // honest evidence of a genuine interruption unless it is also
             // known something was actually running beforehand. `creature`
@@ -8566,12 +9014,27 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             // (!creature) continue;` above), so unlike
             // StopInFlightGroupCoordination() there is no "cannot resolve
             // a live Creature at all" case to handle here.
-            bool generatorWasRunning = HasOwnMoveToGenerator(*creature);
+            //
+            // Milestone 2.12G3D: type-dispatched, the same reason
+            // StopInFlightGroupCoordination() itself now is - a
+            // HuntPhase::Engaging member's own ActiveActionState is
+            // ActionType::Attack, and StopMoveTo() would silently do
+            // nothing for it (it recognizes only its own POINT_MOTION_TYPE
+            // generator), leaving the member still fighting while this
+            // preemption believes it stopped the attempt.
+            bool isAttack = record->ActiveActionState->Type == ActionType::Attack;
 
-            _actionExecutor.StopMoveTo(*creature);
+            bool generatorWasRunning = isAttack
+                ? HasOwnAttackEngagement(*creature, record->GroupCoordinationGoalState->TargetGuid)
+                : HasOwnMoveToGenerator(*creature);
+
+            if (isAttack)
+                _actionExecutor.StopAttack(*creature);
+            else
+                _actionExecutor.StopMoveTo(*creature);
 
             TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=COORDINATION_PREEMPTED_BY_GOAL sourceGoal={}",
-                record->Id.Value, ToString(ActionType::MoveTo), ToString(record->ActiveActionState->SourceGoal));
+                record->Id.Value, ToString(record->ActiveActionState->Type), ToString(record->ActiveActionState->SourceGoal));
 
             // Milestone 2.12G2R P2 fix, round 2/3 (STATIC review): recorded
             // BEFORE the resets below erase the very state this event
@@ -8601,7 +9064,9 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             stopEvent.TargetGuid = record->GroupCoordinationGoalState->TargetGuid;
             stopEvent.TargetEntry = record->GroupCoordinationGoalState->TargetEntry;
             stopEvent.EngineGeneratorWasRunningBeforeStop = generatorWasRunning;
-            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = !HasOwnMoveToGenerator(*creature);
+            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = isAttack
+                ? !HasOwnAttackEngagement(*creature, record->GroupCoordinationGoalState->TargetGuid)
+                : !HasOwnMoveToGenerator(*creature);
             if (record->ActiveGoalState)
             {
                 stopEvent.PreemptingOwner = CoordinationPreemptingOwner::ActiveGoal;

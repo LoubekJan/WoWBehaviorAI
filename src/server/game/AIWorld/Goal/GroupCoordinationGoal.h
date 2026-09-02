@@ -101,16 +101,26 @@
 // AtTarget once that MOVE_TO naturally arrives - the group's own
 // ownership of the attempt does not end on arrival (see
 // AIWorldMgr::HandleActionCompletion()'s own 2.12G3D2A comment), it just
-// has nothing further to do yet (no combat phase exists in this
-// milestone). Deliberately never inferred from "ActiveActionState is
-// absent" - that alone cannot honestly distinguish "just arrived" from
-// "preempted", "target died mid-approach", or any other non-arrival
-// reason ActiveActionState could also be gone for; every place that needs
-// to know whether a member is AtTarget reads this field explicitly.
+// has nothing further to do yet.
+//
+// Milestone 2.12G3D: Engaging is the combat phase 2.12G3D2A's own comment
+// said did not exist yet - an AtTarget member transitions here once its
+// own ATTACK is genuinely started (or reconfirmed idempotently already
+// running - see AIWorldMgr::DispatchHuntAttack()), with its own
+// ActiveActionState now ActionType::Attack rather than absent. The
+// attempt's own identity (SourceGroup/StartedAtMs/TargetGuid/TargetEntry)
+// never changes across Approaching -> AtTarget -> Engaging - only Phase
+// itself advances, the same "same attempt, different phase" shape
+// AtTarget already established. Deliberately never inferred from
+// "ActiveActionState's own Type happens to be Attack" - every place that
+// needs to know whether a member is Engaging reads this field explicitly,
+// the same discipline AtTarget's own comment already established for
+// "ActiveActionState is absent".
 enum class HuntPhase : uint8
 {
     Approaching,
-    AtTarget
+    AtTarget,
+    Engaging
 };
 
 inline char const* ToString(HuntPhase phase)
@@ -119,6 +129,7 @@ inline char const* ToString(HuntPhase phase)
     {
         case HuntPhase::Approaching: return "APPROACHING";
         case HuntPhase::AtTarget:    return "AT_TARGET";
+        case HuntPhase::Engaging:    return "ENGAGING";
         default:                     return "UNKNOWN";
     }
 }

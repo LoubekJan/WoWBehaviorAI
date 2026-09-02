@@ -20,10 +20,11 @@
 
 #include "Define.h"
 
-// Milestone 2.8A/2.8D/2.8E/2.8G/2.11E1: Flee, MoveTo, Eat, Work, and Rest -
-// the full FOLLOW/ATTACK/TALK/TRADE/INVESTIGATE/REQUEST_HELP catalog (per
-// the roadmap's 2.8 Bezpečné Action API) comes later, once these have
-// cleared their own runtime gate. GET_FOOD (2.8E) resolves a target and
+// Milestone 2.8A/2.8D/2.8E/2.8G/2.11E1/2.12G3D: Flee, MoveTo, Eat, Work,
+// Rest, and Attack - the full FOLLOW/TALK/TRADE/INVESTIGATE/REQUEST_HELP
+// catalog (per the roadmap's 2.8 Bezpečné Action API) comes later, once
+// these have cleared their own runtime gate. GET_FOOD (2.8E) resolves a
+// target and
 // moves there via MoveTo; MOVE_TO arrival (2.8F) only means the actor is
 // now standing at the target, so AIWorldMgr::TryEat() (2.8G, run only
 // after this tick's own goal-selection pass - see
@@ -43,13 +44,23 @@
 // their own ActiveActionState, since RoutineActivitySystem's own
 // HasActiveAction check would otherwise immediately suppress the activity
 // that just started it.
+//
+// Milestone 2.12G3D: Attack follows the same "MOVE_TO gets you there, a
+// second action is what you do once there" shape as GetFood/Eat, but is
+// HUNT-only and, unlike every other ActionType, DOES get its own
+// long-lived ActiveActionState - it has no single-tick natural conclusion
+// the way Eat/Work/Rest's one-shot emotes do; it keeps running until the
+// target dies, becomes invalid, or is preempted (see
+// AIWorldMgr::ReconcileActiveHuntTargetsForGroup()'s own HuntPhase::
+// Engaging handling and ActionCompletionReason::TargetDefeated).
 enum class ActionType : uint8
 {
     Flee,
     MoveTo,
     Eat,
     Work,
-    Rest
+    Rest,
+    Attack
 };
 
 inline char const* ToString(ActionType type)
@@ -61,6 +72,7 @@ inline char const* ToString(ActionType type)
         case ActionType::Eat:    return "EAT";
         case ActionType::Work:   return "WORK";
         case ActionType::Rest:   return "REST";
+        case ActionType::Attack: return "ATTACK";
         default:                 return "UNKNOWN";
     }
 }

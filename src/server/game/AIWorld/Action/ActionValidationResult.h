@@ -86,7 +86,16 @@ enum class ActionRejectReason : uint8
     // position - a HUNT approach's Destination must be provably where the
     // target actually is right now, not merely a geometrically-valid
     // MoveTo destination that happens to be nearby.
-    TargetPositionMismatch
+    TargetPositionMismatch,
+    // Milestone 2.12G3D: an ATTACK request whose actor
+    // (ActionValidationContext::ActorCurrentVictimGuid) is already
+    // attacking a DIFFERENT live target than the one this request names.
+    // Deliberately not folded into ActorInCombat (ValidateEat's own
+    // "no combat at all" rule) - an actor already attacking the SAME
+    // target this request names is the expected, idempotent case (see
+    // AIWorldMgr::DispatchHuntAttack()'s own "already engaged" handling),
+    // not a rejection.
+    ActorEngagedWithDifferentTarget
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -118,6 +127,7 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::TargetEntryMismatch:     return "TARGET_ENTRY_MISMATCH";
         case ActionRejectReason::TargetMapMismatch:       return "TARGET_MAP_MISMATCH";
         case ActionRejectReason::TargetPositionMismatch:  return "TARGET_POSITION_MISMATCH";
+        case ActionRejectReason::ActorEngagedWithDifferentTarget: return "ACTOR_ENGAGED_WITH_DIFFERENT_TARGET";
         default:                                         return "UNKNOWN";
     }
 }

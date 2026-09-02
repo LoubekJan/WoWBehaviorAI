@@ -98,7 +98,15 @@ enum class ActionCompletionReason : uint8
     // literally eating. Kept distinct from Consumed rather than reused, so
     // a future 2.11E2 economy mutation can gate specifically on this
     // reason without also matching Eat completions.
-    Performed
+    Performed,
+    // Milestone 2.12G3D: Attack's only Succeeded reason - the HUNT
+    // target genuinely died while a member was Engaging it
+    // (AIWorldMgr::ReconcileActiveHuntTargetsForGroup()). Unlike Arrived,
+    // this always releases GroupCoordinationGoalState (see
+    // AIWorldMgr::HandleActionCompletion() - retention only ever applies
+    // to Arrived) - a defeated target ends the whole HUNT attempt, there
+    // is nothing further for the group to own.
+    TargetDefeated
 };
 
 inline char const* ToString(ActionCompletionReason reason)
@@ -114,6 +122,7 @@ inline char const* ToString(ActionCompletionReason reason)
         case ActionCompletionReason::EngineStopped:         return "ENGINE_STOPPED";
         case ActionCompletionReason::Consumed:              return "CONSUMED";
         case ActionCompletionReason::Performed:             return "PERFORMED";
+        case ActionCompletionReason::TargetDefeated:        return "TARGET_DEFEATED";
         default:                                            return "UNKNOWN";
     }
 }

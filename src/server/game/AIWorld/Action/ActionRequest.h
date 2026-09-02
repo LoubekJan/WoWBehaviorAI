@@ -21,6 +21,7 @@
 #include "ActionPosition.h"
 #include "ActionTargetRef.h"
 #include "Agent/AgentId.h"
+#include "Agent/GroupId.h"
 #include "ActionType.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
@@ -79,6 +80,16 @@ struct ActionRequest
     // Destination geometrically valid. See ActionSystem::ValidateMoveTo()/
     // ActionTargetRef.h.
     std::optional<ActionTargetRef> Target;
+
+    // Milestone 2.12G3D: which group this ATTACK request's own HUNT
+    // attempt is sourced from - identity/observability only, carried the
+    // same "not itself re-validated by ActionSystem/ActionExecutor, which
+    // never touch AgentGroupRegistry" way GroupCoordinationGoal::
+    // SourceGroup already is (see that field's own comment) - membership/
+    // attempt-identity is already independently reverified by the caller
+    // (AIWorldMgr::DispatchHuntAttack()) before this request is ever
+    // built. Default-empty for every ActionType other than Attack.
+    GroupId SourceGroup;
 };
 
 #endif // AIWORLD_ACTIONREQUEST_H

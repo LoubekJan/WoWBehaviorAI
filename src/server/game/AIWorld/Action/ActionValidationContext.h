@@ -156,6 +156,17 @@ struct ActionValidationContext
     float TargetX = 0.0f;
     float TargetY = 0.0f;
     float TargetZ = 0.0f;
+
+    // Milestone 2.12G3D: only meaningful for ActionType::Attack - the
+    // actor's OWN actual current melee target GUID (Unit::GetVictim()),
+    // empty if the actor is not currently attacking anyone. Reality, not
+    // the request's claim, the same FleeSourceGuid/ArrivedDestination
+    // discipline every other *Guid context fact already holds. Compared
+    // against TargetGuid above: equal (or empty) is fine - either the
+    // actor isn't fighting yet, or it is already, idempotently, fighting
+    // the SAME target this request names - only a live victim that
+    // disagrees with TargetGuid is rejected (ActorEngagedWithDifferentTarget).
+    ObjectGuid ActorCurrentVictimGuid;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

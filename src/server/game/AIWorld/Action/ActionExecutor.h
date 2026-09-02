@@ -138,6 +138,50 @@ class TC_GAME_API ActionExecutor
         // before calling.
         ActionResult ExecuteWork(ActionRequest const& request, Creature& actor) const;
         ActionResult ExecuteRest(ActionRequest const& request, Creature& actor) const;
+
+        // Milestone 2.12G3D: starts melee combat via Unit::Attack() +
+        // GetMotionMaster()->MoveChase() - TrinityCore's own combat/threat
+        // bookkeeping and chase pathfinding, not anything AIWorld computes
+        // itself. Deliberately NOT actor.AI()->AttackStart(target) -
+        // AIWorldCreatureAI's own AttackStart() override is an intentional
+        // no-op (see its own comment: it exists specifically to suppress
+        // TrinityCore's OWN reflexive combat starts, e.g. via
+        // MoveInLineOfSight-driven aggro, which this same class already
+        // suppresses) - routing through it here would silently do nothing.
+        // This calls the exact same underlying primitives
+        // UnitAI::AttackStart()'s own default implementation does
+        // (Unit::Attack(victim, true) + MoveChase(victim)), just directly,
+        // the same way ExecuteMoveTo() already bypasses actor.AI() and
+        // calls GetMotionMaster() directly rather than going through
+        // AttackStart's own suppressed override or any other AI()
+        // indirection. Returns Failed/EngineRejected if Unit::Attack()
+        // itself refuses (dead/evading/already this exact victim with
+        // nothing to change - see Unit::Attack()'s own rules), and
+        // Failed/UnsupportedAction (doing nothing) if request.Type is not
+        // Attack - defensive only; every current call site already
+        // validated this before calling. No ActiveActionState bookkeeping
+        // here - that is the caller's (AIWorldMgr::DispatchHuntAttack())
+        // own responsibility, the same boundary every other ExecuteX()
+        // already holds to.
+        ActionResult ExecuteAttack(ActionRequest const& request, Creature& actor, Unit& target) const;
+
+        // Milestone 2.12G3D: ends combat started by ExecuteAttack() -
+        // deliberately a full Unit::CombatStop() (AttackStop() +
+        // RemoveAllAttackers() + ClearInCombat()), not merely AttackStop()
+        // alone, unlike how StopFlee()/StopMoveTo() otherwise leave
+        // combat/threat bookkeeping untouched: AIWorldCreatureAI::
+        // UpdateAI() is deliberately empty (see its own comment), so
+        // nothing else in this pipeline will ever run TrinityCore's normal
+        // "no valid target left, evade/leave combat" reflex for one of our
+        // own agents - if this class does not explicitly end combat here,
+        // nothing ever will, and the actor would stay flagged in combat
+        // indefinitely. Also removes the CHASE_MOTION_TYPE generator
+        // MoveChase() started (CombatStop() itself does not touch
+        // MotionMaster) - the same "find and remove only the generator we
+        // started, only halt the active spline if it was actually still
+        // the one running" discipline StopMoveTo()/StopFlee() already
+        // apply to their own generator types.
+        void StopAttack(Creature& actor) const;
 };
 
 #endif // AIWORLD_ACTIONEXECUTOR_H

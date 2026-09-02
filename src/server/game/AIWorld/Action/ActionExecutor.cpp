@@ -21,6 +21,7 @@
 #include "MovementDefines.h"
 #include "PointMovementGenerator.h"
 #include "SharedDefines.h"
+#include "Unit.h"
 
 ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const
 {
@@ -211,4 +212,58 @@ ActionResult ActionExecutor::ExecuteRest(ActionRequest const& request, Creature&
     result.Status = ActionExecutionStatus::Started;
     result.Reason = ActionExecutionReason::None;
     return result;
+}
+
+ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creature& actor, Unit& target) const
+{
+    ActionResult result;
+    result.Actor = request.Actor;
+    result.Type = request.Type;
+    result.SourceGoal = request.SourceGoal;
+    result.GoalStartedAtMs = request.GoalStartedAtMs;
+
+    if (request.Type != ActionType::Attack)
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::UnsupportedAction;
+        return result;
+    }
+
+    // Unit::Attack() itself already handles "switch to melee from an
+    // existing non-melee attack on the same victim" / "already this exact
+    // victim, nothing to change" - the caller (AIWorldMgr::DispatchHuntAttack())
+    // only calls this at all when it is NOT the idempotent "already
+    // engaged with this exact target" case, so a Failed return here means
+    // Unit::Attack() genuinely refused (dead/evading/GM-mode/etc, see its
+    // own rules), not that nothing needed to change.
+    if (!actor.Attack(&target, true))
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::EngineRejected;
+        return result;
+    }
+
+    actor.GetMotionMaster()->MoveChase(&target);
+
+    result.Status = ActionExecutionStatus::Started;
+    result.Reason = ActionExecutionReason::None;
+    return result;
+}
+
+void ActionExecutor::StopAttack(Creature& actor) const
+{
+    actor.CombatStop();
+
+    MotionMaster* motion = actor.GetMotionMaster();
+
+    // Same "only halt the active spline if our own generator was actually
+    // the one running" discipline StopMoveTo()/StopFlee() already apply -
+    // CombatStop() above does not touch MotionMaster at all, so the chase
+    // generator ExecuteAttack() started (if any) is still present here.
+    bool wasActiveChase = motion->GetCurrentMovementGeneratorType() == CHASE_MOTION_TYPE;
+
+    motion->Remove(CHASE_MOTION_TYPE);
+
+    if (wasActiveChase)
+        actor.StopMoving();
 }

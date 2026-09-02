@@ -1735,6 +1735,24 @@ class TC_GAME_API AIWorldMgr
         // what governs that member's own state, not this method. Called
         // once per discovered group, from within RunCoalitionCoordination()'s
         // own bounded per-pass loop - no separate unbounded scan.
+        //
+        // Milestone 2.12G3D: one exception to the StoppedByTargetInvalid
+        // rule above - a member whose own HuntPhase is Engaging (actually
+        // fighting the target, ActiveActionState == Attack) and whose
+        // target resolves but is no longer ALIVE never goes through
+        // StopInFlightGroupCoordination() at all. That path means "this
+        // attempt's own target stopped being a legitimate one" - a
+        // genuinely defeated target is the opposite, this attempt's own
+        // SUCCESS - so it is routed instead through
+        // ActionExecutor::StopAttack() (only if ActiveActionState still
+        // provably matches this exact attempt) followed by
+        // HandleActionCompletion() with ActionCompletionReason::
+        // TargetDefeated, which releases ownership the same way any other
+        // non-Arrived HUNT completion already does. A member only
+        // Approaching/AtTarget (never Engaging) when its own target
+        // happens to die from something else entirely still falls through
+        // to the unchanged StoppedByTargetInvalid path below - it never
+        // fought it at all, so there is no HUNT success to report.
         void ReconcileActiveHuntTargetsForGroup(AgentGroupRecord const& group);
 
         // Milestone 2.12F2: the one place a GroupMemberActionProposal
@@ -1957,6 +1975,60 @@ class TC_GAME_API AIWorldMgr
         // does that, on a genuine full PASS).
         void DispatchHuntProposal(HuntProposal const& proposal);
 
+        // Milestone 2.12G3D: the combat counterpart to DispatchHuntProposal()
+        // above - dispatches ActionType::Attack (never MoveTo) for a member
+        // whose GroupCoordinationGoalState is already Type == GoalType::Hunt,
+        // SourceGroup == sourceGroup, and Phase == HuntPhase::AtTarget, with
+        // no ActiveActionState of its own yet. Called from
+        // RunCoalitionCoordination()'s own per-group loop, once per such
+        // member, only while profile->HuntEnabled (the same gate MOVE_TO
+        // dispatch already requires) - never for Approaching (still has an
+        // ActiveActionState, rejected by the same ACTIVE_ACTION check
+        // DispatchHuntProposal() itself uses) or already-Engaging members
+        // (the caller's own loop filter excludes Phase != AtTarget, so this
+        // is never even called for them - "do not repeatedly call
+        // AttackStart() every coordination pass" is enforced structurally,
+        // by never re-entering this function for a member that already has
+        // an Attack-type ActiveActionState, not by a special-cased skip
+        // inside it).
+        //
+        // Re-verifies membership/lifecycle/materialized/alive/target
+        // identity/attackability/self-or-group-member independently here -
+        // never trusts the retained GroupCoordinationGoal alone, the same
+        // "never assume, always check" discipline DispatchHuntProposal()
+        // already holds to for its own re-approach path. Unlike
+        // DispatchHuntProposal(), never needs a previousCoordinationGoal
+        // rollback-on-failure: this method only ever mutates
+        // GroupCoordinationGoalState::Phase (Approaching/AtTarget ->
+        // Engaging) and sets ActiveActionState AFTER Validate()/
+        // ActionExecutor::ExecuteAttack() both already confirmed success -
+        // there is nothing to roll back on a rejected/failed attempt, the
+        // member simply stays AtTarget and is reconsidered next pass.
+        //
+        // Idempotency: if the actor's own current live victim
+        // (Unit::GetVictim()) already equals the pinned target, this is
+        // treated as already validly Engaging - Validate() still runs (the
+        // authoritative safety gate is never skipped), but
+        // ActionExecutor::ExecuteAttack() itself is not called again (see
+        // ActionValidationContext::ActorCurrentVictimGuid's own comment for
+        // why this is allowed rather than rejected) - only
+        // ActiveActionState/Phase bookkeeping is (re)applied. This is a
+        // defensive-in-depth case (a genuinely fresh dispatch can only ever
+        // reach this function once per Engaging transition, by the caller's
+        // own loop filter above), covering a hypothetical bookkeeping/engine
+        // desync (e.g. ActiveActionState reconciled away while the live
+        // Creature is still actually mid-combat) the same paranoid way
+        // ActionCompletionReason::EngineStopped already covers the
+        // equivalent desync for MOVE_TO.
+        //
+        // Diagnostic-only: gated on AIWorld.TestObserveActiveHuntAgentId,
+        // the same one-watched-agent, purely-read-only, never-state-
+        // affecting logging pattern every other HUNT dispatch stage already
+        // uses - "stage=ATTACK result=REJECTED reason=<...>" on an early
+        // return, or "stage=ATTACK result=STARTED|ALREADY_ENGAGED" on
+        // success.
+        void DispatchHuntAttack(AgentId member, GroupId sourceGroup);
+
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): how many
         // currently-registered groups member belongs to whose own resolved
         // profile has RegroupEnabled, RoamEnabled, or (2.12G3C2) HuntEnabled -
@@ -2034,6 +2106,18 @@ class TC_GAME_API AIWorldMgr
         // happen unconditionally in both cases. reason is a literal
         // describing WHY this particular caller stopped it, logged the
         // same way - callers never share one generic reason string.
+        //
+        // Milestone 2.12G3D: ownsStoppedMovement now also accepts
+        // ActionType::Attack, not just MoveTo - a HuntPhase::Engaging
+        // member's own ActiveActionState is Attack, and the engine touch
+        // itself is type-dispatched (ActionExecutor::StopAttack(), never
+        // StopMoveTo(), for that case) - StopMoveTo() recognizes only its
+        // own POINT_MOTION_TYPE generator and would silently do nothing
+        // for a member that is actually mid-combat. The engine-generator
+        // observation fields are likewise type-dispatched (HasOwnAttackEngagement()
+        // in place of HasOwnMoveToGenerator()) rather than reused as-is,
+        // since "engine activity for this attempt" means a live victim
+        // match for Attack, not a movement generator.
         //
         // Milestone 2.12G2R P2 fix, round 3 (STATIC review): stopReason is
         // a SEPARATE, structured counterpart to the free-text `reason`

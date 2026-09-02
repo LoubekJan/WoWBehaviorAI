@@ -110,6 +110,25 @@ class TC_GAME_API ActionSystem
         // ALLOWED on Destination geometry alone.
         ActionValidationResult ValidateHuntTarget(ActionRequest const& request, ActionValidationContext const& context) const;
 
+        // Milestone 2.12G3D: Attack-specific, run only once the common
+        // checks above already passed. Tied to a specific GoalType the
+        // same way ValidateEat() is to GetFood - only a Hunt goal ever
+        // justifies attacking. Shares most of its target-identity
+        // requirements with ValidateHuntTarget() above (the request's
+        // claimed Target must provably be a real creature whose own
+        // embedded entry matches, and must honestly agree with what the
+        // caller actually resolved into context.Target*), but deliberately
+        // does NOT check request.Destination at all - ATTACK carries no
+        // Destination (see ActionRequest::Destination's own "empty for
+        // every other ActionType" convention), and never compares the
+        // target's position against a stale MoveTo-style snapshot: the
+        // target may keep moving once combat starts, and TrinityCore's own
+        // chase movement (see ActionExecutor::ExecuteAttack()) is what
+        // keeps up with it, not a re-validated Destination. Additionally
+        // checks the actor is not already engaged with a DIFFERENT live
+        // target - see ActionRejectReason::ActorEngagedWithDifferentTarget.
+        ActionValidationResult ValidateAttack(ActionRequest const& request, ActionValidationContext const& context) const;
+
         // Milestone 2.8G/2.8G P2 fix: Eat-specific, run only once the
         // common checks above already passed. Unlike MoveTo, Eat is tied
         // to a specific GoalType - only GetFood ever justifies eating.
