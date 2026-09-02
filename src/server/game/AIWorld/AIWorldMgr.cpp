@@ -9326,40 +9326,91 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         // same kind of "appeared fresh, racing an already in-flight lower-
         // priority MOVE_TO" case the ROUTINE_PREEMPTED_BY_GOAL block above
         // exists for.
-        if ((record->ActiveGoalState || record->RoutineGoalState) && record->ActiveActionState
-            && IsCoordinationSourceGoal(record->ActiveActionState->SourceGoal))
+        //
+        // Milestone 2.12G3 lifecycle closure (STATIC review): the
+        // condition below now checks record->GroupCoordinationGoalState
+        // directly, not record->ActiveActionState - an earlier version
+        // required ActiveActionState to exist, which a HuntPhase::AtTarget
+        // member never has by design (see GroupCoordinationGoal.h). A
+        // member sitting AtTarget whose own individual goal then activated
+        // was previously never caught by this block at all: its stale HUNT
+        // ownership just lingered, unreachable by any of this codebase's
+        // other stop paths (which all require either a live target-invalid
+        // fact, a lifecycle event, or a REGROUP intent - none of which a
+        // higher individual goal produces). GroupCoordinationGoalState now
+        // covers all three HuntPhase values uniformly - Approaching and
+        // Engaging always have a matching ActiveActionState, AtTarget never
+        // does - the same "identity sourced from the goal, never assumed
+        // from the action" fix StopInFlightGroupCoordination() itself
+        // already applies.
+        if ((record->ActiveGoalState || record->RoutineGoalState) && record->GroupCoordinationGoalState
+            && IsCoordinationSourceGoal(record->GroupCoordinationGoalState->Type))
         {
-            // Milestone 2.12G2R P2 fix, round 3 (STATIC review): observed
-            // BEFORE the stop call is made - see StopInFlightGroupCoordination()'s
-            // own comment for why "confirmed stopped after" alone is not
-            // honest evidence of a genuine interruption unless it is also
-            // known something was actually running beforehand. `creature`
-            // is already guaranteed live/non-null this far into
-            // UpdateNeeds()'s own per-agent loop (see its own `if
-            // (!creature) continue;` above), so unlike
-            // StopInFlightGroupCoordination() there is no "cannot resolve
-            // a live Creature at all" case to handle here.
-            //
-            // Milestone 2.12G3D: type-dispatched, the same reason
-            // StopInFlightGroupCoordination() itself now is - a
-            // HuntPhase::Engaging member's own ActiveActionState is
-            // ActionType::Attack, and StopMoveTo() would silently do
-            // nothing for it (it recognizes only its own POINT_MOTION_TYPE
-            // generator), leaving the member still fighting while this
-            // preemption believes it stopped the attempt.
-            bool isAttack = record->ActiveActionState->Type == ActionType::Attack;
+            GroupCoordinationGoal const& coordinationGoal = *record->GroupCoordinationGoalState;
 
-            bool generatorWasRunning = isAttack
-                ? HasOwnAttackEngagement(*creature, record->GroupCoordinationGoalState->TargetGuid)
-                : HasOwnMoveToGenerator(*creature);
+            // Milestone 2.12G3 lifecycle closure: the engine is only ever
+            // touched when record->ActiveActionState is an EXACT match for
+            // coordinationGoal - the same ownsStoppedMovement discipline
+            // StopInFlightGroupCoordination() already established (never
+            // assume a coordination-sourced ActiveActionState belongs to
+            // THIS attempt just because one exists). False for a true
+            // AtTarget member (no ActiveActionState at all) and for a
+            // member whose ActiveActionState belongs to a different
+            // attempt/target entirely - both correctly skip every engine
+            // touch below, with both engine-generator fields honestly
+            // read false/false rather than assumed.
+            bool ownsAction = record->ActiveActionState &&
+                (record->ActiveActionState->Type == ActionType::MoveTo || record->ActiveActionState->Type == ActionType::Attack) &&
+                record->ActiveActionState->SourceGoal == coordinationGoal.Type &&
+                record->ActiveActionState->GoalStartedAtMs == coordinationGoal.StartedAtMs;
 
-            if (isAttack)
-                _actionExecutor.StopAttack(*creature, record->GroupCoordinationGoalState->TargetGuid);
-            else
-                _actionExecutor.StopMoveTo(*creature);
+            if (ownsAction && coordinationGoal.Type == GoalType::Hunt)
+            {
+                ownsAction = record->ActiveActionState->Target &&
+                    record->ActiveActionState->Target->Guid == coordinationGoal.TargetGuid &&
+                    record->ActiveActionState->Target->Entry == coordinationGoal.TargetEntry;
+            }
 
-            TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=COORDINATION_PREEMPTED_BY_GOAL sourceGoal={}",
-                record->Id.Value, ToString(record->ActiveActionState->Type), ToString(record->ActiveActionState->SourceGoal));
+            bool isAttack = ownsAction && record->ActiveActionState->Type == ActionType::Attack;
+            bool generatorWasRunning = false;
+            bool generatorConfirmedStopped = false;
+
+            if (ownsAction)
+            {
+                // Milestone 2.12G2R P2 fix, round 3 (STATIC review): observed
+                // BEFORE the stop call is made - see StopInFlightGroupCoordination()'s
+                // own comment for why "confirmed stopped after" alone is not
+                // honest evidence of a genuine interruption unless it is also
+                // known something was actually running beforehand. `creature`
+                // is already guaranteed live/non-null this far into
+                // UpdateNeeds()'s own per-agent loop (see its own `if
+                // (!creature) continue;` above), so unlike
+                // StopInFlightGroupCoordination() there is no "cannot resolve
+                // a live Creature at all" case to handle here.
+                //
+                // Milestone 2.12G3D: type-dispatched, the same reason
+                // StopInFlightGroupCoordination() itself now is - a
+                // HuntPhase::Engaging member's own ActiveActionState is
+                // ActionType::Attack, and StopMoveTo() would silently do
+                // nothing for it (it recognizes only its own POINT_MOTION_TYPE
+                // generator), leaving the member still fighting while this
+                // preemption believes it stopped the attempt.
+                generatorWasRunning = isAttack
+                    ? HasOwnAttackEngagement(*creature, coordinationGoal.TargetGuid)
+                    : HasOwnMoveToGenerator(*creature);
+
+                if (isAttack)
+                    _actionExecutor.StopAttack(*creature, coordinationGoal.TargetGuid);
+                else
+                    _actionExecutor.StopMoveTo(*creature);
+
+                TC_LOG_DEBUG("ai.world", "AI action stop agent={} type={} reason=COORDINATION_PREEMPTED_BY_GOAL sourceGoal={}",
+                    record->Id.Value, ToString(record->ActiveActionState->Type), ToString(record->ActiveActionState->SourceGoal));
+
+                generatorConfirmedStopped = isAttack
+                    ? !HasOwnAttackEngagement(*creature, coordinationGoal.TargetGuid)
+                    : !HasOwnMoveToGenerator(*creature);
+            }
 
             // Milestone 2.12G2R P2 fix, round 2/3 (STATIC review): recorded
             // BEFORE the resets below erase the very state this event
@@ -9376,22 +9427,26 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             // verifying test hook never has to re-derive "what preempted
             // this" from AgentRecord's own CURRENT state on some later
             // poll, which could already have moved on.
+            //
+            // Milestone 2.12G3 lifecycle closure: SourceGoal/StartedAtMs
+            // are now sourced from coordinationGoal, never from
+            // record->ActiveActionState - the same reason TargetGuid/
+            // TargetEntry already were (2.12G3C2 P2 fix below): AtTarget
+            // has no ActiveActionState to source them from at all.
             CoordinationStopEvent stopEvent;
             stopEvent.Reason = CoordinationStopReason::PreemptedByGoal;
-            stopEvent.SourceGoal = record->ActiveActionState->SourceGoal;
-            stopEvent.SourceGroup = record->GroupCoordinationGoalState->SourceGroup;
-            stopEvent.StartedAtMs = record->ActiveActionState->GoalStartedAtMs;
+            stopEvent.SourceGoal = coordinationGoal.Type;
+            stopEvent.SourceGroup = coordinationGoal.SourceGroup;
+            stopEvent.StartedAtMs = coordinationGoal.StartedAtMs;
             // Milestone 2.12G3C2 P2 fix (STATIC review): captured HERE,
             // while GroupCoordinationGoalState is still set (its own reset
             // below would otherwise erase this before it could ever be
             // recorded) - see CoordinationStopEvent::TargetGuid's own
             // comment.
-            stopEvent.TargetGuid = record->GroupCoordinationGoalState->TargetGuid;
-            stopEvent.TargetEntry = record->GroupCoordinationGoalState->TargetEntry;
+            stopEvent.TargetGuid = coordinationGoal.TargetGuid;
+            stopEvent.TargetEntry = coordinationGoal.TargetEntry;
             stopEvent.EngineGeneratorWasRunningBeforeStop = generatorWasRunning;
-            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = isAttack
-                ? !HasOwnAttackEngagement(*creature, record->GroupCoordinationGoalState->TargetGuid)
-                : !HasOwnMoveToGenerator(*creature);
+            stopEvent.EngineGeneratorConfirmedStoppedAfterStop = generatorConfirmedStopped;
             if (record->ActiveGoalState)
             {
                 stopEvent.PreemptingOwner = CoordinationPreemptingOwner::ActiveGoal;
@@ -9405,7 +9460,8 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             stopEvent.StoppedAtMs = nowMs;
             record->LastCoordinationStop = stopEvent;
 
-            record->ActiveActionState.reset();
+            if (ownsAction)
+                record->ActiveActionState.reset();
             record->GroupCoordinationGoalState.reset();
         }
 

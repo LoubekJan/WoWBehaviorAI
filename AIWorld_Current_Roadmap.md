@@ -69,7 +69,7 @@ Platí pro všechny další milníky:
 | 2.12F4C/F4D — world-scale hardening (O(1) index, bounded recurring work) + full-world bootstrap | **DEFERRED — not required for single-location work; required before any eventual full-world rollout, see 2.12F4C's own Priorita** |
 | 2.12G1 — druhý coalition profile (genericity proof) | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
-| 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B/G3C1/G3C2 CLOSED, G3D1 POSITIVE LIVE APPROACH PROOF PASS (arrival-loop fix required before G3D2)** |
+| 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B/G3C1/G3C2 CLOSED, G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS, G3 lifecycle closure IN PROGRESS** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
 | 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
@@ -857,7 +857,7 @@ AIWorld.TestDissolveOnActiveRoamGroupId = 0
 
 ## 2.12G3 — generic HUNT / coordinated combat preparation
 
-**Stav: IN PROGRESS — G3A, G3B, G3C1 a G3C2 CLOSED, G3D1 POSITIVE LIVE APPROACH PROOF: PASS (viz jejich vlastní sekce níže) - runtime proof ale odhalil P2 post-ARRIVED redispatch smyčku, jejíž oprava musí proběhnout před G3D2.**
+**Stav: IN PROGRESS — G3A, G3B, G3C1 a G3C2 CLOSED. G3D (real group combat) je live-confirmed PASS: skuteční group members dokončili HUNT approach → ATTACK → melee damage (`DoMeleeAttackIfReady()`) → prchající target skutečně pronásledovaný (`MoveChase()`) → `TARGET_DEFEATED` pro oba členy skupiny, phantom-FLEE_DANGER se u HUNT membera neaktivoval, žádný `NO_FLEE_SOURCE`/`COORDINATION_PREEMPTED_BY_GOAL`/fatal/pád. Poslední otevřený kus je `G3 lifecycle closure` (Approaching/AtTarget/Engaging bezpečně obsloužené přes PREEMPTED_BY_GOAL, STOPPED_BY_LIFECYCLE, STOPPED_BY_MEMBERSHIP_AMBIGUITY, STOPPED_BY_TARGET_INVALID, PREEMPTED_BY_REGROUP a TARGET_DEFEATED) - IN PROGRESS, viz `2.12G3D` níže.**
 
 Až po stabilním G1/G2 (tedy až po `2.12G2R` closure výše) — první commit ještě neútočí, jen navrhuje kontrakt.
 
@@ -897,13 +897,13 @@ Runtime gate má nejdřív dokazovat correctness a ownership, ne „chytré sme�
 - **G3B** — intent/projector a pure smoke testy (stejná disciplína jako `2.12F1`/`2.12F2`) — **CLOSED, viz `2.12G3B` níže**;
 - **G3C1** — autoritativní validační kontrakt (`GoalType::Hunt`, `ActionTargetRef`, target facts v `ActionValidationContext`, `ActionSystem::ValidateHuntTarget()`) — **CLOSED, viz `2.12G3C1` níže**;
 - **G3C2** — produkční observation/dispatch wiring, ownership/preemption, lifecycle stop na invalid target — **CLOSED, viz `2.12G3C2` níže**;
-- **G3D** — runtime proof, dále rozdělený na samostatné commity/review kroky:
-  - **G3D1** — neinvazivní live approach proof: skutečná `CreatureSeen` memory → produkční `HuntIntent`/`HuntProposal` → live revalidace → `ActionSystem` `ALLOWED` → skutečný HUNT `MoveTo` generator → přesně potvrzená ownership identity, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook — **POSITIVE LIVE APPROACH PROOF: PASS, viz `2.12G3D1` níže; odhalený post-ARRIVED redispatch bug musí být opraven před G3D2**;
-  - **G3D2** — `GET_FOOD` preemption, leave a dissolve během aktivního HUNT;
-  - **G3D3** — přesný `StoppedByTargetInvalid` po smrti a unload/despawn targetu;
-  - **G3D4** — skutečný `PreemptedByRegroup`.
+- **G3D** — runtime proof, ve skutečnosti proběhlo v těchto krocích (ne přesně podle původního G3D1-G3D4 plánu níže, který ještě počítal s tím, že žádný G3D krok nepřidá `ActionType::Attack`):
+  - **G3D1** — neinvazivní live approach proof: skutečná `CreatureSeen` memory → produkční `HuntIntent`/`HuntProposal` → live revalidace → `ActionSystem` `ALLOWED` → skutečný HUNT `MoveTo` generator → přesně potvrzená ownership identity, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook — **POSITIVE LIVE APPROACH PROOF: PASS, viz `2.12G3D1` níže**;
+  - **fix(ai-world): retain HUNT ownership after approach arrival** — post-ARRIVED redispatch smyčka odhalená G3D1 opravena, `HuntPhase::AtTarget` retention zavedena — **CLOSED**;
+  - **G3D — produkční skupinový HUNT combat** (`ActionType::Attack`, `ValidateAttack()`, `ExecuteAttack()`/`StopAttack()`, `HuntPhase::Engaging`, `AIWorldCreatureAI::UpdateAI()` volá `DoMeleeAttackIfReady()`) — po několika STATIC review kolech (damage execution, targeted combat/threat reference cleanup, live range/LOS gate na první ATTACK, phantom-FLEE_DANGER root cause i atomic-transition fix, stale chase generator po smrti cíle) — **live-confirmed PASS: oba group members ATTACK STARTED → skutečné melee poškození → prchající target skutečně pronásledovaný → `TARGET_DEFEATED` pro oba (`durationMs=9999`), žádný `NO_FLEE_SOURCE`, žádná fantomová preempce**;
+  - **G3 lifecycle closure** — bezpečné chování pro Approaching/AtTarget/Engaging napříč všemi šesti ukončujícími událostmi (`PREEMPTED_BY_GOAL` teď zahrnuje i `HuntPhase::AtTarget`, dříve mezera protože blok vyžadoval `ActiveActionState`; `STOPPED_BY_LIFECYCLE`, `STOPPED_BY_MEMBERSHIP_AMBIGUITY`, `STOPPED_BY_TARGET_INVALID`, `PREEMPTED_BY_REGROUP`, `TARGET_DEFEATED` už byly generic přes `StopInFlightGroupCoordination()`/`ReconcileActiveHuntTargetsForGroup()`) — **IN PROGRESS**.
 
-Žádný z G3D kroků zatím nepřidává `ActionType::Attack`, `AttackStart`, `CombatStart`, threat mutation ani spell cast.
+Původní G3D2/G3D3/G3D4 dělení (`GET_FOOD` preemption zvlášť/`StoppedByTargetInvalid` zvlášť/`PreemptedByRegroup` zvlášť) bylo nahrazeno jedním `G3 lifecycle closure` commitem, protože produkční combat implementace mezitím tyto lifecycle cesty už sdílela s `StopInFlightGroupCoordination()` - žádný z nich nepotřeboval samostatný milník.
 
 ## 2.12G3A — HUNT DTO/provenance contract
 
@@ -1033,7 +1033,7 @@ AIWorld.DefiasGroupHuntEnabled = 0
 AIWorld.DefiasGroupHuntTargetCreatureEntry = 0
 ```
 
-Další krok je `2.12G3D1`: neinvazivní live approach proof - target-aware ownership identity nad skutečně běžícím HUNT `MoveTo`, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook. Stále bez útoku ani `AttackStart()`.
+Další krok byl `2.12G3D1`: neinvazivní live approach proof - target-aware ownership identity nad skutečně běžícím HUNT `MoveTo`, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook. Bez útoku ani `AttackStart()` - to přišlo až v `2.12G3D`'s vlastní produkční combat implementaci níže.
 
 ## 2.12G3D1 — live approach runtime proof
 
@@ -1069,7 +1069,40 @@ AIWorld.DefiasGroupHuntEnabled = 0
 AIWorld.DefiasGroupHuntTargetCreatureEntry = 0
 ```
 
-Další krok je oprava opakovaného nulového dispatch po ARRIVED (`fix(ai-world): retain HUNT ownership after approach arrival`), teprve potom `2.12G3D2`: `GET_FOOD` preemption, leave a dissolve během aktivního HUNT. Stále bez útoku ani `AttackStart()`.
+Další krok byl `fix(ai-world): retain HUNT ownership after approach arrival` (opravil opakovaný nulový dispatch po ARRIVED), teprve potom skutečná produkční combat implementace níže - ne přesně podle původního `G3D2`/`G3D3`/`G3D4` dělení, které ještě počítalo s tím, že žádný G3D krok nepřidá útok.
+
+## 2.12G3D — produkční skupinový HUNT combat
+
+**Stav: live-confirmed PASS.**
+
+```text
+HUNT AtTarget -> ATTACK request -> authoritative live validation -> AttackStart -> melee damage -> shared pinned target -> target dies -> HUNT ownership releases
+```
+
+Přidáno (po několika STATIC review kolech): `ActionType::Attack`, `HuntPhase::Engaging`, `ActionCompletionReason::TargetDefeated`; `ActionSystem::ValidateAttack()` (target GUID/entry binding, live range/LOS gate na první ATTACK - nikdy jen stará `HuntPhase::AtTarget`, actor-engaged-with-jiný-target reject, idempotentní stejný target); `ActionExecutor::ExecuteAttack()`/`StopAttack()` (`Unit::Attack()` + `MoveChase()` přímo, nikdy přes potlačený `AI()->AttackStart()`; cílený `AttackStop()` + nezávislé `CombatReference::EndCombat()` + nezávislé odstranění vlastního `ChaseMovementGenerator` přes jeho vlastní `GetTarget()`, nikdy přes `GetVictim()`); `AIWorldCreatureAI::UpdateAI()` volá `DoMeleeAttackIfReady()` (jediná autorizovaná per-tick engine práce, žádný nový target select); `AIWorldMgr::DispatchHuntAttack()`/`ReconcileActiveHuntTargetsForGroup()`'s `TargetDefeated` handling; oprava phantom `FLEE_DANGER` (voluntary owned HUNT combat už sám nenastaví `SafetyPressure=1.0`, `GoalSystem::GenerateCandidates()` nikdy nevytvoří neproveditelný `FleeDanger` candidate, atomická FLEE feasibility gate před commitem goal transition, gate scoped pouze na existující fyzickou akci aby `ObserveOnly` zůstal nedotčený).
+
+Reálný skupinový boj (produkční log, ne syntetický): oba group members pokračovali v útoku, prchající target skutečně pronásledovaný, boj trval ~10s (ne jeden úder), oba `ATTACK` skončily `status=SUCCEEDED reason=TARGET_DEFEATED durationMs=9999`, `memorySafety=0.8384` u HUNT membera phantom FLEE nevyvolal, `FLEE_DANGER` patřil pouze napadenému mobovi, žádný `NO_FLEE_SOURCE`/`COORDINATION_PREEMPTED_BY_GOAL`/fatal/pád. Po zabití prvního cíle byl nalezen a opraven navazující P2 (stale `ChaseMovementGenerator` po smrti targetu blokoval další HUNT dispatch přes `ActorMovementBusy`).
+
+Poslední otevřený kus je `G3 lifecycle closure` níže.
+
+## 2.12G3 lifecycle closure
+
+**Stav: IN PROGRESS.**
+
+Sjednocuje bezpečné chování napříč `HuntPhase::Approaching`, `AtTarget` a `Engaging` pro všech šest ukončujících událostí:
+
+| Událost | Výsledek |
+| --- | --- |
+| vyšší Active/Routine goal | `PREEMPTED_BY_GOAL` |
+| member opustí group / dissolve | `STOPPED_BY_LIFECYCLE` |
+| vícenásobné membership | `STOPPED_BY_MEMBERSHIP_AMBIGUITY` |
+| target unload/despawn/map/attackability invalid | `STOPPED_BY_TARGET_INVALID` |
+| REGROUP začne během HUNT | `PREEMPTED_BY_REGROUP` |
+| target skutečně zemře | `TARGET_DEFEATED` (nikoli target-invalid) |
+
+Pět z šesti už bylo generic přes sdílené `StopInFlightGroupCoordination()`/`ReconcileActiveHuntTargetsForGroup()`. Jediná skutečná mezera: `UpdateNeeds()`'s vlastní `COORDINATION_PREEMPTED_BY_GOAL` blok vyžadoval `record->ActiveActionState`, který `HuntPhase::AtTarget` (dwelling bez akce) nikdy nemá - member sedící `AtTarget` s nově aktivovaným individuálním goalem tedy nebyl touto větví vůbec zachycen. Oprava přesouvá podmínku na `record->GroupCoordinationGoalState` (pokrývá Approaching/AtTarget/Engaging jednotně) a engine touch (přesně cílený `StopAttack()`/`StopMoveTo()`, `LastCoordinationStop` s group/timestamp/GUID/entry) zůstává gated na stejnou `ownsAction` exact-match disciplínu jako `StopInFlightGroupCoordination()` už má - nikdy nezastaví cizí action, victim ani chase.
+
+Žádné nové attack typy, spelly, threat manipulace, role/leadership ani další target-selection logika. Žádný nový synthetic test pro tento blok - je to inline logika uvnitř `UpdateNeeds()`, ne samostatně volatelná funkce, a jediná nová větev (`AtTarget`, žádná `ActiveActionState`) nedotýká se live Creature vůbec; engine-touching část je beze změny stejná `StopAttack()`/`StopMoveTo()` cesta, jejíž live-Creature-only limity byly už přijaté dříve.
 
 ## 2.12G4 — roles / leader pouze pokud je skutečně potřeba
 
@@ -1280,19 +1313,18 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 13. [x] 2.12G3C1 — autoritativní HUNT approach validation contract.
 14. [x] 2.12G3C2 — produkční observation/dispatch wiring, ownership/preemption, lifecycle stop na invalid target (CLOSED / STATIC + BUILD + START PASS).
 15. [x] 2.12G3D1 — neinvazivní live approach runtime proof (target-aware ownership identity, `AIWorld.TestObserveActiveHuntAgentId`) - POSITIVE LIVE APPROACH PROOF: PASS.
-16. [ ] fix(ai-world): retain HUNT ownership after approach arrival - post-ARRIVED redispatch loop found by G3D1's own live proof; blocks G3D2 until fixed.
-17. [ ] 2.12G3D2 — GET_FOOD preemption, leave a dissolve během aktivního HUNT.
-18. [ ] 2.12G3D3 — přesný `StoppedByTargetInvalid` po smrti a unload/despawn targetu.
-19. [ ] 2.12G3D4 — skutečný `PreemptedByRegroup`.
-20. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
-21. [ ] 2.13A — actual local LLM inference path.
-22. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
-23. [ ] 2.13C — player-facing dynamic task lifecycle.
-24. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
-25. [ ] 2.14 — emergent end-to-end world event slice.
-26. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
-27. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
-28. [ ] Etapa 4 — Living World composition.
+16. [x] fix(ai-world): retain HUNT ownership after approach arrival - post-ARRIVED redispatch loop found by G3D1's own live proof, CLOSED.
+17. [x] 2.12G3D — produkční skupinový HUNT combat (`ActionType::Attack`, melee damage, chase, `TARGET_DEFEATED`, phantom-FLEE_DANGER fix, stale chase cleanup) - live-confirmed PASS v reálném skupinovém boji.
+18. [ ] 2.12G3 lifecycle closure — Approaching/AtTarget/Engaging bezpečně obsloužené přes všech šest ukončujících událostí (PREEMPTED_BY_GOAL/STOPPED_BY_LIFECYCLE/STOPPED_BY_MEMBERSHIP_AMBIGUITY/STOPPED_BY_TARGET_INVALID/PREEMPTED_BY_REGROUP/TARGET_DEFEATED) - IN PROGRESS.
+19. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
+20. [ ] 2.13A — actual local LLM inference path.
+21. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
+22. [ ] 2.13C — player-facing dynamic task lifecycle.
+23. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
+24. [ ] 2.14 — emergent end-to-end world event slice.
+25. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
+26. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
+27. [ ] Etapa 4 — Living World composition.
 
 ---
 
