@@ -9378,9 +9378,10 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
     // 2.13B review follow-up: the matched record itself (not just the
     // bool) is kept - its current Actor/Target/Location payload becomes
     // this response's DynamicTaskSourceFacts below, so 2.13B can prove
-    // the world problem that justified this request still describes the
-    // same situation right now, not just that a same-identity memory
-    // still exists.
+    // the remembered problem's payload is still consistent with what
+    // this request was built from, not just that a same-identity memory
+    // still exists. That is a memory-consistency check, not a live-
+    // world-state proof - see DynamicTaskSourceFacts' own comment.
     std::vector<MemoryRecord> currentMemories = _shortTermMemory.GetActiveForAgent(response.Agent, nowMs);
     MemoryRecord const* matchedSourceMemory = nullptr;
     for (MemoryRecord const& memory : currentMemories)

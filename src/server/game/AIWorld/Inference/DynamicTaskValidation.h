@@ -39,6 +39,7 @@ enum class DynamicTaskValidationReason : uint8
     UnsupportedObjective,
     SourceProblemMismatch,
     TargetBindingMissing,
+    TargetBindingAmbiguous,
     TargetBindingMismatch,
     RequiredCountInvalid,
     RangeInvalid,
@@ -64,13 +65,20 @@ struct DynamicTaskAuthoritativeLimits
     uint32 MaxRewardMoneyCopper = 0;
 };
 
-// A fresh, live re-derivation of the exact same source memory
+// A fresh re-derivation of the exact same source memory
 // candidate.Provenance's SourceEventId/SourceCorrelationId/
 // SourceOccurredAtMs/SourceEventType already identify - built by the
 // caller from the SAME memory record HandleDynamicTaskResponse() already
 // found while proving that identity match (never re-looked-up here).
 // Only the payload fields QuestProblemContext also carries: identity and
-// age are 2.13A3B's own job, not this validator's.
+// age are 2.13A3B's own job, not this validator's. This is still a
+// MemoryRecord - a stored, potentially historical summary of what was
+// observed - not a live re-query of current world state. Comparing it
+// against QuestProblemContext proves the request's own captured problem
+// description is consistent with what short-term memory still says about
+// it, not that the underlying world situation is still true right now.
+// A future consumer needing a live-applicability proof must obtain one
+// itself, not read it into this check.
 struct DynamicTaskSourceFacts
 {
     WorldEventType Type = WorldEventType::CreatureKilled;
@@ -124,16 +132,23 @@ struct DynamicTaskValidationResult
 //   1. candidate.Draft.Objective must be KillCreature - the only
 //      objective this milestone's contract supports at all.
 //   2. facts.Source must match candidate.RequestContext.Problem exactly
-//      (Type/ActorEntry/TargetEntry/MapId) - the world problem that
-//      justified this request in the first place must still describe
-//      the same situation right now, not just still exist.
+//      (Type/ActorEntry/TargetEntry/MapId) - the source memory's current
+//      payload must still be consistent with the world problem this
+//      request was originally built from. This proves the remembered
+//      problem hasn't changed shape since, NOT that it is still true of
+//      the live world at this instant - see DynamicTaskSourceFacts' own
+//      comment.
 //   3. candidate.Draft.TargetToken must resolve to exactly one entry in
-//      candidate.Provenance.TargetBindings (a token naming zero or more
-//      than one binding is treated as unresolved, never as "pick one"),
-//      and that binding's own Entry/MapId must match facts.Target
-//      exactly - the model can never invent a target reference of its
-//      own, and the binding it named must actually describe the live
-//      target the caller resolved.
+//      candidate.Provenance.TargetBindings - zero matches is
+//      TargetBindingMissing, more than one matching the same token is
+//      TargetBindingAmbiguous (never silently "pick the first"; the two
+//      are reported as distinct reasons so a caller can tell "the model
+//      named nothing real" apart from "the binding list itself is
+//      malformed"). That binding's own Entry/MapId must then match
+//      facts.Target exactly (TargetBindingMismatch otherwise) - the
+//      model can never invent a target reference of its own, and the
+//      binding it named must actually describe the live target the
+//      caller resolved.
 //   4. RequiredCount must be > 0 and <= limits.MaxRequiredCount.
 //   5. limits.MaxRangeYards and MaxRangeYards must both be finite and
 //      > 0, and MaxRangeYards <= limits.MaxRangeYards - a misconfigured

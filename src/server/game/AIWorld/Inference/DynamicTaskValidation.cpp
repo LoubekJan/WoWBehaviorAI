@@ -32,8 +32,9 @@ char const* ToString(DynamicTaskValidationReason reason)
         case DynamicTaskValidationReason::None:                  return "NONE";
         case DynamicTaskValidationReason::UnsupportedObjective:  return "UNSUPPORTED_OBJECTIVE";
         case DynamicTaskValidationReason::SourceProblemMismatch: return "SOURCE_PROBLEM_MISMATCH";
-        case DynamicTaskValidationReason::TargetBindingMissing:  return "TARGET_BINDING_MISSING";
-        case DynamicTaskValidationReason::TargetBindingMismatch: return "TARGET_BINDING_MISMATCH";
+        case DynamicTaskValidationReason::TargetBindingMissing:   return "TARGET_BINDING_MISSING";
+        case DynamicTaskValidationReason::TargetBindingAmbiguous: return "TARGET_BINDING_AMBIGUOUS";
+        case DynamicTaskValidationReason::TargetBindingMismatch:  return "TARGET_BINDING_MISMATCH";
         case DynamicTaskValidationReason::RequiredCountInvalid:  return "REQUIRED_COUNT_INVALID";
         case DynamicTaskValidationReason::RangeInvalid:          return "RANGE_INVALID";
         case DynamicTaskValidationReason::ExpiryInvalid:         return "EXPIRY_INVALID";
@@ -49,16 +50,23 @@ namespace
     // Fails closed on ambiguity: candidate.Draft.TargetToken must resolve
     // to EXACTLY one binding. Zero matches and more than one match are
     // both treated as unresolved - a duplicate-token binding list is
-    // never something to "pick the first of".
-    QuestTargetBinding const* FindBinding(DynamicTaskCandidate const& candidate)
+    // never something to "pick the first of" - but reported as distinct
+    // reasons via `ambiguous` so a caller can tell "the model named
+    // nothing real" (TargetBindingMissing) apart from "the binding list
+    // itself is malformed" (TargetBindingAmbiguous).
+    QuestTargetBinding const* FindBinding(DynamicTaskCandidate const& candidate, bool& ambiguous)
     {
+        ambiguous = false;
         QuestTargetBinding const* found = nullptr;
         for (QuestTargetBinding const& binding : candidate.Provenance.TargetBindings)
         {
             if (binding.Token != candidate.Draft.TargetToken)
                 continue;
             if (found)
-                return nullptr; // duplicate token - ambiguous, not "first wins"
+            {
+                ambiguous = true;
+                return nullptr;
+            }
             found = &binding;
         }
         return found;
@@ -102,10 +110,13 @@ DynamicTaskValidationResult ValidateDynamicTaskCandidate(
         return result;
     }
 
-    QuestTargetBinding const* binding = FindBinding(candidate);
+    bool bindingAmbiguous = false;
+    QuestTargetBinding const* binding = FindBinding(candidate, bindingAmbiguous);
     if (!binding)
     {
-        result.Reason = DynamicTaskValidationReason::TargetBindingMissing;
+        result.Reason = bindingAmbiguous
+            ? DynamicTaskValidationReason::TargetBindingAmbiguous
+            : DynamicTaskValidationReason::TargetBindingMissing;
         return result;
     }
 

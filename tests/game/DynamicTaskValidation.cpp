@@ -209,14 +209,15 @@ TEST_CASE("ValidateDynamicTaskCandidate rejects an ambiguous (duplicate-token) b
 {
     // The header's own contract: TargetToken must resolve to EXACTLY one
     // binding - a second binding sharing the same token must never be
-    // silently resolved by "take the first match".
+    // silently resolved by "take the first match", and is reported as its
+    // own distinct reason (not conflated with "no such token at all").
     DynamicTaskCandidate candidate = MakeValidCandidate();
     candidate.Provenance.TargetBindings.push_back(MakeBinding(1, 3003, 0));
     DynamicTaskAuthoritativeLimits limits = MakeValidLimits();
     DynamicTaskAuthoritativeFacts facts = MakeValidFacts();
 
     DynamicTaskValidationResult result = ValidateDynamicTaskCandidate(candidate, limits, facts);
-    REQUIRE(result.Reason == DynamicTaskValidationReason::TargetBindingMissing);
+    REQUIRE(result.Reason == DynamicTaskValidationReason::TargetBindingAmbiguous);
 }
 
 TEST_CASE("ValidateDynamicTaskCandidate rejects a binding/live-target Entry mismatch", "[DynamicTaskValidation]")
@@ -580,6 +581,7 @@ TEST_CASE("ToString(DynamicTaskValidationReason) covers every enumerator", "[Dyn
     REQUIRE(std::string(ToString(DynamicTaskValidationReason::UnsupportedObjective)) == "UNSUPPORTED_OBJECTIVE");
     REQUIRE(std::string(ToString(DynamicTaskValidationReason::SourceProblemMismatch)) == "SOURCE_PROBLEM_MISMATCH");
     REQUIRE(std::string(ToString(DynamicTaskValidationReason::TargetBindingMissing)) == "TARGET_BINDING_MISSING");
+    REQUIRE(std::string(ToString(DynamicTaskValidationReason::TargetBindingAmbiguous)) == "TARGET_BINDING_AMBIGUOUS");
     REQUIRE(std::string(ToString(DynamicTaskValidationReason::TargetBindingMismatch)) == "TARGET_BINDING_MISMATCH");
     REQUIRE(std::string(ToString(DynamicTaskValidationReason::RequiredCountInvalid)) == "REQUIRED_COUNT_INVALID");
     REQUIRE(std::string(ToString(DynamicTaskValidationReason::RangeInvalid)) == "RANGE_INVALID");

@@ -30,8 +30,14 @@
 // QuestProposalDraft's own comment refers to - the real thing an untrusted
 // draft becomes once ValidateDynamicTaskCandidate() accepts it. Every
 // field here has already been checked against the server's CURRENT
-// policy and a fresh live-world re-resolution; nothing here is model-
-// controlled or model-visible (it is never serialized back to ai-server).
+// policy and a fresh live-world re-derivation. That does not make
+// Title/Description/Objective/RequiredCount/MaxRangeYards/ExpiryMs/
+// RewardMoneyCopper anything other than model-originated - they are the
+// same values the draft proposed, merely proven to satisfy authoritative
+// policy. Only Giver/GiverRuntimeGuid/TargetGuid/TargetEntry/TargetMapId
+// are server-owned identity, and none of it - model-originated or
+// server-owned - is ever serialized back to ai-server; the model never
+// sees any of these fields, ever.
 //
 // Still not an authorization to mutate anything. This milestone only ever
 // logs a QuestProposal (never its Title/Description text, never a GUID)
