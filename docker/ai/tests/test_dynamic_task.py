@@ -23,6 +23,8 @@ from app.dynamic_task import (
     QUEST_CONTRACT_MAX_DESCRIPTION_LENGTH,
     QUEST_CONTRACT_MAX_RELEVANT_EVENTS,
     QUEST_CONTRACT_MAX_TITLE_LENGTH,
+    UINT32_MAX,
+    UINT64_MAX,
     DynamicTaskRequest,
     QuestContext,
     QuestObjectiveType,
@@ -235,6 +237,63 @@ class DynamicTaskModelTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             DynamicTaskRequest.model_validate(payload)
 
+    # -- strict=True: no lax-mode type coercion -----------------------
+
+    def test_required_count_as_string_rejected(self):
+        payload = _valid_draft().model_dump(mode="json")
+        payload["required_count"] = "3"
+        with self.assertRaises(ValidationError):
+            QuestProposalDraft.model_validate(payload)
+
+    def test_target_token_as_string_rejected(self):
+        payload = _valid_draft().model_dump(mode="json")
+        payload["target_token"] = "1"
+        with self.assertRaises(ValidationError):
+            QuestProposalDraft.model_validate(payload)
+
+    def test_agent_id_as_string_rejected(self):
+        payload = _valid_request_payload()
+        payload["context"]["agent_id"] = "42"
+        with self.assertRaises(ValidationError):
+            DynamicTaskRequest.model_validate(payload)
+
+    def test_reward_money_copper_as_float_rejected(self):
+        payload = _valid_draft().model_dump(mode="json")
+        payload["reward_money_copper"] = 100.0
+        with self.assertRaises(ValidationError):
+            QuestProposalDraft.model_validate(payload)
+
+    # -- uint32/uint64 upper bounds ------------------------------------
+
+    def test_agent_id_over_uint64_max_rejected(self):
+        payload = _valid_request_payload()
+        payload["context"]["agent_id"] = UINT64_MAX + 1
+        with self.assertRaises(ValidationError):
+            DynamicTaskRequest.model_validate(payload)
+
+    def test_request_id_over_uint64_max_rejected(self):
+        payload = _valid_request_payload(request_id=UINT64_MAX + 1)
+        with self.assertRaises(ValidationError):
+            DynamicTaskRequest.model_validate(payload)
+
+    def test_target_token_over_uint32_max_rejected(self):
+        payload = _valid_draft().model_dump(mode="json")
+        payload["target_token"] = UINT32_MAX + 1
+        with self.assertRaises(ValidationError):
+            QuestProposalDraft.model_validate(payload)
+
+    def test_required_count_over_uint32_max_rejected(self):
+        payload = _valid_draft().model_dump(mode="json")
+        payload["required_count"] = UINT32_MAX + 1
+        with self.assertRaises(ValidationError):
+            QuestProposalDraft.model_validate(payload)
+
+    def test_map_id_over_uint32_max_rejected(self):
+        payload = _valid_request_payload()
+        payload["context"]["problem"]["map_id"] = UINT32_MAX + 1
+        with self.assertRaises(ValidationError):
+            DynamicTaskRequest.model_validate(payload)
+
 
 class ValidateDraftAgainstContextTests(unittest.TestCase):
     """validate_draft_against_context() is the request-specific policy
@@ -346,6 +405,22 @@ class OpenAICompatibleTaskProviderTests(unittest.IsolatedAsyncioTestCase):
                 200,
                 json={"choices": [{"message": {"content": json.dumps({"objective": "SPAWN_NPC"})}}]},
             )
+
+        provider = self._provider(handler)
+        with self.assertRaises(ModelProviderMalformedContent):
+            await provider.generate(_valid_task_request())
+
+    async def test_null_message_content_raises(self):
+        def handler(request):
+            return httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
+
+        provider = self._provider(handler)
+        with self.assertRaises(ModelProviderMalformedContent):
+            await provider.generate(_valid_task_request())
+
+    async def test_object_message_content_raises(self):
+        def handler(request):
+            return httpx.Response(200, json={"choices": [{"message": {"content": {}}}]})
 
         provider = self._provider(handler)
         with self.assertRaises(ModelProviderMalformedContent):

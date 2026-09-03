@@ -224,12 +224,22 @@ async def dynamic_task(
     config: ModelProviderConfig = Depends(get_task_model_config),
     provider: OpenAICompatibleTaskProvider = Depends(get_task_provider),
 ) -> DynamicTaskResponse:
-    body_bytes = await raw_request.body()
-    if len(body_bytes) > config.max_request_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail=f"request body exceeded {config.max_request_bytes} bytes",
-        )
+    # Streamed and bounded on purpose: awaiting raw_request.body() would
+    # buffer the whole request in memory before max_request_bytes is ever
+    # checked, so a byte cap enforced only after a full read is a
+    # validation limit, not a resource bound. Reading via .stream() lets
+    # us reject as soon as the running total crosses the limit, without
+    # ever materializing more than max_request_bytes (plus at most one
+    # chunk) of the request.
+    body = bytearray()
+    async for chunk in raw_request.stream():
+        body.extend(chunk)
+        if len(body) > config.max_request_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"request body exceeded {config.max_request_bytes} bytes",
+            )
+    body_bytes = bytes(body)
 
     try:
         raw_payload = json.loads(body_bytes)

@@ -134,24 +134,35 @@ class OpenAICompatibleTaskProvider:
 
         timeout = httpx.Timeout(self._config.timeout_ms / 1000)
 
+        # Streamed and bounded on purpose: client.post()/response.content
+        # would buffer the entire body in memory before max_response_bytes
+        # is ever checked, so a misbehaving or malicious backend could
+        # force an unbounded allocation regardless of the configured
+        # limit. Reading via client.stream()/aiter_bytes() lets us abort
+        # as soon as the running total crosses the limit, without ever
+        # materializing more than max_response_bytes (plus at most one
+        # chunk) of the response.
+        raw_body = bytearray()
+
         try:
             async with httpx.AsyncClient(timeout=timeout, transport=self._transport) as client:
-                response = await client.post(self._config.url, json=payload)
+                async with client.stream("POST", self._config.url, json=payload) as response:
+                    if not (200 <= response.status_code < 300):
+                        logger.warning("model provider returned HTTP %s", response.status_code)
+                        raise ModelProviderBadStatus(response.status_code)
+
+                    async for chunk in response.aiter_bytes():
+                        raw_body.extend(chunk)
+                        if len(raw_body) > self._config.max_response_bytes:
+                            raise ModelProviderOversizedResponse(
+                                f"model provider response exceeded {self._config.max_response_bytes} bytes"
+                            )
         except httpx.TimeoutException as exc:
             raise ModelProviderTimeout("model provider request timed out") from exc
         except httpx.HTTPError as exc:
             raise ModelProviderUnavailable("model provider unreachable") from exc
 
-        if not (200 <= response.status_code < 300):
-            logger.warning("model provider returned HTTP %s", response.status_code)
-            raise ModelProviderBadStatus(response.status_code)
-
-        if len(response.content) > self._config.max_response_bytes:
-            raise ModelProviderOversizedResponse(
-                f"model provider response exceeded {self._config.max_response_bytes} bytes"
-            )
-
-        content = _extract_message_content(response)
+        content = _extract_message_content(bytes(raw_body))
 
         try:
             draft_payload = json.loads(content)
@@ -164,11 +175,16 @@ class OpenAICompatibleTaskProvider:
             raise ModelProviderMalformedContent("model output failed draft schema validation") from exc
 
 
-def _extract_message_content(response: httpx.Response) -> str:
+def _extract_message_content(raw_body: bytes) -> str:
     try:
-        body = response.json()
-        return body["choices"][0]["message"]["content"]
+        body = json.loads(raw_body)
+        content = body["choices"][0]["message"]["content"]
     except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
         raise ModelProviderMalformedContent(
             "model provider response did not match the chat-completions shape"
         ) from exc
+
+    if not isinstance(content, str):
+        raise ModelProviderMalformedContent("model provider message content was not a string")
+
+    return content

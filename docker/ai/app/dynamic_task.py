@@ -9,9 +9,12 @@ shape, independent implementation on each side" relationship /decision's
 DecisionRequest/DecisionResponse already have between AIClient.cpp and
 main.py.
 
-Every model here forbids unknown fields and rejects NaN/Infinity - a
-request or a model draft that doesn't match this contract exactly must
-fail closed, never be silently widened or coerced. QuestObjectiveType is
+Every model here forbids unknown fields, rejects NaN/Infinity, and
+(field-by-field, see _STRICT_MODEL_CONFIG below) refuses type coercion on
+every int/float and caps them at their C++ counterpart's uint32/uint64
+upper bound - a request or a model draft that doesn't match this contract
+exactly must fail closed, never be silently widened, coerced or truncated
+onto a value the C++ side couldn't represent. QuestObjectiveType is
 intentionally restricted to the one supported value: unlike the C++ enum
 (which also declares Invalid as an in-memory default), the wire contract
 has no reason to accept "INVALID" as a legal value coming from the model -
@@ -40,7 +43,25 @@ QUEST_CONTRACT_MAX_DISPLAY_NAME_LENGTH = 64
 QUEST_CONTRACT_MAX_TITLE_LENGTH = 80
 QUEST_CONTRACT_MAX_DESCRIPTION_LENGTH = 400
 
+# Upper bounds for the C++ side's uint32/uint64 fields - Python's int has
+# no such ceiling, so without these a value no C++ peer could ever
+# represent would still pass validation here.
+UINT32_MAX = 2**32 - 1
+UINT64_MAX = 2**64 - 1
+
 _STRICT_MODEL_CONFIG = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+# Every int/float field below additionally sets strict=True: pydantic's
+# default lax mode still silently coerces e.g. the JSON string "3" into
+# the int 3, which is the opposite of "strict structured output". This is
+# deliberately a per-field override rather than model-wide
+# ConfigDict(strict=True): strict mode's python-object validation for str
+# Enum fields (WorldEventType/QuestObjectiveType) requires an actual enum
+# member, not a same-valued plain str - which would reject every ordinary
+# Python dict (the shape every call site in this codebase, and every test
+# fixture, actually builds) even though the string is exactly correct.
+# Numeric fields don't have that ambiguity, so strict=True is safe (and
+# required) there without forcing every caller onto model_validate_json().
 
 
 class WorldEventType(str, Enum):
@@ -69,32 +90,32 @@ class QuestProblemContext(BaseModel):
     model_config = _STRICT_MODEL_CONFIG
 
     type: WorldEventType
-    actor_entry: int = Field(ge=0)
-    target_entry: int = Field(ge=0)
-    map_id: int = Field(ge=0)
-    age_ms: int = Field(ge=0)
+    actor_entry: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    target_entry: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    map_id: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    age_ms: int = Field(strict=True, ge=0, le=UINT32_MAX)
 
 
 class QuestRelevantEvent(BaseModel):
     model_config = _STRICT_MODEL_CONFIG
 
     type: WorldEventType
-    actor_entry: int = Field(ge=0)
-    target_entry: int = Field(ge=0)
+    actor_entry: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    target_entry: int = Field(strict=True, ge=0, le=UINT32_MAX)
     importance: float
     relevance: float
-    age_ms: int = Field(ge=0)
+    age_ms: int = Field(strict=True, ge=0, le=UINT32_MAX)
 
 
 class QuestTargetCandidate(BaseModel):
     model_config = _STRICT_MODEL_CONFIG
 
-    token: int = Field(ge=0)
-    entry: int = Field(ge=0)
+    token: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    entry: int = Field(strict=True, ge=0, le=UINT32_MAX)
     display_name: str = Field(max_length=QUEST_CONTRACT_MAX_DISPLAY_NAME_LENGTH)
-    map_id: int = Field(ge=0)
-    distance_yards: float = Field(ge=0)
-    observation_age_ms: int = Field(ge=0)
+    map_id: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    distance_yards: float = Field(strict=True, ge=0)
+    observation_age_ms: int = Field(strict=True, ge=0, le=UINT32_MAX)
 
 
 class QuestProposalLimits(BaseModel):
@@ -105,17 +126,17 @@ class QuestProposalLimits(BaseModel):
 
     model_config = _STRICT_MODEL_CONFIG
 
-    max_required_count: int = Field(ge=0)
-    max_range_yards: float = Field(ge=0)
-    max_expiry_ms: int = Field(ge=0)
-    max_reward_money_copper: int = Field(ge=0)
+    max_required_count: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    max_range_yards: float = Field(strict=True, ge=0)
+    max_expiry_ms: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    max_reward_money_copper: int = Field(strict=True, ge=0, le=UINT32_MAX)
 
 
 class QuestContext(BaseModel):
     model_config = _STRICT_MODEL_CONFIG
 
-    agent_id: int = Field(ge=0)
-    snapshot_sequence: int = Field(ge=0)
+    agent_id: int = Field(strict=True, ge=0, le=UINT64_MAX)
+    snapshot_sequence: int = Field(strict=True, ge=0, le=UINT64_MAX)
     problem: QuestProblemContext
     relevant_events: List[QuestRelevantEvent] = Field(
         default_factory=list, max_length=QUEST_CONTRACT_MAX_RELEVANT_EVENTS
@@ -129,8 +150,8 @@ class QuestContext(BaseModel):
 class DynamicTaskRequest(BaseModel):
     model_config = _STRICT_MODEL_CONFIG
 
-    protocol_version: int
-    request_id: int = Field(ge=0)
+    protocol_version: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    request_id: int = Field(strict=True, ge=0, le=UINT64_MAX)
     context: QuestContext
 
 
@@ -147,15 +168,15 @@ class QuestProposalDraft(BaseModel):
     model_config = _STRICT_MODEL_CONFIG
 
     objective: QuestObjectiveType
-    target_token: int = Field(ge=0)
+    target_token: int = Field(strict=True, ge=0, le=UINT32_MAX)
 
     # A draft proposing to kill/gather zero of something, expire
     # immediately, or accept any range at all isn't a meaningful task -
     # reject those degenerate shapes here rather than downstream.
-    required_count: int = Field(gt=0)
-    max_range_yards: float = Field(gt=0)
-    expiry_ms: int = Field(gt=0)
-    reward_money_copper: int = Field(ge=0)
+    required_count: int = Field(strict=True, gt=0, le=UINT32_MAX)
+    max_range_yards: float = Field(strict=True, gt=0)
+    expiry_ms: int = Field(strict=True, gt=0, le=UINT32_MAX)
+    reward_money_copper: int = Field(strict=True, ge=0, le=UINT32_MAX)
 
     title: str = Field(max_length=QUEST_CONTRACT_MAX_TITLE_LENGTH)
     description: str = Field(max_length=QUEST_CONTRACT_MAX_DESCRIPTION_LENGTH)
@@ -164,10 +185,10 @@ class QuestProposalDraft(BaseModel):
 class DynamicTaskResponse(BaseModel):
     model_config = _STRICT_MODEL_CONFIG
 
-    protocol_version: int
-    request_id: int
-    agent_id: int
-    snapshot_sequence: int
+    protocol_version: int = Field(strict=True, ge=0, le=UINT32_MAX)
+    request_id: int = Field(strict=True, ge=0, le=UINT64_MAX)
+    agent_id: int = Field(strict=True, ge=0, le=UINT64_MAX)
+    snapshot_sequence: int = Field(strict=True, ge=0, le=UINT64_MAX)
     proposal: QuestProposalDraft
 
 
