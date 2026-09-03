@@ -9375,7 +9375,14 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
     // must still be an active short-term memory - identity checked
     // field-by-field against the pending request's own captured
     // provenance, never re-derived from anything the response claims.
+    // 2.13B review follow-up: the matched record itself (not just the
+    // bool) is kept - its current Actor/Target/Location payload becomes
+    // this response's DynamicTaskSourceFacts below, so 2.13B can prove
+    // the world problem that justified this request still describes the
+    // same situation right now, not just that a same-identity memory
+    // still exists.
     std::vector<MemoryRecord> currentMemories = _shortTermMemory.GetActiveForAgent(response.Agent, nowMs);
+    MemoryRecord const* matchedSourceMemory = nullptr;
     for (MemoryRecord const& memory : currentMemories)
     {
         if (memory.Owner != pending.Provenance.Agent)
@@ -9390,6 +9397,7 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
             continue;
 
         state.SourceEventStillActive = true;
+        matchedSourceMemory = &memory;
         break;
     }
 
@@ -9431,6 +9439,23 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
     TC_LOG_INFO("ai.world", "DYNAMIC_TASK_TARGET_MATCHED request={} agent={} targetToken={} targetEntry={}",
         response.RequestId, response.Agent.Value, draft.TargetToken, binding->Entry);
 
+    // CheckDynamicTaskResponseAcceptance() above already required
+    // state.SourceEventStillActive, which is only ever set together with
+    // matchedSourceMemory in the loop above - so this is unreachable in
+    // practice, but DynamicTaskAuthoritativeFacts is a security-relevant
+    // input to 2.13B and must never be built from a null source.
+    if (!matchedSourceMemory)
+        return;
+
+    DynamicTaskAuthoritativeFacts facts;
+    facts.Source.Type = *matchedSourceMemory->SourceEventType;
+    facts.Source.ActorEntry = matchedSourceMemory->Actor.Entry;
+    facts.Source.TargetEntry = matchedSourceMemory->Target.Entry;
+    facts.Source.MapId = matchedSourceMemory->Location.MapId;
+    facts.Target.Entry = target->GetEntry();
+    facts.Target.MapId = target->GetMapId();
+    facts.Target.GiverToTargetDistanceYards = creature->GetDistance(target);
+
     DynamicTaskCandidate candidate;
     candidate.RequestId = response.RequestId;
     candidate.AcceptedAtMs = nowMs;
@@ -9438,73 +9463,30 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
     candidate.Provenance = std::move(pending.Provenance);
     candidate.Draft = draft;
 
-    OnDynamicTaskCandidateAccepted(candidate);
+    OnDynamicTaskCandidateAccepted(candidate, facts);
 }
 
 // Milestone 2.13B: the authoritative validation seam - see this method's
 // own declaration comment in AIWorldMgr.h. This is a NEW security
 // boundary, not a continuation of trust from HandleDynamicTaskResponse()
-// above: every giver/target fact 2.13A3B already checked is re-resolved
-// and re-checked here from scratch, against the server's CURRENT policy
-// (never candidate.RequestContext.Limits - see DynamicTaskAuthoritativeLimits'
-// own comment), and only once ALL of it holds does the pure
-// ValidateDynamicTaskCandidate() get a chance to judge the draft itself.
-// Still deliberately inert: no ActionRequest, no ActionSystem/
-// ActionExecutor, no Player/Quest/DB, no reward, no world mutation of any
-// kind. Never logs the full title/description text, a GUID list, or a
-// provenance dump.
-void AIWorldMgr::OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate)
+// above, but it does not re-run that method's own live-world resolution a
+// second time in the same synchronous call stack - doing so would prove
+// nothing (no time passes between the two calls) while still failing to
+// re-check things HandleDynamicTaskResponse() alone owns (ControlMode,
+// snapshot/goal, source-event age). Instead this seam judges `candidate`
+// and the `facts` its caller already derived from that SAME live
+// resolution against the server's CURRENT policy (never
+// candidate.RequestContext.Limits - see DynamicTaskAuthoritativeLimits'
+// own comment) via the pure ValidateDynamicTaskCandidate(). Still
+// deliberately inert: no ActionRequest, no ActionSystem/ActionExecutor,
+// no Player/Quest/DB, no reward, no world mutation of any kind, and the
+// resulting QuestProposal (if any) is logged narrowly and immediately
+// discarded - never stored, never queued, never its Title/Description
+// text or a GUID.
+void AIWorldMgr::OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate, DynamicTaskAuthoritativeFacts const& facts)
 {
     uint64 requestId = candidate.RequestId;
     AgentId agent = candidate.Provenance.Agent;
-
-    AgentRecord* record = _registry.Find(agent);
-    if (!record || record->WorldState != AgentWorldState::Materialized ||
-        record->RuntimeGuid.IsEmpty() || record->RuntimeGuid != candidate.Provenance.RuntimeGuid)
-    {
-        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_VALIDATION_REJECTED request={} agent={} reason=GIVER_NOT_ELIGIBLE",
-            requestId, agent.Value);
-        return;
-    }
-
-    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
-    Creature* giver = ResolveLiveCreature(*record, map);
-    if (!giver || !giver->IsAlive() || giver->GetGUID() != candidate.Provenance.RuntimeGuid)
-    {
-        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_VALIDATION_REJECTED request={} agent={} reason=GIVER_NOT_ELIGIBLE",
-            requestId, agent.Value);
-        return;
-    }
-
-    QuestTargetBinding const* binding = nullptr;
-    for (QuestTargetBinding const& candidateBinding : candidate.Provenance.TargetBindings)
-    {
-        if (candidateBinding.Token == candidate.Draft.TargetToken)
-        {
-            binding = &candidateBinding;
-            break;
-        }
-    }
-
-    if (!binding)
-    {
-        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_VALIDATION_REJECTED request={} agent={} reason={}",
-            requestId, agent.Value, ToString(DynamicTaskValidationReason::TargetBindingMissing));
-        return;
-    }
-
-    Creature* target = ObjectAccessor::GetCreature(*giver, binding->Guid);
-    if (!target || !target->IsAlive() ||
-        target->GetEntry() != binding->Entry ||
-        target->GetMapId() != binding->MapId ||
-        target->GetMapId() != giver->GetMapId() ||
-        target == giver ||
-        !giver->IsValidAttackTarget(target))
-    {
-        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_VALIDATION_REJECTED request={} agent={} reason=LIVE_TARGET_UNRESOLVED",
-            requestId, agent.Value);
-        return;
-    }
 
     DynamicTaskAuthoritativeLimits limits;
     limits.MaxRequiredCount = _dynamicTaskMaxRequiredCount;
@@ -9512,21 +9494,22 @@ void AIWorldMgr::OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& cand
     limits.MaxExpiryMs = _dynamicTaskMaxExpiryMs;
     limits.MaxRewardMoneyCopper = _dynamicTaskMaxRewardMoneyCopper;
 
-    DynamicTaskWorldFacts worldFacts;
-    worldFacts.TargetEntry = target->GetEntry();
-    worldFacts.TargetMapId = target->GetMapId();
-    worldFacts.TargetDistanceYards = giver->GetDistance(target);
-
-    DynamicTaskValidationReason reason = ValidateDynamicTaskCandidate(candidate, limits, worldFacts);
-    if (reason != DynamicTaskValidationReason::None)
+    DynamicTaskValidationResult result = ValidateDynamicTaskCandidate(candidate, limits, facts);
+    if (!result.IsAccepted())
     {
         TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_VALIDATION_REJECTED request={} agent={} reason={}",
-            requestId, agent.Value, ToString(reason));
+            requestId, agent.Value, ToString(result.Reason));
         return;
     }
 
-    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_VALIDATED request={} agent={} objective={} targetToken={} targetEntry={} inert=1",
-        requestId, agent.Value, ToString(candidate.Draft.Objective), candidate.Draft.TargetToken, binding->Entry);
+    QuestProposal const& proposal = *result.Proposal;
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_VALIDATED request={} agent={} sourceEvent={} objective={} targetToken={} targetEntry={} inert=1",
+        requestId, agent.Value, proposal.SourceEventId, ToString(proposal.Objective), proposal.TargetToken, proposal.TargetEntry);
+
+    // 2.13B ends here: `proposal` is server-only and inert, and goes out
+    // of scope right now - no storage, no queue, no ActionRequest, no
+    // ActionSystem/ActionExecutor, no Player/Quest/DB, no reward, no
+    // world mutation of any kind.
 }
 
 // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId - see this method's

@@ -228,19 +228,24 @@ class TC_GAME_API AIWorldMgr
         // Milestone 2.13B: the authoritative validation seam for a
         // DynamicTaskCandidate that already passed 2.13A3B's own
         // provenance/staleness/target-binding acceptance. This is a NEW
-        // security boundary, not a continuation of that trust - it
-        // re-resolves the giver and target from scratch (AgentRecord
-        // still Materialized, RuntimeGuid still matches, live Creature*
-        // still alive/attackable, target binding still resolves to the
-        // same live Entry/MapId), then judges the draft with the pure
-        // ValidateDynamicTaskCandidate() against the server's CURRENT
-        // policy limits (never candidate.RequestContext.Limits, which is
-        // only a snapshot of policy as of request-build time). Still no
-        // ActionRequest, no ActionSystem::Validate()/ActionExecutor call,
-        // no Player/Quest/DB touch, no reward, no world mutation of any
-        // kind - this milestone only decides VALIDATED vs REJECTED and
-        // logs which.
-        void OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate);
+        // security boundary, not a continuation of that trust - but it
+        // does not re-resolve the giver/target a second time itself
+        // (nothing could have changed in the same synchronous call
+        // stack); instead `facts` is the caller's own fresh live
+        // re-derivation, from HandleDynamicTaskResponse()'s own
+        // resolution, of exactly what a static candidate/provenance
+        // snapshot cannot supply by itself - see
+        // DynamicTaskAuthoritativeFacts' own comment. Judges candidate
+        // and facts with the pure ValidateDynamicTaskCandidate() against
+        // the server's CURRENT policy limits (never
+        // candidate.RequestContext.Limits, which is only a snapshot of
+        // policy as of request-build time). Still no ActionRequest, no
+        // ActionSystem::Validate()/ActionExecutor call, no Player/Quest/DB
+        // touch, no reward, no world mutation of any kind - this
+        // milestone only decides VALIDATED vs REJECTED, logs which, and
+        // (on VALIDATED) immediately discards the resulting QuestProposal
+        // without storing or queuing it anywhere.
+        void OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate, DynamicTaskAuthoritativeFacts const& facts);
 
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
         // disabled) - once the configured agent is live/materialized and
