@@ -54,6 +54,7 @@
 #include "Inference/AIClient.h"
 #include "Inference/DynamicTaskAcceptance.h"
 #include "Inference/DynamicTaskCandidate.h"
+#include "Inference/DynamicTaskValidation.h"
 #include "Memory/LongTermMemory.h"
 #include "Memory/MemoryRetrieval.h"
 #include "Memory/ShortTermMemory.h"
@@ -224,13 +225,21 @@ class TC_GAME_API AIWorldMgr
         // OnDynamicTaskCandidateAccepted() - never anything else.
         void HandleDynamicTaskResponse(AIResponse const& response);
 
-        // Milestone 2.13A3B: the ONLY thing that happens once a
-        // DynamicTaskCandidate is fully accepted - logs it. No
+        // Milestone 2.13B: the authoritative validation seam for a
+        // DynamicTaskCandidate that already passed 2.13A3B's own
+        // provenance/staleness/target-binding acceptance. This is a NEW
+        // security boundary, not a continuation of that trust - it
+        // re-resolves the giver and target from scratch (AgentRecord
+        // still Materialized, RuntimeGuid still matches, live Creature*
+        // still alive/attackable, target binding still resolves to the
+        // same live Entry/MapId), then judges the draft with the pure
+        // ValidateDynamicTaskCandidate() against the server's CURRENT
+        // policy limits (never candidate.RequestContext.Limits, which is
+        // only a snapshot of policy as of request-build time). Still no
         // ActionRequest, no ActionSystem::Validate()/ActionExecutor call,
         // no Player/Quest/DB touch, no reward, no world mutation of any
-        // kind. This seam is deliberately this narrow so a future 2.13B
-        // authoritative validator can be added here without this
-        // milestone's own acceptance path needing to change at all.
+        // kind - this milestone only decides VALIDATED vs REJECTED and
+        // logs which.
         void OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate);
 
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
