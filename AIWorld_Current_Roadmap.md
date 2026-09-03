@@ -1217,6 +1217,33 @@ Co ověřeno a jak: implementace nejdřív ověřena `python -m unittest discove
 
 Runtime pro A2 nepotřebuje worldserver `/dynamic-task` call — `AIClient` jej zatím neumí odeslat (`2.13A3`). A2 runtime proof je samotný `ai-server`: fake/mock provider testy PASS, disabled-by-default PASS, `/health` PASS; malformed/timeout/outage PASS; worldserver chování nezměněné.
 
+#### 2.13A3A — dynamic task async transport
+
+**Stav: CLOSED — STATIC + BUILD + UNIT + STARTUP PASS (`2ebd749a42`, `c8a82b130b`, `b885a523c9`).**
+
+```text
+REVISION=b885a523c90ea9e15b94957f6df3c15608b75f75
+STATIC=PASS
+BUILD=PASS
+UNIT=PASS (51/51)
+STARTUP=PASS
+ERROR_SCAN=PASS
+SMOKE=NOT APPLICABLE
+RUNTIME=NOT APPLICABLE
+TEST_FLAGS_RESTORED=YES
+```
+
+`SMOKE`/`RUNTIME` jsou `NOT APPLICABLE`: A3A je čistě transportní vrstva (`AIRequest`/`AIResponse`/`AIClient`/`DynamicTaskJsonCodec`), `AIWorldMgr` je beze změny (viz prázdný diff na `AIWorldMgr.cpp`/`.h` u všech tří commitů) — žádná player/world-facing cesta zatím neexistuje, takže není co runtime testovat; wiring na skutečný world state je `2.13A3B`.
+
+Shrnutí implementace (přes tři review kola):
+
+- `AIRequest`/`AIResponse`: nový `AIRequestType::DynamicTask`, `AIRequest::DynamicTask`/`QuestProvenance`, `AIResponse::QuestProvenance`/`DynamicTask` — stejný "client's own echo, never server's claim" pattern jako `DecisionProvenance`/`Decision`. `QuestRequestProvenance` (a její `ObjectGuid`) žije jen v paměti, nikdy na wire.
+- `AIClient`: `SubmitDynamicTask()` s vlastním bounded `DynamicTasksInFlight` counterem, zcela odděleným od `DecisionsInFlight` (`maxDynamicTasksInFlight` defaultuje na `0`, takže existující 5-arg constructor call v `AIWorldMgr.cpp` zůstal beze změny). `DynamicTaskSession` zrcadlí `DecisionSession` (resolve/connect/write/read/timeout/`_completed` guard), čte přes `http::response_parser<string_body>` s `body_limit(16384)` (zrcadlí `AI_TASK_MODEL_MAX_RESPONSE_BYTES` default z A2), a po úspěšném parse ověřuje `protocol_version`/`request_id`/`agent_id`/`snapshot_sequence` proti původnímu requestu — libovolný mismatch znamená `Success=false` a `DynamicTask` zůstává prázdné.
+- `DynamicTaskJsonCodec.h/.cpp` (trvalý, ne dočasný): serializer s plným JSON string escapingem pro `DisplayName`; parser je dvouvrstvý — (1) plný RFC 8259 recursive-descent grammar walker (`ParseJsonObject`/`ParseJsonArray`/`ParseJsonValue`) ověřující syntax, escaping, striktní number grammar, žádné duplicitní klíče a plnou spotřebu inputu, PŘED (2) schema extrakcí, která pole hledá výhradně jako *direct members* správného objektu (root vs. `proposal`) přes už naparsovaný member list — nikdy substring-searchem přes celý dokument. `HasExactKeySet()` vyžaduje na obou úrovních přesně deklarovanou sadu polí (žádné chybějící, žádné neznámé/extra) — stejný `extra="forbid"` kontrakt jako Python `dynamic_task.py`. Number/float parsing má striktní JSON grammar, `double→float` narrowing je bounded (`1e100` se korektně zamítne), JSON whitespace je striktně jen space/tab/LF/CR (ne `std::isspace()`).
+- `tests/game/DynamicTaskJsonCodec.cpp`: trvalé Catch2 testy (auto-collected přes `CollectSourceFiles`, stejně jako zbytek `tests/game/`) — validní response, escaped quote/backslash/embedded-brace round-trip, malformed JSON (chybějící root braces/commas, trailing garbage, non-object root, duplicate keys, pole zanořená pod cizím root klíčem, neznámá/chybějící pole na obou úrovních, pořadí polí nezáleží), nepodporovaný/`INVALID` objective, uint32 overflow, `1e100` float-narrowing bug, bare `NaN`/`Infinity`, title/description limity, degenerované proposal hodnoty, vertical-tab/form-feed whitespace rejection, response-left-untouched-on-failure — 51 testů, 51 passed.
+
+Review prošel třemi koly (P2/P2/P3 → P2/P3 → P2/P3 → STATIC PASS): field-level `strict` bounds, bounded streaming, RFC 8259 grammar validace před schema extrakcí, a nakonec přesné direct-member/exact-key-set schema parsing (substring search field lookup byl původně obejitelný zanořením pod cizí klíč — opraveno).
+
 ### 2.13B — `QuestProposal` validator
 
 Server validuje objective type, target, amount/range/expiry, reward bounds a source-problem provenance. LLM nesmí generovat execution code, SQL, spawn/delete, spell cast ani jinou direct mutation.
