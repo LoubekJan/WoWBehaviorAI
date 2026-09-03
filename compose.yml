@@ -93,6 +93,10 @@ services:
       AI_TASK_MODEL_MAX_REQUEST_BYTES: ${AI_TASK_MODEL_MAX_REQUEST_BYTES:-32768}
       AI_TASK_MODEL_MAX_RESPONSE_BYTES: ${AI_TASK_MODEL_MAX_RESPONSE_BYTES:-16384}
       AI_TASK_MODEL_MAX_TOKENS: ${AI_TASK_MODEL_MAX_TOKENS:-512}
+      # Optional bearer token for backends that require one (some
+      # gateways/proxies in front of an otherwise-open local model do,
+      # even when the model itself doesn't) - empty by default.
+      AI_TASK_MODEL_API_KEY: ${AI_TASK_MODEL_API_KEY:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

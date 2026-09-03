@@ -379,6 +379,46 @@ class OpenAICompatibleTaskProviderTests(unittest.IsolatedAsyncioTestCase):
         result = await provider.generate(_valid_task_request())
         self.assertEqual(result.objective, QuestObjectiveType.KILL_CREATURE)
 
+    async def test_no_authorization_header_when_api_key_is_empty(self):
+        captured = {}
+
+        def handler(request):
+            captured["headers"] = request.headers
+            draft_json = json.dumps(_valid_draft().model_dump(mode="json"))
+            return httpx.Response(200, json={"choices": [{"message": {"content": draft_json}}]})
+
+        provider = self._provider(handler, api_key="")
+        await provider.generate(_valid_task_request())
+
+        self.assertNotIn("authorization", captured["headers"])
+
+    async def test_authorization_header_set_when_api_key_is_configured(self):
+        captured = {}
+
+        def handler(request):
+            captured["headers"] = request.headers
+            draft_json = json.dumps(_valid_draft().model_dump(mode="json"))
+            return httpx.Response(200, json={"choices": [{"message": {"content": draft_json}}]})
+
+        provider = self._provider(handler, api_key="sk-local")
+        await provider.generate(_valid_task_request())
+
+        self.assertEqual(captured["headers"]["authorization"], "Bearer sk-local")
+
+    async def test_api_key_never_appears_in_logs_or_errors(self):
+        def handler(request):
+            return httpx.Response(500, text="internal error")
+
+        provider = self._provider(handler, api_key="sk-local-secret")
+
+        with self.assertLogs("ai-server.model_provider", level="WARNING") as captured_logs:
+            with self.assertRaises(ModelProviderBadStatus) as captured_exception:
+                await provider.generate(_valid_task_request())
+
+        for record in captured_logs.output:
+            self.assertNotIn("sk-local-secret", record)
+        self.assertNotIn("sk-local-secret", str(captured_exception.exception))
+
     async def test_timeout_raises(self):
         def handler(request):
             raise httpx.TimeoutException("boom", request=request)
