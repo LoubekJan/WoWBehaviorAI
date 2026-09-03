@@ -16,6 +16,7 @@
  */
 
 #include "AIClient.h"
+#include "DynamicTaskJsonCodec.h"
 #include "IoContext.h"
 #include "Log.h"
 #include "Metric.h"
@@ -740,13 +741,228 @@ namespace
             uint32 _queueMs = 0;
             std::atomic<bool> _completed { false };
     };
+
+    // Milestone 2.13A2's own /dynamic-task response cap
+    // (AI_TASK_MODEL_MAX_RESPONSE_BYTES, default 16384) - mirrored here so
+    // a misbehaving or malicious ai-server/model backend can't make this
+    // side buffer an unbounded response either. DecisionSession/
+    // HealthCheckSession read through a plain http::response<string_body>
+    // (Beast's own default body limit applies); DynamicTaskSession uses an
+    // explicit response_parser with this limit set instead, per review.
+    constexpr std::size_t DynamicTaskResponseBodyLimit = 16384;
+
+    // Same resolve/connect/write/read/timeout shape as DecisionSession
+    // (see its comments for why each piece is there), POSTing to
+    // /dynamic-task and using the permanent, escape-aware
+    // DynamicTaskJsonCodec instead of AIClient.cpp's own /decision-only
+    // hand-rolled Build*Json()/Find*Field() helpers - see
+    // DynamicTaskJsonCodec.h for why those aren't reused here (this
+    // schema carries genuine free text, /decision's never did).
+    class DynamicTaskSession : public std::enable_shared_from_this<DynamicTaskSession>
+    {
+        public:
+            DynamicTaskSession(net::io_context& ioContext, std::string const& host, std::string const& port,
+                uint32 timeoutMs, AIRequest const& request, MPSCQueue<AIResponse>* responseQueue, std::atomic<uint32>* inFlightCount)
+                : _resolver(net::make_strand(ioContext)), _stream(net::make_strand(ioContext)),
+                  _resolveTimer(_resolver.get_executor()),
+                  _host(host), _port(port), _timeoutMs(timeoutMs), _request(request),
+                  _responseQueue(responseQueue), _inFlightCount(inFlightCount),
+                  _startTime(std::chrono::steady_clock::now())
+            {
+                _parser.body_limit(DynamicTaskResponseBodyLimit);
+            }
+
+            void Run()
+            {
+                _httpRequest.version(11);
+                _httpRequest.method(http::verb::post);
+                _httpRequest.target(DynamicTaskEndpoint);
+                _httpRequest.set(http::field::host, _host + ":" + _port);
+                _httpRequest.set(http::field::user_agent, "TrinityCore-AIWorld");
+                _httpRequest.set(http::field::content_type, "application/json");
+                _httpRequest.body() = SerializeDynamicTaskRequest(_request.DynamicTask);
+                _httpRequest.prepare_payload();
+
+                TC_LOG_INFO("ai.world", "AI dynamic-task request id={} version={} agent={} snapshot={} submitted",
+                    _request.RequestId, ToUnderlying(_request.DynamicTask.Version),
+                    _request.DynamicTask.Context.Agent.Value, _request.DynamicTask.Context.SnapshotSequence);
+
+                _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
+                _resolveTimer.async_wait(
+                    beast::bind_front_handler(&DynamicTaskSession::OnResolveTimeout, shared_from_this()));
+
+                _resolver.async_resolve(_host, _port,
+                    beast::bind_front_handler(&DynamicTaskSession::OnResolve, shared_from_this()));
+            }
+
+        private:
+            void OnResolveTimeout(beast::error_code ec)
+            {
+                if (ec == net::error::operation_aborted)
+                    return; // resolve finished first and cancelled this timer
+
+                _resolver.cancel();
+                Complete(false, 0, beast::error::timeout, std::nullopt, std::string(), false);
+            }
+
+            void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
+            {
+                _resolveTimer.cancel();
+
+                if (ec)
+                    return Complete(false, 0, ec, std::nullopt, std::string(), false);
+
+                if (_completed.load(std::memory_order_acquire))
+                    return; // resolve timeout already completed this request
+
+                _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
+                _stream.async_connect(results,
+                    beast::bind_front_handler(&DynamicTaskSession::OnConnect, shared_from_this()));
+            }
+
+            void OnConnect(beast::error_code ec, tcp::resolver::results_type::endpoint_type)
+            {
+                if (ec)
+                    return Complete(false, 0, ec, std::nullopt, std::string(), false);
+
+                _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
+                http::async_write(_stream, _httpRequest,
+                    beast::bind_front_handler(&DynamicTaskSession::OnWrite, shared_from_this()));
+            }
+
+            void OnWrite(beast::error_code ec, std::size_t /*bytesTransferred*/)
+            {
+                if (ec)
+                    return Complete(false, 0, ec, std::nullopt, std::string(), false);
+
+                http::async_read(_stream, _buffer, _parser,
+                    beast::bind_front_handler(&DynamicTaskSession::OnRead, shared_from_this()));
+            }
+
+            void OnRead(beast::error_code ec, std::size_t /*bytesTransferred*/)
+            {
+                if (ec)
+                    return Complete(false, 0, ec, std::nullopt, std::string(), false);
+
+                http::response<http::string_body> const& httpResponse = _parser.get();
+                uint32 statusCode = httpResponse.result_int();
+                bool success = statusCode >= 200 && statusCode < 300;
+
+                std::optional<DynamicTaskResponse> parsed;
+                std::string rejectReason;
+                bool protocolMismatch = false;
+
+                if (success)
+                {
+                    DynamicTaskResponse candidate;
+                    if (!ParseDynamicTaskResponse(httpResponse.body(), candidate))
+                    {
+                        success = false;
+                        rejectReason = "parse failure";
+                    }
+                    // A well-formed, in-contract body isn't enough on its
+                    // own - verify it actually answers the exact request
+                    // this session sent, the same envelope check
+                    // DecisionSession's OnRead() already does for
+                    // /decision. Any mismatch is a hard reject, never a
+                    // "best effort" partial acceptance.
+                    else if (candidate.Version != _request.DynamicTask.Version ||
+                        candidate.RequestId != _request.RequestId ||
+                        candidate.Agent.Value != _request.DynamicTask.Context.Agent.Value ||
+                        candidate.SnapshotSequence != _request.DynamicTask.Context.SnapshotSequence)
+                    {
+                        success = false;
+                        protocolMismatch = true;
+                        std::ostringstream detail;
+                        detail << "protocol mismatch (server replied version=" << ToUnderlying(candidate.Version)
+                               << " agent=" << candidate.Agent.Value << " id=" << candidate.RequestId
+                               << " snapshot=" << candidate.SnapshotSequence << ")";
+                        rejectReason = detail.str();
+                    }
+                    else
+                        parsed = std::move(candidate);
+                }
+
+                Complete(success, statusCode, ec, std::move(parsed), rejectReason, protocolMismatch);
+            }
+
+            // Guarded by _completed - see DecisionSession::Complete().
+            // rejectReason/protocolMismatch follow the exact same meaning
+            // as there. `parsed` is only set once success, well-formed
+            // parse, AND envelope match all held - see OnRead().
+            void Complete(bool success, uint32 statusCode, beast::error_code ec, std::optional<DynamicTaskResponse> parsed, std::string const& rejectReason, bool protocolMismatch)
+            {
+                if (_completed.exchange(true, std::memory_order_acq_rel))
+                    return;
+
+                beast::error_code ignored;
+                _stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
+                _inFlightCount->fetch_sub(1, std::memory_order_acq_rel);
+
+                uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - _startTime).count());
+
+                AgentId requestAgent = _request.DynamicTask.Context.Agent;
+
+                if (ec == beast::error::timeout)
+                    TC_LOG_WARN("ai.world", "AI dynamic-task request id={} agent={} timed out after {}ms",
+                        _request.RequestId, requestAgent.Value, _timeoutMs);
+                else if (ec)
+                    TC_LOG_WARN("ai.world", "AI dynamic-task request id={} agent={} failed: {}",
+                        _request.RequestId, requestAgent.Value, ec.message());
+                else if (!rejectReason.empty())
+                    TC_LOG_WARN("ai.world", "AI dynamic-task response id={} agent={} {} status={} latency={}ms",
+                        _request.RequestId, requestAgent.Value, rejectReason, statusCode, latencyMs);
+                else if (!success)
+                    TC_LOG_WARN("ai.world", "AI dynamic-task request id={} agent={} completed with non-2xx status={} latency={}ms",
+                        _request.RequestId, requestAgent.Value, statusCode, latencyMs);
+                else
+                    TC_LOG_INFO("ai.world", "AI dynamic-task response id={} agent={} snapshot={} latency={}ms",
+                        _request.RequestId, requestAgent.Value, _request.DynamicTask.Context.SnapshotSequence, latencyMs);
+
+                (void)protocolMismatch; // reserved for a future metrics pass, same as DecisionSession's own tag
+
+                AIResponse* response = new AIResponse();
+                response->RequestId = _request.RequestId;
+                response->Type = AIRequestType::DynamicTask;
+                response->Agent = requestAgent;
+                response->SnapshotSequence = _request.DynamicTask.Context.SnapshotSequence;
+
+                // Always the request's own echo, regardless of outcome -
+                // see AIResponse.h.
+                response->QuestProvenance = _request.QuestProvenance;
+
+                response->Success = success;
+                response->StatusCode = statusCode;
+                response->LatencyMs = latencyMs;
+                response->DynamicTask = std::move(parsed);
+
+                _responseQueue->Enqueue(response);
+            }
+
+            tcp::resolver _resolver;
+            beast::tcp_stream _stream;
+            net::steady_timer _resolveTimer;
+            beast::flat_buffer _buffer;
+            http::request<http::string_body> _httpRequest;
+            http::response_parser<http::string_body> _parser;
+
+            std::string _host;
+            std::string _port;
+            uint32 _timeoutMs;
+            AIRequest _request;
+            MPSCQueue<AIResponse>* _responseQueue;
+            std::atomic<uint32>* _inFlightCount;
+            std::chrono::steady_clock::time_point _startTime;
+            std::atomic<bool> _completed { false };
+    };
 }
 
 struct AIClient::Impl
 {
-    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight)
+    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight)
         : IoContextRef(ioContext), Host(std::move(host)), Port(std::move(port)), RequestTimeoutMs(requestTimeoutMs),
-          MaxDecisionsInFlight(maxDecisionsInFlight)
+          MaxDecisionsInFlight(maxDecisionsInFlight), MaxDynamicTasksInFlight(maxDynamicTasksInFlight)
     {
     }
 
@@ -755,6 +971,7 @@ struct AIClient::Impl
     std::string Port;
     uint32 RequestTimeoutMs;
     uint32 MaxDecisionsInFlight;
+    uint32 MaxDynamicTasksInFlight;
     std::atomic<uint64> NextRequestId { 1 };
     MPSCQueue<AIResponse> ResponseQueue;
 
@@ -772,10 +989,18 @@ struct AIClient::Impl
     // there is room (see its own compare-and-increment loop); every
     // DecisionSession decrements exactly once, in Complete().
     std::atomic<uint32> DecisionsInFlight { 0 };
+
+    // Milestone 2.13A3: the same bounded-counter pattern as
+    // DecisionsInFlight, entirely separate from it - a burst of /decision
+    // traffic can never starve dynamic-task admission, or vice versa.
+    // Defaults to MaxDynamicTasksInFlight == 0 (see AIClient.h), so until
+    // a caller explicitly configures a nonzero value, SubmitDynamicTask()
+    // always reports "no slot available".
+    std::atomic<uint32> DynamicTasksInFlight { 0 };
 };
 
-AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight)
-    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs, maxDecisionsInFlight))
+AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight)
+    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs, maxDecisionsInFlight, maxDynamicTasksInFlight))
 {
 }
 
@@ -894,6 +1119,56 @@ std::vector<DecisionSubmitResult> AIClient::SubmitDecisions(std::vector<AIReques
         requests.size(), submitted, skipped);
 
     return results;
+}
+
+uint64 AIClient::SubmitDynamicTask(AIRequest request)
+{
+    // Milestone 2.13A3: same bounded compare-and-increment admission as
+    // SubmitDecision(), against its own separate DynamicTasksInFlight
+    // counter - see AIClient.h/Impl for why these two budgets are never
+    // allowed to share a slot pool.
+    uint32 current = _impl->DynamicTasksInFlight.load(std::memory_order_acquire);
+    for (;;)
+    {
+        if (current >= _impl->MaxDynamicTasksInFlight)
+        {
+            TC_LOG_DEBUG("ai.world", "AI dynamic-task skipped: {} dynamic-task(s) already in flight (max={})",
+                current, _impl->MaxDynamicTasksInFlight);
+            return 0;
+        }
+
+        if (_impl->DynamicTasksInFlight.compare_exchange_weak(current, current + 1, std::memory_order_acq_rel, std::memory_order_acquire))
+            break;
+    }
+
+    uint64 requestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
+    request.RequestId = requestId;
+    request.Type = AIRequestType::DynamicTask;
+    request.DynamicTask.RequestId = requestId;
+    request.DynamicTask.Version = CurrentDynamicTaskProtocolVersion;
+    request.SubmittedAt = std::chrono::steady_clock::now();
+
+    // Milestone 2.13A3: keep QuestProvenance's own Agent/SnapshotSequence
+    // in lockstep with what actually goes out on the wire in
+    // DynamicTask.Context - callers fill in both from the same snapshot,
+    // but stamping it here too means a caller mistake there can never
+    // desynchronize the two (see AIRequest.h).
+    request.QuestProvenance.Agent = request.DynamicTask.Context.Agent;
+    request.QuestProvenance.SnapshotSequence = request.DynamicTask.Context.SnapshotSequence;
+
+    net::io_context& rawIoContext = _impl->IoContextRef;
+    std::string const& host = _impl->Host;
+    std::string const& port = _impl->Port;
+    uint32 timeoutMs = _impl->RequestTimeoutMs;
+    MPSCQueue<AIResponse>* responseQueue = &_impl->ResponseQueue;
+    std::atomic<uint32>* inFlightCount = &_impl->DynamicTasksInFlight;
+
+    net::post(rawIoContext, [&rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightCount]()
+    {
+        std::make_shared<DynamicTaskSession>(rawIoContext, host, port, timeoutMs, request, responseQueue, inFlightCount)->Run();
+    });
+
+    return requestId;
 }
 
 bool AIClient::TryPopResponse(AIResponse& response)

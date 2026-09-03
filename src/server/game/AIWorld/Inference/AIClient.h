@@ -48,7 +48,16 @@ class TC_GAME_API AIClient
         // AIWorldMgr's DecisionScheduler is designed around (see
         // AIWorld.DecisionMaxInFlight). Health checks are unaffected -
         // SubmitHealthCheck() keeps its own separate single-in-flight guard.
-        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight);
+        //
+        // Milestone 2.13A3: maxDynamicTasksInFlight is the same kind of
+        // bound for SubmitDynamicTask(), tracked by its own separate
+        // counter - a burst of /decision traffic must never exhaust the
+        // dynamic-task slot budget, or vice versa. Defaults to 0 (no
+        // dynamic-task request is ever admitted) so every existing caller
+        // that only knows about /decision keeps compiling and behaving
+        // exactly as before; AIWorldMgr passes a real configured value
+        // once it actually starts calling SubmitDynamicTask() (2.13A3B).
+        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight = 0);
         ~AIClient();
 
         AIClient(AIClient const&) = delete;
@@ -90,6 +99,23 @@ class TC_GAME_API AIClient
         // its own: SubmitDecision() already logs ai.world.decision.submit
         // once per request, and this must never double-count it.
         std::vector<DecisionSubmitResult> SubmitDecisions(std::vector<AIRequest> requests);
+
+        // Milestone 2.13A3: builds and POSTs a versioned /dynamic-task
+        // request (see DynamicTaskRequest/QuestContext) from the given
+        // AIRequest::DynamicTask.Context and QuestProvenance. RequestId,
+        // Type, DynamicTask.RequestId, and DynamicTask.Version are all
+        // stamped internally (any value the caller set is overwritten);
+        // SubmitDynamicTask() additionally copies
+        // DynamicTask.Context.Agent/SnapshotSequence onto
+        // QuestProvenance.Agent/SnapshotSequence so both always agree with
+        // what was actually sent on the wire. Same non-blocking,
+        // fire-and-forget contract as SubmitDecision(); returns 0 -
+        // "skipped, no slot available" - if maxDynamicTasksInFlight
+        // requests are already in flight. This bound is tracked
+        // completely separately from maxDecisionsInFlight - a burst of
+        // /decision traffic can never starve dynamic-task admission, or
+        // vice versa.
+        uint64 SubmitDynamicTask(AIRequest request);
 
         // Non-blocking pop of one completed response. Returns false if none
         // is queued yet.

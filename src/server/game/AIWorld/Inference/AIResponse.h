@@ -23,6 +23,8 @@
 #include "DecisionProvenance.h"
 #include "DecisionResponse.h"
 #include "Define.h"
+#include "DynamicTaskResponse.h"
+#include "QuestRequestProvenance.h"
 #include <optional>
 
 // Delivered back to the world thread through AIClient::TryPopResponse().
@@ -49,6 +51,20 @@ struct AIResponse
     uint32 LatencyMs = 0;
 
     std::optional<DecisionResponse> Decision;
+
+    // Milestone 2.13A3: the /dynamic-task counterpart to Provenance/
+    // Decision above - only meaningful for Type == DynamicTask.
+    // QuestProvenance is always the request's own echo (AIRequest::
+    // QuestProvenance, copied through unconditionally, exactly like
+    // Provenance above), so a caller can still see what request/target
+    // bindings this response was supposed to answer even when
+    // Success==false. DynamicTask itself is only populated once the HTTP
+    // call succeeded, the body parsed, and the response envelope
+    // (protocol_version/request_id/agent_id/snapshot_sequence) matched
+    // what was actually sent - any mismatch there means Success=false and
+    // DynamicTask stays empty, never a "best effort" partial fill.
+    QuestRequestProvenance QuestProvenance;
+    std::optional<DynamicTaskResponse> DynamicTask;
 };
 
 #endif // AIWORLD_AIRESPONSE_H
