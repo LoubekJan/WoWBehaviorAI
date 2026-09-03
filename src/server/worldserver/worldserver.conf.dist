@@ -4738,6 +4738,124 @@ AIWorld.RoutineWorkEndMs = 800000
 AIWorld.WorkMoneyReward = 1
 
 #
+#    AIWorld.DynamicTaskEnable
+#        Description: Milestone 2.13A3B - master switch for the /dynamic-task pipeline
+#                     (BuildDynamicTaskRequest()/TrySubmitDynamicTask()/HandleDynamicTaskResponse()).
+#                     When false, no QuestContext is ever built, no request is ever submitted, and
+#                     AIClient itself is constructed with zero dynamic-task slots regardless of
+#                     AIWorld.DynamicTaskMaxInFlight - two independent default-off gates. Accepted
+#                     responses only ever produce an inert, logged DynamicTaskCandidate - no
+#                     ActionRequest, Player/Quest/DB touch, reward, or world mutation of any kind.
+#        Default:     0 - (Disabled)
+
+AIWorld.DynamicTaskEnable = 0
+
+#
+#    AIWorld.DynamicTaskMaxInFlight
+#        Description: Hard cap on how many /dynamic-task requests may be simultaneously in flight
+#                     across every AIWorld agent - TrySubmitDynamicTask() admits against this bound
+#                     (its own _pendingDynamicTasks map, at most one request per agent), and AIClient
+#                     enforces an independent copy of the same bound too.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     2
+
+AIWorld.DynamicTaskMaxInFlight = 2
+
+#
+#    AIWorld.DynamicTaskResponseMaxAgeMs
+#        Description: Milestone 2.13A3B - a /dynamic-task response arriving more than this long
+#                     after its request was submitted is discarded (STALE_REQUEST) even if every
+#                     other acceptance check would otherwise pass.
+#        Default:     10000 (10 seconds)
+
+AIWorld.DynamicTaskResponseMaxAgeMs = 10000
+
+#
+#    AIWorld.DynamicTaskSourceMaxAgeMs
+#        Description: Milestone 2.13A3B - how old the source WorldEvent short-term memory a
+#                     dynamic-task request is built from may be, both at build time
+#                     (BuildDynamicTaskRequest()) and re-checked against current active memory when
+#                     the response arrives (STALE_SOURCE_EVENT).
+#        Default:     30000 (30 seconds)
+
+AIWorld.DynamicTaskSourceMaxAgeMs = 30000
+
+#
+#    AIWorld.DynamicTaskMaxRequiredCount
+#        Description: Milestone 2.13A3B - the server-owned policy window's upper bound on
+#                     QuestProposalDraft::RequiredCount, stamped onto every QuestContext::Limits this
+#                     server builds and re-checked (defense in depth, never authoritative) against
+#                     the model's response. 2.13B independently re-validates against current server
+#                     policy.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     5
+
+AIWorld.DynamicTaskMaxRequiredCount = 5
+
+#
+#    AIWorld.DynamicTaskMaxRangeYards
+#        Description: Milestone 2.13A3B - the server-owned policy window's upper bound on
+#                     QuestProposalDraft::MaxRangeYards - see AIWorld.DynamicTaskMaxRequiredCount's
+#                     own comment for the same "defense in depth, not authoritative" caveat.
+#        Important:   Clamped to a minimum of 1.0.
+#        Default:     60.0
+
+AIWorld.DynamicTaskMaxRangeYards = 60.0
+
+#
+#    AIWorld.DynamicTaskMaxExpiryMs
+#        Description: Milestone 2.13A3B - the server-owned policy window's upper bound on
+#                     QuestProposalDraft::ExpiryMs - see AIWorld.DynamicTaskMaxRequiredCount's own
+#                     comment for the same "defense in depth, not authoritative" caveat.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     300000 (5 minutes)
+
+AIWorld.DynamicTaskMaxExpiryMs = 300000
+
+#
+#    AIWorld.DynamicTaskMaxRewardMoneyCopper
+#        Description: Milestone 2.13A3B - the server-owned policy window's upper bound on
+#                     QuestProposalDraft::RewardMoneyCopper. Defaulted to 0 - A3B never grants a
+#                     reward for anything, so there is no legitimate nonzero value to allow yet.
+#        Important:   Clamped to a minimum of 0.
+#        Default:     0
+
+AIWorld.DynamicTaskMaxRewardMoneyCopper = 0
+
+#
+#    AIWorld.AIResponseDrainMaxPerTick
+#        Description: Milestone 2.13A3B - bounds how many AIClient responses (of any
+#                     AIRequestType - Health/Decision/DynamicTask alike) a single Update() call
+#                     drains from AIClient's own shared response queue. Anything beyond this simply
+#                     stays queued for the next tick rather than being lost, so a burst of
+#                     completions can never make one single tick do unbounded work.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     64
+
+AIWorld.AIResponseDrainMaxPerTick = 64
+
+#
+#    AIWorld.TestDynamicTaskAgentId
+#        Description: Milestone 2.13A3B - a runtime proof that the real, production
+#                     WorldEvent -> Observation -> ShortTermMemory -> BuildDynamicTaskRequest() ->
+#                     AIClient::SubmitDynamicTask() -> /dynamic-task -> HandleDynamicTaskResponse()
+#                     chain produces an inert DynamicTaskCandidate end to end. Once the configured
+#                     agent is live/materialized and has at least one real, fresh WorldEvent
+#                     short-term memory, calls the real production TrySubmitDynamicTask() with that
+#                     real memory - never a synthetic QuestContext, never its own JSON/HTTP/fake-
+#                     response logic. Fires (stops retrying) only once TrySubmitDynamicTask() itself
+#                     actually returns true.
+#        Important:   Must name an existing AgentId; a negative value is rejected (logged, disabled)
+#                     rather than silently reinterpreted. Also disables itself if the configured
+#                     AgentId does not resolve to a registered agent right after startup load.
+#                     Requires AIWorld.DynamicTaskEnable = 1 (and, for a full end-to-end proof, a
+#                     real local model behind ai-server's own AI_TASK_MODEL_ENABLED=1). Set back to 0
+#                     after the one run it was needed for.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestDynamicTaskAgentId = 0
+
+#
 ###################################################################################################
 
 ###################################################################################################

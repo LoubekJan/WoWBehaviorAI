@@ -52,6 +52,8 @@
 #include "Goal/RoutineActivitySystem.h"
 #include "Goal/RoutineSystem.h"
 #include "Inference/AIClient.h"
+#include "Inference/DynamicTaskAcceptance.h"
+#include "Inference/DynamicTaskCandidate.h"
 #include "Memory/LongTermMemory.h"
 #include "Memory/MemoryRetrieval.h"
 #include "Memory/ShortTermMemory.h"
@@ -167,6 +169,73 @@ class TC_GAME_API AIWorldMgr
         std::vector<DecisionSubmitResult> SubmitDecisionContexts(std::vector<AIRequest> requests);
         void RunDecisionScheduler();
         bool UpdateSimulationTier(AgentId id, SimulationTier tier);
+
+        // Milestone 2.13A3B: builds a /dynamic-task request from real,
+        // already-observed state only - never a synthetic/test-authored
+        // QuestContext. sourceMemory must be a real, still-fresh
+        // WorldEvent short-term memory owned by this exact agent (see the
+        // .cpp for the full eligibility checks); record/creature must be
+        // a live, AIWorldControlled, alive incarnation. Returns nullopt on
+        // any ineligibility - never a partially-built request. Candidate
+        // targets come only from this agent's own active CreatureSeen
+        // memories, each live-re-resolved and re-validated (never a fresh
+        // spatial scan, never a stored pointer) before it can become a
+        // model-visible QuestTargetCandidate/QuestTargetBinding pair -
+        // see QuestContext.h/QuestRequestProvenance.h for why the model
+        // only ever sees the opaque token, never the ObjectGuid.
+        std::optional<AIRequest> BuildDynamicTaskRequest(AgentRecord& record, Creature& creature, MemoryRecord const& sourceMemory, uint64 nowMs);
+
+        // Milestone 2.13A3B: the one production entry point for actually
+        // submitting a dynamic-task request. Fails closed (returns false,
+        // submits nothing) if the feature is disabled, this agent already
+        // has a pending request (at most one in flight per agent - the
+        // map itself is the duplicate guard), the global
+        // AIWorld.DynamicTaskMaxInFlight cap is already reached (AIClient
+        // enforces its own independent copy of this bound too - defense
+        // in depth), or BuildDynamicTaskRequest() itself returns nullopt.
+        // Records the pending request (context/provenance actually sent,
+        // never re-derived later) only once AIClient::SubmitDynamicTask()
+        // has returned a nonzero request id.
+        bool TrySubmitDynamicTask(AgentRecord& record, Creature& creature, MemoryRecord const& sourceMemory);
+
+        // Milestone 2.13A3B: the terminal handler for every
+        // AIRequestType::DynamicTask response TryPopResponse() delivers -
+        // see Update()'s own response-drain loop. Looks up the pending
+        // request for response.Agent; a response naming a different
+        // RequestId than that pending entry is a stale/foreign response
+        // and is discarded WITHOUT touching the current pending entry
+        // (see DynamicTaskResponseMatchesPending()'s own comment for why
+        // this must gate erasure, not just be checked after it) - only a
+        // matching RequestId ever consumes/erases the pending entry.
+        // Every acceptance check afterward runs against that erased
+        // pending's own Context/Provenance, never against anything the
+        // response itself claims about Agent/SnapshotSequence (AIClient
+        // already proved those match at the envelope level, but world-
+        // thread acceptance stands on its own captured pending request,
+        // exactly like /decision's ValidateDecisionIntent()). Produces at
+        // most one DynamicTaskCandidate, handed to
+        // OnDynamicTaskCandidateAccepted() - never anything else.
+        void HandleDynamicTaskResponse(AIResponse const& response);
+
+        // Milestone 2.13A3B: the ONLY thing that happens once a
+        // DynamicTaskCandidate is fully accepted - logs it. No
+        // ActionRequest, no ActionSystem::Validate()/ActionExecutor call,
+        // no Player/Quest/DB touch, no reward, no world mutation of any
+        // kind. This seam is deliberately this narrow so a future 2.13B
+        // authoritative validator can be added here without this
+        // milestone's own acceptance path needing to change at all.
+        void OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate);
+
+        // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
+        // disabled) - once the configured agent is live/materialized and
+        // has at least one real, fresh WorldEvent short-term memory, calls
+        // the real production TrySubmitDynamicTask() with that real
+        // memory - never a synthetic QuestContext, never its own
+        // JSON/HTTP/fake-response logic. Fires (sets
+        // _testDynamicTaskFired) only once TrySubmitDynamicTask() itself
+        // actually returns true; otherwise tries again next tick, exactly
+        // like every other one-shot AIWorld.Test* hook in this file.
+        void TryRunDynamicTaskRuntimeProbe();
 
         // Milestone 2.12E2/2.12E3B P2 fix (STATIC review): the raw,
         // policy-UNGATED dissolve path - thin wrapper around
@@ -2982,6 +3051,68 @@ class TC_GAME_API AIWorldMgr
         // depth: even a scheduler bug can't get more than this many
         // concurrent /decision requests out of AIClient).
         uint32 _decisionMaxInFlight = 4;
+
+        // Milestone 2.13A3B: AIWorld.DynamicTaskEnable (default false).
+        // When false, BuildDynamicTaskRequest()/TrySubmitDynamicTask() are
+        // never even reached from a real caller - see
+        // TrySubmitDynamicTask()'s own fail-closed check - AND AIClient
+        // itself is constructed with zero dynamic-task slots (see
+        // Initialize()), so even a hypothetical direct
+        // AIClient::SubmitDynamicTask() call from anywhere else could
+        // never actually get a request out. Two independent default-off
+        // gates, the same defense-in-depth AIWorld.DynamicTaskMaxInFlight
+        // already gets against AIClient's own separate counter.
+        bool _dynamicTaskEnabled = false;
+
+        // AIWorld.DynamicTaskMaxInFlight - the hard cap TrySubmitDynamicTask()
+        // admits _pendingDynamicTasks against; AIClient enforces its own
+        // independent copy of this same bound too (defense in depth,
+        // exactly like _decisionMaxInFlight above).
+        uint32 _dynamicTaskMaxInFlight = 2;
+
+        // AIWorld.DynamicTaskResponseMaxAgeMs / AIWorld.DynamicTaskSourceMaxAgeMs -
+        // see CheckDynamicTaskResponseAcceptance()/BuildDynamicTaskRequest()'s
+        // own comments for exactly what each bounds.
+        uint64 _dynamicTaskResponseMaxAgeMs = 10000;
+        uint64 _dynamicTaskSourceMaxAgeMs = 30000;
+
+        // AIWorld.DynamicTaskMaxRequiredCount/MaxRangeYards/MaxExpiryMs/
+        // MaxRewardMoneyCopper - the server-owned policy window
+        // BuildDynamicTaskRequest() stamps onto every QuestContext::Limits
+        // it builds, and CheckDynamicTaskResponseAcceptance() re-checks a
+        // draft against afterward. Defense in depth only, never
+        // authoritative - see QuestProposalLimits' own comment; 2.13B
+        // re-validates independently against current server policy.
+        uint32 _dynamicTaskMaxRequiredCount = 5;
+        float _dynamicTaskMaxRangeYards = 60.0f;
+        uint32 _dynamicTaskMaxExpiryMs = 300000;
+        uint32 _dynamicTaskMaxRewardMoneyCopper = 0;
+
+        // AIWorld.AIResponseDrainMaxPerTick - bounds how many AIClient
+        // responses (of any AIRequestType) Update() drains from the
+        // shared MPSCQueue in one tick; anything beyond it simply stays
+        // queued for the next tick rather than being lost.
+        uint32 _aiResponseDrainMaxPerTick = 64;
+
+        // Milestone 2.13A3B: one outstanding /dynamic-task request per
+        // agent, keyed by AgentId::Value - this map IS the duplicate-
+        // submission guard (TrySubmitDynamicTask() checks contains()
+        // before ever calling AIClient::SubmitDynamicTask()) as well as
+        // where HandleDynamicTaskResponse() looks up what a response is
+        // actually supposed to answer. An entry is only ever erased once
+        // its own RequestId is confirmed to match an incoming response
+        // (DynamicTaskResponseMatchesPending()) - a stale/foreign
+        // response for the same agent must never erase a newer pending
+        // entry it does not actually answer.
+        std::unordered_map<uint64, PendingDynamicTaskRequest> _pendingDynamicTasks;
+
+        // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
+        // disabled) - same fail-closed parsing/existence-check shape as
+        // AIWorld.TestObserveActiveHuntAgentId above, reloaded fresh
+        // every Initialize(). See TryRunDynamicTaskRuntimeProbe()'s own
+        // comment for exactly what this hook does (and does not do).
+        AgentId _testDynamicTaskAgentId;
+        bool _testDynamicTaskFired = false;
 
         // Owned for the process lifetime, deliberately not reset in
         // Shutdown(): by the time Shutdown() runs, the io_context it was

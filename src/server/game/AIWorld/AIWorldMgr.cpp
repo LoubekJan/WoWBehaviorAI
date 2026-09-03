@@ -1204,7 +1204,81 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _workMoneyReward = uint32(workMoneyReward);
 
-    _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight);
+    // Milestone 2.13A3B: default-off - see _dynamicTaskEnabled's own
+    // declaration comment for the two independent gates this feeds.
+    _dynamicTaskEnabled = sConfigMgr->GetBoolDefault("AIWorld.DynamicTaskEnable", false);
+
+    int32 dynamicTaskMaxInFlight = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskMaxInFlight", 2);
+    if (dynamicTaskMaxInFlight < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskMaxInFlight ({}) is invalid or too low, clamping to 1", dynamicTaskMaxInFlight);
+        dynamicTaskMaxInFlight = 1;
+    }
+    _dynamicTaskMaxInFlight = uint32(dynamicTaskMaxInFlight);
+
+    int32 dynamicTaskResponseMaxAgeMs = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskResponseMaxAgeMs", 10000);
+    if (dynamicTaskResponseMaxAgeMs < 0)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskResponseMaxAgeMs ({}) is negative, clamping to 0", dynamicTaskResponseMaxAgeMs);
+        dynamicTaskResponseMaxAgeMs = 0;
+    }
+    _dynamicTaskResponseMaxAgeMs = uint64(dynamicTaskResponseMaxAgeMs);
+
+    int32 dynamicTaskSourceMaxAgeMs = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskSourceMaxAgeMs", 30000);
+    if (dynamicTaskSourceMaxAgeMs < 0)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskSourceMaxAgeMs ({}) is negative, clamping to 0", dynamicTaskSourceMaxAgeMs);
+        dynamicTaskSourceMaxAgeMs = 0;
+    }
+    _dynamicTaskSourceMaxAgeMs = uint64(dynamicTaskSourceMaxAgeMs);
+
+    int32 dynamicTaskMaxRequiredCount = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskMaxRequiredCount", 5);
+    if (dynamicTaskMaxRequiredCount < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskMaxRequiredCount ({}) is invalid or too low, clamping to 1", dynamicTaskMaxRequiredCount);
+        dynamicTaskMaxRequiredCount = 1;
+    }
+    _dynamicTaskMaxRequiredCount = uint32(dynamicTaskMaxRequiredCount);
+
+    float dynamicTaskMaxRangeYards = sConfigMgr->GetFloatDefault("AIWorld.DynamicTaskMaxRangeYards", 60.0f);
+    if (!(dynamicTaskMaxRangeYards > 0.0f))
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskMaxRangeYards ({}) is invalid, clamping to 1.0", dynamicTaskMaxRangeYards);
+        dynamicTaskMaxRangeYards = 1.0f;
+    }
+    _dynamicTaskMaxRangeYards = dynamicTaskMaxRangeYards;
+
+    int32 dynamicTaskMaxExpiryMs = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskMaxExpiryMs", 300000);
+    if (dynamicTaskMaxExpiryMs < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskMaxExpiryMs ({}) is invalid or too low, clamping to 1", dynamicTaskMaxExpiryMs);
+        dynamicTaskMaxExpiryMs = 1;
+    }
+    _dynamicTaskMaxExpiryMs = uint32(dynamicTaskMaxExpiryMs);
+
+    int32 dynamicTaskMaxRewardMoneyCopper = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskMaxRewardMoneyCopper", 0);
+    if (dynamicTaskMaxRewardMoneyCopper < 0)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskMaxRewardMoneyCopper ({}) is negative, clamping to 0", dynamicTaskMaxRewardMoneyCopper);
+        dynamicTaskMaxRewardMoneyCopper = 0;
+    }
+    _dynamicTaskMaxRewardMoneyCopper = uint32(dynamicTaskMaxRewardMoneyCopper);
+
+    int32 aiResponseDrainMaxPerTick = sConfigMgr->GetIntDefault("AIWorld.AIResponseDrainMaxPerTick", 64);
+    if (aiResponseDrainMaxPerTick < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.AIResponseDrainMaxPerTick ({}) is invalid or too low, clamping to 1", aiResponseDrainMaxPerTick);
+        aiResponseDrainMaxPerTick = 1;
+    }
+    _aiResponseDrainMaxPerTick = uint32(aiResponseDrainMaxPerTick);
+
+    // Milestone 2.13A3B: AIClient is handed zero dynamic-task slots
+    // whenever the feature is disabled, regardless of what
+    // AIWorld.DynamicTaskMaxInFlight itself says - see
+    // _dynamicTaskEnabled's own declaration comment.
+    uint32 dynamicTaskSlots = _dynamicTaskEnabled ? _dynamicTaskMaxInFlight : 0;
+
+    _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight, dynamicTaskSlots);
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
 
@@ -1588,6 +1662,37 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         {
             TC_LOG_INFO("ai.world", "AI test observe-active-hunt: watching agent={} for a fully-owned in-flight HUNT approach (AIWorld.TestObserveActiveHuntAgentId)",
                 _testObserveActiveHuntAgentId.Value);
+        }
+    }
+
+    // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (default 0 =
+    // disabled) - same fail-closed parsing/existence-check shape as
+    // AIWorld.TestObserveActiveHuntAgentId above. See
+    // TryRunDynamicTaskRuntimeProbe()'s own comment for what this hook
+    // does: it only selects a real agent/real memory and calls the real
+    // production TrySubmitDynamicTask() path, never a synthetic context.
+    int32 testDynamicTaskAgentIdRaw = sConfigMgr->GetIntDefault("AIWorld.TestDynamicTaskAgentId", 0);
+    if (testDynamicTaskAgentIdRaw < 0)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestDynamicTaskAgentId ({}) is negative, which cannot name a real AgentId, disabling this test hook",
+            testDynamicTaskAgentIdRaw);
+        testDynamicTaskAgentIdRaw = 0;
+    }
+    _testDynamicTaskAgentId = AgentId{ uint64(testDynamicTaskAgentIdRaw) };
+    _testDynamicTaskFired = false;
+
+    if (_testDynamicTaskAgentId)
+    {
+        if (!_registry.Find(_testDynamicTaskAgentId))
+        {
+            TC_LOG_ERROR("ai.world", "AIWorld.TestDynamicTaskAgentId={} does not resolve to a registered agent, disabling this test hook",
+                _testDynamicTaskAgentId.Value);
+            _testDynamicTaskFired = true;
+        }
+        else
+        {
+            TC_LOG_INFO("ai.world", "AI test dynamic-task: watching agent={} to submit one real /dynamic-task request from real WorldEvent memory (AIWorld.TestDynamicTaskAgentId)",
+                _testDynamicTaskAgentId.Value);
         }
     }
 
@@ -8027,13 +8132,38 @@ void AIWorldMgr::Update(uint32 diff)
         _aiClient->SubmitHealthCheck();
     }
 
+    // Milestone 2.13A3B: costs nothing once disabled or fired, the same
+    // "no cost unless enabled" contract every other AIWorld.Test* hook in
+    // this file already gives - see TryRunDynamicTaskRuntimeProbe()'s own
+    // comment. Not tied to any particular pass's cadence (unlike the
+    // coordination-pass-gated hooks above): the condition it waits for
+    // (a real, fresh WorldEvent memory on the configured agent) can
+    // become true at any tick, not only right after one specific system
+    // runs.
+    if (_testDynamicTaskAgentId && !_testDynamicTaskFired)
+        TryRunDynamicTaskRuntimeProbe();
+
     // World thread drains whatever AIClient's worker threads finished since
     // the last tick. AIClient already logged the raw outcome (submitted,
     // succeeded, failed, or timed out); what happens here is the world
-    // thread's own judgment of whether a decision is still usable.
+    // thread's own judgment of whether a decision (or, since 2.13A3B, a
+    // dynamic-task response) is still usable. Bounded by
+    // AIWorld.AIResponseDrainMaxPerTick so a burst of completions can
+    // never make one single Update() call do unbounded work - anything
+    // left over simply stays queued in AIClient's own MPSCQueue for the
+    // next tick, never a second queue of our own.
     AIResponse response;
-    while (_aiClient->TryPopResponse(response))
+    uint32 drainedResponses = 0;
+    while (drainedResponses < _aiResponseDrainMaxPerTick && _aiClient->TryPopResponse(response))
     {
+        ++drainedResponses;
+
+        if (response.Type == AIRequestType::DynamicTask)
+        {
+            HandleDynamicTaskResponse(response);
+            continue;
+        }
+
         if (response.Type != AIRequestType::Decision)
         {
             TC_LOG_DEBUG("ai.world", "AI response id={} consumed by world thread (status={}, latency={}ms)",
@@ -8812,6 +8942,441 @@ void AIWorldMgr::RunDecisionScheduler()
 
     TC_LOG_DEBUG("ai.world", "AI decision batch eligible={} admitted={} capacity_skipped={} in_flight={}",
         selection.Admitted.size() + selection.SkippedCapacity.size(), submitted, selection.SkippedCapacity.size(), inFlight + submitted);
+}
+
+// Milestone 2.13A3B: builds a /dynamic-task request from real,
+// already-observed state - see this method's own declaration comment in
+// AIWorldMgr.h for the overall contract. Every eligibility check below
+// fails closed (returns nullopt); none of them are "best effort".
+std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record, Creature& creature, MemoryRecord const& sourceMemory, uint64 nowMs)
+{
+    if (sourceMemory.Owner != record.Id)
+        return std::nullopt;
+    if (sourceMemory.Type != ObservationType::WorldEvent)
+        return std::nullopt;
+    if (sourceMemory.SourceEventId == 0)
+        return std::nullopt;
+    if (!sourceMemory.SourceEventType)
+        return std::nullopt;
+    if (sourceMemory.SourceOccurredAtMs == 0 || sourceMemory.SourceOccurredAtMs > nowMs)
+        return std::nullopt;
+    if (nowMs - sourceMemory.SourceOccurredAtMs > _dynamicTaskSourceMaxAgeMs)
+        return std::nullopt;
+
+    if (record.ControlMode != AgentControlMode::AIWorldControlled)
+        return std::nullopt;
+    if (!creature.IsAlive())
+        return std::nullopt;
+
+    uint64 problemAgeMs = nowMs - sourceMemory.SourceOccurredAtMs;
+    if (problemAgeMs > std::numeric_limits<uint32>::max())
+        return std::nullopt;
+
+    // Milestone 2.13A3B: fresh snapshot for this specific request, the
+    // same "any later capture makes an older response stale" guarantee
+    // CaptureAgentContext() already gives /decision - see
+    // CheckDynamicTaskResponseAcceptance()'s own strict-equality check.
+    uint64 snapshotSequence = ++record.SnapshotSequence;
+
+    QuestRequestProvenance provenance;
+    provenance.Agent = record.Id;
+    provenance.SnapshotSequence = snapshotSequence;
+    provenance.RuntimeGuid = creature.GetGUID();
+    provenance.SourceEventId = sourceMemory.SourceEventId;
+    provenance.SourceCorrelationId = sourceMemory.CorrelationId;
+    provenance.SourceEventType = *sourceMemory.SourceEventType;
+    provenance.SourceOccurredAtMs = sourceMemory.SourceOccurredAtMs;
+
+    if (record.ActiveGoalState)
+    {
+        provenance.Goal = record.ActiveGoalState->Type;
+        provenance.GoalStartedAtMs = record.ActiveGoalState->StartedAtMs;
+    }
+    else
+    {
+        provenance.Goal.reset();
+        provenance.GoalStartedAtMs = 0;
+    }
+
+    QuestProblemContext problem;
+    problem.Type = *sourceMemory.SourceEventType;
+    problem.ActorEntry = sourceMemory.Actor.Entry;
+    problem.TargetEntry = sourceMemory.Target.Entry;
+    problem.MapId = sourceMemory.Location.MapId;
+    problem.AgeMs = uint32(problemAgeMs);
+
+    // Relevant events: the same MemoryRetrieval path CaptureAgentContext()
+    // already uses for /decision, narrowed to event-backed records only
+    // and capped at QuestContractMaxRelevantEvents - no second
+    // memory-ranking system.
+    MemoryQueryContext memoryContext;
+    memoryContext.Agent = record.Id;
+    memoryContext.NowMs = nowMs;
+    memoryContext.MapId = creature.GetMapId();
+    memoryContext.X = creature.GetPositionX();
+    memoryContext.Y = creature.GetPositionY();
+    memoryContext.Z = creature.GetPositionZ();
+
+    std::vector<MemoryRecord> shortTermMemories = _shortTermMemory.GetActiveForAgent(record.Id, nowMs);
+    std::vector<LongTermMemoryRecord> longTermMemories = _longTermMemory.GetForAgent(record.Id);
+    std::vector<RetrievedMemory> relevantMemories = _memoryRetrieval.Retrieve(
+        memoryContext, shortTermMemories, longTermMemories, _memoryRetrievalTopN);
+
+    std::vector<QuestRelevantEvent> events;
+    for (RetrievedMemory const& memory : relevantMemories)
+    {
+        if (events.size() >= QuestContractMaxRelevantEvents)
+            break;
+        if (!memory.SourceEventType)
+            continue;
+        if (!std::isfinite(memory.Importance) || !std::isfinite(memory.Relevance))
+            continue;
+        if (memory.SourceOccurredAtMs == 0 || memory.SourceOccurredAtMs > nowMs)
+            continue;
+
+        uint64 eventAgeMs = nowMs - memory.SourceOccurredAtMs;
+        if (eventAgeMs > std::numeric_limits<uint32>::max())
+            continue;
+
+        QuestRelevantEvent event;
+        event.Type = *memory.SourceEventType;
+        event.ActorEntry = memory.Actor.Entry;
+        event.TargetEntry = memory.Target.Entry;
+        event.Importance = memory.Importance;
+        event.Relevance = memory.Relevance;
+        event.AgeMs = uint32(eventAgeMs);
+        events.push_back(event);
+    }
+
+    // Candidate targets: this agent's own active CreatureSeen memories,
+    // each live re-resolved and re-validated before it can become a
+    // model-visible token - never a fresh spatial scan, never a stored
+    // pointer past this loop. Tokens are server-generated, sequential,
+    // and meaningless outside this one request - see QuestContext.h.
+    std::vector<QuestTargetCandidate> candidateTargets;
+    std::vector<QuestTargetBinding> targetBindings;
+    uint32 nextToken = 1;
+
+    for (MemoryRecord const& memory : shortTermMemories)
+    {
+        if (candidateTargets.size() >= QuestContractMaxCandidateTargets)
+            break;
+        if (memory.Type != ObservationType::CreatureSeen)
+            continue;
+        if (memory.Target.Guid.IsEmpty())
+            continue;
+
+        Creature* target = ObjectAccessor::GetCreature(creature, memory.Target.Guid);
+        if (!target || !target->IsAlive())
+            continue;
+        if (target == &creature)
+            continue;
+        if (target->GetMapId() != creature.GetMapId())
+            continue;
+        if (target->GetEntry() != memory.Target.Entry)
+            continue;
+        if (!creature.IsValidAttackTarget(target))
+            continue;
+
+        float distance = creature.GetDistance(target);
+        if (!std::isfinite(distance))
+            continue;
+
+        // Milestone 2.13A3B: fail-closed rather than mid-UTF-8-truncate -
+        // a name over the cap simply never becomes a candidate this
+        // request, instead of a real (possibly multi-byte) creature name
+        // being cut at an arbitrary byte offset. A real UTF-8-safe
+        // truncator is future hardening, not required for this milestone.
+        std::string displayName = target->GetName();
+        if (displayName.size() > QuestContractMaxDisplayNameLength)
+            continue;
+
+        uint64 observationAgeMs = nowMs >= memory.LastObservedAtMs ? nowMs - memory.LastObservedAtMs : 0;
+        if (observationAgeMs > std::numeric_limits<uint32>::max())
+            continue;
+
+        QuestTargetCandidate candidate;
+        candidate.Token = nextToken;
+        candidate.Entry = target->GetEntry();
+        candidate.DisplayName = std::move(displayName);
+        candidate.MapId = target->GetMapId();
+        candidate.DistanceYards = distance;
+        candidate.ObservationAgeMs = uint32(observationAgeMs);
+        candidateTargets.push_back(std::move(candidate));
+
+        QuestTargetBinding binding;
+        binding.Token = nextToken;
+        binding.Guid = target->GetGUID();
+        binding.Entry = target->GetEntry();
+        binding.MapId = target->GetMapId();
+        targetBindings.push_back(binding);
+
+        ++nextToken;
+    }
+
+    QuestContext context;
+    context.Agent = record.Id;
+    context.SnapshotSequence = snapshotSequence;
+    context.Problem = problem;
+    context.RelevantEvents = std::move(events);
+    context.CandidateTargets = std::move(candidateTargets);
+    context.Limits.MaxRequiredCount = _dynamicTaskMaxRequiredCount;
+    context.Limits.MaxRangeYards = _dynamicTaskMaxRangeYards;
+    context.Limits.MaxExpiryMs = _dynamicTaskMaxExpiryMs;
+    context.Limits.MaxRewardMoneyCopper = _dynamicTaskMaxRewardMoneyCopper;
+
+    provenance.TargetBindings = std::move(targetBindings);
+
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_CONTEXT_BUILT agent={} snapshot={} sourceEvent={} candidateTargets={} relevantEvents={}",
+        record.Id.Value, snapshotSequence, sourceMemory.SourceEventId, context.CandidateTargets.size(), context.RelevantEvents.size());
+
+    AIRequest request;
+    request.DynamicTask.Context = std::move(context);
+    request.QuestProvenance = std::move(provenance);
+    return request;
+}
+
+// Milestone 2.13A3B: the one production entry point for actually
+// submitting a dynamic-task request - see this method's own declaration
+// comment in AIWorldMgr.h.
+bool AIWorldMgr::TrySubmitDynamicTask(AgentRecord& record, Creature& creature, MemoryRecord const& sourceMemory)
+{
+    if (!_dynamicTaskEnabled)
+        return false;
+
+    if (_pendingDynamicTasks.contains(record.Id.Value))
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_SKIPPED reason=DUPLICATE_PENDING agent={}", record.Id.Value);
+        return false;
+    }
+
+    if (_pendingDynamicTasks.size() >= _dynamicTaskMaxInFlight)
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_SKIPPED reason=IN_FLIGHT_LIMIT agent={}", record.Id.Value);
+        return false;
+    }
+
+    uint64 nowMs = CurrentTimeMs();
+
+    std::optional<AIRequest> request = BuildDynamicTaskRequest(record, creature, sourceMemory, nowMs);
+    if (!request)
+        return false;
+
+    PendingDynamicTaskRequest pending;
+    pending.SubmittedAtMs = nowMs;
+    pending.Context = request->DynamicTask.Context;
+    pending.Provenance = request->QuestProvenance;
+
+    uint64 requestId = _aiClient->SubmitDynamicTask(*request);
+    if (!requestId)
+        return false;
+
+    pending.RequestId = requestId;
+
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_SUBMITTED request={} agent={} snapshot={}",
+        requestId, record.Id.Value, pending.Context.SnapshotSequence);
+
+    _pendingDynamicTasks.emplace(record.Id.Value, std::move(pending));
+    return true;
+}
+
+// Milestone 2.13A3B: the terminal handler for every AIRequestType::
+// DynamicTask response - see this method's own declaration comment in
+// AIWorldMgr.h for the full contract.
+void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
+{
+    auto it = _pendingDynamicTasks.find(response.Agent.Value);
+    if (it == _pendingDynamicTasks.end())
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason=UNKNOWN_PENDING request={} agent={}",
+            response.RequestId, response.Agent.Value);
+        return;
+    }
+
+    // Critical ordering (see DynamicTaskResponseMatchesPending()'s own
+    // comment): a request-id mismatch means this is a stale/foreign
+    // response, discarded WITHOUT touching the current pending entry -
+    // only once the id actually matches does the pending entry get
+    // consumed/erased.
+    if (!DynamicTaskResponseMatchesPending(it->second.RequestId, response.RequestId))
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason=REQUEST_MISMATCH request={} agent={} pendingRequest={}",
+            response.RequestId, response.Agent.Value, it->second.RequestId);
+        return;
+    }
+
+    PendingDynamicTaskRequest pending = std::move(it->second);
+    _pendingDynamicTasks.erase(it);
+
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_RESPONSE_RECEIVED request={} agent={} success={}",
+        response.RequestId, response.Agent.Value, response.Success);
+
+    if (!response.Success)
+        return; // AIClient already logged the transport/parse/envelope failure
+
+    if (!response.DynamicTask)
+        return;
+
+    AgentRecord* record = _registry.Find(response.Agent);
+    if (!record || record->WorldState != AgentWorldState::Materialized || record->ControlMode != AgentControlMode::AIWorldControlled)
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason=AGENT_NOT_ELIGIBLE request={} agent={}",
+            response.RequestId, response.Agent.Value);
+        return;
+    }
+
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+    Creature* creature = ResolveLiveCreature(*record, map);
+    if (!creature)
+    {
+        if (record->WorldState == AgentWorldState::Materialized)
+            _registry.UnbindCreature(response.Agent);
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason=AGENT_NOT_ELIGIBLE request={} agent={}",
+            response.RequestId, response.Agent.Value);
+        return;
+    }
+
+    uint64 nowMs = CurrentTimeMs();
+
+    DynamicTaskAcceptanceState state;
+    state.CurrentSnapshotSequence = record->SnapshotSequence;
+    state.CurrentRuntimeGuid = creature->GetGUID();
+    if (record->ActiveGoalState)
+    {
+        state.CurrentGoal = record->ActiveGoalState->Type;
+        state.CurrentGoalStartedAtMs = record->ActiveGoalState->StartedAtMs;
+    }
+    state.NowMs = nowMs;
+    state.ResponseMaxAgeMs = _dynamicTaskResponseMaxAgeMs;
+
+    // Milestone 2.13A3B: the source event this request was built from
+    // must still be an active short-term memory - identity checked
+    // field-by-field against the pending request's own captured
+    // provenance, never re-derived from anything the response claims.
+    std::vector<MemoryRecord> currentMemories = _shortTermMemory.GetActiveForAgent(response.Agent, nowMs);
+    for (MemoryRecord const& memory : currentMemories)
+    {
+        if (memory.Owner != pending.Provenance.Agent)
+            continue;
+        if (memory.SourceEventId != pending.Provenance.SourceEventId)
+            continue;
+        if (memory.CorrelationId != pending.Provenance.SourceCorrelationId)
+            continue;
+        if (memory.SourceOccurredAtMs != pending.Provenance.SourceOccurredAtMs)
+            continue;
+        if (!memory.SourceEventType || *memory.SourceEventType != pending.Provenance.SourceEventType)
+            continue;
+
+        state.SourceEventStillActive = true;
+        break;
+    }
+
+    QuestProposalDraft const& draft = response.DynamicTask->Proposal;
+
+    DynamicTaskDiscardReason reason = CheckDynamicTaskResponseAcceptance(pending, draft, state);
+    if (reason != DynamicTaskDiscardReason::None)
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason={} request={} agent={}",
+            ToString(reason), response.RequestId, response.Agent.Value);
+        return;
+    }
+
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_PROVENANCE_MATCHED request={} agent={} snapshot={}",
+        response.RequestId, response.Agent.Value, pending.Context.SnapshotSequence);
+
+    // CheckDynamicTaskResponseAcceptance() above already proved a
+    // matching binding exists for draft.TargetToken - re-resolved here
+    // (rather than threaded through as an extra out-parameter) to keep
+    // that function's own signature free of anything beyond the plain
+    // pass/fail judgment it makes.
+    QuestTargetBinding const* binding = ResolveDynamicTaskTargetBinding(pending, draft);
+    if (!binding)
+        return;
+
+    Creature* target = ObjectAccessor::GetCreature(*creature, binding->Guid);
+    if (!target || !target->IsAlive() ||
+        target->GetEntry() != binding->Entry ||
+        target->GetMapId() != binding->MapId ||
+        target->GetMapId() != creature->GetMapId() ||
+        target == creature ||
+        !creature->IsValidAttackTarget(target))
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason=STALE_TARGET request={} agent={}",
+            response.RequestId, response.Agent.Value);
+        return;
+    }
+
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_TARGET_MATCHED request={} agent={} targetToken={} targetEntry={}",
+        response.RequestId, response.Agent.Value, draft.TargetToken, binding->Entry);
+
+    DynamicTaskCandidate candidate;
+    candidate.RequestId = response.RequestId;
+    candidate.AcceptedAtMs = nowMs;
+    candidate.RequestContext = std::move(pending.Context);
+    candidate.Provenance = std::move(pending.Provenance);
+    candidate.Draft = draft;
+
+    OnDynamicTaskCandidateAccepted(candidate);
+}
+
+// Milestone 2.13A3B: the ONLY thing that happens once a
+// DynamicTaskCandidate is fully accepted - see this method's own
+// declaration comment in AIWorldMgr.h. Deliberately inert: no
+// ActionRequest, no ActionSystem/ActionExecutor, no Player/Quest/DB, no
+// reward, no world mutation. Never logs the full title/description text,
+// a GUID list, or a provenance dump - see the roadmap's own logging
+// discipline for this milestone.
+void AIWorldMgr::OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate)
+{
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_CANDIDATE_ACCEPTED request={} agent={} snapshot={} objective={} targetToken={} inert=1",
+        candidate.RequestId, candidate.Provenance.Agent.Value, candidate.Provenance.SnapshotSequence,
+        ToString(candidate.Draft.Objective), candidate.Draft.TargetToken);
+}
+
+// Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId - see this method's
+// own declaration comment in AIWorldMgr.h. Selects a real agent and real
+// memory only; TrySubmitDynamicTask() itself is the one and only
+// production path this ever calls into.
+void AIWorldMgr::TryRunDynamicTaskRuntimeProbe()
+{
+    AgentRecord* record = _registry.Find(_testDynamicTaskAgentId);
+    if (!record)
+    {
+        TC_LOG_ERROR("ai.world", "AIWorld.TestDynamicTaskAgentId={} no longer resolves to a registered agent, disabling this test hook",
+            _testDynamicTaskAgentId.Value);
+        _testDynamicTaskFired = true;
+        return;
+    }
+
+    Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+    Creature* creature = ResolveLiveCreature(*record, map);
+    if (!creature)
+        return; // not currently materialized - try again next tick
+
+    uint64 nowMs = CurrentTimeMs();
+    std::vector<MemoryRecord> memories = _shortTermMemory.GetActiveForAgent(record->Id, nowMs);
+
+    MemoryRecord const* sourceMemory = nullptr;
+    for (MemoryRecord const& memory : memories)
+    {
+        if (memory.Type != ObservationType::WorldEvent)
+            continue;
+        if (memory.SourceEventId == 0 || !memory.SourceEventType)
+            continue;
+        if (memory.SourceOccurredAtMs == 0 || memory.SourceOccurredAtMs > nowMs)
+            continue;
+        if (nowMs - memory.SourceOccurredAtMs > _dynamicTaskSourceMaxAgeMs)
+            continue;
+
+        if (!sourceMemory || memory.SourceOccurredAtMs > sourceMemory->SourceOccurredAtMs)
+            sourceMemory = &memory;
+    }
+
+    if (!sourceMemory)
+        return; // no eligible WorldEvent memory yet - try again next tick
+
+    if (TrySubmitDynamicTask(*record, *creature, *sourceMemory))
+        _testDynamicTaskFired = true;
 }
 
 // Milestone 2.10C/2.10D P2 fix: records tier as this agent's current
