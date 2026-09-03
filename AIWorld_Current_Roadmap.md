@@ -1164,7 +1164,17 @@ NPC memory/goal/world-state feedback
 
 #### 2.13A1 — dynamic-task protocol / DTO contract
 
-**Stav: IN PROGRESS — implementation pending STATIC/BUILD gate.**
+**Stav: CLOSED — STATIC + BUILD + UNIT PASS (`4bd35df3c6`, `e168ea1814`).**
+
+```text
+BUILD=PASS
+UNIT=PASS (37/37)
+SMOKE=NOT APPLICABLE
+RUNTIME=NOT APPLICABLE
+ERROR_SCAN=PASS
+```
+
+`SMOKE`/`RUNTIME` are `NOT APPLICABLE`: A1 is a pure value-only DTO contract with no world-thread integration, no startup hook and no live agent/combat path to exercise — the same class of change the existing AIWorld smoke-test convention reserves runtime proof for, not a reason to skip the gate.
 
 Pure value-only kontrakt pro budoucí `/dynamic-task` boundary:
 
@@ -1173,9 +1183,10 @@ Pure value-only kontrakt pro budoucí `/dynamic-task` boundary:
 - request-local `QuestTargetCandidate::Token` místo model-visible engine identity;
 - interní `QuestRequestProvenance` drží actor runtime identity, source-event provenance a token → authoritative target binding, ale nikdy se neserializuje;
 - untrusted `QuestProposalDraft` je čistě deklarativní (`objective`, target token, count/range/expiry/reward, text), bez execution payloadu;
+- `QuestContractLimits` bounduje wire contract explicitně: pevné maximum pro `RelevantEvents`/`CandidateTargets`/text délky a request-scoped `QuestProposalLimits` (max count/range/expiry/reward), které `QuestContext` předává modelu; 2.13B tato pole i tak autoritativně znovu validuje;
 - žádný HTTP transport, local model, player-facing quest ani world mutation v A1.
 
-Další krok po STATIC + BUILD PASS je `2.13A2`: local-model provider za existujícím `ai-server` boundary a strict schema parsing pro tento kontrakt.
+Další krok je `2.13A2`: local-model provider za existujícím `ai-server` boundary a strict schema parsing pro tento kontrakt.
 
 ### 2.13B — `QuestProposal` validator
 
