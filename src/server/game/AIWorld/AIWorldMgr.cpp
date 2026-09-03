@@ -8992,30 +8992,84 @@ std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record
     std::vector<QuestTargetBinding> targetBindings;
     uint32 nextToken = 1;
 
+    // Milestone 2.13A3B review follow-up: diagnostic-only counters - never
+    // change candidate acceptance, only explain a zero-candidate rejection
+    // afterward (logged for the configured test agent only, see below).
+    struct DynamicTaskCandidateRejectStats
+    {
+        uint32 CreatureSeen = 0;
+        uint32 MissingGuid = 0;
+        uint32 Unresolved = 0;
+        uint32 Dead = 0;
+        uint32 Self = 0;
+        uint32 MapMismatch = 0;
+        uint32 EntryMismatch = 0;
+        uint32 NotAttackable = 0;
+        uint32 NonFiniteDistance = 0;
+        uint32 NameTooLong = 0;
+        uint32 ObservationAgeOverflow = 0;
+    };
+
+    DynamicTaskCandidateRejectStats rejectStats;
+
     for (MemoryRecord const& memory : shortTermMemories)
     {
         if (candidateTargets.size() >= QuestContractMaxCandidateTargets)
             break;
         if (memory.Type != ObservationType::CreatureSeen)
             continue;
+
+        ++rejectStats.CreatureSeen;
+
         if (memory.Target.Guid.IsEmpty())
+        {
+            ++rejectStats.MissingGuid;
             continue;
+        }
 
         Creature* target = ObjectAccessor::GetCreature(creature, memory.Target.Guid);
-        if (!target || !target->IsAlive())
+        if (!target)
+        {
+            ++rejectStats.Unresolved;
             continue;
+        }
+
+        if (!target->IsAlive())
+        {
+            ++rejectStats.Dead;
+            continue;
+        }
+
         if (target == &creature)
+        {
+            ++rejectStats.Self;
             continue;
+        }
+
         if (target->GetMapId() != creature.GetMapId())
+        {
+            ++rejectStats.MapMismatch;
             continue;
+        }
+
         if (target->GetEntry() != memory.Target.Entry)
+        {
+            ++rejectStats.EntryMismatch;
             continue;
+        }
+
         if (!creature.IsValidAttackTarget(target))
+        {
+            ++rejectStats.NotAttackable;
             continue;
+        }
 
         float distance = creature.GetDistance(target);
         if (!std::isfinite(distance))
+        {
+            ++rejectStats.NonFiniteDistance;
             continue;
+        }
 
         // Milestone 2.13A3B: fail-closed rather than mid-UTF-8-truncate -
         // a name over the cap simply never becomes a candidate this
@@ -9024,11 +9078,17 @@ std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record
         // truncator is future hardening, not required for this milestone.
         std::string displayName = target->GetName();
         if (displayName.size() > QuestContractMaxDisplayNameLength)
+        {
+            ++rejectStats.NameTooLong;
             continue;
+        }
 
         uint64 observationAgeMs = nowMs >= memory.LastObservedAtMs ? nowMs - memory.LastObservedAtMs : 0;
         if (observationAgeMs > std::numeric_limits<uint32>::max())
+        {
+            ++rejectStats.ObservationAgeOverflow;
             continue;
+        }
 
         QuestTargetCandidate candidate;
         candidate.Token = nextToken;
@@ -9047,6 +9107,34 @@ std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record
         targetBindings.push_back(binding);
 
         ++nextToken;
+    }
+
+    // Milestone 2.13A3B review follow-up: diagnostic only, gated to the
+    // one agent AIWorld.TestDynamicTaskAgentId names - DEBUG, not INFO,
+    // since TryRunDynamicTaskRuntimeProbe() retries every tick until a
+    // submission actually succeeds (see its own comment), so a persistent
+    // rejection would otherwise repeat this line once per tick forever.
+    if (candidateTargets.empty() && record.Id == _testDynamicTaskAgentId)
+    {
+        TC_LOG_DEBUG("ai.world",
+            "DYNAMIC_TASK_CONTEXT_REJECTED reason=NO_VALID_TARGETS "
+            "agent={} sourceEvent={} creatureSeen={} missingGuid={} "
+            "unresolved={} dead={} self={} mapMismatch={} entryMismatch={} "
+            "notAttackable={} nonFiniteDistance={} nameTooLong={} "
+            "observationAgeOverflow={}",
+            record.Id.Value,
+            sourceMemory.SourceEventId,
+            rejectStats.CreatureSeen,
+            rejectStats.MissingGuid,
+            rejectStats.Unresolved,
+            rejectStats.Dead,
+            rejectStats.Self,
+            rejectStats.MapMismatch,
+            rejectStats.EntryMismatch,
+            rejectStats.NotAttackable,
+            rejectStats.NonFiniteDistance,
+            rejectStats.NameTooLong,
+            rejectStats.ObservationAgeOverflow);
     }
 
     if (!CanSubmitDynamicTaskContext(candidateTargets.size()))
