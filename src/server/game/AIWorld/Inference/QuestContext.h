@@ -21,6 +21,7 @@
 #include "Agent/AgentId.h"
 #include "Define.h"
 #include "Event/WorldEventType.h"
+#include "QuestContractLimits.h"
 
 #include <string>
 #include <vector>
@@ -70,7 +71,8 @@ struct QuestTargetCandidate
     uint32 Entry = 0;
 
     // Server-resolved display text only. This is context, never an
-    // authoritative identifier.
+    // authoritative identifier. Truncated to QuestContractMaxDisplayNameLength
+    // before being placed on the wire.
     std::string DisplayName;
 
     uint32 MapId = 0;
@@ -85,8 +87,15 @@ struct QuestContext
 
     QuestProblemContext Problem;
 
+    // Bounded to at most QuestContractMaxRelevantEvents /
+    // QuestContractMaxCandidateTargets entries before being placed on the
+    // wire - never sent as an unbounded dump of world state.
     std::vector<QuestRelevantEvent> RelevantEvents;
     std::vector<QuestTargetCandidate> CandidateTargets;
+
+    // The server's policy window for whatever QuestProposalDraft the
+    // model returns for this request. See QuestContractLimits.h.
+    QuestProposalLimits Limits;
 };
 
 #endif // AIWORLD_QUESTCONTEXT_H

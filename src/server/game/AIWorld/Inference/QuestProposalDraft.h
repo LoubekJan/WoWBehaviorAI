@@ -19,6 +19,7 @@
 #define AIWORLD_QUESTPROPOSALDRAFT_H
 
 #include "Define.h"
+#include "QuestContractLimits.h"
 #include "QuestObjectiveType.h"
 
 #include <string>
@@ -40,18 +41,26 @@ struct QuestProposalDraft
     // Never a GUID, spawn id or database id.
     uint32 TargetToken = 0;
 
+    // Must not exceed the QuestProposalLimits::MaxRequiredCount the
+    // originating QuestContext handed the model. 2.13B re-checks this
+    // against server policy independently - it never trusts that the
+    // model actually respected the limit it was given.
     uint32 RequiredCount = 0;
 
-    // Proposed maximum locality/range constraint. 2.13B must reject
-    // non-finite, non-positive and out-of-policy values.
+    // Proposed maximum locality/range constraint. Must not exceed the
+    // originating QuestContext's QuestProposalLimits::MaxRangeYards.
+    // 2.13B must additionally reject non-finite and non-positive values.
     float MaxRangeYards = 0.0f;
 
+    // Must not exceed QuestProposalLimits::MaxExpiryMs /
+    // ::MaxRewardMoneyCopper from the originating QuestContext.
     uint32 ExpiryMs = 0;
     uint32 RewardMoneyCopper = 0;
 
-    // Untrusted player-facing text. 2.13B must impose byte/character
-    // limits and reject unwanted control/formatting characters before
-    // anything becomes visible to a player.
+    // Untrusted player-facing text, capped at QuestContractMaxTitleLength
+    // / QuestContractMaxDescriptionLength. 2.13B must still independently
+    // enforce those limits and reject unwanted control/formatting
+    // characters before anything becomes visible to a player.
     std::string Title;
     std::string Description;
 };
