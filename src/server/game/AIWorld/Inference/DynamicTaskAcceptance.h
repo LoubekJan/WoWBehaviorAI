@@ -25,6 +25,7 @@
 #include "QuestProposalDraft.h"
 #include "QuestRequestProvenance.h"
 
+#include <cstddef>
 #include <optional>
 
 // Milestone 2.13A3B: what AIWorldMgr remembers about one outstanding
@@ -94,7 +95,22 @@ struct DynamicTaskAcceptanceState
     ObjectGuid CurrentRuntimeGuid;
     std::optional<GoalType> CurrentGoal;
     uint64 CurrentGoalStartedAtMs = 0;
+
+    // Milestone 2.13A3B review follow-up: SourceEventStillActive alone
+    // proved the source memory hadn't been *evicted* yet, but
+    // ShortTermMemory's own TTL (AIWorld.ShortTermMemoryTtlMs) is a
+    // completely independent value from this request's own
+    // AIWorld.DynamicTaskSourceMaxAgeMs - a source event can easily still
+    // be "active" well past this request's own staleness policy. The
+    // check now also re-derives the source event's age from
+    // pending.Provenance.SourceOccurredAtMs (never from the freshly
+    // re-found memory's own timestamp - that's still the same event by
+    // identity, but this request's own captured provenance stays the
+    // single authority for "when did the event this request answers
+    // actually occur") against SourceEventMaxAgeMs.
     bool SourceEventStillActive = false;
+    uint64 SourceEventMaxAgeMs = 0;
+
     uint64 NowMs = 0;
     uint64 ResponseMaxAgeMs = 0;
 };
@@ -118,7 +134,12 @@ struct DynamicTaskAcceptanceState
 //      unrelated goal afterward.
 //   4. state.SourceEventStillActive - the WorldEvent memory this request
 //      was built from must still be an active short-term memory when the
-//      response arrives.
+//      response arrives - AND pending.Provenance.SourceOccurredAtMs
+//      (never the freshly re-found memory's own timestamp) is not older
+//      than state.SourceEventMaxAgeMs as of state.NowMs. Independent of
+//      check 5 below: ShortTermMemory's own TTL and this request's own
+//      source-max-age policy are two different values, and a source
+//      event can still be "active" well past this request's own policy.
 //   5. state.NowMs is not before pending.SubmittedAtMs, and the response
 //      did not arrive more than state.ResponseMaxAgeMs after submission.
 //   6. draft.TargetToken names a real entry in both
@@ -155,6 +176,22 @@ QuestTargetBinding const* ResolveDynamicTaskTargetBinding(
 inline bool DynamicTaskResponseMatchesPending(uint64 pendingRequestId, uint64 responseRequestId)
 {
     return pendingRequestId == responseRequestId;
+}
+
+// Milestone 2.13A3B review follow-up: the one rule that decides whether
+// a /dynamic-task request built from `candidateTargetCount` live-resolved
+// candidates is even worth submitting. The only supported objective is
+// KILL_CREATURE and every legal draft.target_token must already be one
+// of QuestContext::CandidateTargets, so a request with zero candidates
+// could never receive a response any target_token in it could legally
+// answer - submitting one would just be a guaranteed-hopeless round
+// trip. Pure and trivial on purpose: BuildDynamicTaskRequest() needs a
+// live Creature/AgentRecord to actually produce candidates, but the rule
+// for what to do once it has a count is plain enough to be exercised by
+// a Catch2 test without any live world at all.
+inline bool CanSubmitDynamicTaskContext(std::size_t candidateTargetCount)
+{
+    return candidateTargetCount > 0;
 }
 
 #endif // AIWORLD_DYNAMICTASKACCEPTANCE_H

@@ -8972,82 +8972,17 @@ std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record
     if (problemAgeMs > std::numeric_limits<uint32>::max())
         return std::nullopt;
 
-    // Milestone 2.13A3B: fresh snapshot for this specific request, the
-    // same "any later capture makes an older response stale" guarantee
-    // CaptureAgentContext() already gives /decision - see
-    // CheckDynamicTaskResponseAcceptance()'s own strict-equality check.
-    uint64 snapshotSequence = ++record.SnapshotSequence;
-
-    QuestRequestProvenance provenance;
-    provenance.Agent = record.Id;
-    provenance.SnapshotSequence = snapshotSequence;
-    provenance.RuntimeGuid = creature.GetGUID();
-    provenance.SourceEventId = sourceMemory.SourceEventId;
-    provenance.SourceCorrelationId = sourceMemory.CorrelationId;
-    provenance.SourceEventType = *sourceMemory.SourceEventType;
-    provenance.SourceOccurredAtMs = sourceMemory.SourceOccurredAtMs;
-
-    if (record.ActiveGoalState)
-    {
-        provenance.Goal = record.ActiveGoalState->Type;
-        provenance.GoalStartedAtMs = record.ActiveGoalState->StartedAtMs;
-    }
-    else
-    {
-        provenance.Goal.reset();
-        provenance.GoalStartedAtMs = 0;
-    }
-
-    QuestProblemContext problem;
-    problem.Type = *sourceMemory.SourceEventType;
-    problem.ActorEntry = sourceMemory.Actor.Entry;
-    problem.TargetEntry = sourceMemory.Target.Entry;
-    problem.MapId = sourceMemory.Location.MapId;
-    problem.AgeMs = uint32(problemAgeMs);
-
-    // Relevant events: the same MemoryRetrieval path CaptureAgentContext()
-    // already uses for /decision, narrowed to event-backed records only
-    // and capped at QuestContractMaxRelevantEvents - no second
-    // memory-ranking system.
-    MemoryQueryContext memoryContext;
-    memoryContext.Agent = record.Id;
-    memoryContext.NowMs = nowMs;
-    memoryContext.MapId = creature.GetMapId();
-    memoryContext.X = creature.GetPositionX();
-    memoryContext.Y = creature.GetPositionY();
-    memoryContext.Z = creature.GetPositionZ();
-
     std::vector<MemoryRecord> shortTermMemories = _shortTermMemory.GetActiveForAgent(record.Id, nowMs);
-    std::vector<LongTermMemoryRecord> longTermMemories = _longTermMemory.GetForAgent(record.Id);
-    std::vector<RetrievedMemory> relevantMemories = _memoryRetrieval.Retrieve(
-        memoryContext, shortTermMemories, longTermMemories, _memoryRetrievalTopN);
 
-    std::vector<QuestRelevantEvent> events;
-    for (RetrievedMemory const& memory : relevantMemories)
-    {
-        if (events.size() >= QuestContractMaxRelevantEvents)
-            break;
-        if (!memory.SourceEventType)
-            continue;
-        if (!std::isfinite(memory.Importance) || !std::isfinite(memory.Relevance))
-            continue;
-        if (memory.SourceOccurredAtMs == 0 || memory.SourceOccurredAtMs > nowMs)
-            continue;
-
-        uint64 eventAgeMs = nowMs - memory.SourceOccurredAtMs;
-        if (eventAgeMs > std::numeric_limits<uint32>::max())
-            continue;
-
-        QuestRelevantEvent event;
-        event.Type = *memory.SourceEventType;
-        event.ActorEntry = memory.Actor.Entry;
-        event.TargetEntry = memory.Target.Entry;
-        event.Importance = memory.Importance;
-        event.Relevance = memory.Relevance;
-        event.AgeMs = uint32(eventAgeMs);
-        events.push_back(event);
-    }
-
+    // Milestone 2.13A3B review follow-up: collected and checked BEFORE
+    // the snapshot bump/HTTP submission below - the only supported
+    // objective is KILL_CREATURE and every candidate the model could
+    // legally name must already be one of these, so a request built with
+    // zero candidates could never receive a schema-valid, accepted
+    // response at all. Rejecting it here (instead of paying for a
+    // hopeless round trip) also means a failed context build never
+    // consumes a fresh SnapshotSequence value for nothing.
+    //
     // Candidate targets: this agent's own active CreatureSeen memories,
     // each live re-resolved and re-validated before it can become a
     // model-visible token - never a fresh spatial scan, never a stored
@@ -9114,6 +9049,87 @@ std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record
         ++nextToken;
     }
 
+    if (!CanSubmitDynamicTaskContext(candidateTargets.size()))
+        return std::nullopt;
+
+    // Milestone 2.13A3B: fresh snapshot for this specific request, the
+    // same "any later capture makes an older response stale" guarantee
+    // CaptureAgentContext() already gives /decision - see
+    // CheckDynamicTaskResponseAcceptance()'s own strict-equality check.
+    // Only bumped once every eligibility check above (including having
+    // at least one candidate target) has already held.
+    uint64 snapshotSequence = ++record.SnapshotSequence;
+
+    QuestRequestProvenance provenance;
+    provenance.Agent = record.Id;
+    provenance.SnapshotSequence = snapshotSequence;
+    provenance.RuntimeGuid = creature.GetGUID();
+    provenance.SourceEventId = sourceMemory.SourceEventId;
+    provenance.SourceCorrelationId = sourceMemory.CorrelationId;
+    provenance.SourceEventType = *sourceMemory.SourceEventType;
+    provenance.SourceOccurredAtMs = sourceMemory.SourceOccurredAtMs;
+    provenance.TargetBindings = std::move(targetBindings);
+
+    if (record.ActiveGoalState)
+    {
+        provenance.Goal = record.ActiveGoalState->Type;
+        provenance.GoalStartedAtMs = record.ActiveGoalState->StartedAtMs;
+    }
+    else
+    {
+        provenance.Goal.reset();
+        provenance.GoalStartedAtMs = 0;
+    }
+
+    QuestProblemContext problem;
+    problem.Type = *sourceMemory.SourceEventType;
+    problem.ActorEntry = sourceMemory.Actor.Entry;
+    problem.TargetEntry = sourceMemory.Target.Entry;
+    problem.MapId = sourceMemory.Location.MapId;
+    problem.AgeMs = uint32(problemAgeMs);
+
+    // Relevant events: the same MemoryRetrieval path CaptureAgentContext()
+    // already uses for /decision, narrowed to event-backed records only
+    // and capped at QuestContractMaxRelevantEvents - no second
+    // memory-ranking system.
+    MemoryQueryContext memoryContext;
+    memoryContext.Agent = record.Id;
+    memoryContext.NowMs = nowMs;
+    memoryContext.MapId = creature.GetMapId();
+    memoryContext.X = creature.GetPositionX();
+    memoryContext.Y = creature.GetPositionY();
+    memoryContext.Z = creature.GetPositionZ();
+
+    std::vector<LongTermMemoryRecord> longTermMemories = _longTermMemory.GetForAgent(record.Id);
+    std::vector<RetrievedMemory> relevantMemories = _memoryRetrieval.Retrieve(
+        memoryContext, shortTermMemories, longTermMemories, _memoryRetrievalTopN);
+
+    std::vector<QuestRelevantEvent> events;
+    for (RetrievedMemory const& memory : relevantMemories)
+    {
+        if (events.size() >= QuestContractMaxRelevantEvents)
+            break;
+        if (!memory.SourceEventType)
+            continue;
+        if (!std::isfinite(memory.Importance) || !std::isfinite(memory.Relevance))
+            continue;
+        if (memory.SourceOccurredAtMs == 0 || memory.SourceOccurredAtMs > nowMs)
+            continue;
+
+        uint64 eventAgeMs = nowMs - memory.SourceOccurredAtMs;
+        if (eventAgeMs > std::numeric_limits<uint32>::max())
+            continue;
+
+        QuestRelevantEvent event;
+        event.Type = *memory.SourceEventType;
+        event.ActorEntry = memory.Actor.Entry;
+        event.TargetEntry = memory.Target.Entry;
+        event.Importance = memory.Importance;
+        event.Relevance = memory.Relevance;
+        event.AgeMs = uint32(eventAgeMs);
+        events.push_back(event);
+    }
+
     QuestContext context;
     context.Agent = record.Id;
     context.SnapshotSequence = snapshotSequence;
@@ -9124,8 +9140,6 @@ std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record
     context.Limits.MaxRangeYards = _dynamicTaskMaxRangeYards;
     context.Limits.MaxExpiryMs = _dynamicTaskMaxExpiryMs;
     context.Limits.MaxRewardMoneyCopper = _dynamicTaskMaxRewardMoneyCopper;
-
-    provenance.TargetBindings = std::move(targetBindings);
 
     TC_LOG_INFO("ai.world", "DYNAMIC_TASK_CONTEXT_BUILT agent={} snapshot={} sourceEvent={} candidateTargets={} relevantEvents={}",
         record.Id.Value, snapshotSequence, sourceMemory.SourceEventId, context.CandidateTargets.size(), context.RelevantEvents.size());
@@ -9236,6 +9250,25 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
         return;
     }
 
+    // Milestone 2.13A3B review follow-up: the same three-way runtime
+    // incarnation proof /decision's ValidateDecisionIntent() already
+    // requires - AgentRecord's own CURRENT RuntimeGuid, the live
+    // Creature just re-resolved, and this request's own captured
+    // provenance must all agree. Checked explicitly here (not folded
+    // into CheckDynamicTaskResponseAcceptance()'s pure state, which only
+    // ever sees the live creature's GUID, never AgentRecord itself) so a
+    // despawn/respawn incarnation swap under the same AgentId/SpawnId is
+    // caught even if the freshly re-resolved Creature happens to share
+    // pending's own RuntimeGuid.
+    if (record->RuntimeGuid.IsEmpty() ||
+        record->RuntimeGuid != pending.Provenance.RuntimeGuid ||
+        creature->GetGUID() != pending.Provenance.RuntimeGuid)
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason=STALE_RUNTIME request={} agent={}",
+            response.RequestId, response.Agent.Value);
+        return;
+    }
+
     uint64 nowMs = CurrentTimeMs();
 
     DynamicTaskAcceptanceState state;
@@ -9248,6 +9281,7 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
     }
     state.NowMs = nowMs;
     state.ResponseMaxAgeMs = _dynamicTaskResponseMaxAgeMs;
+    state.SourceEventMaxAgeMs = _dynamicTaskSourceMaxAgeMs;
 
     // Milestone 2.13A3B: the source event this request was built from
     // must still be an active short-term memory - identity checked

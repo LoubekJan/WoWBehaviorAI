@@ -96,6 +96,7 @@ namespace
         state.CurrentGoal.reset();
         state.CurrentGoalStartedAtMs = 0;
         state.SourceEventStillActive = true;
+        state.SourceEventMaxAgeMs = 30000;
         state.NowMs = pending.SubmittedAtMs + 500;
         state.ResponseMaxAgeMs = 10000;
         return state;
@@ -223,6 +224,64 @@ TEST_CASE("CheckDynamicTaskResponseAcceptance rejects when the source event is n
     REQUIRE(CheckDynamicTaskResponseAcceptance(pending, draft, state) == DynamicTaskDiscardReason::StaleSourceEvent);
 }
 
+TEST_CASE("CheckDynamicTaskResponseAcceptance enforces the source event's own max age independently of ShortTermMemory's TTL", "[DynamicTaskAcceptance]")
+{
+    // Review follow-up: SourceEventStillActive alone only proves
+    // ShortTermMemory hasn't evicted the record yet - its TTL
+    // (AIWorld.ShortTermMemoryTtlMs) is a completely independent value
+    // from AIWorld.DynamicTaskSourceMaxAgeMs. A memory can easily still
+    // be "active" well past this request's own source-age policy.
+    SECTION("source event age exactly at the max is accepted")
+    {
+        PendingDynamicTaskRequest pending = MakeValidPending();
+        QuestProposalDraft draft = MakeValidDraft();
+        DynamicTaskAcceptanceState state = MakeMatchingState(pending);
+        state.SourceEventMaxAgeMs = 5000;
+        state.NowMs = pending.Provenance.SourceOccurredAtMs + state.SourceEventMaxAgeMs;
+
+        REQUIRE(CheckDynamicTaskResponseAcceptance(pending, draft, state) == DynamicTaskDiscardReason::None);
+    }
+
+    SECTION("source event one past the max age is rejected even though the memory is still active")
+    {
+        PendingDynamicTaskRequest pending = MakeValidPending();
+        QuestProposalDraft draft = MakeValidDraft();
+        DynamicTaskAcceptanceState state = MakeMatchingState(pending);
+        state.SourceEventMaxAgeMs = 5000;
+        state.NowMs = pending.Provenance.SourceOccurredAtMs + state.SourceEventMaxAgeMs + 1;
+        REQUIRE(state.SourceEventStillActive); // still active - the age check alone must catch this
+
+        REQUIRE(CheckDynamicTaskResponseAcceptance(pending, draft, state) == DynamicTaskDiscardReason::StaleSourceEvent);
+    }
+
+    SECTION("a clock reading before the source event occurred is rejected")
+    {
+        PendingDynamicTaskRequest pending = MakeValidPending();
+        QuestProposalDraft draft = MakeValidDraft();
+        DynamicTaskAcceptanceState state = MakeMatchingState(pending);
+        state.SourceEventMaxAgeMs = 5000;
+        state.NowMs = pending.Provenance.SourceOccurredAtMs - 1;
+
+        REQUIRE(CheckDynamicTaskResponseAcceptance(pending, draft, state) == DynamicTaskDiscardReason::StaleSourceEvent);
+    }
+
+    SECTION("age is derived from pending.Provenance.SourceOccurredAtMs, never from a differently-timed re-found memory")
+    {
+        // Even if some other part of the system passed a fresher-looking
+        // SourceEventStillActive=true (e.g. the same event re-observed
+        // later), this request's own captured provenance timestamp
+        // remains the authority for how old ITS source event is.
+        PendingDynamicTaskRequest pending = MakeValidPending();
+        pending.Provenance.SourceOccurredAtMs = 1000;
+        QuestProposalDraft draft = MakeValidDraft();
+        DynamicTaskAcceptanceState state = MakeMatchingState(pending);
+        state.SourceEventMaxAgeMs = 5000;
+        state.NowMs = 6001; // 5001ms after pending's own SourceOccurredAtMs
+
+        REQUIRE(CheckDynamicTaskResponseAcceptance(pending, draft, state) == DynamicTaskDiscardReason::StaleSourceEvent);
+    }
+}
+
 TEST_CASE("CheckDynamicTaskResponseAcceptance rejects a request that is too old", "[DynamicTaskAcceptance]")
 {
     PendingDynamicTaskRequest pending = MakeValidPending();
@@ -344,6 +403,25 @@ TEST_CASE("DynamicTaskResponseMatchesPending", "[DynamicTaskAcceptance]")
 {
     REQUIRE(DynamicTaskResponseMatchesPending(200, 200));
     REQUIRE_FALSE(DynamicTaskResponseMatchesPending(200, 199));
+}
+
+TEST_CASE("CanSubmitDynamicTaskContext", "[DynamicTaskAcceptance]")
+{
+    // The only supported objective is KILL_CREATURE and every legal
+    // draft.target_token must already be one of QuestContext::
+    // CandidateTargets - a request built with zero candidates could
+    // never receive a response any target_token in it could legally
+    // answer, so BuildDynamicTaskRequest() must never submit one.
+    SECTION("zero candidates - no submission")
+    {
+        REQUIRE_FALSE(CanSubmitDynamicTaskContext(0));
+    }
+
+    SECTION("one or more candidates - submission eligible")
+    {
+        REQUIRE(CanSubmitDynamicTaskContext(1));
+        REQUIRE(CanSubmitDynamicTaskContext(16));
+    }
 }
 
 TEST_CASE("pending-map regression: an old response never erases a newer pending request", "[DynamicTaskAcceptance]")

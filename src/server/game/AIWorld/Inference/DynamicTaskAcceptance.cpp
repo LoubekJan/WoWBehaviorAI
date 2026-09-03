@@ -55,7 +55,14 @@ DynamicTaskDiscardReason CheckDynamicTaskResponseAcceptance(
             return DynamicTaskDiscardReason::StaleGoal;
     }
 
-    if (!state.SourceEventStillActive)
+    // Milestone 2.13A3B review follow-up: SourceEventStillActive alone
+    // only proves ShortTermMemory hasn't evicted the record yet - its TTL
+    // is a wholly independent value from this request's own
+    // SourceEventMaxAgeMs. Age is derived from pending.Provenance's own
+    // SourceOccurredAtMs, never from the freshly re-found memory.
+    if (!state.SourceEventStillActive ||
+        state.NowMs < pending.Provenance.SourceOccurredAtMs ||
+        state.NowMs - pending.Provenance.SourceOccurredAtMs > state.SourceEventMaxAgeMs)
         return DynamicTaskDiscardReason::StaleSourceEvent;
 
     if (state.NowMs < pending.SubmittedAtMs || state.NowMs - pending.SubmittedAtMs > state.ResponseMaxAgeMs)

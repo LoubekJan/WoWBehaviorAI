@@ -182,7 +182,14 @@ class TC_GAME_API AIWorldMgr
         // spatial scan, never a stored pointer) before it can become a
         // model-visible QuestTargetCandidate/QuestTargetBinding pair -
         // see QuestContext.h/QuestRequestProvenance.h for why the model
-        // only ever sees the opaque token, never the ObjectGuid.
+        // only ever sees the opaque token, never the ObjectGuid. Also
+        // returns nullopt (review follow-up) if that scan finds zero
+        // eligible candidates - the only supported objective is
+        // KILL_CREATURE, so a request with an empty CandidateTargets
+        // could never receive a response any target_token in it could
+        // legally answer. This check runs, and the request is rejected,
+        // BEFORE record.SnapshotSequence is bumped - a doomed request
+        // never consumes a fresh snapshot value for nothing.
         std::optional<AIRequest> BuildDynamicTaskRequest(AgentRecord& record, Creature& creature, MemoryRecord const& sourceMemory, uint64 nowMs);
 
         // Milestone 2.13A3B: the one production entry point for actually
