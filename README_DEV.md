@@ -121,6 +121,153 @@ Useful targets:
 
 `make clean-build` and `make reset-db` are intentionally destructive. Use them only when a clean build or DB reset is explicitly intended.
 
+## Standard build and test gate
+
+Run all commands from the repository root. The normal order for a C++ change is:
+
+```text
+confirm revision → build → automated tests → restart → smoke/runtime test → error scan → disable test hooks
+```
+
+### 1. Confirm the revision
+
+```bash
+git status --short
+git checkout ai-world
+git pull --ff-only origin ai-world
+git log -1 --oneline
+```
+
+Review any output from `git status --short`; do not discard unrelated local changes. Record the tested commit SHA so runtime evidence can be tied to the exact code.
+
+### 2. Build and install TrinityCore
+
+The standard incremental build is:
+
+```bash
+make build
+```
+
+This configures CMake, builds with Ninja and installs the binaries into the persistent `/build` volume. An `Up-to-date` result is a valid successful incremental build. The command must exit with status `0` and contain no compile or link failure.
+
+Use a clean-first rebuild only when the incremental build is insufficient:
+
+```bash
+make rebuild
+```
+
+Do not use `make clean-build` routinely: it deletes the contents of the persistent build volume before rebuilding. It does not reset the database, but it makes the next build substantially longer.
+
+### 3. Run the C++ unit tests
+
+`make build` does not run Catch2 tests because `BUILD_TESTING` is `OFF` by default. Enable the test target explicitly, build it and run CTest:
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml run --rm tc-dev bash -c \
+  "cmake -S /workspace -B /build -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/build \
+    -DBUILD_TESTING=ON && \
+   cmake --build /build --target tests && \
+   ctest --test-dir /build --output-on-failure"
+```
+
+The expected final result is `100% tests passed, 0 tests failed`. `BUILD_TESTING` is cached in the persistent build directory. To return to the normal default after testing, reconfigure it to `OFF`:
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml run --rm tc-dev bash -c \
+  "cmake -S /workspace -B /build -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/build \
+    -DBUILD_TESTING=OFF"
+```
+
+### 4. Restart and verify worldserver startup
+
+If the stack is not running yet:
+
+```bash
+make start
+```
+
+After a successful C++ build:
+
+```bash
+make restart-world
+make world-logs
+```
+
+Wait until worldserver has completed startup, then leave the live log with `Ctrl-C`. Detailed AIWorld DEBUG output is written to `runtime/logs/Server.log`.
+
+Scan the latest startup window for serious errors:
+
+```bash
+tail -n 500 runtime/logs/Server.log | grep -Ei \
+"fatal|assert|segmentation|database.*failed|unknown.*config"
+```
+
+For a clean startup this command prints nothing. If it prints a match, inspect the surrounding log before accepting the build.
+
+### 5. Run an AIWorld smoke test
+
+Startup smoke hooks are disabled by default. When a change has a dedicated hook:
+
+1. Set only the required `AIWorld.Test...` option to `1` in `deploy/worldserver.conf`.
+2. Restart worldserver.
+3. Filter the detailed log by the test's exact prefix and the common error signatures.
+4. Require every case and the final summary to say `PASSED`, with no `FAILED` or error match.
+5. Return the option to `0` and restart worldserver again.
+
+Standard command shape:
+
+```bash
+make restart-world
+
+grep -E \
+"AI <test name>.*(PASSED|FAILED)|fatal|assert|segmentation|database.*failed|unknown.*config" \
+runtime/logs/Server.log
+```
+
+After restoring the flag to `0`:
+
+```bash
+make restart-world
+
+grep -E \
+"AI <test name>|unknown.*config" \
+runtime/logs/Server.log
+```
+
+The second check must not show a new execution of that smoke test. Never commit a local test hook enabled.
+
+### 6. Run the feature-specific live test
+
+Pure/unit smoke tests do not replace a live runtime proof when the change owns movement, combat, lifecycle, persistence or world-thread integration. Exercise the exact scenario required by the milestone and capture a narrow evidence window, for example:
+
+```bash
+grep -E \
+"<feature marker>|sourceGoal=<GOAL>|fatal|assert|segmentation|database.*failed|unknown.*config" \
+runtime/logs/Server.log | tail -n 300
+```
+
+The feature test must prove the requested successful path and its required stop/failure paths. Do not treat the absence of log lines as a pass.
+
+### 7. Record the gate result
+
+Use this summary in the review or roadmap entry:
+
+```text
+REVISION=<tested commit SHA>
+BUILD=PASS
+UNIT=PASS | NOT APPLICABLE
+SMOKE=PASS | NOT APPLICABLE
+RUNTIME=PASS | NOT APPLICABLE
+ERROR_SCAN=PASS
+TEST_FLAGS_RESTORED=YES
+```
+
+`NOT APPLICABLE` must be justified by the change scope; it does not mean that a required test was skipped.
+
 ## Python ai-server workflow
 
 When Python decision-service code changes, rebuild that service:
