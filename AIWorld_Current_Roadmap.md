@@ -901,7 +901,7 @@ Runtime gate má nejdřív dokazovat correctness a ownership, ne „chytré sme�
   - **G3D1** — neinvazivní live approach proof: skutečná `CreatureSeen` memory → produkční `HuntIntent`/`HuntProposal` → live revalidace → `ActionSystem` `ALLOWED` → skutečný HUNT `MoveTo` generator → přesně potvrzená ownership identity, přes read-only `AIWorld.TestObserveActiveHuntAgentId` hook — **POSITIVE LIVE APPROACH PROOF: PASS, viz `2.12G3D1` níže**;
   - **fix(ai-world): retain HUNT ownership after approach arrival** — post-ARRIVED redispatch smyčka odhalená G3D1 opravena, `HuntPhase::AtTarget` retention zavedena — **CLOSED**;
   - **G3D — produkční skupinový HUNT combat** (`ActionType::Attack`, `ValidateAttack()`, `ExecuteAttack()`/`StopAttack()`, `HuntPhase::Engaging`, `AIWorldCreatureAI::UpdateAI()` volá `DoMeleeAttackIfReady()`) — po několika STATIC review kolech (damage execution, targeted combat/threat reference cleanup, live range/LOS gate na první ATTACK, phantom-FLEE_DANGER root cause i atomic-transition fix, stale chase generator po smrti cíle) — **live-confirmed PASS: oba group members ATTACK STARTED → skutečné melee poškození → prchající target skutečně pronásledovaný → `TARGET_DEFEATED` pro oba (`durationMs=9999`), žádný `NO_FLEE_SOURCE`, žádná fantomová preempce**;
-  - **G3 lifecycle closure** — bezpečné chování pro Approaching/AtTarget/Engaging napříč všemi šesti ukončujícími událostmi (`PREEMPTED_BY_GOAL` teď zahrnuje i `HuntPhase::AtTarget`, dříve mezera protože blok vyžadoval `ActiveActionState`; `STOPPED_BY_LIFECYCLE`, `STOPPED_BY_MEMBERSHIP_AMBIGUITY`, `STOPPED_BY_TARGET_INVALID`, `PREEMPTED_BY_REGROUP`, `TARGET_DEFEATED` už byly generic přes `StopInFlightGroupCoordination()`/`ReconcileActiveHuntTargetsForGroup()`) — **IN PROGRESS**.
+  - **G3 lifecycle closure** — bezpečné chování pro Approaching/AtTarget/Engaging napříč všemi šesti ukončujícími událostmi (`PREEMPTED_BY_GOAL` teď zahrnuje i `HuntPhase::AtTarget`, dříve mezera protože blok vyžadoval `ActiveActionState`; `STOPPED_BY_LIFECYCLE`, `STOPPED_BY_MEMBERSHIP_AMBIGUITY`, `STOPPED_BY_TARGET_INVALID` a `PREEMPTED_BY_REGROUP` už byly generic přes `StopInFlightGroupCoordination()`/`ReconcileActiveHuntTargetsForGroup()`; `TARGET_DEFEATED` - jen během `Engaging`, jinak `STOPPED_BY_TARGET_INVALID` - přes `HandleActionCompletion()`) — **IN PROGRESS**.
 
 Původní G3D2/G3D3/G3D4 dělení (`GET_FOOD` preemption zvlášť/`StoppedByTargetInvalid` zvlášť/`PreemptedByRegroup` zvlášť) bylo nahrazeno jedním `G3 lifecycle closure` commitem, protože produkční combat implementace mezitím tyto lifecycle cesty už sdílela s `StopInFlightGroupCoordination()` - žádný z nich nepotřeboval samostatný milník.
 
@@ -1087,7 +1087,7 @@ Poslední otevřený kus je `G3 lifecycle closure` níže.
 
 ## 2.12G3 lifecycle closure
 
-**Stav: IN PROGRESS.**
+**Stav: IN PROGRESS — STATIC review PASS (P1=0/P2=0/P3=2, oba P3 opravené níže), BUILD NOT VERIFIED.**
 
 Sjednocuje bezpečné chování napříč `HuntPhase::Approaching`, `AtTarget` a `Engaging` pro všech šest ukončujících událostí:
 
@@ -1098,11 +1098,14 @@ Sjednocuje bezpečné chování napříč `HuntPhase::Approaching`, `AtTarget` a
 | vícenásobné membership | `STOPPED_BY_MEMBERSHIP_AMBIGUITY` |
 | target unload/despawn/map/attackability invalid | `STOPPED_BY_TARGET_INVALID` |
 | REGROUP začne během HUNT | `PREEMPTED_BY_REGROUP` |
-| target skutečně zemře | `TARGET_DEFEATED` (nikoli target-invalid) |
+| target zemře BĚHEM `HuntPhase::Engaging` | `TARGET_DEFEATED` |
+| target zemře PŘED `Engaging` (Approaching/AtTarget) | `STOPPED_BY_TARGET_INVALID`, nikoli `TARGET_DEFEATED` - member ho nikdy nebojoval |
 
-Pět z šesti už bylo generic přes sdílené `StopInFlightGroupCoordination()`/`ReconcileActiveHuntTargetsForGroup()`. Jediná skutečná mezera: `UpdateNeeds()`'s vlastní `COORDINATION_PREEMPTED_BY_GOAL` blok vyžadoval `record->ActiveActionState`, který `HuntPhase::AtTarget` (dwelling bez akce) nikdy nemá - member sedící `AtTarget` s nově aktivovaným individuálním goalem tedy nebyl touto větví vůbec zachycen. Oprava přesouvá podmínku na `record->GroupCoordinationGoalState` (pokrývá Approaching/AtTarget/Engaging jednotně) a engine touch (přesně cílený `StopAttack()`/`StopMoveTo()`, `LastCoordinationStop` s group/timestamp/GUID/entry) zůstává gated na stejnou `ownsAction` exact-match disciplínu jako `StopInFlightGroupCoordination()` už má - nikdy nezastaví cizí action, victim ani chase.
+Pět z šesti už bylo generic přes sdílené `StopInFlightGroupCoordination()`/`ReconcileActiveHuntTargetsForGroup()`. Jediná skutečná mezera: `UpdateNeeds()`'s vlastní preemption blok vyžadoval `record->ActiveActionState`, který `HuntPhase::AtTarget` (dwelling bez akce) nikdy nemá - member sedící `AtTarget` s nově aktivovaným individuálním goalem tedy nebyl touto větví vůbec zachycen. Oprava přesouvá podmínku na `record->GroupCoordinationGoalState` (pokrývá Approaching/AtTarget/Engaging jednotně) a engine touch (přesně cílený `StopAttack()`/`StopMoveTo()`, `LastCoordinationStop` s group/timestamp/GUID/entry) zůstává gated na stejnou `ownsAction` exact-match disciplínu jako `StopInFlightGroupCoordination()` už má - nikdy nezastaví cizí action, victim ani chase.
 
-Žádné nové attack typy, spelly, threat manipulace, role/leadership ani další target-selection logika. Žádný nový synthetic test pro tento blok - je to inline logika uvnitř `UpdateNeeds()`, ne samostatně volatelná funkce, a jediná nová větev (`AtTarget`, žádná `ActiveActionState`) nedotýká se live Creature vůbec; engine-touching část je beze změny stejná `StopAttack()`/`StopMoveTo()` cesta, jejíž live-Creature-only limity byly už přijaté dříve.
+STATIC review (P3 x2, oba opravené): logika byla extrahována do vlastní `AIWorldMgr::PreemptInFlightGroupCoordination()` metody (self-contained, resolvuje si vlastní `Creature*` stejně jako `StopInFlightGroupCoordination()`) - `UpdateNeeds()` ji teď jen volá, žádná změna produkčního chování. Dva nové pure value-state smoke testy pokrývají přesně tu novou větev (AtTarget + individual goal aktivace, a AtTarget s unrelated action) - žádný další reálný combat test.
+
+Žádné nové attack typy, spelly, threat manipulace, role/leadership ani další target-selection logika.
 
 ## 2.12G4 — roles / leader pouze pokud je skutečně potřeba
 

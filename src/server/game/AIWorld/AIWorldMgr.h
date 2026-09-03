@@ -2146,6 +2146,56 @@ class TC_GAME_API AIWorldMgr
         // caller now passes its own distinct reason explicitly.
         void StopInFlightGroupCoordination(AgentRecord& record, char const* reason, CoordinationStopReason stopReason);
 
+        // Milestone 2.12G3 lifecycle closure P3 fix (STATIC review):
+        // extracted from UpdateNeeds()'s own inline COORDINATION_PREEMPTED_BY_GOAL
+        // block, purely so this can be exercised directly by a pure
+        // value-state smoke test the same way StopInFlightGroupCoordination()
+        // already is - no production behavior change from the extraction
+        // itself. Self-guarding: a no-op unless (record.ActiveGoalState ||
+        // record.RoutineGoalState) && record.GroupCoordinationGoalState &&
+        // IsCoordinationSourceGoal(record.GroupCoordinationGoalState->Type)
+        // - an agent's own individual/routine goal taking the action slot
+        // back from an automatic group nudge (Regroup/Roam/Hunt).
+        //
+        // Self-contained the same way StopInFlightGroupCoordination() is:
+        // resolves its own Map*/Creature* internally from record.WorldState/
+        // record.MapId/record.SpawnId, rather than requiring the caller to
+        // already have one - which is what lets a synthetic, non-Materialized
+        // AgentRecord (WorldState left at its own Abstract default) exercise
+        // the full ownsAction/CoordinationStopEvent logic below purely, the
+        // engine-touch block simply never reached for it.
+        //
+        // The engine (StopAttack()/StopMoveTo(), type-dispatched) is only
+        // ever touched when record.ActiveActionState is an EXACT match for
+        // record.GroupCoordinationGoalState - the same ownsStoppedMovement
+        // discipline StopInFlightGroupCoordination() itself already
+        // established (Type+SourceGoal+GoalStartedAtMs, plus Target
+        // Guid/Entry for HUNT) - never assumed just because a coordination-
+        // sourced ActiveActionState happens to exist. False for a true
+        // HuntPhase::AtTarget member (no ActiveActionState at all, the exact
+        // gap this extraction closes) and for a member whose
+        // ActiveActionState belongs to a different attempt/target entirely -
+        // both correctly skip every engine touch, with both engine-generator
+        // fields honestly read false/false, and record.ActiveActionState
+        // itself left completely untouched. record.GroupCoordinationGoalState
+        // is always cleared regardless (this attempt's own group ownership
+        // ends either way), and LastCoordinationStop's SourceGoal/SourceGroup/
+        // StartedAtMs/TargetGuid/TargetEntry are always sourced from
+        // GroupCoordinationGoalState, never from ActiveActionState, so the
+        // event still records honestly even when there was nothing to stop.
+        //
+        // PreemptingOwner/PreemptingGoal capture WHICH of ActiveGoalState/
+        // RoutineGoalState actually did the preempting (ActiveGoalState
+        // takes precedence when both happen to be set, matching this
+        // method's own self-guard OR and this file's own established
+        // ActiveGoalState > RoutineGoalState arbitration) - captured
+        // synchronously, so a verifying test hook never has to re-derive
+        // "what preempted this" from AgentRecord's own CURRENT state on a
+        // later poll. nowMs is the caller's own shared tick timestamp
+        // (UpdateNeeds()'s own nowMs), not a fresh CurrentTimeMs() call
+        // here, so every stop event recorded this same tick agrees.
+        void PreemptInFlightGroupCoordination(AgentRecord& record, uint64 nowMs);
+
         // Milestone 2.12F2 P2 fix (STATIC review): the one place an
         // in-flight Regroup/Roam attempt (AgentRecord::
         // GroupCoordinationGoalState/ActiveActionState) is stopped because
