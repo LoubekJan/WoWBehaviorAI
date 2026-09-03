@@ -34,3 +34,5 @@ docker/ai/models/
 *.gguf
 *.safetensors
 *.ckpt
+__pycache__/
+*.pyc

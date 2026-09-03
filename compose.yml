@@ -80,6 +80,19 @@ services:
     build:
       context: docker/ai
     restart: unless-stopped
+    environment:
+      # Milestone 2.13A2: /dynamic-task's local-model provider, default-off
+      # (AI_TASK_MODEL_ENABLED=0). AI_TASK_MODEL_URL points at any
+      # OpenAI-compatible /v1/chat/completions endpoint (Ollama,
+      # llama.cpp's server, ...) - no model service is added to this
+      # Compose file automatically, point it at one you run yourself.
+      AI_TASK_MODEL_ENABLED: ${AI_TASK_MODEL_ENABLED:-0}
+      AI_TASK_MODEL_URL: ${AI_TASK_MODEL_URL:-}
+      AI_TASK_MODEL_NAME: ${AI_TASK_MODEL_NAME:-}
+      AI_TASK_MODEL_TIMEOUT_MS: ${AI_TASK_MODEL_TIMEOUT_MS:-5000}
+      AI_TASK_MODEL_MAX_REQUEST_BYTES: ${AI_TASK_MODEL_MAX_REQUEST_BYTES:-32768}
+      AI_TASK_MODEL_MAX_RESPONSE_BYTES: ${AI_TASK_MODEL_MAX_RESPONSE_BYTES:-16384}
+      AI_TASK_MODEL_MAX_TOKENS: ${AI_TASK_MODEL_MAX_TOKENS:-512}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

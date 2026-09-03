@@ -280,6 +280,15 @@ make logs
 
 There is no separate `make restart-ai` workflow.
 
+Run the ai-server's own unit tests (no real LLM required - see `docker/ai/tests/test_dynamic_task.py`) against the built image:
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml run --rm ai-server \
+  python -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+Expect every test to report `ok` and a final `OK` summary line.
+
 ## AIWorld configuration
 
 AIWorld settings are versioned in `deploy/worldserver.conf` and mirrored in `src/server/worldserver/worldserver.conf.dist`.

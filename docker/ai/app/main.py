@@ -31,19 +31,55 @@ owner of that same action. worldserver's own AIWorldMgr::Update() only
 logs whatever decision.type comes back - see its 2.9B comment for why this
 stub proposing FLEE never actually moves anything by itself.
 """
+import json
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import Depends, FastAPI, HTTPException, Request
+from pydantic import BaseModel, ValidationError
+
+from .dynamic_task import (
+    CURRENT_DYNAMIC_TASK_PROTOCOL_VERSION,
+    DynamicTaskRequest,
+    DynamicTaskResponse,
+    QuestProposalPolicyError,
+    validate_draft_against_context,
+)
+from .model_provider import (
+    ModelProviderBadStatus,
+    ModelProviderConfig,
+    ModelProviderMalformedContent,
+    ModelProviderOversizedResponse,
+    ModelProviderTimeout,
+    ModelProviderUnavailable,
+    OpenAICompatibleTaskProvider,
+)
 
 app = FastAPI(title="ai-server", version="0.1.0")
 
 CURRENT_PROTOCOL_VERSION = 2
 
 
+def get_task_model_config() -> ModelProviderConfig:
+    return ModelProviderConfig.from_env()
+
+
+def get_task_provider(
+    config: ModelProviderConfig = Depends(get_task_model_config),
+) -> OpenAICompatibleTaskProvider:
+    return OpenAICompatibleTaskProvider(config)
+
+
 @app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+def health(config: ModelProviderConfig = Depends(get_task_model_config)) -> dict:
+    # process healthy != model ready: these two flags only report this
+    # process's own static configuration, never a live check of the
+    # provider - see model_provider.py's module docstring for why a
+    # provider call never happens outside /dynamic-task itself.
+    return {
+        "status": "ok",
+        "task_model_enabled": config.enabled,
+        "task_model_configured": config.configured,
+    }
 
 
 class Position(BaseModel):
@@ -168,4 +204,75 @@ def decision(request: DecisionRequest) -> DecisionResponse:
         agent_id=request.agent_context.agent_id,
         snapshot_sequence=request.agent_context.snapshot_sequence,
         decision=DecisionIntent(type=_propose_intent(request.agent_context)),
+    )
+
+
+# Milestone 2.13A2: /dynamic-task. Checks run in a fixed order - request
+# size, protocol version, strict request schema, feature enabled, provider
+# configured, provider call, strict draft schema, request-specific limits,
+# response - so a request is only ever rejected for the first thing wrong
+# with it, and nothing past "feature enabled" ever runs while the feature
+# is off. Every failure past that point is fail-closed: a 5xx (or 400/413
+# for a malformed/oversized/wrong-version request), never a synthesized
+# QuestProposalDraft. request_id/agent_id/snapshot_sequence in the
+# response always come from the original request/context, never from the
+# model - the same "client's own echo, never server's claim" rule
+# /decision already follows.
+@app.post("/dynamic-task", response_model=DynamicTaskResponse)
+async def dynamic_task(
+    raw_request: Request,
+    config: ModelProviderConfig = Depends(get_task_model_config),
+    provider: OpenAICompatibleTaskProvider = Depends(get_task_provider),
+) -> DynamicTaskResponse:
+    body_bytes = await raw_request.body()
+    if len(body_bytes) > config.max_request_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"request body exceeded {config.max_request_bytes} bytes",
+        )
+
+    try:
+        raw_payload = json.loads(body_bytes)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="request body was not valid JSON") from exc
+
+    if not isinstance(raw_payload, dict) or raw_payload.get("protocol_version") != CURRENT_DYNAMIC_TASK_PROTOCOL_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported protocol_version, expected {CURRENT_DYNAMIC_TASK_PROTOCOL_VERSION}",
+        )
+
+    try:
+        task_request = DynamicTaskRequest.model_validate(raw_payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if not config.enabled:
+        raise HTTPException(status_code=503, detail="dynamic-task model generation is disabled")
+    if not config.configured:
+        raise HTTPException(status_code=503, detail="dynamic-task model provider is not configured")
+
+    try:
+        draft = await provider.generate(task_request)
+    except ModelProviderTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except (
+        ModelProviderBadStatus,
+        ModelProviderUnavailable,
+        ModelProviderOversizedResponse,
+        ModelProviderMalformedContent,
+    ) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    try:
+        validate_draft_against_context(draft, task_request.context)
+    except QuestProposalPolicyError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return DynamicTaskResponse(
+        protocol_version=CURRENT_DYNAMIC_TASK_PROTOCOL_VERSION,
+        request_id=task_request.request_id,
+        agent_id=task_request.context.agent_id,
+        snapshot_sequence=task_request.context.snapshot_sequence,
+        proposal=draft,
     )
