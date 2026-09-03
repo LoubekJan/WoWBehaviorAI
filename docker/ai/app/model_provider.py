@@ -18,9 +18,11 @@ QuestProposalDraft. The request/response body is never logged in full (it
 carries untrusted or potentially sensitive text). AI_TASK_MODEL_API_KEY
 is optional (many local OpenAI-compatible backends don't require one) -
 when set, it is sent as a bearer token and never logged or included in
-any exception message. AI_TASK_MODEL_ENABLE_THINKING is also optional
-and, unset, sends nothing backend-specific at all - see
-ModelProviderConfig.enable_thinking's own comment.
+any exception message. AI_TASK_MODEL_ENABLE_THINKING is also optional and
+defaults to "0" (explicitly disable a reasoning backend's chain-of-thought)
+for this development phase - see ModelProviderConfig.enable_thinking's
+own comment for the tri-state mechanism and how to get the "send nothing
+backend-specific at all" behavior back.
 """
 from __future__ import annotations
 
@@ -115,10 +117,13 @@ class ModelProviderConfig:
     # Tri-state, deliberately not a plain bool: None means "don't send
     # chat_template_kwargs at all" - a llama.cpp-specific parameter that a
     # backend without that template kwarg could reject or silently ignore.
-    # Only set to True/False (AI_TASK_MODEL_ENABLE_THINKING=1/0) for a
-    # backend that actually understands it, e.g. to force a reasoning
-    # model's chain-of-thought off so it spends its max_tokens budget on
-    # the actual JSON answer instead (see SYSTEM_PROMPT's own history).
+    # True/False (AI_TASK_MODEL_ENABLE_THINKING=1/0) sends it explicitly,
+    # e.g. to force a reasoning model's chain-of-thought off so it spends
+    # its max_tokens budget on the actual JSON answer instead (see
+    # SYSTEM_PROMPT's own history). from_env()'s own default is "0", not
+    # unset - see its comment for why - so the type-level default here
+    # (None) only matters for a caller constructing this dataclass
+    # directly rather than through from_env().
     enable_thinking: Optional[bool] = None
 
     @property
@@ -127,12 +132,20 @@ class ModelProviderConfig:
 
     @classmethod
     def from_env(cls) -> "ModelProviderConfig":
-        enable_thinking_raw = os.environ.get("AI_TASK_MODEL_ENABLE_THINKING", "")
+        # Milestone 2.13A3B development default: "0" (explicitly send
+        # enable_thinking=false), not "" (send nothing) - the real local
+        # model this phase of development is being validated against is a
+        # reasoning model, and this project's own SYSTEM_PROMPT/token
+        # budget only works reliably with its chain-of-thought turned
+        # off. An operator who genuinely needs the tri-state "omit the
+        # parameter entirely" behavior back can still set
+        # AI_TASK_MODEL_ENABLE_THINKING= (empty) explicitly.
+        enable_thinking_raw = os.environ.get("AI_TASK_MODEL_ENABLE_THINKING", "0")
         return cls(
             enabled=os.environ.get("AI_TASK_MODEL_ENABLED", "0") == "1",
             url=os.environ.get("AI_TASK_MODEL_URL", ""),
             model_name=os.environ.get("AI_TASK_MODEL_NAME", ""),
-            timeout_ms=int(os.environ.get("AI_TASK_MODEL_TIMEOUT_MS", "5000")),
+            timeout_ms=int(os.environ.get("AI_TASK_MODEL_TIMEOUT_MS", "30000")),
             max_request_bytes=int(os.environ.get("AI_TASK_MODEL_MAX_REQUEST_BYTES", "32768")),
             max_response_bytes=int(os.environ.get("AI_TASK_MODEL_MAX_RESPONSE_BYTES", "16384")),
             max_tokens=int(os.environ.get("AI_TASK_MODEL_MAX_TOKENS", "512")),

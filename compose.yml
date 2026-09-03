@@ -89,7 +89,10 @@ services:
       AI_TASK_MODEL_ENABLED: ${AI_TASK_MODEL_ENABLED:-0}
       AI_TASK_MODEL_URL: ${AI_TASK_MODEL_URL:-}
       AI_TASK_MODEL_NAME: ${AI_TASK_MODEL_NAME:-}
-      AI_TASK_MODEL_TIMEOUT_MS: ${AI_TASK_MODEL_TIMEOUT_MS:-5000}
+      # Raised from 5000 to 30000 for 2.13A3B development - a real local
+      # model's /dynamic-task response can take much longer than 5s,
+      # especially with reasoning enabled; matches AIWorld.RequestTimeoutMs.
+      AI_TASK_MODEL_TIMEOUT_MS: ${AI_TASK_MODEL_TIMEOUT_MS:-30000}
       AI_TASK_MODEL_MAX_REQUEST_BYTES: ${AI_TASK_MODEL_MAX_REQUEST_BYTES:-32768}
       AI_TASK_MODEL_MAX_RESPONSE_BYTES: ${AI_TASK_MODEL_MAX_RESPONSE_BYTES:-16384}
       AI_TASK_MODEL_MAX_TOKENS: ${AI_TASK_MODEL_MAX_TOKENS:-512}
@@ -99,11 +102,15 @@ services:
       AI_TASK_MODEL_API_KEY: ${AI_TASK_MODEL_API_KEY:-}
       # Optional tri-state thinking control for backends that support a
       # chat_template_kwargs.enable_thinking toggle (e.g. Qwen3-style
-      # reasoning models served through llama.cpp) - unset/empty sends
-      # nothing backend-specific at all, "0"/"1" sends enable_thinking
+      # reasoning models served through llama.cpp) - "0"/"1" sends
+      # enable_thinking false/true explicitly, empty sends nothing
+      # backend-specific at all. Defaults to 0 (explicitly disabled) for
+      # 2.13A3B development - the model this phase is validated against
+      # is a reasoning model whose chain-of-thought must stay off for
+      # SYSTEM_PROMPT/AI_TASK_MODEL_MAX_TOKENS to work reliably.
       # false/true. Useful to force a reasoning model's chain-of-thought
       # off so it spends its max_tokens budget on the actual JSON answer.
-      AI_TASK_MODEL_ENABLE_THINKING: ${AI_TASK_MODEL_ENABLE_THINKING:-}
+      AI_TASK_MODEL_ENABLE_THINKING: ${AI_TASK_MODEL_ENABLE_THINKING:-0}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

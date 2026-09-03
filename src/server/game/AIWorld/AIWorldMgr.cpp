@@ -1061,7 +1061,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     std::string aiHost = sConfigMgr->GetStringDefault("AIWorld.AIHost", "ai-server");
     std::string aiPort = std::to_string(sConfigMgr->GetIntDefault("AIWorld.AIPort", 8000));
 
-    int32 requestTimeoutMs = sConfigMgr->GetIntDefault("AIWorld.RequestTimeoutMs", 1000);
+    int32 requestTimeoutMs = sConfigMgr->GetIntDefault("AIWorld.RequestTimeoutMs", 30000);
     if (requestTimeoutMs < 100)
     {
         TC_LOG_WARN("ai.world", "AIWorld.RequestTimeoutMs ({}) is invalid or too low, clamping to 100ms", requestTimeoutMs);
@@ -1105,7 +1105,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _nearbyPerceptionIntervalMs = uint32(nearbyPerceptionIntervalMs);
     _nearbyPerceptionTimer = 0;
 
-    int32 shortTermMemoryTtlMs = sConfigMgr->GetIntDefault("AIWorld.ShortTermMemoryTtlMs", 30000);
+    int32 shortTermMemoryTtlMs = sConfigMgr->GetIntDefault("AIWorld.ShortTermMemoryTtlMs", 60000);
     if (shortTermMemoryTtlMs < 1000)
     {
         TC_LOG_WARN("ai.world", "AIWorld.ShortTermMemoryTtlMs ({}) is invalid or too low, clamping to 1000ms", shortTermMemoryTtlMs);
@@ -1216,7 +1216,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _dynamicTaskMaxInFlight = uint32(dynamicTaskMaxInFlight);
 
-    int32 dynamicTaskResponseMaxAgeMs = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskResponseMaxAgeMs", 10000);
+    int32 dynamicTaskResponseMaxAgeMs = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskResponseMaxAgeMs", 30000);
     if (dynamicTaskResponseMaxAgeMs < 0)
     {
         TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskResponseMaxAgeMs ({}) is negative, clamping to 0", dynamicTaskResponseMaxAgeMs);
@@ -1224,7 +1224,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _dynamicTaskResponseMaxAgeMs = uint64(dynamicTaskResponseMaxAgeMs);
 
-    int32 dynamicTaskSourceMaxAgeMs = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskSourceMaxAgeMs", 30000);
+    int32 dynamicTaskSourceMaxAgeMs = sConfigMgr->GetIntDefault("AIWorld.DynamicTaskSourceMaxAgeMs", 60000);
     if (dynamicTaskSourceMaxAgeMs < 0)
     {
         TC_LOG_WARN("ai.world", "AIWorld.DynamicTaskSourceMaxAgeMs ({}) is negative, clamping to 0", dynamicTaskSourceMaxAgeMs);

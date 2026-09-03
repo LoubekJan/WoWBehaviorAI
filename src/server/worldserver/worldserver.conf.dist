@@ -4569,10 +4569,13 @@ AIWorld.AIPort = 8000
 #        Description: Time (in milliseconds) to wait for an ai-server response before treating a
 #                     request as timed out. The world update thread never blocks on this - it only
 #                     bounds how long a request may stay in flight before AIClient gives up on it.
+#                     Raised from 1000 to 30000 for 2.13A3B development - a real local model's
+#                     /dynamic-task response (unlike /decision's deterministic stub) can take much
+#                     longer than 1s, especially with reasoning enabled.
 #        Important:   Values below 100 are clamped to 100.
-#        Default:     1000
+#        Default:     30000
 
-AIWorld.RequestTimeoutMs = 1000
+AIWorld.RequestTimeoutMs = 30000
 
 #
 #    AIWorld.DecisionMaxInFlight
@@ -4621,10 +4624,13 @@ AIWorld.NearbyPerceptionIntervalMs = 1000
 #                     most recent Observation of it, before being expired. Repeated Observations of
 #                     the same underlying thing (same WorldEvent, same seen Player, same seen
 #                     Creature) refresh the same record instead of creating a new one each time.
+#                     Raised from 30000 to 60000 for 2.13A3B development, alongside
+#                     AIWorld.DynamicTaskSourceMaxAgeMs - a source WorldEvent memory must still be
+#                     active when a slower real-model /dynamic-task response arrives.
 #        Important:   Values below 1000 are clamped to 1000.
-#        Default:     30000
+#        Default:     60000
 
-AIWorld.ShortTermMemoryTtlMs = 30000
+AIWorld.ShortTermMemoryTtlMs = 60000
 
 #
 #    AIWorld.LongTermMemoryMinImportance
@@ -4765,20 +4771,24 @@ AIWorld.DynamicTaskMaxInFlight = 2
 #    AIWorld.DynamicTaskResponseMaxAgeMs
 #        Description: Milestone 2.13A3B - a /dynamic-task response arriving more than this long
 #                     after its request was submitted is discarded (STALE_REQUEST) even if every
-#                     other acceptance check would otherwise pass.
-#        Default:     10000 (10 seconds)
+#                     other acceptance check would otherwise pass. Raised from 10000 to 30000 for
+#                     2.13A3B development to comfortably fit AIWorld.RequestTimeoutMs=30000 - a
+#                     response that took nearly the full request timeout to arrive must still have
+#                     a chance to pass this check, not be rejected by it immediately after.
+#        Default:     30000 (30 seconds)
 
-AIWorld.DynamicTaskResponseMaxAgeMs = 10000
+AIWorld.DynamicTaskResponseMaxAgeMs = 30000
 
 #
 #    AIWorld.DynamicTaskSourceMaxAgeMs
 #        Description: Milestone 2.13A3B - how old the source WorldEvent short-term memory a
 #                     dynamic-task request is built from may be, both at build time
 #                     (BuildDynamicTaskRequest()) and re-checked against current active memory when
-#                     the response arrives (STALE_SOURCE_EVENT).
-#        Default:     30000 (30 seconds)
+#                     the response arrives (STALE_SOURCE_EVENT). Raised from 30000 to 60000 for
+#                     2.13A3B development, alongside AIWorld.ShortTermMemoryTtlMs=60000.
+#        Default:     60000 (60 seconds)
 
-AIWorld.DynamicTaskSourceMaxAgeMs = 30000
+AIWorld.DynamicTaskSourceMaxAgeMs = 60000
 
 #
 #    AIWorld.DynamicTaskMaxRequiredCount
