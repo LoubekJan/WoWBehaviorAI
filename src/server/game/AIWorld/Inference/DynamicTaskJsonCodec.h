@@ -44,15 +44,27 @@ std::string SerializeDynamicTaskRequest(DynamicTaskRequest const& request);
 
 // Parses `json` into `response`, re-validating everything the Python side
 // (docker/ai/app/dynamic_task.py) already enforces server-side at the
-// schema level: a known objective, uint32/uint64 bounds, finite floats,
-// title/description length caps, and required_count/max_range_yards/
-// expiry_ms > 0. A well-formed-looking body that violates any of those is
-// rejected exactly like a malformed one - this is schema/shape
-// validation only, the same tier /decision's own parser already does for
-// its schema, not the request-specific QuestProposalLimits/candidate-
-// token cross-check (that's the caller's job once it has both this
-// response and the QuestContext/QuestRequestProvenance the request was
-// built from - see AIWorldMgr's dynamic-task acceptance path).
+// schema level: the body must be legal JSON per RFC 8259 (matched
+// braces/brackets, legal separators, escape-aware strings, strict number
+// grammar, no duplicate keys - see DynamicTaskJsonCodec.cpp's own
+// two-layer grammar-then-schema design); the root object and the nested
+// "proposal" object must each have *exactly* their declared field set as
+// *direct* members - no missing field, no unknown/extra field, and (this
+// matters specifically) a field is only ever read from the object it is
+// actually declared on, never merely "found somewhere in the document" -
+// the same "extra=forbid, every field required" contract ai-server's own
+// pydantic models enforce; and every value must be the right JSON type
+// with a known objective, uint32/uint64 bounds, finite floats (including
+// floats a finite double would overflow to +-inf when narrowed to
+// float), title/description length caps, and required_count/
+// max_range_yards/expiry_ms > 0. A well-formed-looking body that
+// violates any of those is rejected exactly like a malformed one - this
+// is schema/shape validation only, the same tier /decision's own parser
+// already does for its schema, not the request-specific
+// QuestProposalLimits/candidate-token cross-check (that's the caller's
+// job once it has both this response and the QuestContext/
+// QuestRequestProvenance the request was built from - see AIWorldMgr's
+// dynamic-task acceptance path).
 //
 // Returns false (response left completely untouched - never a partial
 // fill) on any parse or validation failure. A successful parse only means

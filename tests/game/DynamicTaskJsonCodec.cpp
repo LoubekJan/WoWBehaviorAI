@@ -167,6 +167,135 @@ TEST_CASE("ParseDynamicTaskResponse rejects malformed JSON", "[DynamicTaskJsonCo
     }
 }
 
+TEST_CASE("ParseDynamicTaskResponse rejects required fields nested under another root field", "[DynamicTaskJsonCodec]")
+{
+    // Every required key is "findable" somewhere in the document, but
+    // none of them are direct members of the root object - the root's
+    // only direct member is "wrapper". A substring-search parser that
+    // doesn't track object nesting would accept this; a real
+    // direct-member parser must not.
+    std::string json =
+        "{\"wrapper\":{\"protocol_version\":1,\"request_id\":123,\"agent_id\":42,\"snapshot_sequence\":77,"
+        "\"proposal\":{\"objective\":\"KILL_CREATURE\",\"target_token\":1,\"required_count\":3,"
+        "\"max_range_yards\":50,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+        "\"title\":\"x\",\"description\":\"x\"}}}";
+
+    DynamicTaskResponse response = PoisonedResponse();
+    REQUIRE_FALSE(ParseDynamicTaskResponse(json, response));
+    REQUIRE(response.RequestId == 999999);
+}
+
+TEST_CASE("ParseDynamicTaskResponse rejects unknown root and proposal fields", "[DynamicTaskJsonCodec]")
+{
+    SECTION("unknown root field")
+    {
+        std::string json =
+            "{\"protocol_version\":1,\"request_id\":1,\"agent_id\":1,\"snapshot_sequence\":1,"
+            "\"proposal\":{\"objective\":\"KILL_CREATURE\",\"target_token\":1,\"required_count\":1,"
+            "\"max_range_yards\":10,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+            "\"title\":\"t\",\"description\":\"d\"},"
+            "\"unexpected\":\"nope\"}";
+
+        DynamicTaskResponse response = PoisonedResponse();
+        REQUIRE_FALSE(ParseDynamicTaskResponse(json, response));
+    }
+
+    SECTION("unknown proposal field")
+    {
+        std::string json =
+            "{\"protocol_version\":1,\"request_id\":1,\"agent_id\":1,\"snapshot_sequence\":1,"
+            "\"proposal\":{\"objective\":\"KILL_CREATURE\",\"target_token\":1,\"required_count\":1,"
+            "\"max_range_yards\":10,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+            "\"title\":\"t\",\"description\":\"d\",\"unexpected\":\"nope\"}}";
+
+        DynamicTaskResponse response = PoisonedResponse();
+        REQUIRE_FALSE(ParseDynamicTaskResponse(json, response));
+    }
+
+    SECTION("missing root field")
+    {
+        std::string json =
+            "{\"request_id\":1,\"agent_id\":1,\"snapshot_sequence\":1,"
+            "\"proposal\":{\"objective\":\"KILL_CREATURE\",\"target_token\":1,\"required_count\":1,"
+            "\"max_range_yards\":10,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+            "\"title\":\"t\",\"description\":\"d\"}}";
+
+        DynamicTaskResponse response = PoisonedResponse();
+        REQUIRE_FALSE(ParseDynamicTaskResponse(json, response));
+    }
+
+    SECTION("missing proposal field")
+    {
+        std::string json =
+            "{\"protocol_version\":1,\"request_id\":1,\"agent_id\":1,\"snapshot_sequence\":1,"
+            "\"proposal\":{\"target_token\":1,\"required_count\":1,"
+            "\"max_range_yards\":10,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+            "\"title\":\"t\",\"description\":\"d\"}}";
+
+        DynamicTaskResponse response = PoisonedResponse();
+        REQUIRE_FALSE(ParseDynamicTaskResponse(json, response));
+    }
+
+    SECTION("root fields in a different order still parse correctly (JSON objects are unordered)")
+    {
+        std::string json =
+            "{\"proposal\":{\"description\":\"d\",\"title\":\"t\",\"reward_money_copper\":0,"
+            "\"expiry_ms\":1000,\"max_range_yards\":10,\"required_count\":1,\"target_token\":1,"
+            "\"objective\":\"KILL_CREATURE\"},"
+            "\"snapshot_sequence\":77,\"agent_id\":42,\"request_id\":123,\"protocol_version\":1}";
+
+        DynamicTaskResponse response;
+        REQUIRE(ParseDynamicTaskResponse(json, response));
+        REQUIRE(response.RequestId == 123);
+        REQUIRE(response.Agent.Value == 42);
+        REQUIRE(response.SnapshotSequence == 77);
+        REQUIRE(response.Proposal.Title == "t");
+    }
+}
+
+TEST_CASE("ParseDynamicTaskResponse rejects non-JSON whitespace between tokens", "[DynamicTaskJsonCodec]")
+{
+    // JSON's insignificant whitespace is exactly space/tab/LF/CR
+    // (RFC 8259 section 2) - vertical tab and form feed are not
+    // whitespace as far as JSON is concerned, even though std::isspace()
+    // in the "C" locale accepts both.
+    SECTION("vertical tab between tokens")
+    {
+        std::string json =
+            "{\"protocol_version\":1,\x0B\"request_id\":1,\"agent_id\":1,\"snapshot_sequence\":1,"
+            "\"proposal\":{\"objective\":\"KILL_CREATURE\",\"target_token\":1,\"required_count\":1,"
+            "\"max_range_yards\":10,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+            "\"title\":\"t\",\"description\":\"d\"}}";
+
+        DynamicTaskResponse response = PoisonedResponse();
+        REQUIRE_FALSE(ParseDynamicTaskResponse(json, response));
+    }
+
+    SECTION("form feed between tokens")
+    {
+        std::string json =
+            "{\"protocol_version\":1,\x0C\"request_id\":1,\"agent_id\":1,\"snapshot_sequence\":1,"
+            "\"proposal\":{\"objective\":\"KILL_CREATURE\",\"target_token\":1,\"required_count\":1,"
+            "\"max_range_yards\":10,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+            "\"title\":\"t\",\"description\":\"d\"}}";
+
+        DynamicTaskResponse response = PoisonedResponse();
+        REQUIRE_FALSE(ParseDynamicTaskResponse(json, response));
+    }
+
+    SECTION("the legal whitespace set (space/tab/LF/CR) is still accepted")
+    {
+        std::string json =
+            "{\t\"protocol_version\":1,\n\"request_id\":1,\r\n\"agent_id\":1,\"snapshot_sequence\":1,"
+            "\"proposal\":{\"objective\":\"KILL_CREATURE\",\"target_token\":1,\"required_count\":1,"
+            "\"max_range_yards\":10,\"expiry_ms\":1000,\"reward_money_copper\":0,"
+            "\"title\":\"t\",\"description\":\"d\"} }";
+
+        DynamicTaskResponse response;
+        REQUIRE(ParseDynamicTaskResponse(json, response));
+    }
+}
+
 TEST_CASE("ParseDynamicTaskResponse rejects an unsupported objective", "[DynamicTaskJsonCodec]")
 {
     std::string json =
