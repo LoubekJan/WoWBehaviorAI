@@ -294,6 +294,36 @@ class DynamicTaskModelTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             DynamicTaskRequest.model_validate(payload)
 
+    def test_relevant_event_importance_as_string_rejected(self):
+        payload = _valid_request_payload()
+        payload["context"]["relevant_events"] = [
+            {
+                "type": "CREATURE_KILLED",
+                "actor_entry": 1,
+                "target_entry": 2,
+                "importance": "0.5",
+                "relevance": 0.5,
+                "age_ms": 100,
+            }
+        ]
+        with self.assertRaises(ValidationError):
+            DynamicTaskRequest.model_validate(payload)
+
+    def test_relevant_event_relevance_as_string_rejected(self):
+        payload = _valid_request_payload()
+        payload["context"]["relevant_events"] = [
+            {
+                "type": "CREATURE_KILLED",
+                "actor_entry": 1,
+                "target_entry": 2,
+                "importance": 0.5,
+                "relevance": "0.5",
+                "age_ms": 100,
+            }
+        ]
+        with self.assertRaises(ValidationError):
+            DynamicTaskRequest.model_validate(payload)
+
 
 class ValidateDraftAgainstContextTests(unittest.TestCase):
     """validate_draft_against_context() is the request-specific policy

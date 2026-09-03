@@ -102,8 +102,8 @@ class QuestRelevantEvent(BaseModel):
     type: WorldEventType
     actor_entry: int = Field(strict=True, ge=0, le=UINT32_MAX)
     target_entry: int = Field(strict=True, ge=0, le=UINT32_MAX)
-    importance: float
-    relevance: float
+    importance: float = Field(strict=True)
+    relevance: float = Field(strict=True)
     age_ms: int = Field(strict=True, ge=0, le=UINT32_MAX)
 
 
