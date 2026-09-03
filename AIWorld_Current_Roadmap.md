@@ -1190,7 +1190,18 @@ Další krok je `2.13A2`: local-model provider za existujícím `ai-server` boun
 
 #### 2.13A2 — local-model provider v `ai-server`
 
-**Stav: IN PROGRESS — implementace hotová, ověřeno lokálním `python -m unittest` (45/45) mimo Docker; čeká na tvůj diff review a na oficiální Docker gate z `README_DEV.md`.**
+**Stav: CLOSED — STATIC + DOCKER UNIT + HEALTH + WORLD REGRESSION PASS (`6cfa20ad9b`, `b9070b72e0`, `7252a24c10`).**
+
+```text
+REVISION=7252a24c10a0c3d2800cf00f05d8e7554616fc74
+STATIC=PASS
+AI_SERVER_DOCKER_UNIT=PASS (58/58)
+AI_SERVER_HEALTH=PASS
+WORLD_REGRESSION=PASS
+ERROR_SCAN=PASS
+```
+
+Review prošel dvěma follow-up koly (`b9070b72e0`: field-level `strict=True`, skutečně bounded streaming request/response read, uint32/uint64 upper bounds, non-string `message.content` handling; `7252a24c10`: dokončení `strict=True` na `QuestRelevantEvent.importance`/`relevance`) — finální diff STATIC PASS, poté oficiální `docker compose ... run --rm ai-server python -m unittest ...` gate z `README_DEV.md` PASS.
 
 Worldserver v tomto kroku vůbec není měněný — `AIClient`/`AIWorldMgr` zůstávají beze změny, zapojení patří až do `2.13A3`.
 
@@ -1199,10 +1210,10 @@ Python zrcadlo A1 kontraktu a jeden best-effort call na OpenAI-compatible backen
 - `docker/ai/app/dynamic_task.py`: pydantic modely 1:1 k C++ DTO (`DynamicTaskRequest`/`QuestContext`/`QuestProblemContext`/`QuestRelevantEvent`/`QuestTargetCandidate`/`QuestProposalLimits`/`QuestProposalDraft`/`DynamicTaskResponse`), všechny s `extra="forbid"` a `allow_inf_nan=False`; `QUEST_CONTRACT_MAX_*` konstanty odpovídají C++ `QuestContractLimits.h` (RelevantEvents ≤ 8, CandidateTargets ≤ 16, DisplayName ≤ 64, Title ≤ 80, Description ≤ 400) a jsou vynucené přímo na modelech (`Field(max_length=...)`), ne jen zdokumentované; `QuestObjectiveType` zatím povoluje jen `KILL_CREATURE`; `validate_draft_against_context()` je samostatná, request-specific kontrola (`target_token` musí být v `candidate_targets`, `required_count`/`max_range_yards`/`expiry_ms`/`reward_money_copper` musí být uvnitř `QuestContext.limits`).
 - `docker/ai/app/model_provider.py`: `OpenAICompatibleTaskProvider` — jeden HTTP request (`httpx.AsyncClient`), explicitní timeout, žádný retry, kontrola HTTP statusu i velikosti odpovědi před parsováním, JSON parse → `QuestProposalDraft` validace; žádné logování celého promptu ani API key (žádná API-key proměnná zatím neexistuje — typické lokální OpenAI-compatible backendy ji nevyžadují). Konfigurace přes env (`AI_TASK_MODEL_ENABLED` default `0`, `AI_TASK_MODEL_URL`, `AI_TASK_MODEL_NAME`, `AI_TASK_MODEL_TIMEOUT_MS`, `AI_TASK_MODEL_MAX_REQUEST_BYTES`, `AI_TASK_MODEL_MAX_RESPONSE_BYTES`, `AI_TASK_MODEL_MAX_TOKENS`).
 - `docker/ai/app/main.py`: nový `POST /dynamic-task` — pořadí kontrol request size → protocol version → strict request schema → feature enabled → provider configured → provider call → strict draft schema → request-specific limits → response; `request_id`/`agent_id`/`snapshot_sequence` v odpovědi vždy z původního requestu, nikdy z modelu (stejný trust pattern jako `/decision`). Fail-closed: disabled/not configured → 503, timeout → 504, non-2xx/malformed/oversized/schema-invalid/policy-invalid → 502, oversized request → 413, protocol mismatch → 400 — nikdy fallback quest. `GET /health` nově vrací `task_model_enabled`/`task_model_configured` (statická konfigurace, nikdy živě ověřená `model_ready`).
-- `docker/ai/tests/test_dynamic_task.py`: fake/mock provider přes FastAPI `dependency_overrides`, `httpx.MockTransport` pro reálný provider request/parse/validate pipeline (žádný skutečný LLM); pokrývá celou minimální sadu z handoffu (disabled/not-called, valid draft, protocol mismatch, extra field, timeout, non-2xx, malformed JSON, unknown proposal field, invalid objective, NaN/Infinity, neznámý `target_token`, překročení `required_count`/`range`/`expiry`/`reward` limitů, oversized response) plus několik navíc (title/description too long, over-max kolekce, `/health` bez `model_ready`) — 45 testů, 45 passed.
+- `docker/ai/tests/test_dynamic_task.py`: fake/mock provider přes FastAPI `dependency_overrides`, `httpx.MockTransport` pro reálný provider request/parse/validate pipeline (žádný skutečný LLM); pokrývá celou minimální sadu z handoffu (disabled/not-called, valid draft, protocol mismatch, extra field, timeout, non-2xx, malformed JSON, unknown proposal field, invalid objective, NaN/Infinity, neznámý `target_token`, překročení `required_count`/`range`/`expiry`/`reward` limitů, oversized response) plus review-vyžádané doplňky (title/description too long, over-max kolekce, `/health` bez `model_ready`, string→number coercion na každém int/float poli, uint32/uint64 overflow, non-string `message.content`) — 58 testů, 58 passed.
 - `docker/ai/Dockerfile`: přidán `httpx`, `tests/` se kopíruje do image; `compose.yml`: `ai-server.environment` s výchozím `AI_TASK_MODEL_ENABLED=0` a zbylými proměnnými; žádná model service není do Compose přidána automaticky. `README_DEV.md`: nový `docker compose ... run --rm ai-server python -m unittest discover -s tests -p 'test_*.py' -v` příkaz.
 
-Co ověřeno a jak: `python -m unittest discover` proti stejným (nepinovaným) balíčkům, jaké instaluje `Dockerfile` (`fastapi`, `pydantic`, `httpx`), spuštěné v samostatném virtualenv mimo Docker — **45/45 passed**, žádný real network call, žádný skutečný LLM. Toto NENÍ oficiální gate z `README_DEV.md` (ten běží uvnitř `docker compose ... run --rm ai-server`) — ten je potřeba spustit na tvém hostu před uzavřením A2. `/decision`/`/health` regresně ověřeny stejným způsobem (`TestClient`), beze změny chování.
+Co ověřeno a jak: implementace nejdřív ověřena `python -m unittest discover` proti stejným (nepinovaným) balíčkům, jaké instaluje `Dockerfile`, v izolovaném virtualenv mimo Docker (58/58), poté oficiální `docker compose -f compose.yml -f compose.dev.yml run --rm ai-server python -m unittest discover -s tests -p 'test_*.py' -v` gate z `README_DEV.md` — **AI_SERVER_DOCKER_UNIT=PASS (58/58)**. `AI_SERVER_HEALTH=PASS` (`GET /health` vrací `task_model_enabled`/`task_model_configured`, default `false`/`false`, žádné `model_ready`). `WORLD_REGRESSION=PASS` — `/decision` beze změny chování, worldserver C++ nedotčen.
 
 Runtime pro A2 nepotřebuje worldserver `/dynamic-task` call — `AIClient` jej zatím neumí odeslat (`2.13A3`). A2 runtime proof je samotný `ai-server`: fake/mock provider testy PASS, disabled-by-default PASS, `/health` PASS; malformed/timeout/outage PASS; worldserver chování nezměněné.
 
