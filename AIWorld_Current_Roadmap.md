@@ -1162,6 +1162,21 @@ NPC memory/goal/world-state feedback
 - sanitizovaný minimální kontext;
 - žádný live pointer nebo arbitrary world serialization.
 
+#### 2.13A1 — dynamic-task protocol / DTO contract
+
+**Stav: IN PROGRESS — implementation pending STATIC/BUILD gate.**
+
+Pure value-only kontrakt pro budoucí `/dynamic-task` boundary:
+
+- samostatný `DynamicTaskProtocolVersion`, nezávislý na `/decision` `ProtocolVersion`;
+- minimální sanitizovaný `QuestContext`, bez `ObjectGuid`, `SpawnId`, live pointerů nebo arbitrary world serialization;
+- request-local `QuestTargetCandidate::Token` místo model-visible engine identity;
+- interní `QuestRequestProvenance` drží actor runtime identity, source-event provenance a token → authoritative target binding, ale nikdy se neserializuje;
+- untrusted `QuestProposalDraft` je čistě deklarativní (`objective`, target token, count/range/expiry/reward, text), bez execution payloadu;
+- žádný HTTP transport, local model, player-facing quest ani world mutation v A1.
+
+Další krok po STATIC + BUILD PASS je `2.13A2`: local-model provider za existujícím `ai-server` boundary a strict schema parsing pro tento kontrakt.
+
 ### 2.13B — `QuestProposal` validator
 
 Server validuje objective type, target, amount/range/expiry, reward bounds a source-problem provenance. LLM nesmí generovat execution code, SQL, spawn/delete, spell cast ani jinou direct mutation.
