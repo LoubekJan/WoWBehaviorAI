@@ -15,9 +15,10 @@ timeout, no automatic retry, and no fallback draft on any failure - every
 failure mode raises a ModelProviderError subclass that main.py turns into
 a 5xx. A provider failure must never become a synthesized
 QuestProposalDraft. The request/response body is never logged in full (it
-carries untrusted or potentially sensitive text); there is currently no
-API-key configuration (typical local OpenAI-compatible backends don't
-require one), and if one is ever added it must follow the same rule.
+carries untrusted or potentially sensitive text). AI_TASK_MODEL_API_KEY
+is optional (many local OpenAI-compatible backends don't require one) -
+when set, it is sent as a bearer token and never logged or included in
+any exception message.
 """
 from __future__ import annotations
 
@@ -88,6 +89,10 @@ class ModelProviderConfig:
     max_request_bytes: int
     max_response_bytes: int
     max_tokens: int
+    # Optional - most local OpenAI-compatible backends (Ollama, llama.cpp's
+    # server) don't require one, but some (including proxies/gateways in
+    # front of one) do. Never logged, never part of any exception message.
+    api_key: str = ""
 
     @property
     def configured(self) -> bool:
@@ -103,6 +108,7 @@ class ModelProviderConfig:
             max_request_bytes=int(os.environ.get("AI_TASK_MODEL_MAX_REQUEST_BYTES", "32768")),
             max_response_bytes=int(os.environ.get("AI_TASK_MODEL_MAX_RESPONSE_BYTES", "16384")),
             max_tokens=int(os.environ.get("AI_TASK_MODEL_MAX_TOKENS", "512")),
+            api_key=os.environ.get("AI_TASK_MODEL_API_KEY", ""),
         )
 
 
@@ -134,6 +140,15 @@ class OpenAICompatibleTaskProvider:
 
         timeout = httpx.Timeout(self._config.timeout_ms / 1000)
 
+        # Only set when a key is actually configured - most local
+        # OpenAI-compatible backends don't require one, and sending an
+        # empty/placeholder Authorization header to one that doesn't want
+        # it is needless surface area. The key itself never appears in a
+        # log line or exception message anywhere in this module.
+        headers = {}
+        if self._config.api_key:
+            headers["Authorization"] = f"Bearer {self._config.api_key}"
+
         # Streamed and bounded on purpose: client.post()/response.content
         # would buffer the entire body in memory before max_response_bytes
         # is ever checked, so a misbehaving or malicious backend could
@@ -146,7 +161,7 @@ class OpenAICompatibleTaskProvider:
 
         try:
             async with httpx.AsyncClient(timeout=timeout, transport=self._transport) as client:
-                async with client.stream("POST", self._config.url, json=payload) as response:
+                async with client.stream("POST", self._config.url, json=payload, headers=headers) as response:
                     if not (200 <= response.status_code < 300):
                         logger.warning("model provider returned HTTP %s", response.status_code)
                         raise ModelProviderBadStatus(response.status_code)
