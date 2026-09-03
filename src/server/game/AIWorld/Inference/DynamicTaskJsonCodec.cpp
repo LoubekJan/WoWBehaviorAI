@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <limits>
 #include <sstream>
+#include <vector>
 
 namespace
 {
@@ -153,9 +154,17 @@ namespace
 
     // Returns the index just past the closing, unescaped '"' of the
     // string literal starting at json[start] (which must itself be '"'),
-    // or NPos if the literal is unterminated or ends mid-escape. Steps
-    // over every backslash-escape pair as a unit so an escaped quote
-    // (\") is never mistaken for the closing quote.
+    // or NPos if the literal is unterminated, ends mid-escape, contains
+    // an illegal escape sequence, or contains a raw (unescaped) control
+    // character - all of which are illegal inside a JSON string per
+    // RFC 8259, not just "inconvenient to skip over". Legal escapes are
+    // \" \\ \/ \b \f \n \r \t and \uXXXX (four hex digits) - anything
+    // else is a hard failure, the same set UnescapeJsonString below
+    // actually decodes. Used both by the grammar validator (SkipJsonValue)
+    // and by the schema-specific field extractors further down, so a
+    // string this function has already walked is *known* well-formed by
+    // the time either UnescapeJsonString or a brace-depth scan looks at
+    // it - not just "probably fine".
     std::size_t SkipJsonStringLiteral(std::string_view json, std::size_t start)
     {
         if (start >= json.size() || json[start] != '"')
@@ -164,16 +173,42 @@ namespace
         std::size_t i = start + 1;
         while (i < json.size())
         {
-            char c = json[i];
+            unsigned char c = static_cast<unsigned char>(json[i]);
+            if (c == '"')
+                return i + 1;
+
             if (c == '\\')
             {
                 if (i + 1 >= json.size())
                     return NPos;
-                i += 2;
+
+                char esc = json[i + 1];
+                switch (esc)
+                {
+                    case '"': case '\\': case '/': case 'b': case 'f': case 'n': case 'r': case 't':
+                        i += 2;
+                        break;
+                    case 'u':
+                        if (i + 6 > json.size())
+                            return NPos;
+                        for (int k = 0; k < 4; ++k)
+                        {
+                            char h = json[i + 2 + k];
+                            bool hex = (h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') || (h >= 'A' && h <= 'F');
+                            if (!hex)
+                                return NPos;
+                        }
+                        i += 6;
+                        break;
+                    default:
+                        return NPos; // unknown escape - reject, never guess
+                }
                 continue;
             }
-            if (c == '"')
-                return i + 1;
+
+            if (c < 0x20)
+                return NPos; // raw control character - must be escaped, RFC 8259 section 7
+
             ++i;
         }
         return NPos;
@@ -412,11 +447,24 @@ namespace
         {
             std::size_t consumed = 0;
             double value = std::stod(token, &consumed);
-            if (consumed != token.size())
+            if (consumed != token.size() || !std::isfinite(value))
                 return false;
-            if (!std::isfinite(value))
+
+            // A finite double can still be outside float's finite range
+            // (e.g. 1e100) - narrowing that via static_cast is undefined
+            // behavior in general and, on the implementations where it
+            // isn't, typically yields +-inf. Reject before narrowing
+            // rather than trust an isfinite() check already made obsolete
+            // by the cast that follows it.
+            if (value < -static_cast<double>(std::numeric_limits<float>::max()) ||
+                value > static_cast<double>(std::numeric_limits<float>::max()))
                 return false;
-            out = static_cast<float>(value);
+
+            float narrowed = static_cast<float>(value);
+            if (!std::isfinite(narrowed))
+                return false;
+
+            out = narrowed;
         }
         catch (std::exception const&)
         {
@@ -479,6 +527,231 @@ namespace
         }
         return false; // "INVALID" and anything unrecognized - reject, never guess
     }
+
+    // -----------------------------------------------------------------
+    // Full JSON grammar validator (RFC 8259) - review follow-up.
+    //
+    // The Find*Field()/FindJsonObjectSpan() helpers above locate this
+    // schema's known fields by searching for "key": patterns; on their
+    // own they never confirm the *document itself* is legal JSON - a
+    // body missing its root braces, commas, or containing trailing
+    // garbage after the real object could still have every expected key
+    // "found" and accepted. ParseDynamicTaskResponse() closes that gap by
+    // running this validator over the *entire* body first: it recursively
+    // walks the standard JSON grammar (object/array/string/number/true/
+    // false/null), rejects duplicate keys within any one object, and
+    // requires the whole input to be consumed by exactly one root object
+    // - only once all of that holds does schema-specific extraction ever
+    // run. This does not build a DOM (nothing here is kept - callers get
+    // pass/fail only) and does not reject unrecognized/extra keys, only
+    // malformed ones - the philosophy /decision's own parser already
+    // documents (tolerant of unknown extra keys, never of a broken shape).
+    std::size_t SkipJsonWhitespace(std::string_view json, std::size_t pos)
+    {
+        while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos])))
+            ++pos;
+        return pos;
+    }
+
+    // Strict RFC 8259 number grammar: -?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?
+    // - unlike ScanJsonNumberToken above (deliberately lenient, used only
+    // to find a token's raw span for std::stoull/std::stod to judge),
+    // this rejects e.g. a leading zero ("007"), a bare "-", or a "."/'e'
+    // with no digits after it. Returns `start` if no legal number begins
+    // there.
+    std::size_t SkipStrictJsonNumber(std::string_view json, std::size_t start)
+    {
+        std::size_t i = start;
+        if (i < json.size() && json[i] == '-')
+            ++i;
+
+        if (i >= json.size() || !std::isdigit(static_cast<unsigned char>(json[i])))
+            return start;
+
+        if (json[i] == '0')
+            ++i; // a leading zero must stand alone in the integer part
+        else
+        {
+            while (i < json.size() && std::isdigit(static_cast<unsigned char>(json[i])))
+                ++i;
+        }
+
+        if (i < json.size() && json[i] == '.')
+        {
+            std::size_t j = i + 1;
+            if (j >= json.size() || !std::isdigit(static_cast<unsigned char>(json[j])))
+                return start; // '.' must be followed by at least one digit
+            while (j < json.size() && std::isdigit(static_cast<unsigned char>(json[j])))
+                ++j;
+            i = j;
+        }
+
+        if (i < json.size() && (json[i] == 'e' || json[i] == 'E'))
+        {
+            std::size_t j = i + 1;
+            if (j < json.size() && (json[j] == '+' || json[j] == '-'))
+                ++j;
+            if (j >= json.size() || !std::isdigit(static_cast<unsigned char>(json[j])))
+                return start; // exponent marker must be followed by at least one digit
+            while (j < json.size() && std::isdigit(static_cast<unsigned char>(json[j])))
+                ++j;
+            i = j;
+        }
+
+        return i;
+    }
+
+    std::size_t SkipJsonValue(std::string_view json, std::size_t pos, std::size_t depth);
+
+    // Validates '{'...'}' starting at json[start] (which must be '{'):
+    // an empty object, or a comma-separated "key":value list, each value
+    // itself grammar-validated recursively. Rejects a duplicate key
+    // within this object (decoded, so A and "A" count as the same
+    // key) - RFC 8259 permits it syntactically but this codec never
+    // needs the ambiguity of "which one wins", so it simply refuses to
+    // guess. Returns the index just past the matching '}', or NPos.
+    std::size_t SkipJsonObject(std::string_view json, std::size_t start, std::size_t depth)
+    {
+        std::size_t i = SkipJsonWhitespace(json, start + 1);
+
+        if (i < json.size() && json[i] == '}')
+            return i + 1;
+
+        std::vector<std::string> seenKeys; // this schema's objects have a handful of fields - linear scan is fine
+
+        for (;;)
+        {
+            if (i >= json.size() || json[i] != '"')
+                return NPos;
+
+            std::size_t keyLiteralEnd = SkipJsonStringLiteral(json, i);
+            if (keyLiteralEnd == NPos)
+                return NPos;
+
+            std::string key;
+            if (!UnescapeJsonString(json.substr(i, keyLiteralEnd - i), key))
+                return NPos;
+
+            for (std::string const& seen : seenKeys)
+                if (seen == key)
+                    return NPos; // duplicate key
+
+            seenKeys.push_back(std::move(key));
+
+            i = SkipJsonWhitespace(json, keyLiteralEnd);
+            if (i >= json.size() || json[i] != ':')
+                return NPos;
+
+            i = SkipJsonWhitespace(json, i + 1);
+
+            i = SkipJsonValue(json, i, depth + 1);
+            if (i == NPos)
+                return NPos;
+
+            i = SkipJsonWhitespace(json, i);
+            if (i >= json.size())
+                return NPos;
+
+            if (json[i] == ',')
+            {
+                i = SkipJsonWhitespace(json, i + 1);
+                continue;
+            }
+            if (json[i] == '}')
+                return i + 1;
+
+            return NPos;
+        }
+    }
+
+    // Validates '['...']' starting at json[start] (which must be '['):
+    // an empty array, or a comma-separated value list. Returns the index
+    // just past the matching ']', or NPos.
+    std::size_t SkipJsonArray(std::string_view json, std::size_t start, std::size_t depth)
+    {
+        std::size_t i = SkipJsonWhitespace(json, start + 1);
+
+        if (i < json.size() && json[i] == ']')
+            return i + 1;
+
+        for (;;)
+        {
+            i = SkipJsonValue(json, i, depth + 1);
+            if (i == NPos)
+                return NPos;
+
+            i = SkipJsonWhitespace(json, i);
+            if (i >= json.size())
+                return NPos;
+
+            if (json[i] == ',')
+            {
+                i = SkipJsonWhitespace(json, i + 1);
+                continue;
+            }
+            if (json[i] == ']')
+                return i + 1;
+
+            return NPos;
+        }
+    }
+
+    // Validates exactly one JSON value (object/array/string/number/true/
+    // false/null) starting at json[pos] (leading whitespace already
+    // skipped by the caller - object/array entries and the top-level
+    // caller both do this before calling in). Returns the index just
+    // past the value, or NPos if nothing legal starts there.
+    std::size_t SkipJsonValue(std::string_view json, std::size_t pos, std::size_t depth)
+    {
+        // Milestone 2.13A3: bounds recursion against a maliciously deep
+        // document (stack-overflow DoS) - this schema's own real nesting
+        // is shallow (response -> proposal, 2 levels), so a generous but
+        // finite bound is pure headroom, not a real constraint on valid
+        // input.
+        constexpr std::size_t MaxDepth = 32;
+        if (depth > MaxDepth || pos >= json.size())
+            return NPos;
+
+        char c = json[pos];
+        if (c == '{')
+            return SkipJsonObject(json, pos, depth);
+        if (c == '[')
+            return SkipJsonArray(json, pos, depth);
+        if (c == '"')
+            return SkipJsonStringLiteral(json, pos);
+        if (c == '-' || std::isdigit(static_cast<unsigned char>(c)))
+        {
+            std::size_t end = SkipStrictJsonNumber(json, pos);
+            return end == pos ? NPos : end;
+        }
+        if (json.substr(pos, 4) == "true")
+            return pos + 4;
+        if (json.substr(pos, 5) == "false")
+            return pos + 5;
+        if (json.substr(pos, 4) == "null")
+            return pos + 4;
+
+        return NPos;
+    }
+
+    // Validates that `json` is, in its entirety, exactly one legal JSON
+    // object (leading/trailing whitespace aside) - not an array, string,
+    // number or bare literal at the root, and nothing but whitespace
+    // before or after it. See the block comment above SkipJsonWhitespace
+    // for why ParseDynamicTaskResponse() runs this before touching any
+    // Find*Field() helper.
+    bool ValidateJsonRootObject(std::string_view json)
+    {
+        std::size_t rootPos = SkipJsonWhitespace(json, 0);
+        if (rootPos >= json.size() || json[rootPos] != '{')
+            return false;
+
+        std::size_t rootEnd = SkipJsonObject(json, rootPos, 0);
+        if (rootEnd == NPos)
+            return false;
+
+        return SkipJsonWhitespace(json, rootEnd) == json.size();
+    }
 }
 
 std::string SerializeDynamicTaskRequest(DynamicTaskRequest const& request)
@@ -493,6 +766,14 @@ std::string SerializeDynamicTaskRequest(DynamicTaskRequest const& request)
 
 bool ParseDynamicTaskResponse(std::string_view json, DynamicTaskResponse& response)
 {
+    // Grammar first, schema second (review follow-up): a body missing
+    // its root braces/commas, or carrying trailing garbage after an
+    // otherwise-valid object, must never reach the Find*Field() helpers
+    // below - they locate known keys by substring search and do not, on
+    // their own, prove the surrounding document is legal JSON at all.
+    if (!ValidateJsonRootObject(json))
+        return false;
+
     constexpr uint64 Uint32Max = std::numeric_limits<uint32>::max();
 
     std::size_t cursor = 0;
