@@ -18,7 +18,9 @@ QuestProposalDraft. The request/response body is never logged in full (it
 carries untrusted or potentially sensitive text). AI_TASK_MODEL_API_KEY
 is optional (many local OpenAI-compatible backends don't require one) -
 when set, it is sent as a bearer token and never logged or included in
-any exception message.
+any exception message. AI_TASK_MODEL_ENABLE_THINKING is also optional
+and, unset, sends nothing backend-specific at all - see
+ModelProviderConfig.enable_thinking's own comment.
 """
 from __future__ import annotations
 
@@ -36,13 +38,30 @@ from .dynamic_task import DynamicTaskRequest, QuestProposalDraft
 logger = logging.getLogger("ai-server.model_provider")
 
 SYSTEM_PROMPT = (
-    "You generate an untrusted dynamic quest draft.\n\n"
-    "Return JSON only.\n\n"
-    "You may only use target_token values present in candidate_targets.\n"
-    "You may only use supported objective types.\n"
-    "Stay within every limit supplied by the server.\n\n"
-    "Do not generate SQL, commands, scripts, GUIDs, spawn IDs, spells,\n"
-    "actions, world mutations or completion claims."
+    "You generate one untrusted dynamic quest draft.\n\n"
+    "Return exactly one JSON object and nothing else.\n\n"
+    "The JSON object MUST contain exactly these fields:\n"
+    "{\n"
+    '  "objective": "KILL_CREATURE",\n'
+    '  "target_token": <integer>,\n'
+    '  "required_count": <integer>,\n'
+    '  "max_range_yards": <number>,\n'
+    '  "expiry_ms": <integer>,\n'
+    '  "reward_money_copper": <integer>,\n'
+    '  "title": <string>,\n'
+    '  "description": <string>\n'
+    "}\n\n"
+    "Rules:\n"
+    "- Do not add any other fields.\n"
+    '- objective must be exactly "KILL_CREATURE".\n'
+    "- target_token must be one token from candidate_targets.\n"
+    "- required_count must be greater than 0 and <= limits.max_required_count.\n"
+    "- max_range_yards must be greater than 0 and <= limits.max_range_yards.\n"
+    "- expiry_ms must be greater than 0 and <= limits.max_expiry_ms.\n"
+    "- reward_money_copper must be >= 0 and <= limits.max_reward_money_copper.\n"
+    "- title and description must be plain text.\n"
+    "- Do not generate GUIDs, spawn IDs, SQL, commands, scripts, actions, "
+    "world mutations, or completion claims."
 )
 
 
@@ -93,6 +112,14 @@ class ModelProviderConfig:
     # server) don't require one, but some (including proxies/gateways in
     # front of one) do. Never logged, never part of any exception message.
     api_key: str = ""
+    # Tri-state, deliberately not a plain bool: None means "don't send
+    # chat_template_kwargs at all" - a llama.cpp-specific parameter that a
+    # backend without that template kwarg could reject or silently ignore.
+    # Only set to True/False (AI_TASK_MODEL_ENABLE_THINKING=1/0) for a
+    # backend that actually understands it, e.g. to force a reasoning
+    # model's chain-of-thought off so it spends its max_tokens budget on
+    # the actual JSON answer instead (see SYSTEM_PROMPT's own history).
+    enable_thinking: Optional[bool] = None
 
     @property
     def configured(self) -> bool:
@@ -100,6 +127,7 @@ class ModelProviderConfig:
 
     @classmethod
     def from_env(cls) -> "ModelProviderConfig":
+        enable_thinking_raw = os.environ.get("AI_TASK_MODEL_ENABLE_THINKING", "")
         return cls(
             enabled=os.environ.get("AI_TASK_MODEL_ENABLED", "0") == "1",
             url=os.environ.get("AI_TASK_MODEL_URL", ""),
@@ -109,6 +137,11 @@ class ModelProviderConfig:
             max_response_bytes=int(os.environ.get("AI_TASK_MODEL_MAX_RESPONSE_BYTES", "16384")),
             max_tokens=int(os.environ.get("AI_TASK_MODEL_MAX_TOKENS", "512")),
             api_key=os.environ.get("AI_TASK_MODEL_API_KEY", ""),
+            enable_thinking=(
+                None
+                if enable_thinking_raw == ""
+                else enable_thinking_raw == "1"
+            ),
         )
 
 
@@ -137,6 +170,12 @@ class OpenAICompatibleTaskProvider:
             ],
             "response_format": {"type": "json_object"},
         }
+
+        # Only added when explicitly configured (see enable_thinking's own
+        # declaration comment) - a backend that doesn't recognize
+        # chat_template_kwargs never sees it at all.
+        if self._config.enable_thinking is not None:
+            payload["chat_template_kwargs"] = {"enable_thinking": self._config.enable_thinking}
 
         timeout = httpx.Timeout(self._config.timeout_ms / 1000)
 

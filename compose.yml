@@ -97,6 +97,13 @@ services:
       # gateways/proxies in front of an otherwise-open local model do,
       # even when the model itself doesn't) - empty by default.
       AI_TASK_MODEL_API_KEY: ${AI_TASK_MODEL_API_KEY:-}
+      # Optional tri-state thinking control for backends that support a
+      # chat_template_kwargs.enable_thinking toggle (e.g. Qwen3-style
+      # reasoning models served through llama.cpp) - unset/empty sends
+      # nothing backend-specific at all, "0"/"1" sends enable_thinking
+      # false/true. Useful to force a reasoning model's chain-of-thought
+      # off so it spends its max_tokens budget on the actual JSON answer.
+      AI_TASK_MODEL_ENABLE_THINKING: ${AI_TASK_MODEL_ENABLE_THINKING:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

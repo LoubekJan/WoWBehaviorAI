@@ -419,6 +419,41 @@ class OpenAICompatibleTaskProviderTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("sk-local-secret", record)
         self.assertNotIn("sk-local-secret", str(captured_exception.exception))
 
+    async def test_thinking_control_omitted_when_unconfigured(self):
+        captured = {}
+
+        def handler(request):
+            captured["payload"] = json.loads(request.content)
+            draft_json = json.dumps(_valid_draft().model_dump(mode="json"))
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": draft_json}}]},
+            )
+
+        provider = self._provider(handler, enable_thinking=None)
+        await provider.generate(_valid_task_request())
+
+        self.assertNotIn("chat_template_kwargs", captured["payload"])
+
+    async def test_thinking_can_be_explicitly_disabled(self):
+        captured = {}
+
+        def handler(request):
+            captured["payload"] = json.loads(request.content)
+            draft_json = json.dumps(_valid_draft().model_dump(mode="json"))
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": draft_json}}]},
+            )
+
+        provider = self._provider(handler, enable_thinking=False)
+        await provider.generate(_valid_task_request())
+
+        self.assertEqual(
+            captured["payload"]["chat_template_kwargs"],
+            {"enable_thinking": False},
+        )
+
     async def test_timeout_raises(self):
         def handler(request):
             raise httpx.TimeoutException("boom", request=request)
