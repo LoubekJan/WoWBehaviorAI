@@ -9504,13 +9504,115 @@ void AIWorldMgr::OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& cand
     }
 
     QuestProposal const& proposal = *result.Proposal;
-    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_VALIDATED request={} agent={} sourceEvent={} objective={} targetToken={} targetEntry={} inert=1",
+    TC_LOG_INFO("ai.world", "DYNAMIC_TASK_VALIDATED request={} agent={} sourceEvent={} objective={} targetToken={} targetEntry={}",
         requestId, agent.Value, proposal.SourceEventId, ToString(proposal.Objective), proposal.TargetToken, proposal.TargetEntry);
 
-    // 2.13B ends here: `proposal` is server-only and inert, and goes out
-    // of scope right now - no storage, no queue, no ActionRequest, no
-    // ActionSystem/ActionExecutor, no Player/Quest/DB, no reward, no
-    // world mutation of any kind.
+    DynamicQuestCreateResult createResult = CreateDynamicQuestOffer(proposal, CurrentTimeMs());
+    if (!createResult.IsCreated())
+    {
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_CREATE_REJECTED request={} agent={} reason={}",
+            requestId, agent.Value, ToString(createResult.Reason));
+        return;
+    }
+
+    TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_OFFERED request={} agent={} dynamicQuestId={} objective={} targetEntry={}",
+        requestId, agent.Value, createResult.Id->Value, ToString(proposal.Objective), proposal.TargetEntry);
+
+    // 2.13C2 ends here: a real, registry-owned Offered DynamicQuestInstance
+    // now exists, but that is still not gameplay authorization by itself
+    // (see QuestProposal's/DynamicQuestInstance's own comments) - no
+    // Player::CanTakeQuest/AddQuest, no quest log, no quest marker, no
+    // gossip/menu, no accept-from-player, no kill credit, no reward, no
+    // DB write, no ActionRequest, no ActionSystem/ActionExecutor, no
+    // world mutation of any kind. That is 2.13C3's own boundary.
+}
+
+// Milestone 2.13C2: the sole DynamicQuestId minting authority - see this
+// method's own declaration comment in AIWorldMgr.h.
+DynamicQuestId AIWorldMgr::AllocateDynamicQuestId()
+{
+    return AdvanceDynamicQuestIdCounter(_nextDynamicQuestId);
+}
+
+// Milestone 2.13C2: the ONLY place a validated QuestProposal may become a
+// real, registry-owned Offered DynamicQuestInstance - see this method's
+// own declaration comment in AIWorldMgr.h.
+DynamicQuestCreateResult AIWorldMgr::CreateDynamicQuestOffer(QuestProposal const& proposal, uint64 nowMs)
+{
+    DynamicQuestCreateResult result;
+
+    AgentRecord* record = _registry.Find(proposal.Giver);
+
+    DynamicQuestGiverFacts giverFacts;
+    giverFacts.RecordExists = record != nullptr;
+
+    Creature* giverCreature = nullptr;
+    if (record)
+    {
+        giverFacts.Materialized = record->WorldState == AgentWorldState::Materialized;
+        giverFacts.AIWorldControlled = record->ControlMode == AgentControlMode::AIWorldControlled;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        giverCreature = ResolveLiveCreature(*record, map);
+        if (giverCreature)
+        {
+            giverFacts.Alive = giverCreature->IsAlive();
+            giverFacts.RuntimeGuid = giverCreature->GetGUID();
+        }
+    }
+
+    // Only attempted once a live giver Creature* exists to search from -
+    // ObjectAccessor::GetCreature() needs a WorldObject reference point.
+    // Harmless if skipped: CheckDynamicQuestCreateApplicability() checks
+    // giver identity/incarnation/availability before ever looking at
+    // target facts, so an all-default DynamicQuestTargetFacts here is
+    // never actually consulted when giverCreature is null.
+    DynamicQuestTargetFacts targetFacts;
+    if (giverCreature)
+    {
+        Creature* target = ObjectAccessor::GetCreature(*giverCreature, proposal.TargetGuid);
+        if (target)
+        {
+            targetFacts.Resolved = true;
+            targetFacts.Entry = target->GetEntry();
+            targetFacts.MapId = target->GetMapId();
+            targetFacts.Alive = target->IsAlive();
+            targetFacts.Attackable = target != giverCreature &&
+                target->GetMapId() == giverCreature->GetMapId() &&
+                giverCreature->IsValidAttackTarget(target);
+        }
+    }
+
+    DynamicQuestCreateReason applicability = CheckDynamicQuestCreateApplicability(proposal, giverFacts, targetFacts);
+    if (applicability != DynamicQuestCreateReason::None)
+    {
+        result.Reason = applicability;
+        return result;
+    }
+
+    DynamicQuestId id = AllocateDynamicQuestId();
+    if (!id)
+    {
+        result.Reason = DynamicQuestCreateReason::IdExhausted;
+        return result;
+    }
+
+    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(id, proposal, nowMs);
+    if (!offerResult.IsAccepted())
+    {
+        result.Reason = DynamicQuestCreateReason::OfferRejected;
+        return result;
+    }
+
+    if (!_dynamicQuestRegistry.Add(*offerResult.Instance))
+    {
+        result.Reason = DynamicQuestCreateReason::RegistryRejected;
+        return result;
+    }
+
+    result.Reason = DynamicQuestCreateReason::None;
+    result.Id = id;
+    return result;
 }
 
 // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId - see this method's

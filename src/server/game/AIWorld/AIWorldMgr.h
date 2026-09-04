@@ -64,6 +64,10 @@
 #include "Persistence/AgentPersistence.h"
 #include "Persistence/MemoryPersistence.h"
 #include "Persistence/TransactionCallbackProcessor.h"
+#include "Quest/DynamicQuestCreation.h"
+#include "Quest/DynamicQuestIdAllocator.h"
+#include "Quest/DynamicQuestLifecycle.h"
+#include "Quest/DynamicQuestRegistry.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
 #include "Scheduler/GroupCoarseSimulationScheduler.h"
@@ -242,10 +246,45 @@ class TC_GAME_API AIWorldMgr
         // policy as of request-build time). Still no ActionRequest, no
         // ActionSystem::Validate()/ActionExecutor call, no Player/Quest/DB
         // touch, no reward, no world mutation of any kind - this
-        // milestone only decides VALIDATED vs REJECTED, logs which, and
-        // (on VALIDATED) immediately discards the resulting QuestProposal
-        // without storing or queuing it anywhere.
+        // milestone only decides VALIDATED vs REJECTED and logs which.
+        // Milestone 2.13C2: on VALIDATED, the resulting QuestProposal is
+        // no longer unconditionally discarded - it is handed to
+        // CreateDynamicQuestOffer() for its own separate, independent
+        // applicability boundary (a validated proposal is still not
+        // gameplay authorization - see QuestProposal's own comment).
         void OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate, DynamicTaskAuthoritativeFacts const& facts);
+
+        // Milestone 2.13C2: the sole authority for minting a
+        // DynamicQuestId - a thin wrapper around the pure, independently
+        // testable AdvanceDynamicQuestIdCounter() over this instance's
+        // own _nextDynamicQuestId. Returns DynamicQuestId{} (0) once the
+        // process-lifetime uint64 counter is exhausted - see that
+        // function's own comment for why 0 is never reused as a valid id.
+        DynamicQuestId AllocateDynamicQuestId();
+
+        // Milestone 2.13C2: the ONLY place a validated QuestProposal
+        // (2.13B's own output) may become a real, registry-owned Offered
+        // DynamicQuestInstance. A validated proposal is not gameplay
+        // authorization by itself (see QuestProposal's own comment) - the
+        // world may have moved on since 2.13B ran, so this re-resolves
+        // giver and target fresh from live world state (never trusting
+        // anything the proposal itself claims) and judges the result with
+        // the pure CheckDynamicQuestCreateApplicability(). Only once that
+        // returns None does it proceed: AllocateDynamicQuestId() ->
+        // OfferDynamicQuest() -> DynamicQuestRegistry::Add(), in that
+        // order - id allocation only happens once applicability is
+        // already proven, and the registry is only ever touched once
+        // OfferDynamicQuest() itself has already succeeded. On any
+        // failure at any step, nothing is created: no id is consumed
+        // (except in the applicability-already-proven case where
+        // OfferDynamicQuest()/Add() themselves reject - see
+        // DynamicQuestCreateReason::OfferRejected/RegistryRejected's own
+        // comments for why that should be unreachable in practice), and
+        // the registry is left completely untouched. Still no
+        // ActionRequest, no ActionSystem/ActionExecutor, no Player/Quest/
+        // DB, no reward, no world mutation - this only ever creates an
+        // inert, server-only Offered lifecycle instance.
+        DynamicQuestCreateResult CreateDynamicQuestOffer(QuestProposal const& proposal, uint64 nowMs);
 
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
         // disabled) - once the configured agent is live/materialized and
@@ -3126,6 +3165,20 @@ class TC_GAME_API AIWorldMgr
         // response for the same agent must never erase a newer pending
         // entry it does not actually answer.
         std::unordered_map<uint64, PendingDynamicTaskRequest> _pendingDynamicTasks;
+
+        // Milestone 2.13C2: every currently-live Offered/Active dynamic
+        // quest, world-thread-owned exactly like _pendingDynamicTasks
+        // above - no mutex, no separate thread. See
+        // DynamicQuestRegistry's own comment.
+        DynamicQuestRegistry _dynamicQuestRegistry;
+
+        // Milestone 2.13C2: the sole DynamicQuestId minting authority -
+        // see AllocateDynamicQuestId()'s own comment. Starts at 1 (0 is
+        // DynamicQuestId's own permanently-invalid value), advances via
+        // the pure AdvanceDynamicQuestIdCounter(), and is explicitly set
+        // to 0 forever once UINT64_MAX has been handed out - a
+        // process-lifetime-only counter, never persisted or reset.
+        uint64 _nextDynamicQuestId = 1;
 
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
         // disabled) - same fail-closed parsing/existence-check shape as
