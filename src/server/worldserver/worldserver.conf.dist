@@ -4833,6 +4833,30 @@ AIWorld.DynamicTaskMaxExpiryMs = 300000
 AIWorld.DynamicTaskMaxRewardMoneyCopper = 0
 
 #
+#    AIWorld.DynamicQuestMaintenanceIntervalMs
+#        Description: Milestone 2.13C2 (STATIC review P2 fix) - how often
+#                     RunDynamicQuestMaintenance() runs, expiring and removing any Offered/Active
+#                     DynamicQuestInstance whose own ExpiresAtMs has passed. Keeps the in-memory
+#                     DynamicQuestRegistry bounded - nothing else in 2.13C2 ever removes an Offered
+#                     instance nobody accepts before its deadline.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     30000 (30 seconds)
+
+AIWorld.DynamicQuestMaintenanceIntervalMs = 30000
+
+#
+#    AIWorld.DynamicQuestMaintenanceScanMaxPerPass
+#        Description: Milestone 2.13C2 (STATIC review P2 fix) - the maximum number of
+#                     DynamicQuestIds RunDynamicQuestMaintenance() examines in one pass, using the
+#                     same bounded, cursor-resumable, snapshot-bounded scan-cycle shape
+#                     AIWorld.CoalitionMaintenanceScanMaxPerPass already uses for
+#                     AgentGroupRegistry - see RunDynamicQuestMaintenance()'s own comment.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     100
+
+AIWorld.DynamicQuestMaintenanceScanMaxPerPass = 100
+
+#
 #    AIWorld.AIResponseDrainMaxPerTick
 #        Description: Milestone 2.13A3B - bounds how many AIClient responses (of any
 #                     AIRequestType - Health/Decision/DynamicTask alike) a single Update() call

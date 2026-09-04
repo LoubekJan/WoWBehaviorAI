@@ -18,6 +18,8 @@
 #include "DynamicQuestCreation.h"
 #include "Inference/QuestProposal.h"
 
+#include <cmath>
+
 char const* ToString(DynamicQuestCreateReason reason)
 {
     switch (reason)
@@ -30,6 +32,7 @@ char const* ToString(DynamicQuestCreateReason reason)
         case DynamicQuestCreateReason::TargetMissing:     return "TARGET_MISSING";
         case DynamicQuestCreateReason::TargetChanged:     return "TARGET_CHANGED";
         case DynamicQuestCreateReason::TargetUnavailable: return "TARGET_UNAVAILABLE";
+        case DynamicQuestCreateReason::TargetOutOfRange:  return "TARGET_OUT_OF_RANGE";
         case DynamicQuestCreateReason::IdExhausted:       return "ID_EXHAUSTED";
         case DynamicQuestCreateReason::OfferRejected:     return "OFFER_REJECTED";
         case DynamicQuestCreateReason::RegistryRejected:  return "REGISTRY_REJECTED";
@@ -59,6 +62,11 @@ DynamicQuestCreateReason CheckDynamicQuestCreateApplicability(
 
     if (!target.Alive || !target.Attackable)
         return DynamicQuestCreateReason::TargetUnavailable;
+
+    if (!std::isfinite(target.GiverToTargetDistanceYards) ||
+        target.GiverToTargetDistanceYards < 0.0f ||
+        target.GiverToTargetDistanceYards > proposal.MaxRangeYards)
+        return DynamicQuestCreateReason::TargetOutOfRange;
 
     return DynamicQuestCreateReason::None;
 }

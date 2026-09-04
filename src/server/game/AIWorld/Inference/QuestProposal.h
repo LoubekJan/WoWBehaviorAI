@@ -40,13 +40,15 @@
 // itself is an internal server-only value and is never serialized to
 // ai-server.
 //
-// Still not an authorization to mutate anything. This milestone only ever
-// logs a QuestProposal (never its Title/Description text, never a GUID)
-// and immediately discards it - no storage, no queue. A future 2.13C
-// consumer must not treat any field below as still true by the time it
-// runs: it owes itself a fresh live re-resolution of Giver/Target before
-// acting on anything here, exactly like this milestone owed one to
-// 2.13A3B's own acceptance.
+// Still not an authorization to mutate anything by itself: 2.13B only
+// ever logs a QuestProposal (never its Title/Description text, never a
+// GUID). Since 2.13C2, AIWorldMgr::CreateDynamicQuestOffer() may turn one
+// into a real, registry-owned Offered DynamicQuestInstance - but only
+// after its own independent fresh live re-resolution of Giver/Target
+// (see DynamicQuestCreation.h), never by trusting any field below as
+// still true by the time it runs, exactly like 2.13B owed one to
+// 2.13A3B's own acceptance. A QuestProposal that fails that re-check is
+// simply discarded, same as before 2.13C2 existed.
 struct QuestProposal
 {
     AgentId Giver;

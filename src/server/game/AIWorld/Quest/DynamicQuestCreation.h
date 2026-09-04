@@ -61,6 +61,13 @@ enum class DynamicQuestCreateReason : uint8
     // usable (not alive, or no longer a valid attack target for giver).
     TargetUnavailable,
 
+    // The live giver-to-target distance is non-finite, negative, or
+    // exceeds proposal.MaxRangeYards - the same live-range invariant
+    // ValidateDynamicTaskCandidate() already enforced in 2.13B, re-proven
+    // here because that was a point-in-time check at validation time, not
+    // a standing guarantee - the world may have moved since.
+    TargetOutOfRange,
+
     // AllocateDynamicQuestId()/AdvanceDynamicQuestIdCounter() could not
     // mint a new id - the process-lifetime uint64 counter is exhausted.
     IdExhausted,
@@ -106,6 +113,15 @@ struct DynamicQuestTargetFacts
     bool Attackable = false;
     uint32 Entry = 0;
     uint32 MapId = 0;
+
+    // Live giver->target distance, only meaningful once Resolved is true
+    // (0.0f otherwise, never consulted in that case since Resolved is
+    // checked first) - named explicitly, matching
+    // DynamicTaskTargetFacts::GiverToTargetDistanceYards's own naming
+    // precedent (see DynamicTaskValidation.h), so it can never be
+    // confused with proposal.MaxRangeYards, the value it is compared
+    // against.
+    float GiverToTargetDistanceYards = 0.0f;
 };
 
 // Milestone 2.13C2: the pure applicability re-check. A validated
@@ -117,9 +133,11 @@ struct DynamicQuestTargetFacts
 // (RecordExists), giver incarnation (RuntimeGuid), giver availability
 // (Materialized/AIWorldControlled/Alive), target identity (Resolved),
 // target incarnation (Entry/MapId), target availability (Alive/
-// Attackable) - identity/incarnation checks take priority over
-// availability checks, since a currently-usable but WRONG entity is
-// still wrong. Returns None only once every one of those has held.
+// Attackable), live giver-to-target range (GiverToTargetDistanceYards
+// finite, non-negative, <= proposal.MaxRangeYards) - identity/
+// incarnation checks take priority over availability/range checks,
+// since a currently-usable but WRONG entity is still wrong. Returns
+// None only once every one of those has held.
 DynamicQuestCreateReason CheckDynamicQuestCreateApplicability(
     QuestProposal const& proposal,
     DynamicQuestGiverFacts const& giver,

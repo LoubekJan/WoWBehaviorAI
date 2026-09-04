@@ -286,6 +286,30 @@ class TC_GAME_API AIWorldMgr
         // inert, server-only Offered lifecycle instance.
         DynamicQuestCreateResult CreateDynamicQuestOffer(QuestProposal const& proposal, uint64 nowMs);
 
+        // Milestone 2.13C2 P2 fix (STATIC review): keeps _dynamicQuestRegistry
+        // bounded. Nothing in 2.13C2 itself ever removes an Offered
+        // instance nobody accepts before its own ExpiresAtMs - without
+        // this, the registry would grow forever under repeated
+        // submission. Runs on its own AIWorld.DynamicQuestMaintenanceIntervalMs
+        // timer, examining up to AIWorld.DynamicQuestMaintenanceScanMaxPerPass
+        // ids per pass via the same bounded, cursor-resumable, snapshot-
+        // bounded scan-cycle shape RunCoalitionMaintenance() already
+        // established (_dynamicQuestMaintenanceCursor/
+        // _dynamicQuestMaintenanceCycleHighWater - see that method's own
+        // comment for why a plain unbounded cursor would let continuous
+        // quest creation starve the earliest-created entries forever).
+        // For each discovered id still in a non-terminal state
+        // (Offered/Active) whose deadline has passed
+        // (IsDynamicQuestExpired()), transitions it to Expired via the
+        // pure ExpireDynamicQuest() and then removes it from the registry
+        // - once Expired, 2.13C2 itself has no further use for it (no
+        // player was ever bound to an Offered instance nobody accepted;
+        // an Active one that already expired is equally done).
+        // Completed/Failed instances are left alone: nothing in
+        // this milestone chain produces those states yet, so cleaning
+        // them up is not yet a real problem to solve.
+        void RunDynamicQuestMaintenance(uint64 nowMs);
+
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
         // disabled) - once the configured agent is live/materialized and
         // has at least one real, fresh WorldEvent short-term memory, calls
@@ -3179,6 +3203,28 @@ class TC_GAME_API AIWorldMgr
         // to 0 forever once UINT64_MAX has been handed out - a
         // process-lifetime-only counter, never persisted or reset.
         uint64 _nextDynamicQuestId = 1;
+
+        // Milestone 2.13C2 P2 fix (STATIC review): AIWorld.
+        // DynamicQuestMaintenanceIntervalMs/ScanMaxPerPass - how often
+        // RunDynamicQuestMaintenance() runs and how many ids it may
+        // examine per pass. Unlike coalition maintenance, this has no
+        // separate "enabled" gate: a bounded scan over an empty (or
+        // small) registry is already cheap, and 2.13C2 only ever creates
+        // Offered instances - there is no world in which leaving this
+        // permanently off would be the correct default the way
+        // AIWorld.CoalitionMaintenance's off-by-default toggle is.
+        uint32 _dynamicQuestMaintenanceIntervalMs = 30000;
+        uint32 _dynamicQuestMaintenanceTimer = 0;
+        uint32 _dynamicQuestMaintenanceScanMaxPerPass = 100;
+
+        // Milestone 2.13C2 P2 fix (STATIC review): the same cursor +
+        // scan-cycle-high-water-mark pair _maintenanceScanCursor/
+        // _maintenanceScanCycleHighWater already establish for coalition
+        // maintenance - see RunDynamicQuestMaintenance()'s own comment
+        // and DynamicQuestRegistry::GetIdsAfterUntil()'s own comment for
+        // why `until` is required, not just a plain cursor.
+        DynamicQuestId _dynamicQuestMaintenanceCursor;
+        DynamicQuestId _dynamicQuestMaintenanceCycleHighWater;
 
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
         // disabled) - same fail-closed parsing/existence-check shape as

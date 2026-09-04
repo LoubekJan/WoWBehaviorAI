@@ -18,6 +18,7 @@
 #include "DynamicQuestRegistry.h"
 #include "Log.h"
 
+#include <algorithm>
 #include <utility>
 
 bool DynamicQuestRegistry::Add(DynamicQuestInstance instance)
@@ -39,16 +40,27 @@ bool DynamicQuestRegistry::Add(DynamicQuestInstance instance)
     return true;
 }
 
-DynamicQuestInstance* DynamicQuestRegistry::Find(DynamicQuestId id)
+DynamicQuestInstance const* DynamicQuestRegistry::Find(DynamicQuestId id) const
 {
     auto it = _quests.find(id.Value);
     return it != _quests.end() ? &it->second : nullptr;
 }
 
-DynamicQuestInstance const* DynamicQuestRegistry::Find(DynamicQuestId id) const
+bool DynamicQuestRegistry::ApplyTransition(DynamicQuestTransitionResult const& result)
 {
-    auto it = _quests.find(id.Value);
-    return it != _quests.end() ? &it->second : nullptr;
+    if (!result.IsAccepted())
+        return false;
+
+    DynamicQuestInstance const& next = *result.Instance;
+    if (!next.Id)
+        return false;
+
+    auto it = _quests.find(next.Id.Value);
+    if (it == _quests.end())
+        return false;
+
+    it->second = next;
+    return true;
 }
 
 bool DynamicQuestRegistry::Remove(DynamicQuestId id)
@@ -59,4 +71,27 @@ bool DynamicQuestRegistry::Remove(DynamicQuestId id)
 uint32 DynamicQuestRegistry::GetCount() const
 {
     return uint32(_quests.size());
+}
+
+DynamicQuestId DynamicQuestRegistry::GetHighestId() const
+{
+    if (_quests.empty())
+        return DynamicQuestId{};
+
+    return DynamicQuestId{_quests.rbegin()->first};
+}
+
+std::vector<DynamicQuestId> DynamicQuestRegistry::GetIdsAfterUntil(DynamicQuestId after, DynamicQuestId until, uint32 maxCount) const
+{
+    std::vector<DynamicQuestId> ids;
+    if (maxCount == 0 || after.Value >= until.Value)
+        return ids;
+
+    ids.reserve(std::min<std::size_t>(maxCount, _quests.size()));
+
+    auto it = _quests.upper_bound(after.Value);
+    for (; it != _quests.end() && it->first <= until.Value && uint32(ids.size()) < maxCount; ++it)
+        ids.push_back(DynamicQuestId{it->first});
+
+    return ids;
 }

@@ -1264,6 +1264,24 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _dynamicTaskMaxRewardMoneyCopper = uint32(dynamicTaskMaxRewardMoneyCopper);
 
+    // Milestone 2.13C2 P2 fix (STATIC review): see
+    // RunDynamicQuestMaintenance()'s own declaration comment.
+    int32 dynamicQuestMaintenanceIntervalMs = sConfigMgr->GetIntDefault("AIWorld.DynamicQuestMaintenanceIntervalMs", 30000);
+    if (dynamicQuestMaintenanceIntervalMs < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicQuestMaintenanceIntervalMs ({}) is invalid or too low, clamping to 1", dynamicQuestMaintenanceIntervalMs);
+        dynamicQuestMaintenanceIntervalMs = 1;
+    }
+    _dynamicQuestMaintenanceIntervalMs = uint32(dynamicQuestMaintenanceIntervalMs);
+
+    int32 dynamicQuestMaintenanceScanMaxPerPass = sConfigMgr->GetIntDefault("AIWorld.DynamicQuestMaintenanceScanMaxPerPass", 100);
+    if (dynamicQuestMaintenanceScanMaxPerPass < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicQuestMaintenanceScanMaxPerPass ({}) is invalid or too low, clamping to 1", dynamicQuestMaintenanceScanMaxPerPass);
+        dynamicQuestMaintenanceScanMaxPerPass = 1;
+    }
+    _dynamicQuestMaintenanceScanMaxPerPass = uint32(dynamicQuestMaintenanceScanMaxPerPass);
+
     int32 aiResponseDrainMaxPerTick = sConfigMgr->GetIntDefault("AIWorld.AIResponseDrainMaxPerTick", 64);
     if (aiResponseDrainMaxPerTick < 1)
     {
@@ -8045,6 +8063,16 @@ void AIWorldMgr::Update(uint32 diff)
         }
     }
 
+    // Milestone 2.13C2 P2 fix (STATIC review): no separate enabled flag -
+    // see _dynamicQuestMaintenanceIntervalMs's own declaration comment
+    // for why a bounded scan is always safe to run.
+    _dynamicQuestMaintenanceTimer += diff;
+    if (_dynamicQuestMaintenanceTimer >= _dynamicQuestMaintenanceIntervalMs)
+    {
+        _dynamicQuestMaintenanceTimer = 0;
+        RunDynamicQuestMaintenance(CurrentTimeMs());
+    }
+
     // Milestone 2.12F2: gated on its OWN AIWorld.GroupCoordination flag,
     // deliberately NOT _wolfGroupAutoFormation or _coalitionMaintenanceEnabled -
     // see _groupCoordinationEnabled's own declaration comment for why.
@@ -9481,9 +9509,11 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
 // own comment) via the pure ValidateDynamicTaskCandidate(). Still
 // deliberately inert: no ActionRequest, no ActionSystem/ActionExecutor,
 // no Player/Quest/DB, no reward, no world mutation of any kind, and the
-// resulting QuestProposal (if any) is logged narrowly and immediately
-// discarded - never stored, never queued, never its Title/Description
-// text or a GUID.
+// resulting QuestProposal (if any) is logged narrowly - never its
+// Title/Description text or a GUID. Milestone 2.13C2: the proposal is no
+// longer unconditionally discarded here - CreateDynamicQuestOffer() (see
+// its own comment) is a separate, independent boundary that may turn it
+// into a real, registry-owned Offered DynamicQuestInstance.
 void AIWorldMgr::OnDynamicTaskCandidateAccepted(DynamicTaskCandidate const& candidate, DynamicTaskAuthoritativeFacts const& facts)
 {
     uint64 requestId = candidate.RequestId;
@@ -9580,6 +9610,7 @@ DynamicQuestCreateResult AIWorldMgr::CreateDynamicQuestOffer(QuestProposal const
             targetFacts.Attackable = target != giverCreature &&
                 target->GetMapId() == giverCreature->GetMapId() &&
                 giverCreature->IsValidAttackTarget(target);
+            targetFacts.GiverToTargetDistanceYards = giverCreature->GetDistance(target);
         }
     }
 
@@ -9613,6 +9644,59 @@ DynamicQuestCreateResult AIWorldMgr::CreateDynamicQuestOffer(QuestProposal const
     result.Reason = DynamicQuestCreateReason::None;
     result.Id = id;
     return result;
+}
+
+// Milestone 2.13C2 P2 fix (STATIC review): keeps _dynamicQuestRegistry
+// bounded - see this method's own declaration comment in AIWorldMgr.h.
+void AIWorldMgr::RunDynamicQuestMaintenance(uint64 nowMs)
+{
+    // Same cursor/cycle-high-water-mark shape RunCoalitionMaintenance()
+    // already established - a scan CYCLE begins whenever the cursor is
+    // at DynamicQuestId{}, taking a fresh high-water snapshot right then
+    // so this cycle only ever scans ids that already existed at that
+    // moment (see DynamicQuestRegistry::GetIdsAfterUntil()'s own comment
+    // for why, without this, continuous quest creation would starve the
+    // earliest-created entries indefinitely).
+    if (!_dynamicQuestMaintenanceCursor)
+        _dynamicQuestMaintenanceCycleHighWater = _dynamicQuestRegistry.GetHighestId();
+
+    std::vector<DynamicQuestId> discovered = _dynamicQuestRegistry.GetIdsAfterUntil(
+        _dynamicQuestMaintenanceCursor, _dynamicQuestMaintenanceCycleHighWater, _dynamicQuestMaintenanceScanMaxPerPass);
+
+    if (discovered.empty() && _dynamicQuestMaintenanceCursor)
+    {
+        // Reached the end of the CURRENT cycle - start a fresh one and
+        // retry once, same reasoning as RunCoalitionMaintenance()'s own.
+        _dynamicQuestMaintenanceCursor = DynamicQuestId{};
+        _dynamicQuestMaintenanceCycleHighWater = _dynamicQuestRegistry.GetHighestId();
+        discovered = _dynamicQuestRegistry.GetIdsAfterUntil(
+            _dynamicQuestMaintenanceCursor, _dynamicQuestMaintenanceCycleHighWater, _dynamicQuestMaintenanceScanMaxPerPass);
+    }
+
+    if (!discovered.empty())
+        _dynamicQuestMaintenanceCursor = discovered.back();
+
+    for (DynamicQuestId id : discovered)
+    {
+        DynamicQuestInstance const* instance = _dynamicQuestRegistry.Find(id);
+        if (!instance)
+            continue; // already removed by an earlier pass/caller
+
+        if (instance->State != DynamicQuestState::Offered && instance->State != DynamicQuestState::Active)
+            continue; // terminal already - nothing for maintenance to do
+
+        if (!IsDynamicQuestExpired(*instance, nowMs))
+            continue;
+
+        DynamicQuestTransitionResult expireResult = ExpireDynamicQuest(*instance, nowMs);
+        if (!expireResult.IsAccepted())
+            continue; // state changed between Find() and here - leave it for the next pass
+
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_EXPIRED dynamicQuestId={} priorState={}",
+            id.Value, ToString(instance->State));
+
+        _dynamicQuestRegistry.Remove(id);
+    }
 }
 
 // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId - see this method's

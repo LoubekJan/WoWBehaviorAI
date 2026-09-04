@@ -20,6 +20,8 @@
 #include "Quest/DynamicQuestCreation.h"
 #include "Inference/QuestProposal.h"
 
+#include <limits>
+
 namespace
 {
     QuestProposal MakeValidProposal()
@@ -62,6 +64,7 @@ namespace
         facts.Attackable = true;
         facts.Entry = proposal.TargetEntry;
         facts.MapId = proposal.TargetMapId;
+        facts.GiverToTargetDistanceYards = 15.0f; // well within proposal.MaxRangeYards (40.0f)
         return facts;
     }
 }
@@ -163,6 +166,50 @@ TEST_CASE("CheckDynamicQuestCreateApplicability rejects a changed target identit
     }
 }
 
+TEST_CASE("CheckDynamicQuestCreateApplicability rejects a live giver-to-target distance out of range", "[DynamicQuestCreation]")
+{
+    // Same live-range invariant ValidateDynamicTaskCandidate() already
+    // enforced in 2.13B - re-proven here since that was a point-in-time
+    // check, not a standing guarantee.
+    QuestProposal proposal = MakeValidProposal();
+    DynamicQuestGiverFacts giver = MakeValidGiverFacts(proposal);
+
+    SECTION("NaN distance")
+    {
+        DynamicQuestTargetFacts target = MakeValidTargetFacts(proposal);
+        target.GiverToTargetDistanceYards = std::numeric_limits<float>::quiet_NaN();
+        REQUIRE(CheckDynamicQuestCreateApplicability(proposal, giver, target) == DynamicQuestCreateReason::TargetOutOfRange);
+    }
+
+    SECTION("infinite distance")
+    {
+        DynamicQuestTargetFacts target = MakeValidTargetFacts(proposal);
+        target.GiverToTargetDistanceYards = std::numeric_limits<float>::infinity();
+        REQUIRE(CheckDynamicQuestCreateApplicability(proposal, giver, target) == DynamicQuestCreateReason::TargetOutOfRange);
+    }
+
+    SECTION("negative distance")
+    {
+        DynamicQuestTargetFacts target = MakeValidTargetFacts(proposal);
+        target.GiverToTargetDistanceYards = -1.0f;
+        REQUIRE(CheckDynamicQuestCreateApplicability(proposal, giver, target) == DynamicQuestCreateReason::TargetOutOfRange);
+    }
+
+    SECTION("beyond proposal.MaxRangeYards")
+    {
+        DynamicQuestTargetFacts target = MakeValidTargetFacts(proposal);
+        target.GiverToTargetDistanceYards = proposal.MaxRangeYards + 1.0f;
+        REQUIRE(CheckDynamicQuestCreateApplicability(proposal, giver, target) == DynamicQuestCreateReason::TargetOutOfRange);
+    }
+
+    SECTION("exactly at proposal.MaxRangeYards is accepted")
+    {
+        DynamicQuestTargetFacts target = MakeValidTargetFacts(proposal);
+        target.GiverToTargetDistanceYards = proposal.MaxRangeYards;
+        REQUIRE(CheckDynamicQuestCreateApplicability(proposal, giver, target) == DynamicQuestCreateReason::None);
+    }
+}
+
 TEST_CASE("CheckDynamicQuestCreateApplicability rejects target unavailability", "[DynamicQuestCreation]")
 {
     QuestProposal proposal = MakeValidProposal();
@@ -204,6 +251,7 @@ TEST_CASE("ToString(DynamicQuestCreateReason) covers every enumerator", "[Dynami
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::TargetMissing)) == "TARGET_MISSING");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::TargetChanged)) == "TARGET_CHANGED");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::TargetUnavailable)) == "TARGET_UNAVAILABLE");
+    REQUIRE(std::string(ToString(DynamicQuestCreateReason::TargetOutOfRange)) == "TARGET_OUT_OF_RANGE");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::IdExhausted)) == "ID_EXHAUSTED");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::OfferRejected)) == "OFFER_REJECTED");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::RegistryRejected)) == "REGISTRY_REJECTED");
