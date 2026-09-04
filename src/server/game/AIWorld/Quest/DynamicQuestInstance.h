@@ -77,8 +77,11 @@ struct DynamicQuestInstance
     // Authoritative progress-event replay guard: the identity (e.g. a
     // WorldEvent::EventId) of every event that has already contributed
     // progress, so the same authoritative kill can never be counted
-    // twice. Naturally bounded - at most RequiredCount entries can ever
-    // matter, since progress saturates there.
+    // twice. Invariant enforced by ApplyDynamicQuestProgress() itself
+    // (see its own comment): size() <= RequiredCount always - a
+    // genuinely new event arriving once Progress == RequiredCount is
+    // rejected (ProgressAlreadyComplete) and never appended here, so
+    // this list, and the cost of checking it, both stay bounded.
     std::vector<uint64> ConsumedProgressEventIds;
 };
 

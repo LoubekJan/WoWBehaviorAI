@@ -45,7 +45,14 @@ enum class DynamicQuestRejectReason : uint8
     // Offered instance, or AcceptDynamicQuest() on an Active one).
     InvalidTransition,
 
-    // AcceptDynamicQuest() was called with an empty player identity.
+    // OfferDynamicQuest() was called with DynamicQuestId{0} - 0 is that
+    // type's own invalid/default value (see DynamicQuestId's own
+    // comment), so a genuine lifecycle instance may never carry it.
+    InvalidQuestId,
+
+    // AcceptDynamicQuest() was called with a playerGuid that is not a
+    // real player identity (ObjectGuid::IsPlayer()) - covers both an
+    // empty GUID and any other entity type (e.g. a creature GUID).
     InvalidPlayer,
 
     // The caller's player identity does not match
@@ -64,6 +71,13 @@ enum class DynamicQuestRejectReason : uint8
 
     // CompleteDynamicQuest() was called while Progress < RequiredCount.
     ProgressIncomplete,
+
+    // ApplyDynamicQuestProgress() named a genuinely new (non-duplicate)
+    // progress-event identity, but Progress is already == RequiredCount.
+    // The event is NOT stored - ConsumedProgressEventIds never grows
+    // past RequiredCount entries, keeping both its size and every
+    // duplicate-check's cost bounded.
+    ProgressAlreadyComplete,
 
     // ApplyDynamicQuestProgress() was called with a zero progress-event
     // identity - never a legitimate WorldEvent::EventId.
@@ -101,11 +115,13 @@ struct DynamicQuestTransitionResult
 // RewardMoneyCopper are not modeled yet - see DynamicQuestInstance's own
 // comment). ExpiresAtMs is computed from nowMs + proposal.ExpiryMs with a
 // saturating add - it can never wrap around regardless of input values.
-// Never fails: proposal is already policy-validated by
-// ValidateDynamicTaskCandidate(), and a saturating add has no invalid
-// input. Not a "transition" in the DynamicQuestTransitionResult sense -
-// there is no prior instance to transition from.
-DynamicQuestInstance OfferDynamicQuest(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs);
+// Uses the same DynamicQuestTransitionResult shape as every transition
+// below even though there is no prior instance to transition from, so a
+// caller has exactly one result type to handle everywhere. Rejects:
+// InvalidQuestId (id == DynamicQuestId{0} - see that type's own comment;
+// a caller-side allocator never handing out 0 is not proof enough for
+// this boundary to rely on).
+DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs);
 
 // The single, canonical expiry rule this entire lifecycle domain uses:
 // an instance is expired once now >= ExpiresAtMs, independent of its
@@ -118,19 +134,24 @@ bool IsDynamicQuestExpired(DynamicQuestInstance const& instance, uint64 nowMs);
 // Offered -> Active. Binds playerGuid as the instance's owner for the
 // rest of its lifetime - there is no later re-assignment. Rejects:
 // AlreadyTerminal, InvalidTransition (State != Offered), InvalidPlayer
-// (playerGuid.IsEmpty()), AlreadyExpired.
+// (!playerGuid.IsPlayer() - rejects both an empty GUID and any non-
+// player entity, e.g. a creature GUID), AlreadyExpired.
 DynamicQuestTransitionResult AcceptDynamicQuest(DynamicQuestInstance const& instance, ObjectGuid playerGuid, uint64 nowMs);
 
 // Contributes exactly one unit of progress from one authoritative event,
 // saturating at RequiredCount - State stays Active even once Progress
 // reaches RequiredCount; CompleteDynamicQuest() is a separate, explicit
-// decision. Rejects: AlreadyTerminal, InvalidTransition (State !=
-// Active), AlreadyExpired, InvalidProgressEvent (progressEventId == 0),
-// PlayerMismatch (playerGuid != AcceptedByPlayerGuid),
-// DuplicateProgressEvent (progressEventId already consumed - checked
-// AFTER saturation would already have capped it, so a duplicate is
-// always rejected even once Progress == RequiredCount, never silently
-// accepted as a harmless no-op).
+// decision. Checked in this order: AlreadyTerminal, InvalidTransition
+// (State != Active), AlreadyExpired, InvalidProgressEvent
+// (progressEventId == 0), PlayerMismatch (playerGuid !=
+// AcceptedByPlayerGuid), DuplicateProgressEvent (progressEventId already
+// consumed by this instance), ProgressAlreadyComplete (a genuinely new
+// event arriving once Progress == RequiredCount already - never stored,
+// so ConsumedProgressEventIds never grows past RequiredCount entries).
+// DuplicateProgressEvent is checked before ProgressAlreadyComplete so a
+// replay of an already-counted event is always reported as a replay,
+// even once Progress is already saturated - never silently accepted as
+// "no-op, already complete".
 DynamicQuestTransitionResult ApplyDynamicQuestProgress(DynamicQuestInstance const& instance, ObjectGuid playerGuid, uint64 progressEventId, uint64 nowMs);
 
 // Active -> Completed. Rejects: AlreadyTerminal, InvalidTransition

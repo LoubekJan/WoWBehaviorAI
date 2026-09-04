@@ -52,7 +52,9 @@ namespace
 
     DynamicQuestInstance MakeOfferedInstance(uint64 nowMs = 10000)
     {
-        return OfferDynamicQuest(DynamicQuestId{777}, MakeValidProposal(), nowMs);
+        DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{777}, MakeValidProposal(), nowMs);
+        REQUIRE(result.IsAccepted());
+        return *result.Instance;
     }
 
     DynamicQuestInstance MakeActiveInstance(ObjectGuid player = PlayerGuid(1), uint64 nowMs = 10000)
@@ -67,7 +69,9 @@ namespace
 TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[DynamicQuestLifecycle]")
 {
     QuestProposal proposal = MakeValidProposal();
-    DynamicQuestInstance instance = OfferDynamicQuest(DynamicQuestId{777}, proposal, 10000);
+    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(DynamicQuestId{777}, proposal, 10000);
+    REQUIRE(offerResult.IsAccepted());
+    DynamicQuestInstance const& instance = *offerResult.Instance;
 
     REQUIRE(instance.Id == DynamicQuestId{777});
     REQUIRE(instance.State == DynamicQuestState::Offered);
@@ -85,13 +89,27 @@ TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[Dynam
     REQUIRE(instance.ConsumedProgressEventIds.empty());
 }
 
+TEST_CASE("OfferDynamicQuest rejects DynamicQuestId{0}", "[DynamicQuestLifecycle]")
+{
+    // DynamicQuestId{0} is that type's own invalid/default value (see
+    // its own comment) - a genuine lifecycle instance must never carry
+    // it, so the allocator-side caller can rely on this boundary
+    // rejecting a bug rather than silently accepting id 0.
+    DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{0}, MakeValidProposal(), 10000);
+    REQUIRE_FALSE(result.IsAccepted());
+    REQUIRE(result.Reason == DynamicQuestRejectReason::InvalidQuestId);
+    REQUIRE_FALSE(result.Instance.has_value());
+}
+
 TEST_CASE("OfferDynamicQuest computes ExpiresAtMs with a saturating add, never wrapping around", "[DynamicQuestLifecycle]")
 {
     QuestProposal proposal = MakeValidProposal();
     proposal.ExpiryMs = std::numeric_limits<uint32>::max();
 
     uint64 nowMs = std::numeric_limits<uint64>::max() - 10;
-    DynamicQuestInstance instance = OfferDynamicQuest(DynamicQuestId{1}, proposal, nowMs);
+    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(DynamicQuestId{1}, proposal, nowMs);
+    REQUIRE(offerResult.IsAccepted());
+    DynamicQuestInstance const& instance = *offerResult.Instance;
 
     REQUIRE(instance.ExpiresAtMs == std::numeric_limits<uint64>::max());
     REQUIRE(instance.ExpiresAtMs >= nowMs); // never wrapped below "now"
@@ -227,6 +245,19 @@ TEST_CASE("AcceptDynamicQuest rejects an empty player identity", "[DynamicQuestL
     REQUIRE(result.Reason == DynamicQuestRejectReason::InvalidPlayer);
 }
 
+TEST_CASE("AcceptDynamicQuest rejects a non-player GUID", "[DynamicQuestLifecycle]")
+{
+    // A non-empty GUID of the wrong entity type (e.g. a creature) must be
+    // rejected exactly like an empty one - only ObjectGuid::IsPlayer()
+    // qualifies as an authoritative player identity.
+    DynamicQuestInstance offered = MakeOfferedInstance();
+    ObjectGuid creatureGuid = ObjectGuid::Create<HighGuid::Unit>(1001, 555);
+
+    DynamicQuestTransitionResult result = AcceptDynamicQuest(offered, creatureGuid, 10000);
+    REQUIRE_FALSE(result.IsAccepted());
+    REQUIRE(result.Reason == DynamicQuestRejectReason::InvalidPlayer);
+}
+
 TEST_CASE("ApplyDynamicQuestProgress rejects a wrong-player caller", "[DynamicQuestLifecycle]")
 {
     DynamicQuestInstance active = MakeActiveInstance(PlayerGuid(1));
@@ -355,12 +386,15 @@ TEST_CASE("Progress saturates at RequiredCount and never exceeds it", "[DynamicQ
     instance = *ApplyDynamicQuestProgress(instance, player, 3, 10000).Instance;
     REQUIRE(instance.Progress == instance.RequiredCount);
 
-    // N+1: a genuinely new (non-duplicate) event still succeeds, but
-    // Progress stays saturated at RequiredCount rather than overflowing.
+    // N+1: a genuinely new (non-duplicate) event arriving once already
+    // saturated is rejected outright - it is never appended to
+    // ConsumedProgressEventIds, so that list (and the cost of checking
+    // it) stays bounded by RequiredCount instead of growing without limit.
     DynamicQuestTransitionResult overshoot = ApplyDynamicQuestProgress(instance, player, 4, 10000);
-    REQUIRE(overshoot.IsAccepted());
-    REQUIRE(overshoot.Instance->Progress == instance.RequiredCount);
-    REQUIRE(overshoot.Instance->State == DynamicQuestState::Active); // saturation alone never auto-completes
+    REQUIRE_FALSE(overshoot.IsAccepted());
+    REQUIRE(overshoot.Reason == DynamicQuestRejectReason::ProgressAlreadyComplete);
+    REQUIRE(instance.Progress == instance.RequiredCount); // unchanged
+    REQUIRE(instance.ConsumedProgressEventIds.size() == instance.RequiredCount);
 }
 
 TEST_CASE("The same progress-event identity can never be counted twice", "[DynamicQuestLifecycle]")
@@ -467,11 +501,13 @@ TEST_CASE("ToString(DynamicQuestRejectReason) covers every enumerator", "[Dynami
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::None)) == "NONE");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::AlreadyTerminal)) == "ALREADY_TERMINAL");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidTransition)) == "INVALID_TRANSITION");
+    REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidQuestId)) == "INVALID_QUEST_ID");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidPlayer)) == "INVALID_PLAYER");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::PlayerMismatch)) == "PLAYER_MISMATCH");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::AlreadyExpired)) == "ALREADY_EXPIRED");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::NotYetExpired)) == "NOT_YET_EXPIRED");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::ProgressIncomplete)) == "PROGRESS_INCOMPLETE");
+    REQUIRE(std::string(ToString(DynamicQuestRejectReason::ProgressAlreadyComplete)) == "PROGRESS_ALREADY_COMPLETE");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidProgressEvent)) == "INVALID_PROGRESS_EVENT");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::DuplicateProgressEvent)) == "DUPLICATE_PROGRESS_EVENT");
 }

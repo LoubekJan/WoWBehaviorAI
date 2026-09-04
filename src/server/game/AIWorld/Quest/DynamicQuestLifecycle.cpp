@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 char const* ToString(DynamicQuestState state)
 {
@@ -38,16 +39,18 @@ char const* ToString(DynamicQuestRejectReason reason)
 {
     switch (reason)
     {
-        case DynamicQuestRejectReason::NotAttempted:          return "NOT_ATTEMPTED";
-        case DynamicQuestRejectReason::None:                  return "NONE";
-        case DynamicQuestRejectReason::AlreadyTerminal:       return "ALREADY_TERMINAL";
-        case DynamicQuestRejectReason::InvalidTransition:     return "INVALID_TRANSITION";
-        case DynamicQuestRejectReason::InvalidPlayer:         return "INVALID_PLAYER";
-        case DynamicQuestRejectReason::PlayerMismatch:        return "PLAYER_MISMATCH";
-        case DynamicQuestRejectReason::AlreadyExpired:        return "ALREADY_EXPIRED";
-        case DynamicQuestRejectReason::NotYetExpired:         return "NOT_YET_EXPIRED";
-        case DynamicQuestRejectReason::ProgressIncomplete:    return "PROGRESS_INCOMPLETE";
-        case DynamicQuestRejectReason::InvalidProgressEvent:  return "INVALID_PROGRESS_EVENT";
+        case DynamicQuestRejectReason::NotAttempted:           return "NOT_ATTEMPTED";
+        case DynamicQuestRejectReason::None:                   return "NONE";
+        case DynamicQuestRejectReason::AlreadyTerminal:        return "ALREADY_TERMINAL";
+        case DynamicQuestRejectReason::InvalidTransition:      return "INVALID_TRANSITION";
+        case DynamicQuestRejectReason::InvalidQuestId:         return "INVALID_QUEST_ID";
+        case DynamicQuestRejectReason::InvalidPlayer:          return "INVALID_PLAYER";
+        case DynamicQuestRejectReason::PlayerMismatch:         return "PLAYER_MISMATCH";
+        case DynamicQuestRejectReason::AlreadyExpired:         return "ALREADY_EXPIRED";
+        case DynamicQuestRejectReason::NotYetExpired:          return "NOT_YET_EXPIRED";
+        case DynamicQuestRejectReason::ProgressIncomplete:     return "PROGRESS_INCOMPLETE";
+        case DynamicQuestRejectReason::ProgressAlreadyComplete: return "PROGRESS_ALREADY_COMPLETE";
+        case DynamicQuestRejectReason::InvalidProgressEvent:   return "INVALID_PROGRESS_EVENT";
         case DynamicQuestRejectReason::DuplicateProgressEvent: return "DUPLICATE_PROGRESS_EVENT";
     }
     return "UNKNOWN";
@@ -87,8 +90,11 @@ namespace
     }
 }
 
-DynamicQuestInstance OfferDynamicQuest(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs)
+DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs)
 {
+    if (!id)
+        return Reject(DynamicQuestRejectReason::InvalidQuestId);
+
     DynamicQuestInstance instance;
     instance.Id = id;
     instance.State = DynamicQuestState::Offered;
@@ -107,7 +113,7 @@ DynamicQuestInstance OfferDynamicQuest(DynamicQuestId id, QuestProposal const& p
     instance.CreatedAtMs = nowMs;
     instance.ExpiresAtMs = SaturatingAddMs(nowMs, proposal.ExpiryMs);
 
-    return instance;
+    return Accepted(std::move(instance));
 }
 
 bool IsDynamicQuestExpired(DynamicQuestInstance const& instance, uint64 nowMs)
@@ -123,7 +129,7 @@ DynamicQuestTransitionResult AcceptDynamicQuest(DynamicQuestInstance const& inst
     if (instance.State != DynamicQuestState::Offered)
         return Reject(DynamicQuestRejectReason::InvalidTransition);
 
-    if (playerGuid.IsEmpty())
+    if (!playerGuid.IsPlayer())
         return Reject(DynamicQuestRejectReason::InvalidPlayer);
 
     if (IsDynamicQuestExpired(instance, nowMs))
@@ -159,10 +165,18 @@ DynamicQuestTransitionResult ApplyDynamicQuestProgress(DynamicQuestInstance cons
     if (alreadyConsumed)
         return Reject(DynamicQuestRejectReason::DuplicateProgressEvent);
 
+    // Checked AFTER the duplicate check above so a replay of an already-
+    // counted event is always reported as DuplicateProgressEvent, never
+    // masked by saturation. A genuinely new event is never stored once
+    // already saturated - see ConsumedProgressEventIds' own comment for
+    // why this keeps both its size and this function's own duplicate
+    // check bounded by RequiredCount.
+    if (instance.Progress >= instance.RequiredCount)
+        return Reject(DynamicQuestRejectReason::ProgressAlreadyComplete);
+
     DynamicQuestInstance next = instance;
     next.ConsumedProgressEventIds.push_back(progressEventId);
-    if (next.Progress < next.RequiredCount)
-        ++next.Progress;
+    ++next.Progress;
     return Accepted(std::move(next));
 }
 
