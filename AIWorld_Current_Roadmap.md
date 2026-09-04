@@ -71,7 +71,7 @@ Platí pro všechny další milníky:
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B/G3C1/G3C2 CLOSED, G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS, G3 lifecycle closure IN PROGRESS** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
-| 2.13 — local LLM dynamic task vertical slice | **PLANNED** |
+| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B CLOSED; next 2.13C** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
 | Etapa 3 — Elwynn world preparation | **PLANNED** |
 | Etapa 4 — Living World | **PLANNED** |
@@ -1244,9 +1244,38 @@ Shrnutí implementace (přes tři review kola):
 
 Review prošel třemi statickými kontrolami: P2=2/P3=1 → P2=1/P3=1 → P1=0/P2=0/P3=0 STATIC PASS. První review odhalilo permissive hand-written JSON parsing, `double→float` finite overflow a chybějící permanentní codec testy. Druhé review odhalilo, že validní JSON ještě nebyl validován jako přesný direct-member `DynamicTaskResponse` schema (substring search field lookup byl obejitelný zanořením pod cizí klíč) a že JSON whitespace nebyl RFC-strict (`std::isspace()` přijímal i vertical tab/form feed). Finální follow-up (`b885a523c9`) oba nálezy uzavřel.
 
+#### 2.13A3B — world-thread provenance wiring
+
+**Stav: CLOSED — kumulativně znovu ověřeno v 2.13B gate na revision `866e8b296c`.**
+
+Produkční cesta nyní vede od skutečného `WorldEvent` přes `PerceptionSystem`, `ShortTermMemory`, sanitizovaný `QuestContext`, async `/dynamic-task` a world-thread response acceptance až k inertnímu `DynamicTaskCandidate`. Request provenance, runtime incarnation, snapshot, active goal attempt, source-memory identity/age, request-local target token a live target se ověřují před vytvořením candidate. Model nikdy nedostává `ObjectGuid`, `SpawnId` ani jinou trusted server identity.
+
+Implementační/review commity: `a7b1b88e`, `a877dd2d`, `37a609b3`, `f3633005`.
+
 ### 2.13B — `QuestProposal` validator
 
-Server validuje objective type, target, amount/range/expiry, reward bounds a source-problem provenance. LLM nesmí generovat execution code, SQL, spawn/delete, spell cast ani jinou direct mutation.
+**Stav: CLOSED — STATIC + BUILD + UNIT + RUNTIME PASS (`2bb6841c`, `d150b6e6`, `3a314917`, `866e8b296c`).**
+
+```text
+REVISION=866e8b296c1bf52203c74825332e7b5cc969cd1d
+STATIC=PASS (P1=0, P2=0, P3=0)
+BUILD=PASS
+UNIT=PASS (full C++ suite)
+RUNTIME_POSITIVE=PASS
+RUNTIME_NEGATIVE_STALE_SNAPSHOT=PASS
+RUNTIME_NEGATIVE_AUTHORITATIVE_VALIDATION=PASS
+ERROR_SCAN=PASS
+BUILD_TESTING_RESTORED=OFF
+TEST_FLAGS_RESTORED=YES
+```
+
+`ValidateDynamicTaskCandidate()` je explicitní pure authoritative boundary. Znovu ověřuje pouze pravidla, která patří do materializačního rozhodnutí: podporovaný objective type, source-problem konzistenci, jednoznačný server-owned target binding, aktuální policy limity, bounded/plain text a live giver-to-target range. Nezdvojuje bez důvodu A3B response-acceptance kontroly. Výsledkem je typed `DynamicTaskValidationResult` s explicitním reject reasonem a `QuestProposal` pouze při plném úspěchu.
+
+Runtime pozitivní běh pro request `336`, agent `214023`, snapshot `2` prokázal skutečný local-model call (`1526 ms`) a celý sled `CONTEXT_BUILT → SUBMITTED → RESPONSE_RECEIVED success=true → PROVENANCE_MATCHED → TARGET_MATCHED → VALIDATED inert=1` nad skutečným `sourceEvent=1` a target entry `525`.
+
+Negativní běh requestu `30` skončil explicitně na `STALE_SNAPSHOT` po `1226 ms`, tedy fail-closed ještě v A3B acceptance. Běh requestu `127` prošel provenance i live target re-resolution a authoritative validator jej explicitně odmítl s `LIVE_TARGET_OUT_OF_RANGE`. Tím je negativní důkaz založený na skutečném reject výsledku, ne na absenci logu. Timing citlivost sdílené `SnapshotSequence` vůči běžnému decision scheduleru zůstává evidovaná pro 2.13D; staleness check se kvůli testu neoslabuje.
+
+Po testu byly `AIWorld.DynamicTaskEnable`, `AIWorld.TestDynamicTaskAgentId` a dočasně změněné decision/range hodnoty vráceny na default. `BUILD_TESTING=OFF`; `ai-server /health` potvrzuje `task_model_enabled=false`. Candidate/proposal zůstává po validaci inertní: žádný quest marker, player quest, reward, DB zápis, `ActionRequest` ani world mutation.
 
 ### 2.13C — player-facing lifecycle
 
@@ -1330,8 +1359,8 @@ Zbývá před uzavřením Etapy 2:
 - [x] global agent population foundation gate pro jednu lokaci (2.12F4A–F4B3: `ControlMode` split, TrinityCore-aligned `AgentId == SpawnId` identity, bidirectional spawn reconciliation, scoped Elwynn population + full Control activation — `3540 / 3540 AIWorldControlled`, STATIC + BUILD + RUNTIME PASS) — `2.12F4C`/`2.12F4D` (world-scale hardening, eventual full-world bootstrap) zůstávají otevřené, ale nejsou blocker pro second-profile proof nad již reálnou, reconciled Elwynn populací;
 - [x] second-profile genericity proof;
 - [x] alespoň jedno další skutečné generic group behavior potřebné pro emergentní slice;
-- [ ] skutečný local LLM request přes async `ai-server`;
-- [ ] structured server-validated player task proposal;
+- [x] skutečný local LLM request přes async `ai-server`;
+- [x] structured server-validated player task proposal;
 - [ ] player-facing task lifecycle;
 - [ ] end-to-end `WORLD → NPC → LLM/DECISION → PLAYER/TRINITYCORE → EVENT → WORLD` runtime gate;
 - [ ] safe fallback pro LLM outage/malformed/stale response.
