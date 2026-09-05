@@ -273,10 +273,25 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a reward that wo
         REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
     }
 
-    SECTION("exactly at the cap is accepted")
+    // Milestone 2.13C5 P2 fix (STATIC review): Player::ModifyMoney()'s own
+    // real success condition is GetMoney() < MAX_MONEY_AMOUNT - amount,
+    // i.e. player.Money + reward must be STRICTLY LESS than the cap - an
+    // earlier version of this check used <=, which let exactly
+    // player.Money + reward == maxMoneyAmount pass this preflight only
+    // for the real ModifyMoney() call to still refuse it afterward (by
+    // which point sScriptMgr->OnPlayerMoneyChanged() had already fired -
+    // see AIWorldMgr::CompleteDynamicQuestForPlayer()'s own comment).
+    SECTION("player money + reward exactly equals the cap is rejected")
     {
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.Money = MaxMoneyAmount - 100; // + 100 reward == exactly the cap
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
+    }
+
+    SECTION("player money + reward one below the cap is accepted")
+    {
+        DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
+        player.Money = MaxMoneyAmount - 101; // + 100 reward == cap - 1
         REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::None);
     }
 }

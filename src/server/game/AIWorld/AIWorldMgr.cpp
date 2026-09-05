@@ -9934,6 +9934,33 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         return result;
     }
 
+    // Milestone 2.13C5 P2 fix (STATIC review): a canonical, non-committing
+    // lifecycle preflight, checked BEFORE Player::ModifyMoney() is ever
+    // called. CheckDynamicQuestPlayerCompleteApplicability() above
+    // deliberately does not check State/expiry (see its own comment) -
+    // without this, a quest that expires in the gap between two
+    // CurrentTimeMs() calls (or was somehow already Failed/Completed)
+    // could still reach ModifyMoney() before DynamicQuestRegistry::
+    // Complete() itself ever got a chance to reject it. ModifyMoney()
+    // calls sScriptMgr->OnPlayerMoneyChanged() BEFORE its own limit check
+    // (see Player::ModifyMoney()'s own implementation) - a compensated
+    // (+reward then -reward) mutation still fires that real script event
+    // twice, so "compensate afterward" is not equivalent to "the reward
+    // never happened". Uses the exact same pure CompleteDynamicQuest()
+    // DynamicQuestRegistry::Complete() itself calls internally, against
+    // the SAME *instance already resolved above, so it can never
+    // disagree with what Complete() is about to do a few lines down -
+    // already-tested by DynamicQuestLifecycle.cpp's own Completed/Failed/
+    // Expired/Active-but-expired coverage.
+    DynamicQuestTransitionResult preflight = CompleteDynamicQuest(*instance, nowMs);
+    if (!preflight.IsAccepted())
+    {
+        result.Reason = DynamicQuestPlayerCompleteReason::CompleteRejected;
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={}",
+            id.Value, ToString(preflight.Reason));
+        return result;
+    }
+
     // Milestone 2.13C5: the money grant happens BEFORE
     // DynamicQuestRegistry::Complete() itself, and is compensated if that
     // somehow still rejects afterward (see below) - never the other way
@@ -9947,7 +9974,7 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
     if (reward > 0 && !player->ModifyMoney(int32(reward), false))
     {
         // Should be unreachable - the preflight check just above already
-        // proved player.Money + reward <= MAX_MONEY_AMOUNT on this same
+        // proved player.Money + reward < MAX_MONEY_AMOUNT on this same
         // world thread. Never ignored regardless.
         result.Reason = DynamicQuestPlayerCompleteReason::RewardMoneyLimit;
         TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason=REWARD_MONEY_LIMIT "

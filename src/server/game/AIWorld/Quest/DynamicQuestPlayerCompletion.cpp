@@ -87,10 +87,24 @@ DynamicQuestPlayerCompleteReason CheckDynamicQuestPlayerCompleteApplicability(
     if (!IsDynamicQuestObjectiveComplete(instance))
         return DynamicQuestPlayerCompleteReason::ProgressIncomplete;
 
+    // Milestone 2.13C5 P2 fix (STATIC review): must mirror
+    // Player::ModifyMoney()'s own real semantics exactly
+    // (GetMoney() < MAX_MONEY_AMOUNT - amount, i.e. player.Money +
+    // reward < maxMoneyAmount to SUCCEED) - a strict less-than, not
+    // less-than-or-equal. The original <= check let exactly
+    // player.Money + reward == maxMoneyAmount through this preflight,
+    // which ModifyMoney() itself would then still refuse - by that point
+    // sScriptMgr->OnPlayerMoneyChanged() has already fired, so a
+    // "preflight passed but ModifyMoney() still failed" case is exactly
+    // the silent side-effect gap this whole preflight exists to close.
     // 64-bit arithmetic so this can never itself underflow/wrap into a
     // false negative, regardless of how close player.Money already is to
-    // maxMoneyAmount.
-    if (uint64(player.Money) + uint64(instance.RewardMoneyCopper) > uint64(maxMoneyAmount))
+    // maxMoneyAmount. Guarded by reward > 0: a zero reward never calls
+    // ModifyMoney() at all (see CompleteDynamicQuestForPlayer()'s own
+    // call site), so it must never be rejected here either, even if the
+    // player's money already sits exactly at the cap.
+    if (instance.RewardMoneyCopper > 0 &&
+        uint64(player.Money) + uint64(instance.RewardMoneyCopper) >= uint64(maxMoneyAmount))
         return DynamicQuestPlayerCompleteReason::RewardMoneyLimit;
 
     return DynamicQuestPlayerCompleteReason::None;

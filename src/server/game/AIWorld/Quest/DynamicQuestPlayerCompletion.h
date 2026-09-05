@@ -92,14 +92,17 @@ enum class DynamicQuestPlayerCompleteReason : uint8
     // a generic CompleteRejected fold.
     ProgressIncomplete,
 
-    // instance.RewardMoneyCopper would push the player's own money past
-    // the server's MAX_MONEY_AMOUNT - never silently clamped or
-    // dropped; the turn-in itself is refused so the quest stays
-    // Active/ReadyToTurnIn for a later attempt instead of silently
-    // shortchanging the player. maxMoneyAmount is passed in by the
-    // caller (TrinityCore's own Player.h constant) rather than included
-    // here, keeping this file free of any Player.h/live-object
-    // dependency.
+    // instance.RewardMoneyCopper would push the player's own money to or
+    // past the server's MAX_MONEY_AMOUNT (a real reward is never
+    // possible for player.Money + reward >= maxMoneyAmount - see this
+    // function's own definition comment for why the boundary is a strict
+    // less-than, matching Player::ModifyMoney()'s own real semantics
+    // exactly) - never silently clamped or dropped; the turn-in itself
+    // is refused so the quest stays Active/ReadyToTurnIn for a later
+    // attempt instead of silently shortchanging the player.
+    // maxMoneyAmount is passed in by the caller (TrinityCore's own
+    // Player.h constant) rather than included here, keeping this file
+    // free of any Player.h/live-object dependency.
     RewardMoneyLimit,
 
     // DynamicQuestRegistry::Complete() itself rejected - see the log
@@ -160,13 +163,23 @@ struct DynamicQuestGiverCompleteFacts
 // binding checks take priority over availability/range/progress/money,
 // since a currently-usable but WRONG player or giver is still wrong
 // regardless of whether the objective is done or the reward could be
-// paid. The money check uses 64-bit arithmetic
-// (uint64(player.Money) + uint64(instance.RewardMoneyCopper) >
-// uint64(maxMoneyAmount)) rather than a same-width subtraction, so it
-// can never itself underflow/wrap into a false negative. Deliberately
-// does not re-check DynamicQuestInstance::State/expiry itself - that
-// stays exclusively DynamicQuestRegistry::Complete()'s own job (via
-// CompleteDynamicQuest()), never duplicated here.
+// paid. The money check (skipped entirely for a zero reward) uses
+// 64-bit arithmetic (uint64(player.Money) +
+// uint64(instance.RewardMoneyCopper) >= uint64(maxMoneyAmount)) rather
+// than a same-width subtraction, so it can never itself underflow/wrap
+// into a false negative - and a strict >= (not >), to exactly mirror
+// Player::ModifyMoney()'s own real success condition
+// (GetMoney() < MAX_MONEY_AMOUNT - amount). Deliberately does not
+// re-check DynamicQuestInstance::State/expiry itself - that stays
+// exclusively DynamicQuestRegistry::Complete()'s own job (via
+// CompleteDynamicQuest()), never duplicated here. Milestone 2.13C5 P2
+// fix (STATIC review): because of that, AIWorldMgr::
+// CompleteDynamicQuestForPlayer() additionally runs a non-committing
+// CompleteDynamicQuest() preflight of its own, strictly BEFORE this
+// function's own money-affordability result is ever acted on with a real
+// Player::ModifyMoney() call - see that method's own definition comment
+// for why a State/expiry rejection must never be discovered only AFTER
+// money has already changed hands.
 DynamicQuestPlayerCompleteReason CheckDynamicQuestPlayerCompleteApplicability(
     DynamicQuestInstance const& instance,
     ObjectGuid playerGuid,
