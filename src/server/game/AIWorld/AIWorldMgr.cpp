@@ -1274,12 +1274,18 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _dynamicQuestMaxLive = uint32(dynamicQuestMaxLive);
 
-    // Milestone 2.13C3: see _dynamicQuestPlayerAcceptMaxRangeYards's own
-    // declaration comment.
+    // Milestone 2.13C3 P2 fix (STATIC review): see
+    // _dynamicQuestPlayerAcceptMaxRangeYards's own declaration comment -
+    // must reject non-finite values too, not just non-positive ones (a
+    // +Infinity value would pass `> 0.0f` yet still never bound anything
+    // in CheckDynamicQuestPlayerAcceptApplicability()'s own distance
+    // check), and clamp is a floor of 1.0, not just any positive value,
+    // matching this config's own documented "Clamped to a minimum of
+    // 1.0" contract exactly.
     float dynamicQuestPlayerAcceptMaxRangeYards = sConfigMgr->GetFloatDefault("AIWorld.DynamicQuestPlayerAcceptMaxRangeYards", 10.0f);
-    if (!(dynamicQuestPlayerAcceptMaxRangeYards > 0.0f))
+    if (!std::isfinite(dynamicQuestPlayerAcceptMaxRangeYards) || dynamicQuestPlayerAcceptMaxRangeYards < 1.0f)
     {
-        TC_LOG_WARN("ai.world", "AIWorld.DynamicQuestPlayerAcceptMaxRangeYards ({}) is invalid, clamping to 1.0", dynamicQuestPlayerAcceptMaxRangeYards);
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicQuestPlayerAcceptMaxRangeYards ({}) is invalid or too low, clamping to 1.0", dynamicQuestPlayerAcceptMaxRangeYards);
         dynamicQuestPlayerAcceptMaxRangeYards = 1.0f;
     }
     _dynamicQuestPlayerAcceptMaxRangeYards = dynamicQuestPlayerAcceptMaxRangeYards;

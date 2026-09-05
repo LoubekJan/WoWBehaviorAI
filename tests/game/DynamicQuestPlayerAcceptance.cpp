@@ -208,6 +208,43 @@ TEST_CASE("CheckDynamicQuestPlayerAcceptApplicability rejects an out-of-range li
     }
 }
 
+TEST_CASE("CheckDynamicQuestPlayerAcceptApplicability fails closed on an invalid server policy max range", "[DynamicQuestPlayerAcceptance]")
+{
+    // Milestone 2.13C3 P2 fix (STATIC review): a misconfigured/corrupted
+    // maxInteractionRangeYards must never silently admit every distance
+    // (NaN) or every distance on the map (+Infinity) - it fails closed
+    // as its own distinct reason, checked independently of the measured
+    // live distance itself.
+    DynamicQuestInstance instance = MakeOfferedInstance();
+    DynamicQuestPlayerFacts player = MakeValidPlayerFacts();
+    DynamicQuestGiverAcceptFacts giver = MakeValidGiverFacts(instance);
+
+    SECTION("NaN max range")
+    {
+        REQUIRE(CheckDynamicQuestPlayerAcceptApplicability(instance, player, giver, 5.0f, std::numeric_limits<float>::quiet_NaN()) == DynamicQuestPlayerAcceptReason::InteractionRangeInvalid);
+    }
+
+    SECTION("infinite max range")
+    {
+        REQUIRE(CheckDynamicQuestPlayerAcceptApplicability(instance, player, giver, 5.0f, std::numeric_limits<float>::infinity()) == DynamicQuestPlayerAcceptReason::InteractionRangeInvalid);
+    }
+
+    SECTION("zero max range")
+    {
+        REQUIRE(CheckDynamicQuestPlayerAcceptApplicability(instance, player, giver, 0.0f, 0.0f) == DynamicQuestPlayerAcceptReason::InteractionRangeInvalid);
+    }
+
+    SECTION("sub-minimum (0.5) max range")
+    {
+        REQUIRE(CheckDynamicQuestPlayerAcceptApplicability(instance, player, giver, 0.4f, 0.5f) == DynamicQuestPlayerAcceptReason::InteractionRangeInvalid);
+    }
+
+    SECTION("exactly at the 1.0 floor is accepted as policy-valid")
+    {
+        REQUIRE(CheckDynamicQuestPlayerAcceptApplicability(instance, player, giver, 1.0f, 1.0f) == DynamicQuestPlayerAcceptReason::None);
+    }
+}
+
 TEST_CASE("Player eligibility checks take priority over giver/range facts", "[DynamicQuestPlayerAcceptance]")
 {
     // An invalid giver/range must never surface as the rejection reason
@@ -229,6 +266,7 @@ TEST_CASE("ToString(DynamicQuestPlayerAcceptReason) covers every enumerator", "[
     REQUIRE(std::string(ToString(DynamicQuestPlayerAcceptReason::GiverChanged)) == "GIVER_CHANGED");
     REQUIRE(std::string(ToString(DynamicQuestPlayerAcceptReason::GiverUnavailable)) == "GIVER_UNAVAILABLE");
     REQUIRE(std::string(ToString(DynamicQuestPlayerAcceptReason::OutOfRange)) == "OUT_OF_RANGE");
+    REQUIRE(std::string(ToString(DynamicQuestPlayerAcceptReason::InteractionRangeInvalid)) == "INTERACTION_RANGE_INVALID");
     REQUIRE(std::string(ToString(DynamicQuestPlayerAcceptReason::AcceptRejected)) == "ACCEPT_REJECTED");
 }
 

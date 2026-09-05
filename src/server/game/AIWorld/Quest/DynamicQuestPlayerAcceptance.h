@@ -63,6 +63,18 @@ enum class DynamicQuestPlayerAcceptReason : uint8
     // map (or the world) is never legitimate.
     OutOfRange,
 
+    // Milestone 2.13C3 P2 fix (STATIC review): the server's OWN
+    // configured maxInteractionRangeYards policy value is itself
+    // non-finite or below the smallest sane interaction distance (< 1.0
+    // yard) - a misconfigured/corrupted policy fails closed here rather
+    // than silently admitting any distance (NaN comparisons are always
+    // false, so `distance > NaN` never rejects anything) or every
+    // distance on the map (+Infinity never bounds anything). Reported as
+    // its own reason, distinct from OutOfRange, since this is a server
+    // policy defect, not anything wrong with the player/giver/distance
+    // themselves.
+    InteractionRangeInvalid,
+
     // DynamicQuestRegistry::Accept() itself rejected - see the log
     // line's own reason= for the precise underlying
     // DynamicQuestRejectReason (AlreadyTerminal/InvalidTransition/
@@ -107,10 +119,12 @@ struct DynamicQuestGiverAcceptFacts
 // Checked in this order: player eligibility (IsPlayerGuid/Resolved/
 // Alive), giver identity (RecordExists), giver incarnation (RuntimeGuid),
 // giver availability (Materialized/AIWorldControlled/Alive), same map,
-// live interaction range (playerToGiverDistanceYards finite, non-
-// negative, <= maxInteractionRangeYards) - identity/incarnation checks
-// take priority over availability/range checks, since a currently-usable
-// but WRONG entity is still wrong. Deliberately does not re-check
+// maxInteractionRangeYards policy sanity (finite, >= 1.0 - see
+// InteractionRangeInvalid's own comment), live interaction range
+// (playerToGiverDistanceYards finite, non-negative,
+// <= maxInteractionRangeYards) - identity/incarnation checks take
+// priority over availability/range checks, since a currently-usable but
+// WRONG entity is still wrong. Deliberately does not re-check
 // DynamicQuestInstance::State/expiry itself - that stays exclusively
 // DynamicQuestRegistry::Accept()'s own job (via AcceptDynamicQuest()),
 // never duplicated here.

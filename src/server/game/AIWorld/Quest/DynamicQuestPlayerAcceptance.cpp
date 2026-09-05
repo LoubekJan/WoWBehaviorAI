@@ -32,6 +32,7 @@ char const* ToString(DynamicQuestPlayerAcceptReason reason)
         case DynamicQuestPlayerAcceptReason::GiverChanged:    return "GIVER_CHANGED";
         case DynamicQuestPlayerAcceptReason::GiverUnavailable: return "GIVER_UNAVAILABLE";
         case DynamicQuestPlayerAcceptReason::OutOfRange:      return "OUT_OF_RANGE";
+        case DynamicQuestPlayerAcceptReason::InteractionRangeInvalid: return "INTERACTION_RANGE_INVALID";
         case DynamicQuestPlayerAcceptReason::AcceptRejected:  return "ACCEPT_REJECTED";
     }
     return "UNKNOWN";
@@ -58,6 +59,16 @@ DynamicQuestPlayerAcceptReason CheckDynamicQuestPlayerAcceptApplicability(
 
     if (player.MapId != giver.MapId)
         return DynamicQuestPlayerAcceptReason::OutOfRange;
+
+    // Milestone 2.13C3 P2 fix (STATIC review): fails closed on a
+    // misconfigured server policy value BEFORE it is ever compared
+    // against the live distance - a NaN maxInteractionRangeYards would
+    // otherwise make every `distance > maxInteractionRangeYards`
+    // comparison below false (NaN comparisons are always false), and a
+    // +Infinity value would never bound anything, either way silently
+    // admitting any distance on the same map.
+    if (!std::isfinite(maxInteractionRangeYards) || maxInteractionRangeYards < 1.0f)
+        return DynamicQuestPlayerAcceptReason::InteractionRangeInvalid;
 
     if (!std::isfinite(playerToGiverDistanceYards) ||
         playerToGiverDistanceYards < 0.0f ||
