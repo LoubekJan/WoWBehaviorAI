@@ -19,6 +19,8 @@
 
 #include "Quest/DynamicQuestRegistry.h"
 
+#include <algorithm>
+
 namespace
 {
     DynamicQuestInstance MakeInstance(uint64 idValue, uint32 requiredCount = 3)
@@ -90,14 +92,80 @@ TEST_CASE("DynamicQuestRegistry::ApplyTransition commits an accepted transition 
 
     DynamicQuestInstance const* before = registry.Find(DynamicQuestId{7});
     REQUIRE(before->State == DynamicQuestState::Offered);
+    REQUIRE(before->Revision == 0);
 
     DynamicQuestTransitionResult accept = AcceptDynamicQuest(*before, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000);
     REQUIRE(accept.IsAccepted());
+    REQUIRE(accept.SourceRevision == 0);
+    REQUIRE(accept.Instance->Revision == 1);
 
     REQUIRE(registry.ApplyTransition(accept));
 
     DynamicQuestInstance const* after = registry.Find(DynamicQuestId{7});
     REQUIRE(after->State == DynamicQuestState::Active);
+    REQUIRE(after->Revision == 1);
+}
+
+TEST_CASE("DynamicQuestRegistry::ApplyTransition rejects a stale commit computed from an already-superseded revision (Accept)", "[DynamicQuestRegistry]")
+{
+    // Milestone 2.13C2 P2 fix, round 2 (STATIC review): two independently
+    // valid AcceptDynamicQuest() results, both computed from the SAME
+    // Offered snapshot (simulating two players racing to accept the same
+    // offer). Only the FIRST one committed may win - the second must be
+    // rejected as stale, never silently re-binding an already-Active
+    // quest to a different player.
+    DynamicQuestRegistry registry;
+    REQUIRE(registry.Add(MakeInstance(7)));
+
+    DynamicQuestInstance const* snapshot = registry.Find(DynamicQuestId{7});
+    ObjectGuid player1 = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    ObjectGuid player2 = ObjectGuid::Create<HighGuid::Player>(uint32(2));
+
+    DynamicQuestTransitionResult resultA = AcceptDynamicQuest(*snapshot, player1, 10000);
+    DynamicQuestTransitionResult resultB = AcceptDynamicQuest(*snapshot, player2, 10000);
+    REQUIRE(resultA.IsAccepted());
+    REQUIRE(resultB.IsAccepted());
+    REQUIRE(resultA.SourceRevision == resultB.SourceRevision); // both computed from the same snapshot
+
+    REQUIRE(registry.ApplyTransition(resultA));
+    REQUIRE_FALSE(registry.ApplyTransition(resultB)); // stale - stored revision already moved on
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
+    REQUIRE(stored->State == DynamicQuestState::Active);
+    REQUIRE(stored->AcceptedByPlayerGuid == player1); // resultA's own commit, never overwritten by resultB
+}
+
+TEST_CASE("DynamicQuestRegistry::ApplyTransition rejects a stale commit computed from an already-superseded revision (Progress)", "[DynamicQuestRegistry]")
+{
+    // Same race, for progress: two different authoritative events, both
+    // applied against the SAME pre-progress snapshot. The second commit
+    // must never silently overwrite ConsumedProgressEventIds and lose
+    // the first event's own replay-guard entry.
+    DynamicQuestRegistry registry;
+    REQUIRE(registry.Add(MakeInstance(7)));
+
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    DynamicQuestInstance const* offered = registry.Find(DynamicQuestId{7});
+    DynamicQuestTransitionResult accept = AcceptDynamicQuest(*offered, player, 10000);
+    REQUIRE(registry.ApplyTransition(accept));
+
+    DynamicQuestInstance const* snapshot = registry.Find(DynamicQuestId{7});
+    REQUIRE(snapshot->Progress == 0);
+
+    DynamicQuestTransitionResult resultA = ApplyDynamicQuestProgress(*snapshot, player, 100, 10000);
+    DynamicQuestTransitionResult resultB = ApplyDynamicQuestProgress(*snapshot, player, 200, 10000);
+    REQUIRE(resultA.IsAccepted());
+    REQUIRE(resultB.IsAccepted());
+    REQUIRE(resultA.SourceRevision == resultB.SourceRevision);
+
+    REQUIRE(registry.ApplyTransition(resultA));
+    REQUIRE_FALSE(registry.ApplyTransition(resultB)); // stale
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
+    REQUIRE(stored->Progress == 1);
+    REQUIRE(stored->ConsumedProgressEventIds == std::vector<uint64>{100}); // event 100 preserved
+    REQUIRE(std::find(stored->ConsumedProgressEventIds.begin(), stored->ConsumedProgressEventIds.end(), 200)
+        == stored->ConsumedProgressEventIds.end()); // event 200 never silently lost/dropped nor applied
 }
 
 TEST_CASE("DynamicQuestRegistry::ApplyTransition rejects a rejected transition result", "[DynamicQuestRegistry]")

@@ -81,6 +81,26 @@ class TC_GAME_API DynamicQuestRegistry
         // already names a stored instance (Id itself never changes across
         // a transition); returns false and touches nothing otherwise, the
         // same fail-closed shape Add()/Remove() already have.
+        //
+        // Milestone 2.13C2 P2 fix, round 2 (STATIC review): also requires
+        // result.SourceRevision == the CURRENTLY stored instance's own
+        // Revision - optimistic concurrency, rejecting a stale commit.
+        // Two transition results can each be independently
+        // IsAccepted() == true despite both having been computed from the
+        // exact same stored snapshot (e.g. two AcceptDynamicQuest() calls
+        // racing against one Offered instance, or two
+        // ApplyDynamicQuestProgress() calls each replaying a DIFFERENT
+        // event from the same pre-progress instance) - without this
+        // check, whichever result reached ApplyTransition() second would
+        // silently clobber the first one's already-committed change
+        // (a second Accept() overwriting AcceptedByPlayerGuid, or a
+        // second progress event overwriting ConsumedProgressEventIds and
+        // silently losing the first event's own replay-guard entry).
+        // Committing this result naturally advances the stored Revision
+        // to result.Instance->Revision (== the old stored Revision + 1),
+        // since a caller must have Find()'d the CURRENT instance to
+        // legitimately compute an accepted, non-stale result in the
+        // first place.
         bool ApplyTransition(DynamicQuestTransitionResult const& result);
 
         // Returns whether an instance was actually erased - false for an

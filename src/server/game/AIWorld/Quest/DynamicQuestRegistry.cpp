@@ -59,6 +59,19 @@ bool DynamicQuestRegistry::ApplyTransition(DynamicQuestTransitionResult const& r
     if (it == _quests.end())
         return false;
 
+    // Milestone 2.13C2 P2 fix, round 2 (STATIC review): optimistic
+    // concurrency - result must have been computed from the CURRENTLY
+    // stored revision, not some earlier one a second concurrently-
+    // computed result also happened to start from. See this method's
+    // own declaration comment for the concrete stale-overwrite scenario
+    // this closes.
+    if (it->second.Revision != result.SourceRevision)
+    {
+        TC_LOG_DEBUG("ai.world", "DynamicQuestRegistry::ApplyTransition: stale commit rejected for dynamic quest id={} (stored revision={}, result computed from revision={})",
+            next.Id.Value, it->second.Revision, result.SourceRevision);
+        return false;
+    }
+
     it->second = next;
     return true;
 }

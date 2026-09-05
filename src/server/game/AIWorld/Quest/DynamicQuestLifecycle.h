@@ -97,9 +97,24 @@ char const* ToString(DynamicQuestRejectReason reason);
 // transition function below takes its instance by const reference and
 // only ever produces a NEW value on success, never a partially-mutated
 // one on failure).
+//
+// Milestone 2.13C2 P2 fix (STATIC review): SourceRevision is the
+// Revision of the `instance` this result was computed FROM - on success,
+// Instance->Revision == SourceRevision + 1. These pure transition
+// functions have no notion of "the currently stored value" (they only
+// ever see whatever `instance` a caller happened to pass in), so two
+// results can each be independently None/valid despite both having been
+// computed from the SAME stored snapshot (e.g. two AcceptDynamicQuest()
+// calls racing against one Offered instance). SourceRevision exists so
+// DynamicQuestRegistry::ApplyTransition() can detect and reject that
+// staleness at commit time - it only commits when SourceRevision still
+// equals the registry's own currently-stored Revision, so whichever
+// result reaches ApplyTransition() second is rejected rather than
+// silently clobbering the first one's already-committed change.
 struct DynamicQuestTransitionResult
 {
     DynamicQuestRejectReason Reason = DynamicQuestRejectReason::NotAttempted;
+    uint64 SourceRevision = 0;
     std::optional<DynamicQuestInstance> Instance;
 
     bool IsAccepted() const
@@ -117,10 +132,14 @@ struct DynamicQuestTransitionResult
 // saturating add - it can never wrap around regardless of input values.
 // Uses the same DynamicQuestTransitionResult shape as every transition
 // below even though there is no prior instance to transition from, so a
-// caller has exactly one result type to handle everywhere. Rejects:
-// InvalidQuestId (id == DynamicQuestId{0} - see that type's own comment;
-// a caller-side allocator never handing out 0 is not proof enough for
-// this boundary to rely on).
+// caller has exactly one result type to handle everywhere - but it does
+// NOT participate in the SourceRevision contract those transitions do
+// (see DynamicQuestTransitionResult's own comment): SourceRevision stays
+// 0 and the produced Instance starts at its own default Revision (0),
+// since there is no prior stored value to have been computed from or to
+// go stale against. Rejects: InvalidQuestId (id == DynamicQuestId{0} -
+// see that type's own comment; a caller-side allocator never handing out
+// 0 is not proof enough for this boundary to rely on).
 DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs);
 
 // The single, canonical expiry rule this entire lifecycle domain uses:
