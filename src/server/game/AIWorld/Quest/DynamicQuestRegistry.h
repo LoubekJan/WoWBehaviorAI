@@ -27,6 +27,8 @@
 #include <map>
 #include <vector>
 
+struct QuestProposal;
+
 // Milestone 2.13C2: owns every currently-live DynamicQuestInstance for the
 // process's lifetime - the quest-lifecycle counterpart to
 // AgentGroupRegistry/AgentRegistry. Purely in-memory: does not mint
@@ -44,7 +46,7 @@
 //
 // Milestone 2.13C2 P2 fix, round 3 (STATIC review): Accept()/
 // ApplyProgress()/Complete()/Fail()/Expire() below are the ONLY way a
-// stored instance may change after Add() - there is deliberately no
+// stored instance may change after Offer() - there is deliberately no
 // public "commit an already-computed DynamicQuestTransitionResult"
 // entry point. An earlier version had one (ApplyTransition(), even
 // guarded by an optimistic-concurrency revision check) - but
@@ -72,23 +74,40 @@
 // DynamicQuestId-ascending iteration order it can resume from an
 // arbitrary cursor via upper_bound(), the same tradeoff (and reasoning)
 // AgentGroupRegistry::_groups already makes. Exists because this
-// registry is otherwise unbounded: nothing in 2.13C2 itself removes an
-// Offered instance nobody ever accepts before its own ExpiresAtMs -
-// AIWorldMgr::RunDynamicQuestMaintenance() is what keeps it bounded,
-// using GetHighestId()/GetIdsAfterUntil() for the same provably-finite,
-// cursor-resumable scan-cycle shape AgentGroupRegistry::
-// GetGroupsAfterUntil() already established (see that method's own
-// comment for why an `until` snapshot is required to avoid starving the
-// earliest-created entries under continuous creation).
+// registry has no size limit of its own: nothing in 2.13C2 itself
+// removes an Offered instance nobody ever accepts before its own
+// ExpiresAtMs - AIWorldMgr::RunDynamicQuestMaintenance() is what keeps
+// it bounded in the common case, using GetHighestId()/GetIdsAfterUntil()
+// for the same provably-finite, cursor-resumable scan-cycle shape
+// AgentGroupRegistry::GetGroupsAfterUntil() already established (see
+// that method's own comment for why an `until` snapshot is required to
+// avoid starving the earliest-created entries under continuous
+// creation). Milestone 2.13C2 P3 fix (STATIC review): a creation rate
+// that outpaces that reclamation is additionally capped by
+// AIWorld.DynamicQuestMaxLive - see AIWorldMgr::CreateDynamicQuestOffer()
+// and _dynamicQuestMaxLive's own comments; that hard backstop lives at
+// the AIWorldMgr level (the only place a NEW instance is ever offered
+// from), not in this class.
 class TC_GAME_API DynamicQuestRegistry
 {
     public:
-        // Adds an already-identified instance (from
-        // AIWorldMgr::AllocateDynamicQuestId() + OfferDynamicQuest()).
-        // Rejects and returns false for DynamicQuestId{0} or a duplicate
-        // id - never overwrites an existing instance. The only way a NEW
-        // id ever enters this registry.
-        bool Add(DynamicQuestInstance instance);
+        // Milestone 2.13C2 P3 fix (STATIC review): the ONLY way a NEW
+        // instance ever enters this registry - internally calls the pure
+        // OfferDynamicQuest() itself (never accepting an already-
+        // constructed DynamicQuestInstance from the caller) and stores
+        // the result only if that succeeds, so a freshly-stored entry is
+        // always guaranteed by construction to be a genuine, just-minted
+        // Offered instance (State==Offered, Progress==0, no
+        // AcceptedByPlayerGuid, empty ConsumedProgressEventIds) - never
+        // an arbitrary caller-supplied value in some other state. An
+        // earlier version instead took a public Add(DynamicQuestInstance)
+        // that happily stored any well-formed value object a caller
+        // passed in, including an already-Active or already-Completed
+        // one. Rejects InvalidQuestId (id == DynamicQuestId{0}, from
+        // OfferDynamicQuest() itself) and DuplicateQuestId (id already
+        // registered - defense in depth only, unreachable given a
+        // correct monotonic allocator).
+        DynamicQuestTransitionResult Offer(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs);
 
         DynamicQuestInstance const* Find(DynamicQuestId id) const;
 

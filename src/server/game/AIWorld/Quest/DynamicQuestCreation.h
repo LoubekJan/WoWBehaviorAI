@@ -37,6 +37,14 @@ enum class DynamicQuestCreateReason : uint8
     NotAttempted = 0,
     None,
 
+    // Milestone 2.13C2 P3 fix (STATIC review): AIWorld.DynamicQuestMaxLive
+    // currently-registered instances already exist - checked FIRST,
+    // before any live giver/target re-resolution, so a full registry
+    // fails fast without paying for that work. Maintenance reclaiming
+    // expired entries is what keeps this from being a permanent wall;
+    // this cap only guards against creation outpacing reclamation.
+    RegistryFull,
+
     // The giver AgentId no longer resolves to an AgentRecord at all.
     GiverMissing,
 
@@ -72,16 +80,16 @@ enum class DynamicQuestCreateReason : uint8
     // mint a new id - the process-lifetime uint64 counter is exhausted.
     IdExhausted,
 
-    // OfferDynamicQuest() itself rejected the freshly allocated
-    // DynamicQuestId - should be unreachable in practice, since a freshly
-    // minted id is never 0 (see AdvanceDynamicQuestIdCounter's own
-    // comment); defense in depth only.
-    OfferRejected,
-
-    // DynamicQuestRegistry::Add() itself rejected the offer - should be
-    // unreachable in practice, since a freshly minted id colliding would
-    // mean the allocator itself is broken; defense in depth only.
-    RegistryRejected
+    // DynamicQuestRegistry::Offer() itself rejected the freshly allocated
+    // DynamicQuestId - either OfferDynamicQuest()'s own InvalidQuestId
+    // (should be unreachable, since a freshly minted id is never 0 - see
+    // AdvanceDynamicQuestIdCounter's own comment) or the registry's own
+    // DuplicateQuestId (should be unreachable, since a freshly minted id
+    // colliding would mean the allocator itself is broken). Both fold
+    // into this one reason here - by the time execution reaches this
+    // boundary, either case means something upstream of this contract is
+    // already broken; defense in depth only.
+    OfferRejected
 };
 
 char const* ToString(DynamicQuestCreateReason reason);

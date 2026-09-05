@@ -45,6 +45,7 @@ char const* ToString(DynamicQuestRejectReason reason)
         case DynamicQuestRejectReason::InvalidTransition:      return "INVALID_TRANSITION";
         case DynamicQuestRejectReason::InvalidQuestId:         return "INVALID_QUEST_ID";
         case DynamicQuestRejectReason::QuestNotFound:          return "QUEST_NOT_FOUND";
+        case DynamicQuestRejectReason::DuplicateQuestId:       return "DUPLICATE_QUEST_ID";
         case DynamicQuestRejectReason::InvalidPlayer:          return "INVALID_PLAYER";
         case DynamicQuestRejectReason::PlayerMismatch:         return "PLAYER_MISMATCH";
         case DynamicQuestRejectReason::AlreadyExpired:         return "ALREADY_EXPIRED";

@@ -16,28 +16,29 @@
  */
 
 #include "DynamicQuestRegistry.h"
+#include "Inference/QuestProposal.h"
 #include "Log.h"
 
 #include <algorithm>
 #include <utility>
 
-bool DynamicQuestRegistry::Add(DynamicQuestInstance instance)
+DynamicQuestTransitionResult DynamicQuestRegistry::Offer(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs)
 {
-    if (!instance.Id)
+    DynamicQuestTransitionResult result = OfferDynamicQuest(id, proposal, nowMs);
+    if (!result.IsAccepted())
+        return result;
+
+    uint64 idValue = result.Instance->Id.Value;
+    if (_quests.find(idValue) != _quests.end())
     {
-        TC_LOG_ERROR("ai.world", "DynamicQuestRegistry::Add: refusing to add a quest with DynamicQuestId=0");
-        return false;
+        TC_LOG_ERROR("ai.world", "DynamicQuestRegistry::Offer: dynamic quest id={} is already registered, ignoring duplicate", idValue);
+        DynamicQuestTransitionResult duplicate;
+        duplicate.Reason = DynamicQuestRejectReason::DuplicateQuestId;
+        return duplicate;
     }
 
-    if (Find(instance.Id))
-    {
-        TC_LOG_ERROR("ai.world", "DynamicQuestRegistry::Add: dynamic quest id={} is already registered, ignoring duplicate", instance.Id.Value);
-        return false;
-    }
-
-    uint64 idValue = instance.Id.Value;
-    _quests.emplace(idValue, std::move(instance));
-    return true;
+    _quests.emplace(idValue, *result.Instance);
+    return result;
 }
 
 DynamicQuestInstance const* DynamicQuestRegistry::Find(DynamicQuestId id) const

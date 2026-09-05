@@ -245,6 +245,7 @@ TEST_CASE("ToString(DynamicQuestCreateReason) covers every enumerator", "[Dynami
 {
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::NotAttempted)) == "NOT_ATTEMPTED");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::None)) == "NONE");
+    REQUIRE(std::string(ToString(DynamicQuestCreateReason::RegistryFull)) == "REGISTRY_FULL");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::GiverMissing)) == "GIVER_MISSING");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::GiverChanged)) == "GIVER_CHANGED");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::GiverUnavailable)) == "GIVER_UNAVAILABLE");
@@ -254,7 +255,6 @@ TEST_CASE("ToString(DynamicQuestCreateReason) covers every enumerator", "[Dynami
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::TargetOutOfRange)) == "TARGET_OUT_OF_RANGE");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::IdExhausted)) == "ID_EXHAUSTED");
     REQUIRE(std::string(ToString(DynamicQuestCreateReason::OfferRejected)) == "OFFER_REJECTED");
-    REQUIRE(std::string(ToString(DynamicQuestCreateReason::RegistryRejected)) == "REGISTRY_REJECTED");
 }
 
 TEST_CASE("DynamicQuestCreateResult defaults to rejected, never to an accepted None", "[DynamicQuestCreation]")

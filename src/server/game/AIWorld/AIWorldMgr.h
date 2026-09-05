@@ -269,21 +269,23 @@ class TC_GAME_API AIWorldMgr
         // world may have moved on since 2.13B ran, so this re-resolves
         // giver and target fresh from live world state (never trusting
         // anything the proposal itself claims) and judges the result with
-        // the pure CheckDynamicQuestCreateApplicability(). Only once that
-        // returns None does it proceed: AllocateDynamicQuestId() ->
-        // OfferDynamicQuest() -> DynamicQuestRegistry::Add(), in that
-        // order - id allocation only happens once applicability is
-        // already proven, and the registry is only ever touched once
-        // OfferDynamicQuest() itself has already succeeded. On any
-        // failure at any step, nothing is created: no id is consumed
-        // (except in the applicability-already-proven case where
-        // OfferDynamicQuest()/Add() themselves reject - see
-        // DynamicQuestCreateReason::OfferRejected/RegistryRejected's own
-        // comments for why that should be unreachable in practice), and
-        // the registry is left completely untouched. Still no
-        // ActionRequest, no ActionSystem/ActionExecutor, no Player/Quest/
-        // DB, no reward, no world mutation - this only ever creates an
-        // inert, server-only Offered lifecycle instance.
+        // the pure CheckDynamicQuestCreateApplicability(). In order:
+        // RegistryFull (AIWorld.DynamicQuestMaxLive, checked first so a
+        // full registry fails fast before paying for any live
+        // resolution) -> applicability -> AllocateDynamicQuestId() ->
+        // DynamicQuestRegistry::Offer(), which is itself the only way a
+        // NEW instance may enter the registry (see its own comment) - id
+        // allocation only happens once applicability is already proven,
+        // and Offer() only touches the registry once OfferDynamicQuest()
+        // itself has already succeeded internally. On any failure at any
+        // step, nothing is created: no id is consumed (except in the
+        // applicability-already-proven case where Offer() itself rejects
+        // - see DynamicQuestCreateReason::OfferRejected's own comment for
+        // why that should be unreachable in practice), and the registry
+        // is left completely untouched. Still no ActionRequest, no
+        // ActionSystem/ActionExecutor, no Player/Quest/DB, no reward, no
+        // world mutation - this only ever creates an inert, server-only
+        // Offered lifecycle instance.
         DynamicQuestCreateResult CreateDynamicQuestOffer(QuestProposal const& proposal, uint64 nowMs);
 
         // Milestone 2.13C2 P2 fix (STATIC review): keeps _dynamicQuestRegistry
@@ -3207,6 +3209,18 @@ class TC_GAME_API AIWorldMgr
         // to 0 forever once UINT64_MAX has been handed out - a
         // process-lifetime-only counter, never persisted or reset.
         uint64 _nextDynamicQuestId = 1;
+
+        // Milestone 2.13C2 P3 fix (STATIC review): AIWorld.
+        // DynamicQuestMaxLive - the absolute cap CreateDynamicQuestOffer()
+        // enforces against _dynamicQuestRegistry.GetCount() before doing
+        // anything else, checked before any live giver/target
+        // re-resolution so a full registry fails fast. Bounded expiry
+        // maintenance (RunDynamicQuestMaintenance()) reclaims Offered/
+        // Active instances nobody accepts before their own ExpiresAtMs,
+        // but has no effect on Completed/Failed ones (nothing produces
+        // those yet) or on a creation rate that outpaces reclamation -
+        // this cap is the hard backstop for both.
+        uint32 _dynamicQuestMaxLive = 1000;
 
         // Milestone 2.13C2 P2 fix (STATIC review): AIWorld.
         // DynamicQuestMaintenanceIntervalMs/ScanMaxPerPass - how often

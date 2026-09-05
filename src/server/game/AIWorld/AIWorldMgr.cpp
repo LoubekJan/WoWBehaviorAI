@@ -1264,6 +1264,16 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _dynamicTaskMaxRewardMoneyCopper = uint32(dynamicTaskMaxRewardMoneyCopper);
 
+    // Milestone 2.13C2 P3 fix (STATIC review): see
+    // _dynamicQuestMaxLive's own declaration comment.
+    int32 dynamicQuestMaxLive = sConfigMgr->GetIntDefault("AIWorld.DynamicQuestMaxLive", 1000);
+    if (dynamicQuestMaxLive < 1)
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicQuestMaxLive ({}) is invalid or too low, clamping to 1", dynamicQuestMaxLive);
+        dynamicQuestMaxLive = 1;
+    }
+    _dynamicQuestMaxLive = uint32(dynamicQuestMaxLive);
+
     // Milestone 2.13C2 P2 fix (STATIC review): see
     // RunDynamicQuestMaintenance()'s own declaration comment.
     int32 dynamicQuestMaintenanceIntervalMs = sConfigMgr->GetIntDefault("AIWorld.DynamicQuestMaintenanceIntervalMs", 30000);
@@ -9571,6 +9581,16 @@ DynamicQuestCreateResult AIWorldMgr::CreateDynamicQuestOffer(QuestProposal const
 {
     DynamicQuestCreateResult result;
 
+    // Milestone 2.13C2 P3 fix (STATIC review): checked FIRST, before any
+    // live giver/target re-resolution, so a full registry fails fast
+    // without paying for that work - see AIWorld.DynamicQuestMaxLive's
+    // own declaration comment.
+    if (_dynamicQuestRegistry.GetCount() >= _dynamicQuestMaxLive)
+    {
+        result.Reason = DynamicQuestCreateReason::RegistryFull;
+        return result;
+    }
+
     AgentRecord* record = _registry.Find(proposal.Giver);
 
     DynamicQuestGiverFacts giverFacts;
@@ -9628,16 +9648,15 @@ DynamicQuestCreateResult AIWorldMgr::CreateDynamicQuestOffer(QuestProposal const
         return result;
     }
 
-    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(id, proposal, nowMs);
+    // Milestone 2.13C2 P3 fix (STATIC review): routed through the
+    // registry's own Offer() - the only way a NEW instance may enter it
+    // by construction - rather than calling the pure OfferDynamicQuest()
+    // and a separate Add() step; see DynamicQuestRegistry::Offer()'s own
+    // comment.
+    DynamicQuestTransitionResult offerResult = _dynamicQuestRegistry.Offer(id, proposal, nowMs);
     if (!offerResult.IsAccepted())
     {
         result.Reason = DynamicQuestCreateReason::OfferRejected;
-        return result;
-    }
-
-    if (!_dynamicQuestRegistry.Add(*offerResult.Instance))
-    {
-        result.Reason = DynamicQuestCreateReason::RegistryRejected;
         return result;
     }
 

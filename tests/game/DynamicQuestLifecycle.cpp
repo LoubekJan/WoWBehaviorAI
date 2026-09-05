@@ -503,6 +503,7 @@ TEST_CASE("ToString(DynamicQuestRejectReason) covers every enumerator", "[Dynami
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidTransition)) == "INVALID_TRANSITION");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidQuestId)) == "INVALID_QUEST_ID");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::QuestNotFound)) == "QUEST_NOT_FOUND");
+    REQUIRE(std::string(ToString(DynamicQuestRejectReason::DuplicateQuestId)) == "DUPLICATE_QUEST_ID");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidPlayer)) == "INVALID_PLAYER");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::PlayerMismatch)) == "PLAYER_MISMATCH");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::AlreadyExpired)) == "ALREADY_EXPIRED");

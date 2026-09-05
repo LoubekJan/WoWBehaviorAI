@@ -18,10 +18,47 @@
 #include "tc_catch2.h"
 
 #include "Quest/DynamicQuestRegistry.h"
+#include "Inference/QuestProposal.h"
 
 namespace
 {
-    DynamicQuestInstance MakeInstance(uint64 idValue, uint32 requiredCount = 3)
+    QuestProposal MakeValidProposal(uint32 requiredCount = 3)
+    {
+        QuestProposal proposal;
+        proposal.Giver.Value = 42;
+        proposal.GiverRuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(1001, 555);
+        proposal.SourceEventId = 9001;
+        proposal.SourceEventType = WorldEventType::CreatureKilled;
+        proposal.Objective = QuestObjectiveType::KillCreature;
+        proposal.TargetToken = 1;
+        proposal.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(2002, 1);
+        proposal.TargetEntry = 2002;
+        proposal.TargetMapId = 0;
+        proposal.RequiredCount = requiredCount;
+        proposal.MaxRangeYards = 40.0f;
+        proposal.ExpiryMs = 200000;
+        proposal.RewardMoneyCopper = 0;
+        proposal.Title = "Cull the wolves";
+        proposal.Description = "Thin the wolf pack near the road.";
+        return proposal;
+    }
+
+    // Offers a fresh instance into `registry` through its own Offer() -
+    // the only sanctioned way a new instance may exist there - and
+    // returns its id. Fails the calling TEST_CASE if the offer itself
+    // was rejected.
+    DynamicQuestId OfferInto(DynamicQuestRegistry& registry, uint64 idValue, uint32 requiredCount = 3, uint64 nowMs = 10000)
+    {
+        DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{idValue}, MakeValidProposal(requiredCount), nowMs);
+        REQUIRE(result.IsAccepted());
+        return DynamicQuestId{idValue};
+    }
+
+    // Deliberately NOT inserted through the registry - used only by the
+    // fabricated-source test below, which needs a DynamicQuestInstance a
+    // caller could build entirely on its own, independent of anything
+    // the registry actually stores.
+    DynamicQuestInstance MakeStandaloneInstance(uint64 idValue, uint32 requiredCount = 3)
     {
         DynamicQuestInstance instance;
         instance.Id = DynamicQuestId{idValue};
@@ -34,27 +71,38 @@ namespace
     }
 }
 
-TEST_CASE("DynamicQuestRegistry::Add accepts a valid instance", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::Offer accepts a valid proposal and stores a fresh Offered instance", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(1)));
+    DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{1}, MakeValidProposal(), 10000);
+    REQUIRE(result.IsAccepted());
     REQUIRE(registry.GetCount() == 1);
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    REQUIRE(stored != nullptr);
+    REQUIRE(stored->State == DynamicQuestState::Offered);
+    REQUIRE(stored->Progress == 0);
+    REQUIRE(stored->AcceptedByPlayerGuid.IsEmpty());
+    REQUIRE(stored->ConsumedProgressEventIds.empty());
 }
 
-TEST_CASE("DynamicQuestRegistry::Add rejects DynamicQuestId{0}", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::Offer rejects DynamicQuestId{0}", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE_FALSE(registry.Add(MakeInstance(0)));
+    DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{0}, MakeValidProposal(), 10000);
+    REQUIRE_FALSE(result.IsAccepted());
+    REQUIRE(result.Reason == DynamicQuestRejectReason::InvalidQuestId);
     REQUIRE(registry.GetCount() == 0);
 }
 
-TEST_CASE("DynamicQuestRegistry::Add rejects a duplicate id and leaves the original untouched", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::Offer rejects a duplicate id and leaves the original untouched", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(1, 3)));
+    OfferInto(registry, 1, 3);
 
-    DynamicQuestInstance duplicate = MakeInstance(1, 99); // same id, different payload
-    REQUIRE_FALSE(registry.Add(duplicate));
+    DynamicQuestTransitionResult duplicate = registry.Offer(DynamicQuestId{1}, MakeValidProposal(99), 10000);
+    REQUIRE_FALSE(duplicate.IsAccepted());
+    REQUIRE(duplicate.Reason == DynamicQuestRejectReason::DuplicateQuestId);
     REQUIRE(registry.GetCount() == 1);
 
     DynamicQuestInstance const* found = registry.Find(DynamicQuestId{1});
@@ -69,7 +117,7 @@ TEST_CASE("DynamicQuestRegistry::Find returns the matching instance", "[DynamicQ
     // instance's own State/Progress/etc through it, only through
     // Accept()/ApplyProgress()/Complete()/Fail()/Expire() below.
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
+    OfferInto(registry, 7);
 
     DynamicQuestInstance const* found = registry.Find(DynamicQuestId{7});
     REQUIRE(found != nullptr);
@@ -79,7 +127,7 @@ TEST_CASE("DynamicQuestRegistry::Find returns the matching instance", "[DynamicQ
 TEST_CASE("DynamicQuestRegistry::Find returns nullptr for an unknown id", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
+    OfferInto(registry, 7);
 
     REQUIRE(registry.Find(DynamicQuestId{999}) == nullptr);
 }
@@ -87,7 +135,7 @@ TEST_CASE("DynamicQuestRegistry::Find returns nullptr for an unknown id", "[Dyna
 TEST_CASE("DynamicQuestRegistry::Accept commits Offered -> Active against its own stored instance", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
+    OfferInto(registry, 7);
 
     ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
     DynamicQuestTransitionResult result = registry.Accept(DynamicQuestId{7}, player, 10000);
@@ -116,7 +164,7 @@ TEST_CASE("DynamicQuestRegistry::Accept a second time on an already-Active quest
     // A second call simply sees the now-Active instance and is rejected
     // by AcceptDynamicQuest()'s own InvalidTransition rule.
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
+    OfferInto(registry, 7);
 
     ObjectGuid player1 = ObjectGuid::Create<HighGuid::Player>(uint32(1));
     ObjectGuid player2 = ObjectGuid::Create<HighGuid::Player>(uint32(2));
@@ -133,7 +181,7 @@ TEST_CASE("DynamicQuestRegistry::Accept a second time on an already-Active quest
 TEST_CASE("DynamicQuestRegistry::ApplyProgress commits progress against its own stored instance", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
+    OfferInto(registry, 7);
     ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
     REQUIRE(registry.Accept(DynamicQuestId{7}, player, 10000).IsAccepted());
 
@@ -169,12 +217,12 @@ TEST_CASE("DynamicQuestRegistry cannot be tricked into committing a transition c
     // fabricated result has nothing to be committed THROUGH; it is
     // simply a value sitting unused in this test.
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7, 3)));
+    OfferInto(registry, 7, 3);
 
     DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
     REQUIRE(stored->State == DynamicQuestState::Offered);
 
-    DynamicQuestInstance fabricated = MakeInstance(7, 3);
+    DynamicQuestInstance fabricated = MakeStandaloneInstance(7, 3);
     fabricated.State = DynamicQuestState::Active;
     fabricated.Progress = 3;
     fabricated.AcceptedByPlayerGuid = ObjectGuid::Create<HighGuid::Player>(uint32(1));
@@ -207,7 +255,7 @@ TEST_CASE("DynamicQuestRegistry::Complete/Fail/Expire reject an unknown id as Qu
 TEST_CASE("DynamicQuestRegistry::Expire commits Offered -> Expired once past the deadline", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
+    OfferInto(registry, 7);
 
     DynamicQuestInstance const* offered = registry.Find(DynamicQuestId{7});
     uint64 expiresAtMs = offered->ExpiresAtMs;
@@ -224,7 +272,7 @@ TEST_CASE("DynamicQuestRegistry::Expire commits Offered -> Expired once past the
 TEST_CASE("DynamicQuestRegistry::Remove erases an existing instance and returns true", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(1)));
+    OfferInto(registry, 1);
 
     REQUIRE(registry.Remove(DynamicQuestId{1}));
     REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
@@ -234,7 +282,7 @@ TEST_CASE("DynamicQuestRegistry::Remove erases an existing instance and returns 
 TEST_CASE("DynamicQuestRegistry::Remove returns false for an unknown id", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(1)));
+    OfferInto(registry, 1);
 
     REQUIRE_FALSE(registry.Remove(DynamicQuestId{999}));
     REQUIRE(registry.GetCount() == 1); // unaffected
@@ -243,9 +291,9 @@ TEST_CASE("DynamicQuestRegistry::Remove returns false for an unknown id", "[Dyna
 TEST_CASE("Removing one quest does not affect any other", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(1)));
-    REQUIRE(registry.Add(MakeInstance(2)));
-    REQUIRE(registry.Add(MakeInstance(3)));
+    OfferInto(registry, 1);
+    OfferInto(registry, 2);
+    OfferInto(registry, 3);
 
     REQUIRE(registry.Remove(DynamicQuestId{2}));
 
@@ -266,9 +314,9 @@ TEST_CASE("A fresh registry starts empty", "[DynamicQuestRegistry]")
 TEST_CASE("DynamicQuestRegistry::GetHighestId returns the highest registered id", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(5)));
-    REQUIRE(registry.Add(MakeInstance(1)));
-    REQUIRE(registry.Add(MakeInstance(9)));
+    OfferInto(registry, 5);
+    OfferInto(registry, 1);
+    OfferInto(registry, 9);
 
     REQUIRE(registry.GetHighestId() == DynamicQuestId{9});
 
@@ -280,7 +328,7 @@ TEST_CASE("DynamicQuestRegistry::GetIdsAfterUntil is bounded and cursor-resumabl
 {
     DynamicQuestRegistry registry;
     for (uint64 idValue = 1; idValue <= 5; ++idValue)
-        REQUIRE(registry.Add(MakeInstance(idValue)));
+        OfferInto(registry, idValue);
 
     DynamicQuestId until = registry.GetHighestId();
     REQUIRE(until == DynamicQuestId{5});
@@ -310,13 +358,13 @@ TEST_CASE("DynamicQuestRegistry::GetIdsAfterUntil never returns ids created afte
     // the same starvation-prevention property AgentGroupRegistry::
     // GetGroupsAfterUntil() already guarantees.
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(1)));
-    REQUIRE(registry.Add(MakeInstance(2)));
+    OfferInto(registry, 1);
+    OfferInto(registry, 2);
 
     DynamicQuestId until = registry.GetHighestId();
     REQUIRE(until == DynamicQuestId{2});
 
-    REQUIRE(registry.Add(MakeInstance(3))); // created after the snapshot
+    OfferInto(registry, 3); // created after the snapshot
 
     std::vector<DynamicQuestId> discovered = registry.GetIdsAfterUntil(DynamicQuestId{}, until, 100);
     REQUIRE(discovered.size() == 2);
@@ -327,7 +375,7 @@ TEST_CASE("DynamicQuestRegistry::GetIdsAfterUntil never returns ids created afte
 TEST_CASE("DynamicQuestRegistry::GetIdsAfterUntil returns nothing for maxCount 0 or an already-exhausted range", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(1)));
+    OfferInto(registry, 1);
 
     REQUIRE(registry.GetIdsAfterUntil(DynamicQuestId{}, DynamicQuestId{1}, 0).empty());
     REQUIRE(registry.GetIdsAfterUntil(DynamicQuestId{1}, DynamicQuestId{1}, 100).empty()); // after >= until

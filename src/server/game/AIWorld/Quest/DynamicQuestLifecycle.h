@@ -58,6 +58,13 @@ enum class DynamicQuestRejectReason : uint8
     // only the registry knows what it currently stores.
     QuestNotFound,
 
+    // Milestone 2.13C2 P3 fix (STATIC review): DynamicQuestRegistry::
+    // Offer() minted a new instance whose id already names one it
+    // currently stores. Defense in depth only - unreachable given a
+    // correct monotonic DynamicQuestId allocator; never produced by
+    // OfferDynamicQuest() itself, only by the registry.
+    DuplicateQuestId,
+
     // AcceptDynamicQuest() was called with a playerGuid that is not a
     // real player identity (ObjectGuid::IsPlayer()) - covers both an
     // empty GUID and any other entity type (e.g. a creature GUID).

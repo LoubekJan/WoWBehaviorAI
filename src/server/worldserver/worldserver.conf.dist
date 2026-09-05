@@ -4833,6 +4833,20 @@ AIWorld.DynamicTaskMaxExpiryMs = 300000
 AIWorld.DynamicTaskMaxRewardMoneyCopper = 0
 
 #
+#    AIWorld.DynamicQuestMaxLive
+#        Description: Milestone 2.13C2 (STATIC review P3 fix) - the absolute cap
+#                     CreateDynamicQuestOffer() enforces against the current DynamicQuestRegistry
+#                     count before doing anything else (checked before any live giver/target
+#                     re-resolution, so a full registry fails fast). Bounded expiry maintenance
+#                     (AIWorld.DynamicQuestMaintenanceIntervalMs) reclaims Offered/Active instances
+#                     nobody accepts before their own deadline, but has no effect on a creation rate
+#                     that outpaces reclamation - this cap is the hard backstop for that case.
+#        Important:   Values below 1 are clamped to 1.
+#        Default:     1000
+
+AIWorld.DynamicQuestMaxLive = 1000
+
+#
 #    AIWorld.DynamicQuestMaintenanceIntervalMs
 #        Description: Milestone 2.13C2 (STATIC review P2 fix) - how often
 #                     RunDynamicQuestMaintenance() runs, expiring and removing any Offered/Active

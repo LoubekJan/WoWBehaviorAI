@@ -26,6 +26,7 @@ char const* ToString(DynamicQuestCreateReason reason)
     {
         case DynamicQuestCreateReason::NotAttempted:      return "NOT_ATTEMPTED";
         case DynamicQuestCreateReason::None:              return "NONE";
+        case DynamicQuestCreateReason::RegistryFull:      return "REGISTRY_FULL";
         case DynamicQuestCreateReason::GiverMissing:      return "GIVER_MISSING";
         case DynamicQuestCreateReason::GiverChanged:      return "GIVER_CHANGED";
         case DynamicQuestCreateReason::GiverUnavailable:  return "GIVER_UNAVAILABLE";
@@ -35,7 +36,6 @@ char const* ToString(DynamicQuestCreateReason reason)
         case DynamicQuestCreateReason::TargetOutOfRange:  return "TARGET_OUT_OF_RANGE";
         case DynamicQuestCreateReason::IdExhausted:       return "ID_EXHAUSTED";
         case DynamicQuestCreateReason::OfferRejected:     return "OFFER_REJECTED";
-        case DynamicQuestCreateReason::RegistryRejected:  return "REGISTRY_REJECTED";
     }
     return "UNKNOWN";
 }
