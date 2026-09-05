@@ -267,6 +267,28 @@ class TC_GAME_API DynamicQuestRegistry
         // per-tick/per-interaction one.
         std::vector<DynamicQuestId> GetAllActiveIds() const;
 
+        // Milestone 2.13C4 P3 fix (STATIC review, round 4): the "fail
+        // every Active instance" consequence of a detected
+        // DynamicQuestKillEventBus drop, pulled out of AIWorldMgr::
+        // ReclaimDynamicQuestsAfterKillCreditLoss() into this class so it
+        // has direct Catch2 coverage - the STATIC review's own advisory
+        // finding was that this orchestration (drop-counter check ->
+        // fail-all) had no test of its own, only its individual building
+        // blocks did. This IS one of those building blocks: it takes
+        // GetAllActiveIds()'s own result and Fail()s each one, exactly
+        // what AIWorldMgr's recovery path used to do inline. AIWorldMgr
+        // itself still owns the one piece that cannot move here (whether
+        // a drop actually happened - GetDroppedEventCount() lives on
+        // DynamicQuestKillEventBus, a class this registry has no
+        // knowledge of), but the actual consequence, once that decision
+        // is made, is now fully testable without any live-world state.
+        // Returns how many instances were actually transitioned to
+        // Failed (a rejection - e.g. AlreadyExpired, see
+        // FailDynamicQuest()'s own comment - is not counted, but that
+        // instance is still effectively neutralized: RunDynamicQuestMaintenance()
+        // will reclaim it as Expired shortly regardless).
+        uint32 FailAllActiveInstances(uint64 nowMs);
+
     private:
         std::map<uint64, DynamicQuestInstance> _quests;
 

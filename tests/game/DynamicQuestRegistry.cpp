@@ -646,3 +646,57 @@ TEST_CASE("DynamicQuestRegistry::GetAllActiveIds is empty when nothing is Active
 
     REQUIRE(registry.GetAllActiveIds().empty());
 }
+
+// ---------------------------------------------------------------------
+// Milestone 2.13C4 P3 fix (STATIC review, round 4): FailAllActiveInstances()
+// - the kill-credit-loss recovery consequence, pulled out of AIWorldMgr
+// so the "detected drop -> every Active instance fails" behavior has its
+// own direct coverage instead of only its individual building blocks.
+// ---------------------------------------------------------------------
+
+TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances fails every Active instance and returns the count", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42); // stays Offered
+    OfferInto(registry, 2, 3, 10000, /*giverValue*/ 99);
+    OfferInto(registry, 3, 3, 10000, /*giverValue*/ 100);
+
+    REQUIRE(registry.Accept(DynamicQuestId{2}, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000).IsAccepted());
+    REQUIRE(registry.Accept(DynamicQuestId{3}, ObjectGuid::Create<HighGuid::Player>(uint32(2)), 10000).IsAccepted());
+
+    uint32 failedCount = registry.FailAllActiveInstances(10000);
+    REQUIRE(failedCount == 2);
+
+    REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Offered); // untouched
+    REQUIRE(registry.Find(DynamicQuestId{2})->State == DynamicQuestState::Failed);
+    REQUIRE(registry.Find(DynamicQuestId{3})->State == DynamicQuestState::Failed);
+}
+
+TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances does nothing and returns 0 when nothing is Active", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1); // Offered, never accepted
+
+    REQUIRE(registry.FailAllActiveInstances(10000) == 0);
+    REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Offered);
+}
+
+TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances does not count an instance it could not actually fail", "[DynamicQuestRegistry]")
+{
+    // An Active instance whose own deadline has already passed is
+    // rejected by FailDynamicQuest() itself (AlreadyExpired) - see that
+    // function's own comment. FailAllActiveInstances() must not claim to
+    // have failed it; RunDynamicQuestMaintenance() will reclaim it as
+    // Expired on its own regardless, so this is not a hole in the
+    // recovery guarantee, just an accurate count.
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    uint64 expiresAtMs = stored->ExpiresAtMs;
+
+    REQUIRE(registry.FailAllActiveInstances(expiresAtMs) == 0);
+    REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Active); // left for maintenance to Expire()
+}

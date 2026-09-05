@@ -10001,8 +10001,12 @@ void AIWorldMgr::ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& ev
     }
 }
 
-// Milestone 2.13C4 P2 fix (STATIC review, round 3): see this method's own
-// declaration comment in AIWorldMgr.h.
+// Milestone 2.13C4 P3 fix (STATIC review, round 4): the actual "fail
+// every Active instance" consequence now lives in DynamicQuestRegistry::
+// FailAllActiveInstances() (with its own direct Catch2 coverage) - this
+// method itself is reduced to the one piece that cannot move there: was
+// a drop actually observed. See this method's own declaration comment in
+// AIWorldMgr.h.
 void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
 {
     uint64 droppedCount = _dynamicQuestKillEventBus.GetDroppedEventCount();
@@ -10012,13 +10016,7 @@ void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
     uint64 newlyDropped = droppedCount - _lastObservedDynamicQuestKillDropCount;
     _lastObservedDynamicQuestKillDropCount = droppedCount;
 
-    uint64 nowMs = CurrentTimeMs();
-    uint32 failedCount = 0;
-    for (DynamicQuestId id : _dynamicQuestRegistry.GetAllActiveIds())
-    {
-        if (_dynamicQuestRegistry.Fail(id, nowMs).IsAccepted())
-            ++failedCount;
-    }
+    uint32 failedCount = _dynamicQuestRegistry.FailAllActiveInstances(CurrentTimeMs());
 
     TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_KILL_CREDIT_LOST droppedEvents={} activeQuestsForceFailed={} - "
         "DynamicQuestKillEventBus overflowed (see its own comment); every Active dynamic quest was "

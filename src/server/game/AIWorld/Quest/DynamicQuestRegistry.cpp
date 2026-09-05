@@ -267,3 +267,15 @@ std::vector<DynamicQuestId> DynamicQuestRegistry::GetAllActiveIds() const
 
     return ids;
 }
+
+uint32 DynamicQuestRegistry::FailAllActiveInstances(uint64 nowMs)
+{
+    uint32 failedCount = 0;
+    for (DynamicQuestId id : GetAllActiveIds())
+    {
+        if (Fail(id, nowMs).IsAccepted())
+            ++failedCount;
+    }
+
+    return failedCount;
+}

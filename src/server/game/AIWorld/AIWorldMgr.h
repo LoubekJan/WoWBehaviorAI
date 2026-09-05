@@ -485,13 +485,24 @@ class TC_GAME_API AIWorldMgr
         // _dynamicQuestKillEventBus.GetDroppedEventCount() has increased
         // since the last tick, this registry has no way to know WHICH
         // Active instance (if any) the lost kill(s) belonged to - so
-        // every currently Active instance (DynamicQuestRegistry::
-        // GetAllActiveIds()) is Fail()ed rather than risk even one of
-        // them staying silently, permanently short of a credit it
-        // actually earned. Deliberately broad and costly - this is meant
-        // to be exceptionally rare and to fail loudly (TC_LOG_ERROR,
-        // naming exactly how many quests were affected) rather than
-        // silently.
+        // every currently Active instance is Fail()ed rather than risk
+        // even one of them staying silently, permanently short of a
+        // credit it actually earned. Deliberately broad and costly - this
+        // is meant to be exceptionally rare and to fail loudly
+        // (TC_LOG_ERROR, naming exactly how many quests were affected)
+        // rather than silently.
+        //
+        // Milestone 2.13C4 P3 fix (STATIC review, round 4): this method
+        // itself only ever decides WHETHER a drop happened - the actual
+        // "fail every Active instance" consequence is
+        // DynamicQuestRegistry::FailAllActiveInstances(), which has its
+        // own direct Catch2 coverage (the STATIC review's own advisory
+        // finding was that this orchestration had no test of its own).
+        // This method stays here only because GetDroppedEventCount()
+        // lives on DynamicQuestKillEventBus, which DynamicQuestRegistry
+        // has no knowledge of - it is still not itself unit-testable in
+        // this sandbox (no compiler/live world), but everything it
+        // delegates to now is.
         void ReclaimDynamicQuestsAfterKillCreditLoss();
 
         // Milestone 2.13C4: the same wall-clock "now" every nowMs
