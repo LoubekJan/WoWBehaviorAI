@@ -66,6 +66,7 @@
 #include "Persistence/TransactionCallbackProcessor.h"
 #include "Quest/DynamicQuestCreation.h"
 #include "Quest/DynamicQuestIdAllocator.h"
+#include "Quest/DynamicQuestKillEventBus.h"
 #include "Quest/DynamicQuestLifecycle.h"
 #include "Quest/DynamicQuestPlayerAcceptance.h"
 #include "Quest/DynamicQuestRegistry.h"
@@ -166,6 +167,21 @@ class TC_GAME_API AIWorldMgr
         // world state. See ActionEngineEventBus for the thread-safety
         // story.
         void PublishActionEngineEvent(ActionEngineEvent event);
+
+        // Milestone 2.13C4 P2 fix (STATIC review): safe to call from ANY
+        // thread that can observe a real kill (a map/combat worker, the
+        // same context Unit::Kill() itself runs in) - same enqueue-only
+        // contract as PublishWorldEvent()/PublishActionEngineEvent():
+        // never touches Creature/AgentRegistry/DynamicQuestRegistry,
+        // never calls ai-server, never mutates world state. Exists as its
+        // own bus, separate from PublishWorldEvent()'s shared perception/
+        // memory EventBus, specifically so authoritative dynamic-quest
+        // kill credit never has to compete for capacity with (or get
+        // dropped alongside) unrelated perception traffic - see
+        // DynamicQuestKillEventBus's own comment for the full reasoning.
+        // Unit::Kill() calls this only for a player killer; see that call
+        // site's own comment.
+        void PublishDynamicQuestKillEvent(DynamicQuestKillEvent event);
 
     private:
         AIWorldMgr() = default;
@@ -419,26 +435,30 @@ class TC_GAME_API AIWorldMgr
         bool HasLiveDynamicQuestStateForGiver(Creature* giverCreature);
 
         // Milestone 2.13C4: the ONLY authoritative direct-killer
-        // KILL_CREATURE progress hook. Called from the same WorldEvent
-        // drain loop ProcessWorldEvent() already runs on
-        // (WorldEventType::CreatureKilled is published for every creature
-        // death, any killer, any map - see Unit::Kill()'s own comment) -
-        // never invented as a separate event type, since that central
-        // path already carries everything needed: event.Actor.Guid (the
-        // killer, a Player for this milestone's own "direct-killer credit
-        // only" scope - see this method's own scope note) and
-        // event.Target.Guid (the exact creature killed). Uses
-        // event.EventId (already globally unique per WorldEvent) as the
-        // authoritative replay-guard identity DynamicQuestRegistry::
-        // ApplyProgress() requires - never invents a new id space for
-        // this. On success, sends the killer a progress chat message, and
-        // (once Progress == RequiredCount) a separate objective-complete
-        // message naming the giver's live display name if it can still be
-        // re-resolved. Direct-killer credit only in this milestone - no
-        // group/party credit sharing (that is explicitly deferred, see
-        // the roadmap's own note); a kill by anyone other than the
-        // quest's own AcceptedByPlayerGuid contributes no progress.
-        void ProcessDynamicQuestKillProgress(WorldEvent const& event);
+        // KILL_CREATURE progress hook.
+        //
+        // Milestone 2.13C4 P2 fix (STATIC review): drained from
+        // _dynamicQuestKillEventBus, NOT from the shared perception/memory
+        // EventBus ProcessWorldEvent() drains - the earlier version reused
+        // that shared, drop-under-overload bus for this, which meant
+        // authoritative quest credit could silently vanish under the same
+        // conditions that are an acceptable tradeoff for perception/memory
+        // (see PublishDynamicQuestKillEvent()'s own comment for the full
+        // reasoning). Uses event.EventId (unique within
+        // DynamicQuestKillEventBus - see that class's own comment) as the
+        // replay-guard identity DynamicQuestRegistry::ApplyProgress()
+        // requires. On success, sends the killer a progress chat message,
+        // and (once Progress == RequiredCount) a separate objective-
+        // complete message naming the giver's live display name if it can
+        // still be re-resolved. Direct-killer credit only in this
+        // milestone - no group/party credit sharing (that is explicitly
+        // deferred, see the roadmap's own note); a kill by anyone other
+        // than the quest's own AcceptedByPlayerGuid contributes no
+        // progress. Still independently re-checks event.KillerGuid.
+        // IsPlayer() even though Unit::Kill() itself only ever publishes
+        // to this bus for a player killer - never trust an upstream
+        // publisher's own filtering as this class's only guarantee.
+        void ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& event);
 
         // Milestone 2.13C4: the same wall-clock "now" every nowMs
         // parameter on this class already uses internally (see
@@ -3334,6 +3354,17 @@ class TC_GAME_API AIWorldMgr
         // above - no mutex, no separate thread. See
         // DynamicQuestRegistry's own comment.
         DynamicQuestRegistry _dynamicQuestRegistry;
+
+        // Milestone 2.13C4 P2 fix (STATIC review): cross-thread ingress
+        // for DynamicQuestKillEvents (see DynamicQuestKillEventBus's own
+        // comment) - Unit::Kill() publishes into it, potentially from a
+        // map-updater thread; the world thread drains it once per tick in
+        // Update(), alongside but separate from _eventBus's own Drain().
+        // Deliberately its own bus, not a reuse of _eventBus - see that
+        // class's comment for why authoritative dynamic-quest kill credit
+        // cannot share the shared perception/memory bus's drop-under-
+        // overload behavior.
+        DynamicQuestKillEventBus _dynamicQuestKillEventBus;
 
         // Milestone 2.13C2: the sole DynamicQuestId minting authority -
         // see AllocateDynamicQuestId()'s own comment. Starts at 1 (0 is

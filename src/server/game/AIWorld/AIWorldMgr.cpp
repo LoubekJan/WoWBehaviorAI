@@ -8030,13 +8030,7 @@ void AIWorldMgr::Update(uint32 diff)
     // AIWorldMgr::Update() in World::Update()) is where map/combat workers
     // publish whatever happened this tick.
     for (WorldEvent& event : _eventBus.Drain())
-    {
         ProcessWorldEvent(event);
-
-        // Milestone 2.13C4: same drained event, no separate event type -
-        // see ProcessDynamicQuestKillProgress()'s own comment.
-        ProcessDynamicQuestKillProgress(event);
-    }
 
     // Milestone 2.8F: same reasoning as _eventBus above - drained right
     // after it, still before anything in this tick's UpdateNeeds() could
@@ -8046,6 +8040,13 @@ void AIWorldMgr::Update(uint32 diff)
     // nothing here trusts the event's contents yet.
     for (ActionEngineEvent& event : _actionEngineEventBus.Drain())
         ProcessActionEngineEvent(event);
+
+    // Milestone 2.13C4 P2 fix (STATIC review): its own drain, from its own
+    // bus - see DynamicQuestKillEventBus's own comment for why
+    // authoritative dynamic-quest kill credit no longer piggybacks on
+    // _eventBus's shared, drop-under-overload perception/memory drain.
+    for (DynamicQuestKillEvent& event : _dynamicQuestKillEventBus.Drain())
+        ProcessDynamicQuestKillProgress(event);
 
     // Milestone 2.12E2: delivers every AgentGroupLifecycleSystem Request*
     // completion that has landed since the last tick - the same
@@ -9932,28 +9933,24 @@ bool AIWorldMgr::HasLiveDynamicQuestStateForGiver(Creature* giverCreature)
     return _dynamicQuestRegistry.HasLiveInstanceForGiver(record->Id, giverCreature->GetGUID(), CurrentTimeMs());
 }
 
-// Milestone 2.13C4: see this method's own declaration comment in
-// AIWorldMgr.h for why this reuses the existing CreatureKilled WorldEvent
-// rather than inventing a new event type, and for the direct-killer-only
-// scope.
-void AIWorldMgr::ProcessDynamicQuestKillProgress(WorldEvent const& event)
+// Milestone 2.13C4 P2 fix (STATIC review): see this method's own
+// declaration comment in AIWorldMgr.h - drained from
+// _dynamicQuestKillEventBus, not the shared perception/memory EventBus.
+void AIWorldMgr::ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& event)
 {
-    if (event.Type != WorldEventType::CreatureKilled)
+    if (!event.KillerGuid.IsPlayer())
         return;
 
-    if (!event.Actor.Guid.IsPlayer())
-        return;
-
-    std::vector<DynamicQuestId> matches = _dynamicQuestRegistry.FindActiveByPlayerAndTarget(event.Actor.Guid, event.Target.Guid);
+    std::vector<DynamicQuestId> matches = _dynamicQuestRegistry.FindActiveByPlayerAndTarget(event.KillerGuid, event.VictimGuid);
     if (matches.empty())
         return;
 
     uint64 nowMs = CurrentTimeMs();
-    Player* player = ObjectAccessor::FindPlayer(event.Actor.Guid);
+    Player* player = ObjectAccessor::FindPlayer(event.KillerGuid);
 
     for (DynamicQuestId id : matches)
     {
-        DynamicQuestTransitionResult result = _dynamicQuestRegistry.ApplyProgress(id, event.Actor.Guid, event.EventId, nowMs);
+        DynamicQuestTransitionResult result = _dynamicQuestRegistry.ApplyProgress(id, event.KillerGuid, event.EventId, nowMs);
         if (!result.IsAccepted())
         {
             TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_PROGRESS_REJECTED dynamicQuestId={} reason={}",
@@ -10102,6 +10099,19 @@ void AIWorldMgr::PublishActionEngineEvent(ActionEngineEvent event)
         return;
 
     _actionEngineEventBus.Publish(std::move(event));
+}
+
+// Milestone 2.13C4 P2 fix (STATIC review): safe to call from any thread -
+// see the declaration comment in AIWorldMgr.h and DynamicQuestKillEventBus's
+// own comments for why this is a separate bus from PublishWorldEvent()'s.
+// Same _acceptEvents gate as PublishWorldEvent()/PublishActionEngineEvent(),
+// for the same reason.
+void AIWorldMgr::PublishDynamicQuestKillEvent(DynamicQuestKillEvent event)
+{
+    if (!_acceptEvents.load(std::memory_order_acquire))
+        return;
+
+    _dynamicQuestKillEventBus.Publish(std::move(event));
 }
 
 // Safe to call from a map-updater thread - see the declaration comment in

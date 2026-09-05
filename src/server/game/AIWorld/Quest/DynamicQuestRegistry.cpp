@@ -38,6 +38,7 @@ DynamicQuestTransitionResult DynamicQuestRegistry::Offer(DynamicQuestId id, Ques
     }
 
     _quests.emplace(idValue, *result.Instance);
+    _questIdsByGiver[result.Instance->Giver.Value].push_back(idValue);
     return result;
 }
 
@@ -124,7 +125,23 @@ DynamicQuestTransitionResult DynamicQuestRegistry::Expire(DynamicQuestId id, uin
 
 bool DynamicQuestRegistry::Remove(DynamicQuestId id)
 {
-    return _quests.erase(id.Value) > 0;
+    auto it = _quests.find(id.Value);
+    if (it == _quests.end())
+        return false;
+
+    uint64 giverValue = it->second.Giver.Value;
+    _quests.erase(it);
+
+    auto giverIt = _questIdsByGiver.find(giverValue);
+    if (giverIt != _questIdsByGiver.end())
+    {
+        std::vector<uint64>& ids = giverIt->second;
+        ids.erase(std::remove(ids.begin(), ids.end(), id.Value), ids.end());
+        if (ids.empty())
+            _questIdsByGiver.erase(giverIt);
+    }
+
+    return true;
 }
 
 uint32 DynamicQuestRegistry::GetCount() const
@@ -157,8 +174,17 @@ std::vector<DynamicQuestId> DynamicQuestRegistry::GetIdsAfterUntil(DynamicQuestI
 
 DynamicQuestInstance const* DynamicQuestRegistry::FindOfferedByGiver(AgentId giver, ObjectGuid giverRuntimeGuid) const
 {
-    for (auto const& [idValue, instance] : _quests)
+    auto giverIt = _questIdsByGiver.find(giver.Value);
+    if (giverIt == _questIdsByGiver.end())
+        return nullptr;
+
+    for (uint64 idValue : giverIt->second)
     {
+        auto it = _quests.find(idValue);
+        if (it == _quests.end())
+            continue; // Remove()d since this giver's own bucket was last touched
+
+        DynamicQuestInstance const& instance = it->second;
         if (instance.State == DynamicQuestState::Offered &&
             instance.Giver == giver &&
             instance.GiverRuntimeGuid == giverRuntimeGuid)
@@ -170,8 +196,17 @@ DynamicQuestInstance const* DynamicQuestRegistry::FindOfferedByGiver(AgentId giv
 
 DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid) const
 {
-    for (auto const& [idValue, instance] : _quests)
+    auto giverIt = _questIdsByGiver.find(giver.Value);
+    if (giverIt == _questIdsByGiver.end())
+        return nullptr;
+
+    for (uint64 idValue : giverIt->second)
     {
+        auto it = _quests.find(idValue);
+        if (it == _quests.end())
+            continue;
+
+        DynamicQuestInstance const& instance = it->second;
         if (instance.State == DynamicQuestState::Active &&
             instance.Giver == giver &&
             instance.GiverRuntimeGuid == giverRuntimeGuid &&
@@ -198,8 +233,17 @@ std::vector<DynamicQuestId> DynamicQuestRegistry::FindActiveByPlayerAndTarget(Ob
 
 bool DynamicQuestRegistry::HasLiveInstanceForGiver(AgentId giver, ObjectGuid giverRuntimeGuid, uint64 nowMs) const
 {
-    for (auto const& [idValue, instance] : _quests)
+    auto giverIt = _questIdsByGiver.find(giver.Value);
+    if (giverIt == _questIdsByGiver.end())
+        return false;
+
+    for (uint64 idValue : giverIt->second)
     {
+        auto it = _quests.find(idValue);
+        if (it == _quests.end())
+            continue;
+
+        DynamicQuestInstance const& instance = it->second;
         if (instance.Giver != giver || instance.GiverRuntimeGuid != giverRuntimeGuid)
             continue;
         if (instance.State != DynamicQuestState::Offered && instance.State != DynamicQuestState::Active)

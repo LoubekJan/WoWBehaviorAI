@@ -26,6 +26,7 @@
 #include "ObjectGuid.h"
 
 #include <map>
+#include <unordered_map>
 #include <vector>
 
 struct QuestProposal;
@@ -168,17 +169,23 @@ class TC_GAME_API DynamicQuestRegistry
         // nonzero).
         std::vector<DynamicQuestId> GetIdsAfterUntil(DynamicQuestId after, DynamicQuestId until, uint32 maxCount) const;
 
-        // Milestone 2.13C4: read-only gossip-UI queries. Linear over every
-        // registered instance - bounded by AIWorld.DynamicQuestMaxLive
-        // (see this class's own comment), acceptable at the scale this
-        // milestone targets. Note this is NOT purely user-paced the way
-        // FindActiveByPlayerAndTarget() below is: HasLiveInstanceForGiver()
-        // is also called once per throttle interval for every currently
-        // loaded AIWorld agent (AIWorldCreatureAI::UpdateAI() ->
-        // AIWorldMgr::HasLiveDynamicQuestStateForGiver()), so the real
-        // per-tick cost is (loaded agents x this scan), bounded by
-        // AIWorld.DynamicQuestMaxLive but not zero - worth a proper O(1)
-        // by-giver index once that product is shown to matter in practice.
+        // Milestone 2.13C4: read-only gossip-UI queries.
+        //
+        // Milestone 2.13C4 P3 fix (STATIC review, round 2): FindOfferedByGiver()/
+        // FindActiveByGiverAndPlayer()/HasLiveInstanceForGiver() below no
+        // longer scan every registered instance - they look up
+        // _questIdsByGiver first (see its own comment) and only ever scan
+        // the handful of ids that specific giver has ever offered. This
+        // matters because HasLiveInstanceForGiver() is not purely user-
+        // paced the way FindActiveByPlayerAndTarget() below is: it is also
+        // polled once per throttle interval for EVERY currently loaded
+        // AIWorld agent (AIWorldCreatureAI::UpdateAI() -> AIWorldMgr::
+        // HasLiveDynamicQuestStateForGiver()) - a prior version's linear
+        // scan over the whole registry made that (loaded agents x total
+        // live quests) per throttle interval; this makes it (loaded agents
+        // x that one agent's own quest count), which in practice (see
+        // FindOfferedByGiver()'s own comment on at-most-one-outstanding)
+        // is a small constant.
         //
         // Milestone 2.13C4 P2 fix (STATIC review): every query below now
         // also requires the caller's giverRuntimeGuid to match the stored
@@ -235,6 +242,22 @@ class TC_GAME_API DynamicQuestRegistry
 
     private:
         std::map<uint64, DynamicQuestInstance> _quests;
+
+        // Milestone 2.13C4 P3 fix (STATIC review, round 2): giver AgentId
+        // value -> every DynamicQuestId that giver has ever had Offer()ed
+        // into this registry and not yet had Remove()d - maintained ONLY
+        // in Offer() (append) and Remove() (erase, pruning the map entry
+        // entirely once its vector is empty so a giver with nothing live
+        // does not linger here forever). Nowhere else needs to touch it:
+        // Accept()/ApplyProgress()/Complete()/Fail()/Expire() never change
+        // an instance's own Giver/GiverRuntimeGuid after Offer(), so this
+        // mapping cannot go stale between those calls. Entries here are
+        // NOT necessarily still Offered/Active (a completed/failed/
+        // expired-but-not-yet-Remove()d id stays listed) - every query
+        // below still checks State/GiverRuntimeGuid/expiry itself after
+        // looking an id up here; this index only narrows WHICH ids get
+        // checked, it does not replace the check.
+        std::unordered_map<uint64, std::vector<uint64>> _questIdsByGiver;
 };
 
 #endif // AIWORLD_DYNAMICQUESTREGISTRY_H

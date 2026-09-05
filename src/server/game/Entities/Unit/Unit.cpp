@@ -11174,6 +11174,27 @@ bool Unit::InitTamedPet(Pet* pet, uint8 level, uint32 spell_id)
             sAIWorldMgr->PublishWorldEvent(std::move(event));
         }
 
+        // Milestone 2.13C4 P2 fix (STATIC review): a SEPARATE, reliable
+        // path for authoritative dynamic-quest kill credit - the
+        // WorldEvent published just above goes through the shared,
+        // drop-under-overload perception/memory EventBus, which is an
+        // acceptable tradeoff for perception/memory but not for something
+        // that must be authoritative (see DynamicQuestKillEventBus's own
+        // comment). Published only for a player killer - a non-player
+        // killer can never earn dynamic-quest credit (see
+        // AIWorldMgr::ProcessDynamicQuestKillProgress()'s own "direct-
+        // killer credit only" scope), so there is no reason to spend this
+        // bus's capacity on anything else. Same thread-safety story as the
+        // WorldEvent publish above: value data only, no Creature/Unit
+        // pointer crosses threads.
+        if (attacker && attacker->GetTypeId() == TYPEID_PLAYER)
+        {
+            DynamicQuestKillEvent killEvent;
+            killEvent.KillerGuid = attacker->GetGUID();
+            killEvent.VictimGuid = victim->GetGUID();
+            sAIWorldMgr->PublishDynamicQuestKillEvent(std::move(killEvent));
+        }
+
         if (TempSummon * summon = creature->ToTempSummon())
         {
             if (WorldObject * summoner = summon->GetSummoner())

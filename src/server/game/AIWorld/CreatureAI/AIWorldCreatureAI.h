@@ -109,13 +109,26 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // uses for perception events.
         void MovementInform(uint32 type, uint32 id) override;
 
-        // Milestone 2.13C4: read-only - builds the gossip menu from
-        // AIWorldMgr::GetDynamicQuestGossipContent(me, player), never
-        // touching DynamicQuestRegistry state itself. Returns false (lets
-        // TrinityCore's normal gossip/quest-giver flow run instead) when
+        // Milestone 2.13C4: read-only against DynamicQuestRegistry state -
+        // decides what (if anything) to show from
+        // AIWorldMgr::GetDynamicQuestGossipContent(me, player). Returns
+        // false immediately (letting TrinityCore's own default
+        // WorldSession::HandleGossipHelloOpcode() path run untouched) when
         // that query finds nothing AIWorld-specific for this player at
-        // this giver - this override must never suppress a Creature's own
-        // native gossip/vendor/trainer/quest-giver menu.
+        // this giver.
+        //
+        // Milestone 2.13C4 P2 fix (STATIC review): when there IS AIWorld
+        // content, this must still never suppress the Creature's own
+        // native gossip/vendor/trainer/quest-giver menu - the earlier
+        // version cleared the menu and sent only AIWorld's own rows,
+        // silently hiding a vendor/trainer/quest-giver NPC's real content
+        // for as long as it also had a live dynamic quest. Now calls
+        // player->PrepareGossipMenu(me, ..., true) itself FIRST (the same
+        // call the native path would make) to build the native menu, then
+        // layers AIWorld's own rows on top before player->
+        // SendPreparedGossip(me) sends the merged result - returning true
+        // here means "this class already sent the full menu itself",
+        // never "suppress the native one".
         bool OnGossipHello(Player* player) override;
 
         // Milestone 2.13C4: the only path from a client click to
@@ -126,6 +139,15 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // to identify which DynamicQuestId was clicked, so a client can
         // never influence which quest gets accepted beyond "the one this
         // giver is currently offering me right now".
+        //
+        // Milestone 2.13C4 P2 fix (STATIC review): only ever claims (and
+        // returns true for) a click whose action is one of the two values
+        // OnGossipHello() itself hands out - anything else is a click on
+        // this same Creature's native gossip/vendor/trainer menu (merged
+        // in by OnGossipHello() above) and must fall through to
+        // TrinityCore's own Player::OnGossipSelect(), which
+        // MiscHandler.cpp's HandleGossipSelectOptionOpcode() only calls
+        // once this override returns false.
         bool OnGossipSelect(Player* player, uint32 menuId, uint32 gossipListId) override;
 
     private:

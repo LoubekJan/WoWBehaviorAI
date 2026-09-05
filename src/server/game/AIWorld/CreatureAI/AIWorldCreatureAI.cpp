@@ -100,7 +100,15 @@ bool AIWorldCreatureAI::OnGossipHello(Player* player)
     if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::NoQuest)
         return false;
 
-    ClearGossipMenuFor(player);
+    // Milestone 2.13C4 P2 fix (STATIC review): must not suppress this
+    // Creature's own native gossip/vendor/trainer/quest-giver content -
+    // build that FIRST, the exact same call TrinityCore's own default
+    // path (WorldSession::HandleGossipHelloOpcode(), when this override
+    // returns false) would make, then layer AIWorld's own dynamic-quest
+    // rows on top of it before sending. Returning true below then only
+    // ever means "this class already sent the (possibly native+AIWorld
+    // merged) menu itself", never "suppress the native menu".
+    player->PrepareGossipMenu(me, me->GetCreatureTemplate()->GossipMenuId, true);
 
     AddGossipItemFor(player, GOSSIP_ICON_CHAT,
         FormatDynamicQuestProgressGossipLine(content.Title, content.Progress, content.RequiredCount),
@@ -112,17 +120,31 @@ bool AIWorldCreatureAI::OnGossipHello(Player* player)
     if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::Offered)
         AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Accept", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
 
-    SendGossipMenuFor(player, DEFAULT_GOSSIP_MESSAGE, me);
+    player->SendPreparedGossip(me);
     return true;
 }
 
 bool AIWorldCreatureAI::OnGossipSelect(Player* player, uint32 /*menuId*/, uint32 gossipListId)
 {
     uint32 action = GetGossipActionFor(player, gossipListId);
+
+    // Milestone 2.13C4 P2 fix (STATIC review): the same native-menu
+    // coexistence bug as OnGossipHello() above, just on the select side -
+    // MiscHandler.cpp's HandleGossipSelectOptionOpcode() only calls
+    // Player::OnGossipSelect() (the native vendor/trainer/DB-driven
+    // gossip_menu_option handler) when this override itself returns
+    // false. Unconditionally returning true here for every click would
+    // silently swallow a click on a native row merged into this same
+    // menu by OnGossipHello(). GOSSIP_ACTION_INFO_DEF/+1 are the only two
+    // actions this class itself ever hands out (see OnGossipHello()
+    // above) - anything else is never ours to handle.
+    if (action != GOSSIP_ACTION_INFO_DEF && action != GOSSIP_ACTION_INFO_DEF + 1)
+        return false;
+
     CloseGossipMenuFor(player);
 
     if (action != GOSSIP_ACTION_INFO_DEF + 1)
-        return true; // an informational line, or an action this milestone does not define
+        return true; // the informational title/description line - nothing to do beyond closing
 
     // Milestone 2.13C4: re-resolved fresh rather than trusting
     // gossipListId/menuId to identify which DynamicQuestId was clicked -
