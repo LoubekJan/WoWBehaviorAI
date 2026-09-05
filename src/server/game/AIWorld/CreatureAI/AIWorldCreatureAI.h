@@ -129,6 +129,11 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // SendPreparedGossip(me) sends the merged result - returning true
         // here means "this class already sent the full menu itself",
         // never "suppress the native one".
+        //
+        // Milestone 2.13C5: Kind::ReadyToTurnIn shows a "Turn in" row
+        // (action GOSSIP_ACTION_INFO_DEF + 2) instead of Kind::Offered's
+        // "Accept" - see OnGossipSelect()'s own comment for how that click
+        // is handled.
         bool OnGossipHello(Player* player) override;
 
         // Milestone 2.13C4: the only path from a client click to
@@ -141,13 +146,21 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // giver is currently offering me right now".
         //
         // Milestone 2.13C4 P2 fix (STATIC review): only ever claims (and
-        // returns true for) a click whose action is one of the two values
+        // returns true for) a click whose action is one of the values
         // OnGossipHello() itself hands out - anything else is a click on
         // this same Creature's native gossip/vendor/trainer menu (merged
         // in by OnGossipHello() above) and must fall through to
         // TrinityCore's own Player::OnGossipSelect(), which
         // MiscHandler.cpp's HandleGossipSelectOptionOpcode() only calls
         // once this override returns false.
+        //
+        // Milestone 2.13C5: GOSSIP_ACTION_INFO_DEF + 2 ("Turn in") is the
+        // only path from a client click to AIWorldMgr::
+        // CompleteDynamicQuestForPlayer() - same re-resolve-fresh
+        // discipline as the Accept path: the gossip content is queried
+        // again right here, and the turn-in is only even attempted if
+        // THAT fresh query still says ReadyToTurnIn, never trusting
+        // whatever the menu looked like when it was built.
         bool OnGossipSelect(Player* player, uint32 menuId, uint32 gossipListId) override;
 
     private:

@@ -146,10 +146,10 @@ struct DynamicQuestTransitionResult
 // validated QuestProposal (see QuestProposal.h - 2.13B's own output).
 // Copies KILL_CREATURE identity/count/expiry fields the state machine
 // operates on, plus (Milestone 2.13C4) Title/Description for player-
-// facing display - RewardMoneyCopper is still not modeled yet, see
-// DynamicQuestInstance's own comment. ExpiresAtMs is computed from
-// nowMs + proposal.ExpiryMs with a saturating add - it can never wrap
-// around regardless of input values.
+// facing display and (Milestone 2.13C5) RewardMoneyCopper for turn-in -
+// never re-read from the model or recomputed after this point. ExpiresAtMs
+// is computed from nowMs + proposal.ExpiryMs with a saturating add - it
+// can never wrap around regardless of input values.
 // Uses the same DynamicQuestTransitionResult shape as every transition
 // below even though there is no prior instance to transition from, so a
 // caller has exactly one result type to handle everywhere. Rejects:
@@ -165,6 +165,16 @@ DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal 
 // anything else state-specific, so "is this instance expired" is never
 // answered two different ways in two different places.
 bool IsDynamicQuestExpired(DynamicQuestInstance const& instance, uint64 nowMs);
+
+// Milestone 2.13C5: the single, canonical "has this instance's objective
+// been reached" rule - independent of State/expiry, exactly like
+// IsDynamicQuestExpired() above (a caller decides whether those also
+// apply). CompleteDynamicQuest() below consults this exact function for
+// its own ProgressIncomplete check; AIWorldMgr::
+// GetDynamicQuestGossipContent() consults it too, to decide
+// Kind::ReadyToTurnIn vs. Kind::Active - so "is this quest done" is never
+// answered two different ways in two different places.
+bool IsDynamicQuestObjectiveComplete(DynamicQuestInstance const& instance);
 
 // Offered -> Active. Binds playerGuid as the instance's owner for the
 // rest of its lifetime - there is no later re-assignment. Rejects:

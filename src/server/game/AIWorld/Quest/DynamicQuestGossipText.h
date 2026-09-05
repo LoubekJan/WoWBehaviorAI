@@ -53,4 +53,25 @@ std::string FormatDynamicQuestKillProgressMessage(uint32 progress, uint32 requir
 // generic phrase rather than producing "Return to ." verbatim.
 std::string FormatDynamicQuestObjectiveCompleteMessage(std::string const& giverName);
 
+// Milestone 2.13C5: the gossip line shown once the accepting player has
+// reached RequiredCount but has not yet turned the quest in - e.g.
+// "Cull the wolves - Objective complete". Deliberately distinct from
+// FormatDynamicQuestProgressGossipLine() above (which would otherwise
+// print "Cull the wolves - Progress: 3/3") - a player revisiting the
+// giver at this point should be told there is something to DO (turn in),
+// not just shown a number that happens to have stopped changing.
+std::string FormatDynamicQuestReadyToTurnInGossipLine(std::string const& title);
+
+// The chat message sent immediately once AIWorldMgr::
+// CompleteDynamicQuestForPlayer() actually commits Active -> Completed -
+// e.g. "Completed: Cull the wolves.".
+std::string FormatDynamicQuestCompletedMessage(std::string const& title);
+
+// The chat message sent alongside FormatDynamicQuestCompletedMessage()
+// only when rewardMoneyCopper > 0 - e.g. "Reward: 75 copper.". Never
+// called for a zero reward (see CompleteDynamicQuestForPlayer()'s own
+// call site) rather than printing "Reward: 0 copper." for a quest the
+// model happened not to attach a reward to.
+std::string FormatDynamicQuestRewardMessage(uint32 rewardMoneyCopper);
+
 #endif // AIWORLD_DYNAMICQUESTGOSSIPTEXT_H

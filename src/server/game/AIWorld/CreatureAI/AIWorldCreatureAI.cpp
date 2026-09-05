@@ -110,15 +110,22 @@ bool AIWorldCreatureAI::OnGossipHello(Player* player)
     // merged) menu itself", never "suppress the native menu".
     player->PrepareGossipMenu(me, me->GetCreatureTemplate()->GossipMenuId, true);
 
-    AddGossipItemFor(player, GOSSIP_ICON_CHAT,
-        FormatDynamicQuestProgressGossipLine(content.Title, content.Progress, content.RequiredCount),
-        GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
+    // Milestone 2.13C5: ReadyToTurnIn gets its own "objective complete"
+    // line instead of a "Progress: 3/3" that would otherwise never
+    // change again - see FormatDynamicQuestReadyToTurnInGossipLine()'s
+    // own comment.
+    std::string progressLine = content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::ReadyToTurnIn
+        ? FormatDynamicQuestReadyToTurnInGossipLine(content.Title)
+        : FormatDynamicQuestProgressGossipLine(content.Title, content.Progress, content.RequiredCount);
+    AddGossipItemFor(player, GOSSIP_ICON_CHAT, progressLine, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
 
     if (!content.Description.empty())
         AddGossipItemFor(player, GOSSIP_ICON_CHAT, content.Description, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
 
     if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::Offered)
         AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Accept", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
+    else if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::ReadyToTurnIn)
+        AddGossipItemFor(player, GOSSIP_ICON_CHAT, "Turn in", GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
 
     player->SendPreparedGossip(me);
     return true;
@@ -135,23 +142,35 @@ bool AIWorldCreatureAI::OnGossipSelect(Player* player, uint32 /*menuId*/, uint32
     // gossip_menu_option handler) when this override itself returns
     // false. Unconditionally returning true here for every click would
     // silently swallow a click on a native row merged into this same
-    // menu by OnGossipHello(). GOSSIP_ACTION_INFO_DEF/+1 are the only two
-    // actions this class itself ever hands out (see OnGossipHello()
-    // above) - anything else is never ours to handle.
-    if (action != GOSSIP_ACTION_INFO_DEF && action != GOSSIP_ACTION_INFO_DEF + 1)
+    // menu by OnGossipHello(). GOSSIP_ACTION_INFO_DEF/+1/+2 (Milestone
+    // 2.13C5 added +2, "Turn in") are the only actions this class itself
+    // ever hands out (see OnGossipHello() above) - anything else is
+    // never ours to handle.
+    if (action != GOSSIP_ACTION_INFO_DEF && action != GOSSIP_ACTION_INFO_DEF + 1 && action != GOSSIP_ACTION_INFO_DEF + 2)
         return false;
 
     CloseGossipMenuFor(player);
 
-    if (action != GOSSIP_ACTION_INFO_DEF + 1)
+    if (action == GOSSIP_ACTION_INFO_DEF)
         return true; // the informational title/description line - nothing to do beyond closing
 
-    // Milestone 2.13C4: re-resolved fresh rather than trusting
+    // Milestone 2.13C4/2.13C5: re-resolved fresh rather than trusting
     // gossipListId/menuId to identify which DynamicQuestId was clicked -
     // see this method's own declaration comment in AIWorldCreatureAI.h.
+    // A client can never influence which quest gets accepted/turned in
+    // beyond "the one this giver is showing me right now".
     AIWorldMgr::DynamicQuestGossipContent content = sAIWorldMgr->GetDynamicQuestGossipContent(me, player);
-    if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::Offered)
-        sAIWorldMgr->AcceptDynamicQuestForPlayer(content.Id, player->GetGUID(), sAIWorldMgr->GetCurrentTimeMs());
+
+    if (action == GOSSIP_ACTION_INFO_DEF + 1)
+    {
+        if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::Offered)
+            sAIWorldMgr->AcceptDynamicQuestForPlayer(content.Id, player->GetGUID(), sAIWorldMgr->GetCurrentTimeMs());
+    }
+    else // GOSSIP_ACTION_INFO_DEF + 2 - "Turn in"
+    {
+        if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::ReadyToTurnIn)
+            sAIWorldMgr->CompleteDynamicQuestForPlayer(content.Id, player->GetGUID(), sAIWorldMgr->GetCurrentTimeMs());
+    }
 
     return true;
 }

@@ -700,3 +700,89 @@ TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances does not count an instan
     REQUIRE(registry.FailAllActiveInstances(expiresAtMs) == 0);
     REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Active); // left for maintenance to Expire()
 }
+
+// ---------------------------------------------------------------------
+// Milestone 2.13C5: Complete() turn-in
+// ---------------------------------------------------------------------
+
+TEST_CASE("DynamicQuestRegistry::Complete commits Active -> Completed once Progress reaches RequiredCount", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 100, 10000).IsAccepted());
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 101, 10000).IsAccepted());
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 102, 10000).IsAccepted());
+    REQUIRE(registry.Find(DynamicQuestId{1})->Progress == 3);
+
+    DynamicQuestTransitionResult result = registry.Complete(DynamicQuestId{1}, 10000);
+    REQUIRE(result.IsAccepted());
+    REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Completed);
+}
+
+TEST_CASE("DynamicQuestRegistry::Complete rejects an Active instance short of RequiredCount as ProgressIncomplete", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 100, 10000).IsAccepted());
+
+    DynamicQuestTransitionResult result = registry.Complete(DynamicQuestId{1}, 10000);
+    REQUIRE_FALSE(result.IsAccepted());
+    REQUIRE(result.Reason == DynamicQuestRejectReason::ProgressIncomplete);
+    REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Active); // untouched
+}
+
+TEST_CASE("DynamicQuestRegistry::Complete rejects an already-Completed instance as AlreadyTerminal", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 1, 10000, /*giverValue*/ 42); // requiredCount = 1
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 100, 10000).IsAccepted());
+    REQUIRE(registry.Complete(DynamicQuestId{1}, 10000).IsAccepted());
+
+    DynamicQuestTransitionResult second = registry.Complete(DynamicQuestId{1}, 10000);
+    REQUIRE_FALSE(second.IsAccepted());
+    REQUIRE(second.Reason == DynamicQuestRejectReason::AlreadyTerminal);
+}
+
+TEST_CASE("DynamicQuestRegistry::Complete rejects an Active instance whose deadline has already passed", "[DynamicQuestRegistry]")
+{
+    // The "expired -> reject" scenario: expiry is deliberately not
+    // checked by CheckDynamicQuestPlayerCompleteApplicability() itself
+    // (see that function's own comment) - it stays exclusively
+    // CompleteDynamicQuest()'s own job, exactly like every other
+    // registry transition.
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 1, 10000, /*giverValue*/ 42);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 100, 10000).IsAccepted());
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    uint64 expiresAtMs = stored->ExpiresAtMs;
+
+    DynamicQuestTransitionResult result = registry.Complete(DynamicQuestId{1}, expiresAtMs);
+    REQUIRE_FALSE(result.IsAccepted());
+    REQUIRE(result.Reason == DynamicQuestRejectReason::AlreadyExpired);
+}
+
+TEST_CASE("DynamicQuestRegistry::Remove erases a Completed instance so Find() no longer sees it", "[DynamicQuestRegistry]")
+{
+    // The simplest possible replay guard AIWorldMgr::
+    // CompleteDynamicQuestForPlayer() relies on: once Remove()d, a second
+    // turn-in attempt against the same id can only ever see QuestNotFound.
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 1, 10000, /*giverValue*/ 42);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 100, 10000).IsAccepted());
+    REQUIRE(registry.Complete(DynamicQuestId{1}, 10000).IsAccepted());
+
+    REQUIRE(registry.Remove(DynamicQuestId{1}));
+    REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+}

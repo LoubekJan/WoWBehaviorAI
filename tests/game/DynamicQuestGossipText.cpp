@@ -50,3 +50,19 @@ TEST_CASE("FormatDynamicQuestObjectiveCompleteMessage", "[DynamicQuestGossipText
         REQUIRE(FormatDynamicQuestObjectiveCompleteMessage("") == "Objective complete. Return to the quest giver.");
     }
 }
+
+TEST_CASE("FormatDynamicQuestReadyToTurnInGossipLine", "[DynamicQuestGossipText]")
+{
+    REQUIRE(FormatDynamicQuestReadyToTurnInGossipLine("Cull the wolves") == "Cull the wolves - Objective complete");
+}
+
+TEST_CASE("FormatDynamicQuestCompletedMessage", "[DynamicQuestGossipText]")
+{
+    REQUIRE(FormatDynamicQuestCompletedMessage("Cull the wolves") == "Completed: Cull the wolves.");
+}
+
+TEST_CASE("FormatDynamicQuestRewardMessage", "[DynamicQuestGossipText]")
+{
+    REQUIRE(FormatDynamicQuestRewardMessage(75) == "Reward: 75 copper.");
+    REQUIRE(FormatDynamicQuestRewardMessage(0) == "Reward: 0 copper.");
+}

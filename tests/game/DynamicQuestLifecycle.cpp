@@ -39,7 +39,7 @@ namespace
         proposal.RequiredCount = 3;
         proposal.MaxRangeYards = 40.0f;
         proposal.ExpiryMs = 200000;
-        proposal.RewardMoneyCopper = 0;
+        proposal.RewardMoneyCopper = 75;
         proposal.Title = "Cull the wolves";
         proposal.Description = "Thin the wolf pack near the road.";
         return proposal;
@@ -83,6 +83,7 @@ TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[Dynam
     REQUIRE(instance.TargetGuid == proposal.TargetGuid);
     REQUIRE(instance.TargetEntry == proposal.TargetEntry);
     REQUIRE(instance.TargetMapId == proposal.TargetMapId);
+    REQUIRE(instance.RewardMoneyCopper == proposal.RewardMoneyCopper);
     REQUIRE(instance.RequiredCount == proposal.RequiredCount);
     REQUIRE(instance.Progress == 0);
     REQUIRE(instance.CreatedAtMs == 10000);
@@ -439,6 +440,26 @@ TEST_CASE("IsDynamicQuestExpired follows the single now >= ExpiresAt rule at the
     REQUIRE_FALSE(IsDynamicQuestExpired(instance, instance.ExpiresAtMs - 1)); // just before
     REQUIRE(IsDynamicQuestExpired(instance, instance.ExpiresAtMs));           // exactly at
     REQUIRE(IsDynamicQuestExpired(instance, instance.ExpiresAtMs + 1));       // just after
+}
+
+TEST_CASE("IsDynamicQuestObjectiveComplete follows the single Progress >= RequiredCount rule", "[DynamicQuestLifecycle]")
+{
+    // Milestone 2.13C5: the same rule AIWorldMgr::
+    // GetDynamicQuestGossipContent() uses to decide Kind::ReadyToTurnIn
+    // vs. Kind::Active, and CompleteDynamicQuest() below uses for its own
+    // ProgressIncomplete check - both consult this exact function so
+    // "is this quest done" is never answered two different ways.
+    DynamicQuestInstance instance = MakeActiveInstance();
+    instance.RequiredCount = 3;
+
+    instance.Progress = 2;
+    REQUIRE_FALSE(IsDynamicQuestObjectiveComplete(instance));
+
+    instance.Progress = 3;
+    REQUIRE(IsDynamicQuestObjectiveComplete(instance));
+
+    instance.Progress = 4; // never actually reachable (saturating), but the rule itself must not be an exact-equality trap
+    REQUIRE(IsDynamicQuestObjectiveComplete(instance));
 }
 
 TEST_CASE("AcceptDynamicQuest rejects an Offered instance whose deadline has already passed", "[DynamicQuestLifecycle]")

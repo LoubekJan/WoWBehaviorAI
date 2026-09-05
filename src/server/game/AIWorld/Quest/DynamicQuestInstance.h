@@ -37,9 +37,8 @@
 //
 // Only carries what the state machine in DynamicQuestLifecycle.h operates
 // on, plus (Milestone 2.13C4) the player-facing display text this
-// milestone's own gossip UI needs. Reward data (RewardMoneyCopper) is
-// still deliberately not modeled - it belongs to 2.13C5, not to this
-// milestone's own transition mechanics or its display needs.
+// milestone's own gossip UI needs, plus (Milestone 2.13C5) the
+// already-2.13B-validated reward this instance's own turn-in pays out.
 struct DynamicQuestInstance
 {
     DynamicQuestId Id;
@@ -66,6 +65,15 @@ struct DynamicQuestInstance
     ObjectGuid TargetGuid;
     uint32 TargetEntry = 0;
     uint32 TargetMapId = 0;
+
+    // Milestone 2.13C5: the SAME already-2.13B-validated, server-capped
+    // (AIWorld.DynamicTaskMaxRewardMoneyCopper) copper amount
+    // QuestProposal carried - copied once at Offer() time, never
+    // re-read from the model or recomputed afterward. Paid out exactly
+    // once, by AIWorldMgr::CompleteDynamicQuestForPlayer() alone, via
+    // Player::ModifyMoney() - nothing here authorizes that payment by
+    // itself, same as every other field on this pure value object.
+    uint32 RewardMoneyCopper = 0;
 
     // Saturating: DynamicQuestLifecycle::ApplyDynamicQuestProgress() never
     // lets Progress exceed RequiredCount.

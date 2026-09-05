@@ -9864,6 +9864,136 @@ DynamicQuestPlayerAcceptResult AIWorldMgr::AcceptDynamicQuestForPlayer(DynamicQu
     return result;
 }
 
+// Milestone 2.13C5: see this method's own declaration comment in
+// AIWorldMgr.h for the full authorization/money/replay-guard reasoning.
+DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs)
+{
+    DynamicQuestPlayerCompleteResult result;
+
+    // Cheapest possible check first, before any live world resolution -
+    // same "fail fast" reasoning as AcceptDynamicQuestForPlayer()'s own.
+    DynamicQuestInstance const* instance = _dynamicQuestRegistry.Find(id);
+    if (!instance)
+    {
+        result.Reason = DynamicQuestPlayerCompleteReason::QuestNotFound;
+        return result;
+    }
+
+    DynamicQuestPlayerCompleteFacts playerFacts;
+    playerFacts.IsPlayerGuid = playerGuid.IsPlayer();
+
+    // ObjectAccessor::FindPlayer() already implies IsInWorld() - no
+    // separate check needed. Never cached across calls, exactly like
+    // ResolveLiveCreature() below - re-resolved fresh every attempt.
+    Player* player = playerFacts.IsPlayerGuid ? ObjectAccessor::FindPlayer(playerGuid) : nullptr;
+    if (player)
+    {
+        playerFacts.Resolved = true;
+        playerFacts.Alive = player->IsAlive();
+        playerFacts.MapId = player->GetMapId();
+        playerFacts.Money = player->GetMoney();
+    }
+
+    AgentId giverAgentId = instance->Giver; // captured now - Complete() below may overwrite *instance in place
+
+    AgentRecord* record = _registry.Find(giverAgentId);
+    DynamicQuestGiverCompleteFacts giverFacts;
+    giverFacts.RecordExists = record != nullptr;
+
+    Creature* giverCreature = nullptr;
+    if (record)
+    {
+        giverFacts.Materialized = record->WorldState == AgentWorldState::Materialized;
+        giverFacts.AIWorldControlled = record->ControlMode == AgentControlMode::AIWorldControlled;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        giverCreature = ResolveLiveCreature(*record, map);
+        if (giverCreature)
+        {
+            giverFacts.Alive = giverCreature->IsAlive();
+            giverFacts.RuntimeGuid = giverCreature->GetGUID();
+            giverFacts.MapId = giverCreature->GetMapId();
+        }
+    }
+
+    // Same reasoning as AcceptDynamicQuestForPlayer()'s own distanceYards -
+    // only meaningful once player and giverCreature are both resolved AND
+    // share a map; the infinity default exists purely so an unresolved/
+    // cross-map pair never looks "in range" by accident.
+    float distanceYards = std::numeric_limits<float>::infinity();
+    if (player && giverCreature && player->GetMapId() == giverCreature->GetMapId())
+        distanceYards = player->GetDistance(giverCreature);
+
+    DynamicQuestPlayerCompleteReason applicability = CheckDynamicQuestPlayerCompleteApplicability(
+        *instance, playerGuid, playerFacts, giverFacts, distanceYards, _dynamicQuestPlayerAcceptMaxRangeYards, MAX_MONEY_AMOUNT);
+    if (applicability != DynamicQuestPlayerCompleteReason::None)
+    {
+        result.Reason = applicability;
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={}",
+            id.Value, ToString(applicability));
+        return result;
+    }
+
+    // Milestone 2.13C5: the money grant happens BEFORE
+    // DynamicQuestRegistry::Complete() itself, and is compensated if that
+    // somehow still rejects afterward (see below) - never the other way
+    // around, so this instance can never become Completed while we
+    // already know the reward could not actually be paid. reward is
+    // bounded (CheckDynamicQuestPlayerCompleteApplicability() already
+    // ruled out overflow against MAX_MONEY_AMOUNT above) and
+    // AIWorld.DynamicTaskMaxRewardMoneyCopper is itself clamped to >= 0
+    // at load time, so the int32 cast below can never overflow.
+    uint32 reward = instance->RewardMoneyCopper;
+    if (reward > 0 && !player->ModifyMoney(int32(reward), false))
+    {
+        // Should be unreachable - the preflight check just above already
+        // proved player.Money + reward <= MAX_MONEY_AMOUNT on this same
+        // world thread. Never ignored regardless.
+        result.Reason = DynamicQuestPlayerCompleteReason::RewardMoneyLimit;
+        TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason=REWARD_MONEY_LIMIT "
+            "- ModifyMoney() itself refused despite passing the preflight check", id.Value);
+        return result;
+    }
+
+    DynamicQuestTransitionResult completeResult = _dynamicQuestRegistry.Complete(id, nowMs);
+    if (!completeResult.IsAccepted())
+    {
+        // Should be unreachable - every applicability check above just
+        // passed on this same world thread with this same nowMs. Money
+        // was already granted, so it must be compensated rather than left
+        // as an unexplained windfall on a quest that never actually
+        // completed.
+        if (reward > 0)
+            player->ModifyMoney(-int32(reward), false);
+
+        result.Reason = DynamicQuestPlayerCompleteReason::CompleteRejected;
+        TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={} - reward money compensated",
+            id.Value, ToString(completeResult.Reason));
+        return result;
+    }
+
+    // Milestone 2.13C5: removed immediately - see this method's own
+    // declaration comment in AIWorldMgr.h for why this doubles as the
+    // in-process replay guard.
+    _dynamicQuestRegistry.Remove(id);
+
+    result.Reason = DynamicQuestPlayerCompleteReason::None;
+    TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_COMPLETED dynamicQuestId={} agent={} rewardCopper={}",
+        id.Value, giverAgentId.Value, reward);
+
+    // Milestone 2.13C5: the player-facing feedback this method itself
+    // sends beyond the log line above - `player` was already re-resolved
+    // live above, and completeResult.Instance->Title is the same
+    // already-2.13B-validated text QuestProposal carried.
+    ChatHandler(player->GetSession()).PSendSysMessage("%s",
+        FormatDynamicQuestCompletedMessage(completeResult.Instance->Title).c_str());
+    if (reward > 0)
+        ChatHandler(player->GetSession()).PSendSysMessage("%s",
+            FormatDynamicQuestRewardMessage(reward).c_str());
+
+    return result;
+}
+
 // Milestone 2.13C4: see this method's own declaration comment in
 // AIWorldMgr.h for the Active-before-Offered priority and the shared
 // expiry treatment.
@@ -9885,7 +10015,15 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
     {
         if (!IsDynamicQuestExpired(*active, nowMs))
         {
-            content.Kind = DynamicQuestGossipContent::ContentKind::Active;
+            // Milestone 2.13C5: strictly more specific than Active once
+            // the objective is actually done - see ContentKind's own
+            // comment in AIWorldMgr.h. Same canonical
+            // IsDynamicQuestObjectiveComplete() CompleteDynamicQuest()
+            // itself consults, so this can never disagree with what a
+            // turn-in attempt would actually see.
+            content.Kind = IsDynamicQuestObjectiveComplete(*active)
+                ? DynamicQuestGossipContent::ContentKind::ReadyToTurnIn
+                : DynamicQuestGossipContent::ContentKind::Active;
             content.Id = active->Id;
             content.Title = active->Title;
             content.Description = active->Description;

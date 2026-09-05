@@ -112,6 +112,8 @@ DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal 
     instance.TargetEntry = proposal.TargetEntry;
     instance.TargetMapId = proposal.TargetMapId;
 
+    instance.RewardMoneyCopper = proposal.RewardMoneyCopper;
+
     instance.RequiredCount = proposal.RequiredCount;
     instance.Progress = 0;
 
@@ -124,6 +126,11 @@ DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal 
 bool IsDynamicQuestExpired(DynamicQuestInstance const& instance, uint64 nowMs)
 {
     return nowMs >= instance.ExpiresAtMs;
+}
+
+bool IsDynamicQuestObjectiveComplete(DynamicQuestInstance const& instance)
+{
+    return instance.Progress >= instance.RequiredCount;
 }
 
 DynamicQuestTransitionResult AcceptDynamicQuest(DynamicQuestInstance const& instance, ObjectGuid playerGuid, uint64 nowMs)
@@ -196,7 +203,7 @@ DynamicQuestTransitionResult CompleteDynamicQuest(DynamicQuestInstance const& in
     if (IsDynamicQuestExpired(instance, nowMs))
         return Reject(DynamicQuestRejectReason::AlreadyExpired);
 
-    if (instance.Progress < instance.RequiredCount)
+    if (!IsDynamicQuestObjectiveComplete(instance))
         return Reject(DynamicQuestRejectReason::ProgressIncomplete);
 
     DynamicQuestInstance next = instance;

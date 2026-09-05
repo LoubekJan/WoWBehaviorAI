@@ -39,3 +39,18 @@ std::string FormatDynamicQuestObjectiveCompleteMessage(std::string const& giverN
 
     return "Objective complete. Return to " + giverName + ".";
 }
+
+std::string FormatDynamicQuestReadyToTurnInGossipLine(std::string const& title)
+{
+    return title + " - Objective complete";
+}
+
+std::string FormatDynamicQuestCompletedMessage(std::string const& title)
+{
+    return "Completed: " + title + ".";
+}
+
+std::string FormatDynamicQuestRewardMessage(uint32 rewardMoneyCopper)
+{
+    return "Reward: " + std::to_string(rewardMoneyCopper) + " copper.";
+}

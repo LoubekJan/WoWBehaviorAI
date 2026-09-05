@@ -69,6 +69,7 @@
 #include "Quest/DynamicQuestKillEventBus.h"
 #include "Quest/DynamicQuestLifecycle.h"
 #include "Quest/DynamicQuestPlayerAcceptance.h"
+#include "Quest/DynamicQuestPlayerCompletion.h"
 #include "Quest/DynamicQuestRegistry.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
@@ -111,8 +112,11 @@ class TC_GAME_API AIWorldMgr
     // private world-thread-only methods (GetDynamicQuestGossipContent(),
     // AcceptDynamicQuestForPlayer(), GetCurrentTimeMs(), and the private
     // nested DynamicQuestGossipContent type itself) - without this,
-    // AIWorldCreatureAI.cpp simply does not compile. Every other class in
-    // the codebase still goes through this class's public thread-safe
+    // AIWorldCreatureAI.cpp simply does not compile. Milestone 2.13C5
+    // added CompleteDynamicQuestForPlayer() to that same list (the
+    // turn-in counterpart to AcceptDynamicQuestForPlayer()) - no new
+    // friend needed, the same grant already covers it. Every other class
+    // in the codebase still goes through this class's public thread-safe
     // enqueue/query API only.
     friend class AIWorldCreatureAI;
 
@@ -384,11 +388,52 @@ class TC_GAME_API AIWorldMgr
         // mutation entry point regardless of caller - 2.13C4's own
         // AIWorldCreatureAI::OnGossipSelect() calls this exact method,
         // never anything else. Still no Player::AddQuest, no standard
-        // quest log/marker, no client quest packet, no kill credit, no
-        // completion/reward, no DB persistence, no world mutation of any
-        // kind - AcceptedByPlayerGuid exists only inside this process's
-        // own in-memory DynamicQuestRegistry.
+        // quest log/marker, no client quest packet, no DB persistence -
+        // kill credit (2.13C4's own ProcessDynamicQuestKillProgress()) and
+        // completion/reward (2.13C5's own CompleteDynamicQuestForPlayer())
+        // are handled by their own separate methods, never folded into
+        // this one. AcceptedByPlayerGuid exists only inside this
+        // process's own in-memory DynamicQuestRegistry.
         DynamicQuestPlayerAcceptResult AcceptDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
+
+        // Milestone 2.13C5: the ONLY place a player's request to turn in
+        // a registry-owned Active, objective-complete dynamic quest may
+        // turn into a real Active->Completed transition plus a paid
+        // reward - the player-facing counterpart to
+        // AcceptDynamicQuestForPlayer() above, against a completely
+        // different quest state. Fresh re-resolves BOTH sides from live
+        // world state exactly like that method does (never a cached/
+        // stored Player*/Creature*), reusing the SAME
+        // AIWorld.DynamicQuestPlayerAcceptMaxRangeYards policy value -
+        // interaction range is one physical concept regardless of which
+        // action the player is performing against this giver, so this
+        // deliberately does not introduce a second, separately-configured
+        // range for turn-in specifically. Only once
+        // CheckDynamicQuestPlayerCompleteApplicability() returns None
+        // does this even attempt Player::ModifyMoney() for
+        // instance->RewardMoneyCopper (never ignoring its own bool
+        // return - see this method's own definition comment for the
+        // preflight-then-compensate ordering), followed by the existing
+        // DynamicQuestRegistry::Complete(id, nowMs), which is itself
+        // still the sole authority over whether the stored instance's
+        // own State/expiry/progress actually permit the transition (this
+        // method never re-checks or duplicates that beyond the redundant,
+        // more-specific ProgressIncomplete pre-check
+        // CheckDynamicQuestPlayerCompleteApplicability() already makes).
+        // Removes the instance from the registry immediately once
+        // Completed - a terminal instance is never meant to linger (see
+        // DynamicQuestRegistry::Remove()'s own comment), and this doubles
+        // as the simplest possible in-process replay guard: a second
+        // turn-in attempt against the same id finds QuestNotFound above,
+        // never a second payout. Logs DYNAMIC_QUEST_COMPLETED/
+        // DYNAMIC_QUEST_COMPLETE_REJECTED (never a GUID) and sends the
+        // player two confirmation chat messages. Still no
+        // Player::AddQuest, no standard quest log/marker, no client quest
+        // packet, no group/party credit, no DB persistence, no restart/
+        // crash recovery - this is the same in-process-only boundary
+        // AcceptDynamicQuestForPlayer() already established, just for the
+        // opposite end of the lifecycle.
+        DynamicQuestPlayerCompleteResult CompleteDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
 
         // Milestone 2.13C4: read-only gossip-UI query -
         // AIWorldCreatureAI::OnGossipHello() calls this to decide what (if
@@ -406,9 +451,17 @@ class TC_GAME_API AIWorldMgr
         // not reclaimed it yet - see that method's own comment, it treats
         // both states as expirable) is treated as Kind::NoQuest rather
         // than shown stale.
+        //
+        // Milestone 2.13C5: Kind::ReadyToTurnIn is a strictly more
+        // specific version of what used to always be Kind::Active once
+        // Progress >= RequiredCount - AIWorldCreatureAI::OnGossipHello()
+        // uses this distinction to show a "Turn in" row instead of a bare
+        // progress line, and OnGossipSelect() uses it (re-derived fresh,
+        // never trusted from an earlier query) to decide whether a click
+        // may even attempt AIWorldMgr::CompleteDynamicQuestForPlayer().
         struct DynamicQuestGossipContent
         {
-            enum class ContentKind : uint8 { NoQuest, Offered, Active };
+            enum class ContentKind : uint8 { NoQuest, Offered, Active, ReadyToTurnIn };
 
             ContentKind Kind = ContentKind::NoQuest;
             DynamicQuestId Id;
