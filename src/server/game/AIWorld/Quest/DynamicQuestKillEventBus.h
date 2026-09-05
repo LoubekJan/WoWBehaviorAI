@@ -51,10 +51,22 @@
 // bound (never blocks or grows without limit waiting for the world thread
 // to drain) but is set far larger than EventBus's own 4096 specifically
 // because this bus never has to share that budget with any other event
-// kind and each event here is tiny - this does not make a drop
-// mathematically impossible, but combined with the much smaller real
-// population it makes one vanishingly unlikely compared to sharing
-// EventBus's own capacity with everything else AIWorld publishes.
+// kind and each event here is tiny.
+//
+// Milestone 2.13C4 P2 fix (STATIC review, round 3): a large bound still
+// does not make a drop mathematically impossible, and "vanishingly
+// unlikely" is not the same guarantee as "authoritative" - the roadmap
+// requires the latter. The actual authoritative guarantee is NOT "this
+// bus never drops" (a map thread can never be allowed to block or grow
+// memory without bound waiting on the world thread, so SOME bound is
+// mandatory); it is the fail-closed pairing with
+// AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss(): every Update()
+// tick checks GetDroppedEventCount() for an increase and, if one is
+// found, force-fails every currently Active dynamic quest rather than
+// let even one of them keep sitting at a progress count that may now be
+// wrong. A real drop is still exceptionally rare (see above), but IF one
+// ever happens it is never silent and never leaves a quest in a falsely-
+// trusted state - see that method's own comment for the full reasoning.
 class TC_GAME_API DynamicQuestKillEventBus
 {
     public:

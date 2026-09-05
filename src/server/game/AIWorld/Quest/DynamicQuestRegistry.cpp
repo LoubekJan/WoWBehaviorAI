@@ -217,14 +217,16 @@ DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(Age
     return nullptr;
 }
 
-std::vector<DynamicQuestId> DynamicQuestRegistry::FindActiveByPlayerAndTarget(ObjectGuid playerGuid, ObjectGuid targetGuid) const
+std::vector<DynamicQuestId> DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry(ObjectGuid playerGuid, uint32 victimEntry, uint32 mapId) const
 {
     std::vector<DynamicQuestId> ids;
     for (auto const& [idValue, instance] : _quests)
     {
         if (instance.State == DynamicQuestState::Active &&
             instance.AcceptedByPlayerGuid == playerGuid &&
-            instance.TargetGuid == targetGuid)
+            instance.Objective == QuestObjectiveType::KillCreature &&
+            instance.TargetEntry == victimEntry &&
+            instance.TargetMapId == mapId)
             ids.push_back(DynamicQuestId{idValue});
     }
 
@@ -254,4 +256,14 @@ bool DynamicQuestRegistry::HasLiveInstanceForGiver(AgentId giver, ObjectGuid giv
     }
 
     return false;
+}
+
+std::vector<DynamicQuestId> DynamicQuestRegistry::GetAllActiveIds() const
+{
+    std::vector<DynamicQuestId> ids;
+    for (auto const& [idValue, instance] : _quests)
+        if (instance.State == DynamicQuestState::Active)
+            ids.push_back(DynamicQuestId{idValue});
+
+    return ids;
 }

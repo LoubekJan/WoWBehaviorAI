@@ -41,7 +41,23 @@ struct DynamicQuestKillEvent
     uint64 EventId = 0;
 
     ObjectGuid KillerGuid;
+
+    // Milestone 2.13C4 P2 fix (STATIC review, round 3): VictimGuid alone
+    // is kept only as an informational/audit value now - progress
+    // matching uses VictimEntry+MapId below, not this. A dynamic quest's
+    // RequiredCount > 1 cannot generally be satisfied by requiring the
+    // exact same runtime spawn to die repeatedly (it may never respawn,
+    // or not before the quest's own ExpiryMs); DynamicQuestCreation.cpp
+    // already establishes VictimGuid as authoritative PROVENANCE only
+    // (proving the model's proposal was actually about a real, live
+    // target at creation time - see its own comment), while
+    // TargetEntry/TargetMapId are what the accepted quest's own kill-
+    // count OBJECTIVE is defined against, the same split
+    // DynamicQuestCreation.cpp's own target.Entry/target.MapId re-check
+    // already uses.
     ObjectGuid VictimGuid;
+    uint32 VictimEntry = 0;
+    uint32 MapId = 0;
 };
 
 #endif // AIWORLD_DYNAMICQUESTKILLEVENT_H

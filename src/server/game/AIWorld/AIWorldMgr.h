@@ -458,7 +458,41 @@ class TC_GAME_API AIWorldMgr
         // IsPlayer() even though Unit::Kill() itself only ever publishes
         // to this bus for a player killer - never trust an upstream
         // publisher's own filtering as this class's only guarantee.
+        //
+        // Milestone 2.13C4 P2 fix (STATIC review, round 3): matches via
+        // DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry()
+        // (event.VictimEntry + event.MapId), not the exact runtime
+        // VictimGuid the earlier version used - see that method's own
+        // comment for why an exact-spawn match cannot generally satisfy
+        // RequiredCount > 1 (the same spawn is not guaranteed to respawn
+        // at all, let alone enough times before the quest's own
+        // ExpiryMs). "3 wolves" now means 3 wolves of the model's chosen
+        // TargetEntry, on the same TargetMapId, not the same runtime GUID
+        // three times.
         void ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& event);
+
+        // Milestone 2.13C4 P2 fix (STATIC review, round 3): the fail-
+        // closed half of "authoritative" dynamic-quest kill credit.
+        // DynamicQuestKillEventBus is still a bounded queue by necessity
+        // (a map thread must never block or grow memory without bound -
+        // see that class's own comment) - an actual drop under truly
+        // pathological load or a stalled world thread is not
+        // mathematically impossible, only extremely rare. What must never
+        // happen regardless is a player's quest silently sitting at a
+        // progress count that may now be wrong with no signal anywhere.
+        // Called once per Update() tick, right after draining
+        // _dynamicQuestKillEventBus: if
+        // _dynamicQuestKillEventBus.GetDroppedEventCount() has increased
+        // since the last tick, this registry has no way to know WHICH
+        // Active instance (if any) the lost kill(s) belonged to - so
+        // every currently Active instance (DynamicQuestRegistry::
+        // GetAllActiveIds()) is Fail()ed rather than risk even one of
+        // them staying silently, permanently short of a credit it
+        // actually earned. Deliberately broad and costly - this is meant
+        // to be exceptionally rare and to fail loudly (TC_LOG_ERROR,
+        // naming exactly how many quests were affected) rather than
+        // silently.
+        void ReclaimDynamicQuestsAfterKillCreditLoss();
 
         // Milestone 2.13C4: the same wall-clock "now" every nowMs
         // parameter on this class already uses internally (see
@@ -3365,6 +3399,13 @@ class TC_GAME_API AIWorldMgr
         // cannot share the shared perception/memory bus's drop-under-
         // overload behavior.
         DynamicQuestKillEventBus _dynamicQuestKillEventBus;
+
+        // Milestone 2.13C4 P2 fix (STATIC review, round 3): the last
+        // _dynamicQuestKillEventBus.GetDroppedEventCount() value
+        // ReclaimDynamicQuestsAfterKillCreditLoss() observed - see that
+        // method's own comment. Starts at 0, matching
+        // DynamicQuestKillEventBus's own counter starting at 0.
+        uint64 _lastObservedDynamicQuestKillDropCount = 0;
 
         // Milestone 2.13C2: the sole DynamicQuestId minting authority -
         // see AllocateDynamicQuestId()'s own comment. Starts at 1 (0 is

@@ -20,6 +20,8 @@
 #include "Quest/DynamicQuestRegistry.h"
 #include "Inference/QuestProposal.h"
 
+#include <algorithm>
+
 namespace
 {
     // Milestone 2.13C4 P2 fix (STATIC review): a fixed stand-in for "the
@@ -476,7 +478,7 @@ TEST_CASE("DynamicQuestRegistry::FindActiveByGiverAndPlayer returns nullptr once
     REQUIRE(registry.FindActiveByGiverAndPlayer(AgentId{42}, differentIncarnation, player) == nullptr);
 }
 
-TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget finds the matching Active instance", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry finds the matching Active instance", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
     OfferInto(registry, 1);
@@ -484,12 +486,37 @@ TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget finds the matching 
     REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
 
     DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
-    std::vector<DynamicQuestId> found = registry.FindActiveByPlayerAndTarget(player, stored->TargetGuid);
+    std::vector<DynamicQuestId> found = registry.FindActiveByPlayerAndVictimEntry(player, stored->TargetEntry, stored->TargetMapId);
     REQUIRE(found.size() == 1);
     REQUIRE(found[0] == DynamicQuestId{1});
 }
 
-TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget ignores a different player's matching target", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry keeps matching across repeated kills for RequiredCount > 1", "[DynamicQuestRegistry]")
+{
+    // Milestone 2.13C4 P2 fix (STATIC review, round 3): the exact
+    // RequiredCount > 1 scenario the fix closes - this query takes no
+    // runtime GUID at all, so a SECOND, entirely different runtime spawn
+    // of the same TargetEntry/TargetMapId (simulated here simply by
+    // calling it again - there is nothing spawn-specific left to vary)
+    // still matches, since a quest cannot generally require the exact
+    // same spawn to die repeatedly. ApplyProgress()'s own replay guard
+    // (a real, unique WorldEvent-derived EventId per kill) is what
+    // prevents the SAME kill from ever being double-counted instead.
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, /*requiredCount*/ 3);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    REQUIRE(registry.FindActiveByPlayerAndVictimEntry(player, stored->TargetEntry, stored->TargetMapId).size() == 1);
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{1}, player, 100, 10000).IsAccepted());
+
+    // Still Active (Progress 1 of 3) - a second kill of the same creature
+    // type must still be found.
+    REQUIRE(registry.FindActiveByPlayerAndVictimEntry(player, stored->TargetEntry, stored->TargetMapId).size() == 1);
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry ignores a different player's matching target", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
     OfferInto(registry, 1);
@@ -498,27 +525,39 @@ TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget ignores a different
     REQUIRE(registry.Accept(DynamicQuestId{1}, player1, 10000).IsAccepted());
 
     DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
-    REQUIRE(registry.FindActiveByPlayerAndTarget(player2, stored->TargetGuid).empty());
+    REQUIRE(registry.FindActiveByPlayerAndVictimEntry(player2, stored->TargetEntry, stored->TargetMapId).empty());
 }
 
-TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget ignores a still-Offered instance", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry ignores a still-Offered instance", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
     OfferInto(registry, 1);
 
     DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
     ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
-    REQUIRE(registry.FindActiveByPlayerAndTarget(player, stored->TargetGuid).empty());
+    REQUIRE(registry.FindActiveByPlayerAndVictimEntry(player, stored->TargetEntry, stored->TargetMapId).empty());
 }
 
-TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget ignores a non-matching target guid", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry ignores a non-matching creature entry", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
     OfferInto(registry, 1);
     ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
     REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
 
-    REQUIRE(registry.FindActiveByPlayerAndTarget(player, ObjectGuid::Create<HighGuid::Unit>(9999, 1)).empty());
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    REQUIRE(registry.FindActiveByPlayerAndVictimEntry(player, stored->TargetEntry + 1, stored->TargetMapId).empty());
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry ignores a non-matching map", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    REQUIRE(registry.FindActiveByPlayerAndVictimEntry(player, stored->TargetEntry, stored->TargetMapId + 1).empty());
 }
 
 TEST_CASE("DynamicQuestRegistry::HasLiveInstanceForGiver is true while Offered", "[DynamicQuestRegistry]")
@@ -581,4 +620,29 @@ TEST_CASE("DynamicQuestRegistry::HasLiveInstanceForGiver is false once expired b
 
     REQUIRE(registry.HasLiveInstanceForGiver(AgentId{42}, kGiverRuntimeGuid, expiresAtMs - 1));
     REQUIRE_FALSE(registry.HasLiveInstanceForGiver(AgentId{42}, kGiverRuntimeGuid, expiresAtMs));
+}
+
+TEST_CASE("DynamicQuestRegistry::GetAllActiveIds returns only Active instances", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1); // stays Offered
+    OfferInto(registry, 2, 3, 10000, /*giverValue*/ 99);
+    OfferInto(registry, 3, 3, 10000, /*giverValue*/ 100);
+
+    REQUIRE(registry.Accept(DynamicQuestId{2}, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000).IsAccepted());
+    REQUIRE(registry.Accept(DynamicQuestId{3}, ObjectGuid::Create<HighGuid::Player>(uint32(2)), 10000).IsAccepted());
+
+    std::vector<DynamicQuestId> active = registry.GetAllActiveIds();
+    REQUIRE(active.size() == 2);
+    REQUIRE(std::find(active.begin(), active.end(), DynamicQuestId{2}) != active.end());
+    REQUIRE(std::find(active.begin(), active.end(), DynamicQuestId{3}) != active.end());
+    REQUIRE(std::find(active.begin(), active.end(), DynamicQuestId{1}) == active.end());
+}
+
+TEST_CASE("DynamicQuestRegistry::GetAllActiveIds is empty when nothing is Active", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1);
+
+    REQUIRE(registry.GetAllActiveIds().empty());
 }

@@ -177,7 +177,7 @@ class TC_GAME_API DynamicQuestRegistry
         // _questIdsByGiver first (see its own comment) and only ever scan
         // the handful of ids that specific giver has ever offered. This
         // matters because HasLiveInstanceForGiver() is not purely user-
-        // paced the way FindActiveByPlayerAndTarget() below is: it is also
+        // paced the way FindActiveByPlayerAndVictimEntry() below is: it is also
         // polled once per throttle interval for EVERY currently loaded
         // AIWorld agent (AIWorldCreatureAI::UpdateAI() -> AIWorldMgr::
         // HasLiveDynamicQuestStateForGiver()) - a prior version's linear
@@ -214,15 +214,28 @@ class TC_GAME_API DynamicQuestRegistry
         // holds from this specific giver's CURRENT incarnation.
         DynamicQuestInstance const* FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid) const;
 
-        // Every Active instance this specific player holds whose
-        // TargetGuid matches targetGuid - in practice at most one (a
+        // Milestone 2.13C4 P2 fix (STATIC review, round 3): renamed from
+        // FindActiveByPlayerAndTarget(..., ObjectGuid targetGuid) - the
+        // original exact-runtime-TargetGuid match could never generally
+        // satisfy RequiredCount > 1 (a specific spawn dying N times
+        // requires it to respawn N-1 times, which is not guaranteed to
+        // happen at all, let alone before the quest's own ExpiryMs, and
+        // is a completely different creature identity if it does). Every
+        // Active instance this specific player holds whose Objective is
+        // KillCreature and whose TargetEntry/TargetMapId match victimEntry/
+        // mapId - the same "creature type on a given map" identity
+        // DynamicQuestCreation.cpp's own target.Entry/target.MapId
+        // re-check already uses (TargetGuid there is authoritative
+        // PROVENANCE only - proof the model's proposal was about a real,
+        // live target at creation time - never the ongoing kill-count
+        // objective's own identity). In practice at most one match (a
         // target token is unique per accepted quest), but returns every
         // match found rather than assuming that. Deliberately NOT scoped
         // to a giver/giverRuntimeGuid - the target here is the kill
         // victim, not the giver, and the giver's own live incarnation is
         // irrelevant to whether a kill the player already committed
         // counts toward their own already-Active instance.
-        std::vector<DynamicQuestId> FindActiveByPlayerAndTarget(ObjectGuid playerGuid, ObjectGuid targetGuid) const;
+        std::vector<DynamicQuestId> FindActiveByPlayerAndVictimEntry(ObjectGuid playerGuid, uint32 victimEntry, uint32 mapId) const;
 
         // Milestone 2.13C4: does this giver's CURRENT incarnation have ANY
         // Offered or Active, not-yet-expired instance at all, regardless
@@ -239,6 +252,20 @@ class TC_GAME_API DynamicQuestRegistry
         // flag up once GetDynamicQuestGossipContent() would already treat
         // it as Kind::NoQuest.
         bool HasLiveInstanceForGiver(AgentId giver, ObjectGuid giverRuntimeGuid, uint64 nowMs) const;
+
+        // Milestone 2.13C4 P2 fix (STATIC review, round 3): every
+        // currently Active instance's id, unfiltered by giver/player -
+        // used ONLY by AIWorldMgr's kill-credit-loss recovery path (see
+        // AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()'s own
+        // comment): once DynamicQuestKillEventBus reports a drop, this
+        // registry has no way to tell WHICH Active instance (if any) was
+        // the one that should have received the lost credit, so every
+        // instance this returns gets Fail()ed rather than risk leaving
+        // even one of them silently short of a credit it actually earned.
+        // A full linear scan, unlike the giver-indexed queries above -
+        // acceptable because this is an exceptional-path call, never a
+        // per-tick/per-interaction one.
+        std::vector<DynamicQuestId> GetAllActiveIds() const;
 
     private:
         std::map<uint64, DynamicQuestInstance> _quests;

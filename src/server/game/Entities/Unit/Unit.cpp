@@ -11192,6 +11192,8 @@ bool Unit::InitTamedPet(Pet* pet, uint8 level, uint32 spell_id)
             DynamicQuestKillEvent killEvent;
             killEvent.KillerGuid = attacker->GetGUID();
             killEvent.VictimGuid = victim->GetGUID();
+            killEvent.VictimEntry = victim->GetEntry();
+            killEvent.MapId = victim->GetMapId();
             sAIWorldMgr->PublishDynamicQuestKillEvent(std::move(killEvent));
         }
 

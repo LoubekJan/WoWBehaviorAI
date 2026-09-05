@@ -8048,6 +8048,13 @@ void AIWorldMgr::Update(uint32 diff)
     for (DynamicQuestKillEvent& event : _dynamicQuestKillEventBus.Drain())
         ProcessDynamicQuestKillProgress(event);
 
+    // Milestone 2.13C4 P2 fix (STATIC review, round 3): checked right
+    // after the drain above, every tick - see this method's own comment
+    // for why a detected drop force-fails every Active dynamic quest
+    // rather than leaving any of them silently, possibly incorrectly,
+    // stuck at their current progress.
+    ReclaimDynamicQuestsAfterKillCreditLoss();
+
     // Milestone 2.12E2: delivers every AgentGroupLifecycleSystem Request*
     // completion that has landed since the last tick - the same
     // "enqueue, poll every Update()" shape World::Update() already uses
@@ -9941,7 +9948,11 @@ void AIWorldMgr::ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& ev
     if (!event.KillerGuid.IsPlayer())
         return;
 
-    std::vector<DynamicQuestId> matches = _dynamicQuestRegistry.FindActiveByPlayerAndTarget(event.KillerGuid, event.VictimGuid);
+    // Milestone 2.13C4 P2 fix (STATIC review, round 3): matches by
+    // VictimEntry+MapId, not the exact runtime VictimGuid - see
+    // FindActiveByPlayerAndVictimEntry()'s own comment for why an exact-
+    // spawn match cannot generally satisfy RequiredCount > 1.
+    std::vector<DynamicQuestId> matches = _dynamicQuestRegistry.FindActiveByPlayerAndVictimEntry(event.KillerGuid, event.VictimEntry, event.MapId);
     if (matches.empty())
         return;
 
@@ -9988,6 +9999,31 @@ void AIWorldMgr::ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& ev
         ChatHandler(player->GetSession()).PSendSysMessage("%s",
             FormatDynamicQuestObjectiveCompleteMessage(giverName).c_str());
     }
+}
+
+// Milestone 2.13C4 P2 fix (STATIC review, round 3): see this method's own
+// declaration comment in AIWorldMgr.h.
+void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
+{
+    uint64 droppedCount = _dynamicQuestKillEventBus.GetDroppedEventCount();
+    if (droppedCount <= _lastObservedDynamicQuestKillDropCount)
+        return;
+
+    uint64 newlyDropped = droppedCount - _lastObservedDynamicQuestKillDropCount;
+    _lastObservedDynamicQuestKillDropCount = droppedCount;
+
+    uint64 nowMs = CurrentTimeMs();
+    uint32 failedCount = 0;
+    for (DynamicQuestId id : _dynamicQuestRegistry.GetAllActiveIds())
+    {
+        if (_dynamicQuestRegistry.Fail(id, nowMs).IsAccepted())
+            ++failedCount;
+    }
+
+    TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_KILL_CREDIT_LOST droppedEvents={} activeQuestsForceFailed={} - "
+        "DynamicQuestKillEventBus overflowed (see its own comment); every Active dynamic quest was "
+        "force-failed rather than risk one silently missing a real kill credit",
+        newlyDropped, failedCount);
 }
 
 uint64 AIWorldMgr::GetCurrentTimeMs() const
