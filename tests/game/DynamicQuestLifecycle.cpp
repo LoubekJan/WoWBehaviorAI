@@ -87,33 +87,6 @@ TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[Dynam
     REQUIRE(instance.ExpiresAtMs == 10000 + proposal.ExpiryMs);
     REQUIRE(instance.AcceptedByPlayerGuid.IsEmpty());
     REQUIRE(instance.ConsumedProgressEventIds.empty());
-    REQUIRE(instance.Revision == 0);
-    REQUIRE(offerResult.SourceRevision == 0); // Offer is a creation, not a transition - unused/irrelevant
-}
-
-TEST_CASE("Every accepted transition advances Revision by exactly 1 and carries the source instance's own Revision", "[DynamicQuestLifecycle]")
-{
-    // Milestone 2.13C2 P2 fix, round 2 (STATIC review): DynamicQuestRegistry::
-    // ApplyTransition() relies on this to detect a stale commit - see its
-    // own comment.
-    DynamicQuestInstance offered = MakeOfferedInstance();
-    REQUIRE(offered.Revision == 0);
-
-    ObjectGuid player = PlayerGuid(1);
-    DynamicQuestTransitionResult accept = AcceptDynamicQuest(offered, player, 10000);
-    REQUIRE(accept.IsAccepted());
-    REQUIRE(accept.SourceRevision == 0);
-    REQUIRE(accept.Instance->Revision == 1);
-
-    DynamicQuestTransitionResult progress = ApplyDynamicQuestProgress(*accept.Instance, player, 501, 10000);
-    REQUIRE(progress.IsAccepted());
-    REQUIRE(progress.SourceRevision == 1);
-    REQUIRE(progress.Instance->Revision == 2);
-
-    DynamicQuestTransitionResult fail = FailDynamicQuest(*progress.Instance, 10000);
-    REQUIRE(fail.IsAccepted());
-    REQUIRE(fail.SourceRevision == 2);
-    REQUIRE(fail.Instance->Revision == 3);
 }
 
 TEST_CASE("OfferDynamicQuest rejects DynamicQuestId{0}", "[DynamicQuestLifecycle]")
@@ -529,6 +502,7 @@ TEST_CASE("ToString(DynamicQuestRejectReason) covers every enumerator", "[Dynami
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::AlreadyTerminal)) == "ALREADY_TERMINAL");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidTransition)) == "INVALID_TRANSITION");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidQuestId)) == "INVALID_QUEST_ID");
+    REQUIRE(std::string(ToString(DynamicQuestRejectReason::QuestNotFound)) == "QUEST_NOT_FOUND");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::InvalidPlayer)) == "INVALID_PLAYER");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::PlayerMismatch)) == "PLAYER_MISMATCH");
     REQUIRE(std::string(ToString(DynamicQuestRejectReason::AlreadyExpired)) == "ALREADY_EXPIRED");

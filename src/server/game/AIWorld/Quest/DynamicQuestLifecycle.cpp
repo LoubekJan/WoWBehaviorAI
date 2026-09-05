@@ -44,6 +44,7 @@ char const* ToString(DynamicQuestRejectReason reason)
         case DynamicQuestRejectReason::AlreadyTerminal:        return "ALREADY_TERMINAL";
         case DynamicQuestRejectReason::InvalidTransition:      return "INVALID_TRANSITION";
         case DynamicQuestRejectReason::InvalidQuestId:         return "INVALID_QUEST_ID";
+        case DynamicQuestRejectReason::QuestNotFound:          return "QUEST_NOT_FOUND";
         case DynamicQuestRejectReason::InvalidPlayer:          return "INVALID_PLAYER";
         case DynamicQuestRejectReason::PlayerMismatch:         return "PLAYER_MISMATCH";
         case DynamicQuestRejectReason::AlreadyExpired:         return "ALREADY_EXPIRED";
@@ -81,34 +82,11 @@ namespace
         return result;
     }
 
-    // For OfferDynamicQuest() only - a creation, not a transition FROM a
-    // prior stored value, so it deliberately does not touch
-    // DynamicQuestTransitionResult::SourceRevision or bump anything: the
-    // produced instance keeps whatever Revision it was already
-    // constructed with (0, its own default).
-    DynamicQuestTransitionResult Created(DynamicQuestInstance instance)
+    DynamicQuestTransitionResult Accepted(DynamicQuestInstance instance)
     {
         DynamicQuestTransitionResult result;
         result.Reason = DynamicQuestRejectReason::None;
         result.Instance = std::move(instance);
-        return result;
-    }
-
-    // Milestone 2.13C2 P2 fix (STATIC review): every actual transition
-    // (as opposed to OfferDynamicQuest()'s own Created()) goes through
-    // here so SourceRevision is always the exact Revision of the
-    // instance the transition was computed from, and the produced
-    // `next` always ends up at sourceRevision + 1 - see
-    // DynamicQuestTransitionResult's own comment for why
-    // DynamicQuestRegistry::ApplyTransition() needs both of those to
-    // detect a stale commit.
-    DynamicQuestTransitionResult Accepted(DynamicQuestInstance next, uint64 sourceRevision)
-    {
-        DynamicQuestTransitionResult result;
-        result.Reason = DynamicQuestRejectReason::None;
-        result.SourceRevision = sourceRevision;
-        next.Revision = sourceRevision + 1;
-        result.Instance = std::move(next);
         return result;
     }
 }
@@ -136,7 +114,7 @@ DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal 
     instance.CreatedAtMs = nowMs;
     instance.ExpiresAtMs = SaturatingAddMs(nowMs, proposal.ExpiryMs);
 
-    return Created(std::move(instance));
+    return Accepted(std::move(instance));
 }
 
 bool IsDynamicQuestExpired(DynamicQuestInstance const& instance, uint64 nowMs)
@@ -161,7 +139,7 @@ DynamicQuestTransitionResult AcceptDynamicQuest(DynamicQuestInstance const& inst
     DynamicQuestInstance next = instance;
     next.State = DynamicQuestState::Active;
     next.AcceptedByPlayerGuid = playerGuid;
-    return Accepted(std::move(next), instance.Revision);
+    return Accepted(std::move(next));
 }
 
 DynamicQuestTransitionResult ApplyDynamicQuestProgress(DynamicQuestInstance const& instance, ObjectGuid playerGuid, uint64 progressEventId, uint64 nowMs)
@@ -200,7 +178,7 @@ DynamicQuestTransitionResult ApplyDynamicQuestProgress(DynamicQuestInstance cons
     DynamicQuestInstance next = instance;
     next.ConsumedProgressEventIds.push_back(progressEventId);
     ++next.Progress;
-    return Accepted(std::move(next), instance.Revision);
+    return Accepted(std::move(next));
 }
 
 DynamicQuestTransitionResult CompleteDynamicQuest(DynamicQuestInstance const& instance, uint64 nowMs)
@@ -219,7 +197,7 @@ DynamicQuestTransitionResult CompleteDynamicQuest(DynamicQuestInstance const& in
 
     DynamicQuestInstance next = instance;
     next.State = DynamicQuestState::Completed;
-    return Accepted(std::move(next), instance.Revision);
+    return Accepted(std::move(next));
 }
 
 DynamicQuestTransitionResult FailDynamicQuest(DynamicQuestInstance const& instance, uint64 nowMs)
@@ -235,7 +213,7 @@ DynamicQuestTransitionResult FailDynamicQuest(DynamicQuestInstance const& instan
 
     DynamicQuestInstance next = instance;
     next.State = DynamicQuestState::Failed;
-    return Accepted(std::move(next), instance.Revision);
+    return Accepted(std::move(next));
 }
 
 DynamicQuestTransitionResult ExpireDynamicQuest(DynamicQuestInstance const& instance, uint64 nowMs)
@@ -248,5 +226,5 @@ DynamicQuestTransitionResult ExpireDynamicQuest(DynamicQuestInstance const& inst
 
     DynamicQuestInstance next = instance;
     next.State = DynamicQuestState::Expired;
-    return Accepted(std::move(next), instance.Revision);
+    return Accepted(std::move(next));
 }

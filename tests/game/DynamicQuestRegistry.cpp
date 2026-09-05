@@ -19,8 +19,6 @@
 
 #include "Quest/DynamicQuestRegistry.h"
 
-#include <algorithm>
-
 namespace
 {
     DynamicQuestInstance MakeInstance(uint64 idValue, uint32 requiredCount = 3)
@@ -66,9 +64,10 @@ TEST_CASE("DynamicQuestRegistry::Add rejects a duplicate id and leaves the origi
 
 TEST_CASE("DynamicQuestRegistry::Find returns the matching instance", "[DynamicQuestRegistry]")
 {
-    // Milestone 2.13C2 P2 fix (STATIC review): Find() is const-only - a
-    // caller can never assign straight into a stored instance's own
-    // State/Progress/etc through it, only through ApplyTransition().
+    // Milestone 2.13C2 P2 fix, round 1 (STATIC review): Find() is
+    // const-only - a caller can never assign straight into a stored
+    // instance's own State/Progress/etc through it, only through
+    // Accept()/ApplyProgress()/Complete()/Fail()/Expire() below.
     DynamicQuestRegistry registry;
     REQUIRE(registry.Add(MakeInstance(7)));
 
@@ -85,112 +84,141 @@ TEST_CASE("DynamicQuestRegistry::Find returns nullptr for an unknown id", "[Dyna
     REQUIRE(registry.Find(DynamicQuestId{999}) == nullptr);
 }
 
-TEST_CASE("DynamicQuestRegistry::ApplyTransition commits an accepted transition result", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::Accept commits Offered -> Active against its own stored instance", "[DynamicQuestRegistry]")
 {
-    DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
-
-    DynamicQuestInstance const* before = registry.Find(DynamicQuestId{7});
-    REQUIRE(before->State == DynamicQuestState::Offered);
-    REQUIRE(before->Revision == 0);
-
-    DynamicQuestTransitionResult accept = AcceptDynamicQuest(*before, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000);
-    REQUIRE(accept.IsAccepted());
-    REQUIRE(accept.SourceRevision == 0);
-    REQUIRE(accept.Instance->Revision == 1);
-
-    REQUIRE(registry.ApplyTransition(accept));
-
-    DynamicQuestInstance const* after = registry.Find(DynamicQuestId{7});
-    REQUIRE(after->State == DynamicQuestState::Active);
-    REQUIRE(after->Revision == 1);
-}
-
-TEST_CASE("DynamicQuestRegistry::ApplyTransition rejects a stale commit computed from an already-superseded revision (Accept)", "[DynamicQuestRegistry]")
-{
-    // Milestone 2.13C2 P2 fix, round 2 (STATIC review): two independently
-    // valid AcceptDynamicQuest() results, both computed from the SAME
-    // Offered snapshot (simulating two players racing to accept the same
-    // offer). Only the FIRST one committed may win - the second must be
-    // rejected as stale, never silently re-binding an already-Active
-    // quest to a different player.
-    DynamicQuestRegistry registry;
-    REQUIRE(registry.Add(MakeInstance(7)));
-
-    DynamicQuestInstance const* snapshot = registry.Find(DynamicQuestId{7});
-    ObjectGuid player1 = ObjectGuid::Create<HighGuid::Player>(uint32(1));
-    ObjectGuid player2 = ObjectGuid::Create<HighGuid::Player>(uint32(2));
-
-    DynamicQuestTransitionResult resultA = AcceptDynamicQuest(*snapshot, player1, 10000);
-    DynamicQuestTransitionResult resultB = AcceptDynamicQuest(*snapshot, player2, 10000);
-    REQUIRE(resultA.IsAccepted());
-    REQUIRE(resultB.IsAccepted());
-    REQUIRE(resultA.SourceRevision == resultB.SourceRevision); // both computed from the same snapshot
-
-    REQUIRE(registry.ApplyTransition(resultA));
-    REQUIRE_FALSE(registry.ApplyTransition(resultB)); // stale - stored revision already moved on
-
-    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
-    REQUIRE(stored->State == DynamicQuestState::Active);
-    REQUIRE(stored->AcceptedByPlayerGuid == player1); // resultA's own commit, never overwritten by resultB
-}
-
-TEST_CASE("DynamicQuestRegistry::ApplyTransition rejects a stale commit computed from an already-superseded revision (Progress)", "[DynamicQuestRegistry]")
-{
-    // Same race, for progress: two different authoritative events, both
-    // applied against the SAME pre-progress snapshot. The second commit
-    // must never silently overwrite ConsumedProgressEventIds and lose
-    // the first event's own replay-guard entry.
     DynamicQuestRegistry registry;
     REQUIRE(registry.Add(MakeInstance(7)));
 
     ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
-    DynamicQuestInstance const* offered = registry.Find(DynamicQuestId{7});
-    DynamicQuestTransitionResult accept = AcceptDynamicQuest(*offered, player, 10000);
-    REQUIRE(registry.ApplyTransition(accept));
-
-    DynamicQuestInstance const* snapshot = registry.Find(DynamicQuestId{7});
-    REQUIRE(snapshot->Progress == 0);
-
-    DynamicQuestTransitionResult resultA = ApplyDynamicQuestProgress(*snapshot, player, 100, 10000);
-    DynamicQuestTransitionResult resultB = ApplyDynamicQuestProgress(*snapshot, player, 200, 10000);
-    REQUIRE(resultA.IsAccepted());
-    REQUIRE(resultB.IsAccepted());
-    REQUIRE(resultA.SourceRevision == resultB.SourceRevision);
-
-    REQUIRE(registry.ApplyTransition(resultA));
-    REQUIRE_FALSE(registry.ApplyTransition(resultB)); // stale
+    DynamicQuestTransitionResult result = registry.Accept(DynamicQuestId{7}, player, 10000);
+    REQUIRE(result.IsAccepted());
 
     DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
-    REQUIRE(stored->Progress == 1);
-    REQUIRE(stored->ConsumedProgressEventIds == std::vector<uint64>{100}); // event 100 preserved
-    REQUIRE(std::find(stored->ConsumedProgressEventIds.begin(), stored->ConsumedProgressEventIds.end(), 200)
-        == stored->ConsumedProgressEventIds.end()); // event 200 never silently lost/dropped nor applied
+    REQUIRE(stored->State == DynamicQuestState::Active);
+    REQUIRE(stored->AcceptedByPlayerGuid == player);
 }
 
-TEST_CASE("DynamicQuestRegistry::ApplyTransition rejects a rejected transition result", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::Accept rejects an unknown id as QuestNotFound", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+
+    DynamicQuestTransitionResult result = registry.Accept(DynamicQuestId{999}, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000);
+    REQUIRE_FALSE(result.IsAccepted());
+    REQUIRE(result.Reason == DynamicQuestRejectReason::QuestNotFound);
+}
+
+TEST_CASE("DynamicQuestRegistry::Accept a second time on an already-Active quest is rejected, not a silent re-bind", "[DynamicQuestRegistry]")
+{
+    // The direct analogue of the earlier "two Accept results racing
+    // against the same snapshot" scenario - but there is no longer any
+    // way to even construct that race, since Accept() itself always
+    // reads its OWN current stored instance immediately before deciding.
+    // A second call simply sees the now-Active instance and is rejected
+    // by AcceptDynamicQuest()'s own InvalidTransition rule.
+    DynamicQuestRegistry registry;
+    REQUIRE(registry.Add(MakeInstance(7)));
+
+    ObjectGuid player1 = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    ObjectGuid player2 = ObjectGuid::Create<HighGuid::Player>(uint32(2));
+
+    REQUIRE(registry.Accept(DynamicQuestId{7}, player1, 10000).IsAccepted());
+    DynamicQuestTransitionResult second = registry.Accept(DynamicQuestId{7}, player2, 10000);
+    REQUIRE_FALSE(second.IsAccepted());
+    REQUIRE(second.Reason == DynamicQuestRejectReason::InvalidTransition);
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
+    REQUIRE(stored->AcceptedByPlayerGuid == player1); // never re-bound to player2
+}
+
+TEST_CASE("DynamicQuestRegistry::ApplyProgress commits progress against its own stored instance", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    REQUIRE(registry.Add(MakeInstance(7)));
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{7}, player, 10000).IsAccepted());
+
+    DynamicQuestTransitionResult first = registry.ApplyProgress(DynamicQuestId{7}, player, 100, 10000);
+    REQUIRE(first.IsAccepted());
+
+    DynamicQuestTransitionResult replay = registry.ApplyProgress(DynamicQuestId{7}, player, 100, 10000);
+    REQUIRE_FALSE(replay.IsAccepted());
+    REQUIRE(replay.Reason == DynamicQuestRejectReason::DuplicateProgressEvent);
+
+    DynamicQuestTransitionResult second = registry.ApplyProgress(DynamicQuestId{7}, player, 200, 10000);
+    REQUIRE(second.IsAccepted());
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
+    REQUIRE(stored->Progress == 2);
+    REQUIRE(stored->ConsumedProgressEventIds == std::vector<uint64>{100, 200});
+}
+
+TEST_CASE("DynamicQuestRegistry cannot be tricked into committing a transition computed from a fabricated source instance", "[DynamicQuestRegistry]")
+{
+    // Milestone 2.13C2 P2 fix, round 3 (STATIC review): the exact bypass
+    // an earlier ApplyTransition(DynamicQuestTransitionResult const&)
+    // design could not rule out - a caller builds its own
+    // DynamicQuestInstance claiming to already be Active with
+    // Progress == RequiredCount (even reusing the real stored Id), feeds
+    // it directly to CompleteDynamicQuest() to legitimately obtain an
+    // IsAccepted() result, and would previously have been able to commit
+    // that fake result over a stored instance that is still genuinely
+    // Offered. There is now no public entry point that accepts a
+    // caller-supplied DynamicQuestInstance/DynamicQuestTransitionResult
+    // at all - Complete() (and Accept()/ApplyProgress()/Fail()/Expire())
+    // only ever operate on the id it looks up internally, so this
+    // fabricated result has nothing to be committed THROUGH; it is
+    // simply a value sitting unused in this test.
+    DynamicQuestRegistry registry;
+    REQUIRE(registry.Add(MakeInstance(7, 3)));
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{7});
+    REQUIRE(stored->State == DynamicQuestState::Offered);
+
+    DynamicQuestInstance fabricated = MakeInstance(7, 3);
+    fabricated.State = DynamicQuestState::Active;
+    fabricated.Progress = 3;
+    fabricated.AcceptedByPlayerGuid = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+
+    DynamicQuestTransitionResult fakeComplete = CompleteDynamicQuest(fabricated, 10000);
+    REQUIRE(fakeComplete.IsAccepted()); // a genuinely valid C1 result - just not one anything can commit
+
+    // The only way to actually attempt completing dynamic quest id 7 is
+    // through the registry's own Complete(), which reads its own stored
+    // (still Offered) instance - it can never see `fabricated` or
+    // `fakeComplete` at all.
+    DynamicQuestTransitionResult result = registry.Complete(DynamicQuestId{7}, 10000);
+    REQUIRE_FALSE(result.IsAccepted());
+    REQUIRE(result.Reason == DynamicQuestRejectReason::InvalidTransition); // Offered, not Active
+
+    DynamicQuestInstance const* afterward = registry.Find(DynamicQuestId{7});
+    REQUIRE(afterward->State == DynamicQuestState::Offered); // completely untouched
+}
+
+TEST_CASE("DynamicQuestRegistry::Complete/Fail/Expire reject an unknown id as QuestNotFound", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+
+    REQUIRE(registry.Complete(DynamicQuestId{999}, 10000).Reason == DynamicQuestRejectReason::QuestNotFound);
+    REQUIRE(registry.Fail(DynamicQuestId{999}, 10000).Reason == DynamicQuestRejectReason::QuestNotFound);
+    REQUIRE(registry.Expire(DynamicQuestId{999}, 10000).Reason == DynamicQuestRejectReason::QuestNotFound);
+    REQUIRE(registry.ApplyProgress(DynamicQuestId{999}, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 100, 10000).Reason == DynamicQuestRejectReason::QuestNotFound);
+}
+
+TEST_CASE("DynamicQuestRegistry::Expire commits Offered -> Expired once past the deadline", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
     REQUIRE(registry.Add(MakeInstance(7)));
 
-    DynamicQuestTransitionResult rejected; // default-constructed: NotAttempted, no Instance
-    REQUIRE_FALSE(registry.ApplyTransition(rejected));
+    DynamicQuestInstance const* offered = registry.Find(DynamicQuestId{7});
+    uint64 expiresAtMs = offered->ExpiresAtMs;
 
-    DynamicQuestInstance const* instance = registry.Find(DynamicQuestId{7});
-    REQUIRE(instance->State == DynamicQuestState::Offered); // untouched
-}
+    DynamicQuestTransitionResult tooEarly = registry.Expire(DynamicQuestId{7}, expiresAtMs - 1);
+    REQUIRE_FALSE(tooEarly.IsAccepted());
+    REQUIRE(tooEarly.Reason == DynamicQuestRejectReason::NotYetExpired);
 
-TEST_CASE("DynamicQuestRegistry::ApplyTransition rejects a result naming an id that was never added", "[DynamicQuestRegistry]")
-{
-    DynamicQuestRegistry registry;
-
-    DynamicQuestInstance orphan = MakeInstance(999);
-    DynamicQuestTransitionResult accept = AcceptDynamicQuest(orphan, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000);
-    REQUIRE(accept.IsAccepted());
-
-    REQUIRE_FALSE(registry.ApplyTransition(accept));
-    REQUIRE(registry.Find(DynamicQuestId{999}) == nullptr);
-    REQUIRE(registry.GetCount() == 0);
+    DynamicQuestTransitionResult result = registry.Expire(DynamicQuestId{7}, expiresAtMs);
+    REQUIRE(result.IsAccepted());
+    REQUIRE(registry.Find(DynamicQuestId{7})->State == DynamicQuestState::Expired);
 }
 
 TEST_CASE("DynamicQuestRegistry::Remove erases an existing instance and returns true", "[DynamicQuestRegistry]")

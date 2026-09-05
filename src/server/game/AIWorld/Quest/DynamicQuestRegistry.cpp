@@ -46,34 +46,79 @@ DynamicQuestInstance const* DynamicQuestRegistry::Find(DynamicQuestId id) const
     return it != _quests.end() ? &it->second : nullptr;
 }
 
-bool DynamicQuestRegistry::ApplyTransition(DynamicQuestTransitionResult const& result)
+namespace
 {
-    if (!result.IsAccepted())
-        return false;
-
-    DynamicQuestInstance const& next = *result.Instance;
-    if (!next.Id)
-        return false;
-
-    auto it = _quests.find(next.Id.Value);
-    if (it == _quests.end())
-        return false;
-
-    // Milestone 2.13C2 P2 fix, round 2 (STATIC review): optimistic
-    // concurrency - result must have been computed from the CURRENTLY
-    // stored revision, not some earlier one a second concurrently-
-    // computed result also happened to start from. See this method's
-    // own declaration comment for the concrete stale-overwrite scenario
-    // this closes.
-    if (it->second.Revision != result.SourceRevision)
+    DynamicQuestTransitionResult QuestNotFound()
     {
-        TC_LOG_DEBUG("ai.world", "DynamicQuestRegistry::ApplyTransition: stale commit rejected for dynamic quest id={} (stored revision={}, result computed from revision={})",
-            next.Id.Value, it->second.Revision, result.SourceRevision);
-        return false;
+        DynamicQuestTransitionResult result;
+        result.Reason = DynamicQuestRejectReason::QuestNotFound;
+        return result;
     }
+}
 
-    it->second = next;
-    return true;
+DynamicQuestTransitionResult DynamicQuestRegistry::Accept(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs)
+{
+    auto it = _quests.find(id.Value);
+    if (it == _quests.end())
+        return QuestNotFound();
+
+    DynamicQuestTransitionResult result = AcceptDynamicQuest(it->second, playerGuid, nowMs);
+    if (result.IsAccepted())
+        it->second = *result.Instance;
+
+    return result;
+}
+
+DynamicQuestTransitionResult DynamicQuestRegistry::ApplyProgress(DynamicQuestId id, ObjectGuid playerGuid, uint64 progressEventId, uint64 nowMs)
+{
+    auto it = _quests.find(id.Value);
+    if (it == _quests.end())
+        return QuestNotFound();
+
+    DynamicQuestTransitionResult result = ApplyDynamicQuestProgress(it->second, playerGuid, progressEventId, nowMs);
+    if (result.IsAccepted())
+        it->second = *result.Instance;
+
+    return result;
+}
+
+DynamicQuestTransitionResult DynamicQuestRegistry::Complete(DynamicQuestId id, uint64 nowMs)
+{
+    auto it = _quests.find(id.Value);
+    if (it == _quests.end())
+        return QuestNotFound();
+
+    DynamicQuestTransitionResult result = CompleteDynamicQuest(it->second, nowMs);
+    if (result.IsAccepted())
+        it->second = *result.Instance;
+
+    return result;
+}
+
+DynamicQuestTransitionResult DynamicQuestRegistry::Fail(DynamicQuestId id, uint64 nowMs)
+{
+    auto it = _quests.find(id.Value);
+    if (it == _quests.end())
+        return QuestNotFound();
+
+    DynamicQuestTransitionResult result = FailDynamicQuest(it->second, nowMs);
+    if (result.IsAccepted())
+        it->second = *result.Instance;
+
+    return result;
+}
+
+DynamicQuestTransitionResult DynamicQuestRegistry::Expire(DynamicQuestId id, uint64 nowMs)
+{
+    auto it = _quests.find(id.Value);
+    if (it == _quests.end())
+        return QuestNotFound();
+
+    DynamicQuestTransitionResult result = ExpireDynamicQuest(it->second, nowMs);
+    if (result.IsAccepted())
+        it->second = *result.Instance;
+
+    return result;
 }
 
 bool DynamicQuestRegistry::Remove(DynamicQuestId id)

@@ -22,6 +22,7 @@
 #include "DynamicQuestId.h"
 #include "DynamicQuestInstance.h"
 #include "DynamicQuestLifecycle.h"
+#include "ObjectGuid.h"
 
 #include <map>
 #include <vector>
@@ -36,14 +37,35 @@
 // AIWorld registry.
 //
 // Holds no lifecycle DECISION logic of its own - every transition rule
-// stays entirely in DynamicQuestLifecycle.h. A caller reads an instance
-// out via Find(), calls a DynamicQuestLifecycle transition function to
-// get a NEW value, and commits it back via ApplyTransition() - never by
-// mutating a stored instance directly. Find() is deliberately const-only
-// (Milestone 2.13C2 P2 fix, STATIC review: an earlier version's mutable
-// overload let a caller assign straight into State/Progress/etc.,
-// completely bypassing AcceptDynamicQuest()/ApplyDynamicQuestProgress()/
-// expiry/replay-guard invariants).
+// stays entirely in DynamicQuestLifecycle.h. Find() is deliberately
+// const-only (Milestone 2.13C2 P2 fix, round 1, STATIC review: an
+// earlier version's mutable overload let a caller assign straight into
+// State/Progress/etc., completely bypassing every transition invariant).
+//
+// Milestone 2.13C2 P2 fix, round 3 (STATIC review): Accept()/
+// ApplyProgress()/Complete()/Fail()/Expire() below are the ONLY way a
+// stored instance may change after Add() - there is deliberately no
+// public "commit an already-computed DynamicQuestTransitionResult"
+// entry point. An earlier version had one (ApplyTransition(), even
+// guarded by an optimistic-concurrency revision check) - but
+// DynamicQuestInstance is a plain public value type, so any caller can
+// construct one with an arbitrary State/Progress/etc, give it the SAME
+// Id and Revision a real stored instance currently has, and legitimately
+// produce an IsAccepted() DynamicQuestTransitionResult from it via one
+// of DynamicQuestLifecycle.h's own pure functions - a revision check
+// alone cannot tell that fabricated result apart from one computed from
+// this registry's own authoritative stored value, because both are
+// externally reproducible. The methods below close that gap by
+// construction instead of by proof: each one looks up its OWN current
+// stored instance internally and is the only thing that ever passes it
+// into a DynamicQuestLifecycle transition function - a caller supplies
+// only primitive arguments (the id and whatever the transition itself
+// needs), never a DynamicQuestInstance/DynamicQuestTransitionResult of
+// its own construction. Read-decide-write happens within a single call,
+// so nothing else can observe or act on this registry in between (this
+// class is world-thread-only, like every other AIWorld registry) - a
+// stale-commit race is therefore impossible by construction, not merely
+// checked for.
 //
 // Milestone 2.13C2 P2 fix (STATIC review): _quests is an ordered
 // std::map, not std::unordered_map - GetIdsAfterUntil() needs a stable,
@@ -70,38 +92,30 @@ class TC_GAME_API DynamicQuestRegistry
 
         DynamicQuestInstance const* Find(DynamicQuestId id) const;
 
-        // Milestone 2.13C2 P2 fix (STATIC review): the ONLY way an
-        // already-stored instance's own fields (State/Progress/
-        // AcceptedByPlayerGuid/ConsumedProgressEventIds/...) may change
-        // after Add(). Takes an already-computed DynamicQuestTransitionResult
-        // from one of DynamicQuestLifecycle.h's pure transition functions
-        // (AcceptDynamicQuest()/ApplyDynamicQuestProgress()/
-        // CompleteDynamicQuest()/FailDynamicQuest()/ExpireDynamicQuest())
-        // - requires result.IsAccepted() and that result.Instance->Id
-        // already names a stored instance (Id itself never changes across
-        // a transition); returns false and touches nothing otherwise, the
-        // same fail-closed shape Add()/Remove() already have.
-        //
-        // Milestone 2.13C2 P2 fix, round 2 (STATIC review): also requires
-        // result.SourceRevision == the CURRENTLY stored instance's own
-        // Revision - optimistic concurrency, rejecting a stale commit.
-        // Two transition results can each be independently
-        // IsAccepted() == true despite both having been computed from the
-        // exact same stored snapshot (e.g. two AcceptDynamicQuest() calls
-        // racing against one Offered instance, or two
-        // ApplyDynamicQuestProgress() calls each replaying a DIFFERENT
-        // event from the same pre-progress instance) - without this
-        // check, whichever result reached ApplyTransition() second would
-        // silently clobber the first one's already-committed change
-        // (a second Accept() overwriting AcceptedByPlayerGuid, or a
-        // second progress event overwriting ConsumedProgressEventIds and
-        // silently losing the first event's own replay-guard entry).
-        // Committing this result naturally advances the stored Revision
-        // to result.Instance->Revision (== the old stored Revision + 1),
-        // since a caller must have Find()'d the CURRENT instance to
-        // legitimately compute an accepted, non-stale result in the
-        // first place.
-        bool ApplyTransition(DynamicQuestTransitionResult const& result);
+        // Milestone 2.13C2 P2 fix, round 3 (STATIC review): Offered ->
+        // Active - looks up id's own CURRENTLY stored instance internally
+        // and passes THAT (never anything a caller supplies) to
+        // AcceptDynamicQuest(), committing the result only if accepted.
+        // Rejects QuestNotFound (no stored instance with this id) in
+        // addition to every reason AcceptDynamicQuest() itself can
+        // return - see that function's own comment.
+        DynamicQuestTransitionResult Accept(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
+
+        // Same shape as Accept(), for ApplyDynamicQuestProgress().
+        DynamicQuestTransitionResult ApplyProgress(DynamicQuestId id, ObjectGuid playerGuid, uint64 progressEventId, uint64 nowMs);
+
+        // Same shape as Accept(), for CompleteDynamicQuest().
+        DynamicQuestTransitionResult Complete(DynamicQuestId id, uint64 nowMs);
+
+        // Same shape as Accept(), for FailDynamicQuest().
+        DynamicQuestTransitionResult Fail(DynamicQuestId id, uint64 nowMs);
+
+        // Same shape as Accept(), for ExpireDynamicQuest(). Does not
+        // itself remove the instance once Expired - see
+        // AIWorldMgr::RunDynamicQuestMaintenance()'s own comment for why
+        // "expire" and "reclaim the now-terminal entry" stay two
+        // separate, deliberate steps rather than one method doing both.
+        DynamicQuestTransitionResult Expire(DynamicQuestId id, uint64 nowMs);
 
         // Returns whether an instance was actually erased - false for an
         // unknown id, not an error.

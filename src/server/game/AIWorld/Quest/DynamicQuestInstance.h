@@ -44,18 +44,6 @@ struct DynamicQuestInstance
     DynamicQuestId Id;
     DynamicQuestState State = DynamicQuestState::Offered;
 
-    // Milestone 2.13C2 P2 fix (STATIC review): optimistic-concurrency
-    // version - 0 as offered, incremented by exactly 1 on every accepted
-    // DynamicQuestLifecycle transition (see DynamicQuestTransitionResult::
-    // SourceRevision and DynamicQuestRegistry::ApplyTransition()'s own
-    // comments). Exists because two transition results can both be
-    // independently valid when computed from the SAME stored snapshot
-    // (e.g. two AcceptDynamicQuest() calls racing against one Offered
-    // instance) - without a revision check at commit time, whichever one
-    // is applied second would silently clobber the first's already-
-    // committed result instead of being rejected as stale.
-    uint64 Revision = 0;
-
     // The AI agent that gave this quest, and its runtime incarnation at
     // Offer() time - carried as plain values, never re-authorizing
     // anything by themselves. See QuestProposal's own Giver/

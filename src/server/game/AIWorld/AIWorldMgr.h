@@ -300,11 +300,15 @@ class TC_GAME_API AIWorldMgr
         // quest creation starve the earliest-created entries forever).
         // For each discovered id still in a non-terminal state
         // (Offered/Active) whose deadline has passed
-        // (IsDynamicQuestExpired()), transitions it to Expired via the
-        // pure ExpireDynamicQuest() and then removes it from the registry
-        // - once Expired, 2.13C2 itself has no further use for it (no
-        // player was ever bound to an Offered instance nobody accepted;
-        // an Active one that already expired is equally done).
+        // (IsDynamicQuestExpired()), transitions it to Expired via
+        // DynamicQuestRegistry::Expire() (never the pure
+        // ExpireDynamicQuest() directly - see that class's own comment
+        // for why only its own mutation entry points may ever produce a
+        // transition committed against its stored state) and then
+        // removes it from the registry - once Expired, 2.13C2 itself has
+        // no further use for it (no player was ever bound to an Offered
+        // instance nobody accepted; an Active one that already expired
+        // is equally done).
         // Completed/Failed instances are left alone: nothing in
         // this milestone chain produces those states yet, so cleaning
         // them up is not yet a real problem to solve.

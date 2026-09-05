@@ -9688,12 +9688,21 @@ void AIWorldMgr::RunDynamicQuestMaintenance(uint64 nowMs)
         if (!IsDynamicQuestExpired(*instance, nowMs))
             continue;
 
-        DynamicQuestTransitionResult expireResult = ExpireDynamicQuest(*instance, nowMs);
+        DynamicQuestState priorState = instance->State; // captured before Expire() below may overwrite it in place
+
+        // Milestone 2.13C2 P2 fix, round 3 (STATIC review): routed
+        // through the registry's own Expire() rather than calling the
+        // pure ExpireDynamicQuest() directly - Expire() re-resolves its
+        // OWN current stored instance internally and commits the result
+        // itself, so this is never at risk of computing a transition
+        // against a `*instance` that could be stale by the time it is
+        // committed. See DynamicQuestRegistry's own class comment.
+        DynamicQuestTransitionResult expireResult = _dynamicQuestRegistry.Expire(id, nowMs);
         if (!expireResult.IsAccepted())
             continue; // state changed between Find() and here - leave it for the next pass
 
         TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_EXPIRED dynamicQuestId={} priorState={}",
-            id.Value, ToString(instance->State));
+            id.Value, ToString(priorState));
 
         _dynamicQuestRegistry.Remove(id);
     }
