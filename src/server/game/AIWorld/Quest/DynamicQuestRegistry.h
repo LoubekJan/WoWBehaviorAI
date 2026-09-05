@@ -171,38 +171,67 @@ class TC_GAME_API DynamicQuestRegistry
         // Milestone 2.13C4: read-only gossip-UI queries. Linear over every
         // registered instance - bounded by AIWorld.DynamicQuestMaxLive
         // (see this class's own comment), acceptable at the scale this
-        // milestone targets. Worth a reverse index (by giver, by player,
-        // by target) only once real usage shows this scan is actually a
-        // per-tick cost, not a per-interaction one - gossip/kill events
-        // are user-paced, not a recurring per-tick scan the way
-        // RunDynamicQuestMaintenance()'s own bounded cursor exists for.
+        // milestone targets. Note this is NOT purely user-paced the way
+        // FindActiveByPlayerAndTarget() below is: HasLiveInstanceForGiver()
+        // is also called once per throttle interval for every currently
+        // loaded AIWorld agent (AIWorldCreatureAI::UpdateAI() ->
+        // AIWorldMgr::HasLiveDynamicQuestStateForGiver()), so the real
+        // per-tick cost is (loaded agents x this scan), bounded by
+        // AIWorld.DynamicQuestMaxLive but not zero - worth a proper O(1)
+        // by-giver index once that product is shown to matter in practice.
+        //
+        // Milestone 2.13C4 P2 fix (STATIC review): every query below now
+        // also requires the caller's giverRuntimeGuid to match the stored
+        // instance's own DynamicQuestInstance::GiverRuntimeGuid - a giver
+        // AgentId alone is not proof the CURRENT live Creature incarnation
+        // at that (MapId, SpawnId) is the same one that actually offered
+        // this instance (the giver may have despawned and respawned as a
+        // new incarnation since). Without this, a player-facing gossip
+        // menu could offer/show a quest that DynamicQuestPlayerAcceptance's
+        // own GiverChanged check (see that file's comment) would then
+        // correctly but silently reject on Accept, with no explanation
+        // ever reaching the player. Same reasoning DynamicQuestCreation.cpp
+        // and DynamicQuestPlayerAcceptance.cpp already apply at their own
+        // authority boundaries - this is that same check, just also
+        // enforced at the read-only display boundary.
 
-        // The first Offered instance found for this giver, or nullptr.
-        // In practice a giver has at most one live Offered instance at a
-        // time (one outstanding /dynamic-task request per agent - see
-        // TrySubmitDynamicTask()'s own duplicate guard), but this does
-        // not itself enforce that; it returns the first match.
-        DynamicQuestInstance const* FindOfferedByGiver(AgentId giver) const;
+        // The first Offered instance found for this giver's CURRENT
+        // incarnation, or nullptr. In practice a giver has at most one
+        // live Offered instance at a time (one outstanding /dynamic-task
+        // request per agent - see TrySubmitDynamicTask()'s own duplicate
+        // guard), but this does not itself enforce that; it returns the
+        // first match.
+        DynamicQuestInstance const* FindOfferedByGiver(AgentId giver, ObjectGuid giverRuntimeGuid) const;
 
         // The Active instance (if any) this specific player currently
-        // holds from this specific giver.
-        DynamicQuestInstance const* FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid playerGuid) const;
+        // holds from this specific giver's CURRENT incarnation.
+        DynamicQuestInstance const* FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid) const;
 
         // Every Active instance this specific player holds whose
         // TargetGuid matches targetGuid - in practice at most one (a
         // target token is unique per accepted quest), but returns every
-        // match found rather than assuming that.
+        // match found rather than assuming that. Deliberately NOT scoped
+        // to a giver/giverRuntimeGuid - the target here is the kill
+        // victim, not the giver, and the giver's own live incarnation is
+        // irrelevant to whether a kill the player already committed
+        // counts toward their own already-Active instance.
         std::vector<DynamicQuestId> FindActiveByPlayerAndTarget(ObjectGuid playerGuid, ObjectGuid targetGuid) const;
 
-        // Milestone 2.13C4: does this giver have ANY Offered or Active
-        // instance at all, regardless of which player (if any) has
-        // accepted it? Deliberately coarser than FindOfferedByGiver()/
-        // FindActiveByGiverAndPlayer() above - UNIT_NPC_FLAG_GOSSIP is a
-        // single global flag on the Creature, with no per-player concept,
-        // so AIWorldMgr::ReconcileDynamicQuestGossipFlag() is the only
-        // intended caller. Never use this to decide what to SHOW a
-        // specific player - use the player-scoped queries above for that.
-        bool HasLiveInstanceForGiver(AgentId giver) const;
+        // Milestone 2.13C4: does this giver's CURRENT incarnation have ANY
+        // Offered or Active, not-yet-expired instance at all, regardless
+        // of which player (if any) has accepted it? Deliberately coarser
+        // than FindOfferedByGiver()/FindActiveByGiverAndPlayer() above -
+        // UNIT_NPC_FLAG_GOSSIP is a single global flag on the Creature,
+        // with no per-player concept, so AIWorldMgr::
+        // HasLiveDynamicQuestStateForGiver() is the only intended caller.
+        // Never use this to decide what to SHOW a specific player - use
+        // the player-scoped queries above for that. Takes nowMs (unlike
+        // the two queries above) because it has no instance pointer to
+        // hand back for the caller to check expiry on itself - an
+        // expired-but-not-yet-reclaimed instance must not keep the gossip
+        // flag up once GetDynamicQuestGossipContent() would already treat
+        // it as Kind::NoQuest.
+        bool HasLiveInstanceForGiver(AgentId giver, ObjectGuid giverRuntimeGuid, uint64 nowMs) const;
 
     private:
         std::map<uint64, DynamicQuestInstance> _quests;

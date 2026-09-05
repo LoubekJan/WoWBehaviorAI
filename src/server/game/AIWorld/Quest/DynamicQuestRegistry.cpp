@@ -155,23 +155,26 @@ std::vector<DynamicQuestId> DynamicQuestRegistry::GetIdsAfterUntil(DynamicQuestI
     return ids;
 }
 
-DynamicQuestInstance const* DynamicQuestRegistry::FindOfferedByGiver(AgentId giver) const
+DynamicQuestInstance const* DynamicQuestRegistry::FindOfferedByGiver(AgentId giver, ObjectGuid giverRuntimeGuid) const
 {
     for (auto const& [idValue, instance] : _quests)
     {
-        if (instance.State == DynamicQuestState::Offered && instance.Giver == giver)
+        if (instance.State == DynamicQuestState::Offered &&
+            instance.Giver == giver &&
+            instance.GiverRuntimeGuid == giverRuntimeGuid)
             return &instance;
     }
 
     return nullptr;
 }
 
-DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid playerGuid) const
+DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid) const
 {
     for (auto const& [idValue, instance] : _quests)
     {
         if (instance.State == DynamicQuestState::Active &&
             instance.Giver == giver &&
+            instance.GiverRuntimeGuid == giverRuntimeGuid &&
             instance.AcceptedByPlayerGuid == playerGuid)
             return &instance;
     }
@@ -193,13 +196,17 @@ std::vector<DynamicQuestId> DynamicQuestRegistry::FindActiveByPlayerAndTarget(Ob
     return ids;
 }
 
-bool DynamicQuestRegistry::HasLiveInstanceForGiver(AgentId giver) const
+bool DynamicQuestRegistry::HasLiveInstanceForGiver(AgentId giver, ObjectGuid giverRuntimeGuid, uint64 nowMs) const
 {
     for (auto const& [idValue, instance] : _quests)
     {
-        if (instance.Giver == giver &&
-            (instance.State == DynamicQuestState::Offered || instance.State == DynamicQuestState::Active))
-            return true;
+        if (instance.Giver != giver || instance.GiverRuntimeGuid != giverRuntimeGuid)
+            continue;
+        if (instance.State != DynamicQuestState::Offered && instance.State != DynamicQuestState::Active)
+            continue;
+        if (IsDynamicQuestExpired(instance, nowMs))
+            continue;
+        return true;
     }
 
     return false;

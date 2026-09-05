@@ -129,12 +129,35 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         bool OnGossipSelect(Player* player, uint32 menuId, uint32 gossipListId) override;
 
     private:
-        // Milestone 2.13C4: throttles ReconcileDynamicQuestGossipFlag()
-        // calls from UpdateAI() - that flag only needs to track truth
-        // within roughly a second, not every tick. Starts at 0 so a
-        // freshly materialized agent's flag is correct from its very
-        // first UpdateAI() rather than waiting a full interval.
+        // Milestone 2.13C4 P2 fix (STATIC review): the actual
+        // UNIT_NPC_FLAG_GOSSIP add/remove, using
+        // AIWorldMgr::HasLiveDynamicQuestStateForGiver() as its only
+        // input - see _ownsDynamicQuestGossipFlag's own comment below for
+        // why the mutation and its ownership bookkeeping had to move here
+        // rather than staying in AIWorldMgr.
+        void ReconcileDynamicQuestGossipFlag();
+
+        // Milestone 2.13C4: throttles the
+        // AIWorldMgr::HasLiveDynamicQuestStateForGiver() poll from
+        // UpdateAI() - that decision only needs to track truth within
+        // roughly a second, not every tick. Starts at 0 so a freshly
+        // materialized agent's flag is correct from its very first
+        // UpdateAI() rather than waiting a full interval.
         uint32 _dynamicQuestGossipFlagTimerMs = 0;
+
+        // Milestone 2.13C4 P2 fix (STATIC review): explicit ownership of
+        // the UNIT_NPC_FLAG_GOSSIP overlay this class itself may add -
+        // true only once THIS class has actually called me->SetNpcFlag()
+        // for it, never merely because the flag happens to be set (it may
+        // be a native DB flag, or something else's runtime flag this
+        // class must never touch). The earlier design decided whether it
+        // was safe to remove purely from the CreatureTemplate's native
+        // flag, which cannot distinguish "AIWorld added this" from
+        // "something else added this after AIWorld last looked" - this
+        // bit closes that gap by construction: RemoveNpcFlag() is only
+        // ever called when this is true, and only this class ever sets or
+        // clears it (see UpdateAI()'s own reconciliation below).
+        bool _ownsDynamicQuestGossipFlag = false;
 };
 
 #endif // AIWORLD_AIWORLDCREATUREAI_H

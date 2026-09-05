@@ -9838,11 +9838,17 @@ DynamicQuestPlayerAcceptResult AIWorldMgr::AcceptDynamicQuestForPlayer(DynamicQu
     }
 
     result.Reason = DynamicQuestPlayerAcceptReason::None;
-    TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_ACCEPTED dynamicQuestId={} agent={} inert=1",
+    // Milestone 2.13C4 P3 fix (STATIC review): dropped the "inert=1" tag
+    // this log line carried since 2.13C3 - a real gossip Accept click now
+    // reaches here (see AIWorldCreatureAI::OnGossipSelect()), so this is
+    // no longer inert from the player's own point of view, even though it
+    // still never touches Player::AddQuest/quest log/reward (see this
+    // method's own declaration comment in AIWorldMgr.h).
+    TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_ACCEPTED dynamicQuestId={} agent={}",
         id.Value, giverAgentId.Value);
 
     // Milestone 2.13C4: the ONE piece of player-facing feedback this
-    // still-inert (no gameplay mutation) method itself sends - `player`
+    // method itself sends beyond the log line above - `player`
     // was already re-resolved live above, and acceptResult.Instance->Title
     // is the same already-2.13B-validated text QuestProposal carried.
     ChatHandler(player->GetSession()).PSendSysMessage("Accepted: %s", acceptResult.Instance->Title.c_str());
@@ -9865,7 +9871,9 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
 
     uint64 nowMs = CurrentTimeMs();
 
-    if (DynamicQuestInstance const* active = _dynamicQuestRegistry.FindActiveByGiverAndPlayer(record->Id, player->GetGUID()))
+    ObjectGuid giverRuntimeGuid = giverCreature->GetGUID();
+
+    if (DynamicQuestInstance const* active = _dynamicQuestRegistry.FindActiveByGiverAndPlayer(record->Id, giverRuntimeGuid, player->GetGUID()))
     {
         if (!IsDynamicQuestExpired(*active, nowMs))
         {
@@ -9879,7 +9887,7 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
         return content;
     }
 
-    if (DynamicQuestInstance const* offered = _dynamicQuestRegistry.FindOfferedByGiver(record->Id))
+    if (DynamicQuestInstance const* offered = _dynamicQuestRegistry.FindOfferedByGiver(record->Id, giverRuntimeGuid))
     {
         if (!IsDynamicQuestExpired(*offered, nowMs))
         {
@@ -9896,23 +9904,32 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
     return content;
 }
 
-// Milestone 2.13C4: see this method's own declaration comment in
-// AIWorldMgr.h for the native-flag-preservation rule.
-void AIWorldMgr::ReconcileDynamicQuestGossipFlag(Creature* giverCreature)
+// Milestone 2.13C4 P2 fix (STATIC review): renamed from
+// ReconcileDynamicQuestGossipFlag() and reduced to a pure decision query -
+// this class no longer touches UNIT_NPC_FLAG_GOSSIP itself. The earlier
+// version both decided AND mutated the flag here, using only "does the
+// CreatureTemplate have the native flag" to decide whether it was safe to
+// remove - that cannot tell "AIWorld itself added this flag earlier" apart
+// from "something else entirely set it at runtime after AIWorld last
+// looked", so it could remove a flag AIWorld never added. Actual
+// add/remove + "did I add this" bookkeeping now lives in
+// AIWorldCreatureAI's own _ownsDynamicQuestGossipFlag (see its own
+// comment) - the one class that persists state across ticks for a single
+// Creature and can therefore actually answer "did AIWorld add this flag".
+// This method only ever reads: resolves giverCreature's AgentId fresh
+// from (MapId, SpawnId), then whether that giver's CURRENT incarnation
+// (giverRuntimeGuid - see DynamicQuestRegistry::HasLiveInstanceForGiver()'s
+// own comment) has any live, not-yet-expired Offered/Active instance.
+bool AIWorldMgr::HasLiveDynamicQuestStateForGiver(Creature* giverCreature)
 {
     if (!giverCreature)
-        return;
-
-    CreatureTemplate const* creatureTemplate = giverCreature->GetCreatureTemplate();
-    bool nativeHasGossipFlag = creatureTemplate && (creatureTemplate->npcflag & UNIT_NPC_FLAG_GOSSIP) != 0;
+        return false;
 
     AgentRecord* record = FindLiveAgentBySpawn(_registry, giverCreature->GetMapId(), giverCreature->GetSpawnId());
-    bool hasLiveDynamicQuestState = record && _dynamicQuestRegistry.HasLiveInstanceForGiver(record->Id);
+    if (!record)
+        return false;
 
-    if (hasLiveDynamicQuestState)
-        giverCreature->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
-    else if (!nativeHasGossipFlag)
-        giverCreature->RemoveNpcFlag(UNIT_NPC_FLAG_GOSSIP);
+    return _dynamicQuestRegistry.HasLiveInstanceForGiver(record->Id, giverCreature->GetGUID(), CurrentTimeMs());
 }
 
 // Milestone 2.13C4: see this method's own declaration comment in
@@ -9945,7 +9962,12 @@ void AIWorldMgr::ProcessDynamicQuestKillProgress(WorldEvent const& event)
         }
 
         DynamicQuestInstance const& updated = *result.Instance;
-        TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_PROGRESS dynamicQuestId={} progress={} required={} inert=1",
+        // Milestone 2.13C4 P3 fix (STATIC review): dropped "inert=1" - a
+        // real world kill by a real player drives this, and the player
+        // gets a real chat message for it below, so this is no longer
+        // gameplay-inert (still no reward/completion state, see this
+        // method's own declaration comment in AIWorldMgr.h).
+        TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_PROGRESS dynamicQuestId={} progress={} required={}",
             id.Value, updated.Progress, updated.RequiredCount);
 
         if (!player)

@@ -88,17 +88,33 @@
 namespace Trinity::Asio { class IoContext; }
 class Creature;
 class Player;
+class AIWorldCreatureAI;
 
 // Entry point for the AIWorld subsystem. Driven from the world update thread
 // only (called after sMapMgr->Update() in World::Update()) - never spawns its
-// own thread and never mutates Creature/Player/Map state, with one narrow,
-// deliberate exception added in Milestone 2.13C4:
-// ReconcileDynamicQuestGossipFlag() toggles UNIT_NPC_FLAG_GOSSIP as a purely
-// interaction-gating overlay (never a native flag, never any other Creature
-// field) - see that method's own comment. Otherwise still fully inert unless
+// own thread and never mutates Creature/Player/Map state itself. Milestone
+// 2.13C4 P2 fix (STATIC review): the one exception this comment used to
+// document (a ReconcileDynamicQuestGossipFlag() method toggling
+// UNIT_NPC_FLAG_GOSSIP directly here) was removed - that mutation, and the
+// "did AIWorld itself add this flag" ownership bit it needs to stay safe,
+// now live in AIWorldCreatureAI instead (see its own
+// _ownsDynamicQuestGossipFlag comment). This class only ever answers the
+// read-only question of whether that flag SHOULD be up (see
+// HasLiveDynamicQuestStateForGiver()). Otherwise still fully inert unless
 // AIWorld.Enable = 1.
 class TC_GAME_API AIWorldMgr
 {
+    // Milestone 2.13C4 P1 fix (STATIC review): AIWorldCreatureAI is the
+    // ONE external, non-world-thread-owning class this milestone's own
+    // player-facing gossip/accept integration requires calling into
+    // private world-thread-only methods (GetDynamicQuestGossipContent(),
+    // AcceptDynamicQuestForPlayer(), GetCurrentTimeMs(), and the private
+    // nested DynamicQuestGossipContent type itself) - without this,
+    // AIWorldCreatureAI.cpp simply does not compile. Every other class in
+    // the codebase still goes through this class's public thread-safe
+    // enqueue/query API only.
+    friend class AIWorldCreatureAI;
+
     public:
         static AIWorldMgr* instance();
 
@@ -387,18 +403,20 @@ class TC_GAME_API AIWorldMgr
         };
         DynamicQuestGossipContent GetDynamicQuestGossipContent(Creature* giverCreature, Player const* player);
 
-        // Milestone 2.13C4: reconciles UNIT_NPC_FLAG_GOSSIP on giverCreature
-        // against whether this specific giver currently has ANY dynamic
-        // quest state worth a player being able to interact about
-        // (Offered, or Active for at least one player) - called from
-        // AIWorldCreatureAI::UpdateAI() on its own throttle. Never removes
-        // a NATIVE gossip flag (read once from
-        // Creature::GetCreatureTemplate()->npcflag, never from the live,
-        // already-possibly-AIWorld-modified runtime flags) - only ever
-        // adds/removes the overlay AIWorld itself is responsible for.
-        // Idempotent: recomputes from current truth every call rather
-        // than tracking "did I add this" as separate mutable state.
-        void ReconcileDynamicQuestGossipFlag(Creature* giverCreature);
+        // Milestone 2.13C4 P2 fix (STATIC review): pure read-only decision
+        // query - does giverCreature's CURRENT incarnation currently have
+        // ANY live, not-yet-expired Offered/Active dynamic quest state at
+        // all, regardless of which player (if any) has accepted it? Never
+        // touches UNIT_NPC_FLAG_GOSSIP or any other Creature field itself
+        // - AIWorldCreatureAI::UpdateAI() calls this on its own throttle
+        // and owns the actual flag add/remove plus "did I add this"
+        // bookkeeping itself (see its own _ownsDynamicQuestGossipFlag
+        // comment for why that ownership bit cannot live here: this class
+        // has no per-Creature state to persist it in across ticks, and a
+        // stateless "native flag absent -> safe to remove" rule cannot
+        // tell AIWorld's own earlier addition apart from something else
+        // entirely setting the flag at runtime).
+        bool HasLiveDynamicQuestStateForGiver(Creature* giverCreature);
 
         // Milestone 2.13C4: the ONLY authoritative direct-killer
         // KILL_CREATURE progress hook. Called from the same WorldEvent

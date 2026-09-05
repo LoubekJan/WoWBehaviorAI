@@ -77,8 +77,20 @@ namespace
         if (text.empty() || text.size() > maxLength)
             return false;
 
+        // Milestone 2.13C4 P2 fix (STATIC review): Title/Description are
+        // now sent to a real WoW client (AIWorldCreatureAI's gossip menu),
+        // a trust boundary this validator did not previously need to
+        // consider - before 2.13C4 this text never left the server. WoW's
+        // entire client-side rich-text/hyperlink escape system (color,
+        // links, textures - |cAARRGGBB..|r, |Hitem:..|h..|h, |Tpath:..|t,
+        // etc) is triggered exclusively by the '|' character, so rejecting
+        // every '|' unconditionally closes that whole vector by
+        // construction rather than allowlisting/stripping specific known
+        // sequences (which a new model output could always route around).
+        // A legitimate natural-language quest title/description has no
+        // real need for a literal pipe character.
         for (unsigned char ch : text)
-            if (ch < 0x20 || ch == 0x7F) // ASCII control/DEL - no newline, tab, etc in player-facing text
+            if (ch < 0x20 || ch == 0x7F || ch == '|') // ASCII control/DEL/pipe - no newline, tab, WoW markup, etc in player-facing text
                 return false;
 
         return true;

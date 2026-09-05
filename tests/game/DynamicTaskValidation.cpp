@@ -506,6 +506,50 @@ TEST_CASE("ValidateDynamicTaskCandidate independently re-validates Title/Descrip
 
         REQUIRE(ValidateDynamicTaskCandidate(candidate, limits, facts).Reason == DynamicTaskValidationReason::None);
     }
+
+    // Milestone 2.13C4 P2 fix (STATIC review): Title/Description are now
+    // sent to a real WoW client gossip menu - a '|' anywhere triggers
+    // WoW's client-side rich-text/hyperlink escape system, so it must be
+    // rejected the same way an embedded control character already is.
+    SECTION("a WoW color escape sequence in the title is rejected")
+    {
+        DynamicTaskCandidate candidate = MakeValidCandidate();
+        candidate.Draft.Title = "|cffff0000Fake red text|r";
+        DynamicTaskAuthoritativeLimits limits = MakeValidLimits();
+        DynamicTaskAuthoritativeFacts facts = MakeValidFacts();
+
+        REQUIRE(ValidateDynamicTaskCandidate(candidate, limits, facts).Reason == DynamicTaskValidationReason::TextInvalid);
+    }
+
+    SECTION("a WoW hyperlink escape sequence in the description is rejected")
+    {
+        DynamicTaskCandidate candidate = MakeValidCandidate();
+        candidate.Draft.Description = "|Hitem:123|hFake link|h";
+        DynamicTaskAuthoritativeLimits limits = MakeValidLimits();
+        DynamicTaskAuthoritativeFacts facts = MakeValidFacts();
+
+        REQUIRE(ValidateDynamicTaskCandidate(candidate, limits, facts).Reason == DynamicTaskValidationReason::TextInvalid);
+    }
+
+    SECTION("a WoW texture escape sequence in the title is rejected")
+    {
+        DynamicTaskCandidate candidate = MakeValidCandidate();
+        candidate.Draft.Title = "|TInterface\\Icons\\INV_Misc_QuestionMark:64|t";
+        DynamicTaskAuthoritativeLimits limits = MakeValidLimits();
+        DynamicTaskAuthoritativeFacts facts = MakeValidFacts();
+
+        REQUIRE(ValidateDynamicTaskCandidate(candidate, limits, facts).Reason == DynamicTaskValidationReason::TextInvalid);
+    }
+
+    SECTION("a single bare pipe character in the description is rejected")
+    {
+        DynamicTaskCandidate candidate = MakeValidCandidate();
+        candidate.Draft.Description = "Thin the pack | near the road.";
+        DynamicTaskAuthoritativeLimits limits = MakeValidLimits();
+        DynamicTaskAuthoritativeFacts facts = MakeValidFacts();
+
+        REQUIRE(ValidateDynamicTaskCandidate(candidate, limits, facts).Reason == DynamicTaskValidationReason::TextInvalid);
+    }
 }
 
 TEST_CASE("ValidateDynamicTaskCandidate enforces the live giver-to-target distance against the draft's own proposed range", "[DynamicTaskValidation]")

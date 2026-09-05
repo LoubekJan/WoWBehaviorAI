@@ -62,11 +62,36 @@ void AIWorldCreatureAI::UpdateAI(uint32 diff)
     // every tick.
     if (_dynamicQuestGossipFlagTimerMs <= diff)
     {
-        sAIWorldMgr->ReconcileDynamicQuestGossipFlag(me);
+        ReconcileDynamicQuestGossipFlag();
         _dynamicQuestGossipFlagTimerMs = DynamicQuestGossipFlagReconcileIntervalMs;
     }
     else
         _dynamicQuestGossipFlagTimerMs -= diff;
+}
+
+// Milestone 2.13C4 P2 fix (STATIC review): owns the actual
+// UNIT_NPC_FLAG_GOSSIP mutation and the _ownsDynamicQuestGossipFlag
+// bookkeeping that makes it safe - see that member's own comment in
+// AIWorldCreatureAI.h. AIWorldMgr::HasLiveDynamicQuestStateForGiver() only
+// answers the read-only "should this be up" question; it never touches
+// the flag itself.
+void AIWorldCreatureAI::ReconcileDynamicQuestGossipFlag()
+{
+    bool shouldShow = sAIWorldMgr->HasLiveDynamicQuestStateForGiver(me);
+
+    if (shouldShow)
+    {
+        if (!_ownsDynamicQuestGossipFlag && !me->HasNpcFlag(UNIT_NPC_FLAG_GOSSIP))
+        {
+            me->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
+            _ownsDynamicQuestGossipFlag = true;
+        }
+    }
+    else if (_ownsDynamicQuestGossipFlag)
+    {
+        me->RemoveNpcFlag(UNIT_NPC_FLAG_GOSSIP);
+        _ownsDynamicQuestGossipFlag = false;
+    }
 }
 
 bool AIWorldCreatureAI::OnGossipHello(Player* player)
