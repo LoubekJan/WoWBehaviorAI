@@ -67,6 +67,7 @@
 #include "Quest/DynamicQuestCreation.h"
 #include "Quest/DynamicQuestIdAllocator.h"
 #include "Quest/DynamicQuestLifecycle.h"
+#include "Quest/DynamicQuestPlayerAcceptance.h"
 #include "Quest/DynamicQuestRegistry.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
@@ -315,6 +316,36 @@ class TC_GAME_API AIWorldMgr
         // this milestone chain produces those states yet, so cleaning
         // them up is not yet a real problem to solve.
         void RunDynamicQuestMaintenance(uint64 nowMs);
+
+        // Milestone 2.13C3: the ONLY place a player's request to accept a
+        // registry-owned Offered dynamic quest may turn into a real
+        // Offered->Active transition. Deliberately does NOT touch the
+        // standard TrinityCore quest log - see this milestone's own
+        // roadmap note for why a dynamic quest cannot yet go through
+        // Player::CanTakeQuest()/CanAddQuest()/AddQuestAndCheckCompletion()
+        // (those require a real Quest const* from ObjectMgr, which needs
+        // a dynamic QuestTemplate and client-facing uint32 QuestId this
+        // milestone does not attempt to solve). Fresh re-resolves BOTH
+        // sides from live world state (never a cached/stored Player*/
+        // Creature*): the player via ObjectAccessor::FindPlayer() (real
+        // player identity, online, alive) and the giver via AgentRecord/
+        // Creature* (still exists, same runtime incarnation, still
+        // Materialized/AIWorldControlled/alive) - then requires player
+        // and giver to share a map and be within
+        // AIWorld.DynamicQuestPlayerAcceptMaxRangeYards of each other, so
+        // a quest can never be accepted from across the map. Only once
+        // CheckDynamicQuestPlayerAcceptApplicability() returns None does
+        // it call the existing DynamicQuestRegistry::Accept(id,
+        // playerGuid, nowMs), which is itself still the sole authority
+        // over whether the stored instance's own State/expiry actually
+        // permit the transition (this method never re-checks or
+        // duplicates that). Logs DYNAMIC_QUEST_ACCEPTED (never a GUID) or
+        // a typed reject reason. Still no Player::AddQuest, no quest log,
+        // no marker/gossip, no client quest packet, no kill credit, no
+        // completion/reward, no DB persistence, no world mutation of any
+        // kind - AcceptedByPlayerGuid exists only inside this process's
+        // own in-memory DynamicQuestRegistry.
+        DynamicQuestPlayerAcceptResult AcceptDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
 
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
         // disabled) - once the configured agent is live/materialized and
@@ -3221,6 +3252,17 @@ class TC_GAME_API AIWorldMgr
         // those yet) or on a creation rate that outpaces reclamation -
         // this cap is the hard backstop for both.
         uint32 _dynamicQuestMaxLive = 1000;
+
+        // Milestone 2.13C3: AIWorld.DynamicQuestPlayerAcceptMaxRangeYards -
+        // the live giver-to-player interaction range
+        // AcceptDynamicQuestForPlayer() enforces, so a quest can never be
+        // accepted from across the map. Deliberately its own config, not
+        // reused from AIWorld.DynamicTaskMaxRangeYards (that bounds a
+        // proposed quest's own objective range, an unrelated concern) or
+        // any TrinityCore gossip/interaction constant (see this method's
+        // own declaration comment for why the standard
+        // CanInteractWithQuestGiver() path is not used here).
+        float _dynamicQuestPlayerAcceptMaxRangeYards = 10.0f;
 
         // Milestone 2.13C2 P2 fix (STATIC review): AIWorld.
         // DynamicQuestMaintenanceIntervalMs/ScanMaxPerPass - how often

@@ -1274,6 +1274,16 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     _dynamicQuestMaxLive = uint32(dynamicQuestMaxLive);
 
+    // Milestone 2.13C3: see _dynamicQuestPlayerAcceptMaxRangeYards's own
+    // declaration comment.
+    float dynamicQuestPlayerAcceptMaxRangeYards = sConfigMgr->GetFloatDefault("AIWorld.DynamicQuestPlayerAcceptMaxRangeYards", 10.0f);
+    if (!(dynamicQuestPlayerAcceptMaxRangeYards > 0.0f))
+    {
+        TC_LOG_WARN("ai.world", "AIWorld.DynamicQuestPlayerAcceptMaxRangeYards ({}) is invalid, clamping to 1.0", dynamicQuestPlayerAcceptMaxRangeYards);
+        dynamicQuestPlayerAcceptMaxRangeYards = 1.0f;
+    }
+    _dynamicQuestPlayerAcceptMaxRangeYards = dynamicQuestPlayerAcceptMaxRangeYards;
+
     // Milestone 2.13C2 P2 fix (STATIC review): see
     // RunDynamicQuestMaintenance()'s own declaration comment.
     int32 dynamicQuestMaintenanceIntervalMs = sConfigMgr->GetIntDefault("AIWorld.DynamicQuestMaintenanceIntervalMs", 30000);
@@ -9725,6 +9735,98 @@ void AIWorldMgr::RunDynamicQuestMaintenance(uint64 nowMs)
 
         _dynamicQuestRegistry.Remove(id);
     }
+}
+
+// Milestone 2.13C3: the ONLY place a player's accept request may turn
+// into a real Offered->Active transition - see this method's own
+// declaration comment in AIWorldMgr.h.
+DynamicQuestPlayerAcceptResult AIWorldMgr::AcceptDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs)
+{
+    DynamicQuestPlayerAcceptResult result;
+
+    // Cheapest possible check first, before any live world resolution -
+    // same "fail fast" reasoning as CreateDynamicQuestOffer()'s own
+    // RegistryFull check.
+    DynamicQuestInstance const* instance = _dynamicQuestRegistry.Find(id);
+    if (!instance)
+    {
+        result.Reason = DynamicQuestPlayerAcceptReason::QuestNotFound;
+        return result;
+    }
+
+    DynamicQuestPlayerFacts playerFacts;
+    playerFacts.IsPlayerGuid = playerGuid.IsPlayer();
+
+    // ObjectAccessor::FindPlayer() already implies IsInWorld() - no
+    // separate check needed (see ObjectAccessor::FindPlayer()'s own
+    // implementation). Never cached across calls, exactly like
+    // ResolveLiveCreature() below - re-resolved fresh every attempt.
+    Player* player = playerFacts.IsPlayerGuid ? ObjectAccessor::FindPlayer(playerGuid) : nullptr;
+    if (player)
+    {
+        playerFacts.Resolved = true;
+        playerFacts.Alive = player->IsAlive();
+        playerFacts.MapId = player->GetMapId();
+    }
+
+    AgentId giverAgentId = instance->Giver; // captured now - Accept() below may overwrite *instance in place
+
+    AgentRecord* record = _registry.Find(giverAgentId);
+    DynamicQuestGiverAcceptFacts giverFacts;
+    giverFacts.RecordExists = record != nullptr;
+
+    Creature* giverCreature = nullptr;
+    if (record)
+    {
+        giverFacts.Materialized = record->WorldState == AgentWorldState::Materialized;
+        giverFacts.AIWorldControlled = record->ControlMode == AgentControlMode::AIWorldControlled;
+
+        Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
+        giverCreature = ResolveLiveCreature(*record, map);
+        if (giverCreature)
+        {
+            giverFacts.Alive = giverCreature->IsAlive();
+            giverFacts.RuntimeGuid = giverCreature->GetGUID();
+            giverFacts.MapId = giverCreature->GetMapId();
+        }
+    }
+
+    // Only meaningful once player and giverCreature are both resolved
+    // AND share a map - WorldObject::GetDistance() does not itself check
+    // map/phase (pure Euclidean math), so mixing objects from different
+    // maps would silently produce a meaningless value.
+    // CheckDynamicQuestPlayerAcceptApplicability() checks player/giver
+    // eligibility and map equality before ever consulting this value, so
+    // the infinity default is never actually reached by that logic - it
+    // exists purely so an unresolved/cross-map pair never looks
+    // "in range" by accident.
+    float distanceYards = std::numeric_limits<float>::infinity();
+    if (player && giverCreature && player->GetMapId() == giverCreature->GetMapId())
+        distanceYards = player->GetDistance(giverCreature);
+
+    DynamicQuestPlayerAcceptReason applicability = CheckDynamicQuestPlayerAcceptApplicability(
+        *instance, playerFacts, giverFacts, distanceYards, _dynamicQuestPlayerAcceptMaxRangeYards);
+    if (applicability != DynamicQuestPlayerAcceptReason::None)
+    {
+        result.Reason = applicability;
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_ACCEPT_REJECTED dynamicQuestId={} reason={}",
+            id.Value, ToString(applicability));
+        return result;
+    }
+
+    DynamicQuestTransitionResult acceptResult = _dynamicQuestRegistry.Accept(id, playerGuid, nowMs);
+    if (!acceptResult.IsAccepted())
+    {
+        result.Reason = DynamicQuestPlayerAcceptReason::AcceptRejected;
+        TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_ACCEPT_REJECTED dynamicQuestId={} reason={}",
+            id.Value, ToString(acceptResult.Reason));
+        return result;
+    }
+
+    result.Reason = DynamicQuestPlayerAcceptReason::None;
+    TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_ACCEPTED dynamicQuestId={} agent={} inert=1",
+        id.Value, giverAgentId.Value);
+    return result;
 }
 
 // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId - see this method's
