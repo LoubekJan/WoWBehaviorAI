@@ -101,6 +101,9 @@ DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal 
     instance.Id = id;
     instance.State = DynamicQuestState::Offered;
 
+    instance.Title = proposal.Title;
+    instance.Description = proposal.Description;
+
     instance.Giver = proposal.Giver;
     instance.GiverRuntimeGuid = proposal.GiverRuntimeGuid;
 

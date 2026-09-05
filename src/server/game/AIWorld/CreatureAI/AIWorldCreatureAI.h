@@ -108,6 +108,33 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // enqueue-and-defer-to-Drain() pattern PublishWorldEvent() already
         // uses for perception events.
         void MovementInform(uint32 type, uint32 id) override;
+
+        // Milestone 2.13C4: read-only - builds the gossip menu from
+        // AIWorldMgr::GetDynamicQuestGossipContent(me, player), never
+        // touching DynamicQuestRegistry state itself. Returns false (lets
+        // TrinityCore's normal gossip/quest-giver flow run instead) when
+        // that query finds nothing AIWorld-specific for this player at
+        // this giver - this override must never suppress a Creature's own
+        // native gossip/vendor/trainer/quest-giver menu.
+        bool OnGossipHello(Player* player) override;
+
+        // Milestone 2.13C4: the only path from a client click to
+        // AIWorldMgr::AcceptDynamicQuestForPlayer() - never mutates
+        // DynamicQuestRegistry state itself. Re-resolves the gossip
+        // content fresh (via the same GetDynamicQuestGossipContent() call
+        // OnGossipHello() uses) rather than trusting gossipListId/menuId
+        // to identify which DynamicQuestId was clicked, so a client can
+        // never influence which quest gets accepted beyond "the one this
+        // giver is currently offering me right now".
+        bool OnGossipSelect(Player* player, uint32 menuId, uint32 gossipListId) override;
+
+    private:
+        // Milestone 2.13C4: throttles ReconcileDynamicQuestGossipFlag()
+        // calls from UpdateAI() - that flag only needs to track truth
+        // within roughly a second, not every tick. Starts at 0 so a
+        // freshly materialized agent's flag is correct from its very
+        // first UpdateAI() rather than waiting a full interval.
+        uint32 _dynamicQuestGossipFlagTimerMs = 0;
 };
 
 #endif // AIWORLD_AIWORLDCREATUREAI_H

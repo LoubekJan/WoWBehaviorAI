@@ -144,11 +144,12 @@ struct DynamicQuestTransitionResult
 
 // Milestone 2.13C1: constructs a new Offered instance from an already-
 // validated QuestProposal (see QuestProposal.h - 2.13B's own output).
-// Only KILL_CREATURE identity/count/expiry fields this milestone's state
-// machine actually operates on are carried over (Title/Description/
-// RewardMoneyCopper are not modeled yet - see DynamicQuestInstance's own
-// comment). ExpiresAtMs is computed from nowMs + proposal.ExpiryMs with a
-// saturating add - it can never wrap around regardless of input values.
+// Copies KILL_CREATURE identity/count/expiry fields the state machine
+// operates on, plus (Milestone 2.13C4) Title/Description for player-
+// facing display - RewardMoneyCopper is still not modeled yet, see
+// DynamicQuestInstance's own comment. ExpiresAtMs is computed from
+// nowMs + proposal.ExpiryMs with a saturating add - it can never wrap
+// around regardless of input values.
 // Uses the same DynamicQuestTransitionResult shape as every transition
 // below even though there is no prior instance to transition from, so a
 // caller has exactly one result type to handle everywhere. Rejects:

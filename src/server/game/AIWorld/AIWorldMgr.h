@@ -80,16 +80,22 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace Trinity::Asio { class IoContext; }
 class Creature;
+class Player;
 
 // Entry point for the AIWorld subsystem. Driven from the world update thread
 // only (called after sMapMgr->Update() in World::Update()) - never spawns its
-// own thread and never mutates Creature/Player/Map state. Fully inert unless
+// own thread and never mutates Creature/Player/Map state, with one narrow,
+// deliberate exception added in Milestone 2.13C4:
+// ReconcileDynamicQuestGossipFlag() toggles UNIT_NPC_FLAG_GOSSIP as a purely
+// interaction-gating overlay (never a native flag, never any other Creature
+// field) - see that method's own comment. Otherwise still fully inert unless
 // AIWorld.Enable = 1.
 class TC_GAME_API AIWorldMgr
 {
@@ -340,12 +346,90 @@ class TC_GAME_API AIWorldMgr
         // over whether the stored instance's own State/expiry actually
         // permit the transition (this method never re-checks or
         // duplicates that). Logs DYNAMIC_QUEST_ACCEPTED (never a GUID) or
-        // a typed reject reason. Still no Player::AddQuest, no quest log,
-        // no marker/gossip, no client quest packet, no kill credit, no
+        // a typed reject reason, and (Milestone 2.13C4) sends the
+        // accepting player a confirmation chat message using the
+        // instance's own already-2.13B-validated Title. This is the ONLY
+        // mutation entry point regardless of caller - 2.13C4's own
+        // AIWorldCreatureAI::OnGossipSelect() calls this exact method,
+        // never anything else. Still no Player::AddQuest, no standard
+        // quest log/marker, no client quest packet, no kill credit, no
         // completion/reward, no DB persistence, no world mutation of any
         // kind - AcceptedByPlayerGuid exists only inside this process's
         // own in-memory DynamicQuestRegistry.
         DynamicQuestPlayerAcceptResult AcceptDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
+
+        // Milestone 2.13C4: read-only gossip-UI query -
+        // AIWorldCreatureAI::OnGossipHello() calls this to decide what (if
+        // anything) to show a specific player at a specific giver
+        // Creature. Resolves the giver's AgentId fresh from
+        // (MapId, SpawnId) - never touches AcceptedByPlayerGuid/State
+        // itself, only reads whatever DynamicQuestRegistry already
+        // stores. Checks Kind::Active for THIS player first, Kind::Offered
+        // second: once a player has accepted, revisiting the giver must
+        // keep showing their own progress (2.13C4's own "gossip stays
+        // useful after accept" requirement), never regress to a fresh
+        // Offered instance the same giver might otherwise have created in
+        // the meantime. Either an Offered or an Active instance whose
+        // deadline has already passed (RunDynamicQuestMaintenance() has
+        // not reclaimed it yet - see that method's own comment, it treats
+        // both states as expirable) is treated as Kind::NoQuest rather
+        // than shown stale.
+        struct DynamicQuestGossipContent
+        {
+            enum class ContentKind : uint8 { NoQuest, Offered, Active };
+
+            ContentKind Kind = ContentKind::NoQuest;
+            DynamicQuestId Id;
+            std::string Title;
+            std::string Description;
+            uint32 Progress = 0;
+            uint32 RequiredCount = 0;
+        };
+        DynamicQuestGossipContent GetDynamicQuestGossipContent(Creature* giverCreature, Player const* player);
+
+        // Milestone 2.13C4: reconciles UNIT_NPC_FLAG_GOSSIP on giverCreature
+        // against whether this specific giver currently has ANY dynamic
+        // quest state worth a player being able to interact about
+        // (Offered, or Active for at least one player) - called from
+        // AIWorldCreatureAI::UpdateAI() on its own throttle. Never removes
+        // a NATIVE gossip flag (read once from
+        // Creature::GetCreatureTemplate()->npcflag, never from the live,
+        // already-possibly-AIWorld-modified runtime flags) - only ever
+        // adds/removes the overlay AIWorld itself is responsible for.
+        // Idempotent: recomputes from current truth every call rather
+        // than tracking "did I add this" as separate mutable state.
+        void ReconcileDynamicQuestGossipFlag(Creature* giverCreature);
+
+        // Milestone 2.13C4: the ONLY authoritative direct-killer
+        // KILL_CREATURE progress hook. Called from the same WorldEvent
+        // drain loop ProcessWorldEvent() already runs on
+        // (WorldEventType::CreatureKilled is published for every creature
+        // death, any killer, any map - see Unit::Kill()'s own comment) -
+        // never invented as a separate event type, since that central
+        // path already carries everything needed: event.Actor.Guid (the
+        // killer, a Player for this milestone's own "direct-killer credit
+        // only" scope - see this method's own scope note) and
+        // event.Target.Guid (the exact creature killed). Uses
+        // event.EventId (already globally unique per WorldEvent) as the
+        // authoritative replay-guard identity DynamicQuestRegistry::
+        // ApplyProgress() requires - never invents a new id space for
+        // this. On success, sends the killer a progress chat message, and
+        // (once Progress == RequiredCount) a separate objective-complete
+        // message naming the giver's live display name if it can still be
+        // re-resolved. Direct-killer credit only in this milestone - no
+        // group/party credit sharing (that is explicitly deferred, see
+        // the roadmap's own note); a kill by anyone other than the
+        // quest's own AcceptedByPlayerGuid contributes no progress.
+        void ProcessDynamicQuestKillProgress(WorldEvent const& event);
+
+        // Milestone 2.13C4: the same wall-clock "now" every nowMs
+        // parameter on this class already uses internally (see
+        // AIWorldMgr.cpp's own anonymous-namespace CurrentTimeMs()) -
+        // exposed only because AIWorldCreatureAI::OnGossipSelect() must
+        // supply a nowMs to call AcceptDynamicQuestForPlayer() and lives
+        // outside this class; a second, independently-written copy of the
+        // same formula would risk drifting from this one over time.
+        uint64 GetCurrentTimeMs() const;
 
         // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId (AgentId{} =
         // disabled) - once the configured agent is live/materialized and

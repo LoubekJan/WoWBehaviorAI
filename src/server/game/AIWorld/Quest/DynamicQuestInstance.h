@@ -25,6 +25,7 @@
 #include "Inference/QuestObjectiveType.h"
 #include "ObjectGuid.h"
 
+#include <string>
 #include <vector>
 
 // Milestone 2.13C1: one dynamic quest lifecycle instance - a pure value
@@ -34,15 +35,25 @@
 // re-resolve and re-check it fresh, never trust a field below as still
 // true.
 //
-// Only carries what the state machine in DynamicQuestLifecycle.h actually
-// operates on. Player-facing display data (Title/Description) and reward
-// data (RewardMoneyCopper) are deliberately not modeled yet - they belong
-// to whichever later milestone first needs them (2.13C3/2.13C5), not to
-// this milestone's own transition mechanics.
+// Only carries what the state machine in DynamicQuestLifecycle.h operates
+// on, plus (Milestone 2.13C4) the player-facing display text this
+// milestone's own gossip UI needs. Reward data (RewardMoneyCopper) is
+// still deliberately not modeled - it belongs to 2.13C5, not to this
+// milestone's own transition mechanics or its display needs.
 struct DynamicQuestInstance
 {
     DynamicQuestId Id;
     DynamicQuestState State = DynamicQuestState::Offered;
+
+    // Milestone 2.13C4: the SAME model-originated, already-2.13B-validated
+    // text QuestProposal carried - copied once at Offer() time, never
+    // re-validated or re-derived here (DynamicQuestLifecycle.h has no
+    // text-validation logic of its own; ValidateDynamicTaskCandidate()
+    // already proved these bounded/control-character-free before this
+    // instance ever existed). Still just player-facing display data -
+    // nothing here authorizes gameplay.
+    std::string Title;
+    std::string Description;
 
     // The AI agent that gave this quest, and its runtime incarnation at
     // Offer() time - carried as plain values, never re-authorizing

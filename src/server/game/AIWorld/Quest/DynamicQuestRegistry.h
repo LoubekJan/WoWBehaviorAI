@@ -18,6 +18,7 @@
 #ifndef AIWORLD_DYNAMICQUESTREGISTRY_H
 #define AIWORLD_DYNAMICQUESTREGISTRY_H
 
+#include "Agent/AgentId.h"
 #include "Define.h"
 #include "DynamicQuestId.h"
 #include "DynamicQuestInstance.h"
@@ -166,6 +167,42 @@ class TC_GAME_API DynamicQuestRegistry
         // safely starts a cycle from the beginning (every real id is
         // nonzero).
         std::vector<DynamicQuestId> GetIdsAfterUntil(DynamicQuestId after, DynamicQuestId until, uint32 maxCount) const;
+
+        // Milestone 2.13C4: read-only gossip-UI queries. Linear over every
+        // registered instance - bounded by AIWorld.DynamicQuestMaxLive
+        // (see this class's own comment), acceptable at the scale this
+        // milestone targets. Worth a reverse index (by giver, by player,
+        // by target) only once real usage shows this scan is actually a
+        // per-tick cost, not a per-interaction one - gossip/kill events
+        // are user-paced, not a recurring per-tick scan the way
+        // RunDynamicQuestMaintenance()'s own bounded cursor exists for.
+
+        // The first Offered instance found for this giver, or nullptr.
+        // In practice a giver has at most one live Offered instance at a
+        // time (one outstanding /dynamic-task request per agent - see
+        // TrySubmitDynamicTask()'s own duplicate guard), but this does
+        // not itself enforce that; it returns the first match.
+        DynamicQuestInstance const* FindOfferedByGiver(AgentId giver) const;
+
+        // The Active instance (if any) this specific player currently
+        // holds from this specific giver.
+        DynamicQuestInstance const* FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid playerGuid) const;
+
+        // Every Active instance this specific player holds whose
+        // TargetGuid matches targetGuid - in practice at most one (a
+        // target token is unique per accepted quest), but returns every
+        // match found rather than assuming that.
+        std::vector<DynamicQuestId> FindActiveByPlayerAndTarget(ObjectGuid playerGuid, ObjectGuid targetGuid) const;
+
+        // Milestone 2.13C4: does this giver have ANY Offered or Active
+        // instance at all, regardless of which player (if any) has
+        // accepted it? Deliberately coarser than FindOfferedByGiver()/
+        // FindActiveByGiverAndPlayer() above - UNIT_NPC_FLAG_GOSSIP is a
+        // single global flag on the Creature, with no per-player concept,
+        // so AIWorldMgr::ReconcileDynamicQuestGossipFlag() is the only
+        // intended caller. Never use this to decide what to SHOW a
+        // specific player - use the player-scoped queries above for that.
+        bool HasLiveInstanceForGiver(AgentId giver) const;
 
     private:
         std::map<uint64, DynamicQuestInstance> _quests;

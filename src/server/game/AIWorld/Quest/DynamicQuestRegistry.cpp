@@ -154,3 +154,53 @@ std::vector<DynamicQuestId> DynamicQuestRegistry::GetIdsAfterUntil(DynamicQuestI
 
     return ids;
 }
+
+DynamicQuestInstance const* DynamicQuestRegistry::FindOfferedByGiver(AgentId giver) const
+{
+    for (auto const& [idValue, instance] : _quests)
+    {
+        if (instance.State == DynamicQuestState::Offered && instance.Giver == giver)
+            return &instance;
+    }
+
+    return nullptr;
+}
+
+DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid playerGuid) const
+{
+    for (auto const& [idValue, instance] : _quests)
+    {
+        if (instance.State == DynamicQuestState::Active &&
+            instance.Giver == giver &&
+            instance.AcceptedByPlayerGuid == playerGuid)
+            return &instance;
+    }
+
+    return nullptr;
+}
+
+std::vector<DynamicQuestId> DynamicQuestRegistry::FindActiveByPlayerAndTarget(ObjectGuid playerGuid, ObjectGuid targetGuid) const
+{
+    std::vector<DynamicQuestId> ids;
+    for (auto const& [idValue, instance] : _quests)
+    {
+        if (instance.State == DynamicQuestState::Active &&
+            instance.AcceptedByPlayerGuid == playerGuid &&
+            instance.TargetGuid == targetGuid)
+            ids.push_back(DynamicQuestId{idValue});
+    }
+
+    return ids;
+}
+
+bool DynamicQuestRegistry::HasLiveInstanceForGiver(AgentId giver) const
+{
+    for (auto const& [idValue, instance] : _quests)
+    {
+        if (instance.Giver == giver &&
+            (instance.State == DynamicQuestState::Offered || instance.State == DynamicQuestState::Active))
+            return true;
+    }
+
+    return false;
+}

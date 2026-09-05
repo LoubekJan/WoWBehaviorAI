@@ -24,6 +24,7 @@
 #include "Agent/AgentSnapshot.h"
 #include "Agent/CoalitionFormationProfileKind.h"
 #include "Agent/CoalitionMaintenanceSystem.h"
+#include "Chat.h"
 #include "CombatManager.h"
 #include "Config.h"
 #include "Creature.h"
@@ -40,6 +41,7 @@
 #include "PathGenerator.h"
 #include "Player.h"
 #include "PointMovementGenerator.h"
+#include "Quest/DynamicQuestGossipText.h"
 #include "Reconciliation/CreatureSpawnCensus.h"
 #include "Reconciliation/CreatureSpawnZoneFilter.h"
 #include "Reconciliation/SpawnReconciliationPlan.h"
@@ -8028,7 +8030,13 @@ void AIWorldMgr::Update(uint32 diff)
     // AIWorldMgr::Update() in World::Update()) is where map/combat workers
     // publish whatever happened this tick.
     for (WorldEvent& event : _eventBus.Drain())
+    {
         ProcessWorldEvent(event);
+
+        // Milestone 2.13C4: same drained event, no separate event type -
+        // see ProcessDynamicQuestKillProgress()'s own comment.
+        ProcessDynamicQuestKillProgress(event);
+    }
 
     // Milestone 2.8F: same reasoning as _eventBus above - drained right
     // after it, still before anything in this tick's UpdateNeeds() could
@@ -9832,7 +9840,140 @@ DynamicQuestPlayerAcceptResult AIWorldMgr::AcceptDynamicQuestForPlayer(DynamicQu
     result.Reason = DynamicQuestPlayerAcceptReason::None;
     TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_ACCEPTED dynamicQuestId={} agent={} inert=1",
         id.Value, giverAgentId.Value);
+
+    // Milestone 2.13C4: the ONE piece of player-facing feedback this
+    // still-inert (no gameplay mutation) method itself sends - `player`
+    // was already re-resolved live above, and acceptResult.Instance->Title
+    // is the same already-2.13B-validated text QuestProposal carried.
+    ChatHandler(player->GetSession()).PSendSysMessage("Accepted: %s", acceptResult.Instance->Title.c_str());
+
     return result;
+}
+
+// Milestone 2.13C4: see this method's own declaration comment in
+// AIWorldMgr.h for the Active-before-Offered priority and the shared
+// expiry treatment.
+AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(Creature* giverCreature, Player const* player)
+{
+    DynamicQuestGossipContent content;
+    if (!giverCreature || !player)
+        return content;
+
+    AgentRecord* record = FindLiveAgentBySpawn(_registry, giverCreature->GetMapId(), giverCreature->GetSpawnId());
+    if (!record)
+        return content;
+
+    uint64 nowMs = CurrentTimeMs();
+
+    if (DynamicQuestInstance const* active = _dynamicQuestRegistry.FindActiveByGiverAndPlayer(record->Id, player->GetGUID()))
+    {
+        if (!IsDynamicQuestExpired(*active, nowMs))
+        {
+            content.Kind = DynamicQuestGossipContent::ContentKind::Active;
+            content.Id = active->Id;
+            content.Title = active->Title;
+            content.Description = active->Description;
+            content.Progress = active->Progress;
+            content.RequiredCount = active->RequiredCount;
+        }
+        return content;
+    }
+
+    if (DynamicQuestInstance const* offered = _dynamicQuestRegistry.FindOfferedByGiver(record->Id))
+    {
+        if (!IsDynamicQuestExpired(*offered, nowMs))
+        {
+            content.Kind = DynamicQuestGossipContent::ContentKind::Offered;
+            content.Id = offered->Id;
+            content.Title = offered->Title;
+            content.Description = offered->Description;
+            content.Progress = offered->Progress;
+            content.RequiredCount = offered->RequiredCount;
+        }
+        return content;
+    }
+
+    return content;
+}
+
+// Milestone 2.13C4: see this method's own declaration comment in
+// AIWorldMgr.h for the native-flag-preservation rule.
+void AIWorldMgr::ReconcileDynamicQuestGossipFlag(Creature* giverCreature)
+{
+    if (!giverCreature)
+        return;
+
+    CreatureTemplate const* creatureTemplate = giverCreature->GetCreatureTemplate();
+    bool nativeHasGossipFlag = creatureTemplate && (creatureTemplate->npcflag & UNIT_NPC_FLAG_GOSSIP) != 0;
+
+    AgentRecord* record = FindLiveAgentBySpawn(_registry, giverCreature->GetMapId(), giverCreature->GetSpawnId());
+    bool hasLiveDynamicQuestState = record && _dynamicQuestRegistry.HasLiveInstanceForGiver(record->Id);
+
+    if (hasLiveDynamicQuestState)
+        giverCreature->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
+    else if (!nativeHasGossipFlag)
+        giverCreature->RemoveNpcFlag(UNIT_NPC_FLAG_GOSSIP);
+}
+
+// Milestone 2.13C4: see this method's own declaration comment in
+// AIWorldMgr.h for why this reuses the existing CreatureKilled WorldEvent
+// rather than inventing a new event type, and for the direct-killer-only
+// scope.
+void AIWorldMgr::ProcessDynamicQuestKillProgress(WorldEvent const& event)
+{
+    if (event.Type != WorldEventType::CreatureKilled)
+        return;
+
+    if (!event.Actor.Guid.IsPlayer())
+        return;
+
+    std::vector<DynamicQuestId> matches = _dynamicQuestRegistry.FindActiveByPlayerAndTarget(event.Actor.Guid, event.Target.Guid);
+    if (matches.empty())
+        return;
+
+    uint64 nowMs = CurrentTimeMs();
+    Player* player = ObjectAccessor::FindPlayer(event.Actor.Guid);
+
+    for (DynamicQuestId id : matches)
+    {
+        DynamicQuestTransitionResult result = _dynamicQuestRegistry.ApplyProgress(id, event.Actor.Guid, event.EventId, nowMs);
+        if (!result.IsAccepted())
+        {
+            TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_PROGRESS_REJECTED dynamicQuestId={} reason={}",
+                id.Value, ToString(result.Reason));
+            continue;
+        }
+
+        DynamicQuestInstance const& updated = *result.Instance;
+        TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_PROGRESS dynamicQuestId={} progress={} required={} inert=1",
+            id.Value, updated.Progress, updated.RequiredCount);
+
+        if (!player)
+            continue; // progress is still recorded - just nobody online to tell
+
+        if (updated.Progress < updated.RequiredCount)
+        {
+            ChatHandler(player->GetSession()).PSendSysMessage("%s",
+                FormatDynamicQuestKillProgressMessage(updated.Progress, updated.RequiredCount).c_str());
+            continue;
+        }
+
+        std::string giverName;
+        if (AgentRecord* giverRecord = _registry.Find(updated.Giver))
+        {
+            Map* map = sMapMgr->FindBaseNonInstanceMap(giverRecord->MapId);
+            if (Creature* giverCreature = ResolveLiveCreature(*giverRecord, map))
+                giverName = giverCreature->GetName();
+        }
+
+        ChatHandler(player->GetSession()).PSendSysMessage("%s",
+            FormatDynamicQuestObjectiveCompleteMessage(giverName).c_str());
+    }
+}
+
+uint64 AIWorldMgr::GetCurrentTimeMs() const
+{
+    return CurrentTimeMs();
 }
 
 // Milestone 2.13A3B: AIWorld.TestDynamicTaskAgentId - see this method's

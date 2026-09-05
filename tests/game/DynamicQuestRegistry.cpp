@@ -22,10 +22,10 @@
 
 namespace
 {
-    QuestProposal MakeValidProposal(uint32 requiredCount = 3)
+    QuestProposal MakeValidProposal(uint32 requiredCount = 3, uint64 giverValue = 42)
     {
         QuestProposal proposal;
-        proposal.Giver.Value = 42;
+        proposal.Giver.Value = giverValue;
         proposal.GiverRuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(1001, 555);
         proposal.SourceEventId = 9001;
         proposal.SourceEventType = WorldEventType::CreatureKilled;
@@ -47,9 +47,9 @@ namespace
     // the only sanctioned way a new instance may exist there - and
     // returns its id. Fails the calling TEST_CASE if the offer itself
     // was rejected.
-    DynamicQuestId OfferInto(DynamicQuestRegistry& registry, uint64 idValue, uint32 requiredCount = 3, uint64 nowMs = 10000)
+    DynamicQuestId OfferInto(DynamicQuestRegistry& registry, uint64 idValue, uint32 requiredCount = 3, uint64 nowMs = 10000, uint64 giverValue = 42)
     {
-        DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{idValue}, MakeValidProposal(requiredCount), nowMs);
+        DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{idValue}, MakeValidProposal(requiredCount, giverValue), nowMs);
         REQUIRE(result.IsAccepted());
         return DynamicQuestId{idValue};
     }
@@ -379,4 +379,148 @@ TEST_CASE("DynamicQuestRegistry::GetIdsAfterUntil returns nothing for maxCount 0
 
     REQUIRE(registry.GetIdsAfterUntil(DynamicQuestId{}, DynamicQuestId{1}, 0).empty());
     REQUIRE(registry.GetIdsAfterUntil(DynamicQuestId{1}, DynamicQuestId{1}, 100).empty()); // after >= until
+}
+
+// ---------------------------------------------------------------------
+// Milestone 2.13C4: gossip-UI queries
+// ---------------------------------------------------------------------
+
+TEST_CASE("DynamicQuestRegistry::FindOfferedByGiver finds an Offered instance for that giver", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+
+    DynamicQuestInstance const* found = registry.FindOfferedByGiver(AgentId{42});
+    REQUIRE(found != nullptr);
+    REQUIRE(found->Id == DynamicQuestId{1});
+    REQUIRE(found->State == DynamicQuestState::Offered);
+}
+
+TEST_CASE("DynamicQuestRegistry::FindOfferedByGiver returns nullptr for a giver with no Offered instance", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+
+    REQUIRE(registry.FindOfferedByGiver(AgentId{999}) == nullptr);
+}
+
+TEST_CASE("DynamicQuestRegistry::FindOfferedByGiver ignores an Active instance from the same giver", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    REQUIRE(registry.Accept(DynamicQuestId{1}, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000).IsAccepted());
+
+    REQUIRE(registry.FindOfferedByGiver(AgentId{42}) == nullptr);
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByGiverAndPlayer finds the accepting player's own Active instance", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    DynamicQuestInstance const* found = registry.FindActiveByGiverAndPlayer(AgentId{42}, player);
+    REQUIRE(found != nullptr);
+    REQUIRE(found->Id == DynamicQuestId{1});
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByGiverAndPlayer returns nullptr for a different player", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    ObjectGuid player1 = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    ObjectGuid player2 = ObjectGuid::Create<HighGuid::Player>(uint32(2));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player1, 10000).IsAccepted());
+
+    REQUIRE(registry.FindActiveByGiverAndPlayer(AgentId{42}, player2) == nullptr);
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByGiverAndPlayer returns nullptr while still Offered", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+
+    REQUIRE(registry.FindActiveByGiverAndPlayer(AgentId{42}, ObjectGuid::Create<HighGuid::Player>(uint32(1))) == nullptr);
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget finds the matching Active instance", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    std::vector<DynamicQuestId> found = registry.FindActiveByPlayerAndTarget(player, stored->TargetGuid);
+    REQUIRE(found.size() == 1);
+    REQUIRE(found[0] == DynamicQuestId{1});
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget ignores a different player's matching target", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1);
+    ObjectGuid player1 = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    ObjectGuid player2 = ObjectGuid::Create<HighGuid::Player>(uint32(2));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player1, 10000).IsAccepted());
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    REQUIRE(registry.FindActiveByPlayerAndTarget(player2, stored->TargetGuid).empty());
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget ignores a still-Offered instance", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1);
+
+    DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.FindActiveByPlayerAndTarget(player, stored->TargetGuid).empty());
+}
+
+TEST_CASE("DynamicQuestRegistry::FindActiveByPlayerAndTarget ignores a non-matching target guid", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    REQUIRE(registry.FindActiveByPlayerAndTarget(player, ObjectGuid::Create<HighGuid::Unit>(9999, 1)).empty());
+}
+
+TEST_CASE("DynamicQuestRegistry::HasLiveInstanceForGiver is true while Offered", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+
+    REQUIRE(registry.HasLiveInstanceForGiver(AgentId{42}));
+}
+
+TEST_CASE("DynamicQuestRegistry::HasLiveInstanceForGiver is true while Active", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    REQUIRE(registry.Accept(DynamicQuestId{1}, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000).IsAccepted());
+
+    REQUIRE(registry.HasLiveInstanceForGiver(AgentId{42}));
+}
+
+TEST_CASE("DynamicQuestRegistry::HasLiveInstanceForGiver is false for an unknown giver", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+
+    REQUIRE_FALSE(registry.HasLiveInstanceForGiver(AgentId{999}));
+}
+
+TEST_CASE("DynamicQuestRegistry::HasLiveInstanceForGiver is false once Expired", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+
+    DynamicQuestInstance const* offered = registry.Find(DynamicQuestId{1});
+    REQUIRE(registry.Expire(DynamicQuestId{1}, offered->ExpiresAtMs).IsAccepted());
+
+    REQUIRE_FALSE(registry.HasLiveInstanceForGiver(AgentId{42}));
 }

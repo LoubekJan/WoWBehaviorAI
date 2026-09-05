@@ -75,6 +75,8 @@ TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[Dynam
 
     REQUIRE(instance.Id == DynamicQuestId{777});
     REQUIRE(instance.State == DynamicQuestState::Offered);
+    REQUIRE(instance.Title == proposal.Title);
+    REQUIRE(instance.Description == proposal.Description);
     REQUIRE(instance.Giver.Value == proposal.Giver.Value);
     REQUIRE(instance.GiverRuntimeGuid == proposal.GiverRuntimeGuid);
     REQUIRE(instance.Objective == proposal.Objective);
