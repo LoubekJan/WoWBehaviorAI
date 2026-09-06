@@ -449,6 +449,30 @@ class TC_GAME_API AIWorldMgr
         // window with no feedback at all.
         DynamicQuestPlayerCompleteResult CompleteDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
 
+        // Milestone 2.13C5 P1 fix (STATIC review, round 3): the shared
+        // "an incorrectly-applied dynamic quest reward must be reverted,
+        // and verified, not just attempted" logic
+        // CompleteDynamicQuestForPlayer() needs at two separate points
+        // (the forward grant's own postcondition check, and the
+        // Complete()-rejection fallback). Reverts by the real observed
+        // balance delta (player->GetMoney() - moneyBeforeReward), never
+        // an assumed fixed amount, then verifies both ModifyMoney()'s own
+        // bool return AND that the balance actually landed back on
+        // moneyBeforeReward. If either check fails, the instance is made
+        // immediately non-replayable - DynamicQuestRegistry::Fail(id,
+        // nowMs) is attempted (best effort; its own result is only
+        // logged, not required), then Remove(id) unconditionally, since
+        // by this point preventing a repeat money mutation matters more
+        // than a clean terminal-state transition. Logs
+        // DYNAMIC_QUEST_REWARD_COMPENSATION_FAILED at FATAL only in that
+        // failure case. Returns true if the player's balance is
+        // confirmed back at moneyBeforeReward (instance untouched);
+        // false if the instance was just Fail()ed/Remove()d instead (the
+        // caller must report DynamicQuestPlayerCompleteReason::
+        // RewardApplicationFailed and stop, never fall through to acting
+        // on this id again).
+        bool CompensateDynamicQuestReward(DynamicQuestId id, uint64 nowMs, Player* player, uint32 moneyBeforeReward);
+
         // Milestone 2.13C4: read-only gossip-UI query -
         // AIWorldCreatureAI::OnGossipHello() calls this to decide what (if
         // anything) to show a specific player at a specific giver

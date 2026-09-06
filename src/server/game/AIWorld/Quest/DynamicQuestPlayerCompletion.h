@@ -124,6 +124,24 @@ enum class DynamicQuestPlayerCompleteReason : uint8
     // free of any Player.h/live-object dependency.
     RewardMoneyLimit,
 
+    // Milestone 2.13C5 P1/P3 fix (STATIC review, round 3): a distinct
+    // reason from RewardMoneyLimit above - Player::ModifyMoney() itself
+    // reported success (or was never even refused for hitting the money
+    // cap), but the player's balance did not end up moved by exactly
+    // RewardMoneyCopper (a script's PlayerScript::OnMoneyChanged()
+    // mutated the applied amount - see AIWorldMgr::
+    // CompleteDynamicQuestForPlayer()'s own comment) or a subsequent
+    // compensation/rollback of an incorrectly-applied amount could not
+    // itself be verified. This is never an affordability problem, so it
+    // must never be reported (to the log or the player) as
+    // RewardMoneyLimit. When the underlying amount discrepancy could not
+    // be safely reverted, the instance is also immediately Fail()ed and
+    // Remove()d (see that method's own comment) rather than left
+    // ReadyToTurnIn for a replay attempt - this reason therefore covers
+    // both "reverted cleanly, rejected" and "could not revert,
+    // terminated" outcomes; the log line's own reason= disambiguates.
+    RewardApplicationFailed,
+
     // DynamicQuestRegistry::Complete() itself rejected - see the log
     // line's own reason= for the precise underlying
     // DynamicQuestRejectReason (AlreadyTerminal/InvalidTransition/

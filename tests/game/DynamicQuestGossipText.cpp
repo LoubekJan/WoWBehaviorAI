@@ -88,6 +88,7 @@ TEST_CASE("FormatDynamicQuestCompleteRejectedMessage", "[DynamicQuestGossipText]
         REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::InvalidQuestState) == "Unable to turn in dynamic task.");
         REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::AlreadyExpired) == "Unable to turn in dynamic task.");
         REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::ProgressIncomplete) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::RewardApplicationFailed) == "Unable to turn in dynamic task.");
         REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::CompleteRejected) == "Unable to turn in dynamic task.");
     }
 }

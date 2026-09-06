@@ -39,6 +39,7 @@ char const* ToString(DynamicQuestPlayerCompleteReason reason)
         case DynamicQuestPlayerCompleteReason::AlreadyExpired:         return "ALREADY_EXPIRED";
         case DynamicQuestPlayerCompleteReason::ProgressIncomplete:     return "PROGRESS_INCOMPLETE";
         case DynamicQuestPlayerCompleteReason::RewardMoneyLimit:       return "REWARD_MONEY_LIMIT";
+        case DynamicQuestPlayerCompleteReason::RewardApplicationFailed: return "REWARD_APPLICATION_FAILED";
         case DynamicQuestPlayerCompleteReason::CompleteRejected:       return "COMPLETE_REJECTED";
     }
     return "UNKNOWN";

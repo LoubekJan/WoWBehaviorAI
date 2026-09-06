@@ -387,6 +387,7 @@ TEST_CASE("ToString(DynamicQuestPlayerCompleteReason) covers every enumerator", 
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::AlreadyExpired)) == "ALREADY_EXPIRED");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::ProgressIncomplete)) == "PROGRESS_INCOMPLETE");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::RewardMoneyLimit)) == "REWARD_MONEY_LIMIT");
+    REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::RewardApplicationFailed)) == "REWARD_APPLICATION_FAILED");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::CompleteRejected)) == "COMPLETE_REJECTED");
 }
 
