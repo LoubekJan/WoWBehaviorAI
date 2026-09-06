@@ -9878,14 +9878,19 @@ bool AIWorldMgr::CompensateDynamicQuestReward(DynamicQuestId id, uint64 nowMs, P
     // Genuinely critical: an incorrect amount of money was left on the
     // player's balance and the attempt to revert it could not itself be
     // verified. Preventing a repeat mutation now matters more than a
-    // clean terminal-state transition - Fail() is attempted (best
-    // effort, its own result only logged) but Remove() runs regardless.
-    DynamicQuestTransitionResult failResult = _dynamicQuestRegistry.Fail(id, nowMs);
-    bool removed = _dynamicQuestRegistry.Remove(id);
+    // clean terminal-state transition - DynamicQuestRegistry::
+    // TerminateForReplayContainment() attempts Fail() best effort (its
+    // own result only logged) but Remove()s regardless. Milestone
+    // 2.13C5 P3 fix (STATIC review, round 4): pulled out of this method
+    // into that pure, registry-only primitive specifically so this exact
+    // "compensation unverifiable -> terminate -> no replay" sequence has
+    // direct Catch2 coverage, not just this live-Player-orchestration
+    // caller.
+    DynamicQuestRegistry::DynamicQuestTerminationResult termination = _dynamicQuestRegistry.TerminateForReplayContainment(id, nowMs);
 
     TC_LOG_FATAL("ai.world", "DYNAMIC_QUEST_REWARD_COMPENSATION_FAILED dynamicQuestId={} failReason={} removed={} "
         "moneyBefore={} moneyNow={}",
-        id.Value, ToString(failResult.Reason), removed, moneyBeforeReward, player->GetMoney());
+        id.Value, ToString(termination.FailReason), termination.Removed, moneyBeforeReward, player->GetMoney());
 
     return false;
 }

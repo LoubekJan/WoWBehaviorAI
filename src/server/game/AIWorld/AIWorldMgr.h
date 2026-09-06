@@ -469,11 +469,13 @@ class TC_GAME_API AIWorldMgr
         // an assumed fixed amount, then verifies both ModifyMoney()'s own
         // bool return AND that the balance actually landed back on
         // moneyBeforeReward. If either check fails, the instance is made
-        // immediately non-replayable - DynamicQuestRegistry::Fail(id,
-        // nowMs) is attempted (best effort; its own result is only
-        // logged, not required), then Remove(id) unconditionally, since
-        // by this point preventing a repeat money mutation matters more
-        // than a clean terminal-state transition. Logs
+        // immediately non-replayable via
+        // DynamicQuestRegistry::TerminateForReplayContainment(id, nowMs)
+        // (Milestone 2.13C5 P3 fix, round 4: that Fail()-then-
+        // unconditional-Remove() sequence now lives as its own pure,
+        // registry-only, directly Catch2-tested primitive - see its own
+        // comment for why preventing a repeat money mutation matters more
+        // at that point than a clean terminal-state transition). Logs
         // DYNAMIC_QUEST_REWARD_COMPENSATION_FAILED at FATAL only in that
         // failure case. Returns true if the player's balance is
         // confirmed back at moneyBeforeReward (instance untouched);

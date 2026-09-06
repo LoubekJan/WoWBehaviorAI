@@ -289,6 +289,33 @@ class TC_GAME_API DynamicQuestRegistry
         // will reclaim it as Expired shortly regardless).
         uint32 FailAllActiveInstances(uint64 nowMs);
 
+        // The result of one TerminateForReplayContainment() call - see
+        // that method's own comment.
+        struct DynamicQuestTerminationResult
+        {
+            DynamicQuestRejectReason FailReason = DynamicQuestRejectReason::NotAttempted;
+            bool Removed = false;
+        };
+
+        // Milestone 2.13C5 P3 fix (STATIC review, round 4): pure,
+        // registry-only replay-containment primitive - the "Fail() best
+        // effort, then unconditionally Remove() regardless of Fail()'s
+        // own result" sequence AIWorldMgr::CompensateDynamicQuestReward()
+        // needs once a reward compensation could not itself be verified
+        // (see that method's own comment for why preventing a repeat
+        // mutation matters more at that point than a clean terminal-
+        // state transition). No Player*/live money orchestration
+        // whatsoever - this only ever touches this registry's own stored
+        // state, which is exactly what makes it directly Catch2-testable
+        // (unlike the live ModifyMoney() calls around its only caller).
+        // Removed is true whenever id was actually erased, independent
+        // of whether Fail() itself succeeded, rejected (e.g. because the
+        // instance was already terminal or expired), or found nothing -
+        // in every one of those cases the id can no longer be found or
+        // acted on afterward, which is the only property replay
+        // containment actually needs.
+        DynamicQuestTerminationResult TerminateForReplayContainment(DynamicQuestId id, uint64 nowMs);
+
     private:
         std::map<uint64, DynamicQuestInstance> _quests;
 

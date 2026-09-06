@@ -279,3 +279,11 @@ uint32 DynamicQuestRegistry::FailAllActiveInstances(uint64 nowMs)
 
     return failedCount;
 }
+
+DynamicQuestRegistry::DynamicQuestTerminationResult DynamicQuestRegistry::TerminateForReplayContainment(DynamicQuestId id, uint64 nowMs)
+{
+    DynamicQuestTerminationResult result;
+    result.FailReason = Fail(id, nowMs).Reason;
+    result.Removed = Remove(id);
+    return result;
+}

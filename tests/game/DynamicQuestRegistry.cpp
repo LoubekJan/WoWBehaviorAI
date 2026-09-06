@@ -786,3 +786,81 @@ TEST_CASE("DynamicQuestRegistry::Remove erases a Completed instance so Find() no
     REQUIRE(registry.Remove(DynamicQuestId{1}));
     REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
 }
+
+// ---------------------------------------------------------------------
+// Milestone 2.13C5 P3 fix (STATIC review, round 4): TerminateForReplayContainment()
+// - the exact "rollback could not restore balance -> Fail() -> unconditional
+// Remove() -> no replay" sequence AIWorldMgr::CompensateDynamicQuestReward()
+// relies on, now directly testable without any live Player/money orchestration.
+// ---------------------------------------------------------------------
+
+TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment fails and removes a live Active instance", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+    OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+    ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+    DynamicQuestRegistry::DynamicQuestTerminationResult result = registry.TerminateForReplayContainment(DynamicQuestId{1}, 10000);
+    REQUIRE(result.FailReason == DynamicQuestRejectReason::None);
+    REQUIRE(result.Removed);
+    REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+}
+
+TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment still removes even when Fail() itself rejects", "[DynamicQuestRegistry]")
+{
+    // The core property this method exists for: an instance in a state
+    // Fail() itself refuses to touch (still Offered, or already
+    // terminal) must still end up unreachable afterward - replay
+    // containment does not depend on Fail() succeeding.
+    SECTION("still Offered - Fail() rejects InvalidTransition")
+    {
+        DynamicQuestRegistry registry;
+        OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+
+        DynamicQuestRegistry::DynamicQuestTerminationResult result = registry.TerminateForReplayContainment(DynamicQuestId{1}, 10000);
+        REQUIRE(result.FailReason == DynamicQuestRejectReason::InvalidTransition);
+        REQUIRE(result.Removed);
+        REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+    }
+
+    SECTION("already Failed - Fail() rejects AlreadyTerminal")
+    {
+        DynamicQuestRegistry registry;
+        OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+        ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+        REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+        REQUIRE(registry.Fail(DynamicQuestId{1}, 10000).IsAccepted());
+
+        DynamicQuestRegistry::DynamicQuestTerminationResult result = registry.TerminateForReplayContainment(DynamicQuestId{1}, 10000);
+        REQUIRE(result.FailReason == DynamicQuestRejectReason::AlreadyTerminal);
+        REQUIRE(result.Removed);
+        REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+    }
+
+    SECTION("already expired past its own deadline - Fail() rejects AlreadyExpired")
+    {
+        DynamicQuestRegistry registry;
+        OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
+        ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+        REQUIRE(registry.Accept(DynamicQuestId{1}, player, 10000).IsAccepted());
+
+        DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
+        uint64 expiresAtMs = stored->ExpiresAtMs;
+
+        DynamicQuestRegistry::DynamicQuestTerminationResult result = registry.TerminateForReplayContainment(DynamicQuestId{1}, expiresAtMs);
+        REQUIRE(result.FailReason == DynamicQuestRejectReason::AlreadyExpired);
+        REQUIRE(result.Removed);
+        REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+    }
+}
+
+TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment is a safe no-op for an unknown id", "[DynamicQuestRegistry]")
+{
+    DynamicQuestRegistry registry;
+
+    DynamicQuestRegistry::DynamicQuestTerminationResult result = registry.TerminateForReplayContainment(DynamicQuestId{999}, 10000);
+    REQUIRE(result.FailReason == DynamicQuestRejectReason::QuestNotFound);
+    REQUIRE_FALSE(result.Removed);
+    REQUIRE(registry.Find(DynamicQuestId{999}) == nullptr);
+}
