@@ -764,6 +764,8 @@ Leadership/role vrstva (leader agent, role assignment) se přidá **teprve tehdy
 
 ## 2.13 LLM dynamic quest / player interaction vertical slice
 
+> **Poznámka k historickému logu:** current execution status pro `2.13C1`–`C5` a navazující closure gates (`C6`, `D`) je veden v [`AIWorld_Current_Roadmap.md`](AIWorld_Current_Roadmap.md) — tato sekce níže je původní design target/checklist, ne aktuální stav. Viz banner na začátku tohoto dokumentu.
+
 **Účel této části není stavět komplexní questový obsah Etapy 4. Jejím cílem je před world-preparation Etapou 3 a následným komplexním světem Etapy 4 vyřešit a runtime ověřit technologický řetězec, ze kterého budou dynamické problémy/questy živého světa později vznikat.**
 
 Etapa 2 se nesmí uzavřít pouze mock/deterministic rozhodováním. Musí existovat alespoň jeden runtime vertical slice, ve kterém **skutečný lokální LLM přes oddělený `ai-server`** dostane omezený kontext skutečného problému světa, vrátí strukturovaný návrh interakce/úkolu a server návrh bezpečně validuje před tím, než jej uvidí hráč.

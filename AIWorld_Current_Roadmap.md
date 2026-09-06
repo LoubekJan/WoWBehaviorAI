@@ -1,10 +1,12 @@
 # AIWorld — Current Roadmap
 
-> **Aktualizováno:** 2026-09-02  
+> **Aktualizováno:** 2026-09-06  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `e0f0eef1cb7ea92547c73f9e8c05b224b3ea1924`  
+> **Aktuální code baseline před tímto docs commitem:** `0fcf825c5a3747980597b0c2762c2a0bb4e92a53`  
 > **Detailní roadmap sync před tímto commitem:** `fe5672f48c42314497afd01dac26abe4cfb5c629`
+>
+> Pokud mezi tímto docs commitem a jeho skutečným pushem přibude další code commit na `ai-world`, baseline výše je nutné před merge znovu načíst.
 
 ## Základní invariant
 
@@ -69,9 +71,9 @@ Platí pro všechny další milníky:
 | 2.12F4C/F4D — world-scale hardening (O(1) index, bounded recurring work) + full-world bootstrap | **DEFERRED — not required for single-location work; required before any eventual full-world rollout, see 2.12F4C's own Priorita** |
 | 2.12G1 — druhý coalition profile (genericity proof) | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
-| 2.12G3 — generic HUNT/coordinated combat contract | **IN PROGRESS — G3A/G3B/G3C1/G3C2 CLOSED, G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS, G3 lifecycle closure IN PROGRESS** |
+| 2.12G3 — generic HUNT/coordinated combat contract | **CLOSED — G3A/G3B/G3C1/G3C2/G3D CLOSED (G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS); G3 lifecycle closure STATIC repaired (P1=0/P2=0/P3=0) and cumulatively BUILD-verified by every subsequent full 2.13 build, not independently re-verified in isolation** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
-| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B CLOSED; next 2.13C** |
+| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B + C1/C2/C3/C4 CLOSED; C5 implemented and under final closure review (STATIC repairs landed, BUILD/UNIT/client runtime turn-in proof pending); D partially runtime-proven through C4** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
 | Etapa 3 — Elwynn world preparation | **PLANNED** |
 | Etapa 4 — Living World | **PLANNED** |
@@ -857,7 +859,7 @@ AIWorld.TestDissolveOnActiveRoamGroupId = 0
 
 ## 2.12G3 — generic HUNT / coordinated combat preparation
 
-**Stav: IN PROGRESS — G3A, G3B, G3C1 a G3C2 CLOSED. G3D (real group combat) je live-confirmed PASS: skuteční group members dokončili HUNT approach → ATTACK → melee damage (`DoMeleeAttackIfReady()`) → prchající target skutečně pronásledovaný (`MoveChase()`) → `TARGET_DEFEATED` pro oba členy skupiny, phantom-FLEE_DANGER se u HUNT membera neaktivoval, žádný `NO_FLEE_SOURCE`/`COORDINATION_PREEMPTED_BY_GOAL`/fatal/pád. Poslední otevřený kus je `G3 lifecycle closure` (Approaching/AtTarget/Engaging bezpečně obsloužené přes PREEMPTED_BY_GOAL, STOPPED_BY_LIFECYCLE, STOPPED_BY_MEMBERSHIP_AMBIGUITY, STOPPED_BY_TARGET_INVALID, PREEMPTED_BY_REGROUP a TARGET_DEFEATED) - IN PROGRESS, viz `2.12G3D` níže.**
+**Stav: CLOSED — G3A, G3B, G3C1 a G3C2 CLOSED. G3D (real group combat) je live-confirmed PASS: skuteční group members dokončili HUNT approach → ATTACK → melee damage (`DoMeleeAttackIfReady()`) → prchající target skutečně pronásledovaný (`MoveChase()`) → `TARGET_DEFEATED` pro oba členy skupiny, phantom-FLEE_DANGER se u HUNT membera neaktivoval, žádný `NO_FLEE_SOURCE`/`COORDINATION_PREEMPTED_BY_GOAL`/fatal/pád. `G3 lifecycle closure` (Approaching/AtTarget/Engaging bezpečně obsloužené přes PREEMPTED_BY_GOAL, STOPPED_BY_LIFECYCLE, STOPPED_BY_MEMBERSHIP_AMBIGUITY, STOPPED_BY_TARGET_INVALID, PREEMPTED_BY_REGROUP a TARGET_DEFEATED) je STATIC repaired a cumulatively BUILD-verified všemi navazujícími plnými 2.13 buildy, viz `2.12G3 lifecycle closure` níže pro přesný rozsah tohoto tvrzení.**
 
 Až po stabilním G1/G2 (tedy až po `2.12G2R` closure výše) — první commit ještě neútočí, jen navrhuje kontrakt.
 
@@ -1087,7 +1089,7 @@ Poslední otevřený kus je `G3 lifecycle closure` níže.
 
 ## 2.12G3 lifecycle closure
 
-**Stav: IN PROGRESS — STATIC review PASS (P1=0/P2=0/P3=2, oba P3 opravené níže), BUILD NOT VERIFIED.**
+**Stav: CLOSED — STATIC review PASS (P1=0/P2=0/P3=2, oba P3 opravené níže), cumulatively BUILD-verified: tento lifecycle repair commit (`b5bda315...`) předchází všechny 2.13 commity a každý pozdější plný 2.13 build (A1 přes C5) tedy kompiloval i tento kód beze změny. Není to samostatné, izolované re-verifikování všech šesti terminačních variant zvlášť — pokud je potřeba přísnější milestone-specific evidence, je nutné je znovu runtime přehrát samostatně.**
 
 Sjednocuje bezpečné chování napříč `HuntPhase::Approaching`, `AtTarget` a `Engaging` pro všech šest ukončujících událostí:
 
@@ -1275,15 +1277,157 @@ Runtime pozitivní běh pro request `336`, agent `214023`, snapshot `2` prokáza
 
 Negativní běh requestu `30` skončil explicitně na `STALE_SNAPSHOT` po `1226 ms`, tedy fail-closed ještě v A3B acceptance. Běh requestu `127` prošel provenance i live target re-resolution a authoritative validator jej explicitně odmítl s `LIVE_TARGET_OUT_OF_RANGE`. Tím je negativní důkaz založený na skutečném reject výsledku, ne na absenci logu. Timing citlivost sdílené `SnapshotSequence` vůči běžnému decision scheduleru zůstává evidovaná pro 2.13D; staleness check se kvůli testu neoslabuje.
 
-Po testu byly `AIWorld.DynamicTaskEnable`, `AIWorld.TestDynamicTaskAgentId` a dočasně změněné decision/range hodnoty vráceny na default. `BUILD_TESTING=OFF`; `ai-server /health` potvrzuje `task_model_enabled=false`. Candidate/proposal zůstává po validaci inertní: žádný quest marker, player quest, reward, DB zápis, `ActionRequest` ani world mutation.
+Po testu byly `AIWorld.DynamicTaskEnable`, `AIWorld.TestDynamicTaskAgentId` a dočasně změněné decision/range hodnoty vráceny na default. `BUILD_TESTING=OFF`; `ai-server /health` potvrzuje `task_model_enabled=false`.
 
-### 2.13C — player-facing lifecycle
+**2.13B samo o sobě zůstává gameplay-inertní:** validace sama o sobě neprovádí žádnou player/world mutaci — `ValidateDynamicTaskCandidate()` pouze produkuje typed reject reason nebo `QuestProposal`, nikdy sama nezapisuje quest marker, DB řádek, `ActionRequest` ani jinou fyzickou akci. Downstream `2.13C` tento validovaný `QuestProposal` skutečně konzumuje přes své vlastní, nezávislé live re-validation hranice (`DynamicQuestCreation`/`DynamicQuestPlayerAcceptance`/`DynamicQuestPlayerCompletion`) — tvrzení "candidate/proposal je inertní" platí jen pro tuto B hranici samotnou, ne globálně přes celou branch od `2.13C1` dál.
 
-Minimálně offer → accept → active → completed/failed/expired s jednoznačnou identity a authoritative progress z TrinityCore events.
+### 2.13C — player-facing dynamic quest lifecycle
 
-### 2.13D — runtime gate
+**Stav: IN PROGRESS — C1/C2/C3/C4 CLOSED, C5 implementováno a prošlo několika STATIC repair koly, finální closure gate (BUILD/UNIT/runtime turn-in proof) pending.**
 
-Jeden skutečný LLM call musí být součástí end-to-end cesty a timeout/malformed/stale/outage musí mít safe fallback.
+#### 2.13C1 — pure lifecycle domain
+
+**Stav: CLOSED.**
+
+- `Offered` / `Active` / `Completed` / `Failed` / `Expired` a explicitní legální přechody mezi nimi;
+- jeden kanonický expiry predikát (`IsDynamicQuestExpired`), nezávislý na `State`;
+- authoritative player binding (`AcceptedByPlayerGuid`), bez pozdější re-assignace;
+- idempotentní konzumace progress eventů (`ConsumedProgressEventIds`), saturující na `RequiredCount`;
+- čistě pure value-object doména — žádný live `Creature*`/`Player*`/`Map*`.
+
+#### 2.13C2 — registry ownership / validated offer handoff
+
+**Stav: CLOSED.**
+
+- `DynamicQuestRegistry` vlastní všechny live instance, žádný caller-supplied transition commit (registry si vždy sama najde svou vlastní stored hodnotu, nikdy nedůvěřuje hodnotě od volajícího — uzavřelo to konkrétní STATIC nález, kde fabrikovaná `DynamicQuestInstance` se stejným Id/Revision mohla legitimně projít pure lifecycle funkcí);
+- monotónní, process-lifetime `DynamicQuestId` (bez recyklace);
+- `Offer()` je jediná cesta, jak nová instance vznikne — vždy fresh re-validace givera/targetu před vznikem;
+- bounded registry (`AIWorld.DynamicQuestMaxLive`) + bounded/cursor-resumable maintenance reclaim expirovaných záznamů.
+
+#### 2.13C3 — player accept boundary
+
+**Stav: CLOSED.**
+
+- `AcceptDynamicQuestForPlayer()` fresh re-resolvuje hráče (online/alive) i givera (AgentRecord, runtime incarnation, `Materialized`/`AIWorldControlled`/alive) — nikdy necachuje ani nedůvěřuje dřívějšímu stavu;
+- giver runtime-incarnation validace (`GiverRuntimeGuid`) — despawn/respawn giver už nesmí legitimně dokončit starou nabídku;
+- same-map + interaction-range gate (`AIWorld.DynamicQuestPlayerAcceptMaxRangeYards`), fail-closed na neplatnou/nekonečnou/NaN policy hodnotu;
+- registry-owned `Offered → Active` přechod přes `DynamicQuestRegistry::Accept()`;
+- žádná závislost na standardním TrinityCore quest logu/`QuestTemplate`.
+
+#### 2.13C4 — visible player-facing offer + progress
+
+**Stav: CLOSED — STATIC + BUILD + RUNTIME PASS.**
+
+Runtime-potvrzený řetězec:
+
+```text
+real WorldEvent
+    ↓
+real local-model /dynamic-task request
+    ↓
+provenance validation
+    ↓
+validated QuestProposal
+    ↓
+Offered dynamic quest
+    ↓
+visible NPC gossip (vlastní UNIT_NPC_FLAG_GOSSIP overlay, nikdy nemaže native NPC flag)
+    ↓
+player Accept
+    ↓
+real direct-player KILL_CREATURE events (authoritative, ne test/fake progress)
+    ↓
+1/N ... N/N
+    ↓
+"Return to giver" player-facing feedback
+```
+
+Runtime navíc potvrzeno:
+
+- native NPC gossip (vendor/trainer/quest-giver/DB-driven položky) zůstává funkční i pro NPC s aktivním dynamic questem — merge, ne suppress;
+- kill jiného hráče nezvyšuje progress questu, který přijal první hráč — druhý hráč zabije správného moba, ale cizí quest se nehne;
+- progress matchuje authoritative `TargetEntry` + `MapId`, ne exact runtime `TargetGuid` (`RequiredCount > 1` tedy znamená "N creatures daného typu", ne "jeden konkrétní spawn N-krát");
+- ztracený/duplicitní kill-credit event je řešen fail-closed (oddělený `DynamicQuestKillEventBus` od lossy perception EventBusu; detekovaný drop force-failuje každý aktuální Active dynamic quest, nikdy ho nenechá tiše viset na možná špatném progressu).
+
+Tento milník nevyžaduje standardní quest log ani `QuestTemplate` — to je vědomě mimo scope, viz `2.13C6`/`2.13D` níže pro navazující práci.
+
+#### 2.13C5 — turn-in / completion / money reward
+
+**Stav: IN PROGRESS — implementace + review repair kola landed, finální closure gate pending.**
+
+Implementováno:
+
+- `RewardMoneyCopper` zkopírovaný jednou z už validovaného `QuestProposal` do `DynamicQuestInstance` (nikdy znovu čtený z modelu);
+- `ReadyToTurnIn` gossip stav, oddělený od obyčejného `Active` (`IsDynamicQuestObjectiveComplete()` jako jeden kanonický predikát, sdílený gossip query i lifecycle commitem);
+- reálná "Turn in" player akce v gossip menu, se stejnou native-gossip-merge disciplínou jako C4;
+- fresh re-validace hráče/givera/bindingu/range/State/expiry před jakoukoli reward mutací — `CheckDynamicQuestPlayerCompleteApplicability()` sama kontroluje `State == Active` a expiry (ne jen `ProgressIncomplete`/money), navíc doplněná nezávislým non-committing `CompleteDynamicQuest()` preflightem jako defense-in-depth;
+- `Active → Completed` výhradně přes `DynamicQuestRegistry::Complete()`;
+- reward vyplacený přes `Player::ModifyMoney()`, nikdy přímý zápis pole;
+- money-cap odmítnutí přesně zrcadlící reálnou `ModifyMoney()` semantiku (`player.Money + reward` musí být striktně pod `MAX_MONEY_AMOUNT`, ne `<=`);
+- in-process replay/double-payout ochrana — úspěšný `Complete()` okamžitě `Remove()`uje instanci z registry, takže druhý pokus najde jen `QuestNotFound`;
+- player-facing feedback i při zamítnutém turn-inu (dřív tichý gossip close);
+- žádná standardní quest-log/`QuestTemplate` závislost, žádná DB persistence, žádný group/party credit.
+
+Closure ještě vyžaduje:
+
+- finální STATIC review aktuálního HEAD;
+- BUILD;
+- plný UNIT suite;
+- runtime: Turn in → skutečný nárůst peněz o reward → quest zmizí z gossipu (native gossip zůstává funkční) → replay stejného kliknutí nedá druhý reward/log → druhý hráč nemůže turn-inout ani vybrat reward z questu prvního hráče.
+
+Runtime happy path (offer → accept → 1/3 → 2/3 → 3/3 → turn-in → reálný `Player::ModifyMoney()` payout) už byl jednou provlečen a potvrzen; zbývá formální closure gate výše.
+
+#### 2.13C6 — quest outcome → WorldEvent / issuer feedback (PLANNED)
+
+**Stav: PLANNED, next po C5 closure.**
+
+Detailní historická roadmap (`AI_TrinityCore_Roadmap_Etapa_1_2.md`) požaduje, aby completion/failure/expiry vydal typed `WorldEvent` použitelný `Perception`/`Memory`/`Goal` pipeline, a aby výsledek uměl změnit skutečný problém světa nebo stav/goal/memory issuer NPC. `2.13C5` toto zatím nedělá — dokončuje player quest lifecycle + reward, ale výsledek se nevrací zpět do kauzálního AI světa.
+
+```text
+Completed / Failed / Expired
+        ↓
+typed authoritative WorldEvent
+        ↓
+Perception
+        ↓
+Memory
+        ↓
+issuer NPC / problem state
+```
+
+Vědomě vyčleněno jako vlastní produkční feature (ne testovací gate), protože jde o rozšíření, ne jen o closure existujícího scope.
+
+### Restart / persistence semantics (rozhodnuto explicitně, ne odloženo mlčky)
+
+`DynamicQuestRegistry` je dnes čistě process-local in-memory registr — žádná DB tabulka, žádný persistence boundary. To je vědomé, ne přehlédnuté rozhodnutí pro `2.13C1`–`C5`:
+
+- dynamic quest instance mají **process lifetime**, ne DB-backed persistenci;
+- worldserver restart zahodí všechny aktuálně `Offered`/`Active` dynamic quests beze stopy (žádná orphaned DB row, protože žádná DB row nikdy nevznikla);
+- reconnect **bez** restartu quest zachová — nic v `2.13C1`–`C5` necachuje hráčovu session ani live pointer přes odpojení, vazba je vždy přes `ObjectGuid`/`AgentId`, které přežijí reconnect;
+- perzistentní (DB-backed, restart-survivující) dynamic quests jsou vědomě budoucí práce, ne součást `2.13C1`–`C6`. Pokud se ukáže jako potřeba, dostane vlastní explicitní milestone (např. `2.13C7`) až v okamžiku, kdy bude jasné, co přesně má přežít restart a jak se to smíří s `DynamicQuestId`'s dnešní čistě in-process monotónní alokací.
+
+### 2.13D — final end-to-end closure gate
+
+**Stav: PARTIALLY PROVEN.**
+
+Runtime už prokázáno přes `2.13C4`:
+
+- real `WorldEvent`;
+- real local-model `/dynamic-task` call;
+- provenance validace;
+- viditelná player-facing nabídka;
+- real Accept;
+- authoritative TrinityCore kill progress;
+- objective-complete player feedback.
+
+Před uzavřením `2.13` ještě zbývá:
+
+- `2.13C5` real turn-in + reward + replay proof (closure gate výše);
+- `2.13C6` — completion/failure/expiry feedback zpět do AIWorld `WorldEvent`/`Memory`/`Goal` pipeline;
+- explicitní restart/reconnect semantics (viz sekce výše — rozhodnuto, ale ještě nikde souhrnně nepotvrzeno jako gate);
+- finální agregace negative failure-mode chování (timeout/malformed/stale/provider outage) — tyto už jsou fail-closed na úrovni `2.13A`/`2.13B`, `2.13D` je pouze sjednocuje jako jeden explicitní end-to-end gate, ne novou logiku.
+
+`2.13D` už tedy neduplikuje práci, kterou `2.13C4` reálně udělalo — jde o finální agregační gate nad tím, co je jinde už hotové nebo v closure.
 
 ---
 
@@ -1429,16 +1573,21 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 15. [x] 2.12G3D1 — neinvazivní live approach runtime proof (target-aware ownership identity, `AIWorld.TestObserveActiveHuntAgentId`) - POSITIVE LIVE APPROACH PROOF: PASS.
 16. [x] fix(ai-world): retain HUNT ownership after approach arrival - post-ARRIVED redispatch loop found by G3D1's own live proof, CLOSED.
 17. [x] 2.12G3D — produkční skupinový HUNT combat (`ActionType::Attack`, melee damage, chase, `TARGET_DEFEATED`, phantom-FLEE_DANGER fix, stale chase cleanup) - live-confirmed PASS v reálném skupinovém boji.
-18. [ ] 2.12G3 lifecycle closure — Approaching/AtTarget/Engaging bezpečně obsloužené přes všech šest ukončujících událostí (PREEMPTED_BY_GOAL/STOPPED_BY_LIFECYCLE/STOPPED_BY_MEMBERSHIP_AMBIGUITY/STOPPED_BY_TARGET_INVALID/PREEMPTED_BY_REGROUP/TARGET_DEFEATED) - IN PROGRESS.
+18. [x] 2.12G3 lifecycle closure — Approaching/AtTarget/Engaging bezpečně obsloužené přes všech šest ukončujících událostí (PREEMPTED_BY_GOAL/STOPPED_BY_LIFECYCLE/STOPPED_BY_MEMBERSHIP_AMBIGUITY/STOPPED_BY_TARGET_INVALID/PREEMPTED_BY_REGROUP/TARGET_DEFEATED) - STATIC repaired, cumulatively BUILD-verified.
 19. [ ] 2.12G4 — roles/leadership pouze pokud G2/G3 prokáže potřebu.
-20. [ ] 2.13A — actual local LLM inference path.
-21. [ ] 2.13B — structured `QuestProposal` + authoritative validation.
-22. [ ] 2.13C — player-facing dynamic task lifecycle.
-23. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` runtime gate.
-24. [ ] 2.14 — emergent end-to-end world event slice.
-25. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
-26. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
-27. [ ] Etapa 4 — Living World composition.
+20. [x] 2.13A — actual local LLM inference path.
+21. [x] 2.13B — structured `QuestProposal` + authoritative validation.
+22. [x] 2.13C1 — pure dynamic quest lifecycle domain.
+23. [x] 2.13C2 — registry ownership / validated offer handoff.
+24. [x] 2.13C3 — authoritative player accept boundary.
+25. [x] 2.13C4 — visible player-facing offer + progress (STATIC + BUILD + RUNTIME PASS).
+26. [ ] 2.13C5 — turn-in / completion / money reward (implemented, review repairs landed, final closure gate pending).
+27. [ ] 2.13C6 — quest outcome → WorldEvent / NPC memory/problem feedback.
+28. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` final end-to-end closure gate (partially proven through C4).
+29. [ ] 2.14 — emergent end-to-end world event slice.
+30. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
+31. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
+32. [ ] Etapa 4 — Living World composition.
 
 ---
 
