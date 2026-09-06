@@ -9982,6 +9982,12 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
     // AIWorld.DynamicTaskMaxRewardMoneyCopper is itself clamped to >= 0
     // at load time, so the int32 cast below can never overflow.
     uint32 reward = instance->RewardMoneyCopper;
+    // Milestone 2.13C5 P2 fix (STATIC review): captured BEFORE the
+    // forward grant below so the compensation path (if ever reached) can
+    // verify the player's balance actually returned to this value, not
+    // merely that a second ModifyMoney() call reported success - see
+    // that block's own comment for why those are not the same thing.
+    uint32 moneyBeforeReward = player->GetMoney();
     if (reward > 0 && !player->ModifyMoney(int32(reward), false))
     {
         // Should be unreachable - the preflight check just above already
@@ -10003,12 +10009,40 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         // was already granted, so it must be compensated rather than left
         // as an unexplained windfall on a quest that never actually
         // completed.
-        if (reward > 0)
-            player->ModifyMoney(-int32(reward), false);
+        //
+        // Milestone 2.13C5 P2 fix (STATIC review): never claim the
+        // reward was compensated without actually checking. The forward
+        // grant's own ModifyMoney() return is never ignored (see its own
+        // call site above) - the rollback call must not be either.
+        // Player::ModifyMoney() calls sScriptMgr->OnPlayerMoneyChanged(
+        // this, amount) - amount passed by non-const reference, so a
+        // script CAN mutate it - BEFORE its own limit check, so the
+        // forward grant and this rollback are not guaranteed true
+        // mechanical inverses of each other even when both individually
+        // report success. Verifying the player's actual balance returned
+        // to moneyBeforeReward catches that a same-magnitude opposite
+        // call cannot: a bool alone can look fine while the amount that
+        // was actually applied silently differs from what was granted.
+        bool compensated = reward == 0 || player->ModifyMoney(-int32(reward), false);
+        bool balanceRestored = player->GetMoney() == moneyBeforeReward;
 
         result.Reason = DynamicQuestPlayerCompleteReason::CompleteRejected;
-        TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={} - reward money compensated",
-            id.Value, ToString(completeResult.Reason));
+        if (compensated && balanceRestored)
+        {
+            TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={} - reward money compensated",
+                id.Value, ToString(completeResult.Reason));
+        }
+        else
+        {
+            // Genuinely critical, not a routine rejection: the player
+            // was granted reward money for a quest that never actually
+            // completed, and the rollback either itself failed or did
+            // not actually restore their prior balance.
+            TC_LOG_FATAL("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={} - "
+                "reward money compensation FAILED compensated={} balanceRestored={} moneyBefore={} moneyNow={}",
+                id.Value, ToString(completeResult.Reason), compensated, balanceRestored, moneyBeforeReward, player->GetMoney());
+        }
+
         ChatHandler(player->GetSession()).PSendSysMessage("%s",
             FormatDynamicQuestCompleteRejectedMessage(result.Reason).c_str());
         return result;
