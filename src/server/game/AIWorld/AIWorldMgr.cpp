@@ -9983,19 +9983,57 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
     // at load time, so the int32 cast below can never overflow.
     uint32 reward = instance->RewardMoneyCopper;
     // Milestone 2.13C5 P2 fix (STATIC review): captured BEFORE the
-    // forward grant below so the compensation path (if ever reached) can
-    // verify the player's balance actually returned to this value, not
-    // merely that a second ModifyMoney() call reported success - see
-    // that block's own comment for why those are not the same thing.
+    // forward grant below so both this method's own postcondition check
+    // and the compensation path further down (if ever reached) can
+    // verify the player's balance actually moved by exactly what was
+    // intended, not merely that a ModifyMoney() call reported success -
+    // see the postcondition check's own comment for why those are not
+    // the same thing.
     uint32 moneyBeforeReward = player->GetMoney();
-    if (reward > 0 && !player->ModifyMoney(int32(reward), false))
+    bool rewardGranted = reward == 0 || player->ModifyMoney(int32(reward), false);
+
+    // Milestone 2.13C5 P2 fix, round 2 (STATIC review): rewardGranted
+    // alone is not proof the player's balance actually increased by
+    // exactly `reward`. Player::ModifyMoney() calls
+    // sScriptMgr->OnPlayerMoneyChanged(this, amount) - amount taken by
+    // PlayerScript::OnMoneyChanged(Player*, int32&) as a non-const
+    // reference, so a script can change what is actually applied -
+    // BEFORE its own limit check and mutation. A true rewardGranted only
+    // means "ModifyMoney() did not refuse due to the money cap", not
+    // "the player received exactly RewardMoneyCopper". Compared with
+    // 64-bit arithmetic so this itself can never overflow/wrap.
+    bool exactRewardApplied = uint64(player->GetMoney()) == uint64(moneyBeforeReward) + uint64(reward);
+
+    if (!rewardGranted || !exactRewardApplied)
     {
-        // Should be unreachable - the preflight check just above already
-        // proved player.Money + reward < MAX_MONEY_AMOUNT on this same
-        // world thread. Never ignored regardless.
+        // Whatever was actually applied (possibly not `reward`, if a
+        // script mutated the amount; possibly nothing at all, if
+        // ModifyMoney() itself refused) must be undone before ever
+        // rejecting - derived from the real observed balance delta,
+        // never assumed to be exactly `-reward`. Same "check the bool,
+        // then verify the balance actually moved back" discipline as the
+        // Complete()-rejection compensation path below.
+        int64 actualDelta = int64(player->GetMoney()) - int64(moneyBeforeReward);
+        bool compensated = actualDelta == 0 || player->ModifyMoney(int32(-actualDelta), false);
+        bool balanceRestored = player->GetMoney() == moneyBeforeReward;
+
         result.Reason = DynamicQuestPlayerCompleteReason::RewardMoneyLimit;
-        TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason=REWARD_MONEY_LIMIT "
-            "- ModifyMoney() itself refused despite passing the preflight check", id.Value);
+        if (compensated && balanceRestored)
+        {
+            TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason=REWARD_MONEY_LIMIT "
+                "- reward postcondition failed (rewardGranted={} actualDelta={} expected={}), reverted",
+                id.Value, rewardGranted, actualDelta, reward);
+        }
+        else
+        {
+            // Genuinely critical, not a routine rejection: an incorrect
+            // amount of money may have been left on the player's balance
+            // for a quest that is about to be rejected outright.
+            TC_LOG_FATAL("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason=REWARD_MONEY_LIMIT - "
+                "reward postcondition failed AND revert FAILED compensated={} balanceRestored={} moneyBefore={} moneyNow={}",
+                id.Value, compensated, balanceRestored, moneyBeforeReward, player->GetMoney());
+        }
+
         ChatHandler(player->GetSession()).PSendSysMessage("%s",
             FormatDynamicQuestCompleteRejectedMessage(result.Reason).c_str());
         return result;
