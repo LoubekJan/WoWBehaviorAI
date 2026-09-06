@@ -66,3 +66,26 @@ TEST_CASE("FormatDynamicQuestRewardMessage", "[DynamicQuestGossipText]")
     REQUIRE(FormatDynamicQuestRewardMessage(75) == "Reward: 75 copper.");
     REQUIRE(FormatDynamicQuestRewardMessage(0) == "Reward: 0 copper.");
 }
+
+TEST_CASE("FormatDynamicQuestCompleteRejectedMessage", "[DynamicQuestGossipText]")
+{
+    SECTION("RewardMoneyLimit gets its own specific wording")
+    {
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::RewardMoneyLimit) ==
+            "Unable to turn in dynamic task: you cannot carry that much money.");
+    }
+
+    SECTION("every other reason falls back to one generic message")
+    {
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::QuestNotFound) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::PlayerInvalid) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::PlayerMismatch) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::GiverMissing) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::GiverChanged) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::GiverUnavailable) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::InteractionRangeInvalid) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::OutOfRange) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::ProgressIncomplete) == "Unable to turn in dynamic task.");
+        REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::CompleteRejected) == "Unable to turn in dynamic task.");
+    }
+}

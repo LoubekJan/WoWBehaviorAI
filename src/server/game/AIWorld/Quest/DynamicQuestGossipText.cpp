@@ -54,3 +54,11 @@ std::string FormatDynamicQuestRewardMessage(uint32 rewardMoneyCopper)
 {
     return "Reward: " + std::to_string(rewardMoneyCopper) + " copper.";
 }
+
+std::string FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason reason)
+{
+    if (reason == DynamicQuestPlayerCompleteReason::RewardMoneyLimit)
+        return "Unable to turn in dynamic task: you cannot carry that much money.";
+
+    return "Unable to turn in dynamic task.";
+}

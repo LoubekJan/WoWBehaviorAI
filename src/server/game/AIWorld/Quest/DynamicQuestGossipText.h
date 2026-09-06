@@ -19,6 +19,7 @@
 #define AIWORLD_DYNAMICQUESTGOSSIPTEXT_H
 
 #include "Define.h"
+#include "DynamicQuestPlayerCompletion.h"
 
 #include <string>
 
@@ -73,5 +74,17 @@ std::string FormatDynamicQuestCompletedMessage(std::string const& title);
 // call site) rather than printing "Reward: 0 copper." for a quest the
 // model happened not to attach a reward to.
 std::string FormatDynamicQuestRewardMessage(uint32 rewardMoneyCopper);
+
+// Milestone 2.13C5 P3 fix (STATIC review, advisory): the chat message
+// sent when AIWorldMgr::CompleteDynamicQuestForPlayer() rejects a
+// turn-in attempt - previously the player got no feedback at all (the
+// gossip window just closed). Deliberately NOT a full mapping of every
+// internal DynamicQuestPlayerCompleteReason - a player has no actionable
+// use for being told GiverChanged or InteractionRangeInvalid by name,
+// and typed reasons stay in the log line (DYNAMIC_QUEST_COMPLETE_REJECTED)
+// for that. RewardMoneyLimit is the one reason a player can actually act
+// on (spend some money first), so it alone gets its own wording;
+// everything else falls back to one generic message.
+std::string FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason reason);
 
 #endif // AIWORLD_DYNAMICQUESTGOSSIPTEXT_H

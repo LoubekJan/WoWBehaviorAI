@@ -427,12 +427,21 @@ class TC_GAME_API AIWorldMgr
         // turn-in attempt against the same id finds QuestNotFound above,
         // never a second payout. Logs DYNAMIC_QUEST_COMPLETED/
         // DYNAMIC_QUEST_COMPLETE_REJECTED (never a GUID) and sends the
-        // player two confirmation chat messages. Still no
+        // player two confirmation chat messages on success. Still no
         // Player::AddQuest, no standard quest log/marker, no client quest
         // packet, no group/party credit, no DB persistence, no restart/
         // crash recovery - this is the same in-process-only boundary
         // AcceptDynamicQuestForPlayer() already established, just for the
         // opposite end of the lifecycle.
+        //
+        // Milestone 2.13C5 P3 fix (STATIC review, advisory): every
+        // rejection path that can be reached with a resolved live player
+        // also sends one FormatDynamicQuestCompleteRejectedMessage() chat
+        // line (a single generic message, plus one specific wording for
+        // RewardMoneyLimit - see that function's own comment for why the
+        // full typed reason is never surfaced to the player, only logged)
+        // - previously a rejected "Turn in" click closed the gossip
+        // window with no feedback at all.
         DynamicQuestPlayerCompleteResult CompleteDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
 
         // Milestone 2.13C4: read-only gossip-UI query -

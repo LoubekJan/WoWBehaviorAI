@@ -9931,6 +9931,14 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         result.Reason = applicability;
         TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={}",
             id.Value, ToString(applicability));
+        // Milestone 2.13C5 P3 fix (STATIC review, advisory): previously
+        // silent - the gossip window just closed and the player had no
+        // idea why. player may still be null here (applicability itself
+        // can reject as PlayerInvalid precisely because it is), hence the
+        // guard.
+        if (player)
+            ChatHandler(player->GetSession()).PSendSysMessage("%s",
+                FormatDynamicQuestCompleteRejectedMessage(applicability).c_str());
         return result;
     }
 
@@ -9958,6 +9966,11 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         result.Reason = DynamicQuestPlayerCompleteReason::CompleteRejected;
         TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={}",
             id.Value, ToString(preflight.Reason));
+        // Milestone 2.13C5 P3 fix (STATIC review, advisory): player is
+        // guaranteed non-null here (applicability already required
+        // player.Resolved to reach this point).
+        ChatHandler(player->GetSession()).PSendSysMessage("%s",
+            FormatDynamicQuestCompleteRejectedMessage(result.Reason).c_str());
         return result;
     }
 
@@ -9979,6 +9992,8 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         result.Reason = DynamicQuestPlayerCompleteReason::RewardMoneyLimit;
         TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason=REWARD_MONEY_LIMIT "
             "- ModifyMoney() itself refused despite passing the preflight check", id.Value);
+        ChatHandler(player->GetSession()).PSendSysMessage("%s",
+            FormatDynamicQuestCompleteRejectedMessage(result.Reason).c_str());
         return result;
     }
 
@@ -9996,6 +10011,8 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         result.Reason = DynamicQuestPlayerCompleteReason::CompleteRejected;
         TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_COMPLETE_REJECTED dynamicQuestId={} reason={} - reward money compensated",
             id.Value, ToString(completeResult.Reason));
+        ChatHandler(player->GetSession()).PSendSysMessage("%s",
+            FormatDynamicQuestCompleteRejectedMessage(result.Reason).c_str());
         return result;
     }
 
