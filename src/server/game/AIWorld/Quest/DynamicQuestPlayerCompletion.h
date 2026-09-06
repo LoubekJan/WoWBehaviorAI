@@ -82,6 +82,25 @@ enum class DynamicQuestPlayerCompleteReason : uint8
     // the world) is never legitimate.
     OutOfRange,
 
+    // Milestone 2.13C5 P2 fix, round 2 (STATIC review): instance.State is
+    // not DynamicQuestState::Active - already Completed/Failed/Expired,
+    // or (should be unreachable given a real DynamicQuestId) still
+    // Offered. DynamicQuestRegistry::Complete() (via CompleteDynamicQuest())
+    // independently re-checks this exact same condition (as
+    // AlreadyTerminal/InvalidTransition) - deliberately redundant, so
+    // that check can run and reject BEFORE AIWorldMgr::
+    // CompleteDynamicQuestForPlayer() ever calls Player::ModifyMoney(),
+    // not merely as an after-the-fact compensated mutation.
+    InvalidQuestState,
+
+    // Milestone 2.13C5 P2 fix, round 2 (STATIC review): nowMs >=
+    // instance.ExpiresAtMs (IsDynamicQuestExpired(), DynamicQuestLifecycle.h)
+    // - the quest's own deadline has passed since it was last shown as
+    // ReadyToTurnIn. Same "check before money moves" reasoning as
+    // InvalidQuestState above; DynamicQuestRegistry::Complete() still
+    // independently re-checks this too.
+    AlreadyExpired,
+
     // !IsDynamicQuestObjectiveComplete(instance) (DynamicQuestLifecycle.h)
     // - nothing to turn in yet, regardless of State.
     // DynamicQuestRegistry::Complete() (via CompleteDynamicQuest())
@@ -153,33 +172,34 @@ struct DynamicQuestGiverCompleteFacts
 // attempted - the same "fresh live re-resolution" discipline
 // CheckDynamicQuestPlayerAcceptApplicability() already established in
 // 2.13C3. No Player*/Creature*/Map* - only values the caller already
-// resolved, plus maxMoneyAmount (see RewardMoneyLimit's own comment).
-// Checked in this order: player eligibility (IsPlayerGuid/Resolved/
-// Alive), player binding (playerGuid == instance.AcceptedByPlayerGuid),
-// giver identity (RecordExists), giver incarnation (RuntimeGuid), giver
-// availability (Materialized/AIWorldControlled/Alive), same map,
+// resolved, plus nowMs and maxMoneyAmount (see AlreadyExpired/
+// RewardMoneyLimit's own comments). Checked in this order: player
+// eligibility (IsPlayerGuid/Resolved/Alive), player binding
+// (playerGuid == instance.AcceptedByPlayerGuid), giver identity
+// (RecordExists), giver incarnation (RuntimeGuid), giver availability
+// (Materialized/AIWorldControlled/Alive), same map,
 // maxInteractionRangeYards policy sanity, live interaction range,
-// objective progress, reward affordability - identity/incarnation/
-// binding checks take priority over availability/range/progress/money,
-// since a currently-usable but WRONG player or giver is still wrong
-// regardless of whether the objective is done or the reward could be
-// paid. The money check (skipped entirely for a zero reward) uses
-// 64-bit arithmetic (uint64(player.Money) +
+// State == Active, not expired, objective progress, reward
+// affordability - identity/incarnation/binding checks take priority
+// over availability/range/lifecycle/progress/money, since a currently-
+// usable but WRONG player or giver is still wrong regardless of the
+// quest's own state. The money check (skipped entirely for a zero
+// reward) uses 64-bit arithmetic (uint64(player.Money) +
 // uint64(instance.RewardMoneyCopper) >= uint64(maxMoneyAmount)) rather
 // than a same-width subtraction, so it can never itself underflow/wrap
 // into a false negative - and a strict >= (not >), to exactly mirror
 // Player::ModifyMoney()'s own real success condition
-// (GetMoney() < MAX_MONEY_AMOUNT - amount). Deliberately does not
-// re-check DynamicQuestInstance::State/expiry itself - that stays
-// exclusively DynamicQuestRegistry::Complete()'s own job (via
-// CompleteDynamicQuest()), never duplicated here. Milestone 2.13C5 P2
-// fix (STATIC review): because of that, AIWorldMgr::
-// CompleteDynamicQuestForPlayer() additionally runs a non-committing
-// CompleteDynamicQuest() preflight of its own, strictly BEFORE this
-// function's own money-affordability result is ever acted on with a real
-// Player::ModifyMoney() call - see that method's own definition comment
-// for why a State/expiry rejection must never be discovered only AFTER
-// money has already changed hands.
+// (GetMoney() < MAX_MONEY_AMOUNT - amount).
+//
+// Milestone 2.13C5 P2 fix, round 2 (STATIC review): State/expiry are now
+// checked here too (InvalidQuestState/AlreadyExpired), strictly BEFORE
+// AIWorldMgr::CompleteDynamicQuestForPlayer() ever calls
+// Player::ModifyMoney() - an earlier version deferred both entirely to
+// DynamicQuestRegistry::Complete(), relying solely on that method's own
+// separate non-committing CompleteDynamicQuest() preflight (still kept,
+// as defense in depth - this function's result is never a substitute
+// for what the registry itself independently re-verifies at commit time,
+// same as every other check here).
 DynamicQuestPlayerCompleteReason CheckDynamicQuestPlayerCompleteApplicability(
     DynamicQuestInstance const& instance,
     ObjectGuid playerGuid,
@@ -187,7 +207,8 @@ DynamicQuestPlayerCompleteReason CheckDynamicQuestPlayerCompleteApplicability(
     DynamicQuestGiverCompleteFacts const& giver,
     float playerToGiverDistanceYards,
     float maxInteractionRangeYards,
-    uint32 maxMoneyAmount);
+    uint32 maxMoneyAmount,
+    uint64 nowMs);
 
 // The result of one AIWorldMgr::CompleteDynamicQuestForPlayer() attempt.
 struct DynamicQuestPlayerCompleteResult

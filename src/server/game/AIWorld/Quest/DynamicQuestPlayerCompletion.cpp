@@ -35,6 +35,8 @@ char const* ToString(DynamicQuestPlayerCompleteReason reason)
         case DynamicQuestPlayerCompleteReason::GiverUnavailable:       return "GIVER_UNAVAILABLE";
         case DynamicQuestPlayerCompleteReason::InteractionRangeInvalid: return "INTERACTION_RANGE_INVALID";
         case DynamicQuestPlayerCompleteReason::OutOfRange:             return "OUT_OF_RANGE";
+        case DynamicQuestPlayerCompleteReason::InvalidQuestState:      return "INVALID_QUEST_STATE";
+        case DynamicQuestPlayerCompleteReason::AlreadyExpired:         return "ALREADY_EXPIRED";
         case DynamicQuestPlayerCompleteReason::ProgressIncomplete:     return "PROGRESS_INCOMPLETE";
         case DynamicQuestPlayerCompleteReason::RewardMoneyLimit:       return "REWARD_MONEY_LIMIT";
         case DynamicQuestPlayerCompleteReason::CompleteRejected:       return "COMPLETE_REJECTED";
@@ -49,7 +51,8 @@ DynamicQuestPlayerCompleteReason CheckDynamicQuestPlayerCompleteApplicability(
     DynamicQuestGiverCompleteFacts const& giver,
     float playerToGiverDistanceYards,
     float maxInteractionRangeYards,
-    uint32 maxMoneyAmount)
+    uint32 maxMoneyAmount,
+    uint64 nowMs)
 {
     if (!player.IsPlayerGuid || !player.Resolved || !player.Alive)
         return DynamicQuestPlayerCompleteReason::PlayerInvalid;
@@ -79,6 +82,21 @@ DynamicQuestPlayerCompleteReason CheckDynamicQuestPlayerCompleteApplicability(
         playerToGiverDistanceYards < 0.0f ||
         playerToGiverDistanceYards > maxInteractionRangeYards)
         return DynamicQuestPlayerCompleteReason::OutOfRange;
+
+    // Milestone 2.13C5 P2 fix, round 2 (STATIC review): checked here,
+    // BEFORE AIWorldMgr::CompleteDynamicQuestForPlayer() ever calls
+    // Player::ModifyMoney() - not just left to DynamicQuestRegistry::
+    // Complete()'s own independent (and still-kept) re-check. A quest
+    // that transitions away from Active or crosses its own ExpiresAtMs
+    // in the gap between being shown as ReadyToTurnIn and the player's
+    // click must never let money change hands first and get compensated
+    // afterward (see CompleteDynamicQuestForPlayer()'s own comment for
+    // why that is not equivalent to "the reward never happened").
+    if (instance.State != DynamicQuestState::Active)
+        return DynamicQuestPlayerCompleteReason::InvalidQuestState;
+
+    if (IsDynamicQuestExpired(instance, nowMs))
+        return DynamicQuestPlayerCompleteReason::AlreadyExpired;
 
     // Same canonical rule CompleteDynamicQuest() itself consults (see
     // IsDynamicQuestObjectiveComplete()'s own comment in

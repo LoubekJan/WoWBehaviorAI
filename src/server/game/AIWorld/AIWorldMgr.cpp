@@ -9925,7 +9925,7 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         distanceYards = player->GetDistance(giverCreature);
 
     DynamicQuestPlayerCompleteReason applicability = CheckDynamicQuestPlayerCompleteApplicability(
-        *instance, playerGuid, playerFacts, giverFacts, distanceYards, _dynamicQuestPlayerAcceptMaxRangeYards, MAX_MONEY_AMOUNT);
+        *instance, playerGuid, playerFacts, giverFacts, distanceYards, _dynamicQuestPlayerAcceptMaxRangeYards, MAX_MONEY_AMOUNT, nowMs);
     if (applicability != DynamicQuestPlayerCompleteReason::None)
     {
         result.Reason = applicability;
@@ -9942,24 +9942,22 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         return result;
     }
 
-    // Milestone 2.13C5 P2 fix (STATIC review): a canonical, non-committing
-    // lifecycle preflight, checked BEFORE Player::ModifyMoney() is ever
-    // called. CheckDynamicQuestPlayerCompleteApplicability() above
-    // deliberately does not check State/expiry (see its own comment) -
-    // without this, a quest that expires in the gap between two
-    // CurrentTimeMs() calls (or was somehow already Failed/Completed)
-    // could still reach ModifyMoney() before DynamicQuestRegistry::
-    // Complete() itself ever got a chance to reject it. ModifyMoney()
-    // calls sScriptMgr->OnPlayerMoneyChanged() BEFORE its own limit check
-    // (see Player::ModifyMoney()'s own implementation) - a compensated
-    // (+reward then -reward) mutation still fires that real script event
-    // twice, so "compensate afterward" is not equivalent to "the reward
-    // never happened". Uses the exact same pure CompleteDynamicQuest()
-    // DynamicQuestRegistry::Complete() itself calls internally, against
-    // the SAME *instance already resolved above, so it can never
-    // disagree with what Complete() is about to do a few lines down -
-    // already-tested by DynamicQuestLifecycle.cpp's own Completed/Failed/
-    // Expired/Active-but-expired coverage.
+    // Milestone 2.13C5 P2 fix, round 2 (STATIC review):
+    // CheckDynamicQuestPlayerCompleteApplicability() above now itself
+    // checks State/expiry (InvalidQuestState/AlreadyExpired) BEFORE this
+    // point is ever reached, so the money-mutation-before-lifecycle-
+    // verdict gap (a quest expiring in the gap between two
+    // CurrentTimeMs() calls reaching ModifyMoney() before anything could
+    // reject it) is already closed above. This second, non-committing
+    // lifecycle preflight is kept purely as defense in depth - applicability
+    // never replaces what DynamicQuestRegistry::Complete() itself
+    // independently re-verifies at commit time (same reasoning as every
+    // other check in this method). Uses the exact same pure
+    // CompleteDynamicQuest() DynamicQuestRegistry::Complete() itself
+    // calls internally, against the SAME *instance already resolved
+    // above, so it can never disagree with what Complete() is about to
+    // do a few lines down - already-tested by DynamicQuestLifecycle.cpp's
+    // own Completed/Failed/Expired/Active-but-expired coverage.
     DynamicQuestTransitionResult preflight = CompleteDynamicQuest(*instance, nowMs);
     if (!preflight.IsAccepted())
     {

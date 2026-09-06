@@ -67,6 +67,12 @@ namespace
 
     constexpr float MaxRangeYards = 10.0f;
     constexpr uint32 MaxMoneyAmount = 1000000;
+
+    // Milestone 2.13C5 P2 fix, round 2 (STATIC review): well before
+    // MakeReadyToTurnInInstance()'s own ExpiresAtMs (210000), so every
+    // existing test above stays unaffected by the newly-added expiry
+    // check unless it deliberately sets nowMs at/after ExpiresAtMs itself.
+    constexpr uint64 NowMs = 10000;
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability accepts fully-matching live facts at RequiredCount", "[DynamicQuestPlayerCompletion]")
@@ -75,7 +81,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability accepts fully-matching l
     DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
     DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
 
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::None);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::None);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a missing/unresolved player", "[DynamicQuestPlayerCompletion]")
@@ -87,14 +93,14 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a missing/unreso
     {
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.IsPlayerGuid = false;
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
     }
 
     SECTION("not resolved (offline/missing)")
     {
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.Resolved = false;
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
     }
 }
 
@@ -105,7 +111,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a dead player", 
     player.Alive = false;
     DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
 
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a different player than the one who accepted", "[DynamicQuestPlayerCompletion]")
@@ -115,7 +121,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a different play
     DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
 
     ObjectGuid someoneElse = ObjectGuid::Create<HighGuid::Player>(uint32(2));
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, someoneElse, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::PlayerMismatch);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, someoneElse, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::PlayerMismatch);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a missing giver record", "[DynamicQuestPlayerCompletion]")
@@ -124,7 +130,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a missing giver 
     DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
     DynamicQuestGiverCompleteFacts giver; // RecordExists = false
 
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::GiverMissing);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::GiverMissing);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a changed giver runtime incarnation", "[DynamicQuestPlayerCompletion]")
@@ -134,7 +140,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a changed giver 
     DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
     giver.RuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(1001, 999); // different incarnation
 
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::GiverChanged);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::GiverChanged);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects giver unavailability", "[DynamicQuestPlayerCompletion]")
@@ -146,21 +152,21 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects giver unavailabi
     {
         DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
         giver.Materialized = false;
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::GiverUnavailable);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::GiverUnavailable);
     }
 
     SECTION("not AIWorldControlled")
     {
         DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
         giver.AIWorldControlled = false;
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::GiverUnavailable);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::GiverUnavailable);
     }
 
     SECTION("not alive")
     {
         DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
         giver.Alive = false;
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::GiverUnavailable);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::GiverUnavailable);
     }
 }
 
@@ -172,7 +178,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a map mismatch",
     DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
     giver.MapId = 0;
 
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 0.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::OutOfRange);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 0.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::OutOfRange);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects an out-of-range live distance", "[DynamicQuestPlayerCompletion]")
@@ -183,27 +189,27 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects an out-of-range 
 
     SECTION("NaN distance")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, std::numeric_limits<float>::quiet_NaN(), MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::OutOfRange);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, std::numeric_limits<float>::quiet_NaN(), MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::OutOfRange);
     }
 
     SECTION("infinite distance")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, std::numeric_limits<float>::infinity(), MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::OutOfRange);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, std::numeric_limits<float>::infinity(), MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::OutOfRange);
     }
 
     SECTION("negative distance")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, -1.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::OutOfRange);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, -1.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::OutOfRange);
     }
 
     SECTION("beyond the configured max range")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, MaxRangeYards + 0.1f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::OutOfRange);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, MaxRangeYards + 0.1f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::OutOfRange);
     }
 
     SECTION("exactly at the configured max range is accepted")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, MaxRangeYards, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::None);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, MaxRangeYards, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::None);
     }
 }
 
@@ -215,18 +221,77 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability fails closed on an inval
 
     SECTION("NaN max range")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, std::numeric_limits<float>::quiet_NaN(), MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::InteractionRangeInvalid);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, std::numeric_limits<float>::quiet_NaN(), MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::InteractionRangeInvalid);
     }
 
     SECTION("infinite max range")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, std::numeric_limits<float>::infinity(), MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::InteractionRangeInvalid);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, std::numeric_limits<float>::infinity(), MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::InteractionRangeInvalid);
     }
 
     SECTION("sub-minimum (0.5) max range")
     {
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 0.4f, 0.5f, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::InteractionRangeInvalid);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 0.4f, 0.5f, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::InteractionRangeInvalid);
     }
+}
+
+// ---------------------------------------------------------------------
+// Milestone 2.13C5 P2 fix, round 2 (STATIC review): State/expiry must be
+// rejected here, BEFORE AIWorldMgr::CompleteDynamicQuestForPlayer() ever
+// calls Player::ModifyMoney() - not left solely to
+// DynamicQuestRegistry::Complete()'s own (still independently kept)
+// re-check.
+// ---------------------------------------------------------------------
+
+TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a non-Active instance as InvalidQuestState", "[DynamicQuestPlayerCompletion]")
+{
+    DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
+
+    SECTION("Offered")
+    {
+        DynamicQuestInstance instance = MakeReadyToTurnInInstance();
+        instance.State = DynamicQuestState::Offered;
+        DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::InvalidQuestState);
+    }
+
+    SECTION("Completed")
+    {
+        DynamicQuestInstance instance = MakeReadyToTurnInInstance();
+        instance.State = DynamicQuestState::Completed;
+        DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::InvalidQuestState);
+    }
+
+    SECTION("Failed")
+    {
+        DynamicQuestInstance instance = MakeReadyToTurnInInstance();
+        instance.State = DynamicQuestState::Failed;
+        DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::InvalidQuestState);
+    }
+
+    SECTION("Expired")
+    {
+        DynamicQuestInstance instance = MakeReadyToTurnInInstance();
+        instance.State = DynamicQuestState::Expired;
+        DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::InvalidQuestState);
+    }
+}
+
+TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects an Active instance whose deadline has passed as AlreadyExpired", "[DynamicQuestPlayerCompletion]")
+{
+    // The exact "expired in the gap between gossip and the click"
+    // scenario the fix closes - State is still literally Active (nobody
+    // called ExpireDynamicQuest() yet), but nowMs has already crossed
+    // ExpiresAtMs.
+    DynamicQuestInstance instance = MakeReadyToTurnInInstance();
+    DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
+    DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
+
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, instance.ExpiresAtMs - 1) == DynamicQuestPlayerCompleteReason::None);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, instance.ExpiresAtMs) == DynamicQuestPlayerCompleteReason::AlreadyExpired);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects an incomplete objective", "[DynamicQuestPlayerCompletion]")
@@ -240,7 +305,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects an incomplete ob
     DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
     DynamicQuestGiverCompleteFacts giver = MakeValidGiverFacts(instance);
 
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::ProgressIncomplete);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::ProgressIncomplete);
 }
 
 TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a reward that would exceed the money cap", "[DynamicQuestPlayerCompletion]")
@@ -253,7 +318,7 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a reward that wo
     {
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.Money = MaxMoneyAmount - 50; // + 100 reward overflows
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
     }
 
     SECTION("player money already at the cap, even a zero reward is fine")
@@ -263,14 +328,14 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a reward that wo
         DynamicQuestGiverCompleteFacts zeroRewardGiver = MakeValidGiverFacts(zeroRewardInstance);
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.Money = MaxMoneyAmount;
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(zeroRewardInstance, kPlayerGuid, player, zeroRewardGiver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::None);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(zeroRewardInstance, kPlayerGuid, player, zeroRewardGiver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::None);
     }
 
     SECTION("player money already OVER the cap (should not happen, but must not underflow into a false accept)")
     {
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.Money = MaxMoneyAmount + 1;
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
     }
 
     // Milestone 2.13C5 P2 fix (STATIC review): Player::ModifyMoney()'s own
@@ -285,14 +350,14 @@ TEST_CASE("CheckDynamicQuestPlayerCompleteApplicability rejects a reward that wo
     {
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.Money = MaxMoneyAmount - 100; // + 100 reward == exactly the cap
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::RewardMoneyLimit);
     }
 
     SECTION("player money + reward one below the cap is accepted")
     {
         DynamicQuestPlayerCompleteFacts player = MakeValidPlayerFacts();
         player.Money = MaxMoneyAmount - 101; // + 100 reward == cap - 1
-        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::None);
+        REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, 5.0f, MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::None);
     }
 }
 
@@ -303,7 +368,7 @@ TEST_CASE("Player eligibility checks take priority over giver/progress/money fac
     DynamicQuestPlayerCompleteFacts player; // IsPlayerGuid = false
     DynamicQuestGiverCompleteFacts giver; // also RecordExists = false
 
-    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, std::numeric_limits<float>::infinity(), MaxRangeYards, MaxMoneyAmount) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
+    REQUIRE(CheckDynamicQuestPlayerCompleteApplicability(instance, kPlayerGuid, player, giver, std::numeric_limits<float>::infinity(), MaxRangeYards, MaxMoneyAmount, NowMs) == DynamicQuestPlayerCompleteReason::PlayerInvalid);
 }
 
 TEST_CASE("ToString(DynamicQuestPlayerCompleteReason) covers every enumerator", "[DynamicQuestPlayerCompletion]")
@@ -318,6 +383,8 @@ TEST_CASE("ToString(DynamicQuestPlayerCompleteReason) covers every enumerator", 
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::GiverUnavailable)) == "GIVER_UNAVAILABLE");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::InteractionRangeInvalid)) == "INTERACTION_RANGE_INVALID");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::OutOfRange)) == "OUT_OF_RANGE");
+    REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::InvalidQuestState)) == "INVALID_QUEST_STATE");
+    REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::AlreadyExpired)) == "ALREADY_EXPIRED");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::ProgressIncomplete)) == "PROGRESS_INCOMPLETE");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::RewardMoneyLimit)) == "REWARD_MONEY_LIMIT");
     REQUIRE(std::string(ToString(DynamicQuestPlayerCompleteReason::CompleteRejected)) == "COMPLETE_REJECTED");
