@@ -94,15 +94,25 @@ class AIWorldCreatureAI;
 
 // Entry point for the AIWorld subsystem. Driven from the world update thread
 // only (called after sMapMgr->Update() in World::Update()) - never spawns its
-// own thread and never mutates Creature/Player/Map state itself. Milestone
-// 2.13C4 P2 fix (STATIC review): the one exception this comment used to
-// document (a ReconcileDynamicQuestGossipFlag() method toggling
-// UNIT_NPC_FLAG_GOSSIP directly here) was removed - that mutation, and the
-// "did AIWorld itself add this flag" ownership bit it needs to stay safe,
-// now live in AIWorldCreatureAI instead (see its own
-// _ownsDynamicQuestGossipFlag comment). This class only ever answers the
-// read-only question of whether that flag SHOULD be up (see
-// HasLiveDynamicQuestStateForGiver()). Otherwise still fully inert unless
+// own thread and never mutates Creature/Map state itself. Milestone 2.13C4
+// P2 fix (STATIC review): an earlier exception this comment used to document
+// (a ReconcileDynamicQuestGossipFlag() method toggling UNIT_NPC_FLAG_GOSSIP
+// directly here) was removed - that mutation, and the "did AIWorld itself
+// add this flag" ownership bit it needs to stay safe, now live in
+// AIWorldCreatureAI instead (see its own _ownsDynamicQuestGossipFlag
+// comment). This class only ever answers the read-only question of whether
+// that flag SHOULD be up (see HasLiveDynamicQuestStateForGiver()).
+//
+// Milestone 2.13C5 (STATIC review, documentation fix): a real, deliberate
+// exception to "never mutates Player state" now exists -
+// CompleteDynamicQuestForPlayer()/CompensateDynamicQuestReward() call
+// Player::ModifyMoney() directly to pay (and, on a failed completion,
+// revert) a dynamic quest's already-2.13B-validated RewardMoneyCopper. This
+// is still the only Player-mutating path in the class, gated by the same
+// full player/giver/lifecycle re-validation every other authority boundary
+// here already requires, and every ModifyMoney() call's own result (and the
+// resulting balance) is independently verified, never assumed - see those
+// methods' own comments. Otherwise still fully inert unless
 // AIWorld.Enable = 1.
 class TC_GAME_API AIWorldMgr
 {
