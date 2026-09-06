@@ -416,10 +416,15 @@ class TC_GAME_API AIWorldMgr
         // preflight-then-compensate ordering), followed by the existing
         // DynamicQuestRegistry::Complete(id, nowMs), which is itself
         // still the sole authority over whether the stored instance's
-        // own State/expiry/progress actually permit the transition (this
-        // method never re-checks or duplicates that beyond the redundant,
-        // more-specific ProgressIncomplete pre-check
-        // CheckDynamicQuestPlayerCompleteApplicability() already makes).
+        // own State/expiry/progress actually permit the transition - this
+        // method never commits that transition itself, but
+        // CheckDynamicQuestPlayerCompleteApplicability() (and, as defense
+        // in depth, a second non-committing CompleteDynamicQuest()
+        // preflight below) deliberately re-checks State/expiry/progress
+        // ahead of time too, specifically so a rejection is never
+        // discovered only after Player::ModifyMoney() has already moved
+        // real money (see that preflight's own comment for why a
+        // compensated mutation is not equivalent to "never happened").
         // Removes the instance from the registry immediately once
         // Completed - a terminal instance is never meant to linger (see
         // DynamicQuestRegistry::Remove()'s own comment), and this doubles
