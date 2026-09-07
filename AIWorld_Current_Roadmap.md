@@ -3,7 +3,7 @@
 > **Aktualizováno:** 2026-09-07  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `9f429f9f93`  
+> **Aktuální code baseline před tímto docs commitem:** `921bac741b`  
 > **Detailní roadmap sync před tímto commitem:** `fe5672f48c42314497afd01dac26abe4cfb5c629`
 >
 > Pokud mezi tímto docs commitem a jeho skutečným pushem přibude další code commit na `ai-world`, baseline výše je nutné před merge znovu načíst.
@@ -73,7 +73,7 @@ Platí pro všechny další milníky:
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G3 — generic HUNT/coordinated combat contract | **CLOSED — G3A/G3B/G3C1/G3C2/G3D CLOSED (G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS); G3 lifecycle closure STATIC repaired (P1=0/P2=0/P3=0) and cumulatively BUILD-verified by every subsequent full 2.13 build, not independently re-verified in isolation** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
-| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B + C1/C2/C3/C4/C5 CLOSED (C5: STATIC + BUILD + UNIT 226/226 + RUNTIME PASS); next active milestone is C6 (quest outcome → WorldEvent / issuer feedback); D partially runtime-proven through C4** |
+| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B + C1/C2/C3/C4/C5 CLOSED; C6A (pure outcome/event contract) CLOSED (STATIC + BUILD + UNIT 236/236 PASS); next active sub-milestone is C6B (authoritative publication); D partially runtime-proven through C4** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
 | Etapa 3 — Elwynn world preparation | **PLANNED** |
 | Etapa 4 — Living World | **PLANNED** |
@@ -1283,7 +1283,7 @@ Po testu byly `AIWorld.DynamicTaskEnable`, `AIWorld.TestDynamicTaskAgentId` a do
 
 ### 2.13C — player-facing dynamic quest lifecycle
 
-**Stav: IN PROGRESS — C1/C2/C3/C4/C5 CLOSED; next je C6 (viz níže).**
+**Stav: IN PROGRESS — C1/C2/C3/C4/C5 CLOSED; C6A CLOSED, C6B/C6C/C6D pending (viz níže).**
 
 #### 2.13C1 — pure lifecycle domain
 
@@ -1377,9 +1377,9 @@ Closure gate potvrzen:
 
 `2.13C5` je tímto CLOSED. Runtime happy path (offer → accept → 1/3 → 2/3 → 3/3 → turn-in → reálný `Player::ModifyMoney()` payout) i replay/double-payout ochrana jsou provlečené a potvrzené proti C5 code baseline `9f429f9f93`.
 
-#### 2.13C6 — quest outcome → WorldEvent / issuer feedback (PLANNED)
+#### 2.13C6 — quest outcome → WorldEvent / issuer feedback
 
-**Stav: PLANNED — next active milestone (C5 CLOSED). Implementační scope (C6A/B/C/D breakdown) bude upřesněn samostatně.**
+**Stav: IN PROGRESS — C6A CLOSED (STATIC + BUILD + UNIT PASS); C6B/C6C/C6D pending.**
 
 Detailní historická roadmap (`AI_TrinityCore_Roadmap_Etapa_1_2.md`) požaduje, aby completion/failure/expiry vydal typed `WorldEvent` použitelný `Perception`/`Memory`/`Goal` pipeline, a aby výsledek uměl změnit skutečný problém světa nebo stav/goal/memory issuer NPC. `2.13C5` toto zatím nedělá — dokončuje player quest lifecycle + reward, ale výsledek se nevrací zpět do kauzálního AI světa.
 
@@ -1395,7 +1395,39 @@ Memory
 issuer NPC / problem state
 ```
 
-Vědomě vyčleněno jako vlastní produkční feature (ne testovací gate), protože jde o rozšíření, ne jen o closure existujícího scope.
+Vědomě vyčleněno jako vlastní produkční feature (ne testovací gate), protože jde o rozšíření, ne jen o closure existujícího scope. Rozděleno na čtyři sub-milníky:
+
+##### 2.13C6A — pure outcome/event contract
+
+**Stav: CLOSED — STATIC + BUILD + UNIT 236/236 PASS.**
+
+Implementováno:
+
+- `WorldEventType` doplněn o `DynamicQuestCompleted`/`DynamicQuestFailed`/`DynamicQuestExpired`, včetně `ToString()`;
+- `QuestProposal` nese `SourceCorrelationId` vedle už existujícího `SourceEventId`/`SourceEventType`, kopírovaný v `ValidateDynamicTaskCandidate()` z `candidate.Provenance.SourceCorrelationId` (dřív se zahazoval);
+- `DynamicQuestInstance` nese stejnou trojici source-provenance polí po celý lifecycle; `OfferDynamicQuest()` je jednou zkopíruje z validovaného `QuestProposal`, stejně jako `Title`/`Description`/`RewardMoneyCopper`;
+- nový čistý value-only builder `Quest/DynamicQuestOutcomeEvent.h/.cpp` — `BuildDynamicQuestOutcomeWorldEvent(instance, location)`: `nullopt` pro `Offered`/`Active`; `EventId` i `OccurredAtMs` zůstávají `0` (jediný autoritativní zdroj obou je `EventBus::Publish()`); `CauseEventId`/`CorrelationId` dědí `instance.SourceEventId`/`SourceCorrelationId`; `Actor.Guid` je `AcceptedByPlayerGuid` **pouze** pro `Completed` (jediný outcome, který hráč skutečně způsobil) — pro `Failed`/`Expired` zůstává prázdný, i když hráč quest přijal, protože obojí je server-side (deadline maintenance / force-fail / replay containment), ne hráčova akce; `Target.Agent`/`Target.Guid` je giver.
+- plné Catch2 pokrytí (`tests/game/DynamicQuestOutcomeEvent.cpp`): všechny tři terminal mapování, `Offered`/`Active` rejection, zachování `SourceEventId`/`SourceCorrelationId`/`SourceEventType` napříč provenance → proposal → offered instance → terminal instance, `CauseEventId`/`CorrelationId`, `EventId == 0`, `OccurredAtMs == 0`, Actor-jen-pro-Completed včetně negativních případů.
+
+Žádná změna `AIWorldMgr`, `EventBus`, `Perception`, `Memory`, `Goal`, reward, completion ordering ani DB persistence — čistě kontrakt + provenance plumbing + testy.
+
+##### 2.13C6B — authoritative publication (PLANNED)
+
+Publikace `BuildDynamicQuestOutcomeWorldEvent()`u přes `EventBus`, výhradně z reálného úspěšného registry transitionu (`DynamicQuestRegistry::Complete()`/`Fail()`/`Expire()`), nikdy z preflight/non-committing výsledku. Tři oddělené terminal cesty s různými podmínkami:
+
+- **C6B1 — Completed**: po úspěšném `_dynamicQuestRegistry.Complete(id, nowMs)` vzít výhradně `*completeResult.Instance`, sestavit `WorldEventLocation` z aktuálního live giver `Creature`, publikovat před `_dynamicQuestRegistry.Remove(id)`. Selhání publikace (bounded/lossy `EventBus`) nesmí rollbackovat reward ani `Completed` — pouze zalogovat `DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED`.
+- **C6B2 — Expired**: analogicky z `RunDynamicQuestMaintenance()`u, pouze pokud `_dynamicQuestRegistry.Expire(id, nowMs)` skutečně uspěje. Giver nemusí být v tu chvíli materialized, proto `DynamicQuestInstance` dostane server-owned `WorldEventLocation GiverLocationAtOffer` snapshot z okamžiku `CreateDynamicQuestOffer()` (nikdy model input) jako fallback, když live lokace není dostupná.
+- **C6B3 — Failed**: vyžaduje rozšířit čisté registry return contracts (`FailAllActiveInstances()`/`TerminateForReplayContainment()`) tak, aby vracely value-copy skutečně-Failed instance, ne jen count/bool — `AIWorldMgr` pak publikuje `DynamicQuestFailed` jen když `Fail()` v daném volání opravdu uspěl, nikdy fabrikovaný event pro odmítnutý/no-op transition.
+
+Registry zůstává EventBus-unaware po celou dobu — publikuje výhradně `AIWorldMgr`.
+
+##### 2.13C6C — issuer Perception/Memory feedback (PLANNED)
+
+Doručení outcome eventu konkrétnímu issuer NPC přes normální `Perception`/`Memory` pipeline. Generic `PerceptionSystem::ObserveEvent()` už umí libovolný `WorldEvent` převést na `Observation` a zachová `EventId`/`CorrelationId`/`WorldEventType` — ale ta cesta je sight/range/LOS-based, takže C6C musí vyřešit spolehlivé doručení i když issuer není zrovna poblíž (např. u expiry). Žádný přímý zápis do issuer goal/memory mimo tuto pipeline.
+
+##### 2.13C6D — runtime causal-loop proof (PLANNED)
+
+Runtime důkaz celého řetězce Completed/Failed/Expired → `WorldEvent` → `Perception` → `Memory` → viditelný dopad na issuer NPC.
 
 ### Restart / persistence semantics (rozhodnuto explicitně, ne odloženo mlčky)
 
@@ -1581,7 +1613,7 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 24. [x] 2.13C3 — authoritative player accept boundary.
 25. [x] 2.13C4 — visible player-facing offer + progress (STATIC + BUILD + RUNTIME PASS).
 26. [x] 2.13C5 — turn-in / completion / money reward (STATIC + BUILD + UNIT + RUNTIME PASS).
-27. [ ] 2.13C6 — quest outcome → WorldEvent / NPC memory/problem feedback.
+27. [ ] 2.13C6 — quest outcome → WorldEvent / NPC memory/problem feedback (C6A CLOSED; C6B/C6C/C6D pending).
 28. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` final end-to-end closure gate (partially proven through C4).
 29. [ ] 2.14 — emergent end-to-end world event slice.
 30. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
