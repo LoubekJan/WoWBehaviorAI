@@ -473,12 +473,20 @@ class TC_GAME_API AIWorldMgr
         // above actually succeeds, publishes the terminal outcome
         // WorldEvent built by BuildDynamicQuestOutcomeWorldEvent() from
         // *completeResult.Instance (the registry's own just-committed
-        // value, never the earlier preflight instance) and the live
-        // giver's current position - before Remove() runs. A publish
-        // failure (EventBus is bounded/lossy) never rolls back the
-        // reward or the Completed transition, both already authoritative
-        // by that point; only DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED is
-        // logged. Publishing Failed/Expired outcomes from their own real
+        // value, never the earlier preflight instance) and a validated
+        // turn-in location captured before reward callbacks - before
+        // Remove() runs. Milestone 2.13C6B1 P2 fix (STATIC review): that
+        // location is captured right after applicability confirms a live
+        // giver, NOT re-read from giverCreature after
+        // Player::ModifyMoney() - ModifyMoney() synchronously calls
+        // sScriptMgr->OnPlayerMoneyChanged() before its own mutation, and
+        // that hook can run arbitrary registered PlayerScript code, so
+        // giverCreature's position is no longer authoritatively known to
+        // still be valid once that call has happened. A publish failure
+        // (EventBus is bounded/lossy) never rolls back the reward or the
+        // Completed transition, both already authoritative by that
+        // point; only DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED is logged.
+        // Publishing Failed/Expired outcomes from their own real
         // transition points (registry maintenance / force-fail /
         // replay-containment) is separate follow-up work (2.13C6B2/B3),
         // not part of this method.

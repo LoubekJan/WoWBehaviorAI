@@ -9974,6 +9974,25 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         return result;
     }
 
+    // Milestone 2.13C6B1 P2 fix (STATIC review): captured HERE, right
+    // after applicability just proved giverCreature is a live, resolved,
+    // alive incarnation - and BEFORE the reward mutation below. Player::
+    // ModifyMoney() synchronously calls sScriptMgr->OnPlayerMoneyChanged()
+    // BEFORE its own balance mutation, and that hook dispatches to
+    // arbitrary registered PlayerScript implementations - reading
+    // giverCreature's position AFTER that call would no longer be backed
+    // by any authoritative guarantee (a script could have moved/despawned
+    // it, or invalidated the pointer entirely). This snapshot is the last
+    // moment this method can honestly call the location "authoritatively
+    // validated" - it represents the turn-in interaction's own validated
+    // location, not necessarily the giver's position by the time the
+    // instance actually reaches Completed a few lines down.
+    WorldEventLocation completionLocation;
+    completionLocation.MapId = giverCreature->GetMapId();
+    completionLocation.X = giverCreature->GetPositionX();
+    completionLocation.Y = giverCreature->GetPositionY();
+    completionLocation.Z = giverCreature->GetPositionZ();
+
     // Milestone 2.13C5 P2 fix, round 2 (STATIC review):
     // CheckDynamicQuestPlayerCompleteApplicability() above now itself
     // checks State/expiry (InvalidQuestState/AlreadyExpired) BEFORE this
@@ -10101,19 +10120,12 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
     // Milestone 2.13C6B1: publish the terminal outcome WorldEvent from
     // *completeResult.Instance - the registry's own just-committed
     // Completed value, never the earlier preflight `instance` this
-    // method resolved before Complete() ran. giverCreature is guaranteed
-    // non-null and alive here: CheckDynamicQuestPlayerCompleteApplicability()
-    // already rejected with GiverUnavailable above unless giver.Alive was
-    // true, and giverFacts.Alive is only ever set once giverCreature
-    // itself resolved successfully - so a live location is always
-    // available on this path.
-    WorldEventLocation giverLocation;
-    giverLocation.MapId = giverCreature->GetMapId();
-    giverLocation.X = giverCreature->GetPositionX();
-    giverLocation.Y = giverCreature->GetPositionY();
-    giverLocation.Z = giverCreature->GetPositionZ();
-
-    if (std::optional<WorldEvent> outcomeEvent = BuildDynamicQuestOutcomeWorldEvent(*completeResult.Instance, giverLocation))
+    // method resolved before Complete() ran. completionLocation was
+    // captured above, right after applicability confirmed a live giver
+    // and before the reward mutation's reentrant script hooks could run -
+    // see that capture's own comment for why giverCreature itself is not
+    // safe to re-read this late.
+    if (std::optional<WorldEvent> outcomeEvent = BuildDynamicQuestOutcomeWorldEvent(*completeResult.Instance, completionLocation))
     {
         // A publication failure (EventBus is bounded/lossy - see
         // PublishWorldEvent()'s own comment) must never roll back the
