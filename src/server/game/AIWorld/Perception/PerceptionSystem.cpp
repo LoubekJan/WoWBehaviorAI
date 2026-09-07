@@ -65,6 +65,37 @@ std::optional<Observation> PerceptionSystem::ObserveEvent(AgentId observerId, Cr
     return observation;
 }
 
+std::optional<Observation> PerceptionSystem::ObserveDirectedEvent(AgentId observerId, WorldEvent const& event) const
+{
+    if (!observerId || event.Target.Agent != observerId)
+        return std::nullopt;
+
+    Observation observation;
+    observation.Observer = observerId;
+
+    observation.Type = ObservationType::WorldEvent;
+
+    observation.SourceEventId = event.EventId;
+    observation.CorrelationId = event.CorrelationId;
+    observation.SourceOccurredAtMs = event.OccurredAtMs;
+    observation.SourceEventType = event.Type;
+
+    // Same "real wall-clock time this Observation was built" rule as
+    // ObserveEvent() - see its own comment.
+    observation.ObservedAtMs = uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
+        GameTime::GetSystemTime().time_since_epoch()).count());
+
+    observation.Location = event.Location;
+    observation.Actor = event.Actor;
+    observation.Target = event.Target;
+
+    observation.Channel = PerceptionChannel::Rumor;
+    observation.Distance = 0.0f;
+    observation.LineOfSight = false;
+
+    return observation;
+}
+
 std::optional<Observation> PerceptionSystem::ObserveNearbyPlayer(AgentId observerId, Creature const& observer,
     Player const& player, float sightRange) const
 {

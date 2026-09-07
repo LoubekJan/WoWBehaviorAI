@@ -67,6 +67,26 @@ class TC_GAME_API PerceptionSystem
         // checks - both observer and seen must be alive.
         std::optional<Observation> ObserveNearbyCreature(AgentId observerId, Creature const& observer,
             Creature const& seen, float sightRange) const;
+
+        // Milestone 2.13C6C: the Rumor channel's first real logic - a
+        // targeted fallback for an agent this WorldEvent explicitly names
+        // (event.Target.Agent), used when that agent could not actually
+        // witness the event through normal Sight (e.g. a dynamic quest
+        // issuer that is unloaded/dead/out of range when its own quest
+        // resolves). Deliberately takes no Creature* and applies no map/
+        // range/LOS gate whatsoever - unlike ObserveEvent() above, this is
+        // never "did the observer perceive this happening nearby", only
+        // "this event is explicitly about this specific agent, and that is
+        // reason enough for it to know". Requires event.Target.Agent ==
+        // observerId exactly (nullopt otherwise, including for an empty/
+        // default observerId) - this must never be used to hand an agent
+        // an observation of an event that does not actually name it.
+        // Copies EventId/CorrelationId/OccurredAtMs/Type/Location/Actor/
+        // Target straight from the event, same as ObserveEvent(); Channel
+        // is always PerceptionChannel::Rumor, Distance is always 0.0f, and
+        // LineOfSight is always false - there is no real distance/LOS
+        // concept for a directed, non-physical delivery.
+        std::optional<Observation> ObserveDirectedEvent(AgentId observerId, WorldEvent const& event) const;
 };
 
 #endif // AIWORLD_PERCEPTIONSYSTEM_H
