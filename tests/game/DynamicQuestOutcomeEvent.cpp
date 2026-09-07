@@ -193,7 +193,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent preserves SourceEventId/SourceCorr
     REQUIRE(event->CorrelationId == proposal.SourceCorrelationId);
 }
 
-TEST_CASE("BuildDynamicQuestOutcomeWorldEvent sets Actor to the accepting player for Completed/Failed", "[DynamicQuestOutcomeEvent]")
+TEST_CASE("BuildDynamicQuestOutcomeWorldEvent sets Actor to the accepting player only for Completed - the one outcome the player actually caused", "[DynamicQuestOutcomeEvent]")
 {
     QuestProposal proposal = MakeValidProposal();
     ObjectGuid player = PlayerGuid(7);
@@ -205,21 +205,33 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent sets Actor to the accepting player
         REQUIRE(event.has_value());
         REQUIRE(event->Actor.Guid == player);
     }
+}
+
+TEST_CASE("BuildDynamicQuestOutcomeWorldEvent leaves Actor empty for Failed and Expired even when a player had accepted the quest", "[DynamicQuestOutcomeEvent]")
+{
+    // Failed/Expired both happen TO the quest (server force-fail/replay
+    // containment, or deadline maintenance) - never something the
+    // accepting player did, so Actor must never read as "the player"
+    // for these, even though AcceptedByPlayerGuid is non-empty.
+    QuestProposal proposal = MakeValidProposal();
+    ObjectGuid player = PlayerGuid(7);
 
     SECTION("Failed")
     {
         DynamicQuestInstance instance = MakeFailedInstance(proposal, player);
+        REQUIRE_FALSE(instance.AcceptedByPlayerGuid.IsEmpty());
         std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
         REQUIRE(event.has_value());
-        REQUIRE(event->Actor.Guid == player);
+        REQUIRE(event->Actor.Guid.IsEmpty());
     }
 
     SECTION("Expired from Active")
     {
         DynamicQuestInstance instance = MakeExpiredFromActiveInstance(proposal, player, 10000, 999999999);
+        REQUIRE_FALSE(instance.AcceptedByPlayerGuid.IsEmpty());
         std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
         REQUIRE(event.has_value());
-        REQUIRE(event->Actor.Guid == player);
+        REQUIRE(event->Actor.Guid.IsEmpty());
     }
 }
 

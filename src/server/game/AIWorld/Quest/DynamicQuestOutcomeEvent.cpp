@@ -48,7 +48,14 @@ std::optional<WorldEvent> BuildDynamicQuestOutcomeWorldEvent(
     event.Type = *type;
     event.Location = location;
 
-    event.Actor.Guid = instance.AcceptedByPlayerGuid;
+    // Actor = did-it, per WorldEvent's existing Actor/Target convention.
+    // Only Completed is genuinely something the accepting player did -
+    // Failed and Expired both happen TO the quest (deadline maintenance,
+    // or server-side force-fail/replay-containment recovery), never as
+    // an action the player took, so Actor stays empty (WorldEntityRef's
+    // own default) for both.
+    if (instance.State == DynamicQuestState::Completed)
+        event.Actor.Guid = instance.AcceptedByPlayerGuid;
 
     event.Target.Agent = instance.Giver;
     event.Target.Guid = instance.GiverRuntimeGuid;

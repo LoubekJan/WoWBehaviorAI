@@ -46,10 +46,18 @@
 // original WorldEvent whose provenance created the quest in the first
 // place, never a new root correlation of its own.
 //
-// Actor.Guid is instance.AcceptedByPlayerGuid - the player who is
-// responsible for this outcome. Empty for an Offered->Expired instance
-// (nobody ever accepted it), never fabricated. Target.Agent/Target.Guid
-// are instance.Giver/instance.GiverRuntimeGuid - again pure historical
+// Actor.Guid follows WorldEvent's existing Actor = did-it / Target =
+// had-it-done-to-them convention: it is instance.AcceptedByPlayerGuid
+// ONLY for Completed, the one outcome the accepting player genuinely
+// caused. Failed and Expired both happen TO the quest, not because of
+// anything the player did - Expired comes from deadline maintenance,
+// Failed from server-side force-fail/replay-containment recovery (see
+// AIWorldMgr) - so Actor stays empty for both, never the accepting
+// player's GUID. Do not widen this to "the accepted player is
+// responsible for every outcome" - a future explicit player-abandon
+// transition would need its own real failure-cause semantics, not an
+// inference from AcceptedByPlayerGuid alone. Target.Agent/Target.Guid
+// are instance.Giver/instance.GiverRuntimeGuid - pure historical
 // value/provenance data, exactly as DynamicQuestInstance's own comment
 // describes them elsewhere, never an authorization by themselves.
 //
