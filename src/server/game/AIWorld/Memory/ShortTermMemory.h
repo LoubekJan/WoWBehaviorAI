@@ -26,12 +26,20 @@
 #include <unordered_map>
 #include <vector>
 
-// World-thread-only: an in-memory, per-agent, TTL'd, deduplicated record of
-// Observations. Milestone 2.5A/2.5B1 - not persisted (2.5B2+), not queried
-// by decision context yet (2.5C). Pure value storage: never touches
-// Creature/Player/Map, never calls ai-server, never mutates world state.
-// Logs its own Added/Refreshed/Expired/capacity-eviction transitions, the
-// same way AgentRegistry and EventBus already log their own state changes.
+// An in-memory, per-agent, TTL'd, deduplicated record of Observations.
+// Milestone 2.5A/2.5B1 - not persisted (2.5B2+). Pure value storage: never
+// touches Creature/Player/Map, never calls ai-server, never mutates world
+// state. Logs its own Added/Refreshed/Expired/capacity-eviction
+// transitions, the same way AgentRegistry and EventBus already log their
+// own state changes.
+//
+// Mutations remain world-thread-only. Read-only access used by the
+// AIWorldCreatureAI gossip-content probe (Milestone 2.13C6D - see
+// AIWorldMgr::HasDynamicQuestGossipContentForGiver()/
+// GetDynamicQuestGossipContent()) occurs during TrinityCore's map update
+// phase, before AIWorldMgr::Update() resumes world-thread memory
+// mutation; this relies on that existing phase barrier and must not be
+// generalized to arbitrary concurrent readers.
 class TC_GAME_API ShortTermMemory
 {
     public:

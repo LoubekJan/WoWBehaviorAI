@@ -627,12 +627,16 @@ class TC_GAME_API AIWorldMgr
         // Expire()/Fail() each remove their own instance - see their own
         // callers' comments). This is the visible-issuer-impact half of
         // the causal loop the roadmap's 2.13C6 section requires: the
-        // giver's own memory of its quest's outcome, surfaced back to the
-        // player who was part of it, with no DynamicQuestId/Title/
-        // Description to show (the terminal instance no longer exists to
-        // provide them) - only OutcomeType/SourceEventId/OutcomeChannel/
-        // GiverAgent, the fields FormatDynamicQuestOutcomeReaction() and
-        // the DYNAMIC_QUEST_OUTCOME_REACTION_SHOWN log line need.
+        // giver's own memory of its quest's outcome, surfaced to any
+        // player who opens this giver's gossip while that outcome memory
+        // is still active - not exclusively the player who was part of
+        // it, and never re-checked against AcceptedByPlayerGuid (that
+        // identity no longer exists once the terminal instance is
+        // Remove()d). No DynamicQuestId/Title/Description to show (the
+        // terminal instance no longer exists to provide them) - only
+        // OutcomeType/SourceEventId/OutcomeChannel/GiverAgent, the fields
+        // FormatDynamicQuestOutcomeReaction() and the
+        // DYNAMIC_QUEST_OUTCOME_REACTION_SHOWN log line need.
         struct DynamicQuestGossipContent
         {
             enum class ContentKind : uint8 { NoQuest, Offered, Active, ReadyToTurnIn, RecentOutcome };
@@ -683,6 +687,11 @@ class TC_GAME_API AIWorldMgr
         // would tear the flag down the instant the instance is Remove()d,
         // even though GetDynamicQuestGossipContent() can still produce a
         // Kind::RecentOutcome for a few more seconds.
+        //
+        // C6D intentionally accepts the bounded copy performed by
+        // GetActiveForAgent() for this ~1 Hz player-facing probe. An
+        // allocation-free outcome-presence index is deferred to
+        // world-scale/performance hardening.
         bool HasDynamicQuestGossipContentForGiver(Creature* giverCreature);
 
         // Milestone 2.13C4: the ONLY authoritative direct-killer

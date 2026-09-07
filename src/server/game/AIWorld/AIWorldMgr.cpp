@@ -10261,12 +10261,19 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
 // AIWorldMgr.h for the Active-before-Offered priority and the shared
 // expiry treatment.
 //
-// Milestone 2.13C6D: neither the Active nor the Offered branch returns
-// unconditionally anymore - each only returns early on an actual live
-// (not-yet-expired) hit. Every other path (no active/offered instance at
-// all, or one found but already past its own deadline) falls through to
-// the RecentOutcome memory lookup at the bottom instead of going straight
-// to a bare NoQuest, exactly per this method's own declaration comment.
+// Milestone 2.13C6D: precedence is now, in order: live Active/
+// ReadyToTurnIn for this player -> live Offered from this giver ->
+// RecentOutcome memory -> NoQuest. The Active and Offered checks below
+// are two independent `if`s, deliberately NOT `if`/`else if` - an Active
+// instance that exists but is already past its own deadline must still
+// fall through to the Offered check (a giver can have offered a NEW
+// quest while an old Active one lingers un-reclaimed by maintenance),
+// and neither branch returns unconditionally anymore: each only returns
+// early on an actual live (not-yet-expired) hit. Every other path (no
+// active/offered instance at all, or one found but already past its own
+// deadline) falls through to the RecentOutcome memory lookup at the
+// bottom instead of going straight to a bare NoQuest, exactly per this
+// method's own declaration comment.
 AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(Creature* giverCreature, Player const* player)
 {
     DynamicQuestGossipContent content;
@@ -10302,7 +10309,7 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
             return content;
         }
     }
-    else if (DynamicQuestInstance const* offered = _dynamicQuestRegistry.FindOfferedByGiver(record->Id, giverRuntimeGuid))
+    if (DynamicQuestInstance const* offered = _dynamicQuestRegistry.FindOfferedByGiver(record->Id, giverRuntimeGuid))
     {
         if (!IsDynamicQuestExpired(*offered, nowMs))
         {
