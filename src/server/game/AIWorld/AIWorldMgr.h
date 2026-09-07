@@ -382,9 +382,9 @@ class TC_GAME_API AIWorldMgr
         // no further use for it (no player was ever bound to an Offered
         // instance nobody accepted; an Active one that already expired
         // is equally done).
-        // Completed/Failed instances are left alone: nothing in
-        // this milestone chain produces those states yet, so cleaning
-        // them up is not yet a real problem to solve.
+        // Completed/Failed instances are left alone here: their lifecycle
+        // and reclamation are owned by their respective authoritative
+        // paths, not expiry maintenance.
         //
         // Milestone 2.13C6B2: once DynamicQuestRegistry::Expire() above
         // actually succeeds, publishes the terminal outcome WorldEvent
