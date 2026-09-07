@@ -770,7 +770,45 @@ class TC_GAME_API AIWorldMgr
         // PublishDynamicQuestOutcome() and then removes it from the
         // registry - publish-then-remove, same order Completed/Expired
         // already use, so a drop never blocks or reverts the transition.
+        //
+        // Milestone 2.13C6D: the actual fail-all/publish/remove sequence
+        // now lives in ForceFailAllActiveDynamicQuestsForKillCreditLoss()
+        // below - this method's own remaining job is unchanged (decide
+        // whether a drop was really observed), so TryRunTestDynamicQuestKillCreditLoss()
+        // can drive the exact same consequence without a real
+        // DynamicQuestKillEventBus overflow.
         void ReclaimDynamicQuestsAfterKillCreditLoss();
+
+        // Milestone 2.13C6D: the shared consequence
+        // ReclaimDynamicQuestsAfterKillCreditLoss() above and
+        // TryRunTestDynamicQuestKillCreditLoss() below both call, once
+        // each has separately decided a (real or, for the test hook,
+        // simulated) kill-credit loss actually happened - see this
+        // method's own definition comment for why neither caller ever
+        // reimplements this sequence itself. droppedEventCount only
+        // affects the DYNAMIC_QUEST_KILL_CREDIT_LOST log line.
+        void ForceFailAllActiveDynamicQuestsForKillCreditLoss(uint64 droppedEventCount);
+
+        // Milestone 2.13C6D: AIWorld.TestDynamicQuestKillCreditLoss
+        // (default false = disabled) - a runtime-provable way to reach
+        // the SAME authoritative Failed path
+        // ReclaimDynamicQuestsAfterKillCreditLoss() uses, without
+        // actually exhausting DynamicQuestKillEventBus's real 16384-event
+        // capacity (not something a live test server should try to do)
+        // or manufacturing an unrecoverable reward-compensation failure
+        // (the bus's own other real Failed production path). Simulates
+        // ONLY the detection of one lost kill-credit event - never
+        // fabricates a WorldEvent, never writes Memory, never builds a
+        // reaction directly; everything from
+        // ForceFailAllActiveDynamicQuestsForKillCreditLoss() onward is
+        // the exact same production sequence: real DynamicQuestState::
+        // Failed -> PublishDynamicQuestOutcome() -> Remove() -> the
+        // normal EventBus/Perception/Memory/gossip-reaction path. Retries
+        // every tick while enabled and not yet fired, only actually
+        // firing (and logging DYNAMIC_QUEST_TEST_KILL_CREDIT_LOSS_TRIGGERED)
+        // once at least one Active dynamic quest exists to fail - see
+        // this method's own definition comment.
+        void TryRunTestDynamicQuestKillCreditLoss();
 
         // Milestone 2.13C4: the same wall-clock "now" every nowMs
         // parameter on this class already uses internally (see
@@ -3745,6 +3783,12 @@ class TC_GAME_API AIWorldMgr
         // comment for exactly what this hook does (and does not do).
         AgentId _testDynamicTaskAgentId;
         bool _testDynamicTaskFired = false;
+
+        // Milestone 2.13C6D: AIWorld.TestDynamicQuestKillCreditLoss
+        // (false = disabled), reloaded fresh every Initialize() - see
+        // TryRunTestDynamicQuestKillCreditLoss()'s own comment.
+        bool _testDynamicQuestKillCreditLoss = false;
+        bool _testDynamicQuestKillCreditLossFired = false;
 
         // Owned for the process lifetime, deliberately not reset in
         // Shutdown(): by the time Shutdown() runs, the io_context it was

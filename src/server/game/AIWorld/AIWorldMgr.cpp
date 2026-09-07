@@ -1773,6 +1773,18 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         }
     }
 
+    // Milestone 2.13C6D: AIWorld.TestDynamicQuestKillCreditLoss (default
+    // false = disabled) - see TryRunTestDynamicQuestKillCreditLoss()'s own
+    // comment for the full reasoning. Boolean, not an AgentId: this hook
+    // affects every currently Active dynamic quest at once (the same
+    // scope the real DynamicQuestKillEventBus-overflow production path
+    // has), not one specific agent.
+    _testDynamicQuestKillCreditLoss = sConfigMgr->GetBoolDefault("AIWorld.TestDynamicQuestKillCreditLoss", false);
+    _testDynamicQuestKillCreditLossFired = false;
+
+    if (_testDynamicQuestKillCreditLoss)
+        TC_LOG_INFO("ai.world", "AI test dynamic-quest-kill-credit-loss: watching for at least one Active dynamic quest to force-fail through the real kill-credit-loss recovery path (AIWorld.TestDynamicQuestKillCreditLoss)");
+
     // Milestone 2.12E4C2 P2 fix (STATIC review): runs right after the
     // dissolve hook above, for the same reason - a one-shot corrective
     // action that must run before AIWorld.WolfGroupAutoFormation's/
@@ -8244,6 +8256,11 @@ void AIWorldMgr::Update(uint32 diff)
     if (_testDynamicTaskAgentId && !_testDynamicTaskFired)
         TryRunDynamicTaskRuntimeProbe();
 
+    // Milestone 2.13C6D: same "no cost unless enabled" contract - see
+    // TryRunTestDynamicQuestKillCreditLoss()'s own comment.
+    if (_testDynamicQuestKillCreditLoss && !_testDynamicQuestKillCreditLossFired)
+        TryRunTestDynamicQuestKillCreditLoss();
+
     // World thread drains whatever AIClient's worker threads finished since
     // the last tick. AIClient already logged the raw outcome (submitted,
     // succeeded, failed, or timed out); what happens here is the world
@@ -10459,6 +10476,15 @@ void AIWorldMgr::ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& ev
 // actually observed. Milestone 2.13C6B3: now also publishes a
 // DynamicQuestFailed outcome per real committed Failed instance and
 // removes it - see this method's own declaration comment in AIWorldMgr.h.
+//
+// Milestone 2.13C6D runtime-proof hook: the actual fail-all/publish/
+// remove sequence now lives in ForceFailAllActiveDynamicQuestsForKillCreditLoss()
+// below, so TryRunTestDynamicQuestKillCreditLoss() can drive the exact
+// same authoritative consequence without needing a real
+// DynamicQuestKillEventBus overflow (its 16384-event capacity is not
+// something a live test server should actually try to exhaust). This
+// method's own remaining job is unchanged: decide whether a drop was
+// really observed.
 void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
 {
     uint64 droppedCount = _dynamicQuestKillEventBus.GetDroppedEventCount();
@@ -10468,6 +10494,21 @@ void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
     uint64 newlyDropped = droppedCount - _lastObservedDynamicQuestKillDropCount;
     _lastObservedDynamicQuestKillDropCount = droppedCount;
 
+    ForceFailAllActiveDynamicQuestsForKillCreditLoss(newlyDropped);
+}
+
+// Milestone 2.13C6D: the shared "force-fail every currently Active
+// dynamic quest, publishing a real DynamicQuestFailed outcome for each
+// one actually committed, then remove it" consequence -
+// ReclaimDynamicQuestsAfterKillCreditLoss() above (the real production
+// caller, once it has confirmed an actual DynamicQuestKillEventBus drop)
+// and TryRunTestDynamicQuestKillCreditLoss() below (the test-only
+// runtime-proof hook, which never touches DynamicQuestKillEventBus at
+// all) both call this exact same method - neither ever duplicates or
+// reimplements this sequence itself. droppedEventCount is purely for the
+// log line below; it does not change what actually gets failed.
+void AIWorldMgr::ForceFailAllActiveDynamicQuestsForKillCreditLoss(uint64 droppedEventCount)
+{
     uint64 nowMs = CurrentTimeMs();
     std::vector<DynamicQuestInstance> failedInstances = _dynamicQuestRegistry.FailAllActiveInstances(nowMs);
 
@@ -10487,10 +10528,40 @@ void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
 
     uint32 failedCount = uint32(failedInstances.size());
 
+    // Milestone 2.13C6D: worded to stay accurate for BOTH callers - this
+    // method itself has no way to tell a real DynamicQuestKillEventBus
+    // overflow (ReclaimDynamicQuestsAfterKillCreditLoss()) apart from the
+    // AIWorld.TestDynamicQuestKillCreditLoss simulated one, so it must
+    // never claim the bus specifically overflowed.
     TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_KILL_CREDIT_LOST droppedEvents={} activeQuestsForceFailed={} - "
-        "DynamicQuestKillEventBus overflowed (see its own comment); every Active dynamic quest was "
-        "force-failed rather than risk one silently missing a real kill credit",
-        newlyDropped, failedCount);
+        "a kill-credit-loss event was detected; every Active dynamic quest was force-failed rather "
+        "than risk one silently missing a real kill credit",
+        droppedEventCount, failedCount);
+}
+
+// Milestone 2.13C6D runtime-proof hook: AIWorld.TestDynamicQuestKillCreditLoss
+// (default 0/false = disabled) - see this method's own declaration
+// comment in AIWorldMgr.h for the full reasoning. Retries every tick
+// while enabled and not yet fired, the same "wait for a real, meaningful
+// condition" idiom TryRunDynamicTaskRuntimeProbe() already uses: fires
+// only once GetAllActiveIds() actually finds at least one Active dynamic
+// quest to fail, never on an empty registry (which would consume the
+// one-shot latch for a no-op and never actually prove anything).
+void AIWorldMgr::TryRunTestDynamicQuestKillCreditLoss()
+{
+    if (_dynamicQuestRegistry.GetAllActiveIds().empty())
+        return;
+
+    TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_TEST_KILL_CREDIT_LOSS_TRIGGERED");
+
+    // Simulates ONLY the detection of one lost kill-credit event - never
+    // fabricates a WorldEvent, never writes Memory, never builds a
+    // reaction directly. Everything downstream of this call is the exact
+    // same authoritative path ReclaimDynamicQuestsAfterKillCreditLoss()
+    // itself uses.
+    ForceFailAllActiveDynamicQuestsForKillCreditLoss(1);
+
+    _testDynamicQuestKillCreditLossFired = true;
 }
 
 uint64 AIWorldMgr::GetCurrentTimeMs() const

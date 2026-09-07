@@ -4921,6 +4921,23 @@ AIWorld.AIResponseDrainMaxPerTick = 64
 AIWorld.TestDynamicTaskAgentId = 0
 
 #
+#    AIWorld.TestDynamicQuestKillCreditLoss
+#        Description: Milestone 2.13C6D - a runtime proof that the real, production dynamic-quest
+#                     kill-credit-loss recovery path (ReclaimDynamicQuestsAfterKillCreditLoss()) ends
+#                     in a real DynamicQuestFailed outcome -> WorldEvent -> Perception -> Memory ->
+#                     issuer gossip reaction, without actually exhausting DynamicQuestKillEventBus's
+#                     real 16384-event capacity or manufacturing an unrecoverable reward-compensation
+#                     failure (that path's other real Failed production trigger). When enabled,
+#                     simulates ONLY the detection of one lost kill-credit event - never fabricates a
+#                     WorldEvent, never writes Memory, never builds a reaction directly. Retries every
+#                     tick and fires (stops retrying) only once at least one Active dynamic quest
+#                     actually exists to force-fail.
+#        Important:   Set back to 0 after the one run it was needed for.
+#        Default:     0 - (Disabled)
+
+AIWorld.TestDynamicQuestKillCreditLoss = 0
+
+#
 ###################################################################################################
 
 ###################################################################################################
