@@ -55,6 +55,14 @@ struct QuestProposal
     ObjectGuid GiverRuntimeGuid;
 
     uint64 SourceEventId = 0;
+    // Milestone 2.13C6A: the originating WorldEvent's own CorrelationId
+    // (candidate.Provenance.SourceCorrelationId), carried alongside
+    // SourceEventId so a later terminal dynamic quest outcome event can
+    // inherit the SAME correlation chain the original request-causing
+    // WorldEvent belongs to, not start a new one. Never derived from
+    // SourceEventId itself - a root WorldEvent's CorrelationId equals its
+    // own EventId, but a caused-by one does not (see WorldEvent.h).
+    uint64 SourceCorrelationId = 0;
     WorldEventType SourceEventType = WorldEventType::CreatureKilled;
 
     QuestObjectiveType Objective = QuestObjectiveType::Invalid;

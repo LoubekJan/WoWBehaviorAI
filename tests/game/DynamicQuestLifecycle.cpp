@@ -30,6 +30,7 @@ namespace
         proposal.Giver.Value = 42;
         proposal.GiverRuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(1001, 555);
         proposal.SourceEventId = 9001;
+        proposal.SourceCorrelationId = 9000;
         proposal.SourceEventType = WorldEventType::CreatureKilled;
         proposal.Objective = QuestObjectiveType::KillCreature;
         proposal.TargetToken = 1;
@@ -79,6 +80,9 @@ TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[Dynam
     REQUIRE(instance.Description == proposal.Description);
     REQUIRE(instance.Giver.Value == proposal.Giver.Value);
     REQUIRE(instance.GiverRuntimeGuid == proposal.GiverRuntimeGuid);
+    REQUIRE(instance.SourceEventId == proposal.SourceEventId);
+    REQUIRE(instance.SourceCorrelationId == proposal.SourceCorrelationId);
+    REQUIRE(instance.SourceEventType == proposal.SourceEventType);
     REQUIRE(instance.Objective == proposal.Objective);
     REQUIRE(instance.TargetGuid == proposal.TargetGuid);
     REQUIRE(instance.TargetEntry == proposal.TargetEntry);

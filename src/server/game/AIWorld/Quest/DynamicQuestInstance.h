@@ -22,6 +22,7 @@
 #include "Define.h"
 #include "DynamicQuestId.h"
 #include "DynamicQuestState.h"
+#include "Event/WorldEventType.h"
 #include "Inference/QuestObjectiveType.h"
 #include "ObjectGuid.h"
 
@@ -60,6 +61,19 @@ struct DynamicQuestInstance
     // GiverRuntimeGuid comment.
     AgentId Giver;
     ObjectGuid GiverRuntimeGuid;
+
+    // Milestone 2.13C6A: the WorldEvent that ultimately caused this quest
+    // to be offered (candidate.Provenance.Source*, carried through
+    // QuestProposal - see its own SourceEventId/SourceCorrelationId
+    // comment), copied once at Offer() time, never re-read or recomputed
+    // afterward. Pure provenance/value data, same as Giver/
+    // GiverRuntimeGuid above - it does not itself authorize anything.
+    // BuildDynamicQuestOutcomeWorldEvent() (Quest/DynamicQuestOutcomeEvent.h)
+    // reads these to give a later terminal outcome event a CauseEventId/
+    // CorrelationId that chains back to that original WorldEvent.
+    uint64 SourceEventId = 0;
+    uint64 SourceCorrelationId = 0;
+    WorldEventType SourceEventType = WorldEventType::CreatureKilled;
 
     QuestObjectiveType Objective = QuestObjectiveType::Invalid;
     ObjectGuid TargetGuid;

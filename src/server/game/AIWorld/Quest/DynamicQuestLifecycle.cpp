@@ -107,6 +107,10 @@ DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal 
     instance.Giver = proposal.Giver;
     instance.GiverRuntimeGuid = proposal.GiverRuntimeGuid;
 
+    instance.SourceEventId = proposal.SourceEventId;
+    instance.SourceCorrelationId = proposal.SourceCorrelationId;
+    instance.SourceEventType = proposal.SourceEventType;
+
     instance.Objective = proposal.Objective;
     instance.TargetGuid = proposal.TargetGuid;
     instance.TargetEntry = proposal.TargetEntry;

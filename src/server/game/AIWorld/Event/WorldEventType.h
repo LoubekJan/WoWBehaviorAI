@@ -33,23 +33,34 @@ enum class WorldEventType : uint8
     LivestockKilled,
     WolfPackMoved,
     FoodShortage,
-    NPCDied
+    NPCDied,
+
+    // Milestone 2.13C6A: terminal dynamic quest outcomes, built by
+    // BuildDynamicQuestOutcomeWorldEvent() (see Quest/
+    // DynamicQuestOutcomeEvent.h) from a DynamicQuestInstance that has
+    // just reached DynamicQuestState::Completed/Failed/Expired.
+    DynamicQuestCompleted,
+    DynamicQuestFailed,
+    DynamicQuestExpired
 };
 
 inline char const* ToString(WorldEventType type)
 {
     switch (type)
     {
-        case WorldEventType::CreatureKilled: return "CREATURE_KILLED";
-        case WorldEventType::NPCInjured:     return "NPC_INJURED";
-        case WorldEventType::PlayerSeen:     return "PLAYER_SEEN";
-        case WorldEventType::ItemStolen:     return "ITEM_STOLEN";
-        case WorldEventType::TradeCompleted: return "TRADE_COMPLETED";
-        case WorldEventType::LivestockKilled:return "LIVESTOCK_KILLED";
-        case WorldEventType::WolfPackMoved:  return "WOLF_PACK_MOVED";
-        case WorldEventType::FoodShortage:   return "FOOD_SHORTAGE";
-        case WorldEventType::NPCDied:        return "NPC_DIED";
-        default:                             return "UNKNOWN";
+        case WorldEventType::CreatureKilled:       return "CREATURE_KILLED";
+        case WorldEventType::NPCInjured:           return "NPC_INJURED";
+        case WorldEventType::PlayerSeen:           return "PLAYER_SEEN";
+        case WorldEventType::ItemStolen:           return "ITEM_STOLEN";
+        case WorldEventType::TradeCompleted:       return "TRADE_COMPLETED";
+        case WorldEventType::LivestockKilled:      return "LIVESTOCK_KILLED";
+        case WorldEventType::WolfPackMoved:        return "WOLF_PACK_MOVED";
+        case WorldEventType::FoodShortage:         return "FOOD_SHORTAGE";
+        case WorldEventType::NPCDied:              return "NPC_DIED";
+        case WorldEventType::DynamicQuestCompleted:return "DYNAMIC_QUEST_COMPLETED";
+        case WorldEventType::DynamicQuestFailed:   return "DYNAMIC_QUEST_FAILED";
+        case WorldEventType::DynamicQuestExpired:  return "DYNAMIC_QUEST_EXPIRED";
+        default:                                   return "UNKNOWN";
     }
 }
 

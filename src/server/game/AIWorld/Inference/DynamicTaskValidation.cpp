@@ -183,6 +183,7 @@ DynamicTaskValidationResult ValidateDynamicTaskCandidate(
     proposal.Giver = candidate.Provenance.Agent;
     proposal.GiverRuntimeGuid = candidate.Provenance.RuntimeGuid;
     proposal.SourceEventId = candidate.Provenance.SourceEventId;
+    proposal.SourceCorrelationId = candidate.Provenance.SourceCorrelationId;
     proposal.SourceEventType = candidate.Provenance.SourceEventType;
     proposal.Objective = draft.Objective;
     proposal.TargetToken = draft.TargetToken;

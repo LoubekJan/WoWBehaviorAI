@@ -57,6 +57,7 @@ namespace
         candidate.Provenance.SnapshotSequence = 77;
         candidate.Provenance.RuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(1001, 555);
         candidate.Provenance.SourceEventId = 9001;
+        candidate.Provenance.SourceCorrelationId = 9000;
         candidate.Provenance.SourceEventType = WorldEventType::CreatureKilled;
         candidate.Provenance.TargetBindings.push_back(MakeBinding(1, 2002, 0));
 
@@ -111,6 +112,7 @@ TEST_CASE("ValidateDynamicTaskCandidate accepts a fully valid candidate", "[Dyna
     REQUIRE(proposal.Giver.Value == candidate.Provenance.Agent.Value);
     REQUIRE(proposal.GiverRuntimeGuid == candidate.Provenance.RuntimeGuid);
     REQUIRE(proposal.SourceEventId == candidate.Provenance.SourceEventId);
+    REQUIRE(proposal.SourceCorrelationId == candidate.Provenance.SourceCorrelationId);
     REQUIRE(proposal.SourceEventType == candidate.Provenance.SourceEventType);
     REQUIRE(proposal.Objective == QuestObjectiveType::KillCreature);
     REQUIRE(proposal.TargetToken == 1);
