@@ -33,8 +33,7 @@ namespace
 
 std::optional<WorldEvent> BuildDynamicQuestOutcomeWorldEvent(
     DynamicQuestInstance const& instance,
-    WorldEventLocation const& location,
-    uint64 occurredAtMs)
+    WorldEventLocation const& location)
 {
     std::optional<WorldEventType> type = ToOutcomeEventType(instance.State);
     if (!type)
@@ -44,7 +43,6 @@ std::optional<WorldEvent> BuildDynamicQuestOutcomeWorldEvent(
     event.EventId = 0;
     event.CorrelationId = instance.SourceCorrelationId;
     event.CauseEventId = instance.SourceEventId;
-    event.OccurredAtMs = occurredAtMs;
     event.Type = *type;
     event.Location = location;
 

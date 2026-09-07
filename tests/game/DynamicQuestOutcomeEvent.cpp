@@ -119,7 +119,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent maps each terminal state to its ow
     SECTION("Completed")
     {
         DynamicQuestInstance instance = MakeCompletedInstance(proposal, player);
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location, 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location);
         REQUIRE(event.has_value());
         REQUIRE(event->Type == WorldEventType::DynamicQuestCompleted);
     }
@@ -127,7 +127,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent maps each terminal state to its ow
     SECTION("Failed")
     {
         DynamicQuestInstance instance = MakeFailedInstance(proposal, player);
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location, 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location);
         REQUIRE(event.has_value());
         REQUIRE(event->Type == WorldEventType::DynamicQuestFailed);
     }
@@ -135,7 +135,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent maps each terminal state to its ow
     SECTION("Expired")
     {
         DynamicQuestInstance instance = MakeExpiredFromActiveInstance(proposal, player, 10000, 999999999);
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location, 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location);
         REQUIRE(event.has_value());
         REQUIRE(event->Type == WorldEventType::DynamicQuestExpired);
     }
@@ -150,14 +150,14 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent rejects non-terminal states", "[Dy
     SECTION("Offered")
     {
         DynamicQuestInstance instance = MakeOfferedInstance(proposal);
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location, 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location);
         REQUIRE_FALSE(event.has_value());
     }
 
     SECTION("Active")
     {
         DynamicQuestInstance instance = MakeActiveInstance(proposal, player);
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location, 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location);
         REQUIRE_FALSE(event.has_value());
     }
 }
@@ -167,7 +167,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent always leaves EventId at 0 - only 
     QuestProposal proposal = MakeValidProposal();
     DynamicQuestInstance instance = MakeCompletedInstance(proposal, PlayerGuid(1));
 
-    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
+    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation());
     REQUIRE(event.has_value());
     REQUIRE(event->EventId == 0);
 }
@@ -187,7 +187,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent preserves SourceEventId/SourceCorr
     REQUIRE(completed.SourceEventId == proposal.SourceEventId);
     REQUIRE(completed.SourceCorrelationId == proposal.SourceCorrelationId);
 
-    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(completed, MakeLocation(), 20000);
+    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(completed, MakeLocation());
     REQUIRE(event.has_value());
     REQUIRE(event->CauseEventId == proposal.SourceEventId);
     REQUIRE(event->CorrelationId == proposal.SourceCorrelationId);
@@ -201,7 +201,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent sets Actor to the accepting player
     SECTION("Completed")
     {
         DynamicQuestInstance instance = MakeCompletedInstance(proposal, player);
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation());
         REQUIRE(event.has_value());
         REQUIRE(event->Actor.Guid == player);
     }
@@ -220,7 +220,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent leaves Actor empty for Failed and 
     {
         DynamicQuestInstance instance = MakeFailedInstance(proposal, player);
         REQUIRE_FALSE(instance.AcceptedByPlayerGuid.IsEmpty());
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation());
         REQUIRE(event.has_value());
         REQUIRE(event->Actor.Guid.IsEmpty());
     }
@@ -229,7 +229,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent leaves Actor empty for Failed and 
     {
         DynamicQuestInstance instance = MakeExpiredFromActiveInstance(proposal, player, 10000, 999999999);
         REQUIRE_FALSE(instance.AcceptedByPlayerGuid.IsEmpty());
-        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
+        std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation());
         REQUIRE(event.has_value());
         REQUIRE(event->Actor.Guid.IsEmpty());
     }
@@ -241,7 +241,7 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent leaves Actor empty for an Offered-
     DynamicQuestInstance instance = MakeExpiredFromOfferedInstance(proposal, 10000, 999999999);
     REQUIRE(instance.AcceptedByPlayerGuid.IsEmpty());
 
-    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
+    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation());
     REQUIRE(event.has_value());
     REQUIRE(event->Actor.Guid.IsEmpty());
 }
@@ -251,23 +251,32 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent sets Target to the quest's giver, 
     QuestProposal proposal = MakeValidProposal();
     DynamicQuestInstance instance = MakeCompletedInstance(proposal, PlayerGuid(1));
 
-    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation(), 20000);
+    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation());
     REQUIRE(event.has_value());
     REQUIRE(event->Target.Agent.Value == proposal.Giver.Value);
     REQUIRE(event->Target.Guid == proposal.GiverRuntimeGuid);
 }
 
-TEST_CASE("BuildDynamicQuestOutcomeWorldEvent passes Location and OccurredAtMs through as given by the caller", "[DynamicQuestOutcomeEvent]")
+TEST_CASE("BuildDynamicQuestOutcomeWorldEvent passes Location through as given by the caller", "[DynamicQuestOutcomeEvent]")
 {
     QuestProposal proposal = MakeValidProposal();
     DynamicQuestInstance instance = MakeCompletedInstance(proposal, PlayerGuid(1));
     WorldEventLocation location = MakeLocation();
 
-    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location, 54321);
+    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, location);
     REQUIRE(event.has_value());
     REQUIRE(event->Location.MapId == location.MapId);
     REQUIRE(event->Location.X == location.X);
     REQUIRE(event->Location.Y == location.Y);
     REQUIRE(event->Location.Z == location.Z);
-    REQUIRE(event->OccurredAtMs == 54321);
+}
+
+TEST_CASE("BuildDynamicQuestOutcomeWorldEvent leaves OccurredAtMs at 0 - EventBus::Publish() unconditionally overwrites it with the real publish timestamp", "[DynamicQuestOutcomeEvent]")
+{
+    QuestProposal proposal = MakeValidProposal();
+    DynamicQuestInstance instance = MakeCompletedInstance(proposal, PlayerGuid(1));
+
+    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, MakeLocation());
+    REQUIRE(event.has_value());
+    REQUIRE(event->OccurredAtMs == 0);
 }

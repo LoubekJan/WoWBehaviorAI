@@ -38,7 +38,12 @@
 // The returned WorldEvent always has EventId == 0: exactly like every
 // other WorldEvent producer in this codebase, only EventBus::Publish()
 // ever assigns one (see WorldEvent.h's own comment) - this builder is not
-// itself a publication.
+// itself a publication. OccurredAtMs is left at 0 for the same reason:
+// EventBus::Publish() unconditionally overwrites it with a real
+// millisecond-resolution wall-clock timestamp before enqueueing (see
+// EventBus.cpp), so any value this builder set here would never survive
+// to the published event - accepting an occurredAtMs parameter here
+// would promise a contract 2.13C6B's actual publish path cannot honor.
 //
 // CauseEventId/CorrelationId are taken from instance.SourceEventId/
 // SourceCorrelationId (see DynamicQuestInstance.h's own comment) - the
@@ -67,7 +72,6 @@
 // value makes sense for its own real transition point.
 std::optional<WorldEvent> BuildDynamicQuestOutcomeWorldEvent(
     DynamicQuestInstance const& instance,
-    WorldEventLocation const& location,
-    uint64 occurredAtMs);
+    WorldEventLocation const& location);
 
 #endif // AIWORLD_DYNAMICQUESTOUTCOMEEVENT_H
