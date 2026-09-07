@@ -22,6 +22,7 @@
 #include "Define.h"
 #include "DynamicQuestId.h"
 #include "DynamicQuestState.h"
+#include "Event/WorldEntityRef.h"
 #include "Event/WorldEventType.h"
 #include "Inference/QuestObjectiveType.h"
 #include "ObjectGuid.h"
@@ -61,6 +62,19 @@ struct DynamicQuestInstance
     // GiverRuntimeGuid comment.
     AgentId Giver;
     ObjectGuid GiverRuntimeGuid;
+
+    // Milestone 2.13C6B2: a server-owned snapshot of the giver's live
+    // position, captured in AIWorldMgr::CreateDynamicQuestOffer() right
+    // after CheckDynamicQuestCreateApplicability() confirms a live,
+    // materialized, alive giver - never model-provided, never itself a
+    // gameplay authorization, exactly like Giver/GiverRuntimeGuid above.
+    // Exists because a terminal Expired/Failed outcome can occur when the
+    // giver is no longer materialized (deadline maintenance, force-fail),
+    // so BuildDynamicQuestOutcomeWorldEvent()'s caller needs a location
+    // that does not depend on the giver still being resolvable at that
+    // later point - see AIWorldMgr's own Expired/Failed publication
+    // comments for how a live-or-this-fallback choice is made.
+    WorldEventLocation GiverLocationAtOffer;
 
     // Milestone 2.13C6A: the WorldEvent that ultimately caused this quest
     // to be offered (candidate.Provenance.Source*, carried through

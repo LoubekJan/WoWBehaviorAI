@@ -52,13 +52,23 @@ namespace
         return proposal;
     }
 
+    WorldEventLocation MakeGiverLocation()
+    {
+        WorldEventLocation location;
+        location.MapId = 0;
+        location.X = -9464.0f;
+        location.Y = 64.0f;
+        location.Z = 56.0f;
+        return location;
+    }
+
     // Offers a fresh instance into `registry` through its own Offer() -
     // the only sanctioned way a new instance may exist there - and
     // returns its id. Fails the calling TEST_CASE if the offer itself
     // was rejected.
     DynamicQuestId OfferInto(DynamicQuestRegistry& registry, uint64 idValue, uint32 requiredCount = 3, uint64 nowMs = 10000, uint64 giverValue = 42)
     {
-        DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{idValue}, MakeValidProposal(requiredCount, giverValue), nowMs);
+        DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{idValue}, MakeValidProposal(requiredCount, giverValue), MakeGiverLocation(), nowMs);
         REQUIRE(result.IsAccepted());
         return DynamicQuestId{idValue};
     }
@@ -83,7 +93,8 @@ namespace
 TEST_CASE("DynamicQuestRegistry::Offer accepts a valid proposal and stores a fresh Offered instance", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{1}, MakeValidProposal(), 10000);
+    WorldEventLocation giverLocation = MakeGiverLocation();
+    DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{1}, MakeValidProposal(), giverLocation, 10000);
     REQUIRE(result.IsAccepted());
     REQUIRE(registry.GetCount() == 1);
 
@@ -93,12 +104,19 @@ TEST_CASE("DynamicQuestRegistry::Offer accepts a valid proposal and stores a fre
     REQUIRE(stored->Progress == 0);
     REQUIRE(stored->AcceptedByPlayerGuid.IsEmpty());
     REQUIRE(stored->ConsumedProgressEventIds.empty());
+
+    // Milestone 2.13C6B2: registry.Offer() must store the exact same
+    // snapshot it was handed, not a re-derived or default-constructed one.
+    REQUIRE(stored->GiverLocationAtOffer.MapId == giverLocation.MapId);
+    REQUIRE(stored->GiverLocationAtOffer.X == giverLocation.X);
+    REQUIRE(stored->GiverLocationAtOffer.Y == giverLocation.Y);
+    REQUIRE(stored->GiverLocationAtOffer.Z == giverLocation.Z);
 }
 
 TEST_CASE("DynamicQuestRegistry::Offer rejects DynamicQuestId{0}", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
-    DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{0}, MakeValidProposal(), 10000);
+    DynamicQuestTransitionResult result = registry.Offer(DynamicQuestId{0}, MakeValidProposal(), MakeGiverLocation(), 10000);
     REQUIRE_FALSE(result.IsAccepted());
     REQUIRE(result.Reason == DynamicQuestRejectReason::InvalidQuestId);
     REQUIRE(registry.GetCount() == 0);
@@ -109,7 +127,7 @@ TEST_CASE("DynamicQuestRegistry::Offer rejects a duplicate id and leaves the ori
     DynamicQuestRegistry registry;
     OfferInto(registry, 1, 3);
 
-    DynamicQuestTransitionResult duplicate = registry.Offer(DynamicQuestId{1}, MakeValidProposal(99), 10000);
+    DynamicQuestTransitionResult duplicate = registry.Offer(DynamicQuestId{1}, MakeValidProposal(99), MakeGiverLocation(), 10000);
     REQUIRE_FALSE(duplicate.IsAccepted());
     REQUIRE(duplicate.Reason == DynamicQuestRejectReason::DuplicateQuestId);
     REQUIRE(registry.GetCount() == 1);

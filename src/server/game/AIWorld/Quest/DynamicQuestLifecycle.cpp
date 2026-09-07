@@ -92,7 +92,11 @@ namespace
     }
 }
 
-DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs)
+DynamicQuestTransitionResult OfferDynamicQuest(
+    DynamicQuestId id,
+    QuestProposal const& proposal,
+    WorldEventLocation const& giverLocationAtOffer,
+    uint64 nowMs)
 {
     if (!id)
         return Reject(DynamicQuestRejectReason::InvalidQuestId);
@@ -106,6 +110,7 @@ DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal 
 
     instance.Giver = proposal.Giver;
     instance.GiverRuntimeGuid = proposal.GiverRuntimeGuid;
+    instance.GiverLocationAtOffer = giverLocationAtOffer;
 
     instance.SourceEventId = proposal.SourceEventId;
     instance.SourceCorrelationId = proposal.SourceCorrelationId;

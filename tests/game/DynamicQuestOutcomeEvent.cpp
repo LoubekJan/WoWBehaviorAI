@@ -50,9 +50,19 @@ namespace
         return proposal;
     }
 
+    WorldEventLocation MakeGiverLocationAtOffer()
+    {
+        WorldEventLocation location;
+        location.MapId = 0;
+        location.X = -9464.0f;
+        location.Y = 64.0f;
+        location.Z = 56.0f;
+        return location;
+    }
+
     DynamicQuestInstance MakeOfferedInstance(QuestProposal const& proposal, uint64 nowMs = 10000)
     {
-        DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{777}, proposal, nowMs);
+        DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{777}, proposal, MakeGiverLocationAtOffer(), nowMs);
         REQUIRE(result.IsAccepted());
         return *result.Instance;
     }
@@ -269,6 +279,31 @@ TEST_CASE("BuildDynamicQuestOutcomeWorldEvent passes Location through as given b
     REQUIRE(event->Location.X == location.X);
     REQUIRE(event->Location.Y == location.Y);
     REQUIRE(event->Location.Z == location.Z);
+}
+
+TEST_CASE("BuildDynamicQuestOutcomeWorldEvent for an Expired instance can be built from GiverLocationAtOffer, preserving causality and empty Actor", "[DynamicQuestOutcomeEvent]")
+{
+    // Milestone 2.13C6B2: this is the pure half of AIWorldMgr's
+    // RunDynamicQuestMaintenance() location fallback - the caller decides
+    // whether to prefer a freshly re-resolved live giver position or this
+    // instance's own GiverLocationAtOffer snapshot (untestable live-World
+    // orchestration, by necessity - see that method's own comment); this
+    // builder itself just has to use whatever location it is handed
+    // correctly, which the GiverLocationAtOffer case exercises directly.
+    QuestProposal proposal = MakeValidProposal();
+    ObjectGuid player = PlayerGuid(1);
+    DynamicQuestInstance instance = MakeExpiredFromActiveInstance(proposal, player, 10000, 999999999);
+
+    std::optional<WorldEvent> event = BuildDynamicQuestOutcomeWorldEvent(instance, instance.GiverLocationAtOffer);
+    REQUIRE(event.has_value());
+    REQUIRE(event->Type == WorldEventType::DynamicQuestExpired);
+    REQUIRE(event->Location.MapId == instance.GiverLocationAtOffer.MapId);
+    REQUIRE(event->Location.X == instance.GiverLocationAtOffer.X);
+    REQUIRE(event->Location.Y == instance.GiverLocationAtOffer.Y);
+    REQUIRE(event->Location.Z == instance.GiverLocationAtOffer.Z);
+    REQUIRE(event->Actor.Guid.IsEmpty());
+    REQUIRE(event->CauseEventId == proposal.SourceEventId);
+    REQUIRE(event->CorrelationId == proposal.SourceCorrelationId);
 }
 
 TEST_CASE("BuildDynamicQuestOutcomeWorldEvent leaves OccurredAtMs at 0 - EventBus::Publish() unconditionally overwrites it with the real publish timestamp", "[DynamicQuestOutcomeEvent]")

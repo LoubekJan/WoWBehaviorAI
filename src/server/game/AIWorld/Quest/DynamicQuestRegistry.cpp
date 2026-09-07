@@ -22,9 +22,9 @@
 #include <algorithm>
 #include <utility>
 
-DynamicQuestTransitionResult DynamicQuestRegistry::Offer(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs)
+DynamicQuestTransitionResult DynamicQuestRegistry::Offer(DynamicQuestId id, QuestProposal const& proposal, WorldEventLocation const& giverLocationAtOffer, uint64 nowMs)
 {
-    DynamicQuestTransitionResult result = OfferDynamicQuest(id, proposal, nowMs);
+    DynamicQuestTransitionResult result = OfferDynamicQuest(id, proposal, giverLocationAtOffer, nowMs);
     if (!result.IsAccepted())
         return result;
 

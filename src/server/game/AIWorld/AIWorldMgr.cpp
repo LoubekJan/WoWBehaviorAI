@@ -9674,6 +9674,20 @@ DynamicQuestCreateResult AIWorldMgr::CreateDynamicQuestOffer(QuestProposal const
         return result;
     }
 
+    // Milestone 2.13C6B2: captured HERE, right after applicability just
+    // proved giverCreature is a live, materialized, alive incarnation -
+    // giverFacts.Alive (checked above) is only ever set once giverCreature
+    // itself resolved successfully, so it is guaranteed non-null on this
+    // path. Server-owned world fact, never a QuestProposal/model field -
+    // see DynamicQuestInstance::GiverLocationAtOffer's own comment for why
+    // it exists (a later terminal Expired/Failed outcome may need a
+    // location even when the giver is no longer materialized).
+    WorldEventLocation giverLocationAtOffer;
+    giverLocationAtOffer.MapId = giverCreature->GetMapId();
+    giverLocationAtOffer.X = giverCreature->GetPositionX();
+    giverLocationAtOffer.Y = giverCreature->GetPositionY();
+    giverLocationAtOffer.Z = giverCreature->GetPositionZ();
+
     DynamicQuestId id = AllocateDynamicQuestId();
     if (!id)
     {
@@ -9686,7 +9700,7 @@ DynamicQuestCreateResult AIWorldMgr::CreateDynamicQuestOffer(QuestProposal const
     // by construction - rather than calling the pure OfferDynamicQuest()
     // and a separate Add() step; see DynamicQuestRegistry::Offer()'s own
     // comment.
-    DynamicQuestTransitionResult offerResult = _dynamicQuestRegistry.Offer(id, proposal, nowMs);
+    DynamicQuestTransitionResult offerResult = _dynamicQuestRegistry.Offer(id, proposal, giverLocationAtOffer, nowMs);
     if (!offerResult.IsAccepted())
     {
         result.Reason = DynamicQuestCreateReason::OfferRejected;
@@ -9752,6 +9766,44 @@ void AIWorldMgr::RunDynamicQuestMaintenance(uint64 nowMs)
         DynamicQuestTransitionResult expireResult = _dynamicQuestRegistry.Expire(id, nowMs);
         if (!expireResult.IsAccepted())
             continue; // state changed between Find() and here - leave it for the next pass
+
+        // Milestone 2.13C6B2: publish the terminal outcome WorldEvent
+        // from *expireResult.Instance - the registry's own just-committed
+        // Expired value, never the earlier `instance` this loop found
+        // before Expire() ran. Location is live-current-or-offer-fallback:
+        // start from the server-owned GiverLocationAtOffer snapshot, then
+        // try to improve on it with the giver's actual current position
+        // ONLY if it can be freshly re-resolved to the SAME runtime
+        // incarnation this instance was offered by (GiverRuntimeGuid
+        // match) - a despawned-and-respawned giver under the same AgentId
+        // must never have its outcome event's location attributed to the
+        // NEW incarnation's position. Never force-loads a map/grid, never
+        // unbinds anything on a failed resolve - just keeps the fallback.
+        WorldEventLocation expiryLocation = expireResult.Instance->GiverLocationAtOffer;
+        if (AgentRecord* giverRecord = _registry.Find(expireResult.Instance->Giver))
+        {
+            Map* giverMap = sMapMgr->FindBaseNonInstanceMap(giverRecord->MapId);
+            Creature* liveGiver = ResolveLiveCreature(*giverRecord, giverMap);
+            if (liveGiver && liveGiver->GetGUID() == expireResult.Instance->GiverRuntimeGuid)
+            {
+                expiryLocation.MapId = liveGiver->GetMapId();
+                expiryLocation.X = liveGiver->GetPositionX();
+                expiryLocation.Y = liveGiver->GetPositionY();
+                expiryLocation.Z = liveGiver->GetPositionZ();
+            }
+        }
+
+        // Same reasoning as CompleteDynamicQuestForPlayer()'s own
+        // publication: a drop (EventBus is bounded/lossy) must never
+        // block or roll back the Expired transition already committed
+        // above - it is authoritative regardless of whether this
+        // downstream fact is ever delivered. Only logged.
+        if (std::optional<WorldEvent> outcomeEvent = BuildDynamicQuestOutcomeWorldEvent(*expireResult.Instance, expiryLocation))
+        {
+            if (!PublishWorldEvent(std::move(*outcomeEvent)))
+                TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED dynamicQuestId={} state={}",
+                    expireResult.Instance->Id.Value, ToString(expireResult.Instance->State));
+        }
 
         TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_EXPIRED dynamicQuestId={} priorState={}",
             id.Value, ToString(priorState));

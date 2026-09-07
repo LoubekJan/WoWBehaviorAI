@@ -153,13 +153,27 @@ struct DynamicQuestTransitionResult
 // this point. ExpiresAtMs
 // is computed from nowMs + proposal.ExpiryMs with a saturating add - it
 // can never wrap around regardless of input values.
+//
+// Milestone 2.13C6B2: giverLocationAtOffer is a separate parameter, not a
+// QuestProposal field - QuestProposal is the model-originated/validated
+// contract (see its own comment), while this is a server-owned world
+// fact the caller (AIWorldMgr::CreateDynamicQuestOffer()) captured from
+// the live giver Creature it already had to resolve for
+// CheckDynamicQuestCreateApplicability(). Stored on the instance as
+// GiverLocationAtOffer, unconditionally - never itself re-derived or
+// re-validated here.
+//
 // Uses the same DynamicQuestTransitionResult shape as every transition
 // below even though there is no prior instance to transition from, so a
 // caller has exactly one result type to handle everywhere. Rejects:
 // InvalidQuestId (id == DynamicQuestId{0} - see that type's own comment;
 // a caller-side allocator never handing out 0 is not proof enough for
 // this boundary to rely on).
-DynamicQuestTransitionResult OfferDynamicQuest(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs);
+DynamicQuestTransitionResult OfferDynamicQuest(
+    DynamicQuestId id,
+    QuestProposal const& proposal,
+    WorldEventLocation const& giverLocationAtOffer,
+    uint64 nowMs);
 
 // The single, canonical expiry rule this entire lifecycle domain uses:
 // an instance is expired once now >= ExpiresAtMs, independent of its

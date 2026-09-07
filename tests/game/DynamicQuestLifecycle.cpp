@@ -51,9 +51,19 @@ namespace
         return ObjectGuid::Create<HighGuid::Player>(lowGuid);
     }
 
+    WorldEventLocation MakeGiverLocation()
+    {
+        WorldEventLocation location;
+        location.MapId = 0;
+        location.X = -9464.0f;
+        location.Y = 64.0f;
+        location.Z = 56.0f;
+        return location;
+    }
+
     DynamicQuestInstance MakeOfferedInstance(uint64 nowMs = 10000)
     {
-        DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{777}, MakeValidProposal(), nowMs);
+        DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{777}, MakeValidProposal(), MakeGiverLocation(), nowMs);
         REQUIRE(result.IsAccepted());
         return *result.Instance;
     }
@@ -70,7 +80,8 @@ namespace
 TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[DynamicQuestLifecycle]")
 {
     QuestProposal proposal = MakeValidProposal();
-    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(DynamicQuestId{777}, proposal, 10000);
+    WorldEventLocation giverLocation = MakeGiverLocation();
+    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(DynamicQuestId{777}, proposal, giverLocation, 10000);
     REQUIRE(offerResult.IsAccepted());
     DynamicQuestInstance const& instance = *offerResult.Instance;
 
@@ -80,6 +91,10 @@ TEST_CASE("OfferDynamicQuest builds a fully-populated Offered instance", "[Dynam
     REQUIRE(instance.Description == proposal.Description);
     REQUIRE(instance.Giver.Value == proposal.Giver.Value);
     REQUIRE(instance.GiverRuntimeGuid == proposal.GiverRuntimeGuid);
+    REQUIRE(instance.GiverLocationAtOffer.MapId == giverLocation.MapId);
+    REQUIRE(instance.GiverLocationAtOffer.X == giverLocation.X);
+    REQUIRE(instance.GiverLocationAtOffer.Y == giverLocation.Y);
+    REQUIRE(instance.GiverLocationAtOffer.Z == giverLocation.Z);
     REQUIRE(instance.SourceEventId == proposal.SourceEventId);
     REQUIRE(instance.SourceCorrelationId == proposal.SourceCorrelationId);
     REQUIRE(instance.SourceEventType == proposal.SourceEventType);
@@ -102,7 +117,7 @@ TEST_CASE("OfferDynamicQuest rejects DynamicQuestId{0}", "[DynamicQuestLifecycle
     // its own comment) - a genuine lifecycle instance must never carry
     // it, so the allocator-side caller can rely on this boundary
     // rejecting a bug rather than silently accepting id 0.
-    DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{0}, MakeValidProposal(), 10000);
+    DynamicQuestTransitionResult result = OfferDynamicQuest(DynamicQuestId{0}, MakeValidProposal(), MakeGiverLocation(), 10000);
     REQUIRE_FALSE(result.IsAccepted());
     REQUIRE(result.Reason == DynamicQuestRejectReason::InvalidQuestId);
     REQUIRE_FALSE(result.Instance.has_value());
@@ -114,7 +129,7 @@ TEST_CASE("OfferDynamicQuest computes ExpiresAtMs with a saturating add, never w
     proposal.ExpiryMs = std::numeric_limits<uint32>::max();
 
     uint64 nowMs = std::numeric_limits<uint64>::max() - 10;
-    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(DynamicQuestId{1}, proposal, nowMs);
+    DynamicQuestTransitionResult offerResult = OfferDynamicQuest(DynamicQuestId{1}, proposal, MakeGiverLocation(), nowMs);
     REQUIRE(offerResult.IsAccepted());
     DynamicQuestInstance const& instance = *offerResult.Instance;
 
@@ -135,6 +150,13 @@ TEST_CASE("AcceptDynamicQuest: Offered -> Active", "[DynamicQuestLifecycle]")
     REQUIRE(result.IsAccepted());
     REQUIRE(result.Instance->State == DynamicQuestState::Active);
     REQUIRE(result.Instance->AcceptedByPlayerGuid == player);
+
+    // Milestone 2.13C6B2: Accept() must never touch the server-owned
+    // location snapshot - it belongs to Offer() alone.
+    REQUIRE(result.Instance->GiverLocationAtOffer.MapId == offered.GiverLocationAtOffer.MapId);
+    REQUIRE(result.Instance->GiverLocationAtOffer.X == offered.GiverLocationAtOffer.X);
+    REQUIRE(result.Instance->GiverLocationAtOffer.Y == offered.GiverLocationAtOffer.Y);
+    REQUIRE(result.Instance->GiverLocationAtOffer.Z == offered.GiverLocationAtOffer.Z);
 
     // The original value is untouched by a successful transition too -
     // every function returns a NEW instance, never mutates in place.
@@ -197,6 +219,13 @@ TEST_CASE("ExpireDynamicQuest: Active -> Expired once past the deadline", "[Dyna
     DynamicQuestTransitionResult result = ExpireDynamicQuest(active, active.ExpiresAtMs);
     REQUIRE(result.IsAccepted());
     REQUIRE(result.Instance->State == DynamicQuestState::Expired);
+
+    // Milestone 2.13C6B2: Expire() must never touch the server-owned
+    // location snapshot either - it belongs to Offer() alone.
+    REQUIRE(result.Instance->GiverLocationAtOffer.MapId == active.GiverLocationAtOffer.MapId);
+    REQUIRE(result.Instance->GiverLocationAtOffer.X == active.GiverLocationAtOffer.X);
+    REQUIRE(result.Instance->GiverLocationAtOffer.Y == active.GiverLocationAtOffer.Y);
+    REQUIRE(result.Instance->GiverLocationAtOffer.Z == active.GiverLocationAtOffer.Z);
 }
 
 // ---------------------------------------------------------------------

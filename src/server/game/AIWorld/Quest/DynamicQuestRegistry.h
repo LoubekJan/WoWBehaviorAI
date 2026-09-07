@@ -109,7 +109,12 @@ class TC_GAME_API DynamicQuestRegistry
         // OfferDynamicQuest() itself) and DuplicateQuestId (id already
         // registered - defense in depth only, unreachable given a
         // correct monotonic allocator).
-        DynamicQuestTransitionResult Offer(DynamicQuestId id, QuestProposal const& proposal, uint64 nowMs);
+        // Milestone 2.13C6B2: giverLocationAtOffer is forwarded verbatim
+        // to OfferDynamicQuest() (see that function's own comment) - this
+        // registry stays EventBus-unaware and does not itself know or
+        // care what the value is used for later, exactly like every
+        // other field it stores.
+        DynamicQuestTransitionResult Offer(DynamicQuestId id, QuestProposal const& proposal, WorldEventLocation const& giverLocationAtOffer, uint64 nowMs);
 
         DynamicQuestInstance const* Find(DynamicQuestId id) const;
 

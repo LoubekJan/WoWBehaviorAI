@@ -350,6 +350,13 @@ class TC_GAME_API AIWorldMgr
         // ActionSystem/ActionExecutor, no Player/Quest/DB, no reward, no
         // world mutation - this only ever creates an inert, server-only
         // Offered lifecycle instance.
+        //
+        // Milestone 2.13C6B2: also captures a server-owned
+        // GiverLocationAtOffer snapshot from the live giverCreature right
+        // after applicability confirms it, and passes it into
+        // DynamicQuestRegistry::Offer() - see DynamicQuestInstance's own
+        // comment for why a later terminal Expired/Failed outcome needs
+        // this fallback.
         DynamicQuestCreateResult CreateDynamicQuestOffer(QuestProposal const& proposal, uint64 nowMs);
 
         // Milestone 2.13C2 P2 fix (STATIC review): keeps _dynamicQuestRegistry
@@ -378,6 +385,21 @@ class TC_GAME_API AIWorldMgr
         // Completed/Failed instances are left alone: nothing in
         // this milestone chain produces those states yet, so cleaning
         // them up is not yet a real problem to solve.
+        //
+        // Milestone 2.13C6B2: once DynamicQuestRegistry::Expire() above
+        // actually succeeds, publishes the terminal outcome WorldEvent
+        // built from *expireResult.Instance (the registry's own
+        // just-committed value) before Remove() runs. Location is
+        // live-current-or-offer-fallback: the giver may no longer be
+        // materialized at expiry, so this starts from
+        // DynamicQuestInstance::GiverLocationAtOffer and only overrides
+        // it with a freshly re-resolved live position when that
+        // resolution's GUID still matches GiverRuntimeGuid (never
+        // attributing a despawned-and-respawned giver's new incarnation
+        // to the old instance's outcome). A publish failure (EventBus is
+        // bounded/lossy) never blocks or reverts the Expired transition,
+        // already authoritative by that point; only
+        // DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED is logged.
         void RunDynamicQuestMaintenance(uint64 nowMs);
 
         // Milestone 2.13C3: the ONLY place a player's request to accept a
