@@ -216,6 +216,13 @@ class TC_GAME_API AIWorldMgr
 
         std::optional<AIRequest> ProcessAgent(AgentId id);
         AIRequest CaptureAgentContext(AgentId id, AgentRecord& record, Creature& creature);
+        // Milestone 2.13C6C: beyond the normal per-agent Sight loop, gives
+        // a dynamic quest outcome event's own issuer (event.Target.Agent)
+        // exactly one directed/Rumor fallback Observation via
+        // PerceptionSystem::ObserveDirectedEvent() when Sight itself did
+        // not already deliver one - see that method's own comment and
+        // this one's definition comment for the full reasoning. Every
+        // other WorldEventType is unaffected.
         void ProcessWorldEvent(WorldEvent& event);
         void ProcessObservation(Observation const& observation);
         void ScanNearbyEntities();
@@ -508,10 +515,10 @@ class TC_GAME_API AIWorldMgr
         // (EventBus is bounded/lossy) never rolls back the reward or the
         // Completed transition, both already authoritative by that
         // point; only DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED is logged.
-        // Publishing Failed/Expired outcomes from their own real
-        // transition points (registry maintenance / force-fail /
-        // replay-containment) is separate follow-up work (2.13C6B2/B3),
-        // not part of this method.
+        // Expired outcomes publish from RunDynamicQuestMaintenance(),
+        // Failed ones from ReclaimDynamicQuestsAfterKillCreditLoss() and
+        // CompensateDynamicQuestReward() - all three share the same
+        // PublishDynamicQuestOutcome() helper (see its own comment).
         DynamicQuestPlayerCompleteResult CompleteDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
 
         // Milestone 2.13C5 P1 fix (STATIC review, round 3): the shared
@@ -538,7 +545,52 @@ class TC_GAME_API AIWorldMgr
         // caller must report DynamicQuestPlayerCompleteReason::
         // RewardApplicationFailed and stop, never fall through to acting
         // on this id again).
+        //
+        // Milestone 2.13C6B3: on that failure path, once
+        // DynamicQuestRegistry::TerminateForReplayContainment() returns,
+        // publishes a DynamicQuestFailed outcome via
+        // PublishDynamicQuestOutcome() if and only if its FailedInstance
+        // is set (Fail() itself actually succeeded) - AFTER Remove() has
+        // already run internally, since replay-containment's own removal
+        // is the safety priority here, never gated on publication.
         bool CompensateDynamicQuestReward(DynamicQuestId id, uint64 nowMs, Player* player, uint32 moneyBeforeReward);
+
+        // Milestone 2.13C6B3: the single shared "build and publish one
+        // terminal dynamic quest outcome WorldEvent" helper every C6B
+        // publication call site (Completed/Expired/Failed) now goes
+        // through, replacing three near-identical inline blocks.
+        // BuildDynamicQuestOutcomeWorldEvent() only ever returns nullopt
+        // for a non-terminal instance.State - reaching this method with
+        // one would itself be a caller bug (every call site only ever
+        // passes an instance a registry transition just committed as
+        // terminal), so that case is logged as
+        // DYNAMIC_QUEST_OUTCOME_EVENT_BUILD_REJECTED rather than silently
+        // ignored. A publish failure (EventBus is bounded/lossy) only
+        // logs DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED - the caller's own
+        // lifecycle transition is already authoritative and committed by
+        // the time this runs, regardless of whether this downstream fact
+        // is ever delivered.
+        void PublishDynamicQuestOutcome(DynamicQuestInstance const& instance, WorldEventLocation const& location);
+
+        // Milestone 2.13C6B3: the single shared live-current-or-offer-
+        // fallback location resolution C6B2's own Expired path already
+        // established, pulled out so C6B3's Failed path (two separate
+        // production call sites) does not have to duplicate it. Starts
+        // from instance.GiverLocationAtOffer (the server-owned snapshot
+        // captured at Offer() time - see its own comment), then tries to
+        // improve on it with a freshly re-resolved live giver position
+        // ONLY if that resolution's GUID still matches
+        // instance.GiverRuntimeGuid - a despawned-and-respawned giver
+        // under the same AgentId must never have this outcome's location
+        // attributed to the NEW incarnation's position. Never force-loads
+        // a map/grid, never unbinds anything on a failed resolve - just
+        // keeps the fallback. Deliberately NOT used by
+        // CompleteDynamicQuestForPlayer()'s own completionLocation, which
+        // stays its own pre-reward-mutation live snapshot (see that
+        // method's own comment for why re-reading the giver that late is
+        // unsafe) - Completed always has a definitely-live giver at that
+        // point, so there is nothing this fallback would add there.
+        WorldEventLocation ResolveDynamicQuestOutcomeLocation(DynamicQuestInstance const& instance);
 
         // Milestone 2.13C4: read-only gossip-UI query -
         // AIWorldCreatureAI::OnGossipHello() calls this to decide what (if
@@ -661,6 +713,13 @@ class TC_GAME_API AIWorldMgr
         // has no knowledge of - it is still not itself unit-testable in
         // this sandbox (no compiler/live world), but everything it
         // delegates to now is.
+        //
+        // Milestone 2.13C6B3: for each instance FailAllActiveInstances()
+        // actually returns (a real committed Failed value, never a
+        // rejected/no-op one), publishes a DynamicQuestFailed outcome via
+        // PublishDynamicQuestOutcome() and then removes it from the
+        // registry - publish-then-remove, same order Completed/Expired
+        // already use, so a drop never blocks or reverts the transition.
         void ReclaimDynamicQuestsAfterKillCreditLoss();
 
         // Milestone 2.13C4: the same wall-clock "now" every nowMs

@@ -222,6 +222,19 @@ namespace
         return registry.FindBySpawn(mapId, spawnId);
     }
 
+    // Milestone 2.13C6C: the three terminal dynamic quest outcome types
+    // (see WorldEventType.h) - the only WorldEventType values
+    // ProcessWorldEvent() ever gives a directed/Rumor fallback delivery
+    // to, on top of normal Sight, because their Target.Agent is a real
+    // AI-controlled issuer that may not be materialized/in range/in LOS
+    // at the moment its own quest resolves.
+    bool IsDynamicQuestOutcomeEvent(WorldEventType type)
+    {
+        return type == WorldEventType::DynamicQuestCompleted ||
+               type == WorldEventType::DynamicQuestFailed ||
+               type == WorldEventType::DynamicQuestExpired;
+    }
+
     // Milestone 2.12C/2.12D: a fresh, transient snapshot of an AgentGroup's
     // membership - one plain AgentRegistry::Find() lookup per
     // AgentGroupMembership, never cached anywhere past this call. Never
@@ -9770,40 +9783,11 @@ void AIWorldMgr::RunDynamicQuestMaintenance(uint64 nowMs)
         // Milestone 2.13C6B2: publish the terminal outcome WorldEvent
         // from *expireResult.Instance - the registry's own just-committed
         // Expired value, never the earlier `instance` this loop found
-        // before Expire() ran. Location is live-current-or-offer-fallback:
-        // start from the server-owned GiverLocationAtOffer snapshot, then
-        // try to improve on it with the giver's actual current position
-        // ONLY if it can be freshly re-resolved to the SAME runtime
-        // incarnation this instance was offered by (GiverRuntimeGuid
-        // match) - a despawned-and-respawned giver under the same AgentId
-        // must never have its outcome event's location attributed to the
-        // NEW incarnation's position. Never force-loads a map/grid, never
-        // unbinds anything on a failed resolve - just keeps the fallback.
-        WorldEventLocation expiryLocation = expireResult.Instance->GiverLocationAtOffer;
-        if (AgentRecord* giverRecord = _registry.Find(expireResult.Instance->Giver))
-        {
-            Map* giverMap = sMapMgr->FindBaseNonInstanceMap(giverRecord->MapId);
-            Creature* liveGiver = ResolveLiveCreature(*giverRecord, giverMap);
-            if (liveGiver && liveGiver->GetGUID() == expireResult.Instance->GiverRuntimeGuid)
-            {
-                expiryLocation.MapId = liveGiver->GetMapId();
-                expiryLocation.X = liveGiver->GetPositionX();
-                expiryLocation.Y = liveGiver->GetPositionY();
-                expiryLocation.Z = liveGiver->GetPositionZ();
-            }
-        }
-
-        // Same reasoning as CompleteDynamicQuestForPlayer()'s own
-        // publication: a drop (EventBus is bounded/lossy) must never
-        // block or roll back the Expired transition already committed
-        // above - it is authoritative regardless of whether this
-        // downstream fact is ever delivered. Only logged.
-        if (std::optional<WorldEvent> outcomeEvent = BuildDynamicQuestOutcomeWorldEvent(*expireResult.Instance, expiryLocation))
-        {
-            if (!PublishWorldEvent(std::move(*outcomeEvent)))
-                TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED dynamicQuestId={} state={}",
-                    expireResult.Instance->Id.Value, ToString(expireResult.Instance->State));
-        }
+        // before Expire() ran. Location resolution and the drop-must-
+        // never-block-the-transition reasoning both live in
+        // PublishDynamicQuestOutcome()/ResolveDynamicQuestOutcomeLocation()
+        // (Milestone 2.13C6B3) - see their own comments.
+        PublishDynamicQuestOutcome(*expireResult.Instance, ResolveDynamicQuestOutcomeLocation(*expireResult.Instance));
 
         TC_LOG_DEBUG("ai.world", "DYNAMIC_QUEST_EXPIRED dynamicQuestId={} priorState={}",
             id.Value, ToString(priorState));
@@ -9941,11 +9925,64 @@ bool AIWorldMgr::CompensateDynamicQuestReward(DynamicQuestId id, uint64 nowMs, P
     // caller.
     DynamicQuestRegistry::DynamicQuestTerminationResult termination = _dynamicQuestRegistry.TerminateForReplayContainment(id, nowMs);
 
+    // Milestone 2.13C6B3: publish AFTER TerminateForReplayContainment()
+    // has already run - Remove() there is a safety priority that must
+    // never wait on or be affected by outcome publication. Only when
+    // Fail() itself actually succeeded (termination.FailedInstance set) -
+    // never a fabricated event for a rejected/already-terminal/no-op
+    // transition. Built from the immutable value-copy of the real
+    // committed Failed instance, not any live state.
+    if (termination.FailedInstance)
+        PublishDynamicQuestOutcome(*termination.FailedInstance, ResolveDynamicQuestOutcomeLocation(*termination.FailedInstance));
+
     TC_LOG_FATAL("ai.world", "DYNAMIC_QUEST_REWARD_COMPENSATION_FAILED dynamicQuestId={} failReason={} removed={} "
         "moneyBefore={} moneyNow={}",
         id.Value, ToString(termination.FailReason), termination.Removed, moneyBeforeReward, player->GetMoney());
 
     return false;
+}
+
+// Milestone 2.13C6B3: see this method's own declaration comment in
+// AIWorldMgr.h.
+void AIWorldMgr::PublishDynamicQuestOutcome(DynamicQuestInstance const& instance, WorldEventLocation const& location)
+{
+    std::optional<WorldEvent> outcomeEvent = BuildDynamicQuestOutcomeWorldEvent(instance, location);
+    if (!outcomeEvent)
+    {
+        // Unreachable in practice - every call site only ever passes an
+        // instance a registry transition just committed as terminal - but
+        // logged rather than silently ignored, exactly like every other
+        // "should be unreachable" defense in this file.
+        TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_OUTCOME_EVENT_BUILD_REJECTED dynamicQuestId={} state={}",
+            instance.Id.Value, ToString(instance.State));
+        return;
+    }
+
+    if (!PublishWorldEvent(std::move(*outcomeEvent)))
+        TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED dynamicQuestId={} state={}",
+            instance.Id.Value, ToString(instance.State));
+}
+
+// Milestone 2.13C6B3: see this method's own declaration comment in
+// AIWorldMgr.h.
+WorldEventLocation AIWorldMgr::ResolveDynamicQuestOutcomeLocation(DynamicQuestInstance const& instance)
+{
+    WorldEventLocation location = instance.GiverLocationAtOffer;
+
+    if (AgentRecord* giverRecord = _registry.Find(instance.Giver))
+    {
+        Map* giverMap = sMapMgr->FindBaseNonInstanceMap(giverRecord->MapId);
+        Creature* liveGiver = ResolveLiveCreature(*giverRecord, giverMap);
+        if (liveGiver && liveGiver->GetGUID() == instance.GiverRuntimeGuid)
+        {
+            location.MapId = liveGiver->GetMapId();
+            location.X = liveGiver->GetPositionX();
+            location.Y = liveGiver->GetPositionY();
+            location.Z = liveGiver->GetPositionZ();
+        }
+    }
+
+    return location;
 }
 
 // Milestone 2.13C5: see this method's own declaration comment in
@@ -10176,18 +10213,10 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
     // captured above, right after applicability confirmed a live giver
     // and before the reward mutation's reentrant script hooks could run -
     // see that capture's own comment for why giverCreature itself is not
-    // safe to re-read this late.
-    if (std::optional<WorldEvent> outcomeEvent = BuildDynamicQuestOutcomeWorldEvent(*completeResult.Instance, completionLocation))
-    {
-        // A publication failure (EventBus is bounded/lossy - see
-        // PublishWorldEvent()'s own comment) must never roll back the
-        // reward or the Completed transition just committed above - both
-        // are already authoritative by this point regardless of whether
-        // this downstream fact is ever delivered. Only logged.
-        if (!PublishWorldEvent(std::move(*outcomeEvent)))
-            TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED dynamicQuestId={} state={}",
-                completeResult.Instance->Id.Value, ToString(completeResult.Instance->State));
-    }
+    // safe to re-read this late. A publication failure never rolls back
+    // the reward or the Completed transition just committed above - see
+    // PublishDynamicQuestOutcome()'s own comment.
+    PublishDynamicQuestOutcome(*completeResult.Instance, completionLocation);
 
     // Milestone 2.13C5: removed immediately - see this method's own
     // declaration comment in AIWorldMgr.h for why this doubles as the
@@ -10357,11 +10386,12 @@ void AIWorldMgr::ProcessDynamicQuestKillProgress(DynamicQuestKillEvent const& ev
 }
 
 // Milestone 2.13C4 P3 fix (STATIC review, round 4): the actual "fail
-// every Active instance" consequence now lives in DynamicQuestRegistry::
+// every Active instance" consequence lives in DynamicQuestRegistry::
 // FailAllActiveInstances() (with its own direct Catch2 coverage) - this
-// method itself is reduced to the one piece that cannot move there: was
-// a drop actually observed. See this method's own declaration comment in
-// AIWorldMgr.h.
+// method still owns the one piece that cannot move there: was a drop
+// actually observed. Milestone 2.13C6B3: now also publishes a
+// DynamicQuestFailed outcome per real committed Failed instance and
+// removes it - see this method's own declaration comment in AIWorldMgr.h.
 void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
 {
     uint64 droppedCount = _dynamicQuestKillEventBus.GetDroppedEventCount();
@@ -10371,7 +10401,24 @@ void AIWorldMgr::ReclaimDynamicQuestsAfterKillCreditLoss()
     uint64 newlyDropped = droppedCount - _lastObservedDynamicQuestKillDropCount;
     _lastObservedDynamicQuestKillDropCount = droppedCount;
 
-    uint32 failedCount = _dynamicQuestRegistry.FailAllActiveInstances(CurrentTimeMs());
+    uint64 nowMs = CurrentTimeMs();
+    std::vector<DynamicQuestInstance> failedInstances = _dynamicQuestRegistry.FailAllActiveInstances(nowMs);
+
+    // Milestone 2.13C6B3: publish each real committed Failed instance and
+    // remove it - the same "publish before Remove(), a drop never blocks
+    // or reverts the already-authoritative transition" discipline
+    // Completed/Expired already established (see
+    // PublishDynamicQuestOutcome()'s own comment). Terminal Failed
+    // instances are never meant to linger here either, same reasoning as
+    // Complete()/Expire() removing theirs - their reclamation is this
+    // path's own responsibility, not RunDynamicQuestMaintenance()'s.
+    for (DynamicQuestInstance const& failedInstance : failedInstances)
+    {
+        PublishDynamicQuestOutcome(failedInstance, ResolveDynamicQuestOutcomeLocation(failedInstance));
+        _dynamicQuestRegistry.Remove(failedInstance.Id);
+    }
+
+    uint32 failedCount = uint32(failedInstances.size());
 
     TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_KILL_CREDIT_LOST droppedEvents={} activeQuestsForceFailed={} - "
         "DynamicQuestKillEventBus overflowed (see its own comment); every Active dynamic quest was "
@@ -10567,6 +10614,15 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
         event.Actor.Guid.ToString(), event.Actor.SpawnId, event.Actor.Agent.Value,
         event.Target.Guid.ToString(), event.Target.Entry, event.Target.SpawnId, event.Target.Agent.Value);
 
+    // Milestone 2.13C6C: tracks whether the dynamic-quest-outcome issuer
+    // named by event.Target.Agent (if any) already received this event
+    // through ordinary Sight during the loop below - the directed/Rumor
+    // fallback after the loop only ever fires when it did not, so an
+    // issuer that genuinely does witness its own quest's outcome (e.g.
+    // standing right there) is never given a second, duplicate
+    // Observation for the same event.
+    bool issuerObservedBySight = false;
+
     // Linear over every registered agent - fine for the single-digit/dozens
     // agent counts this milestone targets. Worth a spatial index only once
     // there are hundreds+ agents; premature before that.
@@ -10606,7 +10662,33 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
         _registry.BindCreature(id, *observer);
 
         if (std::optional<Observation> observation = _perception.ObserveEvent(id, *observer, event, float(_perceptionSightRange)))
+        {
+            if (IsDynamicQuestOutcomeEvent(event.Type) && id == event.Target.Agent)
+                issuerObservedBySight = true;
+
             ProcessObservation(*observation);
+        }
+    }
+
+    // Milestone 2.13C6C: exactly-once directed/Rumor fallback delivery
+    // for a dynamic quest outcome's own issuer, when it did not already
+    // witness the event through ordinary Sight above. event.Target.Agent
+    // is set directly by BuildDynamicQuestOutcomeWorldEvent() from the
+    // quest's own Giver (never derived from Target.SpawnId, so the
+    // enrichment at the top of this method never needs to touch it).
+    // Deliberately does NOT force-load a Creature/grid for the issuer -
+    // _registry.Find() only checks whether it is still a REGISTERED
+    // agent at all (a value-only AgentRecord lookup, no Map* involved);
+    // ObserveDirectedEvent() itself needs no live Creature* either. Other
+    // agents are unaffected: they only ever perceive this event through
+    // the normal Sight loop above, same as any other WorldEventType.
+    if (IsDynamicQuestOutcomeEvent(event.Type) && event.Target.Agent && !issuerObservedBySight)
+    {
+        if (_registry.Find(event.Target.Agent))
+        {
+            if (std::optional<Observation> observation = _perception.ObserveDirectedEvent(event.Target.Agent, event))
+                ProcessObservation(*observation);
+        }
     }
 }
 

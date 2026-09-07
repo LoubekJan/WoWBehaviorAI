@@ -268,22 +268,28 @@ std::vector<DynamicQuestId> DynamicQuestRegistry::GetAllActiveIds() const
     return ids;
 }
 
-uint32 DynamicQuestRegistry::FailAllActiveInstances(uint64 nowMs)
+std::vector<DynamicQuestInstance> DynamicQuestRegistry::FailAllActiveInstances(uint64 nowMs)
 {
-    uint32 failedCount = 0;
+    std::vector<DynamicQuestInstance> failedInstances;
     for (DynamicQuestId id : GetAllActiveIds())
     {
-        if (Fail(id, nowMs).IsAccepted())
-            ++failedCount;
+        DynamicQuestTransitionResult failResult = Fail(id, nowMs);
+        if (failResult.IsAccepted())
+            failedInstances.push_back(*failResult.Instance);
     }
 
-    return failedCount;
+    return failedInstances;
 }
 
 DynamicQuestRegistry::DynamicQuestTerminationResult DynamicQuestRegistry::TerminateForReplayContainment(DynamicQuestId id, uint64 nowMs)
 {
     DynamicQuestTerminationResult result;
-    result.FailReason = Fail(id, nowMs).Reason;
+
+    DynamicQuestTransitionResult failResult = Fail(id, nowMs);
+    result.FailReason = failResult.Reason;
+    if (failResult.IsAccepted())
+        result.FailedInstance = *failResult.Instance;
+
     result.Removed = Remove(id);
     return result;
 }

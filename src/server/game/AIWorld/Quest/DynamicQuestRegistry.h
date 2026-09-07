@@ -26,6 +26,7 @@
 #include "ObjectGuid.h"
 
 #include <map>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -287,18 +288,31 @@ class TC_GAME_API DynamicQuestRegistry
         // DynamicQuestKillEventBus, a class this registry has no
         // knowledge of), but the actual consequence, once that decision
         // is made, is now fully testable without any live-world state.
-        // Returns how many instances were actually transitioned to
-        // Failed (a rejection - e.g. AlreadyExpired, see
-        // FailDynamicQuest()'s own comment - is not counted, but that
-        // instance is still effectively neutralized: RunDynamicQuestMaintenance()
-        // will reclaim it as Expired shortly regardless).
-        uint32 FailAllActiveInstances(uint64 nowMs);
+        // Milestone 2.13C6B3 (STATIC review): returns a value-copy of
+        // each instance that was ACTUALLY transitioned to Failed, not
+        // just a count - AIWorldMgr needs the real committed instances to
+        // build/publish a DynamicQuestFailed outcome WorldEvent per quest
+        // (see AIWorldMgr::PublishDynamicQuestOutcome()'s own comment). A
+        // rejection (e.g. AlreadyExpired, see FailDynamicQuest()'s own
+        // comment) never contributes an entry here - that instance is
+        // still effectively neutralized (RunDynamicQuestMaintenance()
+        // will reclaim it as Expired shortly regardless), but no
+        // fabricated Failed event is ever built for it.
+        std::vector<DynamicQuestInstance> FailAllActiveInstances(uint64 nowMs);
 
         // The result of one TerminateForReplayContainment() call - see
         // that method's own comment.
         struct DynamicQuestTerminationResult
         {
             DynamicQuestRejectReason FailReason = DynamicQuestRejectReason::NotAttempted;
+
+            // Milestone 2.13C6B3 (STATIC review): set if and only if the
+            // internal Fail() call below actually succeeded - never
+            // fabricated for a rejected/no-op transition (AlreadyTerminal,
+            // AlreadyExpired, QuestNotFound, ...). AIWorldMgr publishes a
+            // DynamicQuestFailed outcome WorldEvent only when this is set.
+            std::optional<DynamicQuestInstance> FailedInstance;
+
             bool Removed = false;
         };
 

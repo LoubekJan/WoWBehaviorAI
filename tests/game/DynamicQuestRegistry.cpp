@@ -672,41 +672,74 @@ TEST_CASE("DynamicQuestRegistry::GetAllActiveIds is empty when nothing is Active
 // own direct coverage instead of only its individual building blocks.
 // ---------------------------------------------------------------------
 
-TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances fails every Active instance and returns the count", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances fails every Active instance and returns a value-copy of each", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
     OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42); // stays Offered
     OfferInto(registry, 2, 3, 10000, /*giverValue*/ 99);
     OfferInto(registry, 3, 3, 10000, /*giverValue*/ 100);
 
-    REQUIRE(registry.Accept(DynamicQuestId{2}, ObjectGuid::Create<HighGuid::Player>(uint32(1)), 10000).IsAccepted());
-    REQUIRE(registry.Accept(DynamicQuestId{3}, ObjectGuid::Create<HighGuid::Player>(uint32(2)), 10000).IsAccepted());
+    ObjectGuid player2 = ObjectGuid::Create<HighGuid::Player>(uint32(1));
+    ObjectGuid player3 = ObjectGuid::Create<HighGuid::Player>(uint32(2));
+    REQUIRE(registry.Accept(DynamicQuestId{2}, player2, 10000).IsAccepted());
+    REQUIRE(registry.Accept(DynamicQuestId{3}, player3, 10000).IsAccepted());
 
-    uint32 failedCount = registry.FailAllActiveInstances(10000);
-    REQUIRE(failedCount == 2);
+    // Milestone 2.13C6B3: AIWorldMgr needs the real committed instances,
+    // not just a count, to build/publish a DynamicQuestFailed outcome
+    // WorldEvent per quest.
+    std::vector<DynamicQuestInstance> failedInstances = registry.FailAllActiveInstances(10000);
+    REQUIRE(failedInstances.size() == 2);
 
-    REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Offered); // untouched
+    REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Offered); // untouched, never in the list
+
+    auto findFailed = [&failedInstances](uint64 idValue) -> DynamicQuestInstance const*
+    {
+        for (DynamicQuestInstance const& instance : failedInstances)
+            if (instance.Id.Value == idValue)
+                return &instance;
+        return nullptr;
+    };
+
+    DynamicQuestInstance const* failed2 = findFailed(2);
+    DynamicQuestInstance const* failed3 = findFailed(3);
+    REQUIRE(failed2 != nullptr);
+    REQUIRE(failed3 != nullptr);
+
+    // Provenance/location/player/quest data must all be the real
+    // committed values, not defaults.
+    REQUIRE(failed2->State == DynamicQuestState::Failed);
+    REQUIRE(failed2->Giver.Value == 99);
+    REQUIRE(failed2->AcceptedByPlayerGuid == player2);
+    REQUIRE(failed2->GiverRuntimeGuid == kGiverRuntimeGuid);
+    REQUIRE(failed2->GiverLocationAtOffer.MapId == MakeGiverLocation().MapId);
+    REQUIRE(failed2->GiverLocationAtOffer.X == MakeGiverLocation().X);
+    REQUIRE(failed2->SourceEventId != 0);
+
+    REQUIRE(failed3->State == DynamicQuestState::Failed);
+    REQUIRE(failed3->Giver.Value == 100);
+    REQUIRE(failed3->AcceptedByPlayerGuid == player3);
+
     REQUIRE(registry.Find(DynamicQuestId{2})->State == DynamicQuestState::Failed);
     REQUIRE(registry.Find(DynamicQuestId{3})->State == DynamicQuestState::Failed);
 }
 
-TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances does nothing and returns 0 when nothing is Active", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances does nothing and returns an empty vector when nothing is Active", "[DynamicQuestRegistry]")
 {
     DynamicQuestRegistry registry;
     OfferInto(registry, 1); // Offered, never accepted
 
-    REQUIRE(registry.FailAllActiveInstances(10000) == 0);
+    REQUIRE(registry.FailAllActiveInstances(10000).empty());
     REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Offered);
 }
 
-TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances does not count an instance it could not actually fail", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances never includes an instance it could not actually fail", "[DynamicQuestRegistry]")
 {
     // An Active instance whose own deadline has already passed is
     // rejected by FailDynamicQuest() itself (AlreadyExpired) - see that
-    // function's own comment. FailAllActiveInstances() must not claim to
-    // have failed it; RunDynamicQuestMaintenance() will reclaim it as
-    // Expired on its own regardless, so this is not a hole in the
-    // recovery guarantee, just an accurate count.
+    // function's own comment. FailAllActiveInstances() must not fabricate
+    // a Failed value-copy for it; RunDynamicQuestMaintenance() will
+    // reclaim it as Expired on its own regardless, so this is not a hole
+    // in the recovery guarantee, just an accurate result.
     DynamicQuestRegistry registry;
     OfferInto(registry, 1, 3, 10000, /*giverValue*/ 42);
     ObjectGuid player = ObjectGuid::Create<HighGuid::Player>(uint32(1));
@@ -715,7 +748,7 @@ TEST_CASE("DynamicQuestRegistry::FailAllActiveInstances does not count an instan
     DynamicQuestInstance const* stored = registry.Find(DynamicQuestId{1});
     uint64 expiresAtMs = stored->ExpiresAtMs;
 
-    REQUIRE(registry.FailAllActiveInstances(expiresAtMs) == 0);
+    REQUIRE(registry.FailAllActiveInstances(expiresAtMs).empty());
     REQUIRE(registry.Find(DynamicQuestId{1})->State == DynamicQuestState::Active); // left for maintenance to Expire()
 }
 
@@ -823,14 +856,24 @@ TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment fails and removes
     REQUIRE(result.FailReason == DynamicQuestRejectReason::None);
     REQUIRE(result.Removed);
     REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+
+    // Milestone 2.13C6B3: FailedInstance must be set whenever Fail()
+    // itself actually succeeded - AIWorldMgr needs the real committed
+    // value to publish a DynamicQuestFailed outcome.
+    REQUIRE(result.FailedInstance.has_value());
+    REQUIRE(result.FailedInstance->Id == DynamicQuestId{1});
+    REQUIRE(result.FailedInstance->State == DynamicQuestState::Failed);
+    REQUIRE(result.FailedInstance->AcceptedByPlayerGuid == player);
 }
 
-TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment still removes even when Fail() itself rejects", "[DynamicQuestRegistry]")
+TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment still removes even when Fail() itself rejects, but never fabricates a FailedInstance", "[DynamicQuestRegistry]")
 {
     // The core property this method exists for: an instance in a state
     // Fail() itself refuses to touch (still Offered, or already
     // terminal) must still end up unreachable afterward - replay
-    // containment does not depend on Fail() succeeding.
+    // containment does not depend on Fail() succeeding. But it must
+    // never invent a Failed value-copy for a transition that was actually
+    // rejected - that would make AIWorldMgr publish a fake outcome event.
     SECTION("still Offered - Fail() rejects InvalidTransition")
     {
         DynamicQuestRegistry registry;
@@ -840,6 +883,7 @@ TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment still removes eve
         REQUIRE(result.FailReason == DynamicQuestRejectReason::InvalidTransition);
         REQUIRE(result.Removed);
         REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+        REQUIRE_FALSE(result.FailedInstance.has_value());
     }
 
     SECTION("already Failed - Fail() rejects AlreadyTerminal")
@@ -854,6 +898,7 @@ TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment still removes eve
         REQUIRE(result.FailReason == DynamicQuestRejectReason::AlreadyTerminal);
         REQUIRE(result.Removed);
         REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+        REQUIRE_FALSE(result.FailedInstance.has_value());
     }
 
     SECTION("already expired past its own deadline - Fail() rejects AlreadyExpired")
@@ -870,6 +915,7 @@ TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment still removes eve
         REQUIRE(result.FailReason == DynamicQuestRejectReason::AlreadyExpired);
         REQUIRE(result.Removed);
         REQUIRE(registry.Find(DynamicQuestId{1}) == nullptr);
+        REQUIRE_FALSE(result.FailedInstance.has_value());
     }
 }
 
@@ -880,5 +926,6 @@ TEST_CASE("DynamicQuestRegistry::TerminateForReplayContainment is a safe no-op f
     DynamicQuestRegistry::DynamicQuestTerminationResult result = registry.TerminateForReplayContainment(DynamicQuestId{999}, 10000);
     REQUIRE(result.FailReason == DynamicQuestRejectReason::QuestNotFound);
     REQUIRE_FALSE(result.Removed);
+    REQUIRE_FALSE(result.FailedInstance.has_value());
     REQUIRE(registry.Find(DynamicQuestId{999}) == nullptr);
 }
