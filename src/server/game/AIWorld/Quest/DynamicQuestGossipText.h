@@ -20,6 +20,7 @@
 
 #include "Define.h"
 #include "DynamicQuestPlayerCompletion.h"
+#include "Event/WorldEventType.h"
 
 #include <string>
 
@@ -86,5 +87,19 @@ std::string FormatDynamicQuestRewardMessage(uint32 rewardMoneyCopper);
 // on (spend some money first), so it alone gets its own wording;
 // everything else falls back to one generic message.
 std::string FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason reason);
+
+// Milestone 2.13C6D: the one-line reaction shown for
+// AIWorldMgr::DynamicQuestGossipContent::ContentKind::RecentOutcome - the
+// giver's own memory of its last terminal dynamic quest outcome,
+// surfaced back to whichever player opens its gossip. No title/
+// description involved (the terminal DynamicQuestInstance itself no
+// longer exists by this point - see that ContentKind's own comment), and
+// deliberately not model-originated: a plain, fixed sentence per
+// WorldEventType is enough here, this is a status readback, not new
+// quest content. Empty string for any other WorldEventType - never
+// called with one in practice, since this is only ever invoked for
+// content.OutcomeType, which SelectDynamicQuestOutcomeReaction() only
+// ever sets to one of the three dynamic quest outcome types.
+std::string FormatDynamicQuestOutcomeReaction(WorldEventType type);
 
 #endif // AIWORLD_DYNAMICQUESTGOSSIPTEXT_H

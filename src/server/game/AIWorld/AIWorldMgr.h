@@ -616,9 +616,26 @@ class TC_GAME_API AIWorldMgr
         // progress line, and OnGossipSelect() uses it (re-derived fresh,
         // never trusted from an earlier query) to decide whether a click
         // may even attempt AIWorldMgr::CompleteDynamicQuestForPlayer().
+        //
+        // Milestone 2.13C6D: Kind::RecentOutcome is checked only once
+        // neither a live Active/ReadyToTurnIn nor a live Offered instance
+        // exists for this giver - its source is exclusively the giver's
+        // own ShortTermMemory (via SelectDynamicQuestOutcomeReaction(),
+        // see Quest/DynamicQuestOutcomeReaction.h), NEVER
+        // DynamicQuestRegistry, which has already Remove()d the terminal
+        // instance by the time this could ever be reached (Complete()/
+        // Expire()/Fail() each remove their own instance - see their own
+        // callers' comments). This is the visible-issuer-impact half of
+        // the causal loop the roadmap's 2.13C6 section requires: the
+        // giver's own memory of its quest's outcome, surfaced back to the
+        // player who was part of it, with no DynamicQuestId/Title/
+        // Description to show (the terminal instance no longer exists to
+        // provide them) - only OutcomeType/SourceEventId/OutcomeChannel/
+        // GiverAgent, the fields FormatDynamicQuestOutcomeReaction() and
+        // the DYNAMIC_QUEST_OUTCOME_REACTION_SHOWN log line need.
         struct DynamicQuestGossipContent
         {
-            enum class ContentKind : uint8 { NoQuest, Offered, Active, ReadyToTurnIn };
+            enum class ContentKind : uint8 { NoQuest, Offered, Active, ReadyToTurnIn, RecentOutcome };
 
             ContentKind Kind = ContentKind::NoQuest;
             DynamicQuestId Id;
@@ -626,6 +643,12 @@ class TC_GAME_API AIWorldMgr
             std::string Description;
             uint32 Progress = 0;
             uint32 RequiredCount = 0;
+
+            // Only meaningful for Kind::RecentOutcome.
+            WorldEventType OutcomeType = WorldEventType::DynamicQuestCompleted;
+            uint64 SourceEventId = 0;
+            PerceptionChannel OutcomeChannel = PerceptionChannel::Sight;
+            AgentId GiverAgent;
         };
         DynamicQuestGossipContent GetDynamicQuestGossipContent(Creature* giverCreature, Player const* player);
 
@@ -643,6 +666,24 @@ class TC_GAME_API AIWorldMgr
         // tell AIWorld's own earlier addition apart from something else
         // entirely setting the flag at runtime).
         bool HasLiveDynamicQuestStateForGiver(Creature* giverCreature);
+
+        // Milestone 2.13C6D: the gossip-flag query AIWorldCreatureAI's own
+        // ReconcileDynamicQuestGossipFlag() actually calls now - broader
+        // than HasLiveDynamicQuestStateForGiver() above, which this method
+        // does NOT replace or redefine (a caller that specifically needs
+        // "is there a live Offered/Active instance" still has that exact
+        // query available, unchanged). Returns true if EITHER
+        // HasLiveDynamicQuestStateForGiver() is true, OR
+        // SelectDynamicQuestOutcomeReaction() finds a still-active
+        // (ShortTermMemory TTL, ~60s default) dynamic quest outcome
+        // memory for this giver's AgentId. This keeps the gossip flag up
+        // long enough for a player to see a RecentOutcome reaction after
+        // Expired/Failed removed the terminal instance from
+        // DynamicQuestRegistry - without this, ReconcileDynamicQuestGossipFlag()
+        // would tear the flag down the instant the instance is Remove()d,
+        // even though GetDynamicQuestGossipContent() can still produce a
+        // Kind::RecentOutcome for a few more seconds.
+        bool HasDynamicQuestGossipContentForGiver(Creature* giverCreature);
 
         // Milestone 2.13C4: the ONLY authoritative direct-killer
         // KILL_CREATURE progress hook.

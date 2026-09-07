@@ -43,6 +43,7 @@
 #include "PointMovementGenerator.h"
 #include "Quest/DynamicQuestGossipText.h"
 #include "Quest/DynamicQuestOutcomeEvent.h"
+#include "Quest/DynamicQuestOutcomeReaction.h"
 #include "Reconciliation/CreatureSpawnCensus.h"
 #include "Reconciliation/CreatureSpawnZoneFilter.h"
 #include "Reconciliation/SpawnReconciliationPlan.h"
@@ -233,6 +234,22 @@ namespace
         return type == WorldEventType::DynamicQuestCompleted ||
                type == WorldEventType::DynamicQuestFailed ||
                type == WorldEventType::DynamicQuestExpired;
+    }
+
+    // Milestone 2.13C6D: the inverse of DynamicQuestOutcomeReaction's own
+    // WorldEventType -> Kind mapping - GetDynamicQuestGossipContent()
+    // needs a WorldEventType (FormatDynamicQuestOutcomeReaction() and the
+    // DYNAMIC_QUEST_OUTCOME_REACTION_SHOWN log line both key off it, not
+    // off the reaction selector's own domain-specific Kind enum).
+    WorldEventType ToWorldEventType(DynamicQuestOutcomeReactionKind kind)
+    {
+        switch (kind)
+        {
+            case DynamicQuestOutcomeReactionKind::Completed: return WorldEventType::DynamicQuestCompleted;
+            case DynamicQuestOutcomeReactionKind::Failed:    return WorldEventType::DynamicQuestFailed;
+            case DynamicQuestOutcomeReactionKind::Expired:   return WorldEventType::DynamicQuestExpired;
+        }
+        return WorldEventType::DynamicQuestExpired;
     }
 
     // Milestone 2.12C/2.12D: a fresh, transient snapshot of an AgentGroup's
@@ -10243,6 +10260,13 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
 // Milestone 2.13C4: see this method's own declaration comment in
 // AIWorldMgr.h for the Active-before-Offered priority and the shared
 // expiry treatment.
+//
+// Milestone 2.13C6D: neither the Active nor the Offered branch returns
+// unconditionally anymore - each only returns early on an actual live
+// (not-yet-expired) hit. Every other path (no active/offered instance at
+// all, or one found but already past its own deadline) falls through to
+// the RecentOutcome memory lookup at the bottom instead of going straight
+// to a bare NoQuest, exactly per this method's own declaration comment.
 AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(Creature* giverCreature, Player const* player)
 {
     DynamicQuestGossipContent content;
@@ -10275,11 +10299,10 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
             content.Description = active->Description;
             content.Progress = active->Progress;
             content.RequiredCount = active->RequiredCount;
+            return content;
         }
-        return content;
     }
-
-    if (DynamicQuestInstance const* offered = _dynamicQuestRegistry.FindOfferedByGiver(record->Id, giverRuntimeGuid))
+    else if (DynamicQuestInstance const* offered = _dynamicQuestRegistry.FindOfferedByGiver(record->Id, giverRuntimeGuid))
     {
         if (!IsDynamicQuestExpired(*offered, nowMs))
         {
@@ -10289,8 +10312,23 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
             content.Description = offered->Description;
             content.Progress = offered->Progress;
             content.RequiredCount = offered->RequiredCount;
+            return content;
         }
-        return content;
+    }
+
+    // Milestone 2.13C6D: no live Offered/Active state for this giver -
+    // the ONLY remaining source is the giver's own ShortTermMemory, NEVER
+    // DynamicQuestRegistry (a terminal Completed/Failed/Expired instance
+    // has already been Remove()d from it by the time any of those three
+    // real production paths finish - see their own callers' comments).
+    std::vector<MemoryRecord> memories = _shortTermMemory.GetActiveForAgent(record->Id, nowMs);
+    if (std::optional<DynamicQuestOutcomeReaction> reaction = SelectDynamicQuestOutcomeReaction(record->Id, memories))
+    {
+        content.Kind = DynamicQuestGossipContent::ContentKind::RecentOutcome;
+        content.OutcomeType = ToWorldEventType(reaction->Kind);
+        content.SourceEventId = reaction->SourceEventId;
+        content.OutcomeChannel = reaction->Channel;
+        content.GiverAgent = record->Id;
     }
 
     return content;
@@ -10322,6 +10360,28 @@ bool AIWorldMgr::HasLiveDynamicQuestStateForGiver(Creature* giverCreature)
         return false;
 
     return _dynamicQuestRegistry.HasLiveInstanceForGiver(record->Id, giverCreature->GetGUID(), CurrentTimeMs());
+}
+
+// Milestone 2.13C6D: see this method's own declaration comment in
+// AIWorldMgr.h - the query AIWorldCreatureAI's ReconcileDynamicQuestGossipFlag()
+// actually calls now, so the gossip flag stays up long enough for a
+// player to see a RecentOutcome reaction after the terminal instance
+// itself has already been Remove()d from DynamicQuestRegistry.
+bool AIWorldMgr::HasDynamicQuestGossipContentForGiver(Creature* giverCreature)
+{
+    if (HasLiveDynamicQuestStateForGiver(giverCreature))
+        return true;
+
+    if (!giverCreature)
+        return false;
+
+    AgentRecord* record = FindLiveAgentBySpawn(_registry, giverCreature->GetMapId(), giverCreature->GetSpawnId());
+    if (!record)
+        return false;
+
+    uint64 nowMs = CurrentTimeMs();
+    std::vector<MemoryRecord> memories = _shortTermMemory.GetActiveForAgent(record->Id, nowMs);
+    return SelectDynamicQuestOutcomeReaction(record->Id, memories).has_value();
 }
 
 // Milestone 2.13C4 P2 fix (STATIC review): see this method's own

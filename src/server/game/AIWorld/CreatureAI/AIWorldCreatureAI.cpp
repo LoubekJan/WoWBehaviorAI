@@ -19,6 +19,7 @@
 #include "Action/ActionEngineEvent.h"
 #include "AIWorldMgr.h"
 #include "Creature.h"
+#include "Log.h"
 #include "MotionMaster.h"
 #include "Player.h"
 #include "Quest/DynamicQuestGossipText.h"
@@ -72,12 +73,18 @@ void AIWorldCreatureAI::UpdateAI(uint32 diff)
 // Milestone 2.13C4 P2 fix (STATIC review): owns the actual
 // UNIT_NPC_FLAG_GOSSIP mutation and the _ownsDynamicQuestGossipFlag
 // bookkeeping that makes it safe - see that member's own comment in
-// AIWorldCreatureAI.h. AIWorldMgr::HasLiveDynamicQuestStateForGiver() only
-// answers the read-only "should this be up" question; it never touches
-// the flag itself.
+// AIWorldCreatureAI.h. AIWorldMgr::HasDynamicQuestGossipContentForGiver()
+// only answers the read-only "should this be up" question; it never
+// touches the flag itself.
+//
+// Milestone 2.13C6D: now calls HasDynamicQuestGossipContentForGiver()
+// rather than HasLiveDynamicQuestStateForGiver() directly, so the flag
+// stays up long enough to show a RecentOutcome reaction after the
+// terminal instance itself has already been removed from
+// DynamicQuestRegistry (see that method's own comment in AIWorldMgr.h).
 void AIWorldCreatureAI::ReconcileDynamicQuestGossipFlag()
 {
-    bool shouldShow = sAIWorldMgr->HasLiveDynamicQuestStateForGiver(me);
+    bool shouldShow = sAIWorldMgr->HasDynamicQuestGossipContentForGiver(me);
 
     if (shouldShow)
     {
@@ -109,6 +116,26 @@ bool AIWorldCreatureAI::OnGossipHello(Player* player)
     // ever means "this class already sent the (possibly native+AIWorld
     // merged) menu itself", never "suppress the native menu".
     player->PrepareGossipMenu(me, me->GetCreatureTemplate()->GossipMenuId, true);
+
+    // Milestone 2.13C6D: RecentOutcome is a single informational line -
+    // no DynamicQuestId/Title/Description exist to show (the terminal
+    // instance is already gone from DynamicQuestRegistry - see
+    // ContentKind::RecentOutcome's own comment in AIWorldMgr.h), and no
+    // Accept/Turn-in row since there is nothing left to act on. Never
+    // consumed here: repeat clicks show the same reaction for as long as
+    // the underlying memory itself stays active (ShortTermMemory's own
+    // TTL, ~60s default) - this only reads Memory, it never mutates it.
+    if (content.Kind == AIWorldMgr::DynamicQuestGossipContent::ContentKind::RecentOutcome)
+    {
+        AddGossipItemFor(player, GOSSIP_ICON_CHAT, FormatDynamicQuestOutcomeReaction(content.OutcomeType),
+            GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
+
+        TC_LOG_INFO("ai.world", "DYNAMIC_QUEST_OUTCOME_REACTION_SHOWN agent={} sourceEvent={} type={} channel={}",
+            content.GiverAgent.Value, content.SourceEventId, ToString(content.OutcomeType), ToString(content.OutcomeChannel));
+
+        player->SendPreparedGossip(me);
+        return true;
+    }
 
     // Milestone 2.13C5: ReadyToTurnIn gets its own "objective complete"
     // line instead of a "Progress: 3/3" that would otherwise never

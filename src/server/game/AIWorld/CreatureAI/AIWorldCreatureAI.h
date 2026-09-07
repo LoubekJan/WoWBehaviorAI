@@ -109,13 +109,24 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
         // uses for perception events.
         void MovementInform(uint32 type, uint32 id) override;
 
-        // Milestone 2.13C4: read-only against DynamicQuestRegistry state -
-        // decides what (if anything) to show from
-        // AIWorldMgr::GetDynamicQuestGossipContent(me, player). Returns
-        // false immediately (letting TrinityCore's own default
+        // Milestone 2.13C4: read-only against whatever
+        // AIWorldMgr::GetDynamicQuestGossipContent(me, player) decides to
+        // show (DynamicQuestRegistry for a live Offered/Active/
+        // ReadyToTurnIn instance; Milestone 2.13C6D: the giver's own
+        // ShortTermMemory for a RecentOutcome once no live instance
+        // exists - see that method's own comment). Returns false
+        // immediately (letting TrinityCore's own default
         // WorldSession::HandleGossipHelloOpcode() path run untouched) when
         // that query finds nothing AIWorld-specific for this player at
         // this giver.
+        //
+        // Milestone 2.13C6D: Kind::RecentOutcome adds exactly one
+        // informational row (FormatDynamicQuestOutcomeReaction()) and no
+        // Accept/Turn-in row - there is nothing left to act on once the
+        // terminal instance itself is gone. Logs
+        // DYNAMIC_QUEST_OUTCOME_REACTION_SHOWN every time it is shown;
+        // never consumes the underlying memory, so a repeat visit shows
+        // the same reaction again until it naturally expires.
         //
         // Milestone 2.13C4 P2 fix (STATIC review): when there IS AIWorld
         // content, this must still never suppress the Creature's own
@@ -166,14 +177,16 @@ class TC_GAME_API AIWorldCreatureAI : public CreatureAI
     private:
         // Milestone 2.13C4 P2 fix (STATIC review): the actual
         // UNIT_NPC_FLAG_GOSSIP add/remove, using
-        // AIWorldMgr::HasLiveDynamicQuestStateForGiver() as its only
-        // input - see _ownsDynamicQuestGossipFlag's own comment below for
-        // why the mutation and its ownership bookkeeping had to move here
-        // rather than staying in AIWorldMgr.
+        // AIWorldMgr::HasDynamicQuestGossipContentForGiver() (Milestone
+        // 2.13C6D - broader than HasLiveDynamicQuestStateForGiver() alone,
+        // see that method's own comment) as its only input - see
+        // _ownsDynamicQuestGossipFlag's own comment below for why the
+        // mutation and its ownership bookkeeping had to move here rather
+        // than staying in AIWorldMgr.
         void ReconcileDynamicQuestGossipFlag();
 
         // Milestone 2.13C4: throttles the
-        // AIWorldMgr::HasLiveDynamicQuestStateForGiver() poll from
+        // AIWorldMgr::HasDynamicQuestGossipContentForGiver() poll from
         // UpdateAI() - that decision only needs to track truth within
         // roughly a second, not every tick. Starts at 0 so a freshly
         // materialized agent's flag is correct from its very first

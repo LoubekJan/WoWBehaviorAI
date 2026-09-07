@@ -92,3 +92,10 @@ TEST_CASE("FormatDynamicQuestCompleteRejectedMessage", "[DynamicQuestGossipText]
         REQUIRE(FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerCompleteReason::CompleteRejected) == "Unable to turn in dynamic task.");
     }
 }
+
+TEST_CASE("FormatDynamicQuestOutcomeReaction", "[DynamicQuestGossipText]")
+{
+    REQUIRE(FormatDynamicQuestOutcomeReaction(WorldEventType::DynamicQuestCompleted) == "The task was completed.");
+    REQUIRE(FormatDynamicQuestOutcomeReaction(WorldEventType::DynamicQuestFailed) == "The task failed.");
+    REQUIRE(FormatDynamicQuestOutcomeReaction(WorldEventType::DynamicQuestExpired) == "The task expired before it was completed.");
+}

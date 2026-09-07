@@ -62,3 +62,14 @@ std::string FormatDynamicQuestCompleteRejectedMessage(DynamicQuestPlayerComplete
 
     return "Unable to turn in dynamic task.";
 }
+
+std::string FormatDynamicQuestOutcomeReaction(WorldEventType type)
+{
+    switch (type)
+    {
+        case WorldEventType::DynamicQuestCompleted: return "The task was completed.";
+        case WorldEventType::DynamicQuestFailed:    return "The task failed.";
+        case WorldEventType::DynamicQuestExpired:   return "The task expired before it was completed.";
+        default:                                    return "";
+    }
+}
