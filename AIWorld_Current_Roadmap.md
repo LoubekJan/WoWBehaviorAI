@@ -1,9 +1,9 @@
 # AIWorld — Current Roadmap
 
-> **Aktualizováno:** 2026-09-06  
+> **Aktualizováno:** 2026-09-07  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `0fcf825c5a3747980597b0c2762c2a0bb4e92a53`  
+> **Aktuální code baseline před tímto docs commitem:** `9f429f9f93`  
 > **Detailní roadmap sync před tímto commitem:** `fe5672f48c42314497afd01dac26abe4cfb5c629`
 >
 > Pokud mezi tímto docs commitem a jeho skutečným pushem přibude další code commit na `ai-world`, baseline výše je nutné před merge znovu načíst.
@@ -73,7 +73,7 @@ Platí pro všechny další milníky:
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G3 — generic HUNT/coordinated combat contract | **CLOSED — G3A/G3B/G3C1/G3C2/G3D CLOSED (G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS); G3 lifecycle closure STATIC repaired (P1=0/P2=0/P3=0) and cumulatively BUILD-verified by every subsequent full 2.13 build, not independently re-verified in isolation** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
-| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B + C1/C2/C3/C4 CLOSED; C5 implemented and under final closure review (STATIC repairs landed, BUILD/UNIT/client runtime turn-in proof pending); D partially runtime-proven through C4** |
+| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B + C1/C2/C3/C4/C5 CLOSED (C5: STATIC + BUILD + UNIT 226/226 + RUNTIME PASS); next active milestone is C6 (quest outcome → WorldEvent / issuer feedback); D partially runtime-proven through C4** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
 | Etapa 3 — Elwynn world preparation | **PLANNED** |
 | Etapa 4 — Living World | **PLANNED** |
@@ -1283,7 +1283,7 @@ Po testu byly `AIWorld.DynamicTaskEnable`, `AIWorld.TestDynamicTaskAgentId` a do
 
 ### 2.13C — player-facing dynamic quest lifecycle
 
-**Stav: IN PROGRESS — C1/C2/C3/C4 CLOSED, C5 implementováno a prošlo několika STATIC repair koly, finální closure gate (BUILD/UNIT/runtime turn-in proof) pending.**
+**Stav: IN PROGRESS — C1/C2/C3/C4/C5 CLOSED; next je C6 (viz níže).**
 
 #### 2.13C1 — pure lifecycle domain
 
@@ -1353,7 +1353,7 @@ Tento milník nevyžaduje standardní quest log ani `QuestTemplate` — to je v�
 
 #### 2.13C5 — turn-in / completion / money reward
 
-**Stav: IN PROGRESS — implementace + review repair kola landed, finální closure gate pending.**
+**Stav: CLOSED — STATIC + BUILD + UNIT + RUNTIME PASS.**
 
 Implementováno:
 
@@ -1368,18 +1368,18 @@ Implementováno:
 - player-facing feedback i při zamítnutém turn-inu (dřív tichý gossip close);
 - žádná standardní quest-log/`QuestTemplate` závislost, žádná DB persistence, žádný group/party credit.
 
-Closure ještě vyžaduje:
+Closure gate potvrzen:
 
-- finální STATIC review aktuálního HEAD;
-- BUILD;
-- plný UNIT suite;
-- runtime: Turn in → skutečný nárůst peněz o reward → quest zmizí z gossipu (native gossip zůstává funkční) → replay stejného kliknutí nedá druhý reward/log → druhý hráč nemůže turn-inout ani vybrat reward z questu prvního hráče.
+- finální STATIC review aktuálního HEAD (`9f429f9f93`): PASS (P1=0/P2=0, dva advisory P3 uzavřené);
+- BUILD: PASS;
+- UNIT: 226/226 PASS;
+- runtime: Turn in → skutečný nárůst peněz o reward → quest zmizí z gossipu (native gossip zůstává funkční) → replay stejného kliknutí nedá druhý reward/log → druhý hráč nemůže turn-inout ani vybrat reward z questu prvního hráče — potvrzeno.
 
-Runtime happy path (offer → accept → 1/3 → 2/3 → 3/3 → turn-in → reálný `Player::ModifyMoney()` payout) už byl jednou provlečen a potvrzen; zbývá formální closure gate výše.
+`2.13C5` je tímto CLOSED. Runtime happy path (offer → accept → 1/3 → 2/3 → 3/3 → turn-in → reálný `Player::ModifyMoney()` payout) i replay/double-payout ochrana jsou provlečené a potvrzené proti aktuálnímu HEAD.
 
 #### 2.13C6 — quest outcome → WorldEvent / issuer feedback (PLANNED)
 
-**Stav: PLANNED, next po C5 closure.**
+**Stav: PLANNED — next active milestone (C5 CLOSED). Implementační scope (C6A/B/C/D breakdown) bude upřesněn samostatně.**
 
 Detailní historická roadmap (`AI_TrinityCore_Roadmap_Etapa_1_2.md`) požaduje, aby completion/failure/expiry vydal typed `WorldEvent` použitelný `Perception`/`Memory`/`Goal` pipeline, a aby výsledek uměl změnit skutečný problém světa nebo stav/goal/memory issuer NPC. `2.13C5` toto zatím nedělá — dokončuje player quest lifecycle + reward, ale výsledek se nevrací zpět do kauzálního AI světa.
 
@@ -1422,7 +1422,6 @@ Runtime už prokázáno přes `2.13C4`:
 
 Před uzavřením `2.13` ještě zbývá:
 
-- `2.13C5` real turn-in + reward + replay proof (closure gate výše);
 - `2.13C6` — completion/failure/expiry feedback zpět do AIWorld `WorldEvent`/`Memory`/`Goal` pipeline;
 - explicitní restart/reconnect semantics (viz sekce výše — rozhodnuto, ale ještě nikde souhrnně nepotvrzeno jako gate);
 - finální agregace negative failure-mode chování (timeout/malformed/stale/provider outage) — tyto už jsou fail-closed na úrovni `2.13A`/`2.13B`, `2.13D` je pouze sjednocuje jako jeden explicitní end-to-end gate, ne novou logiku.
@@ -1581,7 +1580,7 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 23. [x] 2.13C2 — registry ownership / validated offer handoff.
 24. [x] 2.13C3 — authoritative player accept boundary.
 25. [x] 2.13C4 — visible player-facing offer + progress (STATIC + BUILD + RUNTIME PASS).
-26. [ ] 2.13C5 — turn-in / completion / money reward (implemented, review repairs landed, final closure gate pending).
+26. [x] 2.13C5 — turn-in / completion / money reward (STATIC + BUILD + UNIT + RUNTIME PASS).
 27. [ ] 2.13C6 — quest outcome → WorldEvent / NPC memory/problem feedback.
 28. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` final end-to-end closure gate (partially proven through C4).
 29. [ ] 2.14 — emergent end-to-end world event slice.
