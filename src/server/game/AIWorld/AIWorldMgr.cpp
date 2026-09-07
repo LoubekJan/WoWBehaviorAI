@@ -42,6 +42,7 @@
 #include "Player.h"
 #include "PointMovementGenerator.h"
 #include "Quest/DynamicQuestGossipText.h"
+#include "Quest/DynamicQuestOutcomeEvent.h"
 #include "Reconciliation/CreatureSpawnCensus.h"
 #include "Reconciliation/CreatureSpawnZoneFilter.h"
 #include "Reconciliation/SpawnReconciliationPlan.h"
@@ -10097,6 +10098,33 @@ DynamicQuestPlayerCompleteResult AIWorldMgr::CompleteDynamicQuestForPlayer(Dynam
         return result;
     }
 
+    // Milestone 2.13C6B1: publish the terminal outcome WorldEvent from
+    // *completeResult.Instance - the registry's own just-committed
+    // Completed value, never the earlier preflight `instance` this
+    // method resolved before Complete() ran. giverCreature is guaranteed
+    // non-null and alive here: CheckDynamicQuestPlayerCompleteApplicability()
+    // already rejected with GiverUnavailable above unless giver.Alive was
+    // true, and giverFacts.Alive is only ever set once giverCreature
+    // itself resolved successfully - so a live location is always
+    // available on this path.
+    WorldEventLocation giverLocation;
+    giverLocation.MapId = giverCreature->GetMapId();
+    giverLocation.X = giverCreature->GetPositionX();
+    giverLocation.Y = giverCreature->GetPositionY();
+    giverLocation.Z = giverCreature->GetPositionZ();
+
+    if (std::optional<WorldEvent> outcomeEvent = BuildDynamicQuestOutcomeWorldEvent(*completeResult.Instance, giverLocation))
+    {
+        // A publication failure (EventBus is bounded/lossy - see
+        // PublishWorldEvent()'s own comment) must never roll back the
+        // reward or the Completed transition just committed above - both
+        // are already authoritative by this point regardless of whether
+        // this downstream fact is ever delivered. Only logged.
+        if (!PublishWorldEvent(std::move(*outcomeEvent)))
+            TC_LOG_ERROR("ai.world", "DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED dynamicQuestId={} state={}",
+                completeResult.Instance->Id.Value, ToString(completeResult.Instance->State));
+    }
+
     // Milestone 2.13C5: removed immediately - see this method's own
     // declaration comment in AIWorldMgr.h for why this doubles as the
     // in-process replay guard.
@@ -10376,12 +10404,12 @@ bool AIWorldMgr::UpdateSimulationTier(AgentId id, SimulationTier tier)
 // atomic check and the publish itself: no Creature/AgentRecord lookups, no
 // ai-server calls, no world mutation. That happens later, in
 // ProcessWorldEvent() on the world thread.
-void AIWorldMgr::PublishWorldEvent(WorldEvent event)
+bool AIWorldMgr::PublishWorldEvent(WorldEvent event)
 {
     if (!_acceptEvents.load(std::memory_order_acquire))
-        return;
+        return false;
 
-    _eventBus.Publish(std::move(event));
+    return _eventBus.Publish(std::move(event));
 }
 
 // Safe to call from any thread - see the declaration in AIWorldMgr.h and

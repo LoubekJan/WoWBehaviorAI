@@ -145,7 +145,18 @@ class TC_GAME_API AIWorldMgr
         // looks up a Creature/AgentRecord, never calls ai-server, never
         // mutates world state. See EventBus for the actual thread-safety
         // story.
-        void PublishWorldEvent(WorldEvent event);
+        //
+        // Milestone 2.13C6B1: returns whether the event was actually
+        // enqueued - false either because _acceptEvents was false or
+        // because the bounded/lossy EventBus itself was full
+        // (EventBus::Publish() returns false rather than blocking or
+        // growing unbounded). Existing call sites are free to keep
+        // ignoring the return value (a dropped perception fact was
+        // already an accepted, logged possibility before this milestone -
+        // see EventBus's own comment); a caller that itself needs to know
+        // (e.g. to log a dropped authoritative dynamic quest outcome) now
+        // can.
+        bool PublishWorldEvent(WorldEvent event);
 
         // Milestone 2.8A.5: consulted from FactorySelector::SelectAI()
         // (CreatureAISelector.cpp), ahead of pet/scripted/AIName/
@@ -457,6 +468,20 @@ class TC_GAME_API AIWorldMgr
         // full typed reason is never surfaced to the player, only logged)
         // - previously a rejected "Turn in" click closed the gossip
         // window with no feedback at all.
+        //
+        // Milestone 2.13C6B1: once DynamicQuestRegistry::Complete()
+        // above actually succeeds, publishes the terminal outcome
+        // WorldEvent built by BuildDynamicQuestOutcomeWorldEvent() from
+        // *completeResult.Instance (the registry's own just-committed
+        // value, never the earlier preflight instance) and the live
+        // giver's current position - before Remove() runs. A publish
+        // failure (EventBus is bounded/lossy) never rolls back the
+        // reward or the Completed transition, both already authoritative
+        // by that point; only DYNAMIC_QUEST_OUTCOME_EVENT_DROPPED is
+        // logged. Publishing Failed/Expired outcomes from their own real
+        // transition points (registry maintenance / force-fail /
+        // replay-containment) is separate follow-up work (2.13C6B2/B3),
+        // not part of this method.
         DynamicQuestPlayerCompleteResult CompleteDynamicQuestForPlayer(DynamicQuestId id, ObjectGuid playerGuid, uint64 nowMs);
 
         // Milestone 2.13C5 P1 fix (STATIC review, round 3): the shared
