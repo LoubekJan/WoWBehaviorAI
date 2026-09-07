@@ -785,9 +785,14 @@ class TC_GAME_API AIWorldMgr
         // each has separately decided a (real or, for the test hook,
         // simulated) kill-credit loss actually happened - see this
         // method's own definition comment for why neither caller ever
-        // reimplements this sequence itself. droppedEventCount only
-        // affects the DYNAMIC_QUEST_KILL_CREDIT_LOST log line.
-        void ForceFailAllActiveDynamicQuestsForKillCreditLoss(uint64 droppedEventCount);
+        // reimplements this sequence itself. droppedEventCount and
+        // simulated only affect the DYNAMIC_QUEST_KILL_CREDIT_LOST log
+        // line's wording (P3 fix, STATIC review: this method cannot
+        // otherwise tell a real bus drop apart from the test hook's
+        // simulated one, so it must never claim a real event was
+        // "detected" for the simulated path) - neither changes what
+        // actually gets failed.
+        void ForceFailAllActiveDynamicQuestsForKillCreditLoss(uint64 droppedEventCount, bool simulated);
 
         // Milestone 2.13C6D: AIWorld.TestDynamicQuestKillCreditLoss
         // (default false = disabled) - a runtime-provable way to reach
@@ -806,8 +811,12 @@ class TC_GAME_API AIWorldMgr
         // normal EventBus/Perception/Memory/gossip-reaction path. Retries
         // every tick while enabled and not yet fired, only actually
         // firing (and logging DYNAMIC_QUEST_TEST_KILL_CREDIT_LOSS_TRIGGERED)
-        // once at least one Active dynamic quest exists to fail - see
-        // this method's own definition comment.
+        // once at least one Active instance is genuinely fail-applicable
+        // (P3 fix, STATIC review: Active alone is not enough - a stale,
+        // already-expired-but-not-yet-reclaimed Active instance would
+        // make FailDynamicQuest() itself reject with AlreadyExpired,
+        // which would burn this one-shot latch on a no-op) - see this
+        // method's own definition comment.
         void TryRunTestDynamicQuestKillCreditLoss();
 
         // Milestone 2.13C4: the same wall-clock "now" every nowMs
