@@ -10288,7 +10288,7 @@ AIWorldMgr::DynamicQuestGossipContent AIWorldMgr::GetDynamicQuestGossipContent(C
 
     ObjectGuid giverRuntimeGuid = giverCreature->GetGUID();
 
-    if (DynamicQuestInstance const* active = _dynamicQuestRegistry.FindActiveByGiverAndPlayer(record->Id, giverRuntimeGuid, player->GetGUID()))
+    if (DynamicQuestInstance const* active = _dynamicQuestRegistry.FindActiveByGiverAndPlayer(record->Id, giverRuntimeGuid, player->GetGUID(), nowMs))
     {
         if (!IsDynamicQuestExpired(*active, nowMs))
         {

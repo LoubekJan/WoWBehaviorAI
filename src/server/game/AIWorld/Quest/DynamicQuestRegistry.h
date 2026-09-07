@@ -218,7 +218,28 @@ class TC_GAME_API DynamicQuestRegistry
 
         // The Active instance (if any) this specific player currently
         // holds from this specific giver's CURRENT incarnation.
-        DynamicQuestInstance const* FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid) const;
+        //
+        // P3 fix (STATIC review): unlike FindOfferedByGiver()'s "at most
+        // one outstanding" guarantee above, nothing prevents a stale
+        // Active instance that has already passed its own ExpiresAtMs -
+        // but that RunDynamicQuestMaintenance() has not yet reclaimed -
+        // from briefly coexisting with a genuinely live Active one for
+        // the same (giver, player) pair. This can happen once
+        // GetDynamicQuestGossipContent()'s Active/Offered checks became
+        // independent `if`s (2.13C6D): a not-yet-reclaimed expired Active
+        // no longer blocks the Offered check, so the player can accept a
+        // freshly Offered instance from the same giver while the old,
+        // expired one still sits in the registry. Without nowMs, "first
+        // match found" (insertion order - ascending DynamicQuestId) would
+        // deterministically return the OLDER, already-expired instance
+        // instead of the newly-accepted live one. Now prefers any
+        // matching instance that is NOT yet expired at nowMs; only if
+        // every match is already expired does it fall back to the first
+        // one found, preserving the exact old behavior for that case
+        // (there is nothing live to prefer, and the caller's own
+        // IsDynamicQuestExpired() check already treats that result as
+        // expired regardless of which expired instance was returned).
+        DynamicQuestInstance const* FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid, uint64 nowMs) const;
 
         // Milestone 2.13C4 P2 fix (STATIC review, round 3): renamed from
         // FindActiveByPlayerAndTarget(..., ObjectGuid targetGuid) - the

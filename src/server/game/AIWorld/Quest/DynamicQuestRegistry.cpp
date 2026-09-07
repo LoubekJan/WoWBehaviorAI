@@ -194,11 +194,20 @@ DynamicQuestInstance const* DynamicQuestRegistry::FindOfferedByGiver(AgentId giv
     return nullptr;
 }
 
-DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid) const
+DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(AgentId giver, ObjectGuid giverRuntimeGuid, ObjectGuid playerGuid, uint64 nowMs) const
 {
     auto giverIt = _questIdsByGiver.find(giver.Value);
     if (giverIt == _questIdsByGiver.end())
         return nullptr;
+
+    // P3 fix (STATIC review): prefer a matching instance that is not yet
+    // expired - see this method's own declaration comment for why a
+    // stale, not-yet-reclaimed expired Active can transiently coexist
+    // with a genuinely live one for the same (giver, player) pair, and
+    // why "first match in insertion order" alone is not good enough
+    // anymore. Falls back to the first expired match only if nothing
+    // live exists at all.
+    DynamicQuestInstance const* fallbackExpired = nullptr;
 
     for (uint64 idValue : giverIt->second)
     {
@@ -207,14 +216,20 @@ DynamicQuestInstance const* DynamicQuestRegistry::FindActiveByGiverAndPlayer(Age
             continue;
 
         DynamicQuestInstance const& instance = it->second;
-        if (instance.State == DynamicQuestState::Active &&
-            instance.Giver == giver &&
-            instance.GiverRuntimeGuid == giverRuntimeGuid &&
-            instance.AcceptedByPlayerGuid == playerGuid)
+        if (instance.State != DynamicQuestState::Active ||
+            instance.Giver != giver ||
+            instance.GiverRuntimeGuid != giverRuntimeGuid ||
+            instance.AcceptedByPlayerGuid != playerGuid)
+            continue;
+
+        if (!IsDynamicQuestExpired(instance, nowMs))
             return &instance;
+
+        if (!fallbackExpired)
+            fallbackExpired = &instance;
     }
 
-    return nullptr;
+    return fallbackExpired;
 }
 
 std::vector<DynamicQuestId> DynamicQuestRegistry::FindActiveByPlayerAndVictimEntry(ObjectGuid playerGuid, uint32 victimEntry, uint32 mapId) const
