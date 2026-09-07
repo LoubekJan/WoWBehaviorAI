@@ -1370,12 +1370,12 @@ Implementováno:
 
 Closure gate potvrzen:
 
-- finální STATIC review aktuálního HEAD (`9f429f9f93`): PASS (P1=0/P2=0, dva advisory P3 uzavřené);
+- finální STATIC review C5 code baseline (`9f429f9f93`): PASS (P1=0/P2=0, dva advisory P3 uzavřené);
 - BUILD: PASS;
 - UNIT: 226/226 PASS;
 - runtime: Turn in → skutečný nárůst peněz o reward → quest zmizí z gossipu (native gossip zůstává funkční) → replay stejného kliknutí nedá druhý reward/log → druhý hráč nemůže turn-inout ani vybrat reward z questu prvního hráče — potvrzeno.
 
-`2.13C5` je tímto CLOSED. Runtime happy path (offer → accept → 1/3 → 2/3 → 3/3 → turn-in → reálný `Player::ModifyMoney()` payout) i replay/double-payout ochrana jsou provlečené a potvrzené proti aktuálnímu HEAD.
+`2.13C5` je tímto CLOSED. Runtime happy path (offer → accept → 1/3 → 2/3 → 3/3 → turn-in → reálný `Player::ModifyMoney()` payout) i replay/double-payout ochrana jsou provlečené a potvrzené proti C5 code baseline `9f429f9f93`.
 
 #### 2.13C6 — quest outcome → WorldEvent / issuer feedback (PLANNED)
 
