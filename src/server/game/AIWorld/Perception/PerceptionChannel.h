@@ -20,10 +20,13 @@
 
 #include "Define.h"
 
-// Milestone 2.4A only ever produces Sight observations (range + LOS
-// against a witnessed WorldEvent). Hearing and Rumor are declared now,
-// per the roadmap, so Observation doesn't need to change shape once a
-// later milestone actually implements them - neither has any logic yet.
+// Sight is the physical perception channel (range + LOS against a
+// witnessed WorldEvent or nearby entity - PerceptionSystem::ObserveEvent()/
+// ObserveNearbyPlayer()/ObserveNearbyCreature()). Milestone 2.13C6C gave
+// Rumor its first real logic: targeted directed-event delivery for
+// dynamic quest outcomes (PerceptionSystem::ObserveDirectedEvent()),
+// value-only and independent of range/LOS/materialization. Hearing is
+// still not implemented.
 enum class PerceptionChannel : uint8
 {
     Sight,

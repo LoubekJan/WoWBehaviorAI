@@ -30,20 +30,30 @@ class Player;
 // Turns an objective fact - a WorldEvent, or (Milestone 2.4B/2.4C) simply a
 // Player/Creature currently near an agent - into a subjective Observation
 // for one specific agent, or nothing if that agent couldn't actually have
-// perceived it. Deliberately takes live references, so it must only ever
-// be called from the world thread, after AIWorldMgr has already resolved
-// the observer's (and, for the ObserveNearby* methods, the seen entity's)
-// live object - never from a map/combat worker, never from anything that
-// only has a value-only AgentRecord. Never touches AgentRegistry itself -
-// AgentId enrichment of a returned Observation's Target/Actor is
-// AIWorldMgr's job, not this class's.
+// perceived it.
+//
+// Sight observations (ObserveEvent()/ObserveNearbyPlayer()/
+// ObserveNearbyCreature()) are physical: they deliberately take live
+// references and require a live observer, range, and LOS, so they must
+// only ever be called from the world thread, after AIWorldMgr has already
+// resolved the observer's (and, for the ObserveNearby* methods, the seen
+// entity's) live object - never from a map/combat worker, never from
+// anything that only has a value-only AgentRecord.
+//
+// Milestone 2.13C6C: directed Rumor observations (ObserveDirectedEvent())
+// are value-only targeted delivery instead - no live observer, range, or
+// LOS required, since the underlying event explicitly names the
+// recipient. Hearing remains unimplemented.
+//
+// Never touches AgentRegistry itself - AgentId enrichment of a returned
+// Observation's Target/Actor is AIWorldMgr's job, not this class's.
 class TC_GAME_API PerceptionSystem
 {
     public:
         // nullopt if: observer is dead, observer isn't on the event's map,
         // the event is out of sightRange, or there's no line of sight to
-        // its location. Only PerceptionChannel::Sight is implemented -
-        // Hearing/Rumor have no logic yet.
+        // its location. Physical Sight perception only - see
+        // ObserveDirectedEvent() below for the directed Rumor path.
         std::optional<Observation> ObserveEvent(AgentId observerId, Creature const& observer,
             WorldEvent const& event, float sightRange) const;
 

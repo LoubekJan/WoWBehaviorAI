@@ -27,9 +27,15 @@
 #include <optional>
 
 // What a specific agent actually perceived - never the underlying fact
-// itself, if there even is one. An Observation only exists for the one
-// Observer that was actually in range (and, for Sight, had line of sight)
-// at the time. Pure value object, same rule as WorldEvent/AgentRecord: no
+// itself, if there even is one. An Observation belongs to one specific
+// recipient (Observer). Sight observations represent physical perception -
+// they only exist for an Observer that was actually in range and (for
+// Sight specifically) had line of sight at the time. Milestone 2.13C6C:
+// directed Rumor observations are the exception - they may be delivered
+// without range/LOS, and without the recipient being a live/materialized
+// Creature at all, when the underlying event explicitly targets that
+// agent (see PerceptionSystem::ObserveDirectedEvent()). Pure value
+// object either way, same rule as WorldEvent/AgentRecord: no
 // Creature*/Player*/Map* anywhere, so it can safely flow on into Memory/
 // decision context later.
 //
