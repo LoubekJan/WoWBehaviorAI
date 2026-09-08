@@ -3,7 +3,7 @@
 > **Aktualizováno:** 2026-09-08  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `1e5da22e29`  
+> **Aktuální code baseline před tímto docs commitem:** `5064cae344`  
 > **Detailní roadmap sync před tímto commitem:** `fe5672f48c42314497afd01dac26abe4cfb5c629`
 >
 > Pokud mezi tímto docs commitem a jeho skutečným pushem přibude další code commit na `ai-world`, baseline výše je nutné před merge znovu načíst.
@@ -73,7 +73,7 @@ Platí pro všechny další milníky:
 | 2.12G2 — generic ROAM/territory movement intent | **CLOSED / STATIC + BUILD + RUNTIME PASS** |
 | 2.12G3 — generic HUNT/coordinated combat contract | **CLOSED — G3A/G3B/G3C1/G3C2/G3D CLOSED (G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS); G3 lifecycle closure STATIC repaired (P1=0/P2=0/P3=0) and cumulatively BUILD-verified by every subsequent full 2.13 build, not independently re-verified in isolation** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
-| 2.13 — local LLM dynamic task vertical slice | **IN PROGRESS — A1/A2/A3A/A3B/B + C1/C2/C3/C4/C5/C6 CLOSED (2.13C6 full causal loop: STATIC + BUILD + UNIT 253/253 + RUNTIME PASS); next up is 2.13D final end-to-end closure gate; D partially runtime-proven through C4/C6** |
+| 2.13 — local LLM dynamic task vertical slice | **CLOSED — A1/A2/A3A/A3B/B + C1/C2/C3/C4/C5/C6/D all CLOSED (STATIC + BUILD + UNIT 253/253 + RUNTIME PASS; 2.13D restart/reconnect semantics and negative failure-mode aggregation runtime-tested and confirmed); next milestone is 2.14** |
 | 2.14 — emergent end-to-end world event | **PLANNED** |
 | Etapa 3 — Elwynn world preparation | **PLANNED** |
 | Etapa 4 — Living World | **PLANNED** |
@@ -1129,7 +1129,7 @@ Pokud vznikne:
 
 # 2.13 — local LLM dynamic task / player interaction vertical slice
 
-**Stav: PLANNED po uzavření nejbližšího group genericity/behavior gate.**
+**Stav: CLOSED — A1/A2/A3A/A3B/B/C1/C2/C3/C4/C5/C6/D všechny CLOSED. Restart/reconnect semantics a negative failure-mode agregace (2.13D) runtime otestovány a potvrzeny.**
 
 Cíl není dát LLM kontrolu nad světem. Cíl je dokázat bezpečný řetězec:
 
@@ -1440,11 +1440,13 @@ Runtime důkaz celého řetězce Completed/Failed/Expired → `WorldEvent` → `
 - reconnect **bez** restartu quest zachová — nic v `2.13C1`–`C5` necachuje hráčovu session ani live pointer přes odpojení, vazba je vždy přes `ObjectGuid`/`AgentId`, které přežijí reconnect;
 - perzistentní (DB-backed, restart-survivující) dynamic quests jsou vědomě budoucí práce, ne součást `2.13C1`–`C6`. Pokud se ukáže jako potřeba, dostane vlastní explicitní milestone (např. `2.13C7`) až v okamžiku, kdy bude jasné, co přesně má přežít restart a jak se to smíří s `DynamicQuestId`'s dnešní čistě in-process monotónní alokací.
 
+Runtime otestováno a potvrzeno jako `2.13D` closure gate: worldserver restart zahazuje `Offered`/`Active` dynamic quests beze stopy, žádný orphaned stav; reconnect bez restartu quest zachovává přes `ObjectGuid`/`AgentId`.
+
 ### 2.13D — final end-to-end closure gate
 
-**Stav: PARTIALLY PROVEN.**
+**Stav: CLOSED.**
 
-Runtime už prokázáno přes `2.13C4`:
+Runtime prokázáno přes `2.13C4`:
 
 - real `WorldEvent`;
 - real local-model `/dynamic-task` call;
@@ -1456,12 +1458,12 @@ Runtime už prokázáno přes `2.13C4`:
 
 Runtime dále prokázáno přes `2.13C5`/`2.13C6` (turn-in/reward, a celý Completed/Failed/Expired → `WorldEvent` → `Perception` → `Memory` → viditelný issuer dopad řetězec — viz `2.13C6D` výše).
 
-Před uzavřením `2.13` ještě zbývá:
+Poslední dva gate items pro `2.13D` samotné jsou nyní také runtime otestovány a potvrzeny:
 
-- explicitní restart/reconnect semantics (viz sekce výše — rozhodnuto, ale ještě nikde souhrnně nepotvrzeno jako gate);
-- finální agregace negative failure-mode chování (timeout/malformed/stale/provider outage) — tyto už jsou fail-closed na úrovni `2.13A`/`2.13B`, `2.13D` je pouze sjednocuje jako jeden explicitní end-to-end gate, ne novou logiku.
+- explicitní restart/reconnect semantics (viz sekce výše — `Offered`/`Active` dynamic quests process-lifetime, reconnect bez restartu quest zachová přes `ObjectGuid`/`AgentId`) — potvrzeno jako gate;
+- finální agregace negative failure-mode chování (timeout/malformed/stale/provider outage) napříč `2.13A`/`2.13B` — potvrzena jako jeden explicitní end-to-end gate.
 
-`2.13D` už tedy neduplikuje práci, kterou `2.13C4`/`2.13C5`/`2.13C6` reálně udělaly — jde o finální agregační gate nad tím, co je jinde už hotové nebo v closure.
+`2.13D` tímto CLOSED — neduplikovalo práci, kterou `2.13C4`/`2.13C5`/`2.13C6` reálně udělaly, jde o finální agregační gate nad tím, co bylo jinde už hotové. Celý milník `2.13` je tímto CLOSED.
 
 ---
 
@@ -1617,7 +1619,7 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 25. [x] 2.13C4 — visible player-facing offer + progress (STATIC + BUILD + RUNTIME PASS).
 26. [x] 2.13C5 — turn-in / completion / money reward (STATIC + BUILD + UNIT + RUNTIME PASS).
 27. [x] 2.13C6 — quest outcome → WorldEvent / NPC memory/problem feedback (A/B1/B2/B3/C/D all CLOSED — STATIC + BUILD + UNIT 253/253 + RUNTIME PASS).
-28. [ ] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` final end-to-end closure gate (partially proven through C4/C6).
+28. [x] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` final end-to-end closure gate (restart/reconnect semantics + negative failure-mode aggregation runtime-tested and confirmed; 2.13 CLOSED).
 29. [ ] 2.14 — emergent end-to-end world event slice.
 30. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
 31. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
