@@ -1,9 +1,9 @@
 # AIWorld — Current Roadmap
 
-> **Aktualizováno:** 2026-09-08  
+> **Aktualizováno:** 2026-09-09  
 > **Aktivní větev:** `ai-world`  
 > **Účel:** krátký aktuální execution roadmap nad detailním historickým dokumentem `AI_TrinityCore_Roadmap_Etapa_1_2.md`.  
-> **Aktuální code baseline před tímto docs commitem:** `5064cae344`  
+> **Aktuální code baseline před tímto docs commitem:** `4d58bd0906`  
 > **Detailní roadmap sync před tímto commitem:** `fe5672f48c42314497afd01dac26abe4cfb5c629`
 >
 > Pokud mezi tímto docs commitem a jeho skutečným pushem přibude další code commit na `ai-world`, baseline výše je nutné před merge znovu načíst.
@@ -74,7 +74,7 @@ Platí pro všechny další milníky:
 | 2.12G3 — generic HUNT/coordinated combat contract | **CLOSED — G3A/G3B/G3C1/G3C2/G3D CLOSED (G3D real group combat/melee damage/TARGET_DEFEATED/post-kill reacquisition/stale chase cleanup all live-confirmed PASS); G3 lifecycle closure STATIC repaired (P1=0/P2=0/P3=0) and cumulatively BUILD-verified by every subsequent full 2.13 build, not independently re-verified in isolation** |
 | 2.12G4 — roles/leadership | **NOT NEEDED YET — viz 2.12G4's own Priorita** |
 | 2.13 — local LLM dynamic task vertical slice | **CLOSED — A1/A2/A3A/A3B/B + C1/C2/C3/C4/C5/C6/D all CLOSED (STATIC + BUILD + UNIT 253/253 + RUNTIME PASS; 2.13D restart/reconnect semantics and negative failure-mode aggregation runtime-tested and confirmed); next milestone is 2.14** |
-| 2.14 — emergent end-to-end world event | **PLANNED** |
+| 2.14 — final Etapa 2 POC / aggregate integration gate | **CLOSED — RUNTIME POC PASS. Etapa 2 CLOSED / POC COMPLETE.** |
 | Etapa 3 — Elwynn world preparation | **PLANNED** |
 | Etapa 4 — Living World | **PLANNED** |
 
@@ -1467,31 +1467,60 @@ Poslední dva gate items pro `2.13D` samotné jsou nyní také runtime otestová
 
 ---
 
-# 2.14 — první emergentní end-to-end událost
+# 2.14 — final Etapa 2 POC / aggregate integration gate
 
-Cíl:
+**Stav: CLOSED — RUNTIME POC PASS.**
+
+2.14 je finální POC / integrační gate Etapy 2 nad tím, co už je hotové — ne další feature milestone. Nevyžadovalo žádný nový `WorldEventType`, consequence layer ani jinou novou produkční logiku.
+
+Runtime test potvrdil skutečný problematický konec řetězce:
 
 ```text
-real coalition behavior
+real persistent Agents
     ↓
-world consequence
+automatic WolfLoose coalition
     ↓
-WorldEvent
+generic HUNT intent
     ↓
-farmer/NPC perception
+per-member ActionRequest
     ↓
-memory
+ActionSystem validation ALLOWED
     ↓
-PROTECT_HOME / REQUEST_HELP
+TrinityCore MOVE_TO
     ↓
-validated dynamic player task
+ARRIVED
     ↓
-player changes authoritative world state
+authoritative ATTACK validation ALLOWED
     ↓
-result event returns to NPC/world
+TrinityCore ATTACK STARTED
+    ↓
+skutečný combat
+    ↓
+target skutečně zemře
+    ↓
+TARGET_DEFEATED
+    ↓
+HUNT ownership korektně skončí
 ```
 
-Příklad může navazovat na wolves/livestock/farmer, ale architektura nesmí záviset na tomto jednom příběhu.
+Konkrétně group `41` měla dva členy a oba prošli: `MOVE_TO ALLOWED` → `MOVE_TO STARTED` → `ARRIVED` → `ATTACK ALLOWED` → `ATTACK STARTED` → `TARGET_DEFEATED`. To je důkaz, že coalition není jen registry/social abstrakce, ale přes generic intent → individual action → `ActionSystem` skutečně ovlivní svět.
+
+Zbytek POC byl už runtime prokázaný z předchozích milestone:
+
+| Řetězec | Stav |
+|---|---|
+| `WorldEvent` → `Perception` → `Memory` | PASS |
+| Needs/Goals/Actions | PASS |
+| async LLM decision protocol | PASS |
+| dynamic-task local model path | PASS |
+| authoritative `QuestProposal` validation | PASS |
+| dynamic quest offer/accept/progress/turn-in | PASS |
+| `Completed`/`Failed`/`Expired` → `WorldEvent` | PASS |
+| `WorldEvent` → `Perception` → `Memory` → issuer reaction | PASS |
+| restart/reconnect semantics | PASS |
+| timeout/malformed/stale/provider outage fail-closed | PASS |
+
+Společně s výše uvedeným HUNT-coalition runtime důkazem toto uzavírá Etapu 2 jako proof of concept. Žádné nové produkční chování pro `2.14` nebylo potřeba — nejde o scripted wolves→farmer story spojující všechny ověřené subsystémy do jednoho nového flow, jde o agregátní POC closure proof nad tím, co je jinde už hotové/uzavřené.
 
 ---
 
@@ -1513,6 +1542,8 @@ Scale hardening není důvod předčasně přidávat složitou infrastrukturu. O
 ---
 
 # Etapa 2 — Definition of Done
+
+**Stav: CLOSED — POC COMPLETE.**
 
 Etapa 2 není hotová pouze tím, že NPC umí chodit.
 
@@ -1541,9 +1572,11 @@ Zbývá před uzavřením Etapy 2:
 - [x] alespoň jedno další skutečné generic group behavior potřebné pro emergentní slice;
 - [x] skutečný local LLM request přes async `ai-server`;
 - [x] structured server-validated player task proposal;
-- [ ] player-facing task lifecycle;
-- [ ] end-to-end `WORLD → NPC → LLM/DECISION → PLAYER/TRINITYCORE → EVENT → WORLD` runtime gate;
-- [ ] safe fallback pro LLM outage/malformed/stale response.
+- [x] player-facing task lifecycle;
+- [x] end-to-end `WORLD → NPC → LLM/DECISION → PLAYER/TRINITYCORE → EVENT → WORLD` runtime gate;
+- [x] safe fallback pro LLM outage/malformed/stale response.
+
+Etapa 2 je tímto CLOSED — viz `2.14` výše pro finální agregátní POC runtime proof (HUNT-coalition end-to-end důkaz + shrnutí všech dříve prokázaných řetězců).
 
 ---
 
@@ -1620,7 +1653,7 @@ Etapa 4 nemá znovu objevovat základní identity, threading, lifecycle, action 
 26. [x] 2.13C5 — turn-in / completion / money reward (STATIC + BUILD + UNIT + RUNTIME PASS).
 27. [x] 2.13C6 — quest outcome → WorldEvent / NPC memory/problem feedback (A/B1/B2/B3/C/D all CLOSED — STATIC + BUILD + UNIT 253/253 + RUNTIME PASS).
 28. [x] 2.13D — `WORLD → NPC → LLM → PLAYER → WORLD` final end-to-end closure gate (restart/reconnect semantics + negative failure-mode aggregation runtime-tested and confirmed; 2.13 CLOSED).
-29. [ ] 2.14 — emergent end-to-end world event slice.
+29. [x] 2.14 — final Etapa 2 POC / aggregate integration gate (real WolfLoose coalition HUNT → per-member ActionSystem validation → real TrinityCore movement/combat → TARGET_DEFEATED, RUNTIME PASS; Etapa 2 CLOSED / POC COMPLETE).
 30. [ ] 2.15 — remaining diagnostics/scale hardening needed by measured runtime behavior.
 31. [ ] Etapa 3 — Elwynn census + semantic locations + faction/world-data preparation.
 32. [ ] Etapa 4 — Living World composition.
