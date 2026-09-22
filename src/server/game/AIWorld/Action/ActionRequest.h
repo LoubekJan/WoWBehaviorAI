@@ -91,7 +91,8 @@ struct ActionRequest
     // built. Default-empty for every ActionType other than Attack.
     GroupId SourceGroup;
 
-    // Optional formation side around the target, relative to its facing.
+    // Optional formation bearing around the target in world coordinates.
+    // Target rotation must not make settled attackers orbit with its facing.
     // Changes chase positioning only; normal attack authorization still applies.
     std::optional<float> ChaseAngleRadians;
 };

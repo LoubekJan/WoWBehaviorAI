@@ -46,3 +46,11 @@ bool ChaseAngle::IsAngleOkay(float relativeAngle) const
 
     return (std::min(diff, float(2 * M_PI) - diff) <= Tolerance);
 }
+
+ChaseAngle ChaseAngle::Resolve(float targetOrientation, ChaseAngleReference reference) const
+{
+    if (reference == ChaseAngleReference::World)
+        return ChaseAngle(RelativeAngle - targetOrientation, Tolerance);
+
+    return *this;
+}

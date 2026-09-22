@@ -262,7 +262,7 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
 
     if (request.ChaseAngleRadians)
         actor.GetMotionMaster()->MoveChase(&target, ChaseRange(0.5f),
-            ChaseAngle(*request.ChaseAngleRadians, GroupMemberFormation::ChaseAngleTolerance));
+            ChaseAngle(*request.ChaseAngleRadians, GroupMemberFormation::ChaseAngleTolerance), ChaseAngleReference::World);
     else
         actor.GetMotionMaster()->MoveChase(&target);
 
