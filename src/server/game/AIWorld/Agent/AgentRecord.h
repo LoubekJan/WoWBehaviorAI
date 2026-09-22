@@ -24,6 +24,7 @@
 #include "AgentId.h"
 #include "AgentLocation.h"
 #include "AgentType.h"
+#include "LivingRoleState.h"
 #include "Define.h"
 #include "Faction/WorldFactionId.h"
 #include "Goal/ActiveGoal.h"
@@ -118,6 +119,7 @@ struct AgentRecord
     // Cleared on interruption, unload and death; never persisted or reused.
     ObjectGuid WolfMealTarget;
     ObjectGuid WolfActionRuntimeGuid;
+    LivingRoleState LivingRole;
 
     // Milestone 2.6C: edge-trigger latch for NeedsThresholdEvent, owned
     // alongside Needs for the same reason - must survive Creature
@@ -203,6 +205,22 @@ struct AgentRecord
     // it actually produces an Eat) the same tick it is first seen set. Not
     // persisted across restart.
     std::optional<PendingEatContinuation> PendingEat;
+
+    // Lifecycle bookkeeping only. The old Creature no longer owns an action;
+    // never issue engine cleanup against a replacement materialization.
+    void ResetLivingRoleActivity()
+    {
+        if (LivingRole.CurrentPhase != LivingRoleState::Phase::Idle)
+        {
+            if (ActiveActionState && ActiveActionState->SourceGoal == LivingRole.SourceGoal &&
+                ActiveActionState->GoalStartedAtMs == LivingRole.StartedAtMs)
+                ActiveActionState.reset();
+            if (ActiveGoalState && ActiveGoalState->Type == LivingRole.SourceGoal &&
+                ActiveGoalState->StartedAtMs == LivingRole.StartedAtMs)
+                ActiveGoalState.reset();
+        }
+        LivingRole = {};
+    }
 };
 
 #endif // AIWORLD_AGENTRECORD_H

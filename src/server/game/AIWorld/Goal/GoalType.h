@@ -93,7 +93,9 @@ enum class GoalType : uint8
     // than the generic need selector. They preempt group coordination.
     Defend,
     Feed,
-    WildlifeRest
+    WildlifeRest,
+    LocalActivity,
+    PredatorHunt
 };
 
 inline char const* ToString(GoalType type)
@@ -110,6 +112,8 @@ inline char const* ToString(GoalType type)
         case GoalType::Defend:     return "DEFEND";
         case GoalType::Feed:       return "FEED";
         case GoalType::WildlifeRest: return "WILDLIFE_REST";
+        case GoalType::LocalActivity: return "LOCAL_ACTIVITY";
+        case GoalType::PredatorHunt: return "PREDATOR_HUNT";
         default:                   return "UNKNOWN";
     }
 }

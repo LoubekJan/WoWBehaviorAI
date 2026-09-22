@@ -19,6 +19,7 @@
 #define AIWORLD_ACTIONVALIDATIONCONTEXT_H
 
 #include "ActionPosition.h"
+#include "Agent/LivingRolePolicy.h"
 #include "Agent/AgentType.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
@@ -197,6 +198,11 @@ struct ActionValidationContext
     // re-validated here on every later reconfirmation pass.
     bool TargetWithinAttackRange = false;
     bool TargetInLineOfSight = false;
+    bool LivingRoleAllowed = false;
+    uint32 LivingRoleZoneId = 0;
+    LivingRolePolicy::Role LivingRole = LivingRolePolicy::Role::None;
+    LivingRolePolicy::Activity ExpectedAmbientActivity = LivingRolePolicy::Activity::None;
+    bool TargetIsRolePrey = false;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

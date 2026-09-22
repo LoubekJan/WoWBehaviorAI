@@ -4,7 +4,8 @@ The implementation is limited to AIWorld-controlled creatures matching
 `AIWorld.WolfGroupCreatureEntry` and the WolfLoose faction. The deployment
 configuration uses entry **69 (Diseased Timber Wolf)** and prey entry
 **721 (Rabbit)**.
-Other species retain their existing behavior. Roaming and hunting still require
+Other species are outside this pilot; the separate opt-in [LivingRoles](LivingRoles.md)
+cycle covers other controlled Elwynn roles. Roaming and hunting in this wolf pilot still require
 membership in a valid WolfLoose group; a lone wolf can defend or flee but does
 not acquire prey independently in this pilot.
 
@@ -112,8 +113,8 @@ five formation slots, half-turns, wrapping through zero, translation, angular
 tolerance, and unchanged target-relative behavior. This isolated build links
 the exact `Position::NormalizeOrientation` definition extracted from production
 `Position.cpp`; the normal CI suite links the full game library. It does not
-execute the live movement generator, pathfinding or combat. Full server build
-and in-game verification of the rotation fix remain pending.
+execute the live movement generator, pathfinding or combat. The user subsequently confirmed that the rotation fix works in game;
+a full build log and the remaining regression scenarios were not supplied.
 
 To run this additional component test on the normal Linux build host:
 
@@ -153,8 +154,10 @@ killing the wolf in front, surviving wolves kept moving behind the player as
 the player turned toward them. The attack angles were relative to target
 facing, causing the pack to rotate with the player. The local correction uses
 world-space bearings for wolf approach and chase, and ignores rotation-only
-changes when deciding to rebuild a chase path. Its in-game verification is
-pending. Existing callers keep target-relative chase by default.
+changes when deciding to rebuild a chase path. The user subsequently
+confirmed that this correction works in game. This confirms the reported
+turning scenario, not every movement regression in the checklist below.
+Existing callers keep target-relative chase by default.
 
 No new configuration is required when LivingWolvesEnabled is already enabled.
 Formation offsets stay inside the existing roaming envelope; inaccessible

@@ -60,7 +60,8 @@ enum class ActionType : uint8
     Eat,
     Work,
     Rest,
-    Attack
+    Attack,
+    Ambient
 };
 
 inline char const* ToString(ActionType type)
@@ -73,6 +74,7 @@ inline char const* ToString(ActionType type)
         case ActionType::Work:   return "WORK";
         case ActionType::Rest:   return "REST";
         case ActionType::Attack: return "ATTACK";
+        case ActionType::Ambient: return "AMBIENT";
         default:                 return "UNKNOWN";
     }
 }

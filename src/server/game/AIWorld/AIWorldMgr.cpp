@@ -716,6 +716,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // wolfGroupRoamDistance which is by then already >= MinRoamDistance)
     // is provably still >= the floor it is being compared against.
     _livingWolvesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingWolvesEnabled", false);
+    _livingRolesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRolesEnabled", false);
+    TC_LOG_INFO("ai.world", "AI living roles enabled={} scope=Elwynn controlled permanent NPCs", _livingRolesEnabled);
     bool wolfGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRoamEnabled", false);
     float wolfGroupRoamDistance = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamDistance", 10.0f);
     float wolfGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamArrivalRadius", 5.0f);
@@ -11504,6 +11506,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
             // rather than let it linger for a future re-materialize.
             record->PendingEat.reset();
             record->WolfMealTarget.Clear();
+            record->ResetLivingRoleActivity();
 
             // Milestone 2.11D: unlike ActiveGoalState/RoutineGoalState (both
             // deliberately left alone here - they are intent, allowed to
@@ -11569,6 +11572,9 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         NeedsUpdateRates rates = _needsRates;
         if (IsLivingWolf(*record))
             rates.HungerPerSecond = WolfBehaviorPolicy::HungerPerSecond;
+        else if (record->Type != AgentType::Unclassified && LivingRolePolicy::InScope(_livingRolesEnabled,
+            record->ControlMode, creature->GetMapId(), creature->GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId)))
+            rates.HungerPerSecond = WolfBehaviorPolicy::HungerPerSecond;
         _needsSystem.Update(record->Needs, context, elapsedMs, rates);
 
         TC_LOG_DEBUG("ai.world",
@@ -11600,6 +11606,7 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
         if (!context.Alive)
         {
             record->WolfActionRuntimeGuid.Clear();
+            record->LivingRole = {};
             // Milestone 2.8F P2 fix: TrinityCore's own death handling
             // (MotionMaster::StopOnDeath()) already stops/clears the
             // actor's movement, so ActiveActionState must not keep
@@ -11651,6 +11658,9 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
 
             continue;
         }
+
+        if (UpdateLivingRole(*record, *creature, nowMs))
+            continue;
 
         // Milestone 2.8F P2 fix: reconciliation for a completion that never
         // arrived as an event - ActionEngineEventBus is a bounded queue and
