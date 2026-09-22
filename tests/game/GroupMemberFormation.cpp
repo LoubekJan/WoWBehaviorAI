@@ -57,7 +57,7 @@ TEST_CASE("Group members settle in distinct stable positions and approach target
             std::reverse(reordered.begin(), reordered.end());
             reordered.push_back(id); // Duplicate observations do not create new slots.
             auto stable = GetSlot(id, reordered, MaxRadius);
-            REQUIRE(stable->X == slot->X && stable->Y == slot->Y && stable->Angle == slot->Angle);
+            REQUIRE((stable->X == slot->X && stable->Y == slot->Y && stable->Angle == slot->Angle));
         }
     }
     REQUIRE(!GetSlot(AgentId{ 9 }, std::vector<AgentId>{ AgentId{ 1 } }, MaxRadius));
@@ -111,7 +111,7 @@ TEST_CASE("Group members settle in distinct stable positions and approach target
     auto before = GetSlot(AgentId{ 2 }, members, MaxRadius);
     members[0].Materialized = false;
     auto after = GetSlot(AgentId{ 2 }, members, MaxRadius);
-    REQUIRE(before->X == after->X && before->Y == after->Y);
+    REQUIRE((before->X == after->X && before->Y == after->Y));
     REQUIRE(projector.Project(intent, profile, members).size() == 1);
 
     auto regroup = intent;
@@ -127,7 +127,7 @@ TEST_CASE("Group members settle in distinct stable positions and approach target
     members[1].X = members[1].Y = 40.0f;
     auto unspaced = projector.Project(intent, profile, members);
     REQUIRE(!unspaced.empty());
-    REQUIRE(unspaced[0].X == intent.X && unspaced[0].Y == intent.Y);
+    REQUIRE((unspaced[0].X == intent.X && unspaced[0].Y == intent.Y));
 
     ActionSystem actions;
     ActionValidationContext context;
