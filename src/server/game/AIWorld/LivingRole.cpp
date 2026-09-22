@@ -76,6 +76,29 @@ namespace
     }
 }
 
+bool AIWorldMgr::CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creature const& prey) const
+{
+    if (!_enabled || !_livingRolesEnabled || &hunter == &prey || hunter.GetMapId() != 0 ||
+        hunter.GetZoneId() != 12 || prey.GetZoneId() != 12 || !hunter.IsInMap(&prey) ||
+        !hunter.IsAlive() || !prey.IsAlive() || hunter.IsPet() || prey.IsPet() ||
+        !hunter.GetCharmerOrOwnerGUID().IsEmpty() || !prey.GetCharmerOrOwnerGUID().IsEmpty() ||
+        hunter.IsControlledByPlayer() || prey.IsControlledByPlayer() || IsService(prey) || prey.IsQuestGiver())
+        return false;
+    AgentRecord const* record = _registry.FindBySpawn(hunter.GetMapId(), hunter.GetSpawnId());
+    if (!record || record->WorldState != AgentWorldState::Materialized || record->RuntimeGuid != hunter.GetGUID() ||
+        IsLivingWolf(*record) || !LivingRolePolicy::InScope(true, record->ControlMode, hunter.GetMapId(),
+            hunter.GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId)))
+        return false;
+    // Use the raw native lookup, never GetReactionTo/IsFriendlyTo here: those
+    // call this bridge and would recurse. Both sides must actually be neutral.
+    if (!hunter.GetFactionTemplateEntry() || !prey.GetFactionTemplateEntry())
+        return false;
+    bool neutral = WorldObject::GetFactionReactionTo(hunter.GetFactionTemplateEntry(), &prey) == REP_NEUTRAL &&
+        WorldObject::GetFactionReactionTo(prey.GetFactionTemplateEntry(), &hunter) == REP_NEUTRAL;
+    return LivingRolePolicy::CanHuntNeutralPrey(LivingRolePolicy::Resolve(record->Type, hunter.GetEntry(), IsService(hunter)),
+        _agentTypeCatalog.Resolve(prey.GetEntry()), neutral);
+}
+
 std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Creature const& creature) const
 {
     AgentRecord const* record = _registry.FindBySpawn(creature.GetMapId(), creature.GetSpawnId());
@@ -89,6 +112,18 @@ std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Cr
     info.Hunger = record->Needs.Hunger;
     info.Phase = PhaseName(record->LivingRole.CurrentPhase);
     info.Activity = LivingRolePolicy::ToString(record->LivingRole.Activity);
+    if (role == Role::Predator && !IsLivingWolf(*record))
+    {
+        info.HuntStatus = record->LivingRole.LastHuntStatus;
+        info.NearbyPrey = record->LivingRole.NearbyPrey;
+        info.AttackablePrey = record->LivingRole.AttackablePrey;
+    }
+    if (LivingRolePolicy::HelpsAllies(role))
+    {
+        info.AssistStatus = record->LivingRole.LastAssistStatus;
+        info.NearbyAllies = record->LivingRole.NearbyAllies;
+        info.AlliesInCombat = record->LivingRole.AlliesInCombat;
+    }
     if (record->ActiveGoalState) info.Goal = ToString(record->ActiveGoalState->Type);
     else if (record->RoutineGoalState) info.Goal = ToString(record->RoutineGoalState->Type);
     else if (record->GroupCoordinationGoalState) info.Goal = ToString(record->GroupCoordinationGoalState->Type);
@@ -201,7 +236,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     std::vector<Creature*> nearby;
     if (LivingRolePolicy::HelpsAllies(role) && !threat && nowMs >= state.NextSenseAtMs)
     {
-        state.NextSenseAtMs = nowMs + 5000 + record.Id.Value % 1000;
+        state.NextSenseAtMs = nowMs + 1000;
+        state.NearbyAllies = state.AlliesInCombat = 0;
+        state.LastAssistStatus = "NO_ALLIES";
         creature.GetCreatureListWithEntryInGrid(nearby, 0, 25.0f);
         std::sort(nearby.begin(), nearby.end(), [&](Creature* a, Creature* b)
         { return creature.GetExactDistSq(a) < creature.GetExactDistSq(b); });
@@ -209,21 +246,47 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             nearby.resize(64);
         for (Creature* ally : nearby)
         {
-            if (ally == &creature || !ally->IsAlive() || !ally->IsInCombat() || !creature.IsWithinLOSInMap(ally))
+            if (ally == &creature || !ally->IsAlive() || ally->GetZoneId() != 12 ||
+                !creature.CanSeeOrDetect(ally) || !creature.IsWithinLOSInMap(ally))
                 continue;
             AgentRecord const* member = _registry.FindBySpawn(ally->GetMapId(), ally->GetSpawnId());
             if (!member || member->ControlMode != AgentControlMode::AIWorldControlled ||
-                member->WorldFaction == WorldFactions::Unaffiliated || member->WorldFaction != record.WorldFaction)
+                !LivingRolePolicy::CanAssistAlly(record.WorldFaction, member->WorldFaction,
+                    creature.IsHostileTo(ally) || ally->IsHostileTo(&creature)))
                 continue;
+            ++state.NearbyAllies;
+            if (!ally->IsInCombat())
+                continue;
+            ++state.AlliesInCombat;
+            if (threat)
+                continue;
+            auto assistableThreat = [&](Unit* attacker)
+            {
+                if (!validThreat(attacker) || !ally->IsInCombatWith(attacker))
+                    return false;
+                if (member->LivingRole.CurrentPhase == Phase::Hunting && member->LivingRole.TargetGuid == attacker->GetGUID())
+                    return false;
+                return !member->GroupCoordinationGoalState || member->GroupCoordinationGoalState->Type != GoalType::Hunt ||
+                    member->GroupCoordinationGoalState->TargetGuid != attacker->GetGUID();
+            };
             Unit* attacker = ally->GetThreatManager().GetCurrentVictim();
-            // Assistance only responds to real combat, never a reputation label.
-            if (!validThreat(attacker) || !ally->IsInCombatWith(attacker) || !creature.IsFriendlyTo(ally))
-                continue;
-            if (member->LivingRole.CurrentPhase == Phase::Hunting && member->LivingRole.TargetGuid == attacker->GetGUID())
+            if (!assistableThreat(attacker))
+            {
+                attacker = nullptr;
+                for (auto const& combat : ally->GetCombatManager().GetPvECombatRefs())
+                {
+                    Unit* other = combat.second->GetOther(ally);
+                    if (assistableThreat(other) && (!attacker || other->GetGUID() < attacker->GetGUID()))
+                        attacker = other;
+                }
+            }
+            if (!attacker)
                 continue;
             threat = attacker;
-            break;
+            state.LastAssistStatus = "THREAT_FOUND";
         }
+        if (!threat && state.NearbyAllies)
+            state.LastAssistStatus = state.AlliesInCombat ? "NO_VALID_THREAT" : "ALLIES_NOT_IN_COMBAT";
     }
 
     if (state.CurrentPhase == Phase::Fleeing && !threat &&
@@ -478,32 +541,47 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     if (role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false) && homeDistance < 20.0f)
     {
         if (nearby.empty()) creature.GetCreatureListWithEntryInGrid(nearby, 0, 25.0f);
-        Creature* prey = nullptr;
-        float nearest = 25.0f;
+        std::sort(nearby.begin(), nearby.end(), [&](Creature* a, Creature* b)
+        { return creature.GetExactDistSq(a) < creature.GetExactDistSq(b); });
+        state.NearbyPrey = state.AttackablePrey = 0;
+        state.LastHuntStatus = "NO_PREY";
+        bool actionRejected = false;
+        std::vector<Creature*> candidates;
         for (Creature* candidate : nearby)
         {
-            if (_agentTypeCatalog.Resolve(candidate->GetEntry()) != AgentType::Prey || candidate->IsPet() || candidate->IsCharmed() ||
-                !candidate->GetOwnerGUID().IsEmpty() ||
-                !validThreat(candidate) || candidate->GetZoneId() != 12)
+            if (_agentTypeCatalog.Resolve(candidate->GetEntry()) != AgentType::Prey || !candidate->IsAlive() ||
+                candidate->IsPet() || !candidate->GetCharmerOrOwnerGUID().IsEmpty() || candidate->IsControlledByPlayer() ||
+                IsService(*candidate) || candidate->IsQuestGiver() || candidate->GetZoneId() != 12)
                 continue;
-            float distance = creature.GetExactDist(candidate);
-            if (distance < nearest)
-            {
-                nearest = distance;
-                prey = candidate;
-            }
+            ++state.NearbyPrey;
+            if (!creature.IsValidAttackTarget(candidate))
+                continue;
+            ++state.AttackablePrey;
+            if (!validThreat(candidate))
+                continue;
+            candidates.push_back(candidate);
         }
-        if (prey)
+        // One blocked nearest animal must not hide reachable prey behind it.
+        for (Creature* candidate : candidates)
         {
             PathGenerator path(&creature);
-            if (path.CalculatePath(prey->GetPositionX(), prey->GetPositionY(), prey->GetPositionZ(), false) &&
+            if (path.CalculatePath(candidate->GetPositionX(), candidate->GetPositionY(), candidate->GetPositionZ(), false) &&
                 !(path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE)))
             {
                 ActionRequest hunt;
                 hunt.Type = ActionType::Attack; hunt.SourceGoal = GoalType::PredatorHunt;
-                if (start(hunt, Phase::Hunting, prey)) return true;
+                if (start(hunt, Phase::Hunting, candidate))
+                {
+                    state.LastHuntStatus = "HUNT_STARTED";
+                    return true;
+                }
+                state.LastHuntStatus = "ACTION_REJECTED";
+                actionRejected = true;
             }
         }
+        if (!actionRejected)
+            state.LastHuntStatus = state.AttackablePrey ? "NO_REACHABLE_PREY" :
+                state.NearbyPrey ? "PREY_NOT_ATTACKABLE" : "NO_PREY";
     }
 
     uint32 dayTime = uint32(nowMs % _routineScheduleConfig.DayLengthMs);

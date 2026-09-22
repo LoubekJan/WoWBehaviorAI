@@ -19,6 +19,7 @@
 #define AIWORLD_LIVINGROLEPOLICY_H
 
 #include "AgentType.h"
+#include "Faction/WorldFactionId.h"
 #include "Reconciliation/SpawnParticipationMode.h"
 #include <algorithm>
 #include <cmath>
@@ -74,6 +75,21 @@ namespace LivingRolePolicy
     inline bool Fighter(Role role) { return role == Role::Guard || role == Role::Combatant || role == Role::Predator; }
     inline bool Wildlife(Role role) { return role == Role::Predator || role == Role::Prey; }
     inline bool HelpsAllies(Role role) { return role == Role::Guard || role == Role::Combatant; }
+
+    // Native neutral templates (notably Defias Thug's FT 7 clone) are not
+    // friendly even to themselves. Social membership supplies the alliance;
+    // an explicit native hostility still vetoes assistance.
+    inline bool CanAssistAlly(WorldFactionId actor, WorldFactionId ally, bool nativeHostile)
+    {
+        return actor && actor == ally && !nativeHostile;
+    }
+
+    // Called only for an eligible controlled Elwynn hunter and wild prey.
+    // Ecology may specialize neutrality; it never overrides friendship.
+    inline bool CanHuntNeutralPrey(Role hunter, AgentType prey, bool mutuallyNeutral)
+    {
+        return hunter == Role::Predator && prey == AgentType::Prey && mutuallyNeutral;
+    }
 
     inline float FreeChaseBearing(float approachBearing, std::vector<float> occupied)
     {

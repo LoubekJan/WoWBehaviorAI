@@ -269,8 +269,18 @@ class TC_GAME_API AIWorldMgr
             char const* Activity = "NONE";
             char const* Goal = "NONE";
             char const* Action = "NONE";
+            char const* HuntStatus = nullptr;
+            char const* AssistStatus = nullptr;
+            uint32 NearbyPrey = 0;
+            uint32 AttackablePrey = 0;
+            uint32 NearbyAllies = 0;
+            uint32 AlliesInCombat = 0;
         };
         std::optional<LivingRoleDebugInfo> DescribeLivingRole(Creature const& creature) const;
+
+        // Creature-to-creature ecology only; native flags/immunities and the
+        // ordinary attack validator still run. Does not change player reactions.
+        bool CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creature const& prey) const;
 
         // Thin Manual-only wrappers around the otherwise-private
         // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below -

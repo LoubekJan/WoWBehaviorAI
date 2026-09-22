@@ -23,7 +23,7 @@
 #include "ObjectGuid.h"
 #include "Goal/GoalType.h"
 
-// One materialization's local activity. Never persisted and never owns a pointer.
+// One materialization's local activity. Never persisted; no engine pointers.
 struct LivingRoleState
 {
     enum class Phase : uint8 { Idle, Moving, Acting, Hunting, Feeding, Defending, Fleeing };
@@ -40,5 +40,11 @@ struct LivingRoleState
     uint64 DefenseCooldownUntilMs = 0;
     float ChaseBearing = 0.0f;
     uint8 OwnedStandState = 0;
+    char const* LastHuntStatus = "NOT_SCANNED";
+    char const* LastAssistStatus = "NOT_SCANNED";
+    uint32 NearbyPrey = 0;
+    uint32 AttackablePrey = 0;
+    uint32 NearbyAllies = 0;
+    uint32 AlliesInCombat = 0;
 };
 #endif

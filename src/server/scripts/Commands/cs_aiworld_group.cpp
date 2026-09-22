@@ -171,6 +171,12 @@ public:
                     role->Role, role->Status, ToString(role->ControlMode), role->Enabled));
                 handler->SendSysMessage(Trinity::StringFormat("AIWorld role: phase={} activity={} hunger={:.2f} goal={} action={}",
                     role->Phase, role->Activity, role->Hunger, role->Goal, role->Action));
+                if (role->HuntStatus)
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld role: lastHunt={} nearbyPrey={} attackablePrey={}",
+                        role->HuntStatus, role->NearbyPrey, role->AttackablePrey));
+                if (role->AssistStatus)
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld role: lastAssist={} nearbyAllies={} alliesInCombat={}",
+                        role->AssistStatus, role->NearbyAllies, role->AlliesInCombat));
             }
             if (std::optional<AIWorldMgr::WolfFormationDebugInfo> wolf = sAIWorldMgr->DescribeWolfFormation(*target);
                 wolf && target->GetEntry() == wolf->ExpectedEntry)

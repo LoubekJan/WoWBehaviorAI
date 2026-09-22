@@ -19,7 +19,44 @@
 #include "Action/ActionSystem.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/AgentRecord.h"
+#include "DBCStructure.h"
 #include <limits>
+
+TEST_CASE("Defias social allies can assist despite mutually neutral native templates", "[AIWorld][LivingRole]")
+{
+    // FT 2300 is the accepted clone of native FT 7: same zero reaction
+    // masks/lists, a different Faction id. Neutral does not mean friendly.
+    FactionTemplateEntry thug{};
+    thug.ID = 2300;
+    thug.Faction = 1201;
+    REQUIRE(!thug.IsFriendlyTo(thug));
+    REQUIRE(!thug.IsHostileTo(thug));
+    REQUIRE(LivingRolePolicy::CanAssistAlly(WorldFactions::DefiasBrotherhood,
+        WorldFactions::DefiasBrotherhood, thug.IsHostileTo(thug)));
+    REQUIRE(!LivingRolePolicy::CanAssistAlly(WorldFactions::Unaffiliated, WorldFactions::Unaffiliated, false));
+    REQUIRE(!LivingRolePolicy::CanAssistAlly(WorldFactions::DefiasBrotherhood, WorldFactions::StormwindAlliance, false));
+    REQUIRE(!LivingRolePolicy::CanAssistAlly(WorldFactions::DefiasBrotherhood, WorldFactions::DefiasBrotherhood, true));
+}
+
+TEST_CASE("Forest spiders can hunt neutral fauna without granting attacks on other roles", "[AIWorld][LivingRole]")
+{
+    using namespace LivingRolePolicy;
+    // Native DBC rows 22 (Forest Spider) and 31 (Deer/Fawn/Rabbit).
+    FactionTemplateEntry spider{22, 22, 0, 8, 0, 1, {0, 0, 0, 0}, {22, 0, 0, 0}};
+    FactionTemplateEntry fauna{31, 28, 1024, 0, 0, 0, {973, 0, 0, 0}, {148, 28, 0, 0}};
+    REQUIRE(!spider.IsHostileTo(fauna));
+    REQUIRE(!fauna.IsHostileTo(spider));
+    REQUIRE(!spider.IsFriendlyTo(fauna));
+    REQUIRE(!fauna.IsFriendlyTo(spider));
+    REQUIRE(CanHuntNeutralPrey(Role::Predator, AgentType::Prey, true));
+    REQUIRE(!CanHuntNeutralPrey(Role::Predator, AgentType::Prey, false));
+    for (AgentType type : {AgentType::Civilian, AgentType::Merchant, AgentType::Guard,
+        AgentType::Predator, AgentType::Combatant, AgentType::Unclassified})
+        REQUIRE(!CanHuntNeutralPrey(Role::Predator, type, true));
+    for (Role role : {Role::None, Role::Service, Role::Prey, Role::Civilian, Role::Worker,
+        Role::Traveler, Role::Guard, Role::Combatant})
+        REQUIRE(!CanHuntNeutralPrey(role, AgentType::Prey, true));
+}
 
 TEST_CASE("Materialization cleanup discards role attempts without claiming newer work", "[AIWorld][LivingRole]")
 {

@@ -16,6 +16,7 @@
  */
 
 #include "Object.h"
+#include "AIWorldMgr.h"
 #include "BattlefieldMgr.h"
 #include "Battleground.h"
 #include "CellImpl.h"
@@ -2743,7 +2744,13 @@ ReputationRank WorldObject::GetReactionTo(WorldObject const* target) const
     }
 
     // do checks dependant only on our faction
-    return WorldObject::GetFactionReactionTo(GetFactionTemplateEntry(), target);
+    ReputationRank reaction = WorldObject::GetFactionReactionTo(GetFactionTemplateEntry(), target);
+    if (reaction == REP_NEUTRAL)
+        if (Creature const* hunter = ToCreature())
+            if (Creature const* prey = target->ToCreature())
+                if (sAIWorldMgr->CanLivingPredatorHuntNeutralPrey(*hunter, *prey))
+                    return REP_HOSTILE;
+    return reaction;
 }
 
 /*static*/ ReputationRank WorldObject::GetFactionReactionTo(FactionTemplateEntry const* factionTemplateEntry, WorldObject const* target)
