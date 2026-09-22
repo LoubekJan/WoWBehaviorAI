@@ -96,6 +96,12 @@ struct TC_GAME_API ChaseRange
     float MaxTolerance; // ...and if we are, we will move into this range
 };
 
+enum class ChaseAngleReference : uint8
+{
+    Target,
+    World
+};
+
 struct TC_GAME_API ChaseAngle
 {
     ChaseAngle(float angle, float _tolerance = M_PI_4);
@@ -103,9 +109,16 @@ struct TC_GAME_API ChaseAngle
     float RelativeAngle; // we want to be at this angle relative to the target (0 = front, M_PI = back)
     float Tolerance;     // but we'll tolerate anything within +- this much
 
+    // With MoveChase's World reference, RelativeAngle initially holds a world
+    // bearing; Resolve returns the target-relative value used by movement.
+
     float UpperBound() const;
     float LowerBound() const;
     bool IsAngleOkay(float relativeAngle) const;
+
+    // MoveChase can opt into a world-space bearing. Resolve it for the
+    // target's current facing on every update, not just when pursuit starts.
+    ChaseAngle Resolve(float targetOrientation, ChaseAngleReference reference) const;
 };
 
 inline bool IsInvalidMovementGeneratorType(uint8 const type) { return type == MAX_DB_MOTION_TYPE || type >= MAX_MOTION_TYPE; }

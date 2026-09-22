@@ -17,7 +17,9 @@ not acquire prey independently in this pilot.
   sorted membership, reserving places for temporarily unloaded/dead members.
 - Wolf hunters approach separate ground/path-checked points around live prey,
   within the existing three-yard attack-arrival bound. Hunting and defense use
-  distinct chase angles so members do not all occupy the same side of a target.
+  distinct world-space chase angles so members do not all occupy the same side
+  of a target. Turning the target in place does not rotate the formation or
+  restart its path; actual target movement still triggers pursuit.
   Feeding and sleep retain the resulting positions. This is destination spacing,
   not physical collision between creatures; paths may cross during movement.
 - Hunger grows by 0.003/second of materialized simulation. A hungry member can
@@ -103,6 +105,16 @@ on sloping terrain, regroup offsets, unchanged unspaced profiles, authorized
 hunt approach slots and chase-angle validation. They do not run live navmesh or
 ChaseMovementGenerator behavior.
 
+The target-rotation fix passed 432 assertions across five Catch2 v2.13.9 test
+cases locally (MSVC, 2026-09-22), including the previous 211 checks. The added
+`tests/game/ChaseAngle.cpp` exercises the production angle resolver with all
+five formation slots, half-turns, wrapping through zero, translation, angular
+tolerance, and unchanged target-relative behavior. This isolated build links
+the exact `Position::NormalizeOrientation` definition extracted from production
+`Position.cpp`; the normal CI suite links the full game library. It does not
+execute the live movement generator, pathfinding or combat. Full server build
+and in-game verification of the rotation fix remain pending.
+
 To run this additional component test on the normal Linux build host:
 
 ```bash
@@ -135,11 +147,19 @@ distance/visibility boundaries, cross-group isolation and assistance during
 feeding/sleep still need separate runtime confirmation.
 
 The following report identified overlapping pack members. Stable formation
-slots, separate hunt approach points and attack angles were added locally;
-their in-game verification is pending. No new configuration is required when
-LivingWolvesEnabled is already enabled. Formation offsets stay inside the
-existing roaming envelope; inaccessible slots do not fall back to the common
-center, and incomplete paths are rejected for spaced destinations.
+slots, separate hunt approach points and attack angles were added. On
+2026-09-22 the user confirmed that spacing worked, but reported that after
+killing the wolf in front, surviving wolves kept moving behind the player as
+the player turned toward them. The attack angles were relative to target
+facing, causing the pack to rotate with the player. The local correction uses
+world-space bearings for wolf approach and chase, and ignores rotation-only
+changes when deciding to rebuild a chase path. Its in-game verification is
+pending. Existing callers keep target-relative chase by default.
+
+No new configuration is required when LivingWolvesEnabled is already enabled.
+Formation offsets stay inside the existing roaming envelope; inaccessible
+slots do not fall back to the common center, and incomplete paths are rejected
+for spaced destinations.
 
 ### Acceptance checklist
 
@@ -173,6 +193,14 @@ center, and incomplete paths are rejected for spaced destinations.
    while feeding/resting. Check a slope and a nearby obstacle for endless small
    corrections or movement through terrain. Brief crossing of paths while
    moving is allowed; persistent stacking after arrival is a failure.
+10. Attack a healthy pack, stand still and let it surround the player. Kill the
+    wolf in front, then turn toward a surviving wolf, including a half-turn and
+    turns through a full circle. Surviving wolves should stay on their world
+    sides and remain attackable when faced, without orbiting just because the
+    player turns. Then move several yards: they should pursue and keep fighting.
+    Repeat a hunt against moving/turning prey to check that approach and melee
+    chase use consistent sides. Also check an ordinary non-AIWorld creature's
+    chase and a pet's follow movement.
 
 The local unit-test result and the user-reported runtime result are separate
 evidence; remaining checklist items still need their own confirmation.

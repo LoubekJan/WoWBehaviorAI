@@ -65,8 +65,8 @@ static void DoMovementInform(Unit* owner, Unit* target)
         AI->MovementInform(CHASE_MOTION_TYPE, target->GetGUID().GetCounter());
 }
 
-ChaseMovementGenerator::ChaseMovementGenerator(Unit *target, Optional<ChaseRange> range, Optional<ChaseAngle> angle) : AbstractFollower(ASSERT_NOTNULL(target)), _range(range),
-    _angle(angle), _rangeCheckTimer(RANGE_CHECK_INTERVAL)
+ChaseMovementGenerator::ChaseMovementGenerator(Unit *target, Optional<ChaseRange> range, Optional<ChaseAngle> angle, ChaseAngleReference angleReference) : AbstractFollower(ASSERT_NOTNULL(target)), _range(range),
+    _angle(angle), _angleReference(angleReference), _rangeCheckTimer(RANGE_CHECK_INTERVAL)
 {
     Priority = MOTION_PRIORITY_NORMAL;
     Flags = MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING;
@@ -119,6 +119,8 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
     float const maxRange = _range ? _range->MaxRange + hitboxSum : owner->GetMeleeRange(target); // melee range already includes hitboxes
     float const maxTarget = _range ? _range->MaxTolerance + hitboxSum : CONTACT_DISTANCE + hitboxSum;
     Optional<ChaseAngle> angle = mutualChase ? Optional<ChaseAngle>() : _angle;
+    if (angle)
+        angle = angle->Resolve(target->GetOrientation(), _angleReference);
 
     // periodically check if we're already in the expected range...
     _rangeCheckTimer.Update(diff);
@@ -150,10 +152,16 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
         DoMovementInform(owner, target);
     }
 
+    // Turning in place does not move a world-space formation slot. Ignore
+    // facing changes in this mode, including while a path is still running.
+    Position targetPosition = target->GetPosition();
+    if (_angleReference == ChaseAngleReference::World)
+        targetPosition.SetOrientation(0.0f);
+
     // if the target moved, we have to consider whether to adjust
-    if (!_lastTargetPosition || target->GetPosition() != _lastTargetPosition.value() || mutualChase != _mutualChase)
+    if (!_lastTargetPosition || targetPosition != _lastTargetPosition.value() || mutualChase != _mutualChase)
     {
-        _lastTargetPosition = target->GetPosition();
+        _lastTargetPosition = targetPosition;
         _mutualChase = mutualChase;
         if (owner->HasUnitState(UNIT_STATE_CHASE_MOVE) || !PositionOkay(owner, target, minRange, maxRange, angle))
         {

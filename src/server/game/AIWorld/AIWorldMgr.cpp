@@ -7731,9 +7731,9 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
         auto slot = GroupMemberFormation::GetSlot(record->Id, *group, profile->MemberFormationRadius);
         if (slot && slot->Radius > 0.0f)
         {
-            float angle = target->GetOrientation() + slot->Angle;
-            destination.X += slot->Radius * std::cos(angle);
-            destination.Y += slot->Radius * std::sin(angle);
+            // Approach and melee chase share the same world-space slot.
+            destination.X += slot->X;
+            destination.Y += slot->Y;
             destination.Z = map->GetHeight(creature->GetPhaseMask(), destination.X, destination.Y, targetZ + 20.0f, true);
             if (!std::isfinite(destination.Z) || destination.Z <= INVALID_HEIGHT ||
                 !IsWithinArrivalTolerance(destination, targetX, targetY, targetZ) ||
