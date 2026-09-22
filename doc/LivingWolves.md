@@ -11,7 +11,15 @@ not acquire prey independently in this pilot.
 ## Behavior
 
 - Idle packs use the existing path-checked territory roaming (enabled in the
-  deployment configuration).
+  deployment configuration). Each member now has a stable slot around the
+  shared destination. With the deployment defaults, two to five members aim
+  for at least three yards between adjacent slot centers. Slots use the whole
+  sorted membership, reserving places for temporarily unloaded/dead members.
+- Wolf hunters approach separate ground/path-checked points around live prey,
+  within the existing three-yard attack-arrival bound. Hunting and defense use
+  distinct chase angles so members do not all occupy the same side of a target.
+  Feeding and sleep retain the resulting positions. This is destination spacing,
+  not physical collision between creatures; paths may cross during movement.
 - Hunger grows by 0.003/second of materialized simulation. A hungry member can
   initiate a hunt at 0.65 (about 217 seconds from empty hunger). Satiated members
   do not join a new hunt. Ordinary GET_FOOD no longer interrupts this cohort's
@@ -86,6 +94,30 @@ friendly-fire exclusion and deterministic threat choice). It does **not** exerci
 live TrinityCore movement, animation, group formation, or the manager lifecycle.
 Full server CMake configuration is blocked locally by missing Boost >= 1.78.
 
+The spacing change also passed 141 standalone MSVC checks in
+`tests/game/GroupMemberFormation.cpp`; the original 70 LivingWolf checks passed
+again. The new checks run the real intent system, projector and ActionSystem,
+covering separation for two to five members, stable slots under reordered or
+missing live observations, the roaming envelope, no repeated moves after arrival
+on sloping terrain, regroup offsets, unchanged unspaced profiles, authorized
+hunt approach slots and chase-angle validation. They do not run live navmesh or
+ChaseMovementGenerator behavior.
+
+To run this additional component test on the normal Linux build host:
+
+```bash
+g++ -std=c++20 -DAIWORLD_FORMATION_STANDALONE_TEST \
+  -Isrc/common -Isrc/common/Utilities \
+  -Isrc/server/game/Entities/Object -Isrc/server/game/AIWorld \
+  tests/game/GroupMemberFormation.cpp \
+  src/server/game/AIWorld/Agent/AgentGroupIntentSystem.cpp \
+  src/server/game/AIWorld/Agent/AgentGroupIntentProjector.cpp \
+  src/server/game/AIWorld/Action/ActionSystem.cpp \
+  src/server/game/AIWorld/Action/ArrivalTolerance.cpp \
+  -o runtime/wolf-formation-tests
+./runtime/wolf-formation-tests
+```
+
 ## Runtime verification
 
 On 2026-09-22, the user reported a successful in-game test after changing the
@@ -96,7 +128,18 @@ was exercised. Exact timings and DEBUG log markers were not separately supplied.
 
 The next in-game report confirmed that an attacked hunter defended itself while
 the other hunters continued hunting. That version only had individual defense.
-Nearby pack assistance was then added locally; its runtime verification is pending.
+After nearby pack assistance was added, the user confirmed on 2026-09-22 that
+the repeated in-game test worked: nearby members joined the defense when one
+hunting wolf was attacked. This confirms the basic pack-assistance scenario;
+distance/visibility boundaries, cross-group isolation and assistance during
+feeding/sleep still need separate runtime confirmation.
+
+The following report identified overlapping pack members. Stable formation
+slots, separate hunt approach points and attack angles were added locally;
+their in-game verification is pending. No new configuration is required when
+LivingWolvesEnabled is already enabled. Formation offsets stay inside the
+existing roaming envelope; inaccessible slots do not fall back to the common
+center, and incomplete paths are rejected for spaced destinations.
 
 ### Acceptance checklist
 
@@ -123,6 +166,13 @@ Nearby pack assistance was then added locally; its runtime verification is pendi
    Verify wolves from another group or beyond the assistance radius do not join
    because of pack assistance, and low-health wolves flee. Check that defense
    still ends on death/invalid target or its existing time/distance bound.
+9. After rebuilding with spacing, observe a two-to-five-member pack for several
+   roam phases: members should settle at distinct positions and remain still
+   between phases. Repeat a rabbit hunt and a player-triggered pack defense;
+   members should approach from different sides and retain separated positions
+   while feeding/resting. Check a slope and a nearby obstacle for endless small
+   corrections or movement through terrain. Brief crossing of paths while
+   moving is allowed; persistent stacking after arrival is a failure.
 
 The local unit-test result and the user-reported runtime result are separate
 evidence; remaining checklist items still need their own confirmation.

@@ -16,6 +16,7 @@
  */
 
 #include "AgentGroupIntentProjector.h"
+#include "GroupMemberFormation.h"
 
 std::vector<GroupMemberActionProposal> AgentGroupIntentProjector::Project(AgentGroupIntent const& intent, AgentGroupCoordinationProfile const& profile,
     std::vector<CoalitionMemberObservation> const& members) const
@@ -50,6 +51,9 @@ std::vector<GroupMemberActionProposal> AgentGroupIntentProjector::Project(AgentG
             return proposals;
     }
 
+    bool spaced = std::isfinite(profile.MemberFormationRadius) && profile.MemberFormationRadius > 0.0f;
+    if (spaced && intent.Type == AgentGroupIntentType::Roam)
+        triggerRadius = std::min(triggerRadius, GroupMemberFormation::ArrivalRadius);
     float triggerRadiusSq = triggerRadius * triggerRadius;
 
     for (CoalitionMemberObservation const& observation : members)
@@ -60,9 +64,21 @@ std::vector<GroupMemberActionProposal> AgentGroupIntentProjector::Project(AgentG
         if (observation.MapId != intent.MapId)
             continue;
 
-        float dx = observation.X - intent.X;
-        float dy = observation.Y - intent.Y;
-        float dz = observation.Z - intent.Z;
+        float destinationX = intent.X;
+        float destinationY = intent.Y;
+        if (spaced)
+        {
+            auto slot = GroupMemberFormation::GetSlot(observation.MemberId, members, profile.MemberFormationRadius);
+            if (!slot)
+                continue;
+            destinationX += slot->X;
+            destinationY += slot->Y;
+        }
+
+        // Regroup keeps its dispersal trigger; roaming settles at each slot.
+        float dx = observation.X - (intent.Type == AgentGroupIntentType::Regroup ? intent.X : destinationX);
+        float dy = observation.Y - (intent.Type == AgentGroupIntentType::Regroup ? intent.Y : destinationY);
+        float dz = spaced && intent.Type == AgentGroupIntentType::Roam ? 0.0f : observation.Z - intent.Z;
         float distanceSq = dx * dx + dy * dy + dz * dz;
 
         if (distanceSq <= triggerRadiusSq)
@@ -73,8 +89,8 @@ std::vector<GroupMemberActionProposal> AgentGroupIntentProjector::Project(AgentG
         proposal.Member = observation.MemberId;
         proposal.SourceIntent = intent.Type;
         proposal.MapId = intent.MapId;
-        proposal.X = intent.X;
-        proposal.Y = intent.Y;
+        proposal.X = destinationX;
+        proposal.Y = destinationY;
         proposal.Z = intent.Z;
         proposals.push_back(proposal);
     }

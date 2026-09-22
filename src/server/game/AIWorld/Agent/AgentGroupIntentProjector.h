@@ -69,10 +69,9 @@
 // the same radius AgentGroupIntentSystem itself used to decide the group
 // wanted to move at all, so a member exactly at the boundary is never
 // treated as still needing to move by one layer while the other already
-// considered it "close enough". Deliberately no per-member spacing/
-// offset yet (2.12G2) - every eligible member of a Roam gets the exact
-// same target; adding spacing is a later refinement once runtime shows it
-// is actually needed.
+// considered it "close enough". Profiles with MemberFormationRadius > 0
+// reserve stable member slots around the target and use a tighter per-slot
+// arrival radius for Roam. Regroup retains its center-based dispersal trigger.
 // Fully deterministic given the same intent/profile/members: two calls
 // with the same input always return the same proposals, in the same
 // order as members was given.

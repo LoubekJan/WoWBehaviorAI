@@ -108,7 +108,8 @@ enum class ActionRejectReason : uint8
     // TargetInLineOfSight is false - the same "never trust a stale phase
     // alone" reasoning as TargetOutOfAttackRange above, for line of sight
     // instead of distance.
-    TargetNoLineOfSight
+    TargetNoLineOfSight,
+    InvalidChaseAngle
 };
 
 inline char const* ToString(ActionRejectReason reason)
@@ -140,6 +141,7 @@ inline char const* ToString(ActionRejectReason reason)
         case ActionRejectReason::TargetEntryMismatch:     return "TARGET_ENTRY_MISMATCH";
         case ActionRejectReason::TargetMapMismatch:       return "TARGET_MAP_MISMATCH";
         case ActionRejectReason::TargetPositionMismatch:  return "TARGET_POSITION_MISMATCH";
+        case ActionRejectReason::InvalidChaseAngle:       return "INVALID_CHASE_ANGLE";
         case ActionRejectReason::ActorEngagedWithDifferentTarget: return "ACTOR_ENGAGED_WITH_DIFFERENT_TARGET";
         case ActionRejectReason::TargetOutOfAttackRange:  return "TARGET_OUT_OF_ATTACK_RANGE";
         case ActionRejectReason::TargetNoLineOfSight:     return "TARGET_NO_LINE_OF_SIGHT";

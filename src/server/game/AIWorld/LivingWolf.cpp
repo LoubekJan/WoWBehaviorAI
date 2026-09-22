@@ -18,6 +18,7 @@
 #include "AIWorldMgr.h"
 #include "Agent/WolfBehaviorPolicy.h"
 #include "Agent/WolfPackDefense.h"
+#include "Agent/GroupMemberFormation.h"
 #include "Creature.h"
 #include "ChaseMovementGenerator.h"
 #include "PointMovementGenerator.h"
@@ -31,6 +32,25 @@ bool AIWorldMgr::IsLivingWolf(AgentRecord const& record) const
     return _livingWolvesEnabled && record.ControlMode == AgentControlMode::AIWorldControlled &&
         record.RuntimeGuid.IsCreature() && record.RuntimeGuid.GetEntry() == _wolfLooseFormationProfile.CreatureEntry &&
         record.WorldFaction == _wolfLooseFormationProfile.RequiredWorldFaction;
+}
+
+std::optional<float> AIWorldMgr::GetLivingWolfChaseAngle(AgentRecord const& record) const
+{
+    if (!IsLivingWolf(record))
+        return std::nullopt;
+    std::optional<float> angle;
+    for (GroupId groupId : _groupRegistry.GetGroupsOfMember(record.Id))
+    {
+        AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+        if (!group || group->Kind != AgentGroupKind::Loose || group->ProfileId != CoalitionFormationProfileId::WolfLoose)
+            continue;
+        if (angle)
+            return std::nullopt;
+        auto slot = GroupMemberFormation::GetSlot(record.Id, *group, _wolfLooseCoordinationProfile.MemberFormationRadius);
+        if (slot && slot->Radius > 0.0f)
+            angle = slot->Angle;
+    }
+    return angle;
 }
 
 Unit* AIWorldMgr::FindLivingWolfPackThreat(AgentRecord const& record, Creature& creature, AgentId& assistedMember) const
@@ -310,6 +330,8 @@ void AIWorldMgr::UpdateLivingWolf(AgentRecord& record, Creature& creature, uint6
     request.Actor = record.Id;
     request.Type = actionType;
     request.SourceGoal = goalType;
+    if (actionType == ActionType::Attack)
+        request.ChaseAngleRadians = GetLivingWolfChaseAngle(record);
     request.GoalStartedAtMs = nowMs;
     request.FleeFromGuid = context.FleeSourceGuid;
     if (target)

@@ -88,6 +88,9 @@ struct AgentGroupRecord;
 // construction, and the target only actually changes once every
 // profile.RoamIntervalMs, not on every coordination pass that happens to
 // re-evaluate a still-current phase.
+// Profiles opting into MemberFormationRadius reserve that much room inside
+// RoamDistance for member offsets. Arrival then uses each member's stable XY
+// slot with a tighter tolerance; terrain height is resolved during dispatch.
 // Fully deterministic given the same group/profile/members/nowMs: two
 // calls with the same input always return the same intent.
 class TC_GAME_API AgentGroupIntentSystem

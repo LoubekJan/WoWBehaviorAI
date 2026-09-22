@@ -17,6 +17,7 @@
 
 #include "AIWorldMgr.h"
 #include "Agent/WolfBehaviorPolicy.h"
+#include "Agent/GroupMemberFormation.h"
 #include "Action/ArrivalTolerance.h"
 #include "Agent/AgentGroupIntentProjector.h"
 #include "Agent/AgentGroupIntentSystem.h"
@@ -814,6 +815,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _wolfLooseCoordinationProfile.RoamDistance = wolfGroupRoamDistance;
     _wolfLooseCoordinationProfile.RoamIntervalMs = wolfGroupRoamIntervalMs;
     _wolfLooseCoordinationProfile.RoamArrivalRadius = wolfGroupRoamArrivalRadius;
+    _wolfLooseCoordinationProfile.MemberFormationRadius = _livingWolvesEnabled
+        ? std::min(GroupMemberFormation::MaxRadius, wolfGroupRoamDistance * 0.5f) : 0.0f;
     _wolfLooseCoordinationProfile.HuntEnabled = wolfGroupHuntEnabled;
     _wolfLooseCoordinationProfile.HuntTargetCreatureEntry = wolfGroupHuntTargetCreatureEntry;
     _wolfLooseCoordinationProfile.HuntAcquisitionRadius = wolfGroupHuntAcquisitionRadius;
@@ -7340,11 +7343,12 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     // closed for THIS member - not proposing a still-unvalidated raw
     // offset the pure AgentGroupIntentSystem layer itself has no way to
     // check - if no valid ground point or real navigable path to it
-    // exists. Regroup is deliberately NOT put through this - its own
-    // target is already a real, previously-occupied location, not a
-    // synthesized one.
+    // exists. Spaced Regroup destinations are synthesized too and receive the
+    // same checks; an unspaced Regroup still uses the recorded territory point.
     float roamDestinationZ = proposal.Z;
-    if (proposal.SourceIntent == AgentGroupIntentType::Roam)
+    auto coordinationProfile = ResolveCoordinationProfile(group->ProfileId);
+    bool spacedDestination = coordinationProfile && coordinationProfile->MemberFormationRadius > 0.0f;
+    if (proposal.SourceIntent == AgentGroupIntentType::Roam || spacedDestination)
     {
         float groundZ = map->GetHeight(creature->GetPhaseMask(), proposal.X, proposal.Y, creature->GetPositionZ() + 20.0f, true);
         if (groundZ <= INVALID_HEIGHT)
@@ -7375,10 +7379,12 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
         // already handles a short arrival honestly, see
         // ActionEngineEvent.h's own comment), only PATHFIND_NOPATH (no
         // real path at all, MoveSplineInit's own straight-line fallback)
-        // is rejected here.
+        // is rejected here. Spaced destinations additionally reject partial
+        // paths, which could otherwise leave several members at one bottleneck.
         PathGenerator roamPath(creature);
         bool pathCalculated = roamPath.CalculatePath(proposal.X, proposal.Y, groundZ, false);
-        if (!pathCalculated || (roamPath.GetPathType() & PATHFIND_NOPATH))
+        if (!pathCalculated || (roamPath.GetPathType() & PATHFIND_NOPATH) ||
+            (spacedDestination && (roamPath.GetPathType() & PATHFIND_INCOMPLETE)))
         {
             TC_LOG_DEBUG("ai.world", "AI group coordination: member={} group={} ROAM target ({:.1f},{:.1f},{:.1f}) has no navigable path - UNREACHABLE, no automatic Roam attempted this pass",
                 record->Id.Value, proposal.SourceGroup.Value, proposal.X, proposal.Y, groundZ);
@@ -7718,13 +7724,36 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
         return;
     }
 
+    ActionPosition destination{ targetMapId, targetX, targetY, targetZ };
+    bool spacedHuntApproach = false;
+    if (IsLivingWolf(*record) && group->ProfileId == CoalitionFormationProfileId::WolfLoose)
+    {
+        auto slot = GroupMemberFormation::GetSlot(record->Id, *group, profile->MemberFormationRadius);
+        if (slot && slot->Radius > 0.0f)
+        {
+            float angle = target->GetOrientation() + slot->Angle;
+            destination.X += slot->Radius * std::cos(angle);
+            destination.Y += slot->Radius * std::sin(angle);
+            destination.Z = map->GetHeight(creature->GetPhaseMask(), destination.X, destination.Y, targetZ + 20.0f, true);
+            if (!std::isfinite(destination.Z) || destination.Z <= INVALID_HEIGHT ||
+                !IsWithinArrivalTolerance(destination, targetX, targetY, targetZ) ||
+                !creature->IsWithinLOS(destination.X, destination.Y, destination.Z))
+            {
+                logDispatchRejected("FORMATION_SLOT_UNREACHABLE");
+                return;
+            }
+            spacedHuntApproach = true;
+        }
+    }
+
     // Same PathGenerator/PATHFIND_NOPATH convention Roam's own dispatch-time
     // path check already uses - PATHFIND_INCOMPLETE (a real, partial path)
-    // is still accepted, only PATHFIND_NOPATH (MoveSplineInit's own
-    // straight-line fallback) is rejected.
+    // is still accepted for unspaced approaches. Formation slots additionally
+    // require a complete path so they do not collapse at a shared endpoint.
     PathGenerator huntPath(creature);
-    bool pathCalculated = huntPath.CalculatePath(targetX, targetY, targetZ, false);
-    if (!pathCalculated || (huntPath.GetPathType() & PATHFIND_NOPATH))
+    bool pathCalculated = huntPath.CalculatePath(destination.X, destination.Y, destination.Z, false);
+    if (!pathCalculated || (huntPath.GetPathType() & PATHFIND_NOPATH) ||
+        (spacedHuntApproach && (huntPath.GetPathType() & PATHFIND_INCOMPLETE)))
     {
         TC_LOG_DEBUG("ai.world", "AI HUNT coordination: member={} group={} has no navigable path to its own live target - UNREACHABLE, no automatic HUNT approach attempted this pass",
             record->Id.Value, proposal.SourceGroup.Value);
@@ -7734,14 +7763,8 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
 
     uint64 nowMs = CurrentTimeMs();
 
-    // The MOVE_TO destination is the target's ACTUAL CURRENT position -
-    // never proposal.Target.X/Y/Z, which came from a HuntTargetObservation
-    // that can already be stale by the time this runs.
-    ActionPosition destination;
-    destination.MapId = targetMapId;
-    destination.X = targetX;
-    destination.Y = targetY;
-    destination.Z = targetZ;
+    // Destination comes from the target's live position (and validated member
+    // slot when enabled), never from a potentially stale observation.
 
     ActionRequest moveRequest;
     moveRequest.Actor = proposal.Member;
@@ -7811,6 +7834,8 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     moveContext.TargetX = targetX;
     moveContext.TargetY = targetY;
     moveContext.TargetZ = targetZ;
+    if (spacedHuntApproach)
+        moveContext.HuntApproachDestination = destination;
 
     ActionValidationResult moveValidation = _actionSystem.Validate(moveRequest, moveContext);
 
@@ -8047,6 +8072,7 @@ void AIWorldMgr::DispatchHuntAttack(AgentId member, GroupId sourceGroup)
 
     ActionRequest attackRequest;
     attackRequest.Actor = member;
+    attackRequest.ChaseAngleRadians = GetLivingWolfChaseAngle(*record);
     attackRequest.Type = ActionType::Attack;
     attackRequest.SourceGoal = GoalType::Hunt;
     attackRequest.GoalStartedAtMs = goal.StartedAtMs;
