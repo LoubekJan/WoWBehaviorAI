@@ -92,6 +92,10 @@ struct AgentGroupCoordinationProfile
     // instead of re-issuing an identical MOVE_TO every coordination pass.
     float RoamArrivalRadius = 0.0f;
 
+    // Opt-in member positions around the shared destination. Zero preserves
+    // the original single-point behavior for other coordination profiles.
+    float MemberFormationRadius = 0.0f;
+
     // Milestone 2.12G3B: same "declare the shape, wire the rule only when
     // it is actually needed" discipline every other coordination behavior
     // in this struct already follows - a profile that has not opted into

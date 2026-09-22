@@ -90,6 +90,10 @@ struct ActionRequest
     // (AIWorldMgr::DispatchHuntAttack()) before this request is ever
     // built. Default-empty for every ActionType other than Attack.
     GroupId SourceGroup;
+
+    // Optional formation side around the target, relative to its facing.
+    // Changes chase positioning only; normal attack authorization still applies.
+    std::optional<float> ChaseAngleRadians;
 };
 
 #endif // AIWORLD_ACTIONREQUEST_H

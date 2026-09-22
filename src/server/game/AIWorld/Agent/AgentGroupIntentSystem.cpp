@@ -17,6 +17,7 @@
 
 #include "AgentGroupIntentSystem.h"
 #include "AgentGroupRecord.h"
+#include "GroupMemberFormation.h"
 #include <cmath>
 
 namespace
@@ -119,15 +120,19 @@ AgentGroupIntent AgentGroupIntentSystem::Evaluate(AgentGroupRecord const& group,
         float targetY = group.TerritoryY;
         float const targetZ = group.TerritoryZ;
 
+        bool spaced = std::isfinite(profile.MemberFormationRadius) && profile.MemberFormationRadius > 0.0f;
+        // Reserve room for member offsets inside the original roaming envelope.
+        float centerDistance = spaced ? std::max(0.0f, profile.RoamDistance - profile.MemberFormationRadius) : profile.RoamDistance;
         if (slot != 0)
         {
             constexpr float TwoPi = 6.283185307179586f;
             float angle = float(slot - 1) * (TwoPi / 8.0f);
-            targetX += profile.RoamDistance * std::cos(angle);
-            targetY += profile.RoamDistance * std::sin(angle);
+            targetX += centerDistance * std::cos(angle);
+            targetY += centerDistance * std::sin(angle);
         }
 
-        float roamArrivalRadiusSq = profile.RoamArrivalRadius * profile.RoamArrivalRadius;
+        float arrivalRadius = spaced ? std::min(profile.RoamArrivalRadius, GroupMemberFormation::ArrivalRadius) : profile.RoamArrivalRadius;
+        float roamArrivalRadiusSq = arrivalRadius * arrivalRadius;
 
         for (CoalitionMemberObservation const& observation : members)
         {
@@ -137,9 +142,20 @@ AgentGroupIntent AgentGroupIntentSystem::Evaluate(AgentGroupRecord const& group,
             if (observation.MapId != group.TerritoryMapId)
                 continue;
 
-            float dx = observation.X - targetX;
-            float dy = observation.Y - targetY;
-            float dz = observation.Z - targetZ;
+            float memberX = targetX;
+            float memberY = targetY;
+            if (spaced)
+            {
+                auto memberSlot = GroupMemberFormation::GetSlot(observation.MemberId, members, profile.MemberFormationRadius);
+                if (!memberSlot)
+                    continue;
+                memberX += memberSlot->X;
+                memberY += memberSlot->Y;
+            }
+            float dx = observation.X - memberX;
+            float dy = observation.Y - memberY;
+            // Slots are planar; dispatch resolves their actual terrain height.
+            float dz = spaced ? 0.0f : observation.Z - targetZ;
             float distanceSq = dx * dx + dy * dy + dz * dz;
 
             if (distanceSq <= roamArrivalRadiusSq)

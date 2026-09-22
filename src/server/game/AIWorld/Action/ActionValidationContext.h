@@ -165,6 +165,10 @@ struct ActionValidationContext
     float TargetY = 0.0f;
     float TargetZ = 0.0f;
 
+    // Independently computed, ground/path-checked member slot near the live
+    // HUNT target. Unset retains the original exact-target-position contract.
+    std::optional<ActionPosition> HuntApproachDestination;
+
     // Milestone 2.12G3D: only meaningful for ActionType::Attack - the
     // actor's OWN actual current melee target GUID (Unit::GetVictim()),
     // empty if the actor is not currently attacking anyone. Reality, not

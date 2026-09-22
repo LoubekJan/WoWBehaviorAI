@@ -16,6 +16,7 @@
  */
 
 #include "ActionExecutor.h"
+#include "Agent/GroupMemberFormation.h"
 #include "ChaseMovementGenerator.h"
 #include "CombatManager.h"
 #include "Creature.h"
@@ -259,7 +260,11 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
         return result;
     }
 
-    actor.GetMotionMaster()->MoveChase(&target);
+    if (request.ChaseAngleRadians)
+        actor.GetMotionMaster()->MoveChase(&target, ChaseRange(0.5f),
+            ChaseAngle(*request.ChaseAngleRadians, GroupMemberFormation::ChaseAngleTolerance));
+    else
+        actor.GetMotionMaster()->MoveChase(&target);
 
     result.Status = ActionExecutionStatus::Started;
     result.Reason = ActionExecutionReason::None;

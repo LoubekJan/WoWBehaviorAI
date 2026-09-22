@@ -2825,6 +2825,7 @@ class TC_GAME_API AIWorldMgr
         // success.
         void DispatchHuntAttack(AgentId member, GroupId sourceGroup);
         bool IsLivingWolf(AgentRecord const& record) const;
+        std::optional<float> GetLivingWolfChaseAngle(AgentRecord const& record) const;
         Unit* FindLivingWolfPackThreat(AgentRecord const& record, Creature& creature, AgentId& assistedMember) const;
         void UpdateLivingWolf(AgentRecord& record, Creature& creature, uint64 nowMs);
         void StopLivingWolfAction(AgentRecord& record, Creature& creature);

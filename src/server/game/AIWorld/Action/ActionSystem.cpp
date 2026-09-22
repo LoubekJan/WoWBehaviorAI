@@ -17,6 +17,7 @@
 
 #include "ActionSystem.h"
 #include "ArrivalTolerance.h"
+#include "Agent/GroupMemberFormation.h"
 #include <cmath>
 
 namespace
@@ -272,12 +273,21 @@ ActionValidationResult ActionSystem::ValidateHuntTarget(ActionRequest const& req
     if (!std::isfinite(context.TargetX) || !std::isfinite(context.TargetY) || !std::isfinite(context.TargetZ))
         return { false, ActionRejectReason::TargetPositionMismatch };
 
-    // The request's own Destination must be provably where the target
-    // ACTUALLY is right now - not merely a geometrically-valid MoveTo
-    // destination that happens to be nearby. This is the check that closes
-    // off "geometry alone is enough" - see this method's own header
-    // comment.
-    if (request.Destination->X != context.TargetX || request.Destination->Y != context.TargetY || request.Destination->Z != context.TargetZ)
+    // Match the independently resolved approach point exactly. Formation slots
+    // also stay bounded around the actual live target; an arbitrary offset in
+    // the request never gains authority just by being near it.
+    ActionPosition expected{ context.TargetMapId, context.TargetX, context.TargetY, context.TargetZ };
+    if (context.HuntApproachDestination)
+    {
+        expected = *context.HuntApproachDestination;
+        float dx = expected.X - context.TargetX;
+        float dy = expected.Y - context.TargetY;
+        float dz = expected.Z - context.TargetZ;
+        if (expected.MapId != context.TargetMapId || !std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(dz) ||
+            dx * dx + dy * dy + dz * dz > ArrivalToleranceYards * ArrivalToleranceYards)
+            return { false, ActionRejectReason::TargetPositionMismatch };
+    }
+    if (request.Destination->X != expected.X || request.Destination->Y != expected.Y || request.Destination->Z != expected.Z)
         return { false, ActionRejectReason::TargetPositionMismatch };
 
     return { true, ActionRejectReason::None };
@@ -285,6 +295,10 @@ ActionValidationResult ActionSystem::ValidateHuntTarget(ActionRequest const& req
 
 ActionValidationResult ActionSystem::ValidateAttack(ActionRequest const& request, ActionValidationContext const& context) const
 {
+    if (request.ChaseAngleRadians && (!std::isfinite(*request.ChaseAngleRadians) ||
+        *request.ChaseAngleRadians < 0.0f || *request.ChaseAngleRadians >= GroupMemberFormation::TwoPi))
+        return { false, ActionRejectReason::InvalidChaseAngle };
+
     if (*context.ActiveGoalType == GoalType::Defend)
     {
         if (context.HasActiveMovement)
