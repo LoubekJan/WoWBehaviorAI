@@ -271,6 +271,53 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
     return result;
 }
 
+ActionResult ActionExecutor::ExecuteAmbient(ActionRequest const& request, Creature& actor) const
+{
+    ActionResult result;
+    result.Actor = request.Actor;
+    result.Type = request.Type;
+    result.SourceGoal = request.SourceGoal;
+    result.GoalStartedAtMs = request.GoalStartedAtMs;
+    if (request.Type != ActionType::Ambient)
+        return result;
+    using LivingRolePolicy::Activity;
+    switch (request.AmbientActivity)
+    {
+        case Activity::Look: actor.SetFacingTo(actor.GetOrientation() + 0.65f); break;
+        case Activity::Talk: actor.HandleEmoteCommand(EMOTE_ONESHOT_TALK); break;
+        case Activity::Work: actor.HandleEmoteCommand(EMOTE_ONESHOT_WORK_CHOPWOOD); break;
+        case Activity::Graze:
+        case Activity::Eat: actor.HandleEmoteCommand(EMOTE_ONESHOT_EAT); break;
+        case Activity::Rest:
+            if (actor.GetStandState() != UNIT_STAND_STATE_STAND)
+                return result;
+            actor.SetStandState(actor.GetCreatureType() == CREATURE_TYPE_BEAST || actor.IsCritter()
+                ? UNIT_STAND_STATE_SLEEP : UNIT_STAND_STATE_SIT);
+            break;
+        default: return result;
+    }
+    result.Status = ActionExecutionStatus::Started;
+    result.Reason = ActionExecutionReason::None;
+    return result;
+}
+
+void ActionExecutor::StopAmbient(Creature& actor, uint8 ownedStandState) const
+{
+    if (ownedStandState != UNIT_STAND_STATE_STAND && actor.GetStandState() == ownedStandState)
+        actor.SetStandState(UNIT_STAND_STATE_STAND);
+}
+
+void ActionExecutor::FinishRoleFlee(Creature& actor, ObjectGuid source) const
+{
+    StopFlee(actor);
+    // End only the combat reference belonging to this completed escape.
+    // Passive AIWorld NPCs have no vanilla evade AI to release it for them.
+    auto const& references = actor.GetCombatManager().GetPvECombatRefs();
+    auto found = references.find(source);
+    if (found != references.end())
+        found->second->EndCombat();
+}
+
 void ActionExecutor::StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const
 {
     // Milestone 2.12G3D P2 fix (STATIC review): only touches the melee-

@@ -121,6 +121,8 @@ void AgentRegistry::BindCreature(AgentId id, Creature const& creature)
         record->ActiveGoalState.reset();
         record->WolfActionRuntimeGuid.Clear();
     }
+    if (record->LivingRole.RuntimeGuid != newGuid)
+        record->ResetLivingRoleActivity();
     record->WolfMealTarget.Clear();
     record->RuntimeGuid = newGuid;
     record->WorldState = AgentWorldState::Materialized;
@@ -133,6 +135,8 @@ void AgentRegistry::UnbindCreature(AgentId id)
         return;
 
     TC_LOG_INFO("ai.world", "AI agent id={} dematerialized spawn={}", id.Value, record->SpawnId);
+
+    record->ResetLivingRoleActivity();
 
     if (!record->WolfActionRuntimeGuid.IsEmpty())
     {

@@ -110,6 +110,11 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
     if (request.GoalStartedAtMs != context.ActiveGoalStartedAtMs)
         return { false, ActionRejectReason::GoalMismatch };
 
+    if ((request.SourceGoal == GoalType::LocalActivity || request.SourceGoal == GoalType::PredatorHunt) &&
+        (!context.LivingRoleAllowed || context.MapId != 0 || context.LivingRoleZoneId != 12 ||
+            !LivingRolePolicy::KnownRole(context.LivingRole)))
+        return { false, ActionRejectReason::GoalMismatch };
+
     switch (request.Type)
     {
         case ActionType::Flee:
@@ -124,6 +129,19 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
             return ValidateRest(request, context);
         case ActionType::Attack:
             return ValidateAttack(request, context);
+        case ActionType::Ambient:
+            if (request.SourceGoal != GoalType::LocalActivity ||
+                request.AmbientActivity != context.ExpectedAmbientActivity ||
+                request.AmbientActivity == LivingRolePolicy::Activity::Roam ||
+                !LivingRolePolicy::Allows(context.LivingRole, request.AmbientActivity))
+                return { false, ActionRejectReason::GoalMismatch };
+            if (context.InCombat)
+                return { false, ActionRejectReason::ActorInCombat };
+            if (context.HasActiveMovement)
+                return { false, ActionRejectReason::ActorMovementBusy };
+            if (request.AmbientActivity == LivingRolePolicy::Activity::Rest && !context.WildlifeRestAllowed)
+                return { false, ActionRejectReason::GoalMismatch };
+            return { true, ActionRejectReason::None };
         default:
             return { false, ActionRejectReason::UnsupportedAction };
     }
@@ -152,6 +170,8 @@ ActionValidationResult ActionSystem::ValidateFlee(ActionRequest const& request, 
 
 ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const
 {
+    if (request.SourceGoal == GoalType::LocalActivity && context.InCombat)
+        return { false, ActionRejectReason::ActorInCombat };
     if (!request.Destination)
         return { false, ActionRejectReason::NoDestination };
 
@@ -319,12 +339,14 @@ ActionValidationResult ActionSystem::ValidateAttack(ActionRequest const& request
         return { true, ActionRejectReason::None };
     }
 
-    // Attack is HUNT-only in this milestone - no other GoalType has a
-    // combat phase yet, the same "tied to one specific GoalType" rule
-    // ValidateEat()/ValidateWork()/ValidateRest() already enforce for
-    // their own single justifying goal.
-    if (*context.ActiveGoalType != GoalType::Hunt)
+    // Beyond threat-authorized defense above, attacks require either a
+    // coordinated hunt or a scoped predator hunt against classified prey.
+    if (*context.ActiveGoalType != GoalType::Hunt && *context.ActiveGoalType != GoalType::PredatorHunt)
         return { false, ActionRejectReason::GoalMismatch };
+
+    if (*context.ActiveGoalType == GoalType::PredatorHunt &&
+        (context.LivingRole != LivingRolePolicy::Role::Predator || !context.TargetIsRolePrey || context.HasActiveMovement))
+        return { false, ActionRejectReason::TargetNotAttackable };
 
     // Same GUID/entry-binding requirements ValidateHuntTarget() already
     // enforces for MOVE_TO - see that method's own comment for why each is

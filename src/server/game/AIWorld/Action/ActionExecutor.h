@@ -216,6 +216,9 @@ class TC_GAME_API ActionExecutor
         // its own POINT_MOTION_TYPE generator.
         void StopAttack(Creature& actor, ObjectGuid ownedTargetGuid) const;
         void StopWildlifeRest(Creature& actor) const;
+        ActionResult ExecuteAmbient(ActionRequest const& request, Creature& actor) const;
+        void StopAmbient(Creature& actor, uint8 ownedStandState) const;
+        void FinishRoleFlee(Creature& actor, ObjectGuid source) const;
 };
 
 #endif // AIWORLD_ACTIONEXECUTOR_H

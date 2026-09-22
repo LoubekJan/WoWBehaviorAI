@@ -258,6 +258,20 @@ class TC_GAME_API AIWorldMgr
         };
         std::optional<WolfFormationDebugInfo> DescribeWolfFormation(Creature const& creature) const;
 
+        struct LivingRoleDebugInfo
+        {
+            AgentControlMode ControlMode = AgentControlMode::ObserveOnly;
+            bool Enabled = false;
+            float Hunger = 0.0f;
+            char const* Role = "NONE";
+            char const* Status = "UNKNOWN";
+            char const* Phase = "IDLE";
+            char const* Activity = "NONE";
+            char const* Goal = "NONE";
+            char const* Action = "NONE";
+        };
+        std::optional<LivingRoleDebugInfo> DescribeLivingRole(Creature const& creature) const;
+
         // Thin Manual-only wrappers around the otherwise-private
         // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below -
         // AgentGroupOperationSource::Manual is baked in here rather than
@@ -2830,6 +2844,9 @@ class TC_GAME_API AIWorldMgr
         void UpdateLivingWolf(AgentRecord& record, Creature& creature, uint64 nowMs);
         void StopLivingWolfAction(AgentRecord& record, Creature& creature);
         bool _livingWolvesEnabled = false;
+        bool _livingRolesEnabled = false;
+        bool UpdateLivingRole(AgentRecord& record, Creature& creature, uint64 nowMs);
+        void StopLivingRole(AgentRecord& record, Creature& creature);
 
         // Milestone 2.12F2 P2 fix, round 4 (STATIC review): how many
         // currently-registered groups member belongs to whose own resolved

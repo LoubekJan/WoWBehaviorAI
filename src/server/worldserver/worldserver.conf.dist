@@ -4315,6 +4315,12 @@ AIWorld.WolfGroupRoamArrivalRadius = 5.0
 # Healthy wolves defend; below 30% health they flee (50% recovery threshold).
 # Also enable WolfGroupRoamEnabled for movement between hunts.
 AIWorld.LivingWolvesEnabled = 0
+
+# Role-specific local life for existing AIWorld-controlled permanent NPCs in
+# Elwynn (map 0, zone 12). Does not register or promote any NPC. Wolf packs keep
+# LivingWolves; predators hunt classified attackable prey, other roles use local
+# activities and role-specific defense/flee. Service NPCs keep their posts.
+AIWorld.LivingRolesEnabled = 0
 AIWorld.WolfGroupHuntEnabled = 0
 
 #

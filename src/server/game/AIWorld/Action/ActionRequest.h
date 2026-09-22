@@ -23,6 +23,7 @@
 #include "Agent/AgentId.h"
 #include "Agent/GroupId.h"
 #include "ActionType.h"
+#include "Agent/LivingRolePolicy.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
 #include "ObjectGuid.h"
@@ -95,6 +96,7 @@ struct ActionRequest
     // Target rotation must not make settled attackers orbit with its facing.
     // Changes chase positioning only; normal attack authorization still applies.
     std::optional<float> ChaseAngleRadians;
+    LivingRolePolicy::Activity AmbientActivity = LivingRolePolicy::Activity::None;
 };
 
 #endif // AIWORLD_ACTIONREQUEST_H

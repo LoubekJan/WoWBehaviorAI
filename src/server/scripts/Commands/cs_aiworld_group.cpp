@@ -165,7 +165,15 @@ public:
         {
             handler->SendSysMessage(Trinity::StringFormat("AIWorld group: target={} entry={} spawnId={} health={:.1f}%",
                 target->GetName(), target->GetEntry(), target->GetSpawnId(), target->GetHealthPct()));
-            if (std::optional<AIWorldMgr::WolfFormationDebugInfo> wolf = sAIWorldMgr->DescribeWolfFormation(*target))
+            if (std::optional<AIWorldMgr::LivingRoleDebugInfo> role = sAIWorldMgr->DescribeLivingRole(*target))
+            {
+                handler->SendSysMessage(Trinity::StringFormat("AIWorld role: role={} status={} control={} enabled={}",
+                    role->Role, role->Status, ToString(role->ControlMode), role->Enabled));
+                handler->SendSysMessage(Trinity::StringFormat("AIWorld role: phase={} activity={} hunger={:.2f} goal={} action={}",
+                    role->Phase, role->Activity, role->Hunger, role->Goal, role->Action));
+            }
+            if (std::optional<AIWorldMgr::WolfFormationDebugInfo> wolf = sAIWorldMgr->DescribeWolfFormation(*target);
+                wolf && target->GetEntry() == wolf->ExpectedEntry)
             {
                 handler->SendSysMessage(Trinity::StringFormat("AIWorld wolf: control={} livingEnabled={} hunger={:.2f} goal={} action={}",
                     ToString(wolf->ControlMode), wolf->LivingEnabled, wolf->Hunger, wolf->Goal, wolf->Action));
