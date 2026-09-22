@@ -148,6 +148,8 @@ struct ActionValidationContext
     // Independently resolved authority for the living-wolf actions.
     // TargetWithinAttackRange is also a live bounded defense-acquisition
     // or corpse-feeding distance for Defend/Feed, not a melee-only fact.
+    // A live personal threat or a freshly validated threat to a nearby member
+    // of the same WolfLoose group; never a target inferred from faction alone.
     ObjectGuid DefenseThreatGuid;
     ObjectGuid MealTargetGuid;
     bool WildlifeRestAllowed = false;

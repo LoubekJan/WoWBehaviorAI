@@ -28,6 +28,7 @@ static unsigned checks = 0;
 
 #include "Action/ActionSystem.h"
 #include "Agent/WolfBehaviorPolicy.h"
+#include "Agent/WolfPackDefense.h"
 #include <limits>
 
 TEST_CASE("Living wolves choose survival and validate actual meals", "[AIWorld][LivingWolf]")
@@ -49,6 +50,78 @@ TEST_CASE("Living wolves choose survival and validate actual meals", "[AIWorld][
     REQUIRE(Elapsed(6000, 1000, FeedDurationMs));
     REQUIRE(!Elapsed(2000, std::numeric_limits<std::uint64_t>::max() - 1, FeedDurationMs));
 
+    // A packmate's live combat can authorize reactive defense of the same pack,
+    // including a player attacker, without making players proactive HUNT prey.
+    AgentGroupRecord pack;
+    pack.Id = GroupId{ 10 };
+    pack.ProfileId = CoalitionFormationProfileId::WolfLoose;
+    pack.Members = { { AgentId{ 1 }, 0 }, { AgentId{ 2 }, 0 }, { AgentId{ 3 }, 0 } };
+    WolfPackThreatObservation ally;
+    ally.Member = AgentId{ 2 };
+    ally.MemberGuid = ObjectGuid::Create<HighGuid::Unit>(69, 2);
+    ally.ThreatGuid = ObjectGuid::Create<HighGuid::Player>(1);
+    ally.MemberControlled = true;
+    ally.MemberAlive = true;
+    ally.EngagedWithThreat = true;
+    ally.ThreatAlive = true;
+    ally.ThreatAttackable = true;
+    ally.MemberVisible = true;
+    ally.ThreatVisible = true;
+    ally.MemberDistance = 10.0f;
+    ally.ThreatDistance = 15.0f;
+    auto packThreat = WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, pack, { ally }, 721);
+    REQUIRE(packThreat.has_value());
+    REQUIRE(packThreat->Member == AgentId{ 2 });
+    REQUIRE(packThreat->ThreatGuid == ally.ThreatGuid);
+
+    // Membership is required at selection time, not just when combat began.
+    REQUIRE(!WolfPackDefense::SelectThreat(AgentId{ 99 }, 0, pack, { ally }, 721));
+    auto otherPack = pack;
+    otherPack.Members = { { AgentId{ 1 }, 0 }, { AgentId{ 3 }, 0 } };
+    REQUIRE(!WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, otherPack, { ally }, 721));
+    otherPack = pack;
+    otherPack.ProfileId = CoalitionFormationProfileId::DefiasLoose;
+    REQUIRE(!WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, otherPack, { ally }, 721));
+    otherPack = pack;
+    otherPack.Kind = AgentGroupKind::Stable;
+    REQUIRE(!WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, otherPack, { ally }, 721));
+
+    auto rejectAssist = [&](auto change)
+    {
+        auto invalid = ally;
+        change(invalid);
+        REQUIRE(!WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, pack, { invalid }, 721));
+    };
+    rejectAssist([](auto& a) { a.MemberControlled = false; });
+    rejectAssist([](auto& a) { a.MemberAlive = false; });
+    rejectAssist([](auto& a) { a.MemberGuid.Clear(); });
+    rejectAssist([](auto& a) { a.EngagedWithThreat = false; });
+    rejectAssist([](auto& a) { a.ThreatAlive = false; });
+    rejectAssist([](auto& a) { a.ThreatAttackable = false; });
+    rejectAssist([](auto& a) { a.MemberVisible = false; });
+    rejectAssist([](auto& a) { a.ThreatVisible = false; });
+    rejectAssist([](auto& a) { a.MemberDistance = 30.1f; });
+    rejectAssist([](auto& a) { a.ThreatDistance = 30.1f; });
+    rejectAssist([](auto& a) { a.MemberDistance = std::numeric_limits<float>::quiet_NaN(); });
+    rejectAssist([](auto& a) { a.ThreatDistance = std::numeric_limits<float>::infinity(); });
+    rejectAssist([](auto& a) { a.MemberMapId = 1; });
+    rejectAssist([](auto& a) { a.ThreatMapId = 1; });
+    rejectAssist([](auto& a) { a.ThreatGuid = ObjectGuid::Create<HighGuid::Unit>(721, 9); });
+    rejectAssist([](auto& a) { a.ThreatGuid = a.MemberGuid; });
+
+    auto secondAlly = ally;
+    secondAlly.Member = AgentId{ 3 };
+    secondAlly.MemberGuid = ObjectGuid::Create<HighGuid::Unit>(69, 3);
+    secondAlly.ThreatGuid = ObjectGuid::Create<HighGuid::Player>(2);
+    secondAlly.ThreatDistance = 5.0f;
+    REQUIRE(WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, pack, { ally, secondAlly }, 721)->Member == AgentId{ 3 });
+    secondAlly.ThreatDistance = ally.ThreatDistance;
+    REQUIRE(WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, pack, { secondAlly, ally }, 721)->Member == AgentId{ 2 });
+    auto friendlyFire = ally;
+    friendlyFire.ThreatGuid = secondAlly.MemberGuid;
+    secondAlly.EngagedWithThreat = false;
+    REQUIRE(!WolfPackDefense::SelectThreat(AgentId{ 1 }, 0, pack, { friendlyFire, secondAlly }, 721));
+
     ActionSystem system;
     ActionRequest request;
     request.Type = ActionType::Attack;
@@ -62,7 +135,7 @@ TEST_CASE("Living wolves choose survival and validate actual meals", "[AIWorld][
     context.ActiveGoalType = GoalType::Defend;
     context.ActiveGoalStartedAtMs = 1000;
     context.TargetGuid = request.Target->Guid;
-    context.DefenseThreatGuid = request.Target->Guid;
+    context.DefenseThreatGuid = packThreat->ThreatGuid;
     context.TargetResolved = true;
     context.TargetAlive = true;
     context.TargetAttackable = true;

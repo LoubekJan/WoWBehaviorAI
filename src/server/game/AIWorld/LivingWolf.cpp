@@ -17,6 +17,7 @@
 
 #include "AIWorldMgr.h"
 #include "Agent/WolfBehaviorPolicy.h"
+#include "Agent/WolfPackDefense.h"
 #include "Creature.h"
 #include "ChaseMovementGenerator.h"
 #include "PointMovementGenerator.h"
@@ -30,6 +31,68 @@ bool AIWorldMgr::IsLivingWolf(AgentRecord const& record) const
     return _livingWolvesEnabled && record.ControlMode == AgentControlMode::AIWorldControlled &&
         record.RuntimeGuid.IsCreature() && record.RuntimeGuid.GetEntry() == _wolfLooseFormationProfile.CreatureEntry &&
         record.WorldFaction == _wolfLooseFormationProfile.RequiredWorldFaction;
+}
+
+Unit* AIWorldMgr::FindLivingWolfPackThreat(AgentRecord const& record, Creature& creature, AgentId& assistedMember) const
+{
+    AgentGroupRecord const* pack = nullptr;
+    for (GroupId groupId : _groupRegistry.GetGroupsOfMember(record.Id))
+    {
+        AgentGroupRecord const* group = _groupRegistry.Find(groupId);
+        if (!group || group->Kind != AgentGroupKind::Loose || group->ProfileId != CoalitionFormationProfileId::WolfLoose)
+            continue;
+        if (pack) // Ambiguous membership must not connect two packs through one helper.
+            return nullptr;
+        pack = group;
+    }
+    if (!pack)
+        return nullptr;
+
+    std::vector<WolfPackThreatObservation> observations;
+    observations.reserve(pack->Members.size());
+    for (AgentGroupMembership const& membership : pack->Members)
+    {
+        AgentRecord const* member = _registry.Find(membership.Member);
+        if (!member || member->WorldState != AgentWorldState::Materialized || member->MapId != creature.GetMapId())
+            continue;
+        Creature* ally = ObjectAccessor::GetCreature(creature, member->RuntimeGuid);
+        if (!ally)
+            continue;
+
+        WolfPackThreatObservation observation;
+        observation.Member = member->Id;
+        observation.MemberGuid = ally->GetGUID();
+        observation.MemberMapId = ally->GetMapId();
+        observation.MemberControlled = IsLivingWolf(*member);
+        observation.MemberAlive = ally->IsAlive();
+        observation.MemberDistance = creature.GetDistance(ally);
+        observation.MemberVisible = creature.CanSeeOrDetect(ally) && creature.IsWithinLOSInMap(ally);
+        if (observation.MemberControlled && observation.MemberAlive && observation.MemberVisible &&
+            observation.MemberDistance <= WolfPackDefense::AssistRadius && member->Id != record.Id)
+        {
+            if (Unit* threat = ally->GetThreatManager().GetCurrentVictim())
+            {
+                observation.ThreatGuid = threat->GetGUID();
+                observation.ThreatMapId = threat->GetMapId();
+                observation.EngagedWithThreat = ally->IsInCombatWith(threat);
+                observation.ThreatAlive = threat->IsAlive();
+                observation.ThreatAttackable = creature.IsValidAttackTarget(threat);
+                observation.ThreatDistance = creature.GetDistance(threat);
+                observation.ThreatVisible = creature.IsWithinLOSInMap(threat);
+            }
+        }
+        observations.push_back(observation);
+    }
+
+    auto selected = WolfPackDefense::SelectThreat(record.Id, creature.GetMapId(), *pack,
+        observations, _wolfLooseCoordinationProfile.HuntTargetCreatureEntry);
+    if (!selected)
+        return nullptr;
+    // Everything above and this lookup run synchronously on the world thread.
+    Unit* threat = ObjectAccessor::GetUnit(creature, selected->ThreatGuid);
+    if (threat)
+        assistedMember = selected->Member;
+    return threat;
 }
 
 void AIWorldMgr::StopLivingWolfAction(AgentRecord& record, Creature& creature)
@@ -56,12 +119,20 @@ void AIWorldMgr::StopLivingWolfAction(AgentRecord& record, Creature& creature)
 }
 
 // Runs at needs cadence on the world thread. The normal group pipeline still
-// owns roaming and hunting; this only arbitrates individual survival and meals.
+// owns roaming and hunting; this arbitrates survival, nearby pack defense and meals.
 void AIWorldMgr::UpdateLivingWolf(AgentRecord& record, Creature& creature, uint64 nowMs)
 {
     Unit* threat = creature.GetThreatManager().GetCurrentVictim();
     if (threat && (!threat->IsAlive() || !creature.IsValidAttackTarget(threat)))
         threat = nullptr;
+
+    bool hunting = record.GroupCoordinationGoalState && record.GroupCoordinationGoalState->Type == GoalType::Hunt;
+    AgentId assistedMember;
+    // An actual threat to a nearby packmate takes priority over prey. Keep
+    // personal defense priority if this wolf is already fighting another threat.
+    if (!threat || (hunting && threat->GetGUID() == record.GroupCoordinationGoalState->TargetGuid))
+        if (Unit* packThreat = FindLivingWolfPackThreat(record, creature, assistedMember))
+            threat = packThreat;
 
     bool fleeing = record.ActiveGoalState && record.ActiveGoalState->Type == GoalType::FleeDanger;
     // Ending our attack also ends its combat reference. Keep a short escape
@@ -86,7 +157,6 @@ void AIWorldMgr::UpdateLivingWolf(AgentRecord& record, Creature& creature, uint6
     }
     bool retreat = threat && (minimumEscape || defenseLimit ||
         WolfBehaviorPolicy::ShouldFlee(record.Needs.HealthPressure, fleeing));
-    bool hunting = record.GroupCoordinationGoalState && record.GroupCoordinationGoalState->Type == GoalType::Hunt;
 
     // Retain the original attempt and its timer while the same action is valid.
     if (record.ActiveActionState && record.ActiveGoalState)
@@ -284,5 +354,8 @@ void AIWorldMgr::UpdateLivingWolf(AgentRecord& record, Creature& creature, uint6
     record.WolfActionRuntimeGuid = creature.GetGUID();
     if (goalType == GoalType::Feed)
         record.WolfMealTarget = target->GetGUID();
+    if (assistedMember)
+        TC_LOG_DEBUG("ai.world", "AI living wolf agent={} assistMember={} threat={} action={}",
+            record.Id.Value, assistedMember.Value, target->GetGUID().ToString(), ToString(goalType));
     TC_LOG_DEBUG("ai.world", "AI living wolf agent={} action={}", record.Id.Value, ToString(goalType));
 }
