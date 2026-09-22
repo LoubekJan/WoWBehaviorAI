@@ -19,6 +19,12 @@ not acquire prey independently in this pilot.
 - Healthy hunters continue fighting their prey. An attacked wolf can defend
   against the actual threat, including a player; this does not enable proactive
   hunting of players. Defense is bounded to 30 seconds or 30 yards from its start.
+- Nearby members of the same WolfLoose group can interrupt hunting, feeding or
+  sleep to assist a packmate in live combat against an external threat. Both the
+  packmate and threat must be visible and within 30 yards of the helper, and the
+  threat must be attackable. A configured prey animal fighting back does not
+  trigger pack defense. An existing personal non-hunt threat keeps priority;
+  injured helpers flee instead. Assistance uses the same bounded defense action.
 - At 30% health or below, wolves flee. The recovery threshold is above 50% health.
   A short escape also ends an overlong defense; the resolved previous attacker
   can sustain that escape for up to eight seconds after combat cleanup.
@@ -72,9 +78,11 @@ g++ -std=c++20 -DAIWORLD_STANDALONE_TEST \
 ```
 
 Local result (2026-09-22): MSVC compiled and ran the standalone test successfully,
-44 checks passed. This covers thresholds/hysteresis, timers, defense authority,
+70 checks passed. This covers thresholds/hysteresis, timers, defense authority,
 control mode, stale goal identity, movement conflicts, corpse identity,
-combat/distance/LOS meal rejection, and rest validation. It does **not** exercise
+combat/distance/LOS meal rejection, rest validation, and pack-defense selection
+(membership, live combat, distance, visibility, attackability, prey exclusion,
+friendly-fire exclusion and deterministic threat choice). It does **not** exercise
 live TrinityCore movement, animation, group formation, or the manager lifecycle.
 Full server CMake configuration is blocked locally by missing Boost >= 1.78.
 
@@ -85,6 +93,10 @@ hunt target to entry 721: the wolves performed the described hunt, feeding and
 rest cycle as expected. This is user-reported confirmation of the basic cycle;
 it does not establish that every interruption, unload or regression case below
 was exercised. Exact timings and DEBUG log markers were not separately supplied.
+
+The next in-game report confirmed that an attacked hunter defended itself while
+the other hunters continued hunting. That version only had individual defense.
+Nearby pack assistance was then added locally; its runtime verification is pending.
 
 ### Acceptance checklist
 
@@ -102,6 +114,15 @@ was exercised. Exact timings and DEBUG log markers were not separately supplied.
 6. Despawn/unload the prey during feeding and unload/reload the wolf during an
    individual action. No delayed nutrition or stale action may survive.
 7. Check another creature species and ObserveOnly agents retain their behavior.
+8. After rebuilding with pack assistance, verify the nearby wolves have the same
+   group ID, let them hunt and attack one healthy member with an attackable
+   player. Eligible nearby members should interrupt the hunt and defend, normally
+   within one or two needs updates (configured at one second). Look for
+   `AI living wolf ... assistMember=... threat=... action=DEFEND`; the helpers'
+   status should show `goal=DEFEND action=ATTACK`. Repeat during feeding/sleep.
+   Verify wolves from another group or beyond the assistance radius do not join
+   because of pack assistance, and low-health wolves flee. Check that defense
+   still ends on death/invalid target or its existing time/distance bound.
 
 The local unit-test result and the user-reported runtime result are separate
 evidence; remaining checklist items still need their own confirmation.
