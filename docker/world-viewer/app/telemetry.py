@@ -30,30 +30,6 @@ class Needs(ProtocolModel):
     resource_pressure: float = Field(ge=0, le=1)
 
 
-class Economy(ProtocolModel):
-    money: int = Field(ge=0)
-    food: int = Field(ge=0)
-    resource: int = Field(ge=0)
-
-
-class LivingRole(ProtocolModel):
-    role: str = Field(max_length=80)
-    status: str = Field(max_length=80)
-    phase: str = Field(max_length=80)
-    activity: str = Field(max_length=80)
-    awareness: str = Field(max_length=80)
-    movement_purpose: str = Field(max_length=80)
-    caution: float = Field(ge=0, le=1)
-    extensions_enabled: bool
-    hunt_status: str | None = Field(default=None, max_length=80)
-    assist_status: str | None = Field(default=None, max_length=80)
-    nearby_prey: int = Field(default=0, ge=0)
-    attackable_prey: int = Field(default=0, ge=0)
-    nearby_allies: int = Field(default=0, ge=0)
-    allies_in_combat: int = Field(default=0, ge=0)
-    companion_spawn_id: int | None = Field(default=None, ge=0)
-
-
 class Agent(ProtocolModel):
     agent_id: int = Field(ge=0)
     spawn_id: int = Field(ge=0)
@@ -75,8 +51,6 @@ class Agent(ProtocolModel):
     action: str | None = Field(default=None, max_length=120)
     routine_goal: str | None = Field(default=None, max_length=120)
     group_id: int | None = Field(default=None, ge=0)
-    economy: Economy | None = None
-    living_role: LivingRole | None = None
 
 
 class TelemetryBatch(ProtocolModel):

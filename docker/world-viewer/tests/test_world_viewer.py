@@ -38,24 +38,6 @@ def agent(agent_id: int = 80542, source: str = "live") -> dict:
         "action": "MOVE_TO",
         "routine_goal": "GO_HOME",
         "group_id": 17,
-        "economy": {"money": 120, "food": 3, "resource": 0},
-        "living_role": {
-            "role": "CIVILIAN",
-            "status": "ACTIVE",
-            "phase": "SEEKING_SAFETY",
-            "activity": "NONE",
-            "awareness": "PREDATOR_SEEN",
-            "movement_purpose": "GUARD_REFUGE",
-            "caution": 0.42,
-            "extensions_enabled": True,
-            "hunt_status": None,
-            "assist_status": None,
-            "nearby_prey": 0,
-            "attackable_prey": 0,
-            "nearby_allies": 0,
-            "allies_in_combat": 0,
-            "companion_spawn_id": None,
-        },
     }
 
 
@@ -122,20 +104,6 @@ class WorldViewerApiTests(unittest.TestCase):
                 self.assertEqual(self.client.post("/internal/telemetry", headers=self.headers, json=payload).status_code, 422)
         self.assertEqual(self.client.get("/api/state").json()["agents"][0]["agent_id"], 80542)
 
-    def test_living_role_and_economy_are_optional_and_round_trip(self) -> None:
-        legacy = agent(1)
-        del legacy["economy"], legacy["living_role"]
-        self.assertEqual(self.client.post("/internal/telemetry", headers=self.headers, json=batch([legacy, agent(2)])).status_code, 200)
-        first, second = self.client.get("/api/state").json()["agents"]
-        self.assertIsNone(first["living_role"])
-        self.assertEqual(second["living_role"]["phase"], "SEEKING_SAFETY")
-        self.assertEqual(second["economy"]["money"], 120)
-
-    def test_rejects_invalid_living_role(self) -> None:
-        bad = agent()
-        bad["living_role"]["caution"] = 2.0
-        self.assertEqual(self.client.post("/internal/telemetry", headers=self.headers, json=batch([bad])).status_code, 422)
-
     def test_rejects_malformed_json_without_replacing_cache(self) -> None:
         self.client.post("/internal/telemetry", headers=self.headers, json=batch())
         response = self.client.post("/internal/telemetry", headers=self.headers, content=b"{broken")
@@ -146,12 +114,7 @@ class WorldViewerApiTests(unittest.TestCase):
         oversized = b"{" + b" " * MAX_REQUEST_BYTES + b"}"
         response = self.client.post("/internal/telemetry", headers=self.headers, content=oversized)
         self.assertEqual(response.status_code, 413)
-        def slim(i: int) -> dict:
-            item = agent(i)
-            del item["living_role"], item["economy"]
-            return item
-
-        too_many = batch([slim(i) for i in range(MAX_AGENTS + 1)])
+        too_many = batch([agent(i) for i in range(MAX_AGENTS + 1)])
         self.assertEqual(self.client.post("/internal/telemetry", headers=self.headers, json=too_many).status_code, 422)
 
     def test_page_is_read_only_and_served_without_token(self) -> None:

@@ -85,33 +85,8 @@ function drawLandmarks() {
   }
 }
 
-const PHASE_COLORS = {
-  DEFENDING: "#ed9375", FLEEING: "#e3c24f", SEEKING_SAFETY: "#e3c24f",
-  INVESTIGATING: "#7fb4e6", HUNTING: "#c48ae0", FEEDING: "#c48ae0",
-};
-const PHASES = {
-  IDLE: "Nečinný", MOVING: "Pohyb", ACTING: "Činnost", HUNTING: "Loví", FEEDING: "Krmí se",
-  DEFENDING: "Brání se", FLEEING: "Utíká", SEEKING_SAFETY: "Hledá bezpečí", INVESTIGATING: "Prověřuje poplach",
-};
-const AWARENESS = {
-  QUIET: "Klid", REMEMBERED_DANGER: "Pamatuje si nebezpečí", PREDATOR_SEEN: "Vidí predátora",
-  HOSTILE_APPROACH: "Blíží se nepřítel", HERD_ALARM: "Poplach stáda", ALLY_IN_DANGER: "Spojenec v ohrožení",
-  DIRECT_THREAT: "Přímá hrozba", REFUGE_REACHED: "Dosáhl úkrytu", WAITING_FOR_SAFETY: "Vyčkává na bezpečí",
-};
-const MOVEMENT = {
-  GUARD_REFUGE: "Úkryt u stráže", HOME_REFUGE: "Úkryt u domova", CHECK_ALLY_ALARM: "Prověření poplachu",
-  HERD_COHESION: "Držení se stáda", PATROL_COMPANION: "Dvojice stráží", RETURN_HOME: "Návrat domů", LOCAL_ROAM: "Místní toulání",
-};
-function label(map, value) { return value ? (map[value] ? `${map[value]} · ${value}` : value) : null; }
-function hasAlert(agent) {
-  const awareness = agent.living_role && agent.living_role.awareness;
-  return Boolean(awareness) && awareness !== "QUIET";
-}
-
 function pointColor(agent) {
   const type = agent.type.toUpperCase();
-  const phaseColor = agent.living_role && PHASE_COLORS[agent.living_role.phase];
-  if (phaseColor) return phaseColor;
   if (agent.in_combat) return "#ed9375";
   if (type.includes("GUARD")) return "#91bbdb";
   if (type.includes("MERCHANT") || type.includes("TRAINER")) return "#efd191";
@@ -134,12 +109,6 @@ function render() {
     ctx.strokeStyle = selected ? "#fff0b9" : pointColor(agent);
     ctx.lineWidth = selected ? 2.2 : isLive ? 0.6 : 1.5;
     ctx.fill(); ctx.stroke();
-    if (hasAlert(agent)) {
-      ctx.save();
-      ctx.setLineDash([2, 2]); ctx.lineWidth = 1; ctx.strokeStyle = "#f2dba3";
-      ctx.beginPath(); ctx.arc(p.x, p.y, 7.5, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
   }
   drawLandmarks();
 }
@@ -156,7 +125,6 @@ function filterAgents() {
   const query = $("search").value.trim().toLocaleLowerCase("cs");
   const type = $("type-filter").value;
   const faction = $("faction-filter").value;
-  const phase = $("phase-filter").value;
   visible = snapshot.agents.filter(agent =>
     agent.position.map_id === 0 &&
     (!query || (agent.name || "").toLocaleLowerCase("cs").includes(query) || String(agent.agent_id).includes(query)) &&
@@ -165,9 +133,7 @@ function filterAgents() {
     (!$('live-filter').checked || agent.position.source === "live") &&
     (!$('combat-filter').checked || agent.in_combat === true) &&
     (!$('goal-filter').checked || Boolean(agent.goal)) &&
-    (!$('hunger-filter').checked || agent.needs.hunger > 0.7) &&
-    (!phase || (agent.living_role && agent.living_role.phase === phase)) &&
-    (!$('alert-filter').checked || hasAlert(agent))
+    (!$('hunger-filter').checked || agent.needs.hunger > 0.7)
   );
   $("visible-count").textContent = `${visible.length.toLocaleString("cs-CZ")} zobrazeno`;
   render();
@@ -210,25 +176,6 @@ function showDetail() {
   text("detail-utility", fixed(agent.goal_utility));
   text("detail-action", agent.action);
   text("detail-routine", agent.routine_goal);
-  const role = agent.living_role;
-  $("role-empty").hidden = Boolean(role);
-  text("role-role", role && role.role);
-  text("role-status", role && role.status);
-  text("role-phase", role && label(PHASES, role.phase));
-  text("role-activity", role && role.activity);
-  text("role-awareness", role && label(AWARENESS, role.awareness));
-  text("role-movement", role && (role.movement_purpose === "NONE" ? null : label(MOVEMENT, role.movement_purpose)));
-  text("role-caution", role && fixed(role.caution));
-  text("role-extensions", role && (role.extensions_enabled ? "Zapnuto" : "Vypnuto"));
-  text("role-hunt", role && role.hunt_status);
-  text("role-prey", role && role.hunt_status ? `${role.attackable_prey} napadnutelných z ${role.nearby_prey}` : null);
-  text("role-assist", role && role.assist_status);
-  text("role-allies", role && role.assist_status ? `${role.allies_in_combat} bojuje z ${role.nearby_allies}` : null);
-  text("role-companion", role && role.companion_spawn_id);
-  const economy = agent.economy;
-  text("eco-money", economy && economy.money);
-  text("eco-food", economy && economy.food);
-  text("eco-resource", economy && economy.resource);
   const labels = [
     ["HealthPressure", "health_pressure"], ["Hunger", "hunger"], ["Fatigue", "fatigue"],
     ["SafetyPressure", "safety_pressure"], ["ResourcePressure", "resource_pressure"],
@@ -256,7 +203,6 @@ async function poll() {
     $("live-count").textContent = live.toLocaleString("cs-CZ");
     $("background-count").textContent = (snapshot.agents.length - live).toLocaleString("cs-CZ");
     uniqueOptions("type-filter", snapshot.agents.map(agent => agent.type), "Všechny typy");
-    uniqueOptions("phase-filter", snapshot.agents.filter(agent => agent.living_role).map(agent => agent.living_role.phase), "Všechny fáze", value => PHASES[value] || value);
     uniqueOptions("faction-filter", snapshot.agents.map(agent => agent.world_faction), "Všechny frakce", factionLabel);
     $("capture-time").textContent = snapshot.received_at_ms ? `Přijato ${new Date(snapshot.received_at_ms).toLocaleTimeString("cs-CZ")}` : "Bez snímku";
     showStatus(); filterAgents(); showDetail();
@@ -268,12 +214,12 @@ async function poll() {
   }
 }
 
-for (const id of ["search", "type-filter", "faction-filter", "phase-filter", "live-filter", "combat-filter", "goal-filter", "hunger-filter", "alert-filter"]) {
+for (const id of ["search", "type-filter", "faction-filter", "live-filter", "combat-filter", "goal-filter", "hunger-filter"]) {
   $(id).addEventListener(id === "search" ? "input" : "change", filterAgents);
 }
 $("reset-filters").addEventListener("click", () => {
-  $("search").value = ""; $("type-filter").value = ""; $("faction-filter").value = ""; $("phase-filter").value = "";
-  for (const id of ["live-filter", "combat-filter", "goal-filter", "hunger-filter", "alert-filter"]) $(id).checked = false;
+  $("search").value = ""; $("type-filter").value = ""; $("faction-filter").value = "";
+  for (const id of ["live-filter", "combat-filter", "goal-filter", "hunger-filter"]) $(id).checked = false;
   filterAgents();
 });
 $("reset-view").addEventListener("click", () => { zoom = 1; panX = 0; panY = 0; render(); });

@@ -25,13 +25,11 @@
       <label class="field">Jméno nebo AgentId<input id="search" type="search" placeholder="Hledat NPC…" autocomplete="off"></label>
       <label class="field">Typ agenta<select id="type-filter"><option value="">Všechny typy</option></select></label>
       <label class="field">Frakce<select id="faction-filter"><option value="">Všechny frakce</option></select></label>
-      <label class="field">Fáze role<select id="phase-filter"><option value="">Všechny fáze</option></select></label>
       <label class="check"><input id="live-filter" type="checkbox"><span>Jen live pozice</span></label>
       <label class="check"><input id="combat-filter" type="checkbox"><span>V boji</span></label>
       <label class="check"><input id="goal-filter" type="checkbox"><span>Aktivní cíl</span></label>
       <label class="check"><input id="hunger-filter" type="checkbox"><span>Hlad nad 0,7</span></label>
-      <label class="check"><input id="alert-filter" type="checkbox"><span>Vnímá nebezpečí / poplach</span></label>
-      <div class="legend"><div class="section-title">LEGENDA</div><div><span class="legend-dot live"></span> Skutečná live pozice</div><div><span class="legend-dot background"></span> Spawn / poslední známá</div><div><span class="legend-dot combat"></span> V boji / obrana</div><div><span class="legend-dot flee"></span> Útěk / hledá bezpečí</div><div><span class="legend-dot investigate"></span> Prověřuje poplach</div><div><span class="legend-dot feed"></span> Loví / krmí se</div><div><span class="legend-ring"></span> Vnímá nebezpečí</div></div>
+      <div class="legend"><div class="section-title">LEGENDA</div><div><span class="legend-dot live"></span> Skutečná live pozice</div><div><span class="legend-dot background"></span> Spawn / poslední známá</div><div><span class="legend-dot combat"></span> V boji</div></div>
     </aside>
 
     <section class="map-section panel" aria-label="Souřadnicová mapa Elwynn Forest">
@@ -46,8 +44,6 @@
       <div class="detail-section"><div class="section-title">STAV</div><div class="status-row"><span id="detail-health"></span><span id="detail-combat"></span></div><div id="detail-position" class="position"></div></div>
       <div class="detail-section"><div class="section-title">POTŘEBY</div><div id="needs"></div></div>
       <div class="detail-section"><div class="section-title">ROZHODOVÁNÍ</div><dl class="facts"><div><dt>Cíl</dt><dd id="detail-goal"></dd></div><div><dt>Utility</dt><dd id="detail-utility"></dd></div><div><dt>Akce</dt><dd id="detail-action"></dd></div><div><dt>Rutina</dt><dd id="detail-routine"></dd></div></dl></div>
-      <div class="detail-section"><div class="section-title">ŽIVÁ ROLE</div><dl class="facts"><div><dt>Role</dt><dd id="role-role"></dd></div><div><dt>Stav role</dt><dd id="role-status"></dd></div><div><dt>Fáze</dt><dd id="role-phase"></dd></div><div><dt>Činnost</dt><dd id="role-activity"></dd></div><div><dt>Povědomí</dt><dd id="role-awareness"></dd></div><div><dt>Účel pohybu</dt><dd id="role-movement"></dd></div><div><dt>Opatrnost</dt><dd id="role-caution"></dd></div><div><dt>Rozšíření</dt><dd id="role-extensions"></dd></div><div><dt>Lov</dt><dd id="role-hunt"></dd></div><div><dt>Kořist</dt><dd id="role-prey"></dd></div><div><dt>Pomoc spojenci</dt><dd id="role-assist"></dd></div><div><dt>Spojenci</dt><dd id="role-allies"></dd></div><div><dt>Společník (SpawnId)</dt><dd id="role-companion"></dd></div></dl><p id="role-empty" class="detail-note">Živá role je dostupná jen pro materializované NPC.</p></div>
-      <div class="detail-section"><div class="section-title">ZÁSOBY</div><dl class="facts"><div><dt>Peníze</dt><dd id="eco-money"></dd></div><div><dt>Jídlo</dt><dd id="eco-food"></dd></div><div><dt>Zdroje</dt><dd id="eco-resource"></dd></div></dl></div>
     </div></aside>
   </main>
 </body>

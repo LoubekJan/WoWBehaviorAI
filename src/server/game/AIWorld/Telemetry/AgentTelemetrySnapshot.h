@@ -20,27 +20,6 @@
 #include <optional>
 #include <string>
 
-// Living-role state copied by value from AIWorldMgr::DescribeLivingRole().
-// Only meaningful while the agent is materialized and bound to its Creature.
-struct LivingRoleTelemetry
-{
-    std::string Role;
-    std::string Status;
-    std::string Phase;
-    std::string Activity;
-    std::string Awareness;
-    std::string MovementPurpose;
-    float Caution = 0.0f;
-    bool ExtensionsEnabled = false;
-    std::optional<std::string> HuntStatus;
-    std::optional<std::string> AssistStatus;
-    uint32 NearbyPrey = 0;
-    uint32 AttackablePrey = 0;
-    uint32 NearbyAllies = 0;
-    uint32 AlliesInCombat = 0;
-    uint64 CompanionSpawnId = 0;
-};
-
 // A value-only observation captured on the world thread. No Creature, Map,
 // registry, or other world-owned object crosses the asynchronous boundary.
 struct AgentTelemetrySnapshot
@@ -69,12 +48,6 @@ struct AgentTelemetrySnapshot
     std::optional<GoalType> RoutineGoal;
     std::optional<ActionType> Action;
     std::optional<uint64> GroupId;
-
-    // Persistent stockpile; available for background agents as well.
-    uint64 Money = 0;
-    uint32 Food = 0;
-    uint32 Resource = 0;
-    std::optional<LivingRoleTelemetry> LivingRole;
 };
 
 #endif // AIWORLD_AGENTTELEMETRYSNAPSHOT_H
