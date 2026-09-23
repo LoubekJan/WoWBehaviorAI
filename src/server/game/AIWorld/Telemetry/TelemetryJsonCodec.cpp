@@ -65,7 +65,8 @@ namespace
     {
         if (value) WriteValue(out, *value); else out << "null";
     }
-    template<typename T> void Field(std::ostream& out, char const* key, T const& value)
+    // Use a distinct name from the database Field class brought in by gamePCH.h.
+    template<typename T> void WriteJsonField(std::ostream& out, char const* key, T const& value)
     {
         out << ','; WriteString(out, key); out << ':'; WriteValue(out, value);
     }
@@ -73,44 +74,44 @@ namespace
     void WriteValue(std::ostream& out, LivingRoleTelemetry const& role)
     {
         out << "{\"enabled\":"; WriteValue(out, role.Enabled);
-        Field(out, "extensions_enabled", role.ExtensionsEnabled);
-        Field(out, "role", role.Role); Field(out, "status", role.Status);
-        Field(out, "phase", role.Phase); Field(out, "activity", role.Activity);
-        Field(out, "awareness", role.Awareness); Field(out, "movement_purpose", role.MovementPurpose);
-        Field(out, "caution", role.Caution); Field(out, "started_at_ms", role.StartedAtMs);
-        Field(out, "decision_wait_ms", role.DecisionWaitMs);
-        Field(out, "danger_remaining_ms", role.DangerRemainingMs); Field(out, "alarm_remaining_ms", role.AlarmRemainingMs);
-        Field(out, "hunt_status", role.HuntStatus); Field(out, "hunt_end", role.HuntEnd);
-        Field(out, "assist_status", role.AssistStatus);
-        Field(out, "nearby_prey", role.NearbyPrey); Field(out, "attackable_prey", role.AttackablePrey);
-        Field(out, "nearby_allies", role.NearbyAllies); Field(out, "allies_in_combat", role.AlliesInCombat);
-        Field(out, "companion_spawn_id", role.CompanionSpawnId);
-        Field(out, "last_hunt_target_spawn_id", role.LastHuntTargetSpawnId);
-        Field(out, "hunt_target_distance", role.HuntTargetDistance);
-        Field(out, "prey_run_speed", role.PreyRunSpeed); Field(out, "prey_move_speed", role.PreyMoveSpeed);
-        Field(out, "sprint_multiplier", role.SprintMultiplier); Field(out, "sprint_remaining_ms", role.SprintRemainingMs);
+        WriteJsonField(out, "extensions_enabled", role.ExtensionsEnabled);
+        WriteJsonField(out, "role", role.Role); WriteJsonField(out, "status", role.Status);
+        WriteJsonField(out, "phase", role.Phase); WriteJsonField(out, "activity", role.Activity);
+        WriteJsonField(out, "awareness", role.Awareness); WriteJsonField(out, "movement_purpose", role.MovementPurpose);
+        WriteJsonField(out, "caution", role.Caution); WriteJsonField(out, "started_at_ms", role.StartedAtMs);
+        WriteJsonField(out, "decision_wait_ms", role.DecisionWaitMs);
+        WriteJsonField(out, "danger_remaining_ms", role.DangerRemainingMs); WriteJsonField(out, "alarm_remaining_ms", role.AlarmRemainingMs);
+        WriteJsonField(out, "hunt_status", role.HuntStatus); WriteJsonField(out, "hunt_end", role.HuntEnd);
+        WriteJsonField(out, "assist_status", role.AssistStatus);
+        WriteJsonField(out, "nearby_prey", role.NearbyPrey); WriteJsonField(out, "attackable_prey", role.AttackablePrey);
+        WriteJsonField(out, "nearby_allies", role.NearbyAllies); WriteJsonField(out, "allies_in_combat", role.AlliesInCombat);
+        WriteJsonField(out, "companion_spawn_id", role.CompanionSpawnId);
+        WriteJsonField(out, "last_hunt_target_spawn_id", role.LastHuntTargetSpawnId);
+        WriteJsonField(out, "hunt_target_distance", role.HuntTargetDistance);
+        WriteJsonField(out, "prey_run_speed", role.PreyRunSpeed); WriteJsonField(out, "prey_move_speed", role.PreyMoveSpeed);
+        WriteJsonField(out, "sprint_multiplier", role.SprintMultiplier); WriteJsonField(out, "sprint_remaining_ms", role.SprintRemainingMs);
         out << '}';
     }
     void WriteValue(std::ostream& out, MovementTelemetry const& movement)
     {
         out << "{\"moving\":"; WriteValue(out, movement.Moving);
-        Field(out, "blocked", movement.Blocked); Field(out, "cannot_reach_target", movement.CannotReachTarget);
-        Field(out, "evading", movement.Evading); Field(out, "run_speed", movement.RunSpeed);
-        Field(out, "move_speed", movement.MoveSpeed); Field(out, "home_distance", movement.HomeDistance);
+        WriteJsonField(out, "blocked", movement.Blocked); WriteJsonField(out, "cannot_reach_target", movement.CannotReachTarget);
+        WriteJsonField(out, "evading", movement.Evading); WriteJsonField(out, "run_speed", movement.RunSpeed);
+        WriteJsonField(out, "move_speed", movement.MoveSpeed); WriteJsonField(out, "home_distance", movement.HomeDistance);
         out << '}';
     }
     void WriteValue(std::ostream& out, TargetTelemetry const& target)
     {
         out << "{\"spawn_id\":" << target.SpawnId;
-        Field(out, "entry", target.Entry); Field(out, "name", target.Name); Field(out, "position", target.Position);
+        WriteJsonField(out, "entry", target.Entry); WriteJsonField(out, "name", target.Name); WriteJsonField(out, "position", target.Position);
         out << '}';
     }
     void WriteValue(std::ostream& out, GroupTelemetry const& group)
     {
         out << "{\"id\":" << group.Id;
-        Field(out, "kind", group.Kind); Field(out, "profile", group.Profile);
-        Field(out, "member_count", group.MemberCount); Field(out, "resources", group.Resources);
-        Field(out, "territory", group.Territory);
+        WriteJsonField(out, "kind", group.Kind); WriteJsonField(out, "profile", group.Profile);
+        WriteJsonField(out, "member_count", group.MemberCount); WriteJsonField(out, "resources", group.Resources);
+        WriteJsonField(out, "territory", group.Territory);
         out << '}';
     }
 
@@ -186,18 +187,18 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         out << ",\"economy\":{\"money\":";
         // Decimal string preserves uint64 copper exactly in JavaScript.
         WriteString(out, std::to_string(item.Economy.Money));
-        Field(out, "food", item.Economy.Food); Field(out, "resource", item.Economy.Resource);
+        WriteJsonField(out, "food", item.Economy.Food); WriteJsonField(out, "resource", item.Economy.Resource);
         out << '}';
-        Field(out, "home", item.Home); Field(out, "work", item.Work);
-        Field(out, "reputation_faction_id", item.ReputationFactionId);
-        Field(out, "faction_template_id", item.Live ? item.FactionTemplateId : std::nullopt);
-        Field(out, "effective_goal", item.EffectiveGoal); Field(out, "goal_owner", item.GoalOwner);
-        Field(out, "action_source_goal", item.ActionSourceGoal); Field(out, "action_started_at_ms", item.ActionStartedAtMs);
-        Field(out, "coordination_goal", item.CoordinationGoal); Field(out, "coordination_group_id", item.CoordinationGroupId);
-        Field(out, "coordination_phase", item.CoordinationPhase); Field(out, "routine_activity", item.RoutineActivity);
-        Field(out, "living_wolf", item.Live && item.LivingWolf);
-        Field(out, "meal_target_spawn_id", item.Live ? item.MealTargetSpawnId : std::nullopt);
-        Field(out, "destination", item.Live ? item.Destination : std::nullopt);
+        WriteJsonField(out, "home", item.Home); WriteJsonField(out, "work", item.Work);
+        WriteJsonField(out, "reputation_faction_id", item.ReputationFactionId);
+        WriteJsonField(out, "faction_template_id", item.Live ? item.FactionTemplateId : std::nullopt);
+        WriteJsonField(out, "effective_goal", item.EffectiveGoal); WriteJsonField(out, "goal_owner", item.GoalOwner);
+        WriteJsonField(out, "action_source_goal", item.ActionSourceGoal); WriteJsonField(out, "action_started_at_ms", item.ActionStartedAtMs);
+        WriteJsonField(out, "coordination_goal", item.CoordinationGoal); WriteJsonField(out, "coordination_group_id", item.CoordinationGroupId);
+        WriteJsonField(out, "coordination_phase", item.CoordinationPhase); WriteJsonField(out, "routine_activity", item.RoutineActivity);
+        WriteJsonField(out, "living_wolf", item.Live && item.LivingWolf);
+        WriteJsonField(out, "meal_target_spawn_id", item.Live ? item.MealTargetSpawnId : std::nullopt);
+        WriteJsonField(out, "destination", item.Live ? item.Destination : std::nullopt);
         OptionalObject(out, "living_role", item.Live ? item.LivingRole : std::nullopt);
         OptionalObject(out, "movement", item.Live ? item.Movement : std::nullopt);
         OptionalObject(out, "target", item.Live ? item.Target : std::nullopt);
