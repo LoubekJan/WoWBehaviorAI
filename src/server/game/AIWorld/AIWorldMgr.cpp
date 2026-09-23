@@ -717,7 +717,9 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // is provably still >= the floor it is being compared against.
     _livingWolvesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingWolvesEnabled", false);
     _livingRolesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRolesEnabled", false);
-    TC_LOG_INFO("ai.world", "AI living roles enabled={} scope=Elwynn controlled permanent NPCs", _livingRolesEnabled);
+    _livingRoleExtensionsEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRoleExtensionsEnabled", false);
+    TC_LOG_INFO("ai.world", "AI living roles enabled={} extensions={} scope=Elwynn controlled permanent NPCs",
+        _livingRolesEnabled, _livingRoleExtensionsEnabled);
     bool wolfGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRoamEnabled", false);
     float wolfGroupRoamDistance = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamDistance", 10.0f);
     float wolfGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamArrivalRadius", 5.0f);
@@ -12317,9 +12319,15 @@ void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
                                     // Version unconditionally itself (see
                                     // AgentPersistence::SaveEconomyState()),
                                     // so this site does not need to.
-                                    MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId](AgentEconomyState& economy)
+                                    bool produce = _livingRoleExtensionsEnabled &&
+                                        LivingRolePolicy::InScope(_livingRolesEnabled, record->ControlMode, creature->GetMapId(),
+                                            creature->GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId)) &&
+                                        LivingRolePolicy::Resolve(record->Type, creature->GetEntry(), false) == LivingRolePolicy::Role::Worker;
+                                    uint32 entry = creature->GetEntry();
+                                    MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId, produce, entry](AgentEconomyState& economy)
                                     {
                                         economy.Money += workMoneyReward;
+                                        if (produce) LivingRolePolicy::ProduceWorkStock(economy, entry, workWindowId);
                                         economy.LastRewardedWorkWindowId = workWindowId;
                                     });
 

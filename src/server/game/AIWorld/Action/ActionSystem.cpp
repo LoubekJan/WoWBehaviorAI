@@ -110,9 +110,14 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
     if (request.GoalStartedAtMs != context.ActiveGoalStartedAtMs)
         return { false, ActionRejectReason::GoalMismatch };
 
-    if ((request.SourceGoal == GoalType::LocalActivity || request.SourceGoal == GoalType::PredatorHunt) &&
+    if ((request.SourceGoal == GoalType::LocalActivity || request.SourceGoal == GoalType::PredatorHunt ||
+        request.SourceGoal == GoalType::SeekSafety || request.SourceGoal == GoalType::InvestigateDanger) &&
         (!context.LivingRoleAllowed || context.MapId != 0 || context.LivingRoleZoneId != 12 ||
             !LivingRolePolicy::KnownRole(context.LivingRole)))
+        return { false, ActionRejectReason::GoalMismatch };
+
+    if ((request.SourceGoal == GoalType::SeekSafety || request.SourceGoal == GoalType::InvestigateDanger) &&
+        (!context.LivingRoleExtensionsAllowed || request.Type != ActionType::MoveTo))
         return { false, ActionRejectReason::GoalMismatch };
 
     switch (request.Type)
@@ -140,6 +145,11 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
             if (context.HasActiveMovement)
                 return { false, ActionRejectReason::ActorMovementBusy };
             if (request.AmbientActivity == LivingRolePolicy::Activity::Rest && !context.WildlifeRestAllowed)
+                return { false, ActionRejectReason::GoalMismatch };
+            if (request.Target && (request.AmbientActivity != LivingRolePolicy::Activity::Talk ||
+                !context.TargetIsSocialPartner || !context.TargetResolved || !context.TargetAlive ||
+                context.TargetMapId != context.MapId || !context.TargetWithinAttackRange || !context.TargetInLineOfSight ||
+                context.TargetGuid != request.Target->Guid || context.TargetEntry != request.Target->Entry))
                 return { false, ActionRejectReason::GoalMismatch };
             return { true, ActionRejectReason::None };
         default:
@@ -170,7 +180,7 @@ ActionValidationResult ActionSystem::ValidateFlee(ActionRequest const& request, 
 
 ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request, ActionValidationContext const& context) const
 {
-    if (request.SourceGoal == GoalType::LocalActivity && context.InCombat)
+    if ((request.SourceGoal == GoalType::LocalActivity || request.SourceGoal == GoalType::InvestigateDanger) && context.InCombat)
         return { false, ActionRejectReason::ActorInCombat };
     if (!request.Destination)
         return { false, ActionRejectReason::NoDestination };
@@ -180,6 +190,25 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
 
     if (!std::isfinite(request.Destination->X) || !std::isfinite(request.Destination->Y) || !std::isfinite(request.Destination->Z))
         return { false, ActionRejectReason::DestinationNotFinite };
+
+    if (request.SourceGoal == GoalType::SeekSafety || request.SourceGoal == GoalType::InvestigateDanger)
+    {
+        auto const& approved = context.RoleMovementDestination;
+        if (!approved || approved->MapId != request.Destination->MapId || approved->X != request.Destination->X ||
+            approved->Y != request.Destination->Y || approved->Z != request.Destination->Z)
+            return { false, ActionRejectReason::GoalMismatch };
+        if (request.SourceGoal == GoalType::SeekSafety)
+        {
+            if (context.FleeSourceGuid.IsEmpty() || request.FleeFromGuid != context.FleeSourceGuid ||
+                !request.Target || request.Target->Guid != context.FleeSourceGuid ||
+                request.Target->Guid != context.TargetGuid || request.Target->Entry != context.TargetEntry ||
+                !context.TargetResolved || !context.TargetAlive || context.TargetMapId != context.MapId ||
+                !context.TargetWithinAttackRange || !context.TargetInLineOfSight)
+                return { false, ActionRejectReason::NoFleeSource };
+        }
+        else if (context.LivingRole != LivingRolePolicy::Role::Guard || !context.FreshAllyAlarm)
+            return { false, ActionRejectReason::GoalMismatch };
+    }
 
     // Milestone 2.12G3C1: HUNT-specific target-identity requirements, run
     // only for SourceGoal == GoalType::Hunt, only once the generic

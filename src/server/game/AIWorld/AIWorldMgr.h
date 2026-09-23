@@ -275,6 +275,13 @@ class TC_GAME_API AIWorldMgr
             uint32 AttackablePrey = 0;
             uint32 NearbyAllies = 0;
             uint32 AlliesInCombat = 0;
+            bool ExtensionsEnabled = false;
+            float Caution = 0.0f;
+            char const* Awareness = "QUIET";
+            char const* MovementPurpose = "NONE";
+            uint32 Food = 0;
+            uint32 Resource = 0;
+            uint64 CompanionSpawnId = 0;
         };
         std::optional<LivingRoleDebugInfo> DescribeLivingRole(Creature const& creature) const;
 
@@ -2855,6 +2862,7 @@ class TC_GAME_API AIWorldMgr
         void StopLivingWolfAction(AgentRecord& record, Creature& creature);
         bool _livingWolvesEnabled = false;
         bool _livingRolesEnabled = false;
+        bool _livingRoleExtensionsEnabled = false;
         bool UpdateLivingRole(AgentRecord& record, Creature& creature, uint64 nowMs);
         void StopLivingRole(AgentRecord& record, Creature& creature);
 

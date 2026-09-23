@@ -1,7 +1,7 @@
 # Živější role v Elwynnu
 
 Lokální rozšíření z 22. 9. 2026 navazuje na ve hře ověřený vlčí pilot.
-Uživatel potvrdil ostatní základní chování ve hře. Lov Forest Spider a pomoc Defias při prvním testu nefungovaly; níže popsaná následná oprava čeká na opakovaný test.
+Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 2026 výslovně potvrdil také funkční lov Forest Spider a pomoc blízkých Defias. Oba původně neúspěšné scénáře tak mají potvrzený opakovaný herní test.
 
 ## Rozsah a zapnutí
 
@@ -24,9 +24,13 @@ nedostávají. Ostatní oblasti zůstávají mimo jeho rozsah.
 Vlci odpovídající zapnutému pilotu `LivingWolves` pokračují ve svém ověřeném
 smečkovém cyklu. Nová logika jim nepřebírá řízení. NPC s připraveným domovem
 a pracovištěm zachovávají svůj dosavadní denní režim; nové role u nich řeší
-ohrožení. Ručně nastavené skupinové činnosti mají v klidu přednost.
+ohrožení a rozšíření zásob přidává produkci k dokončené práci. Ručně nastavené
+skupinové činnosti mají v klidu přednost.
 
 ## Co jednotlivé role dělají
+
+Tato základní tabulka popisuje ověřený cyklus z 22. 9. Rozdíly při zapnutém
+rozšíření z 23. 9. jsou uvedené níže, včetně individuálních prahů útěku.
 
 | Role | Chování v klidu | Reakce na ohrožení |
 | --- | --- | --- |
@@ -146,17 +150,117 @@ vzájemné nativní nepřátelství a vyžaduje skutečný boj proti napadnuteln
 útočníkovi. Bere v úvahu i živé combat reference, pokud hlavní threat cíl
 chybí. Členství ve skupině není a nebylo podmínkou této pomoci.
 
+## Potvrzení ve hře — 22. 9. 2026
+
+Uživatel po nasazení opravy potvrdil oba navržené opakované testy: Forest
+Spider loví kořist a blízcí Defias se přidávají na pomoc napadenému spojenci.
+Ostatní základní chování potvrdil už při předchozím testu. Toto potvrzení
+se vztahuje k popsaným základním scénářům; samo o sobě nedokládá všechny
+hraniční případy, unload/rebind ani měření výkonu celé populace.
+
+## Rozšíření okolí, spolupráce a zásob — 23. 9. 2026
+
+Implementováno lokálně; **herní ověření této nové vrstvy zatím čeká**.
+Vyžaduje oba přepínače:
+
+```ini
+AIWorld.LivingRolesEnabled = 1
+AIWorld.LivingRoleExtensionsEnabled = 1
+```
+
+V `deploy/worldserver.conf` jsou oba zapnuté, v distribuční konfiguraci
+vypnuté. Restart je nutný. Vypnutí pouze `LivingRoleExtensionsEnabled`
+vrátí základní cyklus rolí; uložené zásoby zůstanou zachované.
+
+| Oblast | Nové skutečné chování | Omezení |
+| --- | --- | --- |
+| Vnímání nebezpečí | Kořist vidí řízeného predátora ještě před zásahem. Civilisté, pracovníci a služby reagují na blízkého nepřátelského predátora/bojovníka a na ohrožení spojence. | Vlastní výhled, detekce, platné NPC a vzdálenost přibližně 9–14 yardů; okolní boj má dosah o 3 yardy větší. Samotná přítomnost hráče poplach nespouští. |
+| Útěk | Hledá místo poblíž spojenecké stráže, bezpečnější bod u domova nebo cestu pryč od hrozby. U stráže volí volný směr, včetně míst již rezervovaných dalšími příchozími. | Cíl musí být nejméně o 6 yardů dál od hrozby. Kontroluje se celá navmesh cesta i Elwynn. Když nenajde bezpečnou cestu, použije dosavadní engine útěk. |
+| Poplach a stráže | Nezvířecí NPC uchová místní poplach; stráž pomůže ve skutečném boji, případně dojde prověřit poslední známé místo. | Poplach žije 15 s, obnovuje se nejdříve po 20 s. Stejná nenulová WorldFaction, viditelný oznamovatel do 25 yardů. Prověřování nejvýše 35 yardů od stanoviště; samotný poplach nepovoluje útok. Nejde o text v chatu. |
+| Stádo | Kořist se občas přiblíží ke kompatibilnímu sousedovi a sdílí reakci na jeho viditelnou hrozbu. Deer a Fawn se mohou držet spolu. | Ostatní kořist pouze se stejným entry, řízení permanentní členové; sousední domovské body do 18 yardů. Cílové rozestupy přibližně 4 yardy. |
+| Dvojice stráží | Místní obchůzky doplňuje přiblížení ke stráži stejné frakce; jeden vedoucí má nejvýše jednoho následovníka. | Místní sousedé, nikoliv nové dálkové hlídky. Pevné služby a zadavatelé úkolů se kvůli družení nestěhují. |
+| Krátká paměť | NPC se 60 s po posledním pozorování snaží nejít přes nebezpečné místo. Když cesta domů není bezpečná, vyčkává a rozhlíží se. | Místní paměť konkrétní materializace; po unloadu nebo restartu zaniká. Připravené starší docházkové rutiny tuto novou kontrolu trasy zatím nepoužívají. |
+| Rozdíly mezi jedinci | Stabilní opatrnost mění dosah vnímání a prahy ústupu bojovníků. | Odvozena z AgentId, zachová se při restartu. Oproti základním prahům rozdíl až ±6 procentních bodů zdraví; nezvířecí nevojáci a kořist dál utíkají bez boje. Není to učení zkušeností. |
+| Výběr kořisti | Predátor porovnává vzdálenost a zdraví kořisti. Forest Spider navíc upřednostňuje Rabbit/Fawn. | Cow/Deer zůstávají platnou kořistí; původní vlčí pilot se nemění. Nejvýše 8 pokusů o cestu při jednom rozhodnutí. |
+| Práce a jídlo | Dřevorubec entry 1975 vyrobí 2 Resource, ostatní klasifikovaní pracovníci 4 Food. Dokončené místní jídlo odečte 1 Food, pokud jej NPC má. | Jednou za syntetické pracovní okno, vlastní zásoba do 20. Lokální práce musí trvat nepřerušených 15 s a skončit ve stejném pracovním okně. Připravená rutina přidá produkci ke svému existujícímu dokončení práce a mzdě. |
+| Hovor | NPC při gestu otočí hlavu/tělo ke skutečnému vhodnému sousedovi do 6 yardů. Bez partnera se rozhlédne. | Stejná WorldFaction, bez boje, viditelný stojící partner. Text rozhovoru ani trvalé vztahy nevznikají. |
+
+Stáda a dvojice jsou **místní koordinace**, nikoliv nové záznamy v
+AgentGroup. Hláška `not currently a member of any group` proto může být
+správná i při `HERD_COHESION` nebo `PATROL_COMPANION`.
+
+Zásoby používají stávající databázová pole a verzované zápisy, bez nové
+SQL/DBC migrace. Marker pracovního okna se ukládá spolu s výrobkem, takže
+načtení NPC znovu ve stejném okně nezpůsobí další výrobu. Přerušení místní
+práce útokem, odchodem nebo zánikem aktéra nic nevyrobí. Zásoba nad 20
+nastavená jiným systémem se nesnižuje ani nepřeteče.
+
+### Herní test nové vrstvy
+
+1. Sestav a restartuj běžným postupem výše. Vyber existující řízené NPC a
+   použij `.aiworld group status`; musí ukazovat `extensions=true`.
+   Přidané řádky obsahují `awareness`, `movement`, `caution`, `food`,
+   `resource` a případně `local companion spawnId`.
+2. `.go creature 79883` přenese k existujícímu Forest Spider. Sleduj také
+   okolní Deer/Fawn/Cow; bez tvého zásahu mají při dostatečném přiblížení
+   predátora přejít na `PREDATOR_SEEN` a `SEEKING_SAFETY`. Větší vzdálenost
+   bez reakce je správná. GM režim můžeš pro pouhé pozorování ponechat zapnutý.
+3. `.go creature 80361`: při přímém napadení kořisti s `.gm off` hledej
+   `SEEK_SAFETY` a `AWAY_FROM_DANGER` či `HOME_REFUGE`. Bez cesty je přípustné
+   `FLEEING`. Viditelný kompatibilní soused může reagovat přes `HERD_ALARM`.
+   Po ústupu se nemají okamžitě vracet přes nedávný boj; sleduj
+   `REMEMBERED_DANGER` / `WAITING_FOR_SAFETY` a pozdější `RETURN_HOME`.
+4. U stráže stejné WorldFaction do 25 yardů napadni živého řízeného civilistu
+   **postavou, které to běžné frakční vztahy dovolují** (např. nepřátelská
+   postava Hordy proti Stormwind). GM režim vypnutý. Civilista může hledat
+   `GUARD_REFUGE`, stráž přejít do `DEFENDING`. Když už nemá platný živý cíl
+   boje, může prověřit čerstvý poplach jako `INVESTIGATING` /
+   `CHECK_ALLY_ALARM`. Přátelská alianční postava není vhodným útočníkem
+   tohoto testu. Samotná zpráva o nebezpečí nesmí spustit útok na neutrálního hráče.
+5. Pozoruj 2–3 minuty Deer/Fawn a dvě blízké řízené stráže bez boje.
+   Příležitostně očekávej `HERD_COHESION` / `PATROL_COMPANION`, různá místa
+   vedle souseda a žádné obíhání při otočení hráče. Nejde o trvalé následování
+   každého kroku; běžné místní činnosti a stanoviště mají stále význam.
+6. `.go creature 81257`: před prací dřevorubce si zapiš `resource`. Během
+   pracovní části syntetického dne nech proběhnout `WORK` alespoň 15 s.
+   Očekávej nárůst o 2, nejvýše na 20; další práce ve stejném okně už nic
+   nepřidá. U pracovníka farmy ověř obdobně Food +4 a po dokončeném místním
+   `EAT` pokles o 1. U Pa Maclure zůstává rozhodující jeho připravená rutina.
+   Zvlášť přeruš práci před dokončením a ověř, že se zásoba nezmění.
+7. Odejdi z načtené oblasti a vrať se, případně restartuj server. Zásoby
+   zůstanou, rozběhnutý útěk a místní poplach se nepřevezmou ze starého
+   objektu. Opakuj regresi vlků a Defias, dostupnost obchodu a test mimo
+   Elwynn. Pro porovnání vypni pouze nový přepínač a restartuj.
+
+Pracovní interval je nadále 400.–800. sekunda dvacetiminutového syntetického
+dne. Jídlo, odpočinek i nouze mohou práci odložit. `.npc add` stále
+nenahrazuje registraci trvalého spawnu do AIWorld.
+
 ## Hranice této změny
 
 Jde o místní rozhodování, skutečný pohyb, boj a viditelné animace.
-Gesto hovoru zatím nevytváří text rozhovoru ani vztahy. Pracovní gesto
-nevyrábí předměty a nevyplácí mzdu. Místní jídlo civilistů a pastva
-neodečítají zásoby z ekonomiky. Cestovatelé zatím nedostávají dálkové trasy.
+Gesto hovoru zatím nevytváří text rozhovoru ani vztahy. Rozšířená práce
+vyrábí číselné osobní zásoby, nikoliv inventářové předměty, společné sklady
+nebo tržní nabídky; nová místní práce nevyplácí mzdu. Místní jídlo spotřebuje
+vlastní Food, ale při prázdné zásobě zůstává dostupné dosavadní ambientní
+jídlo; nejde tedy ještě o uzavřenou potravinovou ekonomiku. Pastva nevyčerpává
+zdroje krajiny. Cestovatelé zatím nedostávají dálkové trasy.
 Stávající ekonomické účinky výslovně připravených rutin zůstávají jejich
 vlastní součástí. Role se při restartu odvozují z katalogu a živých příznaků
 NPC; běžící lokální činnost se nepersistuje.
+Globální demografie, nové questy z nedostatku, sémantické cestovní trasy,
+trvalé vztahy a dlouhodobé učení zůstávají pro navazující rozšíření.
 
 ## Automatická kontrola
+
+Aktuální rozšíření z 23. 9. 2026 prošlo **1 012 assertions v 21 testech**
+pod MSVC/Catch2 včetně regresí vlků a světových úhlů. Nové případy ověřují
+autorizaci bezpečného úkrytu, zamítnutí útoku z pouhého poplachu, nebezpečné
+úseky cest, rozdíly rolí a druhů, idempotenci/limity produkce, čištění
+pozorování při nové materializaci a identitu partnera hovoru. Prošla také
+syntax aktuálních `LivingRole.cpp`, `ActionExecutor.cpp` a `AgentRegistry.cpp`
+se skutečnými hlavičkami enginu a `git diff --check`. Počty níže zachycují
+historický test před tímto rozšířením.
 
 Lokálně 22. 9. 2026 prošlo **698 assertions v 14 testech** v Catch2 v2.13.9
 pod MSVC: nové role spolu s regresními testy vlků, formací a světových úhlů.

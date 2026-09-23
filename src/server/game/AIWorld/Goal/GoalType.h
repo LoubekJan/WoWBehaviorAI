@@ -95,7 +95,9 @@ enum class GoalType : uint8
     Feed,
     WildlifeRest,
     LocalActivity,
-    PredatorHunt
+    PredatorHunt,
+    SeekSafety,
+    InvestigateDanger
 };
 
 inline char const* ToString(GoalType type)
@@ -114,6 +116,8 @@ inline char const* ToString(GoalType type)
         case GoalType::WildlifeRest: return "WILDLIFE_REST";
         case GoalType::LocalActivity: return "LOCAL_ACTIVITY";
         case GoalType::PredatorHunt: return "PREDATOR_HUNT";
+        case GoalType::SeekSafety: return "SEEK_SAFETY";
+        case GoalType::InvestigateDanger: return "INVESTIGATE_DANGER";
         default:                   return "UNKNOWN";
     }
 }

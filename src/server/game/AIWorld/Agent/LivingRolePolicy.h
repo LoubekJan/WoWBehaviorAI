@@ -19,6 +19,7 @@
 #define AIWORLD_LIVINGROLEPOLICY_H
 
 #include "AgentType.h"
+#include "AgentEconomyState.h"
 #include "Faction/WorldFactionId.h"
 #include "Reconciliation/SpawnParticipationMode.h"
 #include <algorithm>
@@ -114,6 +115,58 @@ namespace LivingRolePolicy
             return true;
         float threshold = role == Role::Guard ? 0.85f : 0.70f;
         return healthPressure >= threshold - (fleeing ? 0.20f : 0.0f);
+    }
+
+    // Stable per-agent variation; no random reroll on a tick or grid reload.
+    inline uint32 Personality(uint64 id) { return uint32((id ^ (id >> 32)) * 2654435761u); }
+    inline float Caution(uint64 id) { return float(Personality(id) % 101) / 100.0f; }
+    inline float NoticeRadius(uint64 id) { return 9.0f + 5.0f * Caution(id); }
+    inline bool ShouldFlee(Role role, float pressure, bool fleeing, uint64 id)
+    {
+        return ShouldFlee(role, pressure + (Caution(id) - 0.5f) * 0.12f, fleeing);
+    }
+
+    inline bool SameHerd(uint32 a, uint32 b)
+    {
+        // Deer and fawns mix. Other prey stays with its own species.
+        return a == b || ((a == 883 || a == 890) && (b == 883 || b == 890));
+    }
+
+    // Straight segments must not cut through the threat on the way to safety.
+    // If already inside the radius, only a strictly outward leg is allowed.
+    inline bool AvoidsDanger(float x, float y, float endX, float endY, float dangerX, float dangerY, float radius)
+    {
+        float dx = endX - x, dy = endY - y;
+        float sx = x - dangerX, sy = y - dangerY;
+        float lengthSq = dx * dx + dy * dy;
+        if (!std::isfinite(lengthSq) || !std::isfinite(sx) || !std::isfinite(sy) || lengthSq < 0.01f)
+            return false;
+        float startSq = sx * sx + sy * sy;
+        if (startSq < radius * radius)
+            return sx * dx + sy * dy >= 0.0f &&
+                std::hypot(endX - dangerX, endY - dangerY) > std::sqrt(startSq) + 0.01f;
+        float t = std::clamp(-(sx * dx + sy * dy) / lengthSq, 0.0f, 1.0f);
+        return (sx + t * dx) * (sx + t * dx) + (sy + t * dy) * (sy + t * dy) >= radius * radius;
+    }
+
+    inline float PreyScore(float distance, float healthPct, uint32 preyEntry, uint32 hunterEntry)
+    {
+        // Close, wounded and small prey is cheaper to catch. A spider favors
+        // small game, but larger valid fauna remains available when necessary.
+        float sizePenalty = hunterEntry == 30 && preyEntry != 721 && preyEntry != 890 ? 5.0f : 0.0f;
+        return distance + std::clamp(healthPct, 0.0f, 100.0f) * 0.08f + sizePenalty;
+    }
+
+    inline bool ProduceWorkStock(AgentEconomyState& economy, uint32 entry, uint64 window)
+    {
+        if (!window || economy.LastRewardedWorkWindowId >= window || Resolve(AgentType::Civilian, entry, false) != Role::Worker)
+            return false;
+        // Bounded personal stocks, persisted with the existing work-window
+        // marker. Interrupted attempts never call this completion function.
+        if (entry == 1975) economy.Resource += std::min(2u, 20u - std::min(20u, economy.Resource));
+        else economy.Food += std::min(4u, 20u - std::min(20u, economy.Food));
+        economy.LastRewardedWorkWindowId = window;
+        return true;
     }
 
     inline float RoamRadius(Role role)

@@ -177,6 +177,10 @@ public:
                 if (role->AssistStatus)
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld role: lastAssist={} nearbyAllies={} alliesInCombat={}",
                         role->AssistStatus, role->NearbyAllies, role->AlliesInCombat));
+                handler->SendSysMessage(Trinity::StringFormat("AIWorld role: extensions={} awareness={} movement={} caution={:.2f} food={} resource={}",
+                    role->ExtensionsEnabled, role->Awareness, role->MovementPurpose, role->Caution, role->Food, role->Resource));
+                if (role->CompanionSpawnId)
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld role: local companion spawnId={} (not persistent group membership)", role->CompanionSpawnId));
             }
             if (std::optional<AIWorldMgr::WolfFormationDebugInfo> wolf = sAIWorldMgr->DescribeWolfFormation(*target);
                 wolf && target->GetEntry() == wolf->ExpectedEntry)

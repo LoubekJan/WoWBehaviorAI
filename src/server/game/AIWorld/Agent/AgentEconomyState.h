@@ -23,21 +23,16 @@
 // Milestone 2.11E2: a persistent stockpile, distinct from NeedsState::
 // ResourcePressure (a 0.0-1.0 drive to act, drifting over time - see
 // NeedsState.h) - this is an actual accumulated count, changed only by a
-// specific ActionCompletion, never by a drift rate. Not optional, unlike
+// completed action, never by a drift rate. Not optional, unlike
 // HomeLocation/WorkLocation: every agent has one, defaulting to zero
 // rather than "unset" - there is no meaningful absence of a stockpile the
-// way there is of a home. Money is the only field any current mutation
-// path (2.11E2's WORK completion) actually changes; Food/Resource exist
-// and persist now so a later milestone's production doesn't need another
-// schema migration, but nothing writes to them yet.
+// way there is of a home. Curated WORK rewards Money; living-role WORK
+// also produces Food/Resource and completed local meals consume Food.
+// All mutations use the existing versioned persistence path.
 struct AgentEconomyState
 {
-    // Milestone 2.11E2 P3 fix: uint64/BIGINT UNSIGNED, not uint32/INT
-    // UNSIGNED - the only field anything currently mutates, so it is the
-    // only one actually at risk of wrapping back to a small value after
-    // enough WORK rewards. Food/Resource stay uint32 for now: nothing
-    // writes to them yet, so there is nothing to overflow - widen them the
-    // same way whenever a milestone actually starts mutating them.
+    // Money uses BIGINT UNSIGNED. LivingRolePolicy bounds new production
+    // at 20 Food/Resource and never decrements an empty stock.
     uint64 Money = 0;
     uint32 Food = 0;
     uint32 Resource = 0;
@@ -67,10 +62,8 @@ struct AgentEconomyState
     // order across CharacterDatabase's own async worker threads, so
     // without this an older snapshot could in principle finish after a
     // newer one and silently revert it.
-    // Harmless today (at most one SaveEconomyState() call per work window,
-    // see LastRewardedWorkWindowId, so two writes for the same agent never
-    // actually race in practice) - this is what keeps it safe once a
-    // future milestone adds more frequent/overlapping economy mutations.
+    // Production and meal consumption can now issue adjacent snapshots;
+    // the database version guard prevents an older one from winning.
     uint64 Version = 0;
 };
 

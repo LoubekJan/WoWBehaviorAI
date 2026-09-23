@@ -22,6 +22,7 @@
 #include "Creature.h"
 #include "MotionMaster.h"
 #include "MovementDefines.h"
+#include "ObjectAccessor.h"
 #include "PointMovementGenerator.h"
 #include "SharedDefines.h"
 #include "Unit.h"
@@ -284,7 +285,13 @@ ActionResult ActionExecutor::ExecuteAmbient(ActionRequest const& request, Creatu
     switch (request.AmbientActivity)
     {
         case Activity::Look: actor.SetFacingTo(actor.GetOrientation() + 0.65f); break;
-        case Activity::Talk: actor.HandleEmoteCommand(EMOTE_ONESHOT_TALK); break;
+        case Activity::Talk:
+            if (request.Target)
+                if (Unit* partner = ObjectAccessor::GetUnit(actor, request.Target->Guid);
+                    partner && partner->IsAlive() && actor.IsWithinDistInMap(partner, 6.0f) && actor.IsWithinLOSInMap(partner))
+                    actor.SetFacingToObject(partner);
+            actor.HandleEmoteCommand(EMOTE_ONESHOT_TALK);
+            break;
         case Activity::Work: actor.HandleEmoteCommand(EMOTE_ONESHOT_WORK_CHOPWOOD); break;
         case Activity::Graze:
         case Activity::Eat: actor.HandleEmoteCommand(EMOTE_ONESHOT_EAT); break;
@@ -307,9 +314,9 @@ void ActionExecutor::StopAmbient(Creature& actor, uint8 ownedStandState) const
         actor.SetStandState(UNIT_STAND_STATE_STAND);
 }
 
-void ActionExecutor::FinishRoleFlee(Creature& actor, ObjectGuid source) const
+void ActionExecutor::FinishRoleFlee(Creature& actor, ObjectGuid source, bool stopFleeMovement) const
 {
-    StopFlee(actor);
+    if (stopFleeMovement) StopFlee(actor);
     // End only the combat reference belonging to this completed escape.
     // Passive AIWorld NPCs have no vanilla evade AI to release it for them.
     auto const& references = actor.GetCombatManager().GetPvECombatRefs();

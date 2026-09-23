@@ -203,6 +203,12 @@ struct ActionValidationContext
     LivingRolePolicy::Role LivingRole = LivingRolePolicy::Role::None;
     LivingRolePolicy::Activity ExpectedAmbientActivity = LivingRolePolicy::Activity::None;
     bool TargetIsRolePrey = false;
+    bool LivingRoleExtensionsAllowed = false;
+    // Independently selected, ground/zone/path-checked refuge or alarm point.
+    // Only the world-thread role planner may supply this authority.
+    std::optional<ActionPosition> RoleMovementDestination;
+    bool FreshAllyAlarm = false;
+    bool TargetIsSocialPartner = false;
 };
 
 #endif // AIWORLD_ACTIONVALIDATIONCONTEXT_H

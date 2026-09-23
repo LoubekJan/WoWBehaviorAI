@@ -218,7 +218,7 @@ class TC_GAME_API ActionExecutor
         void StopWildlifeRest(Creature& actor) const;
         ActionResult ExecuteAmbient(ActionRequest const& request, Creature& actor) const;
         void StopAmbient(Creature& actor, uint8 ownedStandState) const;
-        void FinishRoleFlee(Creature& actor, ObjectGuid source) const;
+        void FinishRoleFlee(Creature& actor, ObjectGuid source, bool stopFleeMovement = true) const;
 };
 
 #endif // AIWORLD_ACTIONEXECUTOR_H

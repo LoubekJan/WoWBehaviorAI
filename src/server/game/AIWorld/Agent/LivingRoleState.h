@@ -26,7 +26,7 @@
 // One materialization's local activity. Never persisted; no engine pointers.
 struct LivingRoleState
 {
-    enum class Phase : uint8 { Idle, Moving, Acting, Hunting, Feeding, Defending, Fleeing };
+    enum class Phase : uint8 { Idle, Moving, Acting, Hunting, Feeding, Defending, Fleeing, SeekingSafety, Investigating };
     ObjectGuid RuntimeGuid;
     ObjectGuid TargetGuid;
     Phase CurrentPhase = Phase::Idle;
@@ -46,5 +46,16 @@ struct LivingRoleState
     uint32 AttackablePrey = 0;
     uint32 NearbyAllies = 0;
     uint32 AlliesInCombat = 0;
+    // Local observations expire; no entity pointers or cross-grid broadcasts.
+    ObjectGuid AlarmThreatGuid;
+    ObjectGuid CompanionGuid;
+    ActionPosition DangerPosition;
+    uint64 DangerUntilMs = 0;
+    uint64 AlarmUntilMs = 0;
+    uint64 NextAlarmAtMs = 0;
+    uint64 NextInvestigationAtMs = 0;
+    uint64 WorkWindowAtStart = 0;
+    char const* Awareness = "QUIET";
+    char const* MovementPurpose = "NONE";
 };
 #endif

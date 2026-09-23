@@ -270,3 +270,187 @@ TEST_CASE("Local movement cannot escape action range and combat gates", "[AIWorl
     SECTION("finite") { request.Destination->X = std::numeric_limits<float>::quiet_NaN(); }
     REQUIRE(!actions.Validate(request, context).Allowed);
 }
+
+TEST_CASE("Directed refuge movement requires a live danger and the independently approved path", "[AIWorld][LivingRole]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::MoveTo;
+    request.SourceGoal = GoalType::SeekSafety;
+    request.Destination = ActionPosition{ 0, 16, 0, 0 };
+    request.Target = ActionTargetRef{ ObjectGuid::Create<HighGuid::Player>(1), 0 };
+    request.FleeFromGuid = request.Target->Guid;
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = context.LivingRoleExtensionsAllowed = true;
+    context.LivingRoleZoneId = 12;
+    context.LivingRole = LivingRolePolicy::Role::Prey;
+    context.ActiveGoalType = request.SourceGoal;
+    context.RoleMovementDestination = request.Destination;
+    context.FleeSourceGuid = context.TargetGuid = request.Target->Guid;
+    context.TargetResolved = context.TargetAlive = context.TargetWithinAttackRange = context.TargetInLineOfSight = true;
+    // A critter need not be able to attack its attacker in order to escape.
+    context.TargetAttackable = false;
+    context.InCombat = true;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    SECTION("feature off") { context.LivingRoleExtensionsAllowed = false; }
+    SECTION("observe only") { context.ControlMode = AgentControlMode::ObserveOnly; }
+    SECTION("outside Elwynn") { context.LivingRoleZoneId = 14; }
+    SECTION("unapproved destination") { context.RoleMovementDestination.reset(); }
+    SECTION("changed destination") { request.Destination->Y = 1; }
+    SECTION("dead source") { context.TargetAlive = false; }
+    SECTION("unloaded source") { context.TargetResolved = false; }
+    SECTION("hidden source") { context.TargetInLineOfSight = false; }
+    SECTION("distant source") { context.TargetWithinAttackRange = false; }
+    SECTION("source changed maps") { context.TargetMapId = 1; }
+    SECTION("forged source") { context.FleeSourceGuid.Clear(); }
+    SECTION("different entity") { request.Target->Guid = ObjectGuid::Create<HighGuid::Player>(2); }
+    SECTION("different entry") { request.Target->Entry = 30; }
+    SECTION("unrelated movement") { context.HasActiveMovement = true; }
+    SECTION("excessive range") { request.Destination->X = context.RoleMovementDestination->X = 50; }
+    SECTION("NaN destination") { request.Destination->X = context.RoleMovementDestination->X = std::numeric_limits<float>::quiet_NaN(); }
+    SECTION("a refuge cannot grant an attack") { request.Type = ActionType::Attack; }
+    REQUIRE(!actions.Validate(request, context).Allowed);
+}
+
+TEST_CASE("A local alarm authorizes only guard investigation and never a speculative attack", "[AIWorld][LivingRole]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::MoveTo;
+    request.SourceGoal = GoalType::InvestigateDanger;
+    request.Destination = ActionPosition{ 0, 18, 0, 0 };
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = context.LivingRoleExtensionsAllowed = true;
+    context.LivingRoleZoneId = 12;
+    context.LivingRole = LivingRolePolicy::Role::Guard;
+    context.ActiveGoalType = request.SourceGoal;
+    context.RoleMovementDestination = request.Destination;
+    context.FreshAllyAlarm = true;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    SECTION("expired or unrelated alarm") { context.FreshAllyAlarm = false; }
+    SECTION("civilian") { context.LivingRole = LivingRolePolicy::Role::Civilian; }
+    SECTION("combatant") { context.LivingRole = LivingRolePolicy::Role::Combatant; }
+    SECTION("busy guard") { context.InCombat = true; }
+    SECTION("wrong destination") { request.Destination->X = 19; }
+    SECTION("disabled") { context.LivingRoleExtensionsAllowed = false; }
+    SECTION("no speculative attack") { request.Type = ActionType::Attack; }
+    REQUIRE(!actions.Validate(request, context).Allowed);
+}
+
+TEST_CASE("Refuges and remembered danger reject routes through a threat", "[AIWorld][LivingRole]")
+{
+    using LivingRolePolicy::AvoidsDanger;
+    // Both endpoints are outside danger, but the intervening path crosses it.
+    REQUIRE(!AvoidsDanger(-12, 0, 12, 0, 0, 0, 8));
+    REQUIRE(AvoidsDanger(-12, 10, 12, 10, 0, 0, 8));
+    REQUIRE(AvoidsDanger(4, 0, 20, 0, 0, 0, 8));
+    REQUIRE(!AvoidsDanger(4, 0, -20, 0, 0, 0, 8));
+    REQUIRE(!AvoidsDanger(4, 0, 3, 0, 0, 0, 8));
+    REQUIRE(!AvoidsDanger(4, 0, 4, 0, 0, 0, 8));
+    REQUIRE(!AvoidsDanger(4, 0, std::numeric_limits<float>::infinity(), 0, 0, 0, 8));
+    // Short navmesh segments must remain usable while moving outward.
+    REQUIRE(AvoidsDanger(4, 0, 4.2f, 0, 0, 0, 8));
+}
+
+TEST_CASE("Personalities remain stable and herds do not mix arbitrary wildlife", "[AIWorld][LivingRole]")
+{
+    using namespace LivingRolePolicy;
+    for (uint64 id = 79870; id < 79900; ++id)
+    {
+        REQUIRE(Caution(id) >= 0);
+        REQUIRE(Caution(id) <= 1);
+        REQUIRE(NoticeRadius(id) >= 9);
+        REQUIRE(NoticeRadius(id) <= 14);
+        REQUIRE(ShouldFlee(Role::Prey, 0, false, id));
+        REQUIRE(!ShouldFlee(Role::Guard, 0.2f, false, id));
+        REQUIRE(ShouldFlee(Role::Guard, 0.95f, false, id));
+    }
+    REQUIRE(Caution(79878) != Caution(79879));
+    REQUIRE(SameHerd(883, 890));
+    REQUIRE(SameHerd(890, 883));
+    REQUIRE(SameHerd(721, 721));
+    REQUIRE(!SameHerd(883, 113));
+    REQUIRE(!SameHerd(2442, 721));
+    REQUIRE(PreyScore(10, 20, 883, 30) < PreyScore(10, 100, 883, 30));
+    REQUIRE(PreyScore(10, 100, 721, 30) < PreyScore(10, 100, 2442, 30));
+    REQUIRE(PreyScore(1, 100, 2442, 30) < PreyScore(20, 100, 721, 30));
+}
+
+TEST_CASE("Completed work produces bounded persistent stocks once per work window", "[AIWorld][LivingRole]")
+{
+    using LivingRolePolicy::ProduceWorkStock;
+    AgentEconomyState farmer;
+    farmer.Money = 80;
+    REQUIRE(ProduceWorkStock(farmer, 250, 1000));
+    REQUIRE(farmer.Food == 4);
+    REQUIRE(farmer.Resource == 0);
+    REQUIRE(farmer.Money == 80);
+    auto reloaded = farmer;
+    REQUIRE(!ProduceWorkStock(reloaded, 250, 1000));
+    REQUIRE(reloaded.Food == 4);
+    REQUIRE(ProduceWorkStock(reloaded, 250, 2000));
+    REQUIRE(reloaded.Food == 8);
+    REQUIRE(!ProduceWorkStock(reloaded, 250, 1000));
+    AgentEconomyState lumberjack;
+    REQUIRE(ProduceWorkStock(lumberjack, 1975, 1000));
+    REQUIRE(lumberjack.Resource == 2);
+    REQUIRE(lumberjack.Food == 0);
+    lumberjack.Resource = 19;
+    REQUIRE(ProduceWorkStock(lumberjack, 1975, 2000));
+    REQUIRE(lumberjack.Resource == 20);
+    lumberjack.Resource = std::numeric_limits<uint32>::max();
+    REQUIRE(ProduceWorkStock(lumberjack, 1975, 3000));
+    REQUIRE(lumberjack.Resource == std::numeric_limits<uint32>::max());
+    REQUIRE(!ProduceWorkStock(farmer, 30, 3000));
+    REQUIRE(!ProduceWorkStock(farmer, 250, 0));
+}
+
+TEST_CASE("Role observations cannot survive a new materialization", "[AIWorld][LivingRole]")
+{
+    AgentRecord record;
+    record.LivingRole.RuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(883, 1);
+    record.LivingRole.CompanionGuid = ObjectGuid::Create<HighGuid::Unit>(890, 2);
+    record.LivingRole.AlarmThreatGuid = ObjectGuid::Create<HighGuid::Unit>(30, 3);
+    record.LivingRole.DangerUntilMs = record.LivingRole.AlarmUntilMs = 60000;
+    record.LivingRole.CurrentPhase = LivingRoleState::Phase::SeekingSafety;
+    record.EconomyState.Food = 4;
+    record.ResetLivingRoleActivity();
+    REQUIRE(record.LivingRole.CompanionGuid.IsEmpty());
+    REQUIRE(record.LivingRole.AlarmThreatGuid.IsEmpty());
+    REQUIRE(record.LivingRole.DangerUntilMs == 0);
+    REQUIRE(record.LivingRole.AlarmUntilMs == 0);
+    REQUIRE(record.EconomyState.Food == 4);
+}
+
+TEST_CASE("A conversation can face only the nearby validated social partner", "[AIWorld][LivingRole]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::Ambient;
+    request.SourceGoal = GoalType::LocalActivity;
+    request.AmbientActivity = LivingRolePolicy::Activity::Talk;
+    request.Target = ActionTargetRef{ ObjectGuid::Create<HighGuid::Unit>(250, 1), 250 };
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = true;
+    context.LivingRoleZoneId = 12;
+    context.LivingRole = LivingRolePolicy::Role::Worker;
+    context.ActiveGoalType = request.SourceGoal;
+    context.ExpectedAmbientActivity = request.AmbientActivity;
+    context.TargetIsSocialPartner = context.TargetResolved = context.TargetAlive = true;
+    context.TargetWithinAttackRange = context.TargetInLineOfSight = true;
+    context.TargetGuid = request.Target->Guid;
+    context.TargetEntry = request.Target->Entry;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    SECTION("unrelated NPC") { context.TargetIsSocialPartner = false; }
+    SECTION("target replaced") { context.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(250, 2); }
+    SECTION("unloaded partner") { context.TargetResolved = false; }
+    SECTION("dead partner") { context.TargetAlive = false; }
+    SECTION("out of range") { context.TargetWithinAttackRange = false; }
+    SECTION("behind a wall") { context.TargetInLineOfSight = false; }
+    SECTION("different map") { context.TargetMapId = 1; }
+    SECTION("emergency") { context.InCombat = true; }
+    REQUIRE(!actions.Validate(request, context).Allowed);
+}

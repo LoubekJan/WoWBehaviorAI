@@ -31,6 +31,7 @@
 #include "ThreatManager.h"
 #include <algorithm>
 #include <cmath>
+#include <string_view>
 #include <utility>
 
 namespace
@@ -55,6 +56,8 @@ namespace
             case Phase::Feeding: return "FEEDING";
             case Phase::Defending: return "DEFENDING";
             case Phase::Fleeing: return "FLEEING";
+            case Phase::SeekingSafety: return "SEEKING_SAFETY";
+            case Phase::Investigating: return "INVESTIGATING";
             default: return "IDLE";
         }
     }
@@ -73,6 +76,43 @@ namespace
             return action.Type == ActionType::Attack && action.Target && chase->GetTarget() &&
                 chase->GetTarget()->GetGUID() == action.Target->Guid;
         return action.Type == ActionType::Flee && movement->GetMovementGeneratorType() == FLEEING_MOTION_TYPE;
+    }
+
+    bool IsRoleMove(Phase phase)
+    {
+        return phase == Phase::Moving || phase == Phase::SeekingSafety || phase == Phase::Investigating;
+    }
+
+    bool IsEscaping(Phase phase) { return phase == Phase::Fleeing || phase == Phase::SeekingSafety; }
+
+    bool CheckRolePath(Creature& creature, ActionPosition& destination,
+        ActionPosition const* danger = nullptr, float clearance = 8.0f)
+    {
+        if (destination.MapId != creature.GetMapId() || !std::isfinite(destination.X) ||
+            !std::isfinite(destination.Y) || !std::isfinite(destination.Z) ||
+            creature.GetExactDist2d(destination.X, destination.Y) > 30.0f)
+            return false;
+        Map* map = creature.GetMap();
+        destination.Z = map->GetHeight(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z + 4.0f, true);
+        if (!std::isfinite(destination.Z) || destination.Z <= INVALID_HEIGHT ||
+            map->GetZoneId(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z) != 12 ||
+            !creature.IsWithinLOS(destination.X, destination.Y, destination.Z))
+            return false;
+        PathGenerator path(&creature);
+        if (!path.CalculatePath(destination.X, destination.Y, destination.Z, false) ||
+            (path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE)))
+            return false;
+        float x = creature.GetPositionX(), y = creature.GetPositionY();
+        for (auto const& point : path.GetPath())
+        {
+            if (map->GetZoneId(creature.GetPhaseMask(), point.x, point.y, point.z) != 12)
+                return false;
+            if (danger && std::hypot(point.x - x, point.y - y) > 0.1f &&
+                !LivingRolePolicy::AvoidsDanger(x, y, point.x, point.y, danger->X, danger->Y, clearance))
+                return false;
+            x = point.x; y = point.y;
+        }
+        return true;
     }
 }
 
@@ -112,6 +152,14 @@ std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Cr
     info.Hunger = record->Needs.Hunger;
     info.Phase = PhaseName(record->LivingRole.CurrentPhase);
     info.Activity = LivingRolePolicy::ToString(record->LivingRole.Activity);
+    info.ExtensionsEnabled = _livingRoleExtensionsEnabled && _livingRolesEnabled && !IsLivingWolf(*record);
+    info.Caution = LivingRolePolicy::Caution(record->Id.Value);
+    info.Awareness = record->LivingRole.Awareness;
+    info.MovementPurpose = record->LivingRole.MovementPurpose;
+    info.Food = record->EconomyState.Food;
+    info.Resource = record->EconomyState.Resource;
+    if (Creature* companion = ObjectAccessor::GetCreature(creature, record->LivingRole.CompanionGuid))
+        info.CompanionSpawnId = companion->GetSpawnId();
     if (role == Role::Predator && !IsLivingWolf(*record))
     {
         info.HuntStatus = record->LivingRole.LastHuntStatus;
@@ -152,6 +200,9 @@ void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
     auto& state = record.LivingRole;
     if (state.RuntimeGuid == creature.GetGUID() && state.CurrentPhase != Phase::Idle)
     {
+        bool ownsAttempt = record.ActiveGoalState && record.ActiveGoalState->Type == state.SourceGoal &&
+            record.ActiveGoalState->StartedAtMs == state.StartedAtMs && (!record.ActiveActionState ||
+                (record.ActiveActionState->SourceGoal == state.SourceGoal && record.ActiveActionState->GoalStartedAtMs == state.StartedAtMs));
         if (record.ActiveActionState && record.ActiveActionState->GoalStartedAtMs == state.StartedAtMs &&
             record.ActiveActionState->SourceGoal == state.SourceGoal)
         {
@@ -159,13 +210,18 @@ void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
             if (action.Type == ActionType::Attack && action.Target)
                 _actionExecutor.StopAttack(creature, action.Target->Guid);
             else if (action.Type == ActionType::MoveTo)
+            {
                 _actionExecutor.StopMoveTo(creature);
+            }
             else if (action.Type == ActionType::Flee)
                 _actionExecutor.FinishRoleFlee(creature, state.TargetGuid);
             record.ActiveActionState.reset();
         }
         if (!record.ActiveActionState)
             _actionExecutor.StopAmbient(creature, state.OwnedStandState);
+        // MovementInform may already have consumed the action on arrival.
+        if (state.CurrentPhase == Phase::SeekingSafety && ownsAttempt)
+            _actionExecutor.FinishRoleFlee(creature, state.TargetGuid, false);
         if (record.ActiveGoalState && record.ActiveGoalState->StartedAtMs == state.StartedAtMs &&
             record.ActiveGoalState->Type == state.SourceGoal)
             record.ActiveGoalState.reset();
@@ -174,6 +230,7 @@ void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
     state.TargetGuid.Clear();
     state.Activity = Activity::None;
     state.OwnedStandState = 0;
+    state.MovementPurpose = "NONE";
 }
 
 // World thread, at the existing needs cadence. This owns only controlled,
@@ -185,7 +242,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         creature.GetZoneId(), _spawnParticipationCatalog.Resolve(record.SpawnId));
     bool service = IsService(creature);
     Role role = LivingRolePolicy::Resolve(record.Type, creature.GetEntry(), service);
-    if (!scoped || role == Role::None || IsLivingWolf(record) || creature.IsPet() || creature.IsCharmed())
+    if (!scoped || role == Role::None || IsLivingWolf(record) || creature.IsPet() ||
+        !creature.GetCharmerOrOwnerGUID().IsEmpty() || creature.IsControlledByPlayer())
     {
         if (!state.RuntimeGuid.IsEmpty())
         {
@@ -202,7 +260,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     if (state.CurrentPhase != Phase::Idle && (!record.ActiveGoalState ||
         record.ActiveGoalState->Type != state.SourceGoal || record.ActiveGoalState->StartedAtMs != state.StartedAtMs ||
-        (state.CurrentPhase != Phase::Moving && !record.ActiveActionState)))
+        (!IsRoleMove(state.CurrentPhase) && !record.ActiveActionState)))
         StopLivingRole(record, creature);
     if (creature.IsInEvadeMode() || creature.HasUnitState(UNIT_STATE_CASTING))
     {
@@ -211,6 +269,20 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         return true;
     }
 
+    // Stop at a reached refuge once the pursuer is no longer close. Merely
+    // retaining a passive creature's combat ref must not force another leg.
+    if (state.CurrentPhase == Phase::SeekingSafety && !record.ActiveActionState &&
+        creature.GetDistance(state.Destination.X, state.Destination.Y, state.Destination.Z) <= 2.0f)
+    {
+        Unit* source = ObjectAccessor::GetUnit(creature, state.TargetGuid);
+        if (!source || !source->IsAlive() || !creature.IsWithinDistInMap(source, LivingRolePolicy::NoticeRadius(record.Id.Value) + 3.0f))
+        {
+            StopLivingRole(record, creature);
+            state.Awareness = "REFUGE_REACHED";
+            state.NextDecisionAtMs = nowMs + 6000;
+            return true;
+        }
+    }
     Unit* threat = creature.GetThreatManager().GetCurrentVictim();
     auto validThreat = [&](Unit* unit)
     {
@@ -232,29 +304,121 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
     bool ownPrey = state.CurrentPhase == Phase::Hunting && threat && threat->GetGUID() == state.TargetGuid;
 
+    bool extensions = _livingRoleExtensionsEnabled;
+    auto visibleDanger = [&](Unit* unit)
+    {
+        return unit && unit != &creature && unit->IsAlive() && unit->GetZoneId() == 12 &&
+            creature.IsWithinDistInMap(unit, 30.0f) && creature.CanSeeOrDetect(unit) && creature.IsWithinLOSInMap(unit);
+    };
+    auto eligibleMember = [&](Creature* npc) -> AgentRecord const*
+    {
+        if (!npc || npc->IsPet() || !npc->GetCharmerOrOwnerGUID().IsEmpty() || npc->IsControlledByPlayer())
+            return nullptr;
+        AgentRecord const* member = _registry.FindBySpawn(npc->GetMapId(), npc->GetSpawnId());
+        return member && member->WorldState == AgentWorldState::Materialized && member->RuntimeGuid == npc->GetGUID() &&
+            LivingRolePolicy::InScope(true, member->ControlMode, npc->GetMapId(), npc->GetZoneId(),
+                _spawnParticipationCatalog.Resolve(member->SpawnId)) ? member : nullptr;
+    };
+
     // Reuse a small local grid query only when due, never the entire registry.
     std::vector<Creature*> nearby;
-    if (LivingRolePolicy::HelpsAllies(role) && !threat && nowMs >= state.NextSenseAtMs)
+    bool nearbyLoaded = false;
+    auto loadNearby = [&]()
     {
-        state.NextSenseAtMs = nowMs + 1000;
-        state.NearbyAllies = state.AlliesInCombat = 0;
-        state.LastAssistStatus = "NO_ALLIES";
+        if (nearbyLoaded) return;
+        nearbyLoaded = true;
         creature.GetCreatureListWithEntryInGrid(nearby, 0, 25.0f);
         std::sort(nearby.begin(), nearby.end(), [&](Creature* a, Creature* b)
-        { return creature.GetExactDistSq(a) < creature.GetExactDistSq(b); });
+        {
+            float da = creature.GetExactDistSq(a), db = creature.GetExactDistSq(b);
+            return da == db ? a->GetGUID() < b->GetGUID() : da < db;
+        });
         if (nearby.size() > 64)
             nearby.resize(64);
+    };
+    std::optional<ActionPosition> alarmDestination;
+    auto freeSlotBearing = [&](Creature& center, float preferred)
+    {
+        loadNearby();
+        std::vector<float> occupied;
+        for (Creature* neighbor : nearby)
+        {
+            if (neighbor == &creature || neighbor == &center || !neighbor->IsAlive()) continue;
+            AgentRecord const* member = eligibleMember(neighbor);
+            if (member && IsRoleMove(member->LivingRole.CurrentPhase) &&
+                center.GetExactDist2d(member->LivingRole.Destination.X, member->LivingRole.Destination.Y) <= 8.0f)
+                occupied.push_back(center.GetAbsoluteAngle(member->LivingRole.Destination.X, member->LivingRole.Destination.Y));
+            else if (center.IsWithinDistInMap(neighbor, 8.0f))
+                occupied.push_back(center.GetAbsoluteAngle(neighbor));
+        }
+        return LivingRolePolicy::FreeChaseBearing(preferred, std::move(occupied));
+    };
+    if ((LivingRolePolicy::HelpsAllies(role) || extensions) && !threat && nowMs >= state.NextSenseAtMs)
+    {
+        state.NextSenseAtMs = nowMs + 1000 + (extensions ? record.Id.Value % 500 : 0);
+        state.NearbyAllies = state.AlliesInCombat = 0;
+        state.LastAssistStatus = "NO_ALLIES";
+        state.CompanionGuid.Clear();
+        state.Awareness = nowMs < state.DangerUntilMs ? "REMEMBERED_DANGER" : "QUIET";
+        loadNearby();
         for (Creature* ally : nearby)
         {
             if (ally == &creature || !ally->IsAlive() || ally->GetZoneId() != 12 ||
                 !creature.CanSeeOrDetect(ally) || !creature.IsWithinLOSInMap(ally))
                 continue;
-            AgentRecord const* member = _registry.FindBySpawn(ally->GetMapId(), ally->GetSpawnId());
-            if (!member || member->ControlMode != AgentControlMode::AIWorldControlled ||
-                !LivingRolePolicy::CanAssistAlly(record.WorldFaction, member->WorldFaction,
-                    creature.IsHostileTo(ally) || ally->IsHostileTo(&creature)))
+            AgentRecord const* member = eligibleMember(ally);
+            if (!member)
+                continue;
+            Role otherRole = LivingRolePolicy::Resolve(member->Type, ally->GetEntry(), IsService(*ally));
+            bool allied = LivingRolePolicy::CanAssistAlly(record.WorldFaction, member->WorldFaction,
+                creature.IsHostileTo(ally) || ally->IsHostileTo(&creature));
+            bool herd = role == Role::Prey && otherRole == Role::Prey && LivingRolePolicy::SameHerd(creature.GetEntry(), ally->GetEntry());
+            if (extensions && !threat && !LivingRolePolicy::Fighter(role))
+            {
+                if (role == Role::Prey && otherRole == Role::Predator && ally->IsValidAttackTarget(&creature) &&
+                    creature.IsWithinDistInMap(ally, LivingRolePolicy::NoticeRadius(record.Id.Value)))
+                {
+                    threat = ally;
+                    state.Awareness = "PREDATOR_SEEN";
+                }
+                else if (role != Role::Prey && (otherRole == Role::Predator || otherRole == Role::Combatant) &&
+                    (ally->IsHostileTo(&creature) || creature.IsHostileTo(ally)) && ally->IsValidAttackTarget(&creature) &&
+                    creature.IsWithinDistInMap(ally, LivingRolePolicy::NoticeRadius(record.Id.Value)))
+                {
+                    threat = ally;
+                    state.Awareness = "HOSTILE_APPROACH";
+                }
+                // A herd mate may communicate its own freshly seen danger;
+                // each recipient still has to see the actual source itself.
+                if (herd && IsEscaping(member->LivingRole.CurrentPhase))
+                    if (Unit* source = ObjectAccessor::GetUnit(creature, member->LivingRole.TargetGuid);
+                        !threat && visibleDanger(source))
+                    {
+                        threat = source;
+                        state.Awareness = "HERD_ALARM";
+                    }
+            }
+            if (extensions && state.CompanionGuid.IsEmpty() && !ally->IsInCombat() &&
+                member->Id.Value < record.Id.Value && !IsEscaping(member->LivingRole.CurrentPhase) &&
+                (herd || (role == Role::Guard && otherRole == Role::Guard && allied)) &&
+                ally->GetHomePosition().GetExactDist2d(&creature.GetHomePosition()) <= 18.0f)
+            {
+                // Guard pairs have at most one follower; herds may be wider.
+                bool occupied = role == Role::Guard && !member->LivingRole.CompanionGuid.IsEmpty();
+                if (role == Role::Guard)
+                    for (Creature* neighbor : nearby)
+                        if (AgentRecord const* follower = eligibleMember(neighbor))
+                            if (follower->Id != record.Id && (follower->LivingRole.CompanionGuid == ally->GetGUID() ||
+                                follower->LivingRole.CompanionGuid == creature.GetGUID()))
+                                occupied = true;
+                if (!occupied) state.CompanionGuid = ally->GetGUID();
+            }
+            if (!allied || (LivingRolePolicy::Fighter(role) && !LivingRolePolicy::HelpsAllies(role)))
                 continue;
             ++state.NearbyAllies;
+            if (extensions && role == Role::Guard && !alarmDestination &&
+                nowMs >= state.NextInvestigationAtMs && nowMs < member->LivingRole.AlarmUntilMs)
+                alarmDestination = member->LivingRole.DangerPosition;
             if (!ally->IsInCombat())
                 continue;
             ++state.AlliesInCombat;
@@ -262,7 +426,11 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 continue;
             auto assistableThreat = [&](Unit* attacker)
             {
-                if (!validThreat(attacker) || !ally->IsInCombatWith(attacker))
+                if (!LivingRolePolicy::Fighter(role) &&
+                    (!attacker || !creature.IsWithinDistInMap(attacker, LivingRolePolicy::NoticeRadius(record.Id.Value) + 3.0f)))
+                    return false;
+                if (!(LivingRolePolicy::Fighter(role) ? validThreat(attacker) : visibleDanger(attacker)) ||
+                    !ally->IsInCombatWith(attacker))
                     return false;
                 if (member->LivingRole.CurrentPhase == Phase::Hunting && member->LivingRole.TargetGuid == attacker->GetGUID())
                     return false;
@@ -284,18 +452,34 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 continue;
             threat = attacker;
             state.LastAssistStatus = "THREAT_FOUND";
+            state.Awareness = "ALLY_IN_DANGER";
         }
         if (!threat && state.NearbyAllies)
             state.LastAssistStatus = state.AlliesInCombat ? "NO_VALID_THREAT" : "ALLIES_NOT_IN_COMBAT";
     }
 
-    if (state.CurrentPhase == Phase::Fleeing && !threat &&
+    if (IsEscaping(state.CurrentPhase) && !threat &&
         !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 8000))
     {
         Unit* source = ObjectAccessor::GetUnit(creature, state.TargetGuid);
-        if (validThreat(source))
+        if (visibleDanger(source))
             threat = source;
     }
+
+    if (extensions && threat && !ownPrey)
+    {
+        state.DangerPosition = { creature.GetMapId(), threat->GetPositionX(), threat->GetPositionY(), threat->GetPositionZ() };
+        state.DangerUntilMs = nowMs + 60000;
+        if (state.Awareness == std::string_view("QUIET") || state.Awareness == std::string_view("REMEMBERED_DANGER"))
+            state.Awareness = "DIRECT_THREAT";
+        if (!LivingRolePolicy::Wildlife(role) && nowMs >= state.NextAlarmAtMs)
+        {
+            state.AlarmThreatGuid = threat->GetGUID();
+            state.AlarmUntilMs = nowMs + 15000;
+            state.NextAlarmAtMs = nowMs + 20000;
+        }
+    }
+    std::optional<ActionPosition> approvedRoleDestination;
 
     // Build authoritative facts at dispatch time. No request itself can grant
     // prey classification, participation, a threat identity, or an animation.
@@ -313,6 +497,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         context.LivingRoleAllowed = scoped;
         context.LivingRoleZoneId = creature.GetZoneId();
         context.LivingRole = role;
+        context.LivingRoleExtensionsAllowed = extensions;
+        context.RoleMovementDestination = approvedRoleDestination;
+        context.FreshAllyAlarm = alarmDestination.has_value();
         context.ExpectedAmbientActivity = request.AmbientActivity;
         context.WildlifeRestAllowed = creature.GetStandState() == UNIT_STAND_STATE_STAND;
         context.ActiveGoalType = request.SourceGoal;
@@ -328,10 +515,16 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             context.TargetGuid = target->GetGUID();
             context.TargetEntry = target->GetEntry();
             context.TargetMapId = target->GetMapId();
-            context.TargetWithinAttackRange = creature.IsWithinDistInMap(target, phase == Phase::Feeding ? 5.0f : 30.0f);
+            context.TargetWithinAttackRange = creature.IsWithinDistInMap(target, phase == Phase::Feeding ? 5.0f :
+                request.AmbientActivity == Activity::Talk ? 6.0f : 30.0f);
             context.TargetInLineOfSight = creature.IsWithinLOSInMap(target);
             context.TargetIsRolePrey = target->GetTypeId() == TYPEID_UNIT &&
                 _agentTypeCatalog.Resolve(target->GetEntry()) == AgentType::Prey && target->GetZoneId() == 12;
+            if (AgentRecord const* partner = eligibleMember(target->ToCreature()))
+                context.TargetIsSocialPartner = !target->IsInCombat() && target->IsStopped() &&
+                    !LivingRolePolicy::Wildlife(LivingRolePolicy::Resolve(partner->Type, target->GetEntry(), false)) &&
+                    LivingRolePolicy::CanAssistAlly(record.WorldFaction, partner->WorldFaction,
+                        creature.IsHostileTo(target) || target->IsHostileTo(&creature));
             request.Target = ActionTargetRef{ target->GetGUID(), target->GetEntry() };
         }
         if (creature.GetVictim())
@@ -400,7 +593,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             return false;
         ActiveGoal goal;
         goal.Type = request.SourceGoal;
-        goal.Priority = phase == Phase::Defending || phase == Phase::Fleeing ? GoalPriority::Emergency : GoalPriority::Normal;
+        goal.Priority = phase == Phase::Defending || IsEscaping(phase) ? GoalPriority::Emergency : GoalPriority::Normal;
         goal.StartedAtMs = nowMs;
         record.ActiveGoalState = goal;
         ActiveAction action;
@@ -417,16 +610,77 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (request.Destination) state.Destination = *request.Destination;
         else state.Destination = { creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ() };
         if (request.AmbientActivity == Activity::Rest) state.OwnedStandState = creature.GetStandState();
+        if (request.AmbientActivity == Activity::Work)
+            state.WorkWindowAtStart = nowMs - nowMs % _routineScheduleConfig.DayLengthMs + _routineScheduleConfig.WorkStartMs;
         TC_LOG_DEBUG("ai.world", "AI living role agent={} role={} goal={} activity={}",
             record.Id.Value, LivingRolePolicy::ToString(role), ToString(request.SourceGoal), LivingRolePolicy::ToString(request.AmbientActivity));
         return true;
     };
 
-    bool minimumEscape = state.CurrentPhase == Phase::Fleeing && !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 8000);
+    bool minimumEscape = IsEscaping(state.CurrentPhase) && !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 8000);
     bool flee = threat && (minimumEscape || nowMs < state.DefenseCooldownUntilMs ||
-        LivingRolePolicy::ShouldFlee(role, record.Needs.HealthPressure, state.CurrentPhase == Phase::Fleeing));
+        (extensions ? LivingRolePolicy::ShouldFlee(role, record.Needs.HealthPressure, IsEscaping(state.CurrentPhase), record.Id.Value) :
+            LivingRolePolicy::ShouldFlee(role, record.Needs.HealthPressure, IsEscaping(state.CurrentPhase))));
     if (threat && (!ownPrey || flee))
     {
+        if (extensions && flee)
+        {
+            // Keep a valid route long enough to get somewhere. Replan only
+            // when it ends, times out, or the threat has reached its refuge.
+            if (state.CurrentPhase == Phase::SeekingSafety && state.TargetGuid == threat->GetGUID() &&
+                record.ActiveActionState && OwnsRoleMovement(record, creature) &&
+                creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) &&
+                !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 8000) &&
+                threat->GetExactDist2d(state.Destination.X, state.Destination.Y) > 6.0f)
+                return true;
+            if (state.CurrentPhase == Phase::Fleeing && state.TargetGuid == threat->GetGUID() && minimumEscape &&
+                record.ActiveActionState && OwnsRoleMovement(record, creature) &&
+                creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE))
+                return true;
+
+            loadNearby();
+            std::vector<std::pair<ActionPosition, char const*>> refuges;
+            float slotAngle = float(LivingRolePolicy::Personality(record.Id.Value) % 360) * GroupMemberFormation::TwoPi / 360.0f;
+            if (!LivingRolePolicy::Wildlife(role))
+                for (Creature* guard : nearby)
+                {
+                    AgentRecord const* helper = eligibleMember(guard);
+                    if (guard == &creature || !helper || !guard->IsAlive() || !visibleDanger(guard) ||
+                        LivingRolePolicy::Resolve(helper->Type, guard->GetEntry(), IsService(*guard)) != Role::Guard ||
+                        !LivingRolePolicy::CanAssistAlly(record.WorldFaction, helper->WorldFaction,
+                            creature.IsHostileTo(guard) || guard->IsHostileTo(&creature)))
+                        continue;
+                    float guardAngle = freeSlotBearing(*guard, slotAngle);
+                    refuges.push_back({ { creature.GetMapId(), guard->GetPositionX() + 4.0f * std::cos(guardAngle),
+                        guard->GetPositionY() + 4.0f * std::sin(guardAngle), guard->GetPositionZ() }, "GUARD_REFUGE" });
+                    break;
+                }
+            Position const& home = creature.GetHomePosition();
+            refuges.push_back({ { creature.GetMapId(), home.GetPositionX() + 2.0f * std::cos(slotAngle),
+                home.GetPositionY() + 2.0f * std::sin(slotAngle), home.GetPositionZ() }, "HOME_REFUGE" });
+            float away = threat->GetAbsoluteAngle(&creature);
+            for (float offset : { 0.0f, 0.55f, -0.55f, 1.05f, -1.05f })
+                refuges.push_back({ { creature.GetMapId(), creature.GetPositionX() + 16.0f * std::cos(away + offset),
+                    creature.GetPositionY() + 16.0f * std::sin(away + offset), creature.GetPositionZ() }, "AWAY_FROM_DANGER" });
+            ActionPosition source{ creature.GetMapId(), threat->GetPositionX(), threat->GetPositionY(), threat->GetPositionZ() };
+            for (auto& refuge : refuges)
+            {
+                ActionPosition& destination = refuge.first;
+                if (threat->GetExactDist2d(destination.X, destination.Y) < creature.GetExactDist2d(threat) + 6.0f ||
+                    !CheckRolePath(creature, destination, &source, std::min(8.0f, creature.GetExactDist2d(threat))))
+                    continue;
+                approvedRoleDestination = destination;
+                ActionRequest escape;
+                escape.Type = ActionType::MoveTo; escape.SourceGoal = GoalType::SeekSafety; escape.Destination = destination;
+                if (start(escape, Phase::SeekingSafety, threat))
+                {
+                    state.MovementPurpose = refuge.second;
+                    return true;
+                }
+            }
+            // No complete safe path: keep the engine's proven flee fallback.
+            approvedRoleDestination.reset();
+        }
         Phase phase = flee ? Phase::Fleeing : Phase::Defending;
         if (state.CurrentPhase == phase && state.TargetGuid == threat->GetGUID())
         {
@@ -495,11 +749,30 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
         return true;
     }
-    if (state.CurrentPhase == Phase::Moving)
+    if (extensions && alarmDestination && !creature.IsInCombat() && nowMs >= state.NextInvestigationAtMs)
+    {
+        state.NextInvestigationAtMs = nowMs + 20000;
+        if (creature.GetExactDist2d(alarmDestination->X, alarmDestination->Y) > 4.0f &&
+            creature.GetHomePosition().GetExactDist2d(alarmDestination->X, alarmDestination->Y) <= 35.0f &&
+            CheckRolePath(creature, *alarmDestination))
+        {
+            approvedRoleDestination = alarmDestination;
+            ActionRequest investigate;
+            investigate.Type = ActionType::MoveTo; investigate.SourceGoal = GoalType::InvestigateDanger;
+            investigate.Destination = alarmDestination;
+            if (start(investigate, Phase::Investigating))
+            {
+                state.MovementPurpose = "CHECK_ALLY_ALARM";
+                return true;
+            }
+        }
+    }
+
+    if (IsRoleMove(state.CurrentPhase))
     {
         if (record.ActiveActionState && creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE) &&
             OwnsRoleMovement(record, creature) &&
-            !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 20000))
+            !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, state.CurrentPhase == Phase::SeekingSafety ? 8000 : 20000))
             return true;
         StopLivingRole(record, creature);
         state.NextDecisionAtMs = nowMs + 6000;
@@ -513,11 +786,24 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             StopLivingRole(record, creature);
             return true;
         }
-        uint64 duration = state.Activity == Activity::Rest ? 20000 : 5000;
+        uint64 duration = state.Activity == Activity::Rest ? 20000 : extensions && state.Activity == Activity::Work ? 15000 : 5000;
         if (!WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, duration))
             return true;
         if (state.Activity == Activity::Graze || state.Activity == Activity::Eat)
+        {
+            if (extensions && state.Activity == Activity::Eat && record.EconomyState.Food)
+                MutateEconomyAndPersist(record, [](AgentEconomyState& economy) { --economy.Food; });
             _needsSystem.SatisfyHunger(record.Needs);
+        }
+        if (extensions && state.Activity == Activity::Work)
+        {
+            uint64 window = nowMs - nowMs % _routineScheduleConfig.DayLengthMs + _routineScheduleConfig.WorkStartMs;
+            uint64 dayTime = nowMs % _routineScheduleConfig.DayLengthMs;
+            if (state.WorkWindowAtStart == window && dayTime >= _routineScheduleConfig.WorkStartMs &&
+                dayTime < _routineScheduleConfig.WorkEndMs && record.EconomyState.LastRewardedWorkWindowId < window)
+                MutateEconomyAndPersist(record, [&](AgentEconomyState& economy)
+                { LivingRolePolicy::ProduceWorkStock(economy, creature.GetEntry(), window); });
+        }
         if (state.Activity == Activity::Rest)
             record.Needs.Fatigue = 0.0f;
         StopLivingRole(record, creature);
@@ -540,9 +826,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
 
     if (role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false) && homeDistance < 20.0f)
     {
-        if (nearby.empty()) creature.GetCreatureListWithEntryInGrid(nearby, 0, 25.0f);
-        std::sort(nearby.begin(), nearby.end(), [&](Creature* a, Creature* b)
-        { return creature.GetExactDistSq(a) < creature.GetExactDistSq(b); });
+        loadNearby();
         state.NearbyPrey = state.AttackablePrey = 0;
         state.LastHuntStatus = "NO_PREY";
         bool actionRejected = false;
@@ -561,7 +845,14 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 continue;
             candidates.push_back(candidate);
         }
+        if (extensions)
+            std::stable_sort(candidates.begin(), candidates.end(), [&](Creature* a, Creature* b)
+            {
+                return LivingRolePolicy::PreyScore(creature.GetExactDist2d(a), a->GetHealthPct(), a->GetEntry(), creature.GetEntry()) <
+                    LivingRolePolicy::PreyScore(creature.GetExactDist2d(b), b->GetHealthPct(), b->GetEntry(), creature.GetEntry());
+            });
         // One blocked nearest animal must not hide reachable prey behind it.
+        if (candidates.size() > 8) candidates.resize(8);
         for (Creature* candidate : candidates)
         {
             PathGenerator path(&creature);
@@ -588,6 +879,34 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     bool workHours = dayTime >= _routineScheduleConfig.WorkStartMs && dayTime < _routineScheduleConfig.WorkEndMs;
     Activity activity = LivingRolePolicy::IdleActivity(role, cycle, workHours, record.Needs.Hunger, record.Needs.Fatigue);
     if (anchored && (activity == Activity::Roam || activity == Activity::Rest)) activity = Activity::Look;
+    ActionPosition const* rememberedDanger = extensions && nowMs < state.DangerUntilMs ? &state.DangerPosition : nullptr;
+    if (rememberedDanger && activity == Activity::Rest) activity = Activity::Look;
+
+    // Local cohesion is not a persisted coalition. Only a visible, compatible
+    // lower-id neighbor can lead; home bounds prevent a chain across the map.
+    if (extensions && !anchored && !rememberedDanger && !state.CompanionGuid.IsEmpty() && cycle % 3 == 0)
+    {
+        Creature* companion = ObjectAccessor::GetCreature(creature, state.CompanionGuid);
+        AgentRecord const* member = eligibleMember(companion);
+        if (member && companion->IsAlive() && !companion->IsInCombat() && visibleDanger(companion) &&
+            !IsEscaping(member->LivingRole.CurrentPhase) && creature.GetExactDist2d(companion) > 6.0f &&
+            home.GetExactDist2d(companion) <= 18.0f)
+        {
+            float angle = freeSlotBearing(*companion, companion->GetAbsoluteAngle(&creature));
+            ActionPosition slot{ creature.GetMapId(), companion->GetPositionX() + 4.0f * std::cos(angle),
+                companion->GetPositionY() + 4.0f * std::sin(angle), companion->GetPositionZ() };
+            if (CheckRolePath(creature, slot))
+            {
+                ActionRequest move;
+                move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = slot;
+                if (start(move, Phase::Moving))
+                {
+                    state.MovementPurpose = role == Role::Prey ? "HERD_COHESION" : "PATROL_COMPANION";
+                    return true;
+                }
+            }
+        }
+    }
     if (activity == Activity::Roam || homeDistance > radius + 2.0f)
     {
         float angle = float((cycle * 137) % 360) * GroupMemberFormation::TwoPi / 360.0f;
@@ -605,23 +924,45 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             destination.Y = creature.GetPositionY() + (destination.Y - creature.GetPositionY()) * 30.0f / distance;
             destination.Z = creature.GetPositionZ();
         }
-        Map* map = creature.GetMap();
-        destination.Z = map->GetHeight(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z + 4.0f, true);
-        if (!std::isfinite(destination.Z) || destination.Z <= INVALID_HEIGHT ||
-            map->GetZoneId(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z) != 12 ||
-            !creature.IsWithinLOS(destination.X, destination.Y, destination.Z))
+        // Waiting near a refuge is preferable to immediately walking back
+        // through the just-witnessed fight. Memory expires after a minute.
+        if (!CheckRolePath(creature, destination, rememberedDanger))
+        {
+            if (rememberedDanger)
+            {
+                ActionRequest watch;
+                watch.Type = ActionType::Ambient; watch.SourceGoal = GoalType::LocalActivity; watch.AmbientActivity = Activity::Look;
+                if (start(watch, Phase::Acting)) state.Awareness = "WAITING_FOR_SAFETY";
+            }
             return true;
-        PathGenerator path(&creature);
-        if (!path.CalculatePath(destination.X, destination.Y, destination.Z, false) ||
-            (path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE)))
-            return true;
+        }
         ActionRequest move;
         move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = destination;
-        start(move, Phase::Moving);
+        if (start(move, Phase::Moving)) state.MovementPurpose = homeDistance > radius + 2.0f ? "RETURN_HOME" : "LOCAL_ROAM";
         return true;
     }
     ActionRequest ambient;
     ambient.Type = ActionType::Ambient; ambient.SourceGoal = GoalType::LocalActivity; ambient.AmbientActivity = activity;
-    start(ambient, Phase::Acting);
+    Unit* partner = nullptr;
+    if (extensions && activity == Activity::Talk)
+    {
+        loadNearby();
+        for (Creature* neighbor : nearby)
+        {
+            AgentRecord const* member = eligibleMember(neighbor);
+            if (neighbor != &creature && member && neighbor->IsAlive() && !neighbor->IsInCombat() &&
+                neighbor->IsStopped() && creature.IsWithinDistInMap(neighbor, 6.0f) && visibleDanger(neighbor) &&
+                !LivingRolePolicy::Wildlife(LivingRolePolicy::Resolve(member->Type, neighbor->GetEntry(), IsService(*neighbor))) &&
+                LivingRolePolicy::CanAssistAlly(record.WorldFaction, member->WorldFaction,
+                    creature.IsHostileTo(neighbor) || neighbor->IsHostileTo(&creature)))
+            {
+                partner = neighbor;
+                break;
+            }
+        }
+        // An NPC talks to someone actually present, otherwise looks around.
+        if (!partner) ambient.AmbientActivity = Activity::Look;
+    }
+    start(ambient, Phase::Acting, partner);
     return true;
 }
