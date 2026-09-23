@@ -324,6 +324,10 @@ int main(int argc, char** argv)
 
     sAIWorldMgr->Initialize(*ioContext);
 
+    // Load after AIWorld initialization, before the first world tick/login.
+    if (sConfigMgr->GetBoolDefault("AIWorld.ElwynnAlwaysActive", true))
+        sMapMgr->CreateBaseMap(0)->LoadAlwaysActiveZone(12);
+
     std::shared_ptr<void> mapManagementHandle(nullptr, [](void*)
     {
         // unload battleground templates before different singletons destroyed

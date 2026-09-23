@@ -871,7 +871,7 @@ void CharacterDatabaseConnection::DoPrepareStatements()
         "SELECT memory_id, agent_id, observation_type, importance, source_event_id, has_source_event_type, "
         "source_event_type, correlation_id, source_occurred_at_ms, first_observed_at_ms, last_observed_at_ms, "
         "observation_count, map_id, position_x, position_y, position_z, actor_guid, actor_spawn_id, actor_entry, "
-        "actor_agent_id, target_guid, target_spawn_id, target_entry, target_agent_id, channel FROM ai_long_term_memories",
+        "actor_agent_id, target_guid, target_spawn_id, target_entry, target_agent_id, channel FROM ai_long_term_memories ORDER BY memory_id",
         CONNECTION_SYNCH);
     PrepareStatement(CHAR_INS_AI_LONG_TERM_MEMORY,
         "INSERT INTO ai_long_term_memories (agent_id, observation_type, importance, source_event_id, "

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 MAX_AGENTS = 10_000
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
 STALE_AFTER_MS = 5_000
+MEMORY_PAGE_SIZE = 25
 
 
 class ProtocolModel(BaseModel):
@@ -149,7 +150,49 @@ class Agent(ProtocolModel):
         return self
 
 
+class MemoryEntity(ProtocolModel):
+    kind: Literal["PLAYER", "CREATURE", "UNKNOWN"]
+    name: str = Field(max_length=200)
+    agent_id: str = Field(pattern=r"^[0-9]{1,20}$")
+    spawn_id: str = Field(pattern=r"^[0-9]{1,20}$")
+    entry: int = Field(ge=0)
+
+
+class LongTermMemory(ProtocolModel):
+    persistent_id: str = Field(pattern=r"^[0-9]{1,20}$")
+    type: str = Field(max_length=80)
+    importance: float = Field(ge=0, le=1)
+    event_type: str | None = Field(max_length=100)
+    source_event_id: str = Field(pattern=r"^[0-9]{1,20}$")
+    correlation_id: str = Field(pattern=r"^[0-9]{1,20}$")
+    source_occurred_at_ms: int = Field(ge=0)
+    first_observed_at_ms: int = Field(ge=0)
+    last_observed_at_ms: int = Field(ge=0)
+    observation_count: int = Field(ge=0)
+    channel: str = Field(max_length=80)
+    location: Point
+    actor: MemoryEntity
+    target: MemoryEntity
+
+
+class MemoryPage(ProtocolModel):
+    request_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    agent_id: int = Field(gt=0)
+    offset: int = Field(ge=0, le=2**32 - 1)
+    requested_anchor: int = Field(ge=0, le=2**32 - 1)
+    anchor: int = Field(ge=0)
+    total: int = Field(ge=0)
+    records: list[LongTermMemory] = Field(max_length=MEMORY_PAGE_SIZE)
+
+    @model_validator(mode="after")
+    def valid_page_bounds(self):
+        if self.anchor > self.total or len(self.records) != min(MEMORY_PAGE_SIZE, max(0, self.anchor - self.offset)):
+            raise ValueError("Inconsistent memory page bounds")
+        return self
+
+
 class TelemetryBatch(ProtocolModel):
-    version: Literal[1, 2]
+    version: Literal[1, 2, 3]
     captured_at_ms: int = Field(ge=0)
     agents: list[Agent] = Field(max_length=MAX_AGENTS)
+    memory_page: MemoryPage | None = None

@@ -60,6 +60,16 @@ class TC_GAME_API LongTermMemory
 
         std::vector<LongTermMemoryRecord> GetForAgent(AgentId id) const;
 
+        struct Page
+        {
+            uint64 Total = 0;
+            uint64 Anchor = 0;
+            std::vector<LongTermMemoryRecord> Records;
+        };
+        // Read-only, newest insertion first. An anchor pins the end of the
+        // list so new memories do not shift subsequent pages. Copies <= limit.
+        Page GetPage(AgentId id, uint32 offset, uint32 limit, uint32 anchor = 0) const;
+
     private:
         LongTermMemoryRecord* FindEquivalent(std::vector<LongTermMemoryRecord>& records, Observation const& observation) const;
 

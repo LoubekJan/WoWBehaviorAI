@@ -17,6 +17,7 @@
 
 #include "AIWorldMgr.h"
 #include "Agent/LivingHuntPolicy.h"
+#include "Agent/LivingReturnPolicy.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/WolfBehaviorPolicy.h"
@@ -115,6 +116,35 @@ namespace
             x = point.x; y = point.y;
         }
         return true;
+    }
+
+    std::optional<ActionPosition> FindRoleReturnStep(Creature& creature, Position const& home,
+        ActionPosition const* danger, char const*& failure)
+    {
+        failure = "RETURN_NO_PATH";
+        PathGenerator route(&creature);
+        bool completeRoute = route.CalculatePath(home.GetPositionX(), home.GetPositionY(), home.GetPositionZ(), false) &&
+            !(route.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT));
+
+        std::vector<ActionPosition> points;
+        points.reserve(route.GetPath().size() + 1);
+        points.push_back({ creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ() });
+        if (completeRoute)
+            for (auto const& point : route.GetPath())
+                points.push_back({ creature.GetMapId(), point.x, point.y, point.z });
+        else
+            // A long escape can put home beyond the pathfinder's full-route
+            // limit. A nearer step must still pass its own complete path check.
+            points.push_back({ creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ() });
+
+        // A bend may hide the longest waypoint. Retry nearer points on the
+        // same route, with bounded work and all the ordinary safety checks.
+        if (completeRoute) failure = "RETURN_STEP_BLOCKED";
+        for (float budget : { LivingReturnPolicy::MaxStepLength, 14.0f, 7.0f, 3.5f, 1.75f })
+            if (auto step = LivingReturnPolicy::PathStep(points, budget);
+                step && creature.GetExactDist(step->X, step->Y, step->Z) > 1.0f && CheckRolePath(creature, *step, danger))
+                return step;
+        return std::nullopt;
     }
 }
 
@@ -858,8 +888,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             OwnsRoleMovement(record, creature) &&
             !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, state.CurrentPhase == Phase::SeekingSafety ? 8000 : 20000))
             return true;
+        bool returningHome = std::string_view(state.MovementPurpose) == "RETURN_HOME";
         StopLivingRole(record, creature);
-        state.NextDecisionAtMs = nowMs + 6000;
+        state.NextDecisionAtMs = nowMs + (returningHome ? 1000 : 6000);
         return true;
     }
     if (state.CurrentPhase == Phase::Acting)
@@ -1001,24 +1032,26 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     if (activity == Activity::Roam || homeDistance > radius + 2.0f)
     {
-        float angle = float((cycle * 137) % 360) * GroupMemberFormation::TwoPi / 360.0f;
+        bool returningHome = homeDistance > radius + 2.0f;
         ActionPosition destination{ creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ() };
-        if (homeDistance <= radius + 2.0f)
+        char const* failure = "LOCAL_PATH_BLOCKED";
+        bool pathReady;
+        if (returningHome)
         {
+            auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure);
+            pathReady = step.has_value();
+            if (step) destination = *step;
+        }
+        else
+        {
+            float angle = float((cycle * 137) % 360) * GroupMemberFormation::TwoPi / 360.0f;
             destination.X += radius * std::cos(angle);
             destination.Y += radius * std::sin(angle);
-        }
-        // Return in bounded steps after an escape, using the same path checks.
-        float distance = std::hypot(destination.X - creature.GetPositionX(), destination.Y - creature.GetPositionY());
-        if (distance > 30.0f)
-        {
-            destination.X = creature.GetPositionX() + (destination.X - creature.GetPositionX()) * 30.0f / distance;
-            destination.Y = creature.GetPositionY() + (destination.Y - creature.GetPositionY()) * 30.0f / distance;
-            destination.Z = creature.GetPositionZ();
+            pathReady = CheckRolePath(creature, destination, rememberedDanger);
         }
         // Waiting near a refuge is preferable to immediately walking back
         // through the just-witnessed fight. Memory expires after a minute.
-        if (!CheckRolePath(creature, destination, rememberedDanger))
+        if (!pathReady)
         {
             if (rememberedDanger)
             {
@@ -1026,11 +1059,13 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 watch.Type = ActionType::Ambient; watch.SourceGoal = GoalType::LocalActivity; watch.AmbientActivity = Activity::Look;
                 if (start(watch, Phase::Acting)) state.Awareness = "WAITING_FOR_SAFETY";
             }
+            state.MovementPurpose = failure;
             return true;
         }
         ActionRequest move;
         move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = destination;
-        if (start(move, Phase::Moving)) state.MovementPurpose = homeDistance > radius + 2.0f ? "RETURN_HOME" : "LOCAL_ROAM";
+        if (start(move, Phase::Moving)) state.MovementPurpose = returningHome ? "RETURN_HOME" : "LOCAL_ROAM";
+        else state.MovementPurpose = returningHome ? "RETURN_MOVE_REJECTED" : "LOCAL_MOVE_REJECTED";
         return true;
     }
     ActionRequest ambient;

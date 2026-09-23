@@ -6,6 +6,7 @@
   <title>AI World Observer · Elwynn Forest</title>
   <link rel="stylesheet" href="/static/viewer.css">
   <script src="/static/observer-model.js" defer></script>
+  <script src="/static/observer-memory.js" defer></script>
   <script src="/static/viewer.js" defer></script>
 </head>
 <body>
@@ -52,6 +53,13 @@
       <div class="agent-heading"><span id="detail-type" class="tag"></span><h2 id="detail-name"></h2><div id="detail-source" class="source"></div></div>
       <dl class="facts"><div><dt>AgentId</dt><dd id="detail-id"></dd></div><div><dt>SpawnId</dt><dd id="detail-spawn"></dd></div><div><dt>Entry</dt><dd id="detail-entry"></dd></div><div><dt>WorldFaction</dt><dd id="detail-faction"></dd></div><div><dt>ControlMode</dt><dd id="detail-control"></dd></div><div><dt>WorldState</dt><dd id="detail-state"></dd></div><div><dt>SimulationTier</dt><dd id="detail-tier"></dd></div><div><dt>GroupId</dt><dd id="detail-group"></dd></div></dl>
       <div class="detail-section"><div class="section-title">STAV</div><div class="status-row"><span id="detail-health"></span><span id="detail-combat"></span></div><div id="detail-position" class="position"></div></div>
+      <details id="memory-section" class="detail-section" open>
+        <summary>Dlouhodobá paměť</summary>
+        <div class="memory-toolbar"><button id="memory-refresh" type="button">Obnovit paměť</button><span>Od naposledy přidaných</span></div>
+        <p id="memory-status" class="hint" role="status"></p>
+        <div id="memory-list" class="memory-list"></div>
+        <div class="memory-nav"><button id="memory-prev" type="button" disabled>← Předchozí</button><button id="memory-next" type="button" disabled>Další →</button></div>
+      </details>
       <div class="detail-section"><div class="section-title">POTŘEBY</div><div id="needs"></div></div>
       <div class="detail-section"><div class="section-title">ROZHODOVÁNÍ</div><dl class="facts"><div><dt>Cíl</dt><dd id="detail-goal"></dd></div><div><dt>Utility</dt><dd id="detail-utility"></dd></div><div><dt>Akce</dt><dd id="detail-action"></dd></div><div><dt>Rutina</dt><dd id="detail-routine"></dd></div></dl></div>
       <p id="detail-availability" class="hint"></p>

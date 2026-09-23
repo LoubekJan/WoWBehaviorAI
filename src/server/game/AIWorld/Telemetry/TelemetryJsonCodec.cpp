@@ -8,6 +8,7 @@
  */
 
 #include "TelemetryJsonCodec.h"
+#include <charconv>
 #include <cmath>
 #include <iomanip>
 #include <locale>
@@ -123,14 +124,88 @@ namespace
         if (value) WriteValue(out, *value); else out << "null";
     }
 
+    void WriteMemoryEntity(std::ostream& out, WorldEntityRef const& entity, std::string const& name)
+    {
+        out << "{\"kind\":";
+        WriteString(out, !entity.Guid.IsEmpty() && entity.Guid.IsPlayer() ? "PLAYER" :
+            entity.Entry || entity.SpawnId || entity.Agent ? "CREATURE" : "UNKNOWN");
+        WriteJsonField(out, "name", name);
+        WriteJsonField(out, "agent_id", std::to_string(entity.Agent.Value));
+        WriteJsonField(out, "spawn_id", std::to_string(entity.SpawnId));
+        WriteJsonField(out, "entry", entity.Entry);
+        out << '}';
+    }
+
+    void WriteMemoryPage(std::ostream& out, MemoryPageTelemetry const& page)
+    {
+        out << "{\"request_id\":"; WriteString(out, page.Request.Id);
+        WriteJsonField(out, "agent_id", page.Request.Agent.Value);
+        WriteJsonField(out, "offset", page.Request.Offset);
+        WriteJsonField(out, "requested_anchor", page.Request.Anchor);
+        WriteJsonField(out, "anchor", page.Anchor);
+        WriteJsonField(out, "total", page.Total);
+        out << ",\"records\":[";
+        bool first = true;
+        for (auto const& item : page.Records)
+        {
+            if (!first) out << ',';
+            first = false;
+            auto const& memory = item.Memory;
+            out << "{\"persistent_id\":"; WriteString(out, std::to_string(memory.PersistentId));
+            WriteJsonField(out, "type", std::string(ToString(memory.Type)));
+            WriteJsonField(out, "importance", memory.Importance);
+            out << ",\"event_type\":";
+            if (memory.SourceEventType) WriteString(out, ToString(*memory.SourceEventType)); else out << "null";
+            WriteJsonField(out, "source_event_id", std::to_string(memory.SourceEventId));
+            WriteJsonField(out, "correlation_id", std::to_string(memory.CorrelationId));
+            WriteJsonField(out, "source_occurred_at_ms", memory.SourceOccurredAtMs);
+            WriteJsonField(out, "first_observed_at_ms", memory.FirstObservedAtMs);
+            WriteJsonField(out, "last_observed_at_ms", memory.LastObservedAtMs);
+            WriteJsonField(out, "observation_count", memory.ObservationCount);
+            WriteJsonField(out, "channel", std::string(ToString(memory.Channel)));
+            WriteJsonField(out, "location", ActionPosition{memory.Location.MapId, memory.Location.X, memory.Location.Y, memory.Location.Z});
+            out << ",\"actor\":"; WriteMemoryEntity(out, memory.Actor, item.ActorName);
+            out << ",\"target\":"; WriteMemoryEntity(out, memory.Target, item.TargetName);
+            out << '}';
+        }
+        out << "]}";
+    }
 }
 
-std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& snapshots, uint64 capturedAtMs)
+std::optional<MemoryPageRequest> ParseMemoryPageRequest(std::string_view value)
+{
+    // UUID hex, AgentId, offset and anchor. Never interpret arbitrary commands.
+    if (value.size() < 38 || value.size() > 96 || value[32] != ':')
+        return std::nullopt;
+    for (char c : value.substr(0, 32))
+        if (!(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f'))
+            return std::nullopt;
+    MemoryPageRequest request;
+    request.Id = std::string(value.substr(0, 32));
+    value.remove_prefix(33);
+    auto read = [&value](auto& number, bool last)
+    {
+        size_t end = last ? value.size() : value.find(':');
+        if (end == std::string_view::npos || end == 0)
+            return false;
+        auto result = std::from_chars(value.data(), value.data() + end, number);
+        if (result.ec != std::errc() || result.ptr != value.data() + end)
+            return false;
+        value.remove_prefix(end + (last ? 0 : 1));
+        return true;
+    };
+    if (!read(request.Agent.Value, false) || !read(request.Offset, false) || !read(request.Anchor, true) || !request.Agent)
+        return std::nullopt;
+    return request;
+}
+
+std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& snapshots, uint64 capturedAtMs,
+    std::optional<MemoryPageTelemetry> const& memoryPage)
 {
     std::ostringstream out;
     out.imbue(std::locale::classic());
     out << std::setprecision(7);
-    out << "{\"version\":2,\"captured_at_ms\":" << capturedAtMs << ",\"agents\":[";
+    out << "{\"version\":3,\"captured_at_ms\":" << capturedAtMs << ",\"agents\":[";
     bool first = true;
     for (AgentTelemetrySnapshot const& item : snapshots)
     {
@@ -213,7 +288,9 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         out << ']';
         out << '}';
     }
-    out << "]}";
+    out << "],\"memory_page\":";
+    if (memoryPage) WriteMemoryPage(out, *memoryPage); else out << "null";
+    out << '}';
     return out.str();
 }
 

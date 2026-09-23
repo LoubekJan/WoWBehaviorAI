@@ -3,6 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const canvas = $("map");
 const ctx = canvas.getContext("2d");
+const memoryPanel = new ObserverMemoryPanel();
 const FACTIONS = {
   0: "NEUTRAL_UNAFFILIATED", 1: "STORMWIND_ALLIANCE", 2: "DEFIAS_BROTHERHOOD",
   3: "RIVERPAW_GNOLLS", 4: "ELWYNN_KOBOLDS", 5: "ELWYNN_MURLOCS", 6: "ELWYNN_WOLVES",
@@ -231,6 +232,7 @@ function showDiagnostics(agent) {
 
 function showDetail() {
   const agent = snapshot.agents.find(item => item.agent_id === selectedId);
+  memoryPanel.select(agent, snapshot.version);
   $("detail-empty").hidden = Boolean(agent);
   $("detail-content").hidden = !agent;
   if (!agent) return;

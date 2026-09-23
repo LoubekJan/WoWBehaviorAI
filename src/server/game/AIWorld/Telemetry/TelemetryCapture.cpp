@@ -194,6 +194,27 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
         snapshots.push_back(std::move(item));
     }
 
-    _telemetryExporter->Submit(std::move(snapshots), nowMs);
+    std::optional<MemoryPageTelemetry> memoryPage;
+    if (auto request = _telemetryExporter->TakeMemoryRequest(); request &&
+        std::any_of(snapshots.begin(), snapshots.end(), [&](auto const& item) { return item.Agent == request->Agent; }))
+    {
+        auto page = _longTermMemory.GetPage(request->Agent, request->Offset, TelemetryMemoryPageSize, request->Anchor);
+        memoryPage.emplace();
+        memoryPage->Request = *request;
+        memoryPage->Total = page.Total;
+        memoryPage->Anchor = page.Anchor;
+        auto entityName = [](WorldEntityRef const& entity) -> std::string
+        {
+            // Historical NPC references only; no player lookup or runtime GUID export.
+            if (!entity.Guid.IsEmpty() && entity.Guid.IsPlayer())
+                return {};
+            if (auto const* creatureTemplate = sObjectMgr->GetCreatureTemplate(entity.Entry))
+                return creatureTemplate->Name;
+            return {};
+        };
+        for (auto const& memory : page.Records)
+            memoryPage->Records.push_back({memory, entityName(memory.Actor), entityName(memory.Target)});
+    }
+    _telemetryExporter->Submit(std::move(snapshots), nowMs, std::move(memoryPage));
 }
 

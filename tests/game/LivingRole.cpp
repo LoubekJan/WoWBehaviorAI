@@ -19,9 +19,12 @@
 #include "Action/ActionSystem.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/LivingHuntPolicy.h"
+#include "Agent/LivingReturnPolicy.h"
+#include "Agent/GroupMemberFormation.h"
 #include "Agent/AgentRecord.h"
 #include "DBCStructure.h"
 #include "MovementDefines.h"
+#include "Position.h"
 #include <limits>
 #include <string>
 
@@ -286,6 +289,94 @@ TEST_CASE("Local movement cannot escape action range and combat gates", "[AIWorl
     SECTION("range") { request.Destination->X = 50.0f; }
     SECTION("finite") { request.Destination->X = std::numeric_limits<float>::quiet_NaN(); }
     REQUIRE(!actions.Validate(request, context).Allowed);
+}
+
+TEST_CASE("Return steps fit the path gate at large Elwynn coordinates", "[AIWorld][LivingRole][Return]")
+{
+    // Reproduce spawn 80700's home and the reported ~65-yard excursion.
+    // The old exact 30-yard projection rounds to 30.000099 at this heading,
+    // so CheckRolePath rejects the same unchanged destination on every retry.
+    ActionPosition const home{ 0, -9588.36f, -12.2227f, 61.6865f };
+    ActionPosition const stranded{ 0, -9523.34960938f, -8.81562901f, home.Z };
+    float distance = std::hypot(home.X - stranded.X, home.Y - stranded.Y);
+    float oldX = stranded.X + (home.X - stranded.X) * 30.0f / distance;
+    float oldY = stranded.Y + (home.Y - stranded.Y) * 30.0f / distance;
+    REQUIRE(Position(stranded.X, stranded.Y, stranded.Z).GetExactDist2d(oldX, oldY) > 30.0f);
+
+    ActionSystem actions;
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = true;
+    context.LivingRoleZoneId = 12;
+    context.LivingRole = LivingRolePolicy::Role::Predator;
+    context.ActiveGoalType = GoalType::LocalActivity;
+    // Sweep directions, including crossing zero and large negative positions.
+    // Each proposed step must both fit the planner gate and be dispatchable.
+    bool allStepsValid = true;
+    for (int degrees = 0; degrees < 360; ++degrees)
+    {
+        float angle = degrees * GroupMemberFormation::TwoPi / 360.0f;
+        ActionPosition from{ 0, home.X + 65.1f * std::cos(angle), home.Y + 65.1f * std::sin(angle), home.Z - 4.0f };
+        auto step = LivingReturnPolicy::PathStep({from, home});
+        if (!step) { allStepsValid = false; break; }
+        context.X = from.X; context.Y = from.Y; context.Z = from.Z;
+        ActionRequest request;
+        request.Type = ActionType::MoveTo;
+        request.SourceGoal = GoalType::LocalActivity;
+        request.Destination = step;
+        allStepsValid = allStepsValid && Position(from.X, from.Y, from.Z).GetExactDist2d(step->X, step->Y) < 30.0f &&
+            std::hypot(step->X - home.X, step->Y - home.Y) < 65.1f && actions.Validate(request, context).Allowed;
+    }
+    REQUIRE(allStepsValid);
+}
+
+TEST_CASE("Returning follows bends and heights and terminates near home", "[AIWorld][LivingRole][Return]")
+{
+    using LivingReturnPolicy::PathStep;
+    // Following this detour first moves sideways; a straight chord would
+    // cut across the obstacle that caused the navigation bend.
+    std::vector<ActionPosition> route{ {0, 0, 0, 0}, {0, 0, 20, 0}, {0, 60, 20, 0}, {0, 60, 0, 0} };
+    auto step = PathStep(route);
+    REQUIRE(step.has_value());
+    REQUIRE(step->X == Approx(8.0f));
+    REQUIRE(step->Y == Approx(20.0f));
+    auto nearer = PathStep(route, 7.0f);
+    REQUIRE(nearer.has_value());
+    REQUIRE(nearer->X == 0.0f);
+    REQUIRE(nearer->Y == Approx(7.0f));
+    auto slope = PathStep({{0, 0, 0, 0}, {0, 30, 0, 40}});
+    REQUIRE(slope.has_value());
+    REQUIRE(slope->X == Approx(16.8f));
+    REQUIRE(slope->Z == Approx(22.4f));
+    auto home = PathStep({{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 3, 4, 2}});
+    REQUIRE(home.has_value());
+    REQUIRE(home->X == 3.0f);
+    REQUIRE(home->Y == 4.0f);
+    REQUIRE(home->Z == 2.0f);
+
+    ActionPosition actor{0, -9523.26f, -12.2227f, 61.6865f};
+    ActionPosition const origin{0, -9588.36f, -12.2227f, 61.6865f};
+    for (int leg = 0; leg < 3; ++leg)
+    {
+        auto next = PathStep({actor, origin});
+        REQUIRE(next.has_value());
+        actor = *next;
+    }
+    REQUIRE(actor.X == origin.X);
+    REQUIRE(actor.Y == origin.Y);
+    REQUIRE(actor.Z == origin.Z);
+}
+
+TEST_CASE("Invalid or motionless return paths cannot authorize a step", "[AIWorld][LivingRole][Return]")
+{
+    using LivingReturnPolicy::PathStep;
+    REQUIRE(!PathStep({}));
+    REQUIRE(!PathStep({{0, 0, 0, 0}}));
+    REQUIRE(!PathStep({{0, 0, 0, 0}, {0, 0, 0, 0}}));
+    REQUIRE(!PathStep({{0, 0, 0, 0}, {1, 10, 0, 0}}));
+    REQUIRE(!PathStep({{0, 0, 0, 0}, {0, 10, 0, std::numeric_limits<float>::quiet_NaN()}}));
+    for (float budget : {0.0f, -1.0f, 30.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
+        REQUIRE(!PathStep({{0, 0, 0, 0}, {0, 60, 0, 0}}, budget));
 }
 
 TEST_CASE("Individual hunt motion detects engine failures without cancelling melee or roots", "[AIWorld][LivingRole]")

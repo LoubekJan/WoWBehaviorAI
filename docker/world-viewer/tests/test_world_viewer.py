@@ -147,7 +147,7 @@ class WorldViewerApiTests(unittest.TestCase):
     def test_rejects_invalid_or_duplicate_batches_without_replacing_cache(self) -> None:
         self.client.post("/internal/telemetry", headers=self.headers, json=batch())
         invalid = [
-            {**batch(), "version": 3},
+            {**batch(), "version": 4},
             batch([{**agent(), "position": {**agent()["position"], "source": "unknown"}}]),
             batch([{**agent(), "needs": {**agent()["needs"], "hunger": 1.5}}]),
             batch([agent(1), agent(1)]),

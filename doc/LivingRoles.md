@@ -323,13 +323,60 @@ Po `make build` a `make restart-world` zopakuj test u `.go creature 79883`:
    hlad alespoň 0,65. Při začátku lovu očekávej `sprint=1.35`, odpočítávání
    z 10 000 ms a při běhu vyšší `moveSpeed` než `runSpeed`.
 2. Při podobné základní rychlosti kořisti se má odstup zmenšovat. Ověř údery,
-   případný úlovek, následné krmení a snížení hladu. Tento herní výsledek
-   navazující úpravy zatím není potvrzen.
+   případný úlovek, následné krmení a snížení hladu. Uživatel následně potvrdil
+   fungující lov u původního pavouka; problém návratu jiného spawnu je níže.
 3. Při delším lovu ověř po 10 s násobek 1 a běžnou rychlost. Při útoku
    hráče během lovu ověř přechod na obranu/útěk bez přenosu sprintu.
 4. Při dalším neúspěchu zachyť celý výpis během běhu i po jeho konci.
    `HUNT_LEASH` zůstává očekávané pro příliš dlouhý únik; rychlosti a vzdálenosti
    rozliší pomalejšího lovce od překážky či neplatné kořisti.
+
+### Návrat po neúspěšném lovu — 23. 9. 2026
+
+Uživatel potvrdil funkční lov u původně testovaného pavouka. Další Forest
+Spider **spawn 80700** dvakrát zasáhl Sheep **spawn 80366**, pak ji ztratil
+a podle upřesnění **stál déle než 30 s**. Výpis ukazuje `HUNT_LEASH`,
+`homeDistance=65.1`, `inCombat=false`, `cannotReach=false` a obě běžné
+rychlosti 6 yardů/s. Sprint už skončil. Samotný únik kořisti je možný;
+po něm má predátor po pauze pokračovat návratem do svého okolí.
+
+Lokálně se podařilo reprodukovat chybu návratu: původní projekce přesně
+30yardového kroku se na souřadnicích Elwynnu zaokrouhlí například na
+30,000099 yardu. Následná kontrola `> 30` ho odmítne a při dalším rozhodnutí
+spočte tentýž bod. Regresní test používá souřadnice domova spawnu 80700
+a kontroluje opravený návrat ve 360 směrech. Přesná pozice pavouka při selhání z dodaného snímku
+není známá; reprodukce prokazuje chybu kódu, nikoli její konkrétní výskyt
+na serveru.
+
+Oprava vybírá návratové body z vypočtené cesty, nejvýše **28 yardů po trase**.
+Když nejvzdálenější bod neprojde, zkusí bližší body (14, 7, 3,5 a 1,75 yardu).
+Každý krok stále musí projít vlastní kontrolou výšky, zóny, viditelnosti,
+úplné cesty a případně paměti nebezpečí. Když celý domovský bod nelze
+vyřešit jedním výpočtem, například po dalekém útěku, zkusí obdobně kratší
+krok směrem domů s kompletní kontrolou tohoto kroku. Nejde o teleport ani
+vynucený průchod terénem. Mezi navazujícími návratovými kroky čeká 1 s
+místo 6 s; úvodní pauza po ukončení lovu zůstává.
+
+Diagnostika používá existující `movement`: při návratu `RETURN_HOME`,
+při neúspěšném hledání `RETURN_NO_PATH` nebo `RETURN_STEP_BLOCKED`, při
+zamítnutí akce `RETURN_MOVE_REJECTED`. Díky tomu čekání na neúspěšný další
+pokus neukazuje jen `NONE`. Oprava se vztahuje na místní návraty všech
+řízených rolí v Elwynnu; připravené docházkové rutiny a vlčí pilot mají
+svůj původní cyklus. Změna dalšího běhu po lovu čeká na herní ověření.
+
+Opakovaný test po sestavení a restartu:
+
+1. `.go creature 80700`, vybrat existujícího pavouka. Nechat proběhnout lov;
+   při úniku kořisti nebo `HUNT_LEASH` zůstat poblíž alespoň minutu.
+2. Po skončení `decisionWaitMs` očekávat `phase=MOVING`,
+   `movement=RETURN_HOME` a postupně klesající `homeDistance`. Při obcházení
+   překážky nemusí vzdálenost k domovu klesnout při každém jednotlivém kroku.
+3. Po návratu očekávat další místní činnosti nebo nový lov při dostatečném
+   hladu a dostupné kořisti. Starý `lastEnd=HUNT_LEASH` sám o sobě nevypovídá
+   o aktuálním pohybu.
+4. Pokud dál stojí, zachytit celý status po 15 a 30 s. Nový údaj `movement`
+   rozliší čekání, nedostupnou návratovou cestu a zamítnutý pohyb.
+5. Krátce zopakovat lov spawnu 79883 a návrat prasete po útěku.
 
 ## Hranice této změny
 
@@ -347,6 +394,13 @@ Globální demografie, nové questy z nedostatku, sémantické cestovní trasy,
 trvalé vztahy a dlouhodobé učení zůstávají pro navazující rozšíření.
 
 ## Automatická kontrola
+
+Oprava návratu prošla **1 113 assertions ve 29 testech** pod MSVC/Catch2.
+Test reprodukuje odmítaný původní krok přes skutečný `Position::GetExactDist2d`,
+ověřuje nové kroky ve 360 směrech i jejich průchod skutečným `ActionSystem`,
+dále ohyby cesty, výškové rozdíly, navazující návrat z 65 yardů, duplicity
+a neplatné body či mapy. Prošla syntax běhového kódu a kontrola diffu.
+Testy geometrie neověřují skutečnou navmesh ani chování na živém serveru.
 
 Sprint a upravený limit prošly **1 082 assertions ve 26 testech** pod
 MSVC/Catch2. Časovač vyprší přesně jednou včetně velkého opožděného ticku,

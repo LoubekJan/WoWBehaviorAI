@@ -16,6 +16,7 @@
  */
 
 #include "Map.h"
+#include "AlwaysActiveZone.h"
 #include "Battleground.h"
 #include "CellImpl.h"
 #include "ChatPackets.h"
@@ -251,6 +252,55 @@ void Map::LoadAllCells()
     for (uint32 cellX = 0; cellX < TOTAL_NUMBER_OF_CELLS_PER_MAP; cellX++)
         for (uint32 cellY = 0; cellY < TOTAL_NUMBER_OF_CELLS_PER_MAP; cellY++)
             LoadGrid((cellX + 0.5f - CENTER_GRID_CELL_ID) * SIZE_OF_GRID_CELL, (cellY + 0.5f - CENTER_GRID_CELL_ID) * SIZE_OF_GRID_CELL);
+}
+
+void Map::LoadAlwaysActiveZone(uint32 zoneId)
+{
+    ASSERT(!Instanceable());
+
+    // Use the authoritative zone census, including gameobjects and event/pool
+    // spawns. Fill the interior too, so moving into an empty grid cannot freeze
+    // an NPC. One extra grid on every side provides a movement/aggro buffer.
+    QueryResult result = WorldDatabase.Query(
+        "SELECT position_x, position_y FROM creature WHERE map = {} AND zoneId = {} "
+        "UNION ALL SELECT position_x, position_y FROM gameobject WHERE map = {} AND zoneId = {}",
+        GetId(), zoneId, GetId(), zoneId);
+    if (!result)
+    {
+        TC_LOG_ERROR("maps", "Always-active zone {} on map {} has no spawn coordinates; check world DB zoneId data", zoneId, GetId());
+        return;
+    }
+
+    AlwaysActiveZoneCoverage coverage;
+    uint32 spawnCount = 0;
+    do
+    {
+        Field* fields = result->Fetch();
+        if (coverage.AddSpawn(fields[0].GetFloat(), fields[1].GetFloat()))
+            ++spawnCount;
+    } while (result->NextRow());
+
+    if (!spawnCount)
+    {
+        TC_LOG_ERROR("maps", "Always-active zone {} on map {} has no valid spawn coordinates", zoneId, GetId());
+        return;
+    }
+
+    std::vector<GridCoord> grids = coverage.GetGrids();
+    for (GridCoord const& coord : grids)
+    {
+        if (std::find(_alwaysActiveGrids.begin(), _alwaysActiveGrids.end(), coord) != _alwaysActiveGrids.end())
+            continue;
+        GridMarkNoUnload(coord.x_coord, coord.y_coord);
+        NGridType* grid = getNGrid(coord.x_coord, coord.y_coord);
+        grid->SetGridState(GRID_STATE_ACTIVE);
+        ResetGridExpiry(*grid, 0.1f);
+        _alwaysActiveGrids.push_back(coord);
+    }
+
+    TC_LOG_INFO("maps", "Always-active zone {} on map {}: {} spawn positions, grids [{}, {}]-[{}, {}], {} persistent grids; simulation runs without players",
+        zoneId, GetId(), spawnCount, grids.front().x_coord, grids.front().y_coord,
+        grids.back().x_coord, grids.back().y_coord, _alwaysActiveGrids.size());
 }
 
 void Map::InitStateMachine()
@@ -862,6 +912,22 @@ void Map::Update(uint32 t_diff)
         VisitNearbyCellsOf(obj, grid_object_update, world_object_update);
     }
 
+    // Loaded grids alone do not tick creatures. Visit every persistent cell,
+    // sharing marked_cells with players/active objects to avoid double updates.
+    for (GridCoord const& grid : _alwaysActiveGrids)
+        for (uint32 x = grid.x_coord * MAX_NUMBER_OF_CELLS; x < (grid.x_coord + 1) * MAX_NUMBER_OF_CELLS; ++x)
+            for (uint32 y = grid.y_coord * MAX_NUMBER_OF_CELLS; y < (grid.y_coord + 1) * MAX_NUMBER_OF_CELLS; ++y)
+            {
+                uint32 cellId = y * TOTAL_NUMBER_OF_CELLS_PER_MAP + x;
+                if (isCellMarked(cellId))
+                    continue;
+                markCell(cellId);
+                Cell cell(CellCoord(x, y));
+                cell.SetNoCreate();
+                Visit(cell, grid_object_update);
+                Visit(cell, world_object_update);
+            }
+
     for (_transportsUpdateIter = _transports.begin(); _transportsUpdateIter != _transports.end();)
     {
         WorldObject* obj = *_transportsUpdateIter;
@@ -896,7 +962,7 @@ void Map::Update(uint32 t_diff)
     MoveAllCreaturesInMoveList();
     MoveAllGameObjectsInMoveList();
 
-    if (!m_mapRefManager.isEmpty() || !m_activeNonPlayers.empty())
+    if (!m_mapRefManager.isEmpty() || !m_activeNonPlayers.empty() || !_alwaysActiveGrids.empty())
         ProcessRelocationNotifies(t_diff);
 
     sScriptMgr->OnMapUpdate(this, t_diff);
@@ -3694,6 +3760,11 @@ bool Map::SendZoneMessage(uint32 zone, WorldPacket const* packet, WorldSession c
 
 bool Map::ActiveObjectsNearGrid(NGridType const& ngrid) const
 {
+    // Keep the grid ACTIVE as well as loaded: entering IDLE stops movement and
+    // disables relocation notifications even when its unload lock is held.
+    if (std::find(_alwaysActiveGrids.begin(), _alwaysActiveGrids.end(), GridCoord(ngrid.getX(), ngrid.getY())) != _alwaysActiveGrids.end())
+        return true;
+
     CellCoord cell_min(ngrid.getX() * MAX_NUMBER_OF_CELLS, ngrid.getY() * MAX_NUMBER_OF_CELLS);
     CellCoord cell_max(cell_min.x_coord + MAX_NUMBER_OF_CELLS, cell_min.y_coord+MAX_NUMBER_OF_CELLS);
 

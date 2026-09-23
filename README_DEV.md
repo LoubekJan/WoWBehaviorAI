@@ -53,6 +53,42 @@ Edit `.env` before first real startup. DB credentials and realm/network settings
 
 ## WoW game data
 
+### Persistent Elwynn simulation
+
+`AIWorld.ElwynnAlwaysActive = 1` (default, also set in
+`deploy/worldserver.conf`) preloads Elwynn at startup after AIWorld initializes.
+It runs independently of player presence and AIWorld control mode. Restart the
+worldserver after changing this setting; set it to `0` to disable.
+
+The footprint comes from world DB creature and gameobject spawns with
+`map = 0 AND zoneId = 12`. The server keeps the enclosing grid rectangle,
+including empty interior grids and a one-grid movement buffer, loaded and
+ACTIVE. This is conservative grid coverage, not an exact terrain zone boundary:
+neighboring content inside that rectangle also runs. Correct DB zone IDs are
+required; an empty/invalid census produces an error in the startup log.
+
+Every cell in the footprint continues normal creature/gameobject updates,
+movement, combat, and relocation processing with zero players. Respawns retain
+normal timers, pool and event rules; this does not resurrect dead creatures or
+force inactive event spawns into existence. Player visits share the same cell
+update markers, so they do not cause double ticking. Forced map teardown still
+unloads everything normally. Expect increased idle CPU/RAM and startup time.
+
+After `make build` and `make restart-world`, verify on the running server:
+
+1. Start with zero players. Find `Always-active zone 12 on map 0` in the log;
+   it reports census size, grid bounds and persistent grid count.
+2. In the observer, verify living Elwynn agents materialize before anyone logs
+   in and moving agents change position. Repeat after waiting longer than
+   `GridCleanUpDelay` with everyone offline.
+3. Log in and out, checking movement/combat continues after logout. Kill a
+   normal respawning creature, leave, and check it returns after its normal
+   respawn delay without re-entering the area.
+4. Restart with the setting disabled to check the normal proximity-driven
+   grid lifecycle, then re-enable it for the simulation.
+
+### Extracted client data
+
 Place extracted client data under:
 
 ```text
@@ -332,11 +368,14 @@ AIWorld settings are versioned in `deploy/worldserver.conf` and mirrored in `src
 
 The world thread captures AI-controlled Elwynn agents once per second and hands value-only snapshots to a bounded asynchronous HTTP exporter. The Elwynn spawn ID scope is read once at startup from `creature.zoneId = 12`; those zone IDs must be current for all expected agents to appear. Capture never loads grids. `live` positions and combat/health data come from a currently resolved Creature; `spawn` positions are authoritative spawn coordinates for an abstract agent and are never presented as a current location. The viewer keeps only the latest snapshot in memory, displays its age, and has no NPC control API. It does not query the database for live state.
 
-Observer protocol v2 also exposes living roles/perception, predator hunt and
+Observer protocol v3 exposes living roles/perception, predator hunt and
 sprint diagnostics, wolf pack activity, movement problems, stocks, all group
 memberships/coordination and reputation faction mapping. Filters and activity
 colors help locate these states; selected NPCs show their target/destination links.
-The receiver still accepts v1 snapshots. Upgrade `world-viewer` first with
+Selecting an agent also loads its long-term memory in pages of 25 records,
+including importance, times, location and historical participants. These reads
+use the worldserver's memory index and the existing telemetry connection.
+The receiver still accepts v1/v2 snapshots. Upgrade `world-viewer` first with
 `docker compose up -d --build world-viewer`, then run `make build` and
 `make restart-world` to enable the new export. See
 [the Observer guide](docker/world-viewer/README.md) for the protocol and checks.

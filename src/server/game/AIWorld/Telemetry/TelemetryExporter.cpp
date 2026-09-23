@@ -31,10 +31,12 @@ namespace
     {
     public:
         PostSession(net::io_context& io, std::string host, std::string port, std::string token,
-            std::string body, std::shared_ptr<std::atomic<bool>> inFlight)
+            std::string body, std::shared_ptr<std::atomic<bool>> inFlight,
+            std::shared_ptr<TelemetryMemoryRequestSlot> memoryRequest)
             : _resolver(net::make_strand(io)), _stream(_resolver.get_executor()),
               _resolveTimer(_resolver.get_executor()), _host(std::move(host)), _port(std::move(port)),
-              _token(std::move(token)), _body(std::move(body)), _inFlight(std::move(inFlight)) { }
+              _token(std::move(token)), _body(std::move(body)), _inFlight(std::move(inFlight)),
+              _memoryRequest(std::move(memoryRequest)) { }
 
         void Run()
         {
@@ -88,6 +90,11 @@ namespace
 
         void OnRead(beast::error_code ec, std::size_t)
         {
+            if (!ec && _response.get().result() == http::status::ok)
+            {
+                auto value = _response.get()["X-Observer-Memory-Request"];
+                _memoryRequest->Store(ParseMemoryPageRequest(std::string_view(value.data(), value.size())));
+            }
             if (!ec && _response.get().result() != http::status::ok)
                 TC_LOG_DEBUG("ai.world", "Telemetry POST returned HTTP {}", _response.get().result_int());
             Finish(ec);
@@ -114,6 +121,7 @@ namespace
         std::string _token;
         std::string _body;
         std::shared_ptr<std::atomic<bool>> _inFlight;
+        std::shared_ptr<TelemetryMemoryRequestSlot> _memoryRequest;
         beast::flat_buffer _buffer;
         http::request<http::string_body> _request;
         http::response_parser<http::string_body> _response;
@@ -125,16 +133,18 @@ TelemetryExporter::TelemetryExporter(Trinity::Asio::IoContext& ioContext, std::s
     std::string port, std::string token)
     : _ioContext(ioContext), _host(std::move(host)), _port(std::move(port)), _token(std::move(token)) { }
 
-void TelemetryExporter::Submit(std::vector<AgentTelemetrySnapshot> snapshots, uint64 capturedAtMs)
+void TelemetryExporter::Submit(std::vector<AgentTelemetrySnapshot> snapshots, uint64 capturedAtMs,
+    std::optional<MemoryPageTelemetry> memoryPage)
 {
     if (_inFlight->exchange(true, std::memory_order_acq_rel))
         return;
 
     net::post(static_cast<net::io_context&>(_ioContext), [io = &_ioContext, host = _host, port = _port, token = _token,
-        snapshots = std::move(snapshots), capturedAtMs, inFlight = _inFlight]() mutable
+        snapshots = std::move(snapshots), capturedAtMs, inFlight = _inFlight,
+        memoryPage = std::move(memoryPage), memoryRequest = _memoryRequest]() mutable
     {
-        std::string body = SerializeAgentTelemetry(snapshots, capturedAtMs);
+        std::string body = SerializeAgentTelemetry(snapshots, capturedAtMs, memoryPage);
         std::make_shared<PostSession>(static_cast<net::io_context&>(*io), std::move(host),
-            std::move(port), std::move(token), std::move(body), std::move(inFlight))->Run();
+            std::move(port), std::move(token), std::move(body), std::move(inFlight), std::move(memoryRequest))->Run();
     });
 }

@@ -11,9 +11,11 @@
 #define AIWORLD_TELEMETRYJSONCODEC_H
 
 #include "AgentTelemetrySnapshot.h"
+#include "MemoryTelemetry.h"
 
 // Pure value serialization, shared by the async exporter and contract tests.
-TC_GAME_API std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& snapshots, uint64 capturedAtMs);
+TC_GAME_API std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& snapshots, uint64 capturedAtMs,
+    std::optional<MemoryPageTelemetry> const& memoryPage = std::nullopt);
 
 #endif
 

@@ -120,3 +120,21 @@ std::vector<LongTermMemoryRecord> LongTermMemory::GetForAgent(AgentId id) const
 
     return it->second;
 }
+
+LongTermMemory::Page LongTermMemory::GetPage(AgentId id, uint32 offset, uint32 limit, uint32 anchor) const
+{
+    Page page;
+    auto it = _records.find(id.Value);
+    if (it == _records.end())
+        return page;
+    auto const& records = it->second;
+    page.Total = records.size();
+    page.Anchor = anchor ? std::min<uint64>(anchor, page.Total) : page.Total;
+    if (offset >= page.Anchor)
+        return page;
+    uint64 count = std::min<uint64>(limit, page.Anchor - offset);
+    page.Records.reserve(size_t(count));
+    for (uint64 i = 0; i < count; ++i)
+        page.Records.push_back(records[size_t(page.Anchor - offset - i - 1)]);
+    return page;
+}
