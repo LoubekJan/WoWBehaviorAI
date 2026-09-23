@@ -257,8 +257,8 @@ při obraně a původním skupinovém lovu zůstávají. Neprůchodná cesta, zt
 victim nebo chybějící chase už neponechávají lov zdánlivě aktivní po celý
 45sekundový limit. Predátor uvolní vlastní útok, po 2 s smí rozhodnout
 znovu a kořist s neprůchodnou cestou 30 s vynechá. Root/stun tuto výjimku
-nezpůsobuje. Nejde o potvrzenou příčinu uživatelova runtime problému;
-oprava nesouladu a následující diagnostika vyžadují nový herní test.
+nezpůsobuje. Uživatel následně potvrdil skutečné rozběhnutí pavouka za
+kořistí. Kořist však unikla; navazující vyvážení rychlosti je popsané níže.
 
 `.aiworld group status` nyní ukazuje také `lastEnd`, poslední dostupný
 `preySpawn` a jeho aktuální `preyDistance`, vzdálenost od domova,
@@ -286,6 +286,51 @@ Opakovaný test po sestavení a restartu:
 4. Krátce zopakovat obranu více Defias nebo vlků a otočení hráče; zachovat
    rozestupy bez obíhání za záda. Produkce pracovníků se touto opravou nemění.
 
+### Sprint při lovu a vzdálenost pronásledování — 23. 9. 2026
+
+Po předchozí opravě uživatel **potvrdil rozběhnutí Forest Spider za kořistí**.
+Kořist před ním utíkala a podle pozorování běžela stejně rychle. Nový snímek
+ukazuje `lastEnd=HUNT_LEASH`, kořist Cow spawn 79880 ve vzdálenosti 29,5 yardu
+a predátora 35,1 yardu od domova. Jde o ukončení kvůli dosavadnímu limitu
+30 yardů od místa zahájení lovu. Snímek neobsahuje měření rychlostí.
+
+Lokální navazující úprava dává samostatně lovícím predátorům krátký běžecký
+sprint **+35 % na prvních 10 s aktivního pronásledování** a dovoluje lov
+do **60 yardů od jeho začátku**. Dosah ke kořisti zůstává 30 yardů, celkový
+čas 45 s a účast je stále omezena na řízená permanentní NPC v Elwynnu.
+Kořist nemusí být pokaždé ulovena: rychlejší či vzdálenější zvíře a únik
+za hranici lovu zůstávají možné. Návrat k domovu používá původní omezené kroky.
+
+Bonus žije pouze v pohybovém generátoru tohoto `PredatorHunt`. Nemění
+rychlost šablony ani `Unit` a nepřechází do obrany, útěku, krmení či dalšího
+pohybu. Vypršení přepočte i běžící cestu ke stojícímu cíli. Změna rychlosti
+aurou se zohledňuje přes aktuální rychlost jednotky; root/stun pohyb nadále
+blokuje. Bonus se neuplatňuje při chůzi, plavání ani letu označeném
+příslušným pohybovým příznakem. Ostatní chase včetně vlčího pilotu mají
+výchozí násobek 1. Tato oprava samotného lovu platí i při vypnuté volitelné
+vrstvě `LivingRoleExtensionsEnabled`.
+
+Nový řádek `.aiworld group status` obsahuje rychlosti v yardech za sekundu:
+`runSpeed` / `preyRunSpeed` jsou běžné aktuální rychlosti běhu a `moveSpeed` /
+`preyMoveSpeed` rychlosti právě běžících cest (u stojícího NPC nula).
+`sprint` je násobek přidělený současnému lovu, `sprintRemainingMs` jeho
+zbývající čas; mimo lov mají hodnoty 1 a 0. Samotný násobek nedokazuje
+pohyb — sleduj zároveň fázi, `moving` a `moveSpeed`.
+
+Po `make build` a `make restart-world` zopakuj test u `.go creature 79883`:
+
+1. Vyber původního řízeného pavouka, ponech živou kořist poblíž a počkej na
+   hlad alespoň 0,65. Při začátku lovu očekávej `sprint=1.35`, odpočítávání
+   z 10 000 ms a při běhu vyšší `moveSpeed` než `runSpeed`.
+2. Při podobné základní rychlosti kořisti se má odstup zmenšovat. Ověř údery,
+   případný úlovek, následné krmení a snížení hladu. Tento herní výsledek
+   navazující úpravy zatím není potvrzen.
+3. Při delším lovu ověř po 10 s násobek 1 a běžnou rychlost. Při útoku
+   hráče během lovu ověř přechod na obranu/útěk bez přenosu sprintu.
+4. Při dalším neúspěchu zachyť celý výpis během běhu i po jeho konci.
+   `HUNT_LEASH` zůstává očekávané pro příliš dlouhý únik; rychlosti a vzdálenosti
+   rozliší pomalejšího lovce od překážky či neplatné kořisti.
+
 ## Hranice této změny
 
 Jde o místní rozhodování, skutečný pohyb, boj a viditelné animace.
@@ -302,6 +347,16 @@ Globální demografie, nové questy z nedostatku, sémantické cestovní trasy,
 trvalé vztahy a dlouhodobé učení zůstávají pro navazující rozšíření.
 
 ## Automatická kontrola
+
+Sprint a upravený limit prošly **1 082 assertions ve 26 testech** pod
+MSVC/Catch2. Časovač vyprší přesně jednou včetně velkého opožděného ticku,
+neplatné bonusy i běžný chase zachovávají násobek 1. Zjednodušený model
+přímého běhu ověřuje, že kombinace sprintu a nového limitu umožní dostihnout
+stejně rychlou kořist s náskokem 14 yardů, zatímco původní limit nestačil;
+rychlejší kořist může dál uniknout. Nejde o simulaci navmeshe ani úderů.
+Prošla syntax skutečných `ChaseMovementGenerator.cpp`, `MotionMaster.cpp`,
+`MovementDefines.cpp`, `LivingRole.cpp`, `ActionExecutor.cpp` a
+`AgentRegistry.cpp` se skutečnými hlavičkami enginu a kontrola diffu.
 
 Oprava pronásledování z 23. 9. 2026 prošla **1 046 assertions ve 23 testech**
 pod MSVC/Catch2. Nové scénáře rozlišují chybu cesty, ztrátu oběti, chybějící

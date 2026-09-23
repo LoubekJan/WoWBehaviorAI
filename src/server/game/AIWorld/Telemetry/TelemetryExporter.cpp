@@ -8,6 +8,7 @@
  */
 
 #include "TelemetryExporter.h"
+#include "TelemetryJsonCodec.h"
 #include "IoContext.h"
 #include "Log.h"
 #include <boost/asio/ip/tcp.hpp>
@@ -17,10 +18,6 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <chrono>
-#include <cmath>
-#include <iomanip>
-#include <locale>
-#include <sstream>
 #include <utility>
 
 namespace net = boost::asio;
@@ -30,104 +27,6 @@ using tcp = net::ip::tcp;
 
 namespace
 {
-    void WriteString(std::ostream& out, std::string const& value)
-    {
-        out << '"';
-        for (unsigned char c : value)
-        {
-            switch (c)
-            {
-                case '"': out << "\\\""; break;
-                case '\\': out << "\\\\"; break;
-                case '\n': out << "\\n"; break;
-                case '\r': out << "\\r"; break;
-                case '\t': out << "\\t"; break;
-                default:
-                    if (c < 0x20)
-                    {
-                        out << "\\u00" << std::hex << std::setw(2) << std::setfill('0') << unsigned(c)
-                            << std::dec << std::setfill(' ');
-                    }
-                    else
-                        out << char(c);
-            }
-        }
-        out << '"';
-    }
-
-    void WriteFloat(std::ostream& out, float value)
-    {
-        if (std::isfinite(value))
-            out << value;
-        else
-            out << "null";
-    }
-
-    std::string Serialize(std::vector<AgentTelemetrySnapshot> const& snapshots, uint64 capturedAtMs)
-    {
-        std::ostringstream out;
-        out.imbue(std::locale::classic());
-        out << std::setprecision(7);
-        out << "{\"version\":1,\"captured_at_ms\":" << capturedAtMs << ",\"agents\":[";
-        bool first = true;
-        for (AgentTelemetrySnapshot const& item : snapshots)
-        {
-            if (!first)
-                out << ',';
-            first = false;
-            out << "{\"agent_id\":" << item.Agent.Value << ",\"spawn_id\":" << item.SpawnId
-                << ",\"entry\":" << item.Entry << ",\"name\":";
-            WriteString(out, item.Name);
-            out << ",\"type\":";
-            WriteString(out, ToString(item.Type));
-            out << ",\"control_mode\":";
-            WriteString(out, ToString(item.ControlMode));
-            out << ",\"world_faction\":" << item.WorldFaction.Value
-                << ",\"world_state\":";
-            WriteString(out, item.Live ? "MATERIALIZED" : "ABSTRACT");
-            out << ",\"simulation_tier\":";
-            WriteString(out, ToString(item.Tier));
-            out << ",\"position\":{\"map_id\":" << item.MapId << ",\"x\":";
-            WriteFloat(out, item.Live ? item.Live->X : item.SpawnX);
-            out << ",\"y\":";
-            WriteFloat(out, item.Live ? item.Live->Y : item.SpawnY);
-            out << ",\"z\":";
-            WriteFloat(out, item.Live ? item.Live->Z : item.SpawnZ);
-            out << ",\"source\":\"" << (item.Live ? "live" : "spawn") << "\"}";
-            out << ",\"health\":";
-            if (item.Live) out << item.Live->Health; else out << "null";
-            out << ",\"max_health\":";
-            if (item.Live) out << item.Live->MaxHealth; else out << "null";
-            out << ",\"alive\":";
-            if (item.Live) out << (item.Live->Alive ? "true" : "false"); else out << "null";
-            out << ",\"in_combat\":";
-            if (item.Live) out << (item.Live->InCombat ? "true" : "false"); else out << "null";
-            out << ",\"needs\":{\"health_pressure\":";
-            WriteFloat(out, item.Needs.HealthPressure);
-            out << ",\"hunger\":";
-            WriteFloat(out, item.Needs.Hunger);
-            out << ",\"fatigue\":";
-            WriteFloat(out, item.Needs.Fatigue);
-            out << ",\"safety_pressure\":";
-            WriteFloat(out, item.Needs.SafetyPressure);
-            out << ",\"resource_pressure\":";
-            WriteFloat(out, item.Needs.ResourcePressure);
-            out << "},\"goal\":";
-            if (item.Goal) WriteString(out, ToString(*item.Goal)); else out << "null";
-            out << ",\"goal_utility\":";
-            if (item.GoalUtility) WriteFloat(out, *item.GoalUtility); else out << "null";
-            out << ",\"routine_goal\":";
-            if (item.RoutineGoal) WriteString(out, ToString(*item.RoutineGoal)); else out << "null";
-            out << ",\"action\":";
-            if (item.Action) WriteString(out, ToString(*item.Action)); else out << "null";
-            out << ",\"group_id\":";
-            if (item.GroupId) out << *item.GroupId; else out << "null";
-            out << '}';
-        }
-        out << "]}";
-        return out.str();
-    }
-
     class PostSession : public std::enable_shared_from_this<PostSession>
     {
     public:
@@ -234,7 +133,7 @@ void TelemetryExporter::Submit(std::vector<AgentTelemetrySnapshot> snapshots, ui
     net::post(static_cast<net::io_context&>(_ioContext), [io = &_ioContext, host = _host, port = _port, token = _token,
         snapshots = std::move(snapshots), capturedAtMs, inFlight = _inFlight]() mutable
     {
-        std::string body = Serialize(snapshots, capturedAtMs);
+        std::string body = SerializeAgentTelemetry(snapshots, capturedAtMs);
         std::make_shared<PostSession>(static_cast<net::io_context&>(*io), std::move(host),
             std::move(port), std::move(token), std::move(body), std::move(inFlight))->Run();
     });

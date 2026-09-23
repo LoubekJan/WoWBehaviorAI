@@ -65,8 +65,9 @@ static void DoMovementInform(Unit* owner, Unit* target)
         AI->MovementInform(CHASE_MOTION_TYPE, target->GetGUID().GetCounter());
 }
 
-ChaseMovementGenerator::ChaseMovementGenerator(Unit *target, Optional<ChaseRange> range, Optional<ChaseAngle> angle, ChaseAngleReference angleReference) : AbstractFollower(ASSERT_NOTNULL(target)), _range(range),
-    _angle(angle), _angleReference(angleReference), _rangeCheckTimer(RANGE_CHECK_INTERVAL)
+ChaseMovementGenerator::ChaseMovementGenerator(Unit *target, Optional<ChaseRange> range, Optional<ChaseAngle> angle,
+    ChaseAngleReference angleReference, ChaseSpeedBoost speedBoost) : AbstractFollower(ASSERT_NOTNULL(target)), _range(range),
+    _angle(angle), _angleReference(angleReference), _speedBoost(speedBoost), _rangeCheckTimer(RANGE_CHECK_INTERVAL)
 {
     Priority = MOTION_PRIORITY_NORMAL;
     Flags = MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING;
@@ -101,6 +102,11 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
     Unit* const target = GetTarget();
     if (!target || !target->IsInWorld())
         return false;
+
+    // Reset/Initialize do not replenish the boost. Expiry invalidates the
+    // current path even when a stationary target has not changed position.
+    if (_speedBoost.Update(diff))
+        _lastTargetPosition.reset();
 
     // the owner might be unable to move (rooted or casting), or we have lost the target, pause movement
     if (owner->HasUnitState(UNIT_STATE_NOT_MOVE) || owner->IsMovementPreventedByCasting() || HasLostTarget(owner, target))
@@ -238,6 +244,16 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             Movement::MoveSplineInit init(owner);
             init.MovebyPath(_path->GetPath());
             init.SetWalk(walk);
+            if (!walk && !owner->HasUnitMovementFlag(MOVEMENTFLAG_FLYING | MOVEMENTFLAG_SWIMMING) &&
+                _speedBoost.GetMultiplier() > 1.0f)
+            {
+                // Use the live speed (including slows), retaining the normal
+                // assistance penalty applied by MoveSplineInit::Launch.
+                float speed = owner->GetSpeed(MOVE_RUN) * _speedBoost.GetMultiplier();
+                if (cOwner && cOwner->HasSearchedAssistance())
+                    speed *= 0.66f;
+                init.SetVelocity(speed);
+            }
             init.SetFacing(target);
             init.Launch();
         }

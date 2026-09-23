@@ -86,6 +86,10 @@ function drawLandmarks() {
 }
 
 function pointColor(agent) {
+  if ($("color-mode").value === "phase" && agent.position.source === "live") {
+    const color = ObserverModel.phaseColors[ObserverModel.phase(agent)];
+    if (color) return color;
+  }
   const type = agent.type.toUpperCase();
   if (agent.in_combat) return "#ed9375";
   if (type.includes("GUARD")) return "#91bbdb";
@@ -98,6 +102,7 @@ function render() {
   if (!cssWidth || !cssHeight) return;
   ctx.clearRect(0, 0, cssWidth, cssHeight);
   drawGrid();
+  drawConnections();
   for (const agent of visible) {
     const p = project(agent.position);
     if (p.x < -8 || p.x > cssWidth + 8 || p.y < -8 || p.y > cssHeight + 8) continue;
@@ -109,8 +114,32 @@ function render() {
     ctx.strokeStyle = selected ? "#fff0b9" : pointColor(agent);
     ctx.lineWidth = selected ? 2.2 : isLive ? 0.6 : 1.5;
     ctx.fill(); ctx.stroke();
+    if (ObserverModel.alert(agent)) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, selected ? 10 : 6.5, 0, Math.PI * 2);
+      ctx.strokeStyle = "#f3c27b"; ctx.lineWidth = 1; ctx.stroke();
+    }
   }
   drawLandmarks();
+}
+
+function drawConnections() {
+  const agent = visible.find(item => item.agent_id === selectedId);
+  if (!agent || agent.position.source !== "live") return;
+  const from = project(agent.position);
+  function connect(point, label, color, dashed = false) {
+    if (!point || point.map_id !== agent.position.map_id) return;
+    const to = project(point);
+    ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.5;
+    ctx.setLineDash(dashed ? [5, 5] : []);
+    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    ctx.setLineDash([]); ctx.beginPath(); ctx.arc(to.x, to.y, 5, 0, Math.PI * 2); ctx.stroke();
+    ctx.font = "11px Segoe UI, sans-serif"; ctx.textAlign = "left"; ctx.fillText(label, to.x + 9, to.y - 6);
+    ctx.restore();
+  }
+  connect(agent.target?.position, agent.target?.name || "Cíl", "#f1aa80");
+  connect(agent.destination, "Místo přesunu", "#91d3d6", true);
+  const companion = snapshot.agents.find(item => item.spawn_id === agent.living_role?.companion_spawn_id && item.position.source === "live");
+  connect(companion?.position, "Společník", "#c7b9f3", true);
 }
 
 function uniqueOptions(id, values, allLabel, label = String) {
@@ -122,19 +151,10 @@ function uniqueOptions(id, values, allLabel, label = String) {
 }
 
 function filterAgents() {
-  const query = $("search").value.trim().toLocaleLowerCase("cs");
-  const type = $("type-filter").value;
-  const faction = $("faction-filter").value;
-  visible = snapshot.agents.filter(agent =>
-    agent.position.map_id === 0 &&
-    (!query || (agent.name || "").toLocaleLowerCase("cs").includes(query) || String(agent.agent_id).includes(query)) &&
-    (!type || agent.type === type) &&
-    (!faction || String(agent.world_faction) === faction) &&
-    (!$('live-filter').checked || agent.position.source === "live") &&
-    (!$('combat-filter').checked || agent.in_combat === true) &&
-    (!$('goal-filter').checked || Boolean(agent.goal)) &&
-    (!$('hunger-filter').checked || agent.needs.hunger > 0.7)
-  );
+  const filters = { query: $("search").value.trim().toLocaleLowerCase("cs") };
+  for (const key of ["type", "faction", "role", "phase", "group"]) filters[key] = $(`${key}-filter`).value;
+  for (const key of ["live", "combat", "goal", "hunger", "alert", "blocked"]) filters[key] = $(`${key}-filter`).checked;
+  visible = snapshot.agents.filter(agent => ObserverModel.matches(agent, filters));
   $("visible-count").textContent = `${visible.length.toLocaleString("cs-CZ")} zobrazeno`;
   render();
 }
@@ -152,6 +172,62 @@ function showStatus(error = false) {
 
 function text(id, value) { $(id).textContent = value === null || value === undefined || value === "" ? "—" : String(value); }
 function fixed(value, digits = 2) { return value === null || value === undefined ? "—" : Number(value).toFixed(digits); }
+function yes(value) { return value == null ? "—" : value ? "Ano" : "Ne"; }
+function pointText(point) { return point ? `${fixed(point.x, 1)}, ${fixed(point.y, 1)}, ${fixed(point.z, 1)} (map ${point.map_id})` : null; }
+function facts(id, rows) {
+  $(id).replaceChildren(...rows.map(([label, value]) => {
+    const row = document.createElement("div"), term = document.createElement("dt"), detail = document.createElement("dd");
+    term.textContent = label; detail.textContent = value == null || value === "" ? "—" : String(value);
+    row.append(term, detail); return row;
+  }));
+}
+
+function showDiagnostics(agent) {
+  const role = agent.living_role, movement = agent.movement;
+  text("detail-availability", agent.position.source !== "live" ? "Background: živá činnost a pohyb nejsou dostupné. Zásoby a členství jsou stavem registru." :
+    snapshot.version < 2 ? "Starší telemetrie: pro nové údaje aktualizujte worldserver." : !role ? "Činnost není navázaná na aktuální Creature." : "");
+  facts("role-facts", [
+    ["Řízení", agent.living_wolf ? "WOLF_PACK_CYCLE" : role?.status], ["Role", agent.living_wolf ? "WOLF_PACK" : role?.role],
+    ["Činnost", ObserverModel.phase(agent)], ["Aktivita", role?.activity], ["Role zapnuté", role ? yes(role.enabled) : null],
+    ["Rozšířené vnímání", role ? yes(role.extensions_enabled) : null], ["Vnímání", role?.awareness],
+    ["Důvod přesunu", role?.movement_purpose], ["Opatrnost", role ? fixed(role.caution) : null],
+    ["Další rozhodnutí", role ? `${role.decision_wait_ms} ms` : null],
+    ["Nebezpečí ještě", role ? `${role.danger_remaining_ms} ms` : null], ["Poplach ještě", role ? `${role.alarm_remaining_ms} ms` : null],
+    ["Společník SpawnId", role?.companion_spawn_id || null],
+  ]);
+  facts("hunt-facts", [
+    ["Diagnostika posledního lovu", role?.hunt_status], ["Poslední konec lovu", role?.hunt_end],
+    ["Poslední kořist SpawnId", role?.last_hunt_target_spawn_id || null], ["Vzdálenost kořisti", fixed(role?.hunt_target_distance)],
+    ["Kořist poblíž / napadnutelná", role?.hunt_status ? `${role.nearby_prey} / ${role.attackable_prey}` : null],
+    ["Pomoc spojencům", role?.assist_status], ["Spojenci poblíž / v boji", role?.assist_status ? `${role.nearby_allies} / ${role.allies_in_combat}` : null],
+    ["Krmení ze SpawnId", agent.meal_target_spawn_id], ["Sprint násobek", fixed(role?.sprint_multiplier)],
+    ["Sprint zbývá", role?.sprint_remaining_ms == null ? null : `${role.sprint_remaining_ms} ms`],
+    ["Rychlost kořisti běh / pohyb", role?.prey_run_speed == null ? null : `${fixed(role.prey_run_speed)} / ${fixed(role.prey_move_speed)} yd/s`],
+  ]);
+  facts("movement-facts", [
+    ["Pohybuje se", yes(movement?.moving)], ["Pohyb blokován", yes(movement?.blocked)],
+    ["Nedosažitelný cíl", yes(movement?.cannot_reach_target)], ["Evade", yes(movement?.evading)],
+    ["Rychlost běh / pohyb", movement ? `${fixed(movement.run_speed)} / ${fixed(movement.move_speed)} yd/s` : null],
+    ["Vzdálenost od domova", movement ? `${fixed(movement.home_distance)} yd` : null],
+    ["Cíl Creature", agent.target ? `${agent.target.name} · ${agent.target.spawn_id}` : null],
+    ["Místo přesunu", pointText(agent.destination)], ["Cíl vlastnící akci", agent.action_source_goal],
+    ["Akce trvá", agent.action_started_at_ms == null ? null : `${Math.max(0, snapshot.captured_at_ms - agent.action_started_at_ms)} ms`],
+  ]);
+  facts("economy-facts", [["Peníze (copper)", agent.economy?.money], ["Jídlo", agent.economy?.food],
+    ["Suroviny", agent.economy?.resource], ["Rutinní činnost", agent.routine_activity],
+    ["Domov", pointText(agent.home)], ["Pracoviště", pointText(agent.work)]]);
+  facts("coordination-facts", [["Zdroj cíle", agent.goal_owner], ["Skupinový cíl", agent.coordination_goal],
+    ["Zdrojová skupina", agent.coordination_group_id], ["Fáze skupinového lovu", agent.coordination_phase],
+    ["Reputační Faction.dbc ID", agent.reputation_faction_id], ["Aktuální FactionTemplate ID", agent.faction_template_id]]);
+  $("group-cards").replaceChildren(...(agent.groups || []).map(group => {
+    const card = document.createElement("div"); card.className = "group-card";
+    const button = document.createElement("button"); button.type = "button"; button.textContent = `Skupina ${group.id} · ${group.profile}`;
+    button.addEventListener("click", () => { $("group-filter").value = String(group.id); filterAgents(); });
+    const line = document.createElement("p"); line.textContent = `${group.kind} · členů ${group.member_count} · zdroje ${fixed(group.resources)}`;
+    const place = document.createElement("p"); place.textContent = `Teritorium ${pointText(group.territory)}`;
+    card.append(button, line, place); return card;
+  }));
+}
 
 function showDetail() {
   const agent = snapshot.agents.find(item => item.agent_id === selectedId);
@@ -168,14 +244,15 @@ function showDetail() {
   text("detail-control", agent.control_mode);
   text("detail-state", agent.world_state);
   text("detail-tier", agent.simulation_tier);
-  text("detail-group", agent.group_id);
+  text("detail-group", ObserverModel.groupIds(agent).join(", "));
   text("detail-health", agent.health === null || agent.health === undefined ? "Zdraví —" : `Zdraví ${agent.health} / ${agent.max_health ?? "—"}`);
   text("detail-combat", agent.in_combat === null || agent.in_combat === undefined ? "Boj —" : agent.in_combat ? "⚔ V boji" : "Mimo boj");
   text("detail-position", `X ${fixed(agent.position.x)} · Y ${fixed(agent.position.y)} · Z ${fixed(agent.position.z)} · Map ${agent.position.map_id}`);
-  text("detail-goal", agent.goal);
+  text("detail-goal", ObserverModel.goal(agent));
   text("detail-utility", fixed(agent.goal_utility));
   text("detail-action", agent.action);
   text("detail-routine", agent.routine_goal);
+  showDiagnostics(agent);
   const labels = [
     ["HealthPressure", "health_pressure"], ["Hunger", "hunger"], ["Fatigue", "fatigue"],
     ["SafetyPressure", "safety_pressure"], ["ResourcePressure", "resource_pressure"],
@@ -204,6 +281,10 @@ async function poll() {
     $("background-count").textContent = (snapshot.agents.length - live).toLocaleString("cs-CZ");
     uniqueOptions("type-filter", snapshot.agents.map(agent => agent.type), "Všechny typy");
     uniqueOptions("faction-filter", snapshot.agents.map(agent => agent.world_faction), "Všechny frakce", factionLabel);
+    uniqueOptions("role-filter", snapshot.agents.map(agent => agent.living_wolf ? "WOLF_PACK" : agent.living_role?.role).filter(Boolean), "Všechny role");
+    uniqueOptions("phase-filter", snapshot.agents.map(ObserverModel.phase), "Všechny činnosti");
+    uniqueOptions("group-filter", snapshot.agents.flatMap(ObserverModel.groupIds), "Všechny skupiny");
+    text("behavior-summary", `${snapshot.agents.filter(ObserverModel.alert).length} v nebezpečí · ${snapshot.agents.filter(ObserverModel.blocked).length} s blokovaným pohybem`);
     $("capture-time").textContent = snapshot.received_at_ms ? `Přijato ${new Date(snapshot.received_at_ms).toLocaleTimeString("cs-CZ")}` : "Bez snímku";
     showStatus(); filterAgents(); showDetail();
   } catch (_) {
@@ -214,14 +295,20 @@ async function poll() {
   }
 }
 
-for (const id of ["search", "type-filter", "faction-filter", "live-filter", "combat-filter", "goal-filter", "hunger-filter"]) {
+for (const id of ["search", "type-filter", "faction-filter", "role-filter", "phase-filter", "group-filter", "live-filter", "combat-filter", "goal-filter", "hunger-filter", "alert-filter", "blocked-filter"]) {
   $(id).addEventListener(id === "search" ? "input" : "change", filterAgents);
 }
 $("reset-filters").addEventListener("click", () => {
   $("search").value = ""; $("type-filter").value = ""; $("faction-filter").value = "";
-  for (const id of ["live-filter", "combat-filter", "goal-filter", "hunger-filter"]) $(id).checked = false;
+  for (const id of ["role-filter", "phase-filter", "group-filter"]) $(id).value = "";
+  for (const id of ["live-filter", "combat-filter", "goal-filter", "hunger-filter", "alert-filter", "blocked-filter"]) $(id).checked = false;
   filterAgents();
 });
+$("color-mode").addEventListener("change", () => { $("phase-legend").hidden = $("color-mode").value !== "phase"; render(); });
+$("phase-legend").replaceChildren(...Object.entries(ObserverModel.phaseColors).map(([phase, color]) => {
+  const line = document.createElement("div"), dot = document.createElement("span"); dot.className = "legend-dot"; dot.style.background = color;
+  line.append(dot, document.createTextNode(phase)); return line;
+}));
 $("reset-view").addEventListener("click", () => { zoom = 1; panX = 0; panY = 0; render(); });
 
 canvas.addEventListener("wheel", event => {

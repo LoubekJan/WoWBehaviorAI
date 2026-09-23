@@ -83,6 +83,22 @@ enum RotateDirection : uint8
     ROTATE_DIRECTION_RIGHT
 };
 
+// A temporary multiplier owned by one chase, never by Unit's speed rates.
+// Expiration must relaunch any running spline at its ordinary speed.
+class TC_GAME_API ChaseSpeedBoost
+{
+    public:
+        ChaseSpeedBoost() = default;
+        ChaseSpeedBoost(float multiplier, uint32 durationMs);
+        float GetMultiplier() const { return _remainingMs ? _multiplier : 1.0f; }
+        uint32 GetRemainingMs() const { return _remainingMs; }
+        bool Update(uint32 diffMs);
+
+    private:
+        float _multiplier = 1.0f;
+        uint32 _remainingMs = 0;
+};
+
 struct TC_GAME_API ChaseRange
 {
     ChaseRange(float range);

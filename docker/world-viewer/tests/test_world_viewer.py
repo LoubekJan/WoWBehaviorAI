@@ -1,6 +1,9 @@
 """Receiver tests use FastAPI TestClient; no worldserver or network is needed."""
 from __future__ import annotations
 
+import copy
+import json
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -43,6 +46,11 @@ def agent(agent_id: int = 80542, source: str = "live") -> dict:
 
 def batch(agents: list[dict] | None = None) -> dict:
     return {"version": 1, "captured_at_ms": 1_800_000_000_000, "agents": agents if agents is not None else [agent()]}
+
+
+def v2_batch() -> dict:
+    # Captured from the production C++ SerializeAgentTelemetry codec.
+    return json.loads((Path(__file__).parent / "fixtures" / "telemetry_v2.json").read_text(encoding="utf-8"))
 
 
 class WorldViewerApiTests(unittest.TestCase):
@@ -91,10 +99,55 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertTrue(state["stale"])
         self.assertGreaterEqual(state["age_ms"], 5000)
 
+    def test_cpp_v2_snapshot_preserves_diagnostics_and_background_semantics(self) -> None:
+        payload = v2_batch()
+        response = self.client.post("/internal/telemetry", headers=self.headers, json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        state = self.client.get("/api/state").json()
+        self.assertEqual(state["version"], 2)
+        self.assertEqual(state["agents"], payload["agents"])
+        live, background = state["agents"]
+        self.assertEqual(live["economy"]["money"], "18446744073709551615")
+        self.assertEqual(live["living_role"]["sprint_remaining_ms"], 450)
+        self.assertEqual([group["id"] for group in live["groups"]], [17, 18])
+        self.assertEqual(live["reputation_faction_id"], 1204)
+        self.assertIsNone(background["living_role"])
+        self.assertIsNone(background["faction_template_id"])
+        self.assertEqual(background["economy"]["food"], 4)
+
+    def test_v1_can_replace_v2_without_retaining_new_fields(self) -> None:
+        self.client.post("/internal/telemetry", headers=self.headers, json=v2_batch())
+        self.client.post("/internal/telemetry", headers=self.headers, json=batch())
+        state = self.client.get("/api/state").json()
+        self.assertEqual(state["version"], 1)
+        self.assertIsNone(state["agents"][0]["living_role"])
+        self.assertEqual(state["agents"][0]["groups"], [])
+
+    def test_rejects_live_diagnostics_on_background_agent(self) -> None:
+        payload = v2_batch()
+        self.client.post("/internal/telemetry", headers=self.headers, json=payload)
+        for key in ("living_role", "movement", "target", "destination", "faction_template_id"):
+            invalid = copy.deepcopy(payload)
+            invalid["agents"][1][key] = invalid["agents"][0][key]
+            with self.subTest(field=key):
+                response = self.client.post("/internal/telemetry", headers=self.headers, json=invalid)
+                self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(self.client.get("/api/state").json()["agents"], payload["agents"])
+
+    def test_full_elwynn_snapshot_fits_and_is_accepted(self) -> None:
+        payload = v2_batch()
+        prototype = payload["agents"][0]
+        payload["agents"] = [{**prototype, "agent_id": i, "spawn_id": i} for i in range(3540)]
+        body = json.dumps(payload, separators=(",", ":")).encode()
+        self.assertLess(len(body), MAX_REQUEST_BYTES)
+        response = self.client.post("/internal/telemetry", headers=self.headers, content=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), {"accepted": 3540})
+
     def test_rejects_invalid_or_duplicate_batches_without_replacing_cache(self) -> None:
         self.client.post("/internal/telemetry", headers=self.headers, json=batch())
         invalid = [
-            {**batch(), "version": 2},
+            {**batch(), "version": 3},
             batch([{**agent(), "position": {**agent()["position"], "source": "unknown"}}]),
             batch([{**agent(), "needs": {**agent()["needs"], "hunger": 1.5}}]),
             batch([agent(1), agent(1)]),

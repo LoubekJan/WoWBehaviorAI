@@ -22,6 +22,10 @@
 
 namespace LivingHuntPolicy
 {
+    constexpr float SprintRunMultiplier = 1.35f;
+    constexpr uint32 SprintDurationMs = 10000;
+    constexpr float LeashDistance = 60.0f;
+
     // Individual predators validate a path to the prey, not to a formation
     // slot beside it. Keep that same destination policy in the executor.
     inline bool UsesFormationBearing(GoalType goal) { return goal != GoalType::PredatorHunt; }

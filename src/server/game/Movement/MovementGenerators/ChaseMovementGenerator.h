@@ -31,7 +31,8 @@ class Unit;
 class ChaseMovementGenerator : public MovementGenerator, public AbstractFollower
 {
     public:
-        explicit ChaseMovementGenerator(Unit* target, Optional<ChaseRange> range = {}, Optional<ChaseAngle> angle = {}, ChaseAngleReference angleReference = ChaseAngleReference::Target);
+        explicit ChaseMovementGenerator(Unit* target, Optional<ChaseRange> range = {}, Optional<ChaseAngle> angle = {},
+            ChaseAngleReference angleReference = ChaseAngleReference::Target, ChaseSpeedBoost speedBoost = {});
         ~ChaseMovementGenerator();
 
         bool Initialize(Unit*) override;
@@ -42,6 +43,7 @@ class ChaseMovementGenerator : public MovementGenerator, public AbstractFollower
         MovementGeneratorType GetMovementGeneratorType() const override { return CHASE_MOTION_TYPE; }
 
         void UnitSpeedChanged() override { _lastTargetPosition.reset(); }
+        ChaseSpeedBoost const& GetSpeedBoost() const { return _speedBoost; }
 
     private:
         static constexpr uint32 RANGE_CHECK_INTERVAL = 100; // time (ms) until we attempt to recalculate
@@ -49,6 +51,7 @@ class ChaseMovementGenerator : public MovementGenerator, public AbstractFollower
         Optional<ChaseRange> const _range;
         Optional<ChaseAngle> const _angle;
         ChaseAngleReference const _angleReference;
+        ChaseSpeedBoost _speedBoost;
 
         std::unique_ptr<PathGenerator> _path;
         Optional<Position> _lastTargetPosition;

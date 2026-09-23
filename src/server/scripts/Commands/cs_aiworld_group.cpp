@@ -179,6 +179,8 @@ public:
                         role->HuntEnd, role->HuntTargetSpawnId, role->HuntTargetDistance, role->HomeDistance));
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld hunt: inCombat={} moving={} movementBlocked={} cannotReach={} evading={} decisionWaitMs={}",
                         role->InCombat, role->Moving, role->MovementBlocked, role->CannotReachTarget, role->Evading, role->DecisionWaitMs));
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld hunt: runSpeed={:.2f} moveSpeed={:.2f} preyRunSpeed={:.2f} preyMoveSpeed={:.2f} sprint={:.2f} sprintRemainingMs={}",
+                        role->RunSpeed, role->MoveSpeed, role->PreyRunSpeed, role->PreyMoveSpeed, role->SprintMultiplier, role->SprintRemainingMs));
                 }
                 if (role->AssistStatus)
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld role: lastAssist={} nearbyAllies={} alliesInCombat={}",

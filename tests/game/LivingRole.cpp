@@ -21,6 +21,7 @@
 #include "Agent/LivingHuntPolicy.h"
 #include "Agent/AgentRecord.h"
 #include "DBCStructure.h"
+#include "MovementDefines.h"
 #include <limits>
 #include <string>
 
@@ -333,6 +334,33 @@ TEST_CASE("Direct predator pursuit preserves formation slots for defense and wol
     request.SourceGoal = GoalType::Hunt;
     context.ActiveGoalType = request.SourceGoal;
     REQUIRE(actions.Validate(request, context).Allowed);
+}
+
+TEST_CASE("Predator sprint can close an equal-speed gap within a finite territory", "[AIWorld][LivingRole]")
+{
+    // Straight unobstructed pursuit, both actors initially running at 7 yd/s.
+    // The prey already has a 14-yard head start. This is a balance check,
+    // not a replacement for testing pathfinding and combat in the world.
+    auto catches = [](ChaseSpeedBoost boost, float leash, float preySpeed)
+    {
+        float hunter = 0.0f, prey = 14.0f;
+        for (uint32 time = 0; time < 45000; time += 50)
+        {
+            boost.Update(50);
+            hunter += 7.0f * boost.GetMultiplier() * 0.05f;
+            prey += preySpeed * 0.05f;
+            if (hunter > leash || prey - hunter > 30.0f)
+                return false;
+            if (prey - hunter <= 3.0f)
+                return true;
+        }
+        return false;
+    };
+    using namespace LivingHuntPolicy;
+    REQUIRE(!catches({}, LeashDistance, 7.0f));
+    REQUIRE(!catches(ChaseSpeedBoost(SprintRunMultiplier, SprintDurationMs), 30.0f, 7.0f));
+    REQUIRE(catches(ChaseSpeedBoost(SprintRunMultiplier, SprintDurationMs), LeashDistance, 7.0f));
+    REQUIRE(!catches(ChaseSpeedBoost(SprintRunMultiplier, SprintDurationMs), LeashDistance, 10.0f));
 }
 
 TEST_CASE("Directed refuge movement requires a live danger and the independently approved path", "[AIWorld][LivingRole]")

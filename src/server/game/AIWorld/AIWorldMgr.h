@@ -96,6 +96,7 @@
 
 namespace Trinity::Asio { class IoContext; }
 class Creature;
+class Map;
 class Unit;
 class Player;
 class AIWorldCreatureAI;
@@ -274,6 +275,12 @@ class TC_GAME_API AIWorldMgr
             uint64 HuntTargetSpawnId = 0;
             float HuntTargetDistance = -1.0f;
             float HomeDistance = 0.0f;
+            float RunSpeed = 0.0f;
+            float MoveSpeed = 0.0f;
+            float PreyRunSpeed = 0.0f;
+            float PreyMoveSpeed = 0.0f;
+            float SprintMultiplier = 1.0f;
+            uint32 SprintRemainingMs = 0;
             bool InCombat = false;
             bool Moving = false;
             bool MovementBlocked = false;
@@ -354,7 +361,9 @@ class TC_GAME_API AIWorldMgr
         void ProcessObservation(Observation const& observation);
         void ScanNearbyEntities();
         void UpdateNeeds(uint32 elapsedMs);
-        void CaptureTelemetry();
+        void CaptureTelemetry(Map* elwynnMap);
+        // Reuse command diagnostics without a linear FindBySpawn per exported agent.
+        LivingRoleDebugInfo DescribeLivingRole(Creature const& creature, AgentRecord const& record) const;
         void ProcessActionEngineEvent(ActionEngineEvent const& event);
         void HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion);
         void TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs);

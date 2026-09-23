@@ -19,6 +19,7 @@
 #include "Agent/GroupMemberFormation.h"
 #include "MovementDefines.h"
 #include "Position.h"
+#include <limits>
 
 TEST_CASE("World-space pack chase slots stay reachable when the target turns", "[AIWorld][Movement][ChaseAngle]")
 {
@@ -77,4 +78,45 @@ TEST_CASE("Existing target-relative chase angles keep following target facing", 
             REQUIRE(!relative.IsAngleOkay(target.ToRelativeAngle(facing + bearing + 0.2f)));
         }
     }
+}
+
+TEST_CASE("Chase speed boost expires once and ordinary chases have no bonus", "[Movement][ChaseSpeed]")
+{
+    ChaseSpeedBoost ordinary;
+    REQUIRE(ordinary.GetMultiplier() == 1.0f);
+    REQUIRE(ordinary.GetRemainingMs() == 0);
+    REQUIRE(!ordinary.Update(10000));
+
+    ChaseSpeedBoost sprint(1.35f, 10000);
+    REQUIRE(!sprint.Update(0));
+    REQUIRE(!sprint.Update(9999));
+    REQUIRE(sprint.GetRemainingMs() == 1);
+    REQUIRE(sprint.GetMultiplier() == Approx(1.35f));
+    // This edge tells the generator to relaunch a running spline even if
+    // the target has not moved. It must never wrap or refill the timer.
+    REQUIRE(sprint.Update(1));
+    REQUIRE(sprint.GetMultiplier() == 1.0f);
+    REQUIRE(sprint.GetRemainingMs() == 0);
+    REQUIRE(!sprint.Update(std::numeric_limits<uint32>::max()));
+    REQUIRE(sprint.GetMultiplier() == 1.0f);
+
+    ChaseSpeedBoost delayedTick(1.35f, 10000);
+    REQUIRE(delayedTick.Update(20000));
+    REQUIRE(delayedTick.GetMultiplier() == 1.0f);
+    REQUIRE(!delayedTick.Update(1));
+}
+
+TEST_CASE("Invalid chase speed boosts retain the normal movement speed", "[Movement][ChaseSpeed]")
+{
+    for (float multiplier : {0.0f, -1.0f, 1.0f, std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::quiet_NaN()})
+    {
+        ChaseSpeedBoost boost(multiplier, 10000);
+        REQUIRE(boost.GetMultiplier() == 1.0f);
+        REQUIRE(boost.GetRemainingMs() == 0);
+        REQUIRE(!boost.Update(1000));
+    }
+    ChaseSpeedBoost noDuration(1.35f, 0);
+    REQUIRE(noDuration.GetMultiplier() == 1.0f);
+    REQUIRE(!noDuration.Update(1));
 }

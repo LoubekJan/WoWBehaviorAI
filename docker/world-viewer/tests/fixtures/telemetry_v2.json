@@ -1,0 +1,247 @@
+{
+  "version": 2,
+  "captured_at_ms": 1800000000000,
+  "agents": [
+    {
+      "agent_id": 80542,
+      "spawn_id": 80542,
+      "entry": 30,
+      "name": "Forest Spider",
+      "type": "UNCLASSIFIED",
+      "control_mode": "OBSERVE_ONLY",
+      "world_faction": 0,
+      "world_state": "MATERIALIZED",
+      "simulation_tier": "BACKGROUND",
+      "position": {
+        "map_id": 0,
+        "x": -9300,
+        "y": 60,
+        "z": 50,
+        "source": "live"
+      },
+      "health": 80,
+      "max_health": 100,
+      "alive": true,
+      "in_combat": false,
+      "needs": {
+        "health_pressure": 0,
+        "hunger": 0.71,
+        "fatigue": 0,
+        "safety_pressure": 0,
+        "resource_pressure": 0
+      },
+      "goal": "HUNT",
+      "goal_utility": 0.71,
+      "routine_goal": null,
+      "action": "ATTACK",
+      "group_id": 17,
+      "economy": {
+        "money": "18446744073709551615",
+        "food": 4,
+        "resource": 6
+      },
+      "home": {
+        "map_id": 0,
+        "x": -9300,
+        "y": 60,
+        "z": 50
+      },
+      "work": {
+        "map_id": 0,
+        "x": -9200,
+        "y": 70,
+        "z": 50
+      },
+      "reputation_faction_id": 1204,
+      "faction_template_id": 14,
+      "effective_goal": "HUNT",
+      "goal_owner": "INDIVIDUAL",
+      "action_source_goal": "HUNT",
+      "action_started_at_ms": 10000,
+      "coordination_goal": "HUNT",
+      "coordination_group_id": 17,
+      "coordination_phase": "ENGAGING",
+      "routine_activity": "WORK",
+      "living_wolf": false,
+      "meal_target_spawn_id": null,
+      "destination": {
+        "map_id": 0,
+        "x": -9290,
+        "y": 65,
+        "z": 50
+      },
+      "living_role": {
+        "enabled": true,
+        "extensions_enabled": true,
+        "role": "PREDATOR",
+        "status": "ACTIVE",
+        "phase": "HUNTING",
+        "activity": "FORAGE",
+        "awareness": "QUIET",
+        "movement_purpose": "HUNT",
+        "caution": 0,
+        "started_at_ms": 0,
+        "decision_wait_ms": 0,
+        "danger_remaining_ms": 0,
+        "alarm_remaining_ms": 0,
+        "hunt_status": "HUNT_STARTED",
+        "hunt_end": "PREY_ESCAPED",
+        "assist_status": "",
+        "nearby_prey": 2,
+        "attackable_prey": 1,
+        "nearby_allies": 0,
+        "allies_in_combat": 0,
+        "companion_spawn_id": 80544,
+        "last_hunt_target_spawn_id": 80543,
+        "hunt_target_distance": 13,
+        "prey_run_speed": 8,
+        "prey_move_speed": 8,
+        "sprint_multiplier": 1.35,
+        "sprint_remaining_ms": 450
+      },
+      "movement": {
+        "moving": true,
+        "blocked": false,
+        "cannot_reach_target": false,
+        "evading": false,
+        "run_speed": 9.45,
+        "move_speed": 9.45,
+        "home_distance": 100
+      },
+      "target": {
+        "spawn_id": 80543,
+        "entry": 721,
+        "name": "Rabbit",
+        "position": {
+          "map_id": 0,
+          "x": -9290,
+          "y": 65,
+          "z": 50
+        }
+      },
+      "groups": [
+        {
+          "id": 17,
+          "kind": "LOOSE",
+          "profile": "WOLF_LOOSE",
+          "member_count": 4,
+          "resources": 0.5,
+          "territory": {
+            "map_id": 0,
+            "x": -9300,
+            "y": 60,
+            "z": 50
+          }
+        },
+        {
+          "id": 18,
+          "kind": "STABLE",
+          "profile": "INVALID",
+          "member_count": 2,
+          "resources": 0.2,
+          "territory": {
+            "map_id": 0,
+            "x": -9300,
+            "y": 60,
+            "z": 50
+          }
+        }
+      ]
+    },
+    {
+      "agent_id": 80543,
+      "spawn_id": 80543,
+      "entry": 30,
+      "name": "Rabbit",
+      "type": "UNCLASSIFIED",
+      "control_mode": "OBSERVE_ONLY",
+      "world_faction": 0,
+      "world_state": "ABSTRACT",
+      "simulation_tier": "BACKGROUND",
+      "position": {
+        "map_id": 0,
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "source": "spawn"
+      },
+      "health": null,
+      "max_health": null,
+      "alive": null,
+      "in_combat": null,
+      "needs": {
+        "health_pressure": 0,
+        "hunger": 0.71,
+        "fatigue": 0,
+        "safety_pressure": 0,
+        "resource_pressure": 0
+      },
+      "goal": "HUNT",
+      "goal_utility": 0.71,
+      "routine_goal": null,
+      "action": "ATTACK",
+      "group_id": 17,
+      "economy": {
+        "money": "18446744073709551615",
+        "food": 4,
+        "resource": 6
+      },
+      "home": {
+        "map_id": 0,
+        "x": -9300,
+        "y": 60,
+        "z": 50
+      },
+      "work": {
+        "map_id": 0,
+        "x": -9200,
+        "y": 70,
+        "z": 50
+      },
+      "reputation_faction_id": 1204,
+      "faction_template_id": null,
+      "effective_goal": "HUNT",
+      "goal_owner": "INDIVIDUAL",
+      "action_source_goal": "HUNT",
+      "action_started_at_ms": 10000,
+      "coordination_goal": "HUNT",
+      "coordination_group_id": 17,
+      "coordination_phase": "ENGAGING",
+      "routine_activity": "WORK",
+      "living_wolf": false,
+      "meal_target_spawn_id": null,
+      "destination": null,
+      "living_role": null,
+      "movement": null,
+      "target": null,
+      "groups": [
+        {
+          "id": 17,
+          "kind": "LOOSE",
+          "profile": "WOLF_LOOSE",
+          "member_count": 4,
+          "resources": 0.5,
+          "territory": {
+            "map_id": 0,
+            "x": -9300,
+            "y": 60,
+            "z": 50
+          }
+        },
+        {
+          "id": 18,
+          "kind": "STABLE",
+          "profile": "INVALID",
+          "member_count": 2,
+          "resources": 0.2,
+          "territory": {
+            "map_id": 0,
+            "x": -9300,
+            "y": 60,
+            "z": 50
+          }
+        }
+      ]
+    }
+  ]
+}

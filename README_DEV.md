@@ -332,6 +332,15 @@ AIWorld settings are versioned in `deploy/worldserver.conf` and mirrored in `src
 
 The world thread captures AI-controlled Elwynn agents once per second and hands value-only snapshots to a bounded asynchronous HTTP exporter. The Elwynn spawn ID scope is read once at startup from `creature.zoneId = 12`; those zone IDs must be current for all expected agents to appear. Capture never loads grids. `live` positions and combat/health data come from a currently resolved Creature; `spawn` positions are authoritative spawn coordinates for an abstract agent and are never presented as a current location. The viewer keeps only the latest snapshot in memory, displays its age, and has no NPC control API. It does not query the database for live state.
 
+Observer protocol v2 also exposes living roles/perception, predator hunt and
+sprint diagnostics, wolf pack activity, movement problems, stocks, all group
+memberships/coordination and reputation faction mapping. Filters and activity
+colors help locate these states; selected NPCs show their target/destination links.
+The receiver still accepts v1 snapshots. Upgrade `world-viewer` first with
+`docker compose up -d --build world-viewer`, then run `make build` and
+`make restart-world` to enable the new export. See
+[the Observer guide](docker/world-viewer/README.md) for the protocol and checks.
+
 The subsystem can be disabled:
 
 ```ini

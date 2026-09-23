@@ -8816,83 +8816,9 @@ void AIWorldMgr::Update(uint32 diff)
         {
             _telemetryTimer = 0;
             if (!_telemetryExporter->Busy())
-                CaptureTelemetry();
+                CaptureTelemetry(sMapMgr->FindBaseNonInstanceMap(0));
         }
     }
-}
-
-void AIWorldMgr::CaptureTelemetry()
-{
-    std::vector<AgentTelemetrySnapshot> snapshots;
-    std::vector<AgentId> ids = _registry.GetAgents();
-    snapshots.reserve(std::min(ids.size(), _telemetrySpawnIds.size()));
-    Map* elwynnMap = sMapMgr->FindBaseNonInstanceMap(0);
-    for (AgentId id : ids)
-    {
-        AgentRecord const* record = _registry.Find(id);
-        if (!record || record->MapId != 0 || record->ControlMode != AgentControlMode::AIWorldControlled ||
-            _telemetrySpawnIds.find(record->SpawnId) == _telemetrySpawnIds.end())
-            continue;
-
-        CreatureData const* spawn = sObjectMgr->GetCreatureData(uint32(record->SpawnId));
-        if (!spawn)
-            continue;
-
-        AgentTelemetrySnapshot item;
-        item.Agent = id;
-        item.SpawnId = record->SpawnId;
-        item.Entry = spawn->id;
-        if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(item.Entry))
-            item.Name = creatureTemplate->Name;
-        item.Type = record->Type;
-        item.ControlMode = record->ControlMode;
-        item.WorldFaction = record->WorldFaction;
-        item.MapId = record->MapId;
-        item.SpawnX = spawn->spawnPoint.GetPositionX();
-        item.SpawnY = spawn->spawnPoint.GetPositionY();
-        item.SpawnZ = spawn->spawnPoint.GetPositionZ();
-        item.Needs = record->Needs;
-        if (record->ActiveGoalState)
-        {
-            item.Goal = record->ActiveGoalState->Type;
-            item.GoalUtility = record->ActiveGoalState->Utility;
-        }
-        if (record->RoutineGoalState)
-            item.RoutineGoal = record->RoutineGoalState->Type;
-        if (record->ActiveActionState)
-            item.Action = record->ActiveActionState->Type;
-        std::vector<GroupId> groups = _groupRegistry.GetGroupsOfMember(id);
-        if (!groups.empty())
-            item.GroupId = std::min_element(groups.begin(), groups.end())->Value;
-
-        // GetCreatureBySpawnId only checks already-loaded map state. This
-        // capture never loads a grid to satisfy the viewer.
-        if (Creature* creature = ResolveLiveCreature(*record, elwynnMap))
-        {
-            AgentSnapshot live;
-            live.Agent = id;
-            live.SpawnId = record->SpawnId;
-            live.Entry = creature->GetEntry();
-            live.MapId = creature->GetMapId();
-            live.X = creature->GetPositionX();
-            live.Y = creature->GetPositionY();
-            live.Z = creature->GetPositionZ();
-            live.Orientation = creature->GetOrientation();
-            live.Health = creature->GetHealth();
-            live.MaxHealth = creature->GetMaxHealth();
-            live.Alive = creature->IsAlive();
-            live.InCombat = creature->IsInCombat();
-            live.SnapshotSequence = record->SnapshotSequence;
-            item.Live = live;
-            item.WorldState = AgentWorldState::Materialized;
-            auto tier = _agentSimulationTier.find(id.Value);
-            item.Tier = tier != _agentSimulationTier.end() && tier->second != SimulationTier::Background
-                ? tier->second : SimulationTier::Active;
-        }
-        snapshots.push_back(std::move(item));
-    }
-
-    _telemetryExporter->Submit(std::move(snapshots), CurrentTimeMs());
 }
 
 // Milestone 2.9C: translates a structured DecisionIntent into an

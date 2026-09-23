@@ -19,6 +19,24 @@
 #include "ObjectDefines.h"
 #include "Position.h"
 #include <algorithm>
+#include <cmath>
+
+ChaseSpeedBoost::ChaseSpeedBoost(float multiplier, uint32 durationMs)
+{
+    if (std::isfinite(multiplier) && multiplier > 1.0f && durationMs)
+    {
+        _multiplier = multiplier;
+        _remainingMs = durationMs;
+    }
+}
+
+bool ChaseSpeedBoost::Update(uint32 diffMs)
+{
+    if (!_remainingMs)
+        return false;
+    _remainingMs -= std::min(diffMs, _remainingMs);
+    return !_remainingMs;
+}
 
  // ---- ChaseRange ---- //
 

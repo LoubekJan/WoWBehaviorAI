@@ -26,6 +26,7 @@
 #include "Log.h"
 #include "Map.h"
 #include "MotionMaster.h"
+#include "MoveSpline.h"
 #include "ObjectAccessor.h"
 #include "PathGenerator.h"
 #include "PointMovementGenerator.h"
@@ -145,6 +146,12 @@ std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Cr
     AgentRecord const* record = _registry.FindBySpawn(creature.GetMapId(), creature.GetSpawnId());
     if (!record)
         return std::nullopt;
+    return DescribeLivingRole(creature, *record);
+}
+
+AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& creature, AgentRecord const& agent) const
+{
+    AgentRecord const* record = &agent;
     Role role = LivingRolePolicy::Resolve(record->Type, creature.GetEntry(), IsService(creature));
     LivingRoleDebugInfo info;
     info.Enabled = _livingRolesEnabled;
@@ -165,10 +172,22 @@ std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Cr
     {
         info.HuntStatus = record->LivingRole.LastHuntStatus;
         info.HuntEnd = record->LivingRole.LastHuntEnd;
+        info.RunSpeed = creature.GetSpeed(MOVE_RUN);
+        info.MoveSpeed = creature.IsStopped() ? 0.0f : creature.movespline->Velocity();
+        if (record->LivingRole.CurrentPhase == Phase::Hunting)
+            if (auto* chase = dynamic_cast<ChaseMovementGenerator*>(
+                creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE));
+                chase && chase->GetTarget() && chase->GetTarget()->GetGUID() == record->LivingRole.TargetGuid)
+            {
+                info.SprintMultiplier = chase->GetSpeedBoost().GetMultiplier();
+                info.SprintRemainingMs = chase->GetSpeedBoost().GetRemainingMs();
+            }
         if (Creature* prey = ObjectAccessor::GetCreature(creature, record->LivingRole.LastHuntTargetGuid))
         {
             info.HuntTargetSpawnId = prey->GetSpawnId();
             info.HuntTargetDistance = creature.GetExactDist2d(prey);
+            info.PreyRunSpeed = prey->GetSpeed(MOVE_RUN);
+            info.PreyMoveSpeed = prey->IsStopped() ? 0.0f : prey->movespline->Velocity();
         }
         info.HomeDistance = creature.GetExactDist2d(&creature.GetHomePosition());
         info.InCombat = creature.IsInCombat();
@@ -752,7 +771,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         else if (prey->GetZoneId() != 12) stopReason = "PREY_OUTSIDE_ELWYNN";
         else if (!creature.IsWithinDistInMap(prey, 30.0f)) stopReason = "PREY_OUT_OF_RANGE";
         else if (!creature.IsWithinLOSInMap(prey)) stopReason = "PREY_LOST_LOS";
-        else if (creature.GetDistance(state.Destination.X, state.Destination.Y, state.Destination.Z) > 30.0f)
+        else if (creature.GetDistance(state.Destination.X, state.Destination.Y, state.Destination.Z) > LivingHuntPolicy::LeashDistance)
             stopReason = "HUNT_LEASH";
         else if (WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 45000)) stopReason = "HUNT_TIMEOUT";
         if (stopReason)

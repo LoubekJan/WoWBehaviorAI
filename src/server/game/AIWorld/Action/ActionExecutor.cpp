@@ -265,6 +265,9 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
     if (request.ChaseAngleRadians && LivingHuntPolicy::UsesFormationBearing(request.SourceGoal))
         actor.GetMotionMaster()->MoveChase(&target, ChaseRange(0.5f),
             ChaseAngle(*request.ChaseAngleRadians, GroupMemberFormation::ChaseAngleTolerance), ChaseAngleReference::World);
+    else if (request.SourceGoal == GoalType::PredatorHunt)
+        actor.GetMotionMaster()->MoveChase(&target, {}, {}, ChaseAngleReference::Target,
+            ChaseSpeedBoost(LivingHuntPolicy::SprintRunMultiplier, LivingHuntPolicy::SprintDurationMs));
     else
         actor.GetMotionMaster()->MoveChase(&target);
 
