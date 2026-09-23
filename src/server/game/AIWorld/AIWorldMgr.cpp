@@ -8852,6 +8852,9 @@ void AIWorldMgr::CaptureTelemetry()
         item.SpawnY = spawn->spawnPoint.GetPositionY();
         item.SpawnZ = spawn->spawnPoint.GetPositionZ();
         item.Needs = record->Needs;
+        item.Money = record->EconomyState.Money;
+        item.Food = record->EconomyState.Food;
+        item.Resource = record->EconomyState.Resource;
         if (record->ActiveGoalState)
         {
             item.Goal = record->ActiveGoalState->Type;
@@ -8885,6 +8888,26 @@ void AIWorldMgr::CaptureTelemetry()
             live.SnapshotSequence = record->SnapshotSequence;
             item.Live = live;
             item.WorldState = AgentWorldState::Materialized;
+            if (std::optional<LivingRoleDebugInfo> role = DescribeLivingRole(*creature))
+            {
+                LivingRoleTelemetry roleItem;
+                roleItem.Role = role->Role;
+                roleItem.Status = role->Status;
+                roleItem.Phase = role->Phase;
+                roleItem.Activity = role->Activity;
+                roleItem.Awareness = role->Awareness;
+                roleItem.MovementPurpose = role->MovementPurpose;
+                roleItem.Caution = role->Caution;
+                roleItem.ExtensionsEnabled = role->ExtensionsEnabled;
+                if (role->HuntStatus) roleItem.HuntStatus = role->HuntStatus;
+                if (role->AssistStatus) roleItem.AssistStatus = role->AssistStatus;
+                roleItem.NearbyPrey = role->NearbyPrey;
+                roleItem.AttackablePrey = role->AttackablePrey;
+                roleItem.NearbyAllies = role->NearbyAllies;
+                roleItem.AlliesInCombat = role->AlliesInCombat;
+                roleItem.CompanionSpawnId = role->CompanionSpawnId;
+                item.LivingRole = std::move(roleItem);
+            }
             auto tier = _agentSimulationTier.find(id.Value);
             item.Tier = tier != _agentSimulationTier.end() && tier->second != SimulationTier::Background
                 ? tier->second : SimulationTier::Active;

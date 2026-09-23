@@ -39,13 +39,37 @@ version 1 JSON body:
       "goal_utility": 0.71,
       "action": "MOVE_TO",
       "routine_goal": "GO_HOME",
-      "group_id": 17
+      "group_id": 17,
+      "economy": {"money": 120, "food": 3, "resource": 0},
+      "living_role": {
+        "role": "CIVILIAN",
+        "status": "ACTIVE",
+        "phase": "SEEKING_SAFETY",
+        "activity": "NONE",
+        "awareness": "PREDATOR_SEEN",
+        "movement_purpose": "GUARD_REFUGE",
+        "caution": 0.42,
+        "extensions_enabled": true,
+        "hunt_status": null,
+        "assist_status": null,
+        "nearby_prey": 0,
+        "attackable_prey": 0,
+        "nearby_allies": 0,
+        "allies_in_combat": 0,
+        "companion_spawn_id": null
+      }
     }
   ]
 }
 ```
 
-Optional agent fields may be omitted or null. `position.source` is `live`,
+Optional agent fields may be omitted or null. `economy` is the persistent
+stockpile and is sent for every agent. `living_role` mirrors the
+`.aiworld group status` role diagnostics (see `doc/LivingRoles.md`) and is
+sent only for materialized agents; `hunt_status` is set only for predators and
+`assist_status` only for guards and combatants. The viewer shows the role
+phase (including `SEEKING_SAFETY` and `INVESTIGATING`), awareness, movement
+purpose and stockpiles, and can filter by phase or by non-`QUIET` awareness. `position.source` is `live`,
 `spawn`, or `last_known`; only `live` means a current Creature position.
 The next accepted batch replaces the entire previous batch. Requests are
 limited to 8 MiB and 10,000 agents. Duplicate AgentIds and malformed batches

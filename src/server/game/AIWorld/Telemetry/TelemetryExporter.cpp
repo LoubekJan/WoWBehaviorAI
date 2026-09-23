@@ -122,6 +122,38 @@ namespace
             if (item.Action) WriteString(out, ToString(*item.Action)); else out << "null";
             out << ",\"group_id\":";
             if (item.GroupId) out << *item.GroupId; else out << "null";
+            out << ",\"economy\":{\"money\":" << item.Money << ",\"food\":" << item.Food
+                << ",\"resource\":" << item.Resource << "},\"living_role\":";
+            if (!item.LivingRole)
+                out << "null";
+            else
+            {
+                LivingRoleTelemetry const& role = *item.LivingRole;
+                out << "{\"role\":";
+                WriteString(out, role.Role);
+                out << ",\"status\":";
+                WriteString(out, role.Status);
+                out << ",\"phase\":";
+                WriteString(out, role.Phase);
+                out << ",\"activity\":";
+                WriteString(out, role.Activity);
+                out << ",\"awareness\":";
+                WriteString(out, role.Awareness);
+                out << ",\"movement_purpose\":";
+                WriteString(out, role.MovementPurpose);
+                out << ",\"caution\":";
+                WriteFloat(out, role.Caution);
+                out << ",\"extensions_enabled\":" << (role.ExtensionsEnabled ? "true" : "false")
+                    << ",\"hunt_status\":";
+                if (role.HuntStatus) WriteString(out, *role.HuntStatus); else out << "null";
+                out << ",\"assist_status\":";
+                if (role.AssistStatus) WriteString(out, *role.AssistStatus); else out << "null";
+                out << ",\"nearby_prey\":" << role.NearbyPrey << ",\"attackable_prey\":" << role.AttackablePrey
+                    << ",\"nearby_allies\":" << role.NearbyAllies << ",\"allies_in_combat\":" << role.AlliesInCombat
+                    << ",\"companion_spawn_id\":";
+                if (role.CompanionSpawnId) out << role.CompanionSpawnId; else out << "null";
+                out << '}';
+            }
             out << '}';
         }
         out << "]}";
