@@ -270,6 +270,16 @@ class TC_GAME_API AIWorldMgr
             char const* Goal = "NONE";
             char const* Action = "NONE";
             char const* HuntStatus = nullptr;
+            char const* HuntEnd = "NONE";
+            uint64 HuntTargetSpawnId = 0;
+            float HuntTargetDistance = -1.0f;
+            float HomeDistance = 0.0f;
+            bool InCombat = false;
+            bool Moving = false;
+            bool MovementBlocked = false;
+            bool CannotReachTarget = false;
+            bool Evading = false;
+            uint64 DecisionWaitMs = 0;
             char const* AssistStatus = nullptr;
             uint32 NearbyPrey = 0;
             uint32 AttackablePrey = 0;

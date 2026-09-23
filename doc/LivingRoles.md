@@ -160,7 +160,8 @@ hraniční případy, unload/rebind ani měření výkonu celé populace.
 
 ## Rozšíření okolí, spolupráce a zásob — 23. 9. 2026
 
-Implementováno lokálně; **herní ověření této nové vrstvy zatím čeká**.
+Implementováno; **část herního ověření potvrzena, oprava lovu čeká na opakovaný test**
+(podrobnosti níže).
 Vyžaduje oba přepínače:
 
 ```ini
@@ -236,6 +237,55 @@ Pracovní interval je nadále 400.–800. sekunda dvacetiminutového syntetické
 dne. Jídlo, odpočinek i nouze mohou práci odložit. `.npc add` stále
 nenahrazuje registraci trvalého spawnu do AIWorld.
 
+### Zpětná vazba a oprava pronásledování — 23. 9. 2026
+
+Uživatel potvrdil, že dřevorubec při `WORK` získal **2 Resource**; snímek
+s `REST` a nulovou zásobou nebyl důkazem poruchy výroby. Po zásahu civilisty
+se rozeběhly stráže. Stádo hodnotil jako dobré a dvojice stráží předběžně
+také. U prasete snímek potvrzuje rozhodnutí `SEEKING_SAFETY` /
+`AWAY_FROM_DANGER`, ale kvalitu skutečné únikové trasy zatím nepotvrdil.
+
+Forest Spider podle uživatele **celou dobu stojí**. Na snímku měl hlad
+0,91, dvě napadnutelné kořisti a `lastHunt=HUNT_STARTED`, přitom už byl
+`IDLE` bez akce. Starý údaj uchovával poslední zahájení, nikoli skutečný
+výsledek lovu. Nelze z něj určit příčinu zastavení.
+
+Lokální oprava sjednocuje přístup ke kořisti: samostatný `PredatorHunt`
+kontroloval cestu přímo k cíli, ale executor dosud pronásledoval pevné místo
+vedle něj. Nyní používá přímý engine chase do dosahu pro úder. Rozestupy
+při obraně a původním skupinovém lovu zůstávají. Neprůchodná cesta, ztracený
+victim nebo chybějící chase už neponechávají lov zdánlivě aktivní po celý
+45sekundový limit. Predátor uvolní vlastní útok, po 2 s smí rozhodnout
+znovu a kořist s neprůchodnou cestou 30 s vynechá. Root/stun tuto výjimku
+nezpůsobuje. Nejde o potvrzenou příčinu uživatelova runtime problému;
+oprava nesouladu a následující diagnostika vyžadují nový herní test.
+
+`.aiworld group status` nyní ukazuje také `lastEnd`, poslední dostupný
+`preySpawn` a jeho aktuální `preyDistance`, vzdálenost od domova,
+`inCombat`, `moving`, `movementBlocked`, `cannotReach`, `evading` a
+`decisionWaitMs`. `preySpawn=0` / `preyDistance=-1` znamenají, že poslední
+kořist už nelze načíst nebo žádný lov ještě nezačal. `lastEnd` zůstává
+výsledkem předchozího ukončení i při novém scanu/lovu; řádek `phase` a
+`lastHunt` popisují aktuální pokus nebo poslední scan. Čekání na rozhodnutí
+se může překrývat s činností, bojem či návratem, není to slib nového lovu.
+
+Opakovaný test po sestavení a restartu:
+
+1. `.go creature 79883`, vybrat původního Forest Spider. Ověřit
+   `AI_WORLD_CONTROLLED`, `enabled=true`, `extensions=true`, zdraví nad
+   30 % a hlad alespoň 0,65. Pro pozorování není nutné vypínat GM režim.
+2. Ponechat živou Cow/Deer/Fawn/Rabbit poblíž, nezasahovat a sledovat
+   přibližně 60–90 s. Při lovu čekat `HUNTING` / `HUNT_PURSUING`, pohyb
+   ke kořisti a `HUNT_IN_MELEE_RANGE` s údery po doběhnutí. Kořist může
+   uniknout; samotný útěk není porucha lovu.
+3. Po úspěšném lovu čekat `FEEDING`, pak `lastEnd=FED`, nižší hlad a
+   odpočinek. Při trvalém stání zachytit celý výpis příkazu ihned a znovu
+   po 5–10 s. `HUNT_PATH_BLOCKED`, `HUNT_CHASE_MISSING`, `HUNT_VICTIM_LOST`
+   a `HUNT_EVADE` rozliší engine příčiny; `PREY_OUT_OF_RANGE`,
+   `PREY_LOST_LOS`, `HUNT_LEASH` a `HUNT_TIMEOUT` důvody ukončení v plánovači.
+4. Krátce zopakovat obranu více Defias nebo vlků a otočení hráče; zachovat
+   rozestupy bez obíhání za záda. Produkce pracovníků se touto opravou nemění.
+
 ## Hranice této změny
 
 Jde o místní rozhodování, skutečný pohyb, boj a viditelné animace.
@@ -252,6 +302,14 @@ Globální demografie, nové questy z nedostatku, sémantické cestovní trasy,
 trvalé vztahy a dlouhodobé učení zůstávají pro navazující rozšíření.
 
 ## Automatická kontrola
+
+Oprava pronásledování z 23. 9. 2026 prošla **1 046 assertions ve 23 testech**
+pod MSVC/Catch2. Nové scénáře rozlišují chybu cesty, ztrátu oběti, chybějící
+chase, dosah pro úder a dočasné znehybnění; validátor odmítá formační úhel
+u samostatného lovu a dál dovoluje úhly při obraně a skupinovém lovu.
+Reset materializace zahazuje také diagnostiku a dočasně vynechanou kořist.
+Prošla syntax běhového kódu a kontrola diffu. Žádný z těchto lokálních
+testů neověřuje skutečný pohyb pavouka na uživatelově navmeshi.
 
 Aktuální rozšíření z 23. 9. 2026 prošlo **1 012 assertions v 21 testech**
 pod MSVC/Catch2 včetně regresí vlků a světových úhlů. Nové případy ověřují

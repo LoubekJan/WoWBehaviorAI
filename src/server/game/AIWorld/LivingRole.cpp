@@ -16,6 +16,7 @@
  */
 
 #include "AIWorldMgr.h"
+#include "Agent/LivingHuntPolicy.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/WolfBehaviorPolicy.h"
@@ -163,6 +164,20 @@ std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Cr
     if (role == Role::Predator && !IsLivingWolf(*record))
     {
         info.HuntStatus = record->LivingRole.LastHuntStatus;
+        info.HuntEnd = record->LivingRole.LastHuntEnd;
+        if (Creature* prey = ObjectAccessor::GetCreature(creature, record->LivingRole.LastHuntTargetGuid))
+        {
+            info.HuntTargetSpawnId = prey->GetSpawnId();
+            info.HuntTargetDistance = creature.GetExactDist2d(prey);
+        }
+        info.HomeDistance = creature.GetExactDist2d(&creature.GetHomePosition());
+        info.InCombat = creature.IsInCombat();
+        info.Moving = !creature.IsStopped();
+        info.MovementBlocked = creature.HasUnitState(UNIT_STATE_NOT_MOVE) || creature.IsMovementPreventedByCasting();
+        info.CannotReachTarget = creature.CanNotReachTarget();
+        info.Evading = creature.IsInEvadeMode();
+        uint64 nowMs = GetCurrentTimeMs();
+        info.DecisionWaitMs = record->LivingRole.NextDecisionAtMs > nowMs ? record->LivingRole.NextDecisionAtMs - nowMs : 0;
         info.NearbyPrey = record->LivingRole.NearbyPrey;
         info.AttackablePrey = record->LivingRole.AttackablePrey;
     }
@@ -198,6 +213,10 @@ std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Cr
 void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
 {
     auto& state = record.LivingRole;
+    if (state.CurrentPhase == Phase::Hunting)
+        state.LastHuntStatus = state.LastHuntEnd = "HUNT_INTERRUPTED";
+    else if (state.CurrentPhase == Phase::Feeding)
+        state.LastHuntStatus = state.LastHuntEnd = "FEED_INTERRUPTED";
     if (state.RuntimeGuid == creature.GetGUID() && state.CurrentPhase != Phase::Idle)
     {
         bool ownsAttempt = record.ActiveGoalState && record.ActiveGoalState->Type == state.SourceGoal &&
@@ -264,6 +283,17 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         StopLivingRole(record, creature);
     if (creature.IsInEvadeMode() || creature.HasUnitState(UNIT_STATE_CASTING))
     {
+        if (state.CurrentPhase == Phase::Hunting)
+        {
+            if (creature.IsInEvadeMode())
+            {
+                StopLivingRole(record, creature);
+                state.LastHuntStatus = state.LastHuntEnd = "HUNT_EVADE";
+                state.NextDecisionAtMs = nowMs + 10000;
+            }
+            else
+                state.LastHuntStatus = "HUNT_CASTING";
+        }
         if (state.CurrentPhase == Phase::Acting || state.CurrentPhase == Phase::Feeding)
             StopLivingRole(record, creature);
         return true;
@@ -537,7 +567,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         request.Actor = record.Id;
         request.GoalStartedAtMs = nowMs;
         request.FleeFromGuid = context.FleeSourceGuid;
-        if (request.Type == ActionType::Attack && target)
+        if (request.Type == ActionType::Attack && target && LivingHuntPolicy::UsesFormationBearing(request.SourceGoal))
         {
             // Keep the chosen world bearing for the lifetime of this chase.
             // Fill the widest free gap among current attackers; deaths do not
@@ -549,7 +579,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                     float bearing = target->GetAbsoluteAngle(attacker);
                     if (Creature* npc = attacker->ToCreature())
                         if (AgentRecord const* other = _registry.FindBySpawn(npc->GetMapId(), npc->GetSpawnId()))
-                            if ((other->LivingRole.CurrentPhase == Phase::Hunting || other->LivingRole.CurrentPhase == Phase::Defending) &&
+                            if (other->LivingRole.CurrentPhase == Phase::Defending &&
                                 other->LivingRole.TargetGuid == target->GetGUID())
                                 bearing = other->LivingRole.ChaseBearing;
                     bearings.push_back(bearing);
@@ -711,38 +741,73 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     if (state.CurrentPhase == Phase::Hunting || state.CurrentPhase == Phase::Feeding)
     {
         Creature* prey = ObjectAccessor::GetCreature(creature, state.TargetGuid);
-        if (!prey || !creature.IsWithinDistInMap(prey, 30.0f) || !creature.IsWithinLOSInMap(prey) ||
-            prey->GetZoneId() != 12 || creature.GetDistance(state.Destination.X, state.Destination.Y, state.Destination.Z) > 30.0f ||
-            WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 45000))
+        auto endHunt = [&](char const* reason, uint64 retryMs = 10000)
         {
             StopLivingRole(record, creature);
-            state.NextDecisionAtMs = nowMs + 10000;
+            state.LastHuntStatus = state.LastHuntEnd = reason;
+            state.NextDecisionAtMs = nowMs + retryMs;
+        };
+        char const* stopReason = nullptr;
+        if (!prey) stopReason = "PREY_GONE";
+        else if (prey->GetZoneId() != 12) stopReason = "PREY_OUTSIDE_ELWYNN";
+        else if (!creature.IsWithinDistInMap(prey, 30.0f)) stopReason = "PREY_OUT_OF_RANGE";
+        else if (!creature.IsWithinLOSInMap(prey)) stopReason = "PREY_LOST_LOS";
+        else if (creature.GetDistance(state.Destination.X, state.Destination.Y, state.Destination.Z) > 30.0f)
+            stopReason = "HUNT_LEASH";
+        else if (WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 45000)) stopReason = "HUNT_TIMEOUT";
+        if (stopReason)
+        {
+            endHunt(stopReason);
             return true;
         }
         if (state.CurrentPhase == Phase::Hunting)
         {
-            if (prey->IsAlive() && creature.IsValidAttackTarget(prey) && creature.GetVictim() == prey)
+            if (prey->IsAlive())
+            {
+                if (!creature.IsValidAttackTarget(prey))
+                {
+                    endHunt("PREY_NOT_ATTACKABLE");
+                    return true;
+                }
+                auto* chase = dynamic_cast<ChaseMovementGenerator*>(
+                    creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE));
+                auto motion = LivingHuntPolicy::EvaluateMotion(creature.GetVictim() == prey, creature.CanNotReachTarget(),
+                    creature.HasUnitState(UNIT_STATE_NOT_MOVE) || creature.IsMovementPreventedByCasting(),
+                    chase && chase->GetTarget() == prey && OwnsRoleMovement(record, creature), creature.IsWithinMeleeRange(prey));
+                state.LastHuntStatus = LivingHuntPolicy::ToString(motion);
+                if (!LivingHuntPolicy::CanContinue(motion))
+                {
+                    if (motion == LivingHuntPolicy::MotionState::PathBlocked)
+                    {
+                        state.UnreachablePreyGuid = prey->GetGUID();
+                        state.UnreachablePreyUntilMs = nowMs + 30000;
+                    }
+                    endHunt(LivingHuntPolicy::ToString(motion), 2000);
+                }
                 return true;
+            }
             ObjectGuid meal = prey->GetGUID();
-            StopLivingRole(record, creature);
-            if (!prey->IsAlive() && creature.IsWithinDistInMap(prey, 5.0f) && !creature.IsInCombat())
+            endHunt("PREY_DIED");
+            if (creature.IsWithinDistInMap(prey, 5.0f) && !creature.IsInCombat())
             {
                 state.TargetGuid = meal;
                 ActionRequest feed;
                 feed.Type = ActionType::Eat; feed.SourceGoal = GoalType::Feed;
-                start(feed, Phase::Feeding, prey);
+                state.LastHuntStatus = start(feed, Phase::Feeding, prey) ? "FEEDING" : "FEED_REJECTED";
             }
+            else
+                state.LastHuntEnd = state.LastHuntStatus = creature.IsInCombat() ? "FEED_COMBAT_BLOCKED" : "CORPSE_TOO_FAR";
             return true;
         }
         if (prey->IsAlive() || creature.IsInCombat() || !creature.IsWithinDistInMap(prey, 5.0f) || !creature.IsStopped())
         {
-            StopLivingRole(record, creature);
+            endHunt("FEED_INTERRUPTED");
             return true;
         }
         if (WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 5000))
         {
             _needsSystem.SatisfyHunger(record.Needs);
-            StopLivingRole(record, creature);
+            endHunt("FED");
             ActionRequest rest;
             rest.Type = ActionType::Ambient; rest.SourceGoal = GoalType::LocalActivity; rest.AmbientActivity = Activity::Rest;
             start(rest, Phase::Acting);
@@ -830,6 +895,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.NearbyPrey = state.AttackablePrey = 0;
         state.LastHuntStatus = "NO_PREY";
         bool actionRejected = false;
+        bool preyOnCooldown = false;
         std::vector<Creature*> candidates;
         for (Creature* candidate : nearby)
         {
@@ -843,6 +909,11 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             ++state.AttackablePrey;
             if (!validThreat(candidate))
                 continue;
+            if (candidate->GetGUID() == state.UnreachablePreyGuid && nowMs < state.UnreachablePreyUntilMs)
+            {
+                preyOnCooldown = true;
+                continue;
+            }
             candidates.push_back(candidate);
         }
         if (extensions)
@@ -864,6 +935,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 if (start(hunt, Phase::Hunting, candidate))
                 {
                     state.LastHuntStatus = "HUNT_STARTED";
+                    state.LastHuntTargetGuid = candidate->GetGUID();
                     return true;
                 }
                 state.LastHuntStatus = "ACTION_REJECTED";
@@ -871,7 +943,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             }
         }
         if (!actionRejected)
-            state.LastHuntStatus = state.AttackablePrey ? "NO_REACHABLE_PREY" :
+            state.LastHuntStatus = candidates.empty() && preyOnCooldown ? "PREY_RETRY_DELAY" :
+                state.AttackablePrey ? "NO_REACHABLE_PREY" :
                 state.NearbyPrey ? "PREY_NOT_ATTACKABLE" : "NO_PREY";
     }
 

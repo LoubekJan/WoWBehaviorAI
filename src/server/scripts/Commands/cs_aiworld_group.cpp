@@ -172,8 +172,14 @@ public:
                 handler->SendSysMessage(Trinity::StringFormat("AIWorld role: phase={} activity={} hunger={:.2f} goal={} action={}",
                     role->Phase, role->Activity, role->Hunger, role->Goal, role->Action));
                 if (role->HuntStatus)
+                {
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld role: lastHunt={} nearbyPrey={} attackablePrey={}",
                         role->HuntStatus, role->NearbyPrey, role->AttackablePrey));
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld hunt: lastEnd={} preySpawn={} preyDistance={:.1f} homeDistance={:.1f}",
+                        role->HuntEnd, role->HuntTargetSpawnId, role->HuntTargetDistance, role->HomeDistance));
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld hunt: inCombat={} moving={} movementBlocked={} cannotReach={} evading={} decisionWaitMs={}",
+                        role->InCombat, role->Moving, role->MovementBlocked, role->CannotReachTarget, role->Evading, role->DecisionWaitMs));
+                }
                 if (role->AssistStatus)
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld role: lastAssist={} nearbyAllies={} alliesInCombat={}",
                         role->AssistStatus, role->NearbyAllies, role->AlliesInCombat));

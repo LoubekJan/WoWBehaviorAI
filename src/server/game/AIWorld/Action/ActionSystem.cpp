@@ -18,6 +18,7 @@
 #include "ActionSystem.h"
 #include "ArrivalTolerance.h"
 #include "Agent/GroupMemberFormation.h"
+#include "Agent/LivingHuntPolicy.h"
 #include <cmath>
 
 namespace
@@ -344,6 +345,8 @@ ActionValidationResult ActionSystem::ValidateHuntTarget(ActionRequest const& req
 
 ActionValidationResult ActionSystem::ValidateAttack(ActionRequest const& request, ActionValidationContext const& context) const
 {
+    if (request.ChaseAngleRadians && !LivingHuntPolicy::UsesFormationBearing(request.SourceGoal))
+        return { false, ActionRejectReason::InvalidChaseAngle };
     if (request.ChaseAngleRadians && (!std::isfinite(*request.ChaseAngleRadians) ||
         *request.ChaseAngleRadians < 0.0f || *request.ChaseAngleRadians >= GroupMemberFormation::TwoPi))
         return { false, ActionRejectReason::InvalidChaseAngle };

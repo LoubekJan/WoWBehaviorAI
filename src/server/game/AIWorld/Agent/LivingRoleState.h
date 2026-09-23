@@ -41,6 +41,10 @@ struct LivingRoleState
     float ChaseBearing = 0.0f;
     uint8 OwnedStandState = 0;
     char const* LastHuntStatus = "NOT_SCANNED";
+    char const* LastHuntEnd = "NONE";
+    ObjectGuid LastHuntTargetGuid;
+    ObjectGuid UnreachablePreyGuid;
+    uint64 UnreachablePreyUntilMs = 0;
     char const* LastAssistStatus = "NOT_SCANNED";
     uint32 NearbyPrey = 0;
     uint32 AttackablePrey = 0;

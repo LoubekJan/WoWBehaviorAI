@@ -18,9 +18,11 @@
 #include "tc_catch2.h"
 #include "Action/ActionSystem.h"
 #include "Agent/LivingRolePolicy.h"
+#include "Agent/LivingHuntPolicy.h"
 #include "Agent/AgentRecord.h"
 #include "DBCStructure.h"
 #include <limits>
+#include <string>
 
 TEST_CASE("Defias social allies can assist despite mutually neutral native templates", "[AIWorld][LivingRole]")
 {
@@ -66,6 +68,11 @@ TEST_CASE("Materialization cleanup discards role attempts without claiming newer
     record.LivingRole.CurrentPhase = LivingRoleState::Phase::Hunting;
     record.LivingRole.SourceGoal = GoalType::PredatorHunt;
     record.LivingRole.StartedAtMs = 100;
+    record.LivingRole.LastHuntStatus = "HUNT_PATH_BLOCKED";
+    record.LivingRole.LastHuntEnd = "HUNT_PATH_BLOCKED";
+    record.LivingRole.LastHuntTargetGuid = record.LivingRole.TargetGuid;
+    record.LivingRole.UnreachablePreyGuid = record.LivingRole.TargetGuid;
+    record.LivingRole.UnreachablePreyUntilMs = 30100;
     record.ActiveGoalState.emplace();
     record.ActiveGoalState->Type = GoalType::PredatorHunt;
     record.ActiveGoalState->StartedAtMs = 100;
@@ -91,6 +98,10 @@ TEST_CASE("Materialization cleanup discards role attempts without claiming newer
     REQUIRE(record.LivingRole.RuntimeGuid.IsEmpty());
     REQUIRE(record.LivingRole.TargetGuid.IsEmpty());
     REQUIRE(record.LivingRole.CurrentPhase == LivingRoleState::Phase::Idle);
+    REQUIRE(record.LivingRole.LastHuntTargetGuid.IsEmpty());
+    REQUIRE(record.LivingRole.UnreachablePreyGuid.IsEmpty());
+    REQUIRE(record.LivingRole.UnreachablePreyUntilMs == 0);
+    REQUIRE(std::string(record.LivingRole.LastHuntEnd) == "NONE");
 }
 
 TEST_CASE("Living roles only cover controlled permanent Elwynn agents", "[AIWorld][LivingRole]")
@@ -238,6 +249,11 @@ TEST_CASE("Predators only hunt resolved classified attackable creature prey", "[
     SECTION("map") { context.TargetMapId = 1; }
     SECTION("unrelated movement") { context.HasActiveMovement = true; }
     SECTION("other victim") { context.ActorCurrentVictimGuid = ObjectGuid::Create<HighGuid::Unit>(721, 2); }
+    SECTION("individual prey pursuit must not substitute a formation slot")
+    {
+        request.ChaseAngleRadians = 0.5f;
+        REQUIRE(actions.Validate(request, context).Reason == ActionRejectReason::InvalidChaseAngle);
+    }
     SECTION("players are never food")
     {
         request.Target = ActionTargetRef{ ObjectGuid::Create<HighGuid::Player>(1), 0 };
@@ -269,6 +285,54 @@ TEST_CASE("Local movement cannot escape action range and combat gates", "[AIWorl
     SECTION("range") { request.Destination->X = 50.0f; }
     SECTION("finite") { request.Destination->X = std::numeric_limits<float>::quiet_NaN(); }
     REQUIRE(!actions.Validate(request, context).Allowed);
+}
+
+TEST_CASE("Individual hunt motion detects engine failures without cancelling melee or roots", "[AIWorld][LivingRole]")
+{
+    using namespace LivingHuntPolicy;
+    // A live victim alone is insufficient: the old planner retained the hunt
+    // until timeout even when the chase reported an unreachable destination.
+    REQUIRE(EvaluateMotion(true, true, false, true, false) == MotionState::PathBlocked);
+    REQUIRE(!CanContinue(EvaluateMotion(true, true, false, true, false)));
+    REQUIRE(EvaluateMotion(true, false, false, false, false) == MotionState::ChaseMissing);
+    REQUIRE(!CanContinue(EvaluateMotion(true, false, false, false, false)));
+    REQUIRE(EvaluateMotion(false, false, false, true, false) == MotionState::VictimLost);
+    REQUIRE(!CanContinue(EvaluateMotion(false, false, false, true, false)));
+    REQUIRE(EvaluateMotion(true, false, false, true, false) == MotionState::Pursuing);
+    REQUIRE(CanContinue(EvaluateMotion(true, false, false, true, false)));
+    // Stopping in reach is successful pursuit, not a stuck chase. Root/stun
+    // does not blacklist otherwise valid prey, even with a stale path flag.
+    REQUIRE(EvaluateMotion(true, false, false, false, true) == MotionState::InMeleeRange);
+    REQUIRE(CanContinue(EvaluateMotion(true, false, false, false, true)));
+    REQUIRE(EvaluateMotion(true, true, true, true, false) == MotionState::TemporarilyBlocked);
+    REQUIRE(CanContinue(EvaluateMotion(true, true, true, true, false)));
+    REQUIRE(std::string(ToString(MotionState::PathBlocked)) == "HUNT_PATH_BLOCKED");
+    REQUIRE(std::string(ToString(MotionState::ChaseMissing)) == "HUNT_CHASE_MISSING");
+}
+
+TEST_CASE("Direct predator pursuit preserves formation slots for defense and wolf hunts", "[AIWorld][LivingRole]")
+{
+    REQUIRE(!LivingHuntPolicy::UsesFormationBearing(GoalType::PredatorHunt));
+    REQUIRE(LivingHuntPolicy::UsesFormationBearing(GoalType::Defend));
+    REQUIRE(LivingHuntPolicy::UsesFormationBearing(GoalType::Hunt));
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::Attack;
+    request.SourceGoal = GoalType::Defend;
+    request.Target = ActionTargetRef{ ObjectGuid::Create<HighGuid::Unit>(721, 1), 721 };
+    request.ChaseAngleRadians = 0.5f;
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = true;
+    context.ActiveGoalType = request.SourceGoal;
+    context.TargetResolved = context.TargetAlive = context.TargetAttackable = true;
+    context.TargetWithinAttackRange = context.TargetInLineOfSight = true;
+    context.TargetGuid = context.DefenseThreatGuid = request.Target->Guid;
+    context.TargetEntry = request.Target->Entry;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    request.SourceGoal = GoalType::Hunt;
+    context.ActiveGoalType = request.SourceGoal;
+    REQUIRE(actions.Validate(request, context).Allowed);
 }
 
 TEST_CASE("Directed refuge movement requires a live danger and the independently approved path", "[AIWorld][LivingRole]")

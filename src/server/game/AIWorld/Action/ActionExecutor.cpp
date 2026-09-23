@@ -17,6 +17,7 @@
 
 #include "ActionExecutor.h"
 #include "Agent/GroupMemberFormation.h"
+#include "Agent/LivingHuntPolicy.h"
 #include "ChaseMovementGenerator.h"
 #include "CombatManager.h"
 #include "Creature.h"
@@ -261,7 +262,7 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
         return result;
     }
 
-    if (request.ChaseAngleRadians)
+    if (request.ChaseAngleRadians && LivingHuntPolicy::UsesFormationBearing(request.SourceGoal))
         actor.GetMotionMaster()->MoveChase(&target, ChaseRange(0.5f),
             ChaseAngle(*request.ChaseAngleRadians, GroupMemberFormation::ChaseAngleTolerance), ChaseAngleReference::World);
     else
