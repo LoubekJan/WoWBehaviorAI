@@ -261,7 +261,7 @@ void Map::LoadAlwaysActiveZone(uint32 zoneId)
     // Use the authoritative zone census, including gameobjects and event/pool
     // spawns. Fill the interior too, so moving into an empty grid cannot freeze
     // an NPC. One extra grid on every side provides a movement/aggro buffer.
-    QueryResult result = WorldDatabase.Query(
+    QueryResult result = WorldDatabase.PQuery(
         "SELECT position_x, position_y FROM creature WHERE map = {} AND zoneId = {} "
         "UNION ALL SELECT position_x, position_y FROM gameobject WHERE map = {} AND zoneId = {}",
         GetId(), zoneId, GetId(), zoneId);
