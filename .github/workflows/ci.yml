@@ -64,7 +64,7 @@ jobs:
 
       - name: Unit tests
         run: |
-          cmake --build ${{ steps.strings.outputs.build-output-dir }} --target test
+          CTEST_OUTPUT_ON_FAILURE=1 cmake --build ${{ steps.strings.outputs.build-output-dir }} --target test
 
   # Push/manual gate: self-hosted ci-runner, using its own persistent
   # build-data/ccache-data volumes (aitc_ci_*, separate from the running
@@ -121,7 +121,7 @@ jobs:
 
             ccache -s
 
-            cmake --build /build --target test
+            CTEST_OUTPUT_ON_FAILURE=1 cmake --build /build --target test
 
             cmake --install /build
 

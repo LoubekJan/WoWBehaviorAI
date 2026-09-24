@@ -29,6 +29,10 @@ namespace Movement
         {
             auto const& a = path[i - 1];
             auto const& b = path[i];
+            // Validate coordinates themselves: a 3-argument hypot can return
+            // zero for (0, 0, NaN), depending on the standard library.
+            if (!std::isfinite(b.x) || !std::isfinite(b.y) || !std::isfinite(b.z))
+                return false;
             float length = std::hypot(b.x - a.x, b.y - a.y, b.z - a.z);
             if (!std::isfinite(length) || length > float(remaining))
                 return false;

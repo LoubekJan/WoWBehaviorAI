@@ -631,7 +631,26 @@ TEST_CASE("Zone bounds reject an escape crossing outside between legal endpoints
     REQUIRE(Movement::PathWithinBounds(around, inside));
     REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{}, inside));
     REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{{4, 0, 0}}, inside));
-    REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{{0, 0, 0}, {0, 0, std::numeric_limits<float>::quiet_NaN()}}, inside));
+    // A bounds predicate need not inspect height. Reject every invalid axis
+    // before passing a point to it, independently of hypot's NaN handling.
+    for (float invalid : {std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity()})
+        for (unsigned axis = 0; axis < 3; ++axis)
+            for (unsigned point = 0; point < 3; ++point)
+            {
+                CAPTURE(invalid, axis, point);
+                std::vector<Point> path{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+                if (axis == 0) path[point].x = invalid;
+                else if (axis == 1) path[point].y = invalid;
+                else path[point].z = invalid;
+                bool queriedInvalid = false;
+                REQUIRE(!Movement::PathWithinBounds(path, [&](float x, float y, float z)
+                {
+                    queriedInvalid |= !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z);
+                    return inside(x, y, z);
+                }));
+                REQUIRE(!queriedInvalid);
+            }
     unsigned queries = 0;
     REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{{0, 0, 0}, {100000, 0, 0}},
         [&](float, float, float) { ++queries; return true; }));
