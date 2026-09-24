@@ -182,6 +182,29 @@ namespace LivingRolePolicy
         }
     }
 
+    inline Activity CuratedSelfCare(Role role, float hunger, float fatigue, uint32 food)
+    {
+        if (Wildlife(role) || !KnownRole(role)) return Activity::None;
+        if (hunger >= 0.65f && food) return Activity::Eat;
+        if (fatigue >= 0.8f && role != Role::Service && role != Role::Guard) return Activity::Rest;
+        return Activity::None;
+    }
+
+    inline bool ConsumeStockMeal(AgentEconomyState& economy)
+    {
+        if (!economy.Food) return false;
+        --economy.Food;
+        return true;
+    }
+
+    inline Activity RecoveryActivity(Role role, float hunger, bool rememberedDanger)
+    {
+        if (rememberedDanger) return Activity::Look;
+        if (hunger >= 0.65f && role == Role::Prey) return Activity::Graze;
+        if (hunger >= 0.65f && !Wildlife(role)) return Activity::Eat;
+        return role == Role::Service || role == Role::Guard ? Activity::Look : Activity::Rest;
+    }
+
     inline bool Allows(Role role, Activity activity)
     {
         if (!KnownRole(role) || activity == Activity::None)

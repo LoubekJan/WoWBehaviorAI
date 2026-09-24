@@ -28,7 +28,7 @@
 #include "SharedDefines.h"
 #include "Unit.h"
 
-ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const
+ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource, uint32 allowedZone) const
 {
     ActionResult result;
     result.Actor = request.Actor;
@@ -47,7 +47,7 @@ ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature&
     // (SafetyPressure dropping below retention, or the goal timing out)
     // says it should, via StopFlee() - not on a TrinityCore-owned timer
     // this class would then have to coordinate with.
-    actor.GetMotionMaster()->MoveFleeing(&fleeSource);
+    actor.GetMotionMaster()->MoveFleeing(&fleeSource, 0, allowedZone);
 
     result.Status = ActionExecutionStatus::Started;
     result.Reason = ActionExecutionReason::None;

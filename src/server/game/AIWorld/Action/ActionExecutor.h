@@ -69,7 +69,7 @@ class TC_GAME_API ActionExecutor
         // itself. Returns Failed/UnsupportedAction (and does nothing) if
         // request.Type is not Flee - defensive only; every current call
         // site already validated this before calling.
-        ActionResult ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource) const;
+        ActionResult ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource, uint32 allowedZone = 0) const;
 
         // Ends a flee started by ExecuteFlee() - removes only the
         // FLEEING_MOTION_TYPE generator (never MotionMaster::Clear(),

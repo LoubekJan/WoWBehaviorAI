@@ -20,10 +20,12 @@
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/LivingHuntPolicy.h"
 #include "Agent/LivingReturnPolicy.h"
+#include "Agent/LivingForagePolicy.h"
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/AgentRecord.h"
 #include "DBCStructure.h"
 #include "MovementDefines.h"
+#include "MovementPathBounds.h"
 #include "Position.h"
 #include <limits>
 #include <string>
@@ -599,12 +601,151 @@ TEST_CASE("Role observations cannot survive a new materialization", "[AIWorld][L
     record.LivingRole.DangerUntilMs = record.LivingRole.AlarmUntilMs = 60000;
     record.LivingRole.CurrentPhase = LivingRoleState::Phase::SeekingSafety;
     record.EconomyState.Food = 4;
+    record.LivingRole.ReturnFailures = 5;
+    record.LivingRole.ReturnRetryAtMs = 60000;
+    record.LivingRole.ForageUntilMs = 120000;
+    record.LivingRole.HasForageWaypoint = true;
+    record.LivingRole.StockMeal = true;
     record.ResetLivingRoleActivity();
     REQUIRE(record.LivingRole.CompanionGuid.IsEmpty());
     REQUIRE(record.LivingRole.AlarmThreatGuid.IsEmpty());
     REQUIRE(record.LivingRole.DangerUntilMs == 0);
     REQUIRE(record.LivingRole.AlarmUntilMs == 0);
     REQUIRE(record.EconomyState.Food == 4);
+    REQUIRE(record.LivingRole.ReturnFailures == 0);
+    REQUIRE(record.LivingRole.ReturnRetryAtMs == 0);
+    REQUIRE(record.LivingRole.ForageUntilMs == 0);
+    REQUIRE(!record.LivingRole.HasForageWaypoint);
+    REQUIRE(!record.LivingRole.StockMeal);
+}
+
+TEST_CASE("Zone bounds reject an escape crossing outside between legal endpoints", "[AIWorld][LivingRole]")
+{
+    struct Point { float x, y, z; };
+    auto inside = [](float x, float y, float) { return y >= 4 || x <= 2 || x >= 8; };
+    std::vector<Point> shortcut{{0, 0, 0}, {10, 0, 0}};
+    REQUIRE(inside(shortcut.front().x, shortcut.front().y, 0));
+    REQUIRE(inside(shortcut.back().x, shortcut.back().y, 0));
+    REQUIRE(!Movement::PathWithinBounds(shortcut, inside));
+    std::vector<Point> around{{0, 0, 0}, {0, 5, 0}, {10, 5, 0}, {10, 0, 0}};
+    REQUIRE(Movement::PathWithinBounds(around, inside));
+    REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{}, inside));
+    REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{{4, 0, 0}}, inside));
+    REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{{0, 0, 0}, {0, 0, std::numeric_limits<float>::quiet_NaN()}}, inside));
+    unsigned queries = 0;
+    REQUIRE(!Movement::PathWithinBounds(std::vector<Point>{{0, 0, 0}, {100000, 0, 0}},
+        [&](float, float, float) { ++queries; return true; }));
+    REQUIRE(queries <= 513);
+}
+
+TEST_CASE("Blocked returns back off while permitting safe basic needs", "[AIWorld][LivingRole]")
+{
+    using namespace LivingRolePolicy;
+    REQUIRE(LivingReturnPolicy::RetryDelayMs(1) == 5000);
+    REQUIRE(LivingReturnPolicy::RetryDelayMs(2) > LivingReturnPolicy::RetryDelayMs(1));
+    REQUIRE(LivingReturnPolicy::RetryDelayMs(1000) == 60000);
+    // Replay the need values of the stranded boar/spider from the four-hour
+    // recording: being unable to get home must not prohibit graze/rest.
+    REQUIRE(RecoveryActivity(Role::Prey, 1, false) == Activity::Graze);
+    REQUIRE(RecoveryActivity(Role::Predator, 1, false) == Activity::Rest);
+    REQUIRE(RecoveryActivity(Role::Civilian, 1, false) == Activity::Eat);
+    REQUIRE(RecoveryActivity(Role::Prey, 1, true) == Activity::Look);
+    REQUIRE(RecoveryActivity(Role::Guard, 0, false) == Activity::Look);
+    ActionSystem actions;
+    for (Role role : {Role::Prey, Role::Predator, Role::Civilian, Role::Guard, Role::Worker, Role::Traveler, Role::Service})
+    {
+        ActionRequest request;
+        request.Type = ActionType::Ambient; request.SourceGoal = GoalType::LocalActivity;
+        request.AmbientActivity = RecoveryActivity(role, 1, false);
+        ActionValidationContext context;
+        context.ControlMode = AgentControlMode::AIWorldControlled;
+        context.Materialized = context.Alive = context.LivingRoleAllowed = context.WildlifeRestAllowed = true;
+        context.LivingRoleZoneId = 12; context.LivingRole = role;
+        context.ActiveGoalType = request.SourceGoal; context.ExpectedAmbientActivity = request.AmbientActivity;
+        REQUIRE(actions.Validate(request, context).Allowed);
+        context.InCombat = true;
+        REQUIRE(!actions.Validate(request, context).Allowed);
+    }
+}
+
+TEST_CASE("Return detours remain short and move toward home at Elwynn coordinates", "[AIWorld][LivingRole]")
+{
+    ActionPosition from{0, -9606.48f, 218.8026f, 48.39812f};
+    for (uint32 degree = 0; degree < 360; degree += 15)
+    {
+        float angle = float(degree) * GroupMemberFormation::TwoPi / 360;
+        ActionPosition home{0, from.X + 47.1f * std::cos(angle), from.Y + 47.1f * std::sin(angle), from.Z};
+        auto left = LivingReturnPolicy::Detours(from, home, 1);
+        auto right = LivingReturnPolicy::Detours(from, home, 2);
+        REQUIRE(left.size() == 4);
+        REQUIRE(right.size() == 4);
+        REQUIRE((left.front().X != right.front().X || left.front().Y != right.front().Y));
+        for (auto const& point : left)
+        {
+            REQUIRE(std::hypot(point.X - from.X, point.Y - from.Y) < 8.01f);
+            REQUIRE(std::hypot(point.X - home.X, point.Y - home.Y) < 47.1f);
+            REQUIRE(point.MapId == from.MapId);
+        }
+    }
+    REQUIRE(LivingReturnPolicy::Detours(from, from, 1).empty());
+    REQUIRE(LivingReturnPolicy::Detours(from, {1, 10, 20, 30}, 1).empty());
+}
+
+TEST_CASE("Curated meals consume real stock and leave an empty inventory unchanged", "[AIWorld][LivingRole]")
+{
+    using namespace LivingRolePolicy;
+    AgentEconomyState farmer;
+    farmer.Food = 20; farmer.Resource = 3; farmer.Money = 16;
+    REQUIRE(CuratedSelfCare(Role::Worker, 1, 1, farmer.Food) == Activity::Eat);
+    REQUIRE(ConsumeStockMeal(farmer));
+    REQUIRE(farmer.Food == 19);
+    REQUIRE(farmer.Resource == 3);
+    REQUIRE(farmer.Money == 16);
+    REQUIRE(CuratedSelfCare(Role::Worker, 0, 1, farmer.Food) == Activity::Rest);
+    REQUIRE(CuratedSelfCare(Role::Worker, 0, 0, farmer.Food) == Activity::None);
+    farmer.Food = 0;
+    REQUIRE(!ConsumeStockMeal(farmer));
+    REQUIRE(farmer.Food == 0);
+    REQUIRE(CuratedSelfCare(Role::Worker, 1, 0, 0) == Activity::None);
+    REQUIRE(CuratedSelfCare(Role::Predator, 1, 1, 20) == Activity::None);
+    REQUIRE(CuratedSelfCare(Role::Service, 0, 1, 20) == Activity::None);
+}
+
+TEST_CASE("Foraging reaches wider search areas through bounded authorized local steps", "[AIWorld][LivingRole]")
+{
+    using namespace LivingForagePolicy;
+    ActionPosition home{0, -9233.27f, 271.076f, 72.82477f};
+    ActionSystem actions;
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = true;
+    context.LivingRoleZoneId = 12; context.LivingRole = LivingRolePolicy::Role::Predator;
+    context.ActiveGoalType = GoalType::LocalActivity;
+    for (uint32 leg = 0; leg < 12; ++leg)
+    {
+        auto waypoint = Waypoint(home, 79883, leg);
+        ActionPosition from = home;
+        unsigned steps = 0;
+        while (std::hypot(from.X - waypoint.X, from.Y - waypoint.Y) > 3)
+        {
+            auto step = Step(from, waypoint, home);
+            REQUIRE(step.has_value());
+            REQUIRE(std::hypot(step->X - from.X, step->Y - from.Y) <= 20.01f);
+            REQUIRE(std::hypot(step->X - home.X, step->Y - home.Y) < HomeRadius);
+            ActionRequest request;
+            request.Type = ActionType::MoveTo; request.SourceGoal = GoalType::LocalActivity; request.Destination = step;
+            context.X = from.X; context.Y = from.Y; context.Z = from.Z;
+            REQUIRE(actions.Validate(request, context).Allowed);
+            from = *step;
+            REQUIRE(++steps <= 4);
+        }
+        if (leg % 3 == 2) REQUIRE(std::hypot(from.X - home.X, from.Y - home.Y) > 60);
+    }
+    REQUIRE(!Step(home, {1, home.X + 10, home.Y, home.Z}, home));
+    REQUIRE(!Step(home, home, home));
+    REQUIRE(!Step(home, {0, std::numeric_limits<float>::infinity(), 0, 0}, home));
+    ActionPosition outside{0, home.X + 90, home.Y, home.Z};
+    REQUIRE(!Step(outside, {0, home.X + 120, home.Y, home.Z}, home));
 }
 
 TEST_CASE("A conversation can face only the nearby validated social partner", "[AIWorld][LivingRole]")

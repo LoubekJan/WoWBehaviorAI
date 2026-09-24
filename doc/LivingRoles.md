@@ -24,7 +24,9 @@ nedostávají. Ostatní oblasti zůstávají mimo jeho rozsah.
 Vlci odpovídající zapnutému pilotu `LivingWolves` pokračují ve svém ověřeném
 smečkovém cyklu. Nová logika jim nepřebírá řízení. NPC s připraveným domovem
 a pracovištěm zachovávají svůj dosavadní denní režim; nové role u nich řeší
-ohrožení a rozšíření zásob přidává produkci k dokončené práci. Ručně nastavené
+ohrožení a rozšíření zásob přidává produkci k dokončené práci. Úprava z 24. 9.
+navíc mezi dokončenými úkony umožňuje jídlo z vlastních zásob a odpočinek.
+Ručně nastavené
 skupinové činnosti mají v klidu přednost.
 
 ## Co jednotlivé role dělají
@@ -383,6 +385,79 @@ Opakovaný test po sestavení a restartu:
    rozliší čekání, nedostupnou návratovou cestu a zamítnutý pohyb.
 5. Krátce zopakovat lov spawnu 79883 a návrat prasete po útěku.
 
+## Úpravy podle čtyřhodinového záznamu — 24. 9. 2026
+
+Záznam bez zásahů hráče zachytil 81 NPC s návratovým problémem nejméně
+minutu, z toho 62 déle než hodinu. Dále ukázal hlad Pa Maclure navzdory
+zásobám a útěk Expeditionary Priest mimo Elwynn. Následující změny jsou
+ověřené lokálními testy; jejich účinek na skutečné navmeshi musí potvrdit
+nový herní záznam.
+
+| Oblast | Nové chování |
+| --- | --- |
+| Zablokovaný návrat | Vedle kratších bodů původní trasy zkusí nejvýše osm jejích blízkých bodů a při opakovaném neúspěchu čtyři krátké šikmé kroky směrem k domovu. Každý krok stále vyžaduje platnou výšku, výhled a úplnou cestu v Elwynnu. |
+| Čekání na další pokus | Minimální odstup po selhání roste 5, 10, 20, 40 až na 60 sekund. Mezitím může kořist spásat, ostatní odpočívat nebo se rozhlížet; civilní role také jíst. Zapamatované nebezpečí dovolí jen rozhlížení. Animace může další pokus ještě odložit. |
+| Pohyb bez postupu | Dokončený nebo vypršený návratový krok s posunem nejvýše jeden yard spustí stejnou obnovu jako odmítnutá cesta. |
+| Hladový predátor | Při zapnutém rozšíření a bez nalezené kořisti hledá na postupných místech 24, 44 a 64 yardů od domova. Jeden krok má nejvýše 20 yardů a jeho cesta zůstává do 80 yardů od domova. Po 120 sekundách nezačíná další hledací kroky; následuje návrat a nejméně minutová přestávka. Rozpracovaný pohyb či lov může doběhnout. |
+| Lov během hledání | Predátor zkoumá skutečné místní okolí 25 yardů. Pořád platí napadnutelnost kořisti, výhled, cesta, původní sprint a limit pronásledování od místa zahájení lovu. Okruh 80 yardů omezuje hledací přesuny, nikoli celý následný chase. Pilot smečkových vlků se nemění. |
+| Útěk | Místní úkryt zkouší i kratší kroky. Nouzový flee generátor volaný rolí nově kontroluje celou plánovanou trasu po nejvýše jednom yardu a odmítá neúplnou cestu i výstup ze zóny 12. Tato hranice se nepřidává běžnému fear pohybu ostatních NPC/hráčů. |
+| Připravené rutiny | Při hladu alespoň 0,65 a Food > 0 se NPC mezi úkony nají. Po dokončených pěti sekundách spotřebuje jednu Food a sníží hlad. Při přerušení nebo ztrátě zásoby efekt nenastane. Při únavě alespoň 0,8 se vhodné role na 20 sekund zastaví k odpočinku. Probíhající přesun se nepřerušuje. |
+
+Pokusy i plánování cest jsou omezené; nové hledání nepoužívá globální seznam
+kořisti ani teleport. Pokud cesta opravdu neexistuje, náhradní činnost sama
+návrat nezaručuje. Oprava útěku není obecné omezení všech externích pohybů
+(například odhození, fear nebo samostatného bojového chase).
+
+Ve stávajícím `.aiworld group status` a v poli `movement_purpose` záznamu
+nově uvidíš `FORAGE_SEARCH`, `BOUNDED_ESCAPE` nebo konkrétní návratový důvod:
+`RETURN_HEIGHT_INVALID`, `RETURN_OUTSIDE_ZONE`, `RETURN_LOS_BLOCKED`,
+`RETURN_NO_PATH`, `RETURN_PATH_BOUNDS`, `RETURN_DANGER_BLOCKED`,
+`RETURN_INVALID_STEP`, `RETURN_MOVE_REJECTED`, `RETURN_NO_PROGRESS`.
+Důvod popisuje poslední odmítnutý kandidát, ne automaticky celou navmesh.
+Při náhradní činnosti může být současně `phase=ACTING` a důvod návratu
+v `movement`; po dokončení animace se `movement` běžně vyčistí.
+`lastHunt=FORAGE_NO_PATH` znamená, že neprošly tři aktuální hledací cíle.
+
+### Opakovaný herní test
+
+Po přenosu všech změněných souborů včetně dvou nových hlaviček do serverového
+checkoutu spusť `make build` a až po jeho úspěchu `make restart-world`.
+Použij `AIWorld.LivingRolesEnabled = 1` a `AIWorld.LivingRoleExtensionsEnabled = 1`
+(obě jsou připravené v `deploy/worldserver.conf`). Observer ani databáze
+nepotřebují novou verzi schématu.
+
+1. **Návraty:** sleduj původní spawny přes `.go creature 80418`, dále
+   `80697`, `80623`, `80872` a `80907`. Vyber NPC a opakuj
+   `.aiworld group status` po útěku či neúspěšném lovu. Očekávej návrat po
+   krocích, nebo přesný důvod a střídání náhradních činností s dalšími pokusy.
+   U kořisti má pastva snižovat hlad i při neprůchodné návratové cestě.
+   Samotný restart nemusí znovu vytvořit původní zablokovanou polohu.
+2. **Hledání:** hladového pavouka bez blízké kořisti sleduj několik minut.
+   `movement=FORAGE_SEARCH` musí odpovídat skutečnému přesunu. Po hledání
+   bez úlovku očekávej návrat; při nalezení kořisti obvyklý lov a krmení.
+   Úlovek není zaručený. Zopakuj také dosud funkční spawny `79883` a `80700`.
+3. **Zásoby a únava:** u `.go creature 80683` (Pa Maclure) porovnej Food
+   a hlad před a po dokončeném `activity=EAT`. Food má klesnout o jednu,
+   hlad na nulu (následující tick jej opět mírně zvýší). Po 20 sekundách
+   `activity=REST` ověř pokles únavy v Observeru. Při útoku během jídla
+   nemá přerušené jídlo spotřebovat zásobu ani snížit hlad.
+4. **Hranice útěku:** u `.go creature 54003` sleduj útěk před hrozbou
+   poblíž hranice Elwynnu. U role řízeného úkrytu nebo `BOUNDED_ESCAPE`
+   nesmí plánovaná útěková trasa vyjet ze zóny 12. Po odeznění hrozby
+   očekávej další činnost/návrat. Při problému zachyť stav i souřadnice.
+5. **Regrese:** s `.gm off` krátce ověř pomoc sousedního Defias a stráží
+   při napadení, rozmístění kolem hráče a reakci na otočení. Ruční testy
+   odděl od dlouhého běhu bez zásahů.
+6. **Dlouhý běh:** následně spusť `make record-aiworld` a po minutě
+   `make record-aiworld-status`. Nech svět opět čtyři hodiny bez zásahů.
+   Pošli celou novou session podle [návodu záznamníku](ObserverRecording.md).
+   Porovnáme dlouhé nehybné úseky i přes nové důvody, návraty, hlad predátorů,
+   spotřebu Food u 80683, stav 54003 a dostupnost kořisti. Vyšší počet lovů
+   může změnit její populaci; samotný počet zahájených lovů není úspěšnost.
+
+Strop Resource/Food 20 a výroba dřevorubců zůstávají dosavadní; doprava
+surovin a společné sklady nejsou součástí této opravy.
+
 ## Hranice této změny
 
 Jde o místní rozhodování, skutečný pohyb, boj a viditelné animace.
@@ -399,6 +474,16 @@ Globální demografie, nové questy z nedostatku, sémantické cestovní trasy,
 trvalé vztahy a dlouhodobé učení zůstávají pro navazující rozšíření.
 
 ## Automatická kontrola
+
+Úpravy podle záznamu z 24. 9. prošly **1 711 assertions ve 34 testech** pod
+MSVC/Catch2: zahrnují průchod trasy přes zakázanou oblast i při legálních
+koncích, omezení počtu kontrol, návratové odbočky na souřadnicích Elwynnu,
+odstup opakovaných pokusů, povolené náhradní činnosti, práci se zásobami,
+širší hledání přes krátké kroky autorizované skutečným `ActionSystem`
+a vyčištění stavu při nové materializaci. Prošla syntax upravených
+běhových zdrojů včetně `FleeingMovementGenerator.cpp`.
+Tyto kontroly nenahrazují sestavení celého serveru ani běh se skutečnými
+mapami; lokálně není Docker a úplné nativní sestavení blokuje neúplný Boost.
 
 Oprava návratu prošla **1 113 assertions ve 29 testech** pod MSVC/Catch2.
 Test reprodukuje odmítaný původní krok přes skutečný `Position::GetExactDist2d`,

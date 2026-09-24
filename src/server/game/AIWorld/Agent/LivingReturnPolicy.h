@@ -19,6 +19,7 @@
 #define AIWORLD_LIVINGRETURNPOLICY_H
 
 #include "Action/ActionPosition.h"
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <vector>
@@ -28,6 +29,27 @@ namespace LivingReturnPolicy
     // Stay below the 30-yard path gate. At Elwynn coordinates, a nominal
     // 30-yard float step can round outward and fail that gate forever.
     constexpr float MaxStepLength = 28.0f;
+
+    inline uint64 RetryDelayMs(uint32 failures)
+    {
+        return std::min<uint64>(60000, 5000ULL << std::min(failures ? failures - 1 : 0, 4u));
+    }
+
+    // Recovery candidates vary by attempt; never jump farther from home.
+    inline std::vector<ActionPosition> Detours(ActionPosition const& from, ActionPosition const& home, uint32 attempt)
+    {
+        std::vector<ActionPosition> candidates;
+        float distance = std::hypot(home.X - from.X, home.Y - from.Y);
+        if (from.MapId != home.MapId || !std::isfinite(distance) || distance <= 2.0f)
+            return candidates;
+        float bearing = std::atan2(home.Y - from.Y, home.X - from.X);
+        float step = std::min(8.0f, distance * 0.5f);
+        float side = attempt % 2 ? -1.0f : 1.0f;
+        for (float offset : { side * 0.55f, -side * 0.55f, side * 1.05f, -side * 1.05f })
+            candidates.push_back({ from.MapId, from.X + step * std::cos(bearing + offset),
+                from.Y + step * std::sin(bearing + offset), from.Z });
+        return candidates;
+    }
 
     // Follow the route, rather than projecting a straight chord toward home.
     // The engine still checks the selected step's ground, zone, LOS and path.

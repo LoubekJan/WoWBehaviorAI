@@ -16,6 +16,7 @@
  */
 
 #include "AIWorldMgr.h"
+#include "Agent/LivingForagePolicy.h"
 #include "Agent/LivingHuntPolicy.h"
 #include "Agent/LivingReturnPolicy.h"
 #include "Agent/LivingRolePolicy.h"
@@ -27,6 +28,7 @@
 #include "Log.h"
 #include "Map.h"
 #include "MotionMaster.h"
+#include "MovementPathBounds.h"
 #include "MoveSpline.h"
 #include "ObjectAccessor.h"
 #include "PathGenerator.h"
@@ -89,37 +91,43 @@ namespace
     bool IsEscaping(Phase phase) { return phase == Phase::Fleeing || phase == Phase::SeekingSafety; }
 
     bool CheckRolePath(Creature& creature, ActionPosition& destination,
-        ActionPosition const* danger = nullptr, float clearance = 8.0f)
+        ActionPosition const* danger = nullptr, float clearance = 8.0f, char const** failure = nullptr,
+        Position const* homeBound = nullptr, float homeRadius = 0.0f)
     {
+        auto reject = [&](char const* reason) { if (failure) *failure = reason; return false; };
         if (destination.MapId != creature.GetMapId() || !std::isfinite(destination.X) ||
             !std::isfinite(destination.Y) || !std::isfinite(destination.Z) ||
             creature.GetExactDist2d(destination.X, destination.Y) > 30.0f)
-            return false;
+            return reject("RETURN_INVALID_STEP");
         Map* map = creature.GetMap();
         destination.Z = map->GetHeight(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z + 4.0f, true);
-        if (!std::isfinite(destination.Z) || destination.Z <= INVALID_HEIGHT ||
-            map->GetZoneId(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z) != 12 ||
-            !creature.IsWithinLOS(destination.X, destination.Y, destination.Z))
-            return false;
+        if (!std::isfinite(destination.Z) || destination.Z <= INVALID_HEIGHT)
+            return reject("RETURN_HEIGHT_INVALID");
+        if (map->GetZoneId(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z) != 12)
+            return reject("RETURN_OUTSIDE_ZONE");
+        if (!creature.IsWithinLOS(destination.X, destination.Y, destination.Z))
+            return reject("RETURN_LOS_BLOCKED");
         PathGenerator path(&creature);
         if (!path.CalculatePath(destination.X, destination.Y, destination.Z, false) ||
-            (path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE)))
-            return false;
+            (path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT)))
+            return reject("RETURN_NO_PATH");
+        if (!Movement::PathWithinBounds(path.GetPath(), [&](float x, float y, float z)
+            { return map->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
+                (!homeBound || homeBound->GetExactDist2d(x, y) <= homeRadius); }))
+            return reject("RETURN_PATH_BOUNDS");
         float x = creature.GetPositionX(), y = creature.GetPositionY();
         for (auto const& point : path.GetPath())
         {
-            if (map->GetZoneId(creature.GetPhaseMask(), point.x, point.y, point.z) != 12)
-                return false;
             if (danger && std::hypot(point.x - x, point.y - y) > 0.1f &&
                 !LivingRolePolicy::AvoidsDanger(x, y, point.x, point.y, danger->X, danger->Y, clearance))
-                return false;
+                return reject("RETURN_DANGER_BLOCKED");
             x = point.x; y = point.y;
         }
         return true;
     }
 
     std::optional<ActionPosition> FindRoleReturnStep(Creature& creature, Position const& home,
-        ActionPosition const* danger, char const*& failure)
+        ActionPosition const* danger, char const*& failure, uint32 attempt)
     {
         failure = "RETURN_NO_PATH";
         PathGenerator route(&creature);
@@ -142,9 +150,39 @@ namespace
         if (completeRoute) failure = "RETURN_STEP_BLOCKED";
         for (float budget : { LivingReturnPolicy::MaxStepLength, 14.0f, 7.0f, 3.5f, 1.75f })
             if (auto step = LivingReturnPolicy::PathStep(points, budget);
-                step && creature.GetExactDist(step->X, step->Y, step->Z) > 1.0f && CheckRolePath(creature, *step, danger))
+                step && creature.GetExactDist(step->X, step->Y, step->Z) > 1.0f && CheckRolePath(creature, *step, danger, 8.0f, &failure))
                 return step;
+        // Real corners can precede a bend that hides every fixed-length step.
+        if (completeRoute)
+        {
+            uint32 checkedCorners = 0;
+            for (auto step : points)
+            {
+                float distance = creature.GetExactDist(step.X, step.Y, step.Z);
+                if (distance <= 1.0f || distance > LivingReturnPolicy::MaxStepLength)
+                    continue;
+                if (CheckRolePath(creature, step, danger, 8.0f, &failure))
+                    return step;
+                if (++checkedCorners == 8)
+                    break;
+            }
+        }
+        if (attempt)
+        {
+            ActionPosition from{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+            ActionPosition destination{creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
+            for (auto step : LivingReturnPolicy::Detours(from, destination, attempt))
+                if (CheckRolePath(creature, step, danger, 8.0f, &failure))
+                    return step;
+        }
         return std::nullopt;
+    }
+
+    void FailedReturn(LivingRoleState& state, uint64 nowMs, char const* reason)
+    {
+        state.ReturnFailures = std::min(state.ReturnFailures + 1, 16u);
+        state.ReturnRetryAtMs = nowMs + LivingReturnPolicy::RetryDelayMs(state.ReturnFailures);
+        state.ReturnFailure = reason;
     }
 }
 
@@ -298,6 +336,7 @@ void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
     state.TargetGuid.Clear();
     state.Activity = Activity::None;
     state.OwnedStandState = 0;
+    state.StockMeal = false;
     state.MovementPurpose = "NONE";
 }
 
@@ -663,7 +702,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             case ActionType::MoveTo: result = _actionExecutor.ExecuteMoveTo(request, creature); break;
             case ActionType::Attack: result = _actionExecutor.ExecuteAttack(request, creature, *target); break;
-            case ActionType::Flee: result = _actionExecutor.ExecuteFlee(request, creature, *target); break;
+            case ActionType::Flee: result = _actionExecutor.ExecuteFlee(request, creature, *target, 12); break;
             case ActionType::Eat: result = _actionExecutor.ExecuteEat(request, creature); break;
             case ActionType::Ambient: result = _actionExecutor.ExecuteAmbient(request, creature); break;
             default: return false;
@@ -684,6 +723,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.Activity = request.AmbientActivity;
         state.SourceGoal = request.SourceGoal;
         state.StartedAtMs = nowMs;
+        state.MoveStart = { creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ() };
         state.TargetGuid = target ? target->GetGUID() : ObjectGuid::Empty;
         if (request.ChaseAngleRadians) state.ChaseBearing = *request.ChaseAngleRadians;
         if (request.Destination) state.Destination = *request.Destination;
@@ -738,14 +778,15 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             refuges.push_back({ { creature.GetMapId(), home.GetPositionX() + 2.0f * std::cos(slotAngle),
                 home.GetPositionY() + 2.0f * std::sin(slotAngle), home.GetPositionZ() }, "HOME_REFUGE" });
             float away = threat->GetAbsoluteAngle(&creature);
-            for (float offset : { 0.0f, 0.55f, -0.55f, 1.05f, -1.05f })
-                refuges.push_back({ { creature.GetMapId(), creature.GetPositionX() + 16.0f * std::cos(away + offset),
-                    creature.GetPositionY() + 16.0f * std::sin(away + offset), creature.GetPositionZ() }, "AWAY_FROM_DANGER" });
+            for (float distance : { 16.0f, 8.0f, 4.0f })
+                for (float offset : { 0.0f, 0.55f, -0.55f, 1.05f, -1.05f })
+                    refuges.push_back({ { creature.GetMapId(), creature.GetPositionX() + distance * std::cos(away + offset),
+                        creature.GetPositionY() + distance * std::sin(away + offset), creature.GetPositionZ() }, "AWAY_FROM_DANGER" });
             ActionPosition source{ creature.GetMapId(), threat->GetPositionX(), threat->GetPositionY(), threat->GetPositionZ() };
             for (auto& refuge : refuges)
             {
                 ActionPosition& destination = refuge.first;
-                if (threat->GetExactDist2d(destination.X, destination.Y) < creature.GetExactDist2d(threat) + 6.0f ||
+                if (threat->GetExactDist2d(destination.X, destination.Y) < creature.GetExactDist2d(threat) + 2.0f ||
                     !CheckRolePath(creature, destination, &source, std::min(8.0f, creature.GetExactDist2d(threat))))
                     continue;
                 approvedRoleDestination = destination;
@@ -757,7 +798,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                     return true;
                 }
             }
-            // No complete safe path: keep the engine's proven flee fallback.
+            // The fallback generator also checks every launched path's zone.
             approvedRoleDestination.reset();
         }
         Phase phase = flee ? Phase::Fleeing : Phase::Defending;
@@ -778,7 +819,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         ActionRequest request;
         request.Type = flee ? ActionType::Flee : ActionType::Attack;
         request.SourceGoal = flee ? GoalType::FleeDanger : GoalType::Defend;
-        start(request, phase, threat);
+        if (start(request, phase, threat) && flee) state.MovementPurpose = "BOUNDED_ESCAPE";
         return true;
     }
 
@@ -856,6 +897,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 5000))
         {
             _needsSystem.SatisfyHunger(record.Needs);
+            state.ForageUntilMs = 0;
+            state.HasForageWaypoint = false;
+            state.NextForageAtMs = nowMs + LivingForagePolicy::CooldownMs;
             endHunt("FED");
             ActionRequest rest;
             rest.Type = ActionType::Ambient; rest.SourceGoal = GoalType::LocalActivity; rest.AmbientActivity = Activity::Rest;
@@ -889,8 +933,21 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             !WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, state.CurrentPhase == Phase::SeekingSafety ? 8000 : 20000))
             return true;
         bool returningHome = std::string_view(state.MovementPurpose) == "RETURN_HOME";
+        bool foraging = std::string_view(state.MovementPurpose) == "FORAGE_SEARCH";
+        bool progressed = creature.GetExactDist(state.MoveStart.X, state.MoveStart.Y, state.MoveStart.Z) > 1.0f;
         StopLivingRole(record, creature);
-        state.NextDecisionAtMs = nowMs + (returningHome ? 1000 : 6000);
+        if (returningHome)
+        {
+            if (progressed)
+            {
+                state.ReturnFailures = 0;
+                state.ReturnRetryAtMs = 0;
+                state.ReturnFailure = "NONE";
+            }
+            else FailedReturn(state, nowMs, "RETURN_NO_PROGRESS");
+        }
+        if (foraging && !progressed) state.HasForageWaypoint = false;
+        state.NextDecisionAtMs = nowMs + (returningHome || foraging ? 1000 : 6000);
         return true;
     }
     if (state.CurrentPhase == Phase::Acting)
@@ -906,9 +963,13 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             return true;
         if (state.Activity == Activity::Graze || state.Activity == Activity::Eat)
         {
+            // A curated stock meal is not free food if the stock was removed
+            // during the animation. Interrupted animations never reach here.
+            bool fed = !state.StockMeal;
             if (extensions && state.Activity == Activity::Eat && record.EconomyState.Food)
-                MutateEconomyAndPersist(record, [](AgentEconomyState& economy) { --economy.Food; });
-            _needsSystem.SatisfyHunger(record.Needs);
+                MutateEconomyAndPersist(record, [&](AgentEconomyState& economy)
+                { fed = LivingRolePolicy::ConsumeStockMeal(economy); });
+            if (fed) _needsSystem.SatisfyHunger(record.Needs);
         }
         if (extensions && state.Activity == Activity::Work)
         {
@@ -926,9 +987,28 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         return true;
     }
 
-    // Preserve curated commutes and group attempts. Emergency handling above
-    // still applies, but ambient cycles do not invent home/work data or wages.
-    if ((record.HomeLocation && record.WorkLocation) || record.GroupCoordinationGoalState)
+    // Fulfil existing needs between commute/work attempts, then hand control
+    // back to the prepared routine. Never interrupt a running owned action.
+    if (record.HomeLocation && record.WorkLocation)
+    {
+        if (extensions && !record.GroupCoordinationGoalState && !record.ActiveActionState &&
+            !creature.IsInCombat() && creature.IsStopped() && nowMs >= state.NextDecisionAtMs)
+        {
+            Activity care = LivingRolePolicy::CuratedSelfCare(role, record.Needs.Hunger, record.Needs.Fatigue, record.EconomyState.Food);
+            if (care != Activity::None)
+            {
+                ActionRequest request;
+                request.Type = ActionType::Ambient; request.SourceGoal = GoalType::LocalActivity; request.AmbientActivity = care;
+                if (start(request, Phase::Acting))
+                {
+                    state.StockMeal = care == Activity::Eat;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    if (record.GroupCoordinationGoalState)
         return false;
     if (nowMs < state.NextDecisionAtMs || creature.IsInCombat() || !OwnsRoleMovement(record, creature))
         return true;
@@ -939,7 +1019,24 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     bool anchored = service || creature.IsQuestGiver();
     float radius = anchored ? 0.0f : LivingRolePolicy::RoamRadius(role);
 
-    if (role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false) && homeDistance < 20.0f)
+    bool hungryHunter = role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false);
+    if (state.ForageUntilMs && (!extensions || !hungryHunter || nowMs >= state.ForageUntilMs))
+    {
+        state.ForageUntilMs = 0;
+        state.HasForageWaypoint = false;
+        state.NextForageAtMs = nowMs + LivingForagePolicy::CooldownMs;
+    }
+    if (homeDistance <= radius + 2.0f)
+    {
+        state.ReturnFailures = 0;
+        state.ReturnRetryAtMs = 0;
+        state.ReturnFailure = "NONE";
+    }
+
+    // Also scan the current surroundings during a bounded search/recovery;
+    // prey still has to be actually visible, reachable and attackable.
+    if (hungryHunter && (homeDistance < 20.0f ||
+        ((state.ForageUntilMs || state.ReturnFailures) && homeDistance <= LivingForagePolicy::HomeRadius)))
     {
         loadNearby();
         state.NearbyPrey = state.AttackablePrey = 0;
@@ -998,12 +1095,61 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.NearbyPrey ? "PREY_NOT_ATTACKABLE" : "NO_PREY";
     }
 
+    ActionPosition const* rememberedDanger = extensions && nowMs < state.DangerUntilMs ? &state.DangerPosition : nullptr;
+    if (extensions && hungryHunter && !anchored && !rememberedDanger)
+    {
+        if (!state.ForageUntilMs && homeDistance < 20.0f && nowMs >= state.NextForageAtMs && !state.ReturnFailures)
+        {
+            state.ForageUntilMs = nowMs + LivingForagePolicy::DurationMs;
+            state.HasForageWaypoint = false;
+        }
+        if (state.ForageUntilMs)
+        {
+            ActionPosition origin{creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
+            ActionPosition from{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+            for (uint32 attempt = 0; attempt < 3; ++attempt)
+            {
+                if (!state.HasForageWaypoint || creature.GetExactDist2d(state.ForageWaypoint.X, state.ForageWaypoint.Y) <= 3.0f)
+                {
+                    state.ForageWaypoint = LivingForagePolicy::Waypoint(origin, record.Id.Value, state.ForageLeg++);
+                    state.HasForageWaypoint = true;
+                }
+                auto step = LivingForagePolicy::Step(from, state.ForageWaypoint, origin);
+                if (step && CheckRolePath(creature, *step, nullptr, 8.0f, nullptr, &home, LivingForagePolicy::HomeRadius))
+                {
+                    ActionRequest search;
+                    search.Type = ActionType::MoveTo; search.SourceGoal = GoalType::LocalActivity; search.Destination = step;
+                    if (start(search, Phase::Moving))
+                    {
+                        state.MovementPurpose = "FORAGE_SEARCH";
+                        return true;
+                    }
+                }
+                state.HasForageWaypoint = false;
+            }
+            state.ForageUntilMs = 0;
+            state.NextForageAtMs = nowMs + LivingForagePolicy::CooldownMs;
+            state.LastHuntStatus = "FORAGE_NO_PATH";
+        }
+    }
+
     uint32 dayTime = uint32(nowMs % _routineScheduleConfig.DayLengthMs);
     bool workHours = dayTime >= _routineScheduleConfig.WorkStartMs && dayTime < _routineScheduleConfig.WorkEndMs;
     Activity activity = LivingRolePolicy::IdleActivity(role, cycle, workHours, record.Needs.Hunger, record.Needs.Fatigue);
     if (anchored && (activity == Activity::Roam || activity == Activity::Rest)) activity = Activity::Look;
-    ActionPosition const* rememberedDanger = extensions && nowMs < state.DangerUntilMs ? &state.DangerPosition : nullptr;
     if (rememberedDanger && activity == Activity::Rest) activity = Activity::Look;
+
+    auto recoverHere = [&]()
+    {
+        ActionRequest watch;
+        watch.Type = ActionType::Ambient; watch.SourceGoal = GoalType::LocalActivity;
+        watch.AmbientActivity = LivingRolePolicy::RecoveryActivity(role, record.Needs.Hunger, rememberedDanger != nullptr);
+        if (watch.AmbientActivity == Activity::Rest && creature.GetStandState() != UNIT_STAND_STATE_STAND)
+            watch.AmbientActivity = Activity::Look;
+        start(watch, Phase::Acting);
+        // Retain the precise failure even while grazing/resting between tries.
+        state.MovementPurpose = state.ReturnFailure;
+    };
 
     // Local cohesion is not a persisted coalition. Only a visible, compatible
     // lower-id neighbor can lead; home bounds prevent a chain across the map.
@@ -1038,7 +1184,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         bool pathReady;
         if (returningHome)
         {
-            auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure);
+            if (nowMs < state.ReturnRetryAtMs)
+            {
+                recoverHere();
+                return true;
+            }
+            auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state.ReturnFailures);
             pathReady = step.has_value();
             if (step) destination = *step;
         }
@@ -1053,6 +1204,14 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         // through the just-witnessed fight. Memory expires after a minute.
         if (!pathReady)
         {
+            if (returningHome)
+            {
+                FailedReturn(state, nowMs, failure);
+                TC_LOG_DEBUG("ai.world", "AI role return agent={} failure={} attempts={} retryMs={}",
+                    record.Id.Value, failure, state.ReturnFailures, state.ReturnRetryAtMs - nowMs);
+                recoverHere();
+                return true;
+            }
             if (rememberedDanger)
             {
                 ActionRequest watch;
@@ -1065,7 +1224,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         ActionRequest move;
         move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = destination;
         if (start(move, Phase::Moving)) state.MovementPurpose = returningHome ? "RETURN_HOME" : "LOCAL_ROAM";
-        else state.MovementPurpose = returningHome ? "RETURN_MOVE_REJECTED" : "LOCAL_MOVE_REJECTED";
+        else if (returningHome)
+        {
+            FailedReturn(state, nowMs, "RETURN_MOVE_REJECTED");
+            recoverHere();
+        }
+        else state.MovementPurpose = "LOCAL_MOVE_REJECTED";
         return true;
     }
     ActionRequest ambient;

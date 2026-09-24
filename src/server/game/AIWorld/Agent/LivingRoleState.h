@@ -59,6 +59,17 @@ struct LivingRoleState
     uint64 NextAlarmAtMs = 0;
     uint64 NextInvestigationAtMs = 0;
     uint64 WorkWindowAtStart = 0;
+    // Recovery survives local animations, but never a new materialization.
+    uint32 ReturnFailures = 0;
+    uint64 ReturnRetryAtMs = 0;
+    char const* ReturnFailure = "NONE";
+    ActionPosition MoveStart;
+    bool StockMeal = false;
+    uint64 ForageUntilMs = 0;
+    uint64 NextForageAtMs = 0;
+    uint32 ForageLeg = 0;
+    bool HasForageWaypoint = false;
+    ActionPosition ForageWaypoint;
     char const* Awareness = "QUIET";
     char const* MovementPurpose = "NONE";
 };
