@@ -157,6 +157,35 @@ services:
     ports:
       - "${WORLD_VIEWER_PORT:-8090}:8000"
 
+  # Opt-in recording of the public Observer snapshot. No ingest token or
+  # worldserver rebuild is required; the script is mounted from this checkout.
+  aiworld-recorder:
+    image: python:3.11-slim
+    profiles: ["recording"]
+    restart: "no"
+    init: true
+    stop_grace_period: 20s
+    depends_on:
+      world-viewer:
+        condition: service_healthy
+    command:
+      - python
+      - -u
+      - /recorder.py
+      - --url
+      - http://world-viewer:8000/api/state
+      - --output
+      - /recordings
+      - --hours
+      - "${AIWORLD_RECORD_HOURS:-4}"
+      - --interval
+      - "${AIWORLD_RECORD_INTERVAL:-5}"
+      - --label
+      - "${AIWORLD_RECORD_LABEL:-Elwynn}"
+    volumes:
+      - ./docker/world-viewer/app/record.py:/recorder.py:ro
+      - ./runtime/recordings:/recordings
+
   account-web:
     build:
       context: docker/account-web

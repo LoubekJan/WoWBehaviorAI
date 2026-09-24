@@ -2715,6 +2715,8 @@ První viditelný cyklus propojuje teritorium → hlad → lov → krmení → s
 
 **Návrat po neúspěšném lovu (23. 9. 2026, INITIAL SPIDER HUNT CONFIRMED / RETURN RETEST PENDING):** Uživatel potvrdil fungující lov původního pavouka; Forest Spider 80700 však po dvou zásazích Sheep 80366 lov ukončil přes `HUNT_LEASH` a stál déle než 30 s, 65,1 yardu od domova. Lokální reprodukce odhalila, že přesně 30yardový návratový krok se vlivem float souřadnic může zaokrouhlit nad povolených 30 a být opakovaně odmítán. Nové návraty vybírají nejvýše 28yardové úseky navmesh trasy, zkoušejí bližší prověřené body a mezi kroky čekají 1 s. Neúspěšný návrat má explicitní `movement=RETURN_NO_PATH` / `RETURN_STEP_BLOCKED` / `RETURN_MOVE_REJECTED`. Původní scope a kontroly cesty zůstávají. Prošlo **1 113 assertions ve 29 testech**, včetně 360 směrů na souřadnicích daného spawnu a skutečného validátoru, syntax běhového kódu a kontrola diffu. Přesná poloha selhání není ze snímku známá; oprava má lokální důkaz chyby kódu, ale návrat na serveru čeká na nový test. [Postup ověření](doc/LivingRoles.md#návrat-po-neúspěšném-lovu--23-9-2026).
 
+**Potvrzení návratu (24. 9. 2026, RETURN RUNTIME PASS):** Uživatel potvrdil úspěšný opakovaný test poslední opravy návratu po neúspěšném lovu. Hlášené trvalé stání pavouka je pro tento scénář vyřešené. Potvrzení se vztahuje na testovaný návrat; neuzavírá další hraniční případy, unload/rebind ani měření celé populace. [Záznam a postup testu](doc/LivingRoles.md#návrat-po-neúspěšném-lovu--23-9-2026).
+
 **Stav: PLANNED — po data-quality/runtime gate Etapy 3.**
 
 **Cíl:** z technologií ověřených v Etapě 2 a z datově připraveného Elwynn Forest z Etapy 3 vytvořit první skutečně komplexní dlouhodobě žijící oblast.

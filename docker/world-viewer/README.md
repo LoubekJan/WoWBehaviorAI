@@ -52,6 +52,88 @@ and 2 continue to show their supported fields, with a note that memory requires
 an updated worldserver.
 No snapshot is retained across a viewer restart; it waits for the next export.
 
+## Several-hour recordings
+
+The optional recorder saves all agents in the Observer's Elwynn scope, including
+their complete role, hunt, movement, needs, group and economy fields. It polls the
+public `/api/state`; it does not need the ingest token and does not issue gameplay
+or memory-page requests. No worldserver rebuild is needed to add this recorder.
+See [the Czech test instructions](../../doc/ObserverRecording.md).
+
+From the updated checkout on the Docker host, with the worldserver running:
+
+```sh
+make record-aiworld
+make record-aiworld-status
+# Optional early finish:
+make record-aiworld-stop
+```
+
+The default is four hours at five-second intervals, running in a detached
+`aiworld-recorder` container. It continues after SSH disconnect and stops
+automatically. For a different duration/interval, start with:
+
+```sh
+AIWORLD_RECORD_HOURS=8 AIWORLD_RECORD_INTERVAL=5 AIWORLD_RECORD_LABEL="Elwynn overnight" make record-aiworld
+```
+
+Changing these settings while recording recreates the recorder, ending the
+current session and opening a new one. Every run writes a new uniquely named
+directory under `runtime/recordings/aiworld-<UTC>-<id>/`; previous runs are retained.
+The Compose service has the `recording` profile, so normal `make start` does not
+enable it. `make stop` stops it along with the stack. It does not automatically
+restart after a host/Docker restart.
+
+Each session contains `summary.json` (updated at status changes and at least every
+minute while sampling) and `part-0001.jsonl.gz`, etc. Parts rotate at approximately
+64 MiB compressed, at a complete-record boundary. This is a per-part target, not
+a total disk quota. Graceful stop closes gzip; a forced kill or power loss may
+leave the current part incomplete, while closed previous parts remain readable.
+Collect the complete session directory after it stops, including **all parts**.
+
+The summary's `counts.fresh` counts samples with fresh, nonempty agent data.
+Other sample statuses are `empty`, `waiting` (no telemetry yet), `unconfigured`,
+`stale` and `error` (HTTP/connection/invalid response). A run with no fresh nonempty
+samples exits with code 2. A normal exit or `usable: true` only confirms that data
+was collected, **not** that NPC behavior was correct. The recorder keeps polling
+through outages and records recovery. Check the status after the first minute;
+`last_status: fresh` and a growing `counts.fresh` confirm collection.
+
+### File format and analysis limits
+
+Each gzip part is UTF-8 JSON Lines with a `session` metadata record first, followed
+by `sample` records. Successful HTTP samples include the full unchanged API object
+in `state`; failed requests have an `error` object and no fabricated state. The
+final part ends with a `summary` record, also saved separately as `summary.json`.
+`format_version: 1` identifies this recording format independently of the telemetry
+protocol. Source capture/receipt timestamps, freshness and age are retained;
+recorder UTC time, monotonic elapsed time, sequence and request duration are added.
+Source-clock resets are retained, not treated as duplicate snapshots.
+
+These are periodic snapshots, not an exhaustive event log: short attacks or
+transitions between samples may be missed. Repeated `hunt_end` values do not mean
+repeated failures. Analyze them with phase, target, time and position changes;
+never interpret stale/error intervals as NPC inactivity. Background agents have
+no live movement observation, and paginated long-term memory is not recorded.
+Check `AIWorld.ElwynnAlwaysActive = 1` on the running server if the test is intended
+to keep simulating all of Elwynn without players. Existing `Server.log` can provide
+additional context; copy it before restarting the worldserver, which opens it in
+overwrite mode in the current deployment configuration.
+
+The recorder also runs directly with Python 3.11+ (no pip dependencies):
+
+```sh
+python3 docker/world-viewer/app/record.py --hours 4 --url http://localhost:8090/api/state
+```
+
+Recorder tests use a local HTTP fixture and compressed readback, with no game
+server required:
+
+```sh
+cd docker/world-viewer
+python3 -m unittest discover -s tests -p test_recording.py -v
+```
+
 ## Protocol
 
 `POST /internal/telemetry` requires `Authorization: Bearer <token>`. The C++

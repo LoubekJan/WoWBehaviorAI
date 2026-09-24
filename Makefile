@@ -1,4 +1,4 @@
-.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb configure-realm dbc-factions
+.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb configure-realm dbc-factions record-aiworld record-aiworld-status record-aiworld-stop
 
 COMPOSE := docker compose -f compose.yml -f compose.dev.yml
 BUILD_DIR := /build
@@ -39,6 +39,19 @@ logs:
 
 world-logs:
 	$(COMPOSE) logs -f worldserver
+
+## record Observer every 5s for 4 hours, independently of the SSH session
+## override e.g. AIWORLD_RECORD_HOURS=8 make record-aiworld
+record-aiworld:
+	$(COMPOSE) up -d aiworld-recorder
+
+record-aiworld-status:
+	$(COMPOSE) ps -a aiworld-recorder
+	$(COMPOSE) logs --tail=5 aiworld-recorder
+
+## gracefully finish the current gzip file before collecting the session folder
+record-aiworld-stop:
+	$(COMPOSE) stop aiworld-recorder
 
 ## interactive dev shell — throwaway container, independent of `start`
 shell:

@@ -160,7 +160,7 @@ hraniční případy, unload/rebind ani měření výkonu celé populace.
 
 ## Rozšíření okolí, spolupráce a zásob — 23. 9. 2026
 
-Implementováno; **část herního ověření potvrzena, oprava lovu čeká na opakovaný test**
+Implementováno; **část herního ověření potvrzena, včetně opraveného lovu a návratu**
 (podrobnosti níže).
 Vyžaduje oba přepínače:
 
@@ -362,7 +362,12 @@ při neúspěšném hledání `RETURN_NO_PATH` nebo `RETURN_STEP_BLOCKED`, při
 zamítnutí akce `RETURN_MOVE_REJECTED`. Díky tomu čekání na neúspěšný další
 pokus neukazuje jen `NONE`. Oprava se vztahuje na místní návraty všech
 řízených rolí v Elwynnu; připravené docházkové rutiny a vlčí pilot mají
-svůj původní cyklus. Změna dalšího běhu po lovu čeká na herní ověření.
+svůj původní cyklus.
+
+**Potvrzení ve hře — 24. 9. 2026:** Uživatel potvrdil úspěšný opakovaný
+test opravy návratu po neúspěšném lovu. Hlášené trvalé stání pavouka je
+pro tento scénář vyřešené. Potvrzení se vztahuje k poslednímu testu návratu;
+neprokazuje všechny překážky, unload/rebind ani chování celé populace.
 
 Opakovaný test po sestavení a restartu:
 
