@@ -1,4 +1,4 @@
-.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb configure-realm dbc-factions record-aiworld record-aiworld-status record-aiworld-stop
+.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb configure-realm dbc-factions record-aiworld record-aiworld-status record-aiworld-stop test-aiworld analyze-aiworld
 
 COMPOSE := docker compose -f compose.yml -f compose.dev.yml
 BUILD_DIR := /build
@@ -44,6 +44,14 @@ world-logs:
 ## override e.g. AIWORLD_RECORD_HOURS=8 make record-aiworld
 record-aiworld:
 	$(COMPOSE) up -d aiworld-recorder
+
+## Detached four-hour behavior test; final report and exit status in recorder.
+test-aiworld: record-aiworld
+
+## Example: make analyze-aiworld SESSION=aiworld-20260924T155848Z-d7abf197
+analyze-aiworld:
+	@test -n "$(SESSION)" || (echo "Set SESSION to a directory under runtime/recordings"; exit 2)
+	$(COMPOSE) run --rm --no-deps aiworld-analysis "/recordings/$(SESSION)"
 
 record-aiworld-status:
 	$(COMPOSE) ps -a aiworld-recorder

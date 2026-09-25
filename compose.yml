@@ -171,7 +171,7 @@ services:
     command:
       - python
       - -u
-      - /recorder.py
+      - /record.py
       - --url
       - http://world-viewer:8000/api/state
       - --output
@@ -182,8 +182,24 @@ services:
       - "${AIWORLD_RECORD_INTERVAL:-5}"
       - --label
       - "${AIWORLD_RECORD_LABEL:-Elwynn}"
+      - --analyze
+      - --minimum-minutes
+      - "${AIWORLD_TEST_MINUTES:-60}"
+      - --build-label
+      - "${AIWORLD_RECORD_BUILD_LABEL:-unknown}"
     volumes:
-      - ./docker/world-viewer/app/record.py:/recorder.py:ro
+      - ./docker/world-viewer/app/record.py:/record.py:ro
+      - ./docker/world-viewer/app/behavior.py:/behavior.py:ro
+      - ./docker/world-viewer/app/recording_gate.py:/recording_gate.py:ro
+      - ./runtime/recordings:/recordings
+
+  # Offline evaluation of an existing session; no game services are started.
+  aiworld-analysis:
+    image: python:3.11-slim
+    profiles: ["recording"]
+    entrypoint: ["python", "/behavior.py"]
+    volumes:
+      - ./docker/world-viewer/app/behavior.py:/behavior.py:ro
       - ./runtime/recordings:/recordings
 
   account-web:

@@ -8,6 +8,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  observer-behavior-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test recording and behavior evaluation
+        working-directory: docker/world-viewer
+        run: python -m unittest discover -s tests -p 'test_*record*.py' -v
+
   # PR gate: GitHub-hosted, ephemeral VM per run. ccache is restored from
   # actions/cache but the CMake/Ninja build dir itself is not persisted, so
   # this job always reconfigures/relinks from scratch.
@@ -130,7 +141,11 @@ jobs:
           '
 
   deploy:
-    needs: build-server
+    needs: [build-server, observer-behavior-tests]
+    # Keep checkout changes, server restarts and recording rotation together.
+    concurrency:
+      group: ai-world-deploy
+      cancel-in-progress: false
     # Only a trusted push to ai-world may reach the self-hosted runner —
     # pull_request (including from forks, since this repo is public) always
     # stays on the GitHub-hosted build-pr job above.
@@ -141,11 +156,23 @@ jobs:
         run: |
           git config --global --add safe.directory /home/voslik/WoWBehaviorAI
 
+      - name: Close previous behavior recording
+        # Stop before changing bind-mounted Python files or restarting services.
+        # Older checkouts may not define the opt-in recorder yet.
+        run: |
+          cd /home/voslik/WoWBehaviorAI
+          set -euo pipefail
+          services="$(docker compose --profile recording config --services)"
+          if grep -Fxq aiworld-recorder <<< "$services"; then
+            docker compose stop --timeout 30 aiworld-recorder
+          fi
+
       - name: Sync deploy checkout
         run: |
           cd /home/voslik/WoWBehaviorAI
           git fetch origin ai-world
-          git reset --hard origin/ai-world
+          # Deploy the commit that passed this run's checks, not a newer tip.
+          git reset --hard "$GITHUB_SHA"
 
       - name: Regenerate custom DBC
         # runtime/ (including runtime/dbc-base/ and runtime/data/dbc/) is
@@ -183,6 +210,7 @@ jobs:
           # up -d only recreates containers whose config changed — force a
           # restart so authserver/worldserver actually reload the binary
           # make build just installed into build-data.
+          echo "AIWORLD_DEPLOY_NOT_BEFORE_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
           docker compose restart authserver worldserver
 
       - name: Verify deployment health
@@ -232,6 +260,7 @@ jobs:
           wait_healthy ai-server 30
           wait_healthy authserver 40
           wait_healthy worldserver 60
+          wait_healthy world-viewer 30
 
           docker compose ps
 
@@ -336,3 +365,30 @@ jobs:
 
           echo
           echo "AI smoke test passed."
+
+      - name: Start behavior test for deployed build
+        run: |
+          cd /home/voslik/WoWBehaviorAI
+          set -euo pipefail
+          revision="$(git rev-parse HEAD)"
+          test "$revision" = "$GITHUB_SHA"
+
+          # Healthy HTTP alone can still serve an old cached snapshot. Require
+          # two advancing live captures made after this server restart.
+          docker compose exec -T world-viewer \
+            python -m app.recording_gate telemetry \
+            --after-ms "$AIWORLD_DEPLOY_NOT_BEFORE_MS" --timeout 180
+
+          export AIWORLD_RECORD_BUILD_LABEL="$revision"
+          export AIWORLD_RECORD_LABEL="deploy:$revision"
+          recording_after_ms="$(date +%s%3N)"
+          # Recreate even on a redeploy of the same SHA; preserve past archives.
+          docker compose up -d --no-deps --force-recreate aiworld-recorder
+          if ! docker compose exec -T aiworld-recorder \
+            python /recording_gate.py started --build-label "$revision" \
+            --after-ms "$recording_after_ms" --timeout 60; then
+            docker compose logs --tail=20 aiworld-recorder
+            docker compose stop --timeout 30 aiworld-recorder
+            exit 1
+          fi
+          printf 'Behavior recording started for `%s`. The detached run writes its final report under `runtime/recordings` (four hours by default).\n' "$revision" >> "$GITHUB_STEP_SUMMARY"

@@ -19,6 +19,7 @@ import unittest
 from unittest.mock import patch
 
 from app import record
+from app import behavior
 
 
 def state() -> dict:
@@ -122,6 +123,17 @@ class RecordingTests(unittest.TestCase):
         self.assertEqual(len(summary["parts"]), 4)  # three samples + final summary
         self.assertEqual([r["sequence"] for r in rows if r["kind"] == "sample"], [1, 2, 3])
 
+    def test_automatic_behavior_report_matches_offline_evaluation(self) -> None:
+        self.args.analyze = True
+        self.responses = [(200, state())]
+        code, summary, _ = self.run_recording()
+        directory = next(Path(self.temp.name).iterdir())
+        report = json.loads((directory / "behavior-report.json").read_text(encoding="utf-8"))
+        self.assertEqual(code, 2)  # one short observation cannot prove behavior
+        self.assertEqual(summary["behavior"]["status"], "INCONCLUSIVE")
+        self.assertTrue((directory / "behavior-report.md").exists())
+        self.assertEqual(report, behavior.analyze(directory))
+
     def test_duration_is_automatic_and_empty_test_is_not_successful(self) -> None:
         self.args.hours = 0.08 / 3600
         self.args.interval = 5  # waiting ends at deadline, not five seconds later
@@ -204,7 +216,7 @@ class RecordingTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), content)
 
     def test_cli_rejects_invalid_options_before_creating_files(self) -> None:
-        for option in ("--hours", "--interval", "--timeout", "--max-part-mib"):
+        for option in ("--hours", "--interval", "--timeout", "--max-part-mib", "--minimum-minutes"):
             for value in ("0", "-1", "nan", "inf"):
                 with self.subTest(option=option, value=value), contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit) as error:

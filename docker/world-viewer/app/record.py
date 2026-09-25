@@ -18,6 +18,11 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 import uuid
 
+if __package__:
+    from .behavior import Evaluator, Policy, write_report
+else:
+    from behavior import Evaluator, Policy, write_report
+
 
 FORMAT_VERSION = 1
 MAX_RESPONSE_BYTES = 64 * 1024 * 1024  # GET expands defaults from the 8 MiB POST.
@@ -135,7 +140,10 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
         "started_at_utc": utc_now(), "source": args.url, "label": args.label,
         "interval_seconds": args.interval, "planned_hours": args.hours,
         "max_part_mib": args.max_part_mib,
+        "build_label": getattr(args, "build_label", "unknown"),
     }, max(1, int(args.max_part_mib * 1024 * 1024)))
+    evaluator = (Evaluator(recording.metadata, Policy(minimum_seconds=getattr(args, "minimum_minutes", 60) * 60))
+                 if getattr(args, "analyze", False) else None)
     counts: Counter = Counter()
     samples = 0
     max_agents = 0
@@ -178,6 +186,8 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
             sample["request_ms"] = round((time.monotonic() - request_started) * 1000)
             counts[status] += 1
             recording.write(sample)
+            if evaluator:
+                evaluator.observe(sample)
             changed = status != last_status
             last_status = status
             if changed or time.monotonic() >= next_summary:
@@ -205,6 +215,14 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
             recording.close()
         recording.save_summary(final)
         print(json.dumps(final), flush=True)
+    if evaluator:
+        report = evaluator.finish(final)
+        write_report(report, recording.directory)
+        result = {"status": report["status"], "exit_code": report["exit_code"],
+                  "report": "behavior-report.json", "findings": len(report["findings"])}
+        recording.save_summary({**final, "behavior": result})
+        print(json.dumps({"behavior": result}), flush=True)
+        return report["exit_code"]
     # An empty/unconfigured/offline recording must not report a successful test.
     return 0 if counts["fresh"] else 2
 
@@ -218,6 +236,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=positive_number, default=3.0)
     parser.add_argument("--max-part-mib", type=positive_number, default=64.0)
     parser.add_argument("--label", default="Elwynn")
+    parser.add_argument("--build-label", default="unknown", help="label of the tested server build")
+    parser.add_argument("--analyze", action="store_true", help="evaluate behavior and write a final report")
+    parser.add_argument("--minimum-minutes", type=positive_number, default=60.0,
+                        help="minimum fresh observation time required by behavior checks")
     args = parser.parse_args(argv)
     endpoint = urlsplit(args.url)
     if (endpoint.scheme not in ("http", "https") or not endpoint.hostname or endpoint.username or

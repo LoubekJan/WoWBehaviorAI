@@ -60,7 +60,25 @@ public `/api/state`; it does not need the ingest token and does not issue gamepl
 or memory-page requests. No worldserver rebuild is needed to add this recorder.
 See [the Czech test instructions](../../doc/ObserverRecording.md).
 
-From the updated checkout on the Docker host, with the worldserver running:
+After a successful GitHub CI deployment (`push` to `ai-world`), recording starts
+automatically. Deployment closes the previous session before modifying the
+checkout or restarting services, builds the exact checked commit, and waits for
+health/smoke checks plus two advancing live role snapshots captured after restart
+(up to 180 seconds). It then recreates the recorder and verifies fresh samples
+from the new session within 60 seconds. Each deployment, including the same SHA,
+gets a separate archive tagged with that commit; earlier archives are retained.
+
+The four-hour run continues independently after CI finishes. A green deployment
+means collection started, not that behavior passed. A later FAIL/INCONCLUSIVE is
+saved in the report; it does not change the completed CI result or roll back the
+server. A subsequent deployment finishes the current session early and writes
+its report. Insufficient data is INCONCLUSIVE unless a violation was proven.
+Failed deployment/readiness checks prevent a new run; failed start verification
+stops the recorder and fails deployment. Set `AIWORLD_RECORD_HOURS` in the host's
+`.env` to change the duration (default four hours).
+
+After a manual deployment, from the updated checkout on the Docker host with the
+worldserver running:
 
 ```sh
 make record-aiworld
@@ -80,8 +98,9 @@ AIWORLD_RECORD_HOURS=8 AIWORLD_RECORD_INTERVAL=5 AIWORLD_RECORD_LABEL="Elwynn ov
 Changing these settings while recording recreates the recorder, ending the
 current session and opening a new one. Every run writes a new uniquely named
 directory under `runtime/recordings/aiworld-<UTC>-<id>/`; previous runs are retained.
-The Compose service has the `recording` profile, so normal `make start` does not
-enable it. `make stop` stops it along with the stack. It does not automatically
+The Compose service has the `recording` profile. Automatic startup is wired to
+the GitHub deploy job; `make start`, `make build` and `make restart-world` alone
+do not start a new test. `make stop` stops it along with the stack. It does not automatically
 restart after a host/Docker restart.
 
 Each session contains `summary.json` (updated at status changes and at least every
@@ -94,10 +113,35 @@ Collect the complete session directory after it stops, including **all parts**.
 The summary's `counts.fresh` counts samples with fresh, nonempty agent data.
 Other sample statuses are `empty`, `waiting` (no telemetry yet), `unconfigured`,
 `stale` and `error` (HTTP/connection/invalid response). A run with no fresh nonempty
-samples exits with code 2. A normal exit or `usable: true` only confirms that data
+samples exits with code 2. `usable: true` only confirms that data
 was collected, **not** that NPC behavior was correct. The recorder keeps polling
 through outages and records recovery. Check the status after the first minute;
 `last_status: fresh` and a growing `counts.fresh` confirm collection.
+
+Compose now enables automatic behavior checks; `make test-aiworld` is an alias
+for starting this four-hour recording. It writes `behavior-report.md` and
+`behavior-report.json` at completion, plus `summary.behavior`. Exit codes are
+0 (PASS within the observed scope), 3 (FAIL), and 2 (INCONCLUSIVE). The detached
+start command's exit code is not the eventual test result. Checks cover stuck
+returns, stationary movement attempts, observed loss of Elwynn control, and
+hunger despite food stocks. Prolonged predator hunger is a warning. Missing
+data or short runs cannot pass; unobserved combat and the wolf pilot remain
+outside these checks. Full thresholds and limitations are in the Czech guide.
+
+Evaluate an existing archive without starting game services:
+
+```sh
+make analyze-aiworld SESSION=aiworld-<UTC>-<id>
+# Or Python alone, with output separate from the supplied archive:
+python3 docker/world-viewer/app/behavior.py path/to/session --output runtime/analysis/result
+```
+
+Offline evaluation verifies gzip CRCs, session/part order and summary counts.
+The live evaluator consumes the same samples before they are discarded from
+memory; it does not reread several hours of archives during graceful shutdown.
+For manual runs, specify `AIWORLD_RECORD_BUILD_LABEL` to identify the tested
+server build. CI deployment overrides this with the deployed SHA and sets
+`AIWORLD_RECORD_LABEL=deploy:<SHA>`.
 
 ### File format and analysis limits
 
@@ -123,7 +167,7 @@ overwrite mode in the current deployment configuration.
 The recorder also runs directly with Python 3.11+ (no pip dependencies):
 
 ```sh
-python3 docker/world-viewer/app/record.py --hours 4 --url http://localhost:8090/api/state
+python3 docker/world-viewer/app/record.py --analyze --hours 4 --url http://localhost:8090/api/state
 ```
 
 Recorder tests use a local HTTP fixture and compressed readback, with no game
@@ -131,7 +175,7 @@ server required:
 
 ```sh
 cd docker/world-viewer
-python3 -m unittest discover -s tests -p test_recording.py -v
+python3 -m unittest discover -s tests -p 'test_*record*.py' -v
 ```
 
 ## Protocol
