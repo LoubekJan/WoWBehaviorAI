@@ -16,7 +16,7 @@ else:
 
 
 def has_live_roles(state: dict) -> bool:
-    if (classify(state) != "fresh" or state["version"] not in (2, 3)
+    if (classify(state) != "fresh" or state["version"] not in (2, 3, 4)
             or state["age_ms"] > 5000):
         return False
     for agent in state["agents"]:

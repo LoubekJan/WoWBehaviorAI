@@ -12,7 +12,7 @@ from app import behavior
 
 
 POLICY = behavior.Policy(minimum_seconds=60, return_seconds=30, motion_seconds=20,
-                         outside_seconds=30, stock_hunger_seconds=30, predator_hunger_seconds=60)
+                         outside_seconds=30, stock_hunger_seconds=30, empty_stock_seconds=30, predator_hunger_seconds=60)
 METADATA = {"format_version": 1, "session_id": "test-session", "interval_seconds": 5, "label": "test"}
 
 
@@ -55,6 +55,37 @@ def stranded():
 
 
 class BehaviorTests(unittest.TestCase):
+    def test_version_four_preserves_return_diagnostics_through_idle(self):
+        rows = samples(npc=stranded())
+        for row in rows:
+            row['state']['version'] = 4
+            role = row['state']['agents'][0]['living_role']
+            role['movement_purpose'] = 'NONE'
+            role['phase'] = 'IDLE'
+            role['return_recovery'] = {'failures': 8, 'strategy': 'TRAIL', 'failure': 'RETURN_NO_PATH',
+                                       'rejected': {'path': 8}, 'stalled_ms': 600000}
+        report = evaluate(rows)
+        self.assertEqual(report['quality']['status'], 'PASS')
+        self.assertEqual(report['findings'][0]['return_recovery']['strategy'], 'TRAIL')
+        self.assertEqual(report['findings'][0]['check'], 'return')
+
+    def test_empty_worker_stock_is_checked_even_without_food_to_consume(self):
+        npc = agent(80683, 'WORKER')
+        npc.update(entry=250, home={'map_id': 0}, work={'map_id': 0})
+        npc['needs']['hunger'] = 1
+        npc['economy']['food'] = 0
+        rows = samples(npc=npc)
+        report = evaluate(rows)
+        self.assertEqual([f['check'] for f in report['findings']], ['empty_stock'])
+        # Completed resupply interrupts starvation; ordinary short work/meal
+        # cycles are not failures, nor is a woodworker's empty food inventory.
+        for row in rows:
+            if row['sequence'] % 5 == 0:
+                row['state']['agents'][0]['economy']['food'] = 2
+        self.assertFalse(evaluate(rows)['findings'])
+        npc['entry'] = 1975
+        self.assertFalse(evaluate(samples(npc=npc))['findings'])
+
     def test_legitimate_stationary_roles_and_stock_cap_do_not_fail(self):
         for role in ("SERVICE", "WORKER", "PREDATOR", "PREY", "GUARD"):
             with self.subTest(role=role):

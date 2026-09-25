@@ -35,7 +35,7 @@ TEST_CASE("Observer exports owned living state and exact stockpiles", "[AIWorld]
     agent.Groups.push_back({17, "LOOSE", "WOLF_LOOSE", 4, 0.5f, {0, -9900, 40, 30}});
     agent.Groups.push_back({18, "STABLE", "INVALID", 2, 0.2f, {0, -9900, 40, 30}});
     std::string json = SerializeAgentTelemetry({agent}, 1234);
-    CHECK(json.find("\"version\":3") != std::string::npos);
+    CHECK(json.find("\"version\":4") != std::string::npos);
     CHECK(json.find("NPC \\\"quote\\\"\\\\line\\n") != std::string::npos);
     CHECK(json.find("\"money\":\"18446744073709551615\"") != std::string::npos);
     CHECK(json.find("HUNT_CHASE_MISSING") != std::string::npos);
@@ -44,6 +44,26 @@ TEST_CASE("Observer exports owned living state and exact stockpiles", "[AIWorld]
     CHECK(json.find("\"effective_goal\":\"HUNT\"") != std::string::npos);
     CHECK(json.find("\"id\":17") != std::string::npos);
     CHECK(json.find("\"id\":18") != std::string::npos);
+}
+
+TEST_CASE("Observer preserves bounded return diagnostics independently of the animation label", "[AIWorld][Telemetry]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Live.emplace(); agent.Live->Alive = true;
+    agent.LivingRole.emplace(); agent.LivingRole->MovementPurpose = "NONE";
+    auto& recovery = agent.LivingRole->ReturnRecovery.emplace();
+    recovery.Failures = 8; recovery.TrailPoints = 64;
+    recovery.Strategy = "TRAIL"; recovery.Failure = "RETURN_NO_PATH";
+    recovery.StalledMs = 600000; recovery.Candidates = 8; recovery.Rejections[4] = 8;
+    recovery.RequestedZ = 45.57f;
+    auto json = SerializeAgentTelemetry({agent}, 1234);
+    REQUIRE(json.find("\"return_recovery\":{") != std::string::npos);
+    REQUIRE(json.find("\"failure\":\"RETURN_NO_PATH\"") != std::string::npos);
+    REQUIRE(json.find("\"stalled_ms\":600000") != std::string::npos);
+    REQUIRE(json.find("\"resolved_z\":null") != std::string::npos);
+    REQUIRE(json.find("\"path\":8") != std::string::npos);
+    agent.Live.reset();
+    REQUIRE(SerializeAgentTelemetry({agent}, 1234).find("\"return_recovery\"") == std::string::npos);
 }
 
 TEST_CASE("Observer never labels retained engine observations as background live data", "[AIWorld][Telemetry]")
@@ -62,7 +82,7 @@ TEST_CASE("Observer never labels retained engine observations as background live
     CHECK(json.find("\"living_wolf\":false") != std::string::npos);
     CHECK(json.find("\"food\":7") != std::string::npos);
     CHECK(json.find("\"source\":\"spawn\"") != std::string::npos);
-    CHECK(SerializeAgentTelemetry({}, 42) == "{\"version\":3,\"captured_at_ms\":42,\"agents\":[],\"memory_page\":null}");
+    CHECK(SerializeAgentTelemetry({}, 42) == "{\"version\":4,\"captured_at_ms\":42,\"agents\":[],\"memory_page\":null}");
 }
 
 TEST_CASE("Observer memory reads are bounded and anchor pages against new insertions", "[AIWorld][Telemetry]")

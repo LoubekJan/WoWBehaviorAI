@@ -185,6 +185,7 @@ function facts(id, rows) {
 
 function showDiagnostics(agent) {
   const role = agent.living_role, movement = agent.movement;
+  const recovery = role?.return_recovery;
   text("detail-availability", agent.position.source !== "live" ? "Background: živá činnost a pohyb nejsou dostupné. Zásoby a členství jsou stavem registru." :
     snapshot.version < 2 ? "Starší telemetrie: pro nové údaje aktualizujte worldserver." : !role ? "Činnost není navázaná na aktuální Creature." : "");
   facts("role-facts", [
@@ -210,6 +211,12 @@ function showDiagnostics(agent) {
     ["Nedosažitelný cíl", yes(movement?.cannot_reach_target)], ["Evade", yes(movement?.evading)],
     ["Rychlost běh / pohyb", movement ? `${fixed(movement.run_speed)} / ${fixed(movement.move_speed)} yd/s` : null],
     ["Vzdálenost od domova", movement ? `${fixed(movement.home_distance)} yd` : null],
+    ["Způsob návratu", recovery?.strategy], ["Poslední chyba návratu", recovery?.failure],
+    ["Neúspěšné návraty", recovery?.failures], ["Zapamatované body cesty", recovery?.trail_points],
+    ["Návrat bez postupu", recovery ? `${Math.round(recovery.stalled_ms / 1000)} s` : null],
+    ["Další pokus návratu", recovery ? `${recovery.retry_ms} ms` : null],
+    ["Odmítnuté body posledního hledání", recovery ? JSON.stringify(recovery.rejected) : null],
+    ["Výška návrhu / cesty", recovery ? `${fixed(recovery.requested_z)} / ${fixed(recovery.resolved_z)}` : null],
     ["Cíl Creature", agent.target ? `${agent.target.name} · ${agent.target.spawn_id}` : null],
     ["Místo přesunu", pointText(agent.destination)], ["Cíl vlastnící akci", agent.action_source_goal],
     ["Akce trvá", agent.action_started_at_ms == null ? null : `${Math.max(0, snapshot.captured_at_ms - agent.action_started_at_ms)} ms`],

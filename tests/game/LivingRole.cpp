@@ -569,14 +569,14 @@ TEST_CASE("Completed work produces bounded persistent stocks once per work windo
     AgentEconomyState farmer;
     farmer.Money = 80;
     REQUIRE(ProduceWorkStock(farmer, 250, 1000));
-    REQUIRE(farmer.Food == 4);
+    REQUIRE(farmer.Food == 6);
     REQUIRE(farmer.Resource == 0);
     REQUIRE(farmer.Money == 80);
     auto reloaded = farmer;
     REQUIRE(!ProduceWorkStock(reloaded, 250, 1000));
-    REQUIRE(reloaded.Food == 4);
+    REQUIRE(reloaded.Food == 6);
     REQUIRE(ProduceWorkStock(reloaded, 250, 2000));
-    REQUIRE(reloaded.Food == 8);
+    REQUIRE(reloaded.Food == 12);
     REQUIRE(!ProduceWorkStock(reloaded, 250, 1000));
     AgentEconomyState lumberjack;
     REQUIRE(ProduceWorkStock(lumberjack, 1975, 1000));
@@ -603,6 +603,12 @@ TEST_CASE("Role observations cannot survive a new materialization", "[AIWorld][L
     record.EconomyState.Food = 4;
     record.LivingRole.ReturnFailures = 5;
     record.LivingRole.ReturnRetryAtMs = 60000;
+    record.LivingRole.ReturnStalledSinceMs = 5000;
+    record.LivingRole.ReturningHome = true;
+    record.LivingRole.ReturnHomeLimit = 80.0f;
+    record.LivingRole.ReturnTrail.push_back({0, 10, 20, 30});
+    record.LivingRole.ReturnDiagnostics.Candidates = 12;
+    record.LivingRole.GatheringFood = true;
     record.LivingRole.ForageUntilMs = 120000;
     record.LivingRole.HasForageWaypoint = true;
     record.LivingRole.StockMeal = true;
@@ -614,6 +620,12 @@ TEST_CASE("Role observations cannot survive a new materialization", "[AIWorld][L
     REQUIRE(record.EconomyState.Food == 4);
     REQUIRE(record.LivingRole.ReturnFailures == 0);
     REQUIRE(record.LivingRole.ReturnRetryAtMs == 0);
+    REQUIRE(record.LivingRole.ReturnStalledSinceMs == 0);
+    REQUIRE(!record.LivingRole.ReturningHome);
+    REQUIRE(record.LivingRole.ReturnHomeLimit == 0.0f);
+    REQUIRE(record.LivingRole.ReturnTrail.empty());
+    REQUIRE(record.LivingRole.ReturnDiagnostics.Candidates == 0);
+    REQUIRE(!record.LivingRole.GatheringFood);
     REQUIRE(record.LivingRole.ForageUntilMs == 0);
     REQUIRE(!record.LivingRole.HasForageWaypoint);
     REQUIRE(!record.LivingRole.StockMeal);
@@ -687,7 +699,7 @@ TEST_CASE("Blocked returns back off while permitting safe basic needs", "[AIWorl
     }
 }
 
-TEST_CASE("Return detours remain short and move toward home at Elwynn coordinates", "[AIWorld][LivingRole]")
+TEST_CASE("Return retries search different bounded points including away from home", "[AIWorld][LivingRole]")
 {
     ActionPosition from{0, -9606.48f, 218.8026f, 48.39812f};
     for (uint32 degree = 0; degree < 360; degree += 15)
@@ -696,18 +708,78 @@ TEST_CASE("Return detours remain short and move toward home at Elwynn coordinate
         ActionPosition home{0, from.X + 47.1f * std::cos(angle), from.Y + 47.1f * std::sin(angle), from.Z};
         auto left = LivingReturnPolicy::Detours(from, home, 1);
         auto right = LivingReturnPolicy::Detours(from, home, 2);
-        REQUIRE(left.size() == 4);
-        REQUIRE(right.size() == 4);
-        REQUIRE((left.front().X != right.front().X || left.front().Y != right.front().Y));
+        REQUIRE(left.size() == 8);
+        REQUIRE(right.size() == 8);
+        bool canWalkAround = false;
         for (auto const& point : left)
         {
-            REQUIRE(std::hypot(point.X - from.X, point.Y - from.Y) < 8.01f);
-            REQUIRE(std::hypot(point.X - home.X, point.Y - home.Y) < 47.1f);
+            REQUIRE(std::hypot(point.X - from.X, point.Y - from.Y) <= 12.01f);
+            REQUIRE(std::hypot(point.X - home.X, point.Y - home.Y) <= 47.1f + 12.01f);
             REQUIRE(point.MapId == from.MapId);
+            canWalkAround |= std::hypot(point.X - home.X, point.Y - home.Y) > 47.1f;
+            // Reordering the same four rejected points caused the long-run
+            // regression. Every next-attempt point must really be different.
+            for (auto const& other : right)
+                REQUIRE(LivingReturnPolicy::Distance(point, other) > 0.1f);
         }
+        REQUIRE(canWalkAround);
     }
     REQUIRE(LivingReturnPolicy::Detours(from, from, 1).empty());
     REQUIRE(LivingReturnPolicy::Detours(from, {1, 10, 20, 30}, 1).empty());
+}
+
+TEST_CASE("Observed return trail backtracks around a wall and does not record its own recovery loop", "[AIWorld][LivingRole]")
+{
+    using namespace LivingReturnPolicy;
+    std::vector<ActionPosition> trail;
+    for (auto p : std::vector<ActionPosition>{{0,0,0,1}, {0,0,8,1}, {0,10,8,1}, {0,10,0,1}})
+        ObserveTrail(trail, p, false);
+    auto steps = TrailSteps(trail, {0,10,0,1});
+    REQUIRE(steps.front().Y == 8); // initially farther from home, around wall
+    ObserveTrail(trail, steps.front(), true);
+    REQUIRE(trail.size() == 3);
+    steps = TrailSteps(trail, {0,10,8,1});
+    REQUIRE(steps.front().X == 0);
+    ObserveTrail(trail, {0,6,8,1}, true);
+    REQUIRE(trail.size() == 3); // an intermediate return position is not a new outbound breadcrumb
+    ObserveTrail(trail, {0,0,8,1}, true);
+    REQUIRE(trail.size() == 2);
+    REQUIRE(TrailSteps(trail, {0,0,8,1}).front().Y == 0);
+    for (unsigned i=0; i<1000; ++i) ObserveTrail(trail, {0,float(i*4),0,1}, false);
+    REQUIRE(trail.size() == MaxTrailPoints);
+    REQUIRE(trail.front().X == 0);
+    REQUIRE(TrailSteps(trail, {1,10,0,1}).empty());
+    auto size = trail.size();
+    ObserveTrail(trail, {0,0,0,std::numeric_limits<float>::quiet_NaN()}, false);
+    REQUIRE(trail.size() == size);
+}
+
+TEST_CASE("Empty food is replenished by completed work without duplicate money or free meals", "[AIWorld][LivingRole]")
+{
+    using namespace LivingRolePolicy;
+    AgentEconomyState farmer;
+    farmer.Money = 39; farmer.Resource = 4; farmer.LastRewardedWorkWindowId = 1234;
+    REQUIRE(CanGatherFood(Role::Worker, 250));
+    REQUIRE_FALSE(CanGatherFood(Role::Worker, 1975));
+    REQUIRE_FALSE(CanGatherFood(Role::Predator, 30));
+    REQUIRE(GatherEmergencyFood(farmer));
+    REQUIRE(farmer.Food == 2);
+    REQUIRE_FALSE(GatherEmergencyFood(farmer));
+    REQUIRE(farmer.Money == 39);
+    REQUIRE(farmer.Resource == 4);
+    REQUIRE(farmer.LastRewardedWorkWindowId == 1234);
+    REQUIRE(ConsumeStockMeal(farmer));
+    REQUIRE(ConsumeStockMeal(farmer));
+    REQUIRE_FALSE(ConsumeStockMeal(farmer));
+    REQUIRE(GatherEmergencyFood(farmer));
+    // Twelve 20-minute work windows cover the supplied recording's 62 meals.
+    farmer.Food = 0;
+    for (uint64 day=1; day<=12; ++day)
+    {
+        REQUIRE(ProduceWorkStock(farmer, 250, 1234+day));
+        for (unsigned meal=0; meal<(day%6 ? 5u : 6u); ++meal) REQUIRE(ConsumeStockMeal(farmer));
+    }
+    REQUIRE(farmer.Food > 0);
 }
 
 TEST_CASE("Curated meals consume real stock and leave an empty inventory unchanged", "[AIWorld][LivingRole]")

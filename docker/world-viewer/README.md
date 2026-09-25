@@ -18,6 +18,8 @@ can reach the published port can read the telemetry.
   chase sprint multiplier and time remaining. Wolf pack activity is derived from
   its effective goal, independently of the living-role controller.
 - Movement speed, blocked movement, unreachable target, evade and home distance.
+- Return recovery strategy, failure/backoff, observed trail size, time without
+  displacement and candidate rejection counts, including path flags and height.
 - Individual/routine/group goal ownership, action age, group hunt phase,
   all group memberships, profiles, resources and territories.
 - Money (exact copper), food, resources, home/work coordinates and routine activity.
@@ -37,7 +39,7 @@ The viewer's scope remains AI-controlled Elwynn agents on map 0.
 ## Upgrade an existing deployment
 
 From the repository root on the Docker host, update the receiver first. It accepts
-protocol versions 1–3, while older receivers reject version 3:
+protocol versions 1–4, while older receivers reject version 4:
 
 ```sh
 docker compose up -d --build world-viewer
@@ -47,9 +49,8 @@ make restart-world
 
 Keep the existing `.env` token and port. No database migration is needed for this
 Observer update. Reload the browser after upgrading. `/api/state` reports
-`version: 3` after the first snapshot from the rebuilt worldserver. Versions 1
-and 2 continue to show their supported fields, with a note that memory requires
-an updated worldserver.
+`version: 4` after the first snapshot from the rebuilt worldserver. Versions 1–3
+continue to show their supported fields; memory requires version 3 or newer.
 No snapshot is retained across a viewer restart; it waits for the next export.
 
 ## Several-hour recordings
@@ -124,7 +125,8 @@ for starting this four-hour recording. It writes `behavior-report.md` and
 0 (PASS within the observed scope), 3 (FAIL), and 2 (INCONCLUSIVE). The detached
 start command's exit code is not the eventual test result. Checks cover stuck
 returns, stationary movement attempts, observed loss of Elwynn control, and
-hunger despite food stocks. Prolonged predator hunger is a warning. Missing
+hunger despite food stocks, and prolonged hunger with empty stocks in food
+workers with home/work routines. Prolonged predator hunger is a warning. Missing
 data or short runs cannot pass; unobserved combat and the wolf pilot remain
 outside these checks. Full thresholds and limitations are in the Czech guide.
 
@@ -181,7 +183,7 @@ python3 -m unittest discover -s tests -p 'test_*record*.py' -v
 ## Protocol
 
 `POST /internal/telemetry` requires `Authorization: Bearer <token>`. The C++
-exporter sends version 3; the receiver also accepts versions 1 and 2 for rolling updates.
+exporter sends version 4; the receiver also accepts versions 1–3 for rolling updates.
 The following minimal version 1 example remains valid:
 
 ```json
@@ -230,10 +232,22 @@ time for wall-clock display and differences for action duration.
 `position.source` is `live`,
 `spawn`, or `last_known`; only `live` means a current Creature position.
 The next accepted batch replaces the entire previous batch. Requests are
-limited to 8 MiB and 10,000 agents. Duplicate AgentIds and malformed batches
+limited to 12 MiB and 10,000 agents (the v4 recovery fields exceed the former
+8 MiB limit for a fully materialized Elwynn snapshot). Duplicate AgentIds and malformed batches
 are rejected without changing the cached state. The state becomes stale five
 seconds after its most recent receipt; stale age is based on the receiver's
 monotonic clock, not the source timestamp. Browser polling is every second.
+
+### Return recovery (v4)
+
+Version 4 adds nullable `living_role.return_recovery`. It preserves the return
+strategy and failure across idle/ambient phases, with `failures`, `trail_points`,
+`retry_ms`, `stalled_ms`, `candidates`, `path_type`, `requested_z`, `resolved_z`
+and rejection counts (`invalid`, `height`, `zone`, `los`, `path`, `bounds`,
+`danger`). Counts describe the last route search; `failure` is the last failed
+attempt and clears after actual progress. Null means no active return recovery
+or no support in the source protocol. Background agents omit all live role data.
+Memory transport below remains compatible with versions 3 and 4.
 
 ### Long-term memory (v3)
 
@@ -257,7 +271,7 @@ Pages are separate from `/api/state`, so other map viewers do not receive the
 selected NPC's history on every poll. The receiver limits pending reads to 32
 (60-second expiry) and cached pages to 64 (30-second expiry). Request IDs prevent
 late responses from fulfilling a different request; pending reads rotate fairly.
-The normal 8 MiB telemetry limit still applies.
+The normal 12 MiB telemetry limit still applies.
 
 Order is newest insertion first, with loaded records ordered by `memory_id`.
 The returned `anchor` pins pagination against new insertions; use `refresh=true`

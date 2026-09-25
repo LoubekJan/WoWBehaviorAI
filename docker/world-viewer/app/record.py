@@ -25,7 +25,7 @@ else:
 
 
 FORMAT_VERSION = 1
-MAX_RESPONSE_BYTES = 64 * 1024 * 1024  # GET expands defaults from the 8 MiB POST.
+MAX_RESPONSE_BYTES = 64 * 1024 * 1024  # GET expands defaults from the bounded POST.
 
 
 def utc_now() -> str:

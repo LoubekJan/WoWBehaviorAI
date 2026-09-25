@@ -53,7 +53,28 @@ def v2_batch() -> dict:
     return json.loads((Path(__file__).parent / "fixtures" / "telemetry_v2.json").read_text(encoding="utf-8"))
 
 
+def return_recovery() -> dict:
+    return {"failures": 8, "trail_points": 64, "retry_ms": 15000, "stalled_ms": 90000,
+            "strategy": "TRAIL", "failure": "RETURN_NO_PATH", "candidates": 8, "path_type": 8,
+            "requested_z": 45.57, "resolved_z": None,
+            "rejected": {"invalid": 0, "height": 0, "zone": 0, "los": 0, "path": 8, "bounds": 0, "danger": 0}}
+
+
 class WorldViewerApiTests(unittest.TestCase):
+    def test_recovery_protocol_roundtrips_and_rejects_bad_diagnostics(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        recovery = return_recovery()
+        payload['agents'][0]['living_role']['return_recovery'] = recovery
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        state = self.client.get('/api/state').json()
+        self.assertEqual(state['version'], 4)
+        self.assertEqual(state['agents'][0]['living_role']['return_recovery'], recovery)
+        recovery['rejected']['path'] = -1
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 422)
+        # A malformed batch must not replace the last good observation.
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery']['rejected']['path'], 8)
+
     def setUp(self) -> None:
         self.client = TestClient(create_app("test-secret"))
         self.headers = {"Authorization": "Bearer test-secret"}
@@ -105,7 +126,10 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         state = self.client.get("/api/state").json()
         self.assertEqual(state["version"], 2)
-        self.assertEqual(state["agents"], payload["agents"])
+        # v2 omitted this later optional field; all original values survive.
+        expected = copy.deepcopy(payload["agents"])
+        expected[0]["living_role"]["return_recovery"] = None
+        self.assertEqual(state["agents"], expected)
         live, background = state["agents"]
         self.assertEqual(live["economy"]["money"], "18446744073709551615")
         self.assertEqual(live["living_role"]["sprint_remaining_ms"], 450)
@@ -126,17 +150,20 @@ class WorldViewerApiTests(unittest.TestCase):
     def test_rejects_live_diagnostics_on_background_agent(self) -> None:
         payload = v2_batch()
         self.client.post("/internal/telemetry", headers=self.headers, json=payload)
+        accepted_agents = self.client.get("/api/state").json()["agents"]
         for key in ("living_role", "movement", "target", "destination", "faction_template_id"):
             invalid = copy.deepcopy(payload)
             invalid["agents"][1][key] = invalid["agents"][0][key]
             with self.subTest(field=key):
                 response = self.client.post("/internal/telemetry", headers=self.headers, json=invalid)
                 self.assertEqual(response.status_code, 422, response.text)
-        self.assertEqual(self.client.get("/api/state").json()["agents"], payload["agents"])
+        self.assertEqual(self.client.get("/api/state").json()["agents"], accepted_agents)
 
     def test_full_elwynn_snapshot_fits_and_is_accepted(self) -> None:
         payload = v2_batch()
+        payload["version"] = 4
         prototype = payload["agents"][0]
+        prototype["living_role"]["return_recovery"] = return_recovery()
         payload["agents"] = [{**prototype, "agent_id": i, "spawn_id": i} for i in range(3540)]
         body = json.dumps(payload, separators=(",", ":")).encode()
         self.assertLess(len(body), MAX_REQUEST_BYTES)
@@ -147,7 +174,7 @@ class WorldViewerApiTests(unittest.TestCase):
     def test_rejects_invalid_or_duplicate_batches_without_replacing_cache(self) -> None:
         self.client.post("/internal/telemetry", headers=self.headers, json=batch())
         invalid = [
-            {**batch(), "version": 4},
+            {**batch(), "version": 99},
             batch([{**agent(), "position": {**agent()["position"], "source": "unknown"}}]),
             batch([{**agent(), "needs": {**agent()["needs"], "hunger": 1.5}}]),
             batch([agent(1), agent(1)]),

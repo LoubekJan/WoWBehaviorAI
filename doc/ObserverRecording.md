@@ -42,7 +42,7 @@ Test nemění NPC ani neposílá příkazy do hry. Není třeba překládat worl
 
 Pro srovnatelné výsledky nech svět běžet bez zásahů a nastav
 `AIWorld.ElwynnAlwaysActive = 1`. Záznamník musí sledovat aktuální telemetrii
-verze 2 nebo 3. Verze 1 neobsahuje potřebné údaje a dostane `INCONCLUSIVE`.
+verze 2, 3 nebo 4. Verze 1 neobsahuje potřebné údaje a dostane `INCONCLUSIVE`.
 
 | Kontrola | Výchozí pravidlo |
 | --- | --- |
@@ -50,13 +50,23 @@ verze 2 nebo 3. Verze 1 neobsahuje potřebné údaje a dostane `INCONCLUSIVE`.
 | Pohyb bez postupu | Nejméně 60 sekund v místním `MOVING` bez posunu přes 1 yard; samotné `moving=true` nestačí jako důkaz pohybu. Boj, root a evade se nepočítají. |
 | Odchod z Elwynnu | NPC dříve pozorované pod řízením role zůstává alespoň 30 sekund v `OUTSIDE_ELWYNN`. Po výpadku, smrti či ztrátě živé reprezentace se návaznost neodvozuje. |
 | Hlad navzdory zásobám | Civilní/bojová role se zapnutým rozšířením má mimo boj alespoň 10 minut hlad ≥ 0,95 a Food > 0. |
+| Prázdná zásoba pracovníka | Pracovník s připraveným domovem a pracovištěm má mimo boj alespoň 10 minut hlad ≥ 0,95 a Food = 0. Vyžaduje zapnuté rozšíření; dřevorubec entry 1975 vyrábějící suroviny je vynechán. |
 | Hlad predátorů | Souvislý hlad ≥ 0,95 po 30 minut vyvolá upozornění. Sám nezpůsobí selhání — kořist nemusí být dostupná. |
 
 Report uvádí spawn, nejdelší pozorovanou epizodu daného pravidla, časy UTC,
-souřadnice a poslední pohybový důvod. První čtyři překročené prahy znamenají
+souřadnice a poslední pohybový důvod. Prvních pět překročených prahů znamená
 `FAIL` a zaslouží kontrolu; report sám neurčuje příčinu chyby navmeshe.
 Souhrny rolí ukazují vzorkované začátky lovu/krmení, poklesy hladu a změny zásob.
 Stání služeb ani dosažení stropu surovin 20 nejsou automaticky závadou.
+
+Telemetrie v4 navíc ukládá `living_role.return_recovery`: strategii návratu,
+poslední chybu, počet neúspěchů a zapamatovaných bodů, čas bez posunu a do dalšího
+pokusu, příznaky cesty, původní/vyřešenou výšku a počty odmítnutí podle důvodu.
+Tyto údaje přetrvají i při náhradní animaci nebo `movement=NONE`; automatický
+test z nich také rozpozná selhání návratu. Podrobnosti nálezu jsou v JSON reportu.
+Starší archivy zůstávají čitelné, ale nové údaje nelze zpětně dopočítat.
+Pro v4 je nutné aktualizovat nejprve Observer a potom worldserver podle
+[návodu](LivingRoles.md#ověření-oprav-z-25-9); samotný záznamník rebuild enginu nepotřebuje.
 
 | Výsledek | Význam | Kód ukončení služby |
 | --- | --- | ---: |

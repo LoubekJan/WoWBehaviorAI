@@ -19,12 +19,23 @@
 #include "Goal/GoalType.h"
 #include "Needs/NeedsState.h"
 #include "Scheduler/SimulationTier.h"
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
 
 // Strings are owned copies: LivingRoleState and the command diagnostics use
 // char const*, which must not be carried through the asynchronous boundary.
+struct ReturnRecoveryTelemetry
+{
+    uint32 Failures = 0, TrailPoints = 0, Candidates = 0, PathType = 0;
+    uint64 RetryMs = 0, StalledMs = 0;
+    std::string Strategy, Failure;
+    std::array<uint32, 7> Rejections{};
+    float RequestedZ = 0.0f;
+    std::optional<float> ResolvedZ;
+};
+
 struct LivingRoleTelemetry
 {
     bool Enabled = false;
@@ -41,6 +52,7 @@ struct LivingRoleTelemetry
     std::optional<float> HuntTargetDistance, PreyRunSpeed, PreyMoveSpeed;
     std::optional<float> SprintMultiplier;
     std::optional<uint32> SprintRemainingMs;
+    std::optional<ReturnRecoveryTelemetry> ReturnRecovery;
 };
 
 struct MovementTelemetry

@@ -20,6 +20,7 @@
 
 #include "Action/ActionPosition.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 #include <vector>
@@ -29,30 +30,86 @@ namespace LivingReturnPolicy
     // Stay below the 30-yard path gate. At Elwynn coordinates, a nominal
     // 30-yard float step can round outward and fail that gate forever.
     constexpr float MaxStepLength = 28.0f;
+    constexpr std::size_t MaxTrailPoints = 64;
+
+    enum Rejection : std::size_t { Invalid, Height, Zone, Los, Path, Bounds, Danger, RejectionCount };
+    struct Diagnostics
+    {
+        uint32 Candidates = 0;
+        std::array<uint32, RejectionCount> Rejected{};
+        uint32 PathType = 0;
+        float RequestedZ = 0.0f;
+        std::optional<float> ResolvedZ;
+    };
+
+    inline bool Finite(ActionPosition const& point)
+    {
+        return std::isfinite(point.X) && std::isfinite(point.Y) && std::isfinite(point.Z);
+    }
+
+    inline float Distance(ActionPosition const& a, ActionPosition const& b)
+    {
+        return std::hypot(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+    }
+
+    // Actual observed positions only. Revisited points erase loops; recovery
+    // consumes the trail instead of recording its own steps back out again.
+    inline void ObserveTrail(std::vector<ActionPosition>& trail, ActionPosition const& point, bool returning)
+    {
+        if (!Finite(point)) return;
+        if (!trail.empty() && trail.back().MapId != point.MapId) trail.clear();
+        for (std::size_t i = 0; i < trail.size(); ++i)
+            if (Distance(trail[i], point) <= 2.0f)
+            {
+                trail.resize(i + 1);
+                return;
+            }
+        if (returning || (!trail.empty() && Distance(trail.back(), point) < 3.0f)) return;
+        if (trail.size() == MaxTrailPoints) trail.erase(trail.begin() + 1);
+        trail.push_back(point);
+    }
+
+    inline std::vector<ActionPosition> TrailSteps(std::vector<ActionPosition> const& trail, ActionPosition const& from)
+    {
+        std::vector<ActionPosition> candidates;
+        if (!Finite(from)) return candidates;
+        for (auto it = trail.rbegin(); it != trail.rend(); ++it)
+            if (Finite(*it) && it->MapId == from.MapId && Distance(*it, from) > 2.0f && Distance(*it, from) <= MaxStepLength)
+            {
+                candidates.push_back(*it);
+                if (candidates.size() == 8) break;
+            }
+        return candidates;
+    }
 
     inline uint64 RetryDelayMs(uint32 failures)
     {
         return std::min<uint64>(60000, 5000ULL << std::min(failures ? failures - 1 : 0, 4u));
     }
 
-    // Recovery candidates vary by attempt; never jump farther from home.
+    // Distinct rings/directions on successive attempts, including a bounded
+    // first step away from home when a wall requires walking around it.
     inline std::vector<ActionPosition> Detours(ActionPosition const& from, ActionPosition const& home, uint32 attempt)
     {
         std::vector<ActionPosition> candidates;
         float distance = std::hypot(home.X - from.X, home.Y - from.Y);
-        if (from.MapId != home.MapId || !std::isfinite(distance) || distance <= 2.0f)
+        if (from.MapId != home.MapId || !Finite(from) || !Finite(home) || !std::isfinite(distance) || distance <= 2.0f)
             return candidates;
         float bearing = std::atan2(home.Y - from.Y, home.X - from.X);
-        float step = std::min(8.0f, distance * 0.5f);
-        float side = attempt % 2 ? -1.0f : 1.0f;
-        for (float offset : { side * 0.55f, -side * 0.55f, side * 1.05f, -side * 1.05f })
-            candidates.push_back({ from.MapId, from.X + step * std::cos(bearing + offset),
-                from.Y + step * std::sin(bearing + offset), from.Z });
+        float step = 3.0f + 3.0f * (attempt % 4);
+        float rotation = float(attempt % 8) * 0.19634954f;
+        for (uint32 i = 0; i < 8; ++i)
+        {
+            float angle = bearing + rotation + float(i) * 0.78539816f;
+            candidates.push_back({ from.MapId, from.X + step * std::cos(angle),
+                from.Y + step * std::sin(angle), from.Z });
+        }
         return candidates;
     }
 
     // Follow the route, rather than projecting a straight chord toward home.
-    // The engine still checks the selected step's ground, zone, LOS and path.
+    // The engine still validates its floor, full path and zone; shortcuts
+    // without navmesh also require direct line of sight.
     inline std::optional<ActionPosition> PathStep(std::vector<ActionPosition> const& path, float budget = MaxStepLength)
     {
         auto finite = [](ActionPosition const& point)

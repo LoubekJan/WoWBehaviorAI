@@ -72,6 +72,24 @@ namespace
         out << ','; WriteString(out, key); out << ':'; WriteValue(out, value);
     }
 
+    void WriteValue(std::ostream& out, ReturnRecoveryTelemetry const& recovery)
+    {
+        out << "{\"failures\":" << recovery.Failures;
+        WriteJsonField(out, "trail_points", recovery.TrailPoints);
+        WriteJsonField(out, "retry_ms", recovery.RetryMs); WriteJsonField(out, "stalled_ms", recovery.StalledMs);
+        WriteJsonField(out, "strategy", recovery.Strategy); WriteJsonField(out, "failure", recovery.Failure);
+        WriteJsonField(out, "candidates", recovery.Candidates); WriteJsonField(out, "path_type", recovery.PathType);
+        WriteJsonField(out, "requested_z", recovery.RequestedZ); WriteJsonField(out, "resolved_z", recovery.ResolvedZ);
+        char const* names[] = { "invalid", "height", "zone", "los", "path", "bounds", "danger" };
+        out << ",\"rejected\":{";
+        for (std::size_t i = 0; i < recovery.Rejections.size(); ++i)
+        {
+            if (i) out << ',';
+            WriteString(out, names[i]); out << ':' << recovery.Rejections[i];
+        }
+        out << "}}";
+    }
+
     void WriteValue(std::ostream& out, LivingRoleTelemetry const& role)
     {
         out << "{\"enabled\":"; WriteValue(out, role.Enabled);
@@ -91,6 +109,9 @@ namespace
         WriteJsonField(out, "hunt_target_distance", role.HuntTargetDistance);
         WriteJsonField(out, "prey_run_speed", role.PreyRunSpeed); WriteJsonField(out, "prey_move_speed", role.PreyMoveSpeed);
         WriteJsonField(out, "sprint_multiplier", role.SprintMultiplier); WriteJsonField(out, "sprint_remaining_ms", role.SprintRemainingMs);
+        // Explicit dispatch avoids two-phase lookup of the later overload.
+        out << ",\"return_recovery\":";
+        if (role.ReturnRecovery) WriteValue(out, *role.ReturnRecovery); else out << "null";
         out << '}';
     }
     void WriteValue(std::ostream& out, MovementTelemetry const& movement)
@@ -205,7 +226,7 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
     std::ostringstream out;
     out.imbue(std::locale::classic());
     out << std::setprecision(7);
-    out << "{\"version\":3,\"captured_at_ms\":" << capturedAtMs << ",\"agents\":[";
+    out << "{\"version\":4,\"captured_at_ms\":" << capturedAtMs << ",\"agents\":[";
     bool first = true;
     for (AgentTelemetrySnapshot const& item : snapshots)
     {

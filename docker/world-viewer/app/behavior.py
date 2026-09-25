@@ -19,6 +19,7 @@ class Policy:
     motion_seconds: float = 60
     outside_seconds: float = 30
     stock_hunger_seconds: float = 600
+    empty_stock_seconds: float = 600
     predator_hunger_seconds: float = 1800
     position_tolerance: float = 1
 
@@ -28,12 +29,13 @@ CHECKS = {
     "motion": "Pohybový úkol se skutečným posunem",
     "outside": "Zachování řízení v Elwynnu",
     "stock_hunger": "Jídlo při hladu a dostupných zásobách",
+    "empty_stock": "Obnovení prázdné zásoby jídla u pracovní rutiny",
     "predator_hunger": "Dlouhodobý hlad predátorů (upozornění)",
 }
 RADII = {"PREDATOR": 12, "PREY": 6, "GUARD": 8, "COMBATANT": 10,
          "CIVILIAN": 4, "WORKER": 4, "TRAVELER": 12, "SERVICE": 0}
 SCOPED = {"READY", "ACTIVE", "CURATED_ROUTINE", "GROUP_ACTIVITY"}
-LOCAL_MOVES = {"RETURN_HOME", "FORAGE_SEARCH", "LOCAL_ROAM", "HERD_COHESION", "PATROL_COMPANION"}
+LOCAL_MOVES = {"RETURN_HOME", "FORAGE_SEARCH", "LOCAL_ROAM", "HERD_COHESION", "PATROL_COMPANION", "FOOD_SUPPLY"}
 
 
 def finite(value) -> bool:
@@ -97,6 +99,9 @@ class Evaluator:
                   "movement_purpose": agent["living_role"]["movement_purpose"],
                   "home_distance": agent["movement"]["home_distance"],
                   "severity": "warning" if key == "predator_hunger" else "failure"}
+        recovery = agent["living_role"].get("return_recovery")
+        if isinstance(recovery, dict):
+            detail["return_recovery"] = recovery
         if duration > self.worst.get(identity, {}).get("duration_seconds", -1):
             self.worst[identity] = detail
 
@@ -127,7 +132,7 @@ class Evaluator:
             return
         capture = state.get("captured_at_ms")
         valid = (status == "fresh" and state.get("configured") is True and state.get("stale") is False
-                 and state.get("version") in (2, 3) and type(capture) is int and capture >= 0
+                 and state.get("version") in (2, 3, 4) and type(capture) is int and capture >= 0
                  and type(state.get("age_ms")) is int and 0 <= state["age_ms"] <= 5000
                  and isinstance(state.get("agents"), list) and 0 < len(state["agents"]) <= 10000)
         if not valid:
@@ -207,6 +212,10 @@ class Evaluator:
             calm = in_scope and not agent["in_combat"] and not move["blocked"] and not move["evading"]
             purpose = role["movement_purpose"]
             failure = purpose.startswith("RETURN_") and purpose != "RETURN_HOME"
+            recovery = role.get("return_recovery")
+            if isinstance(recovery, dict):
+                failure = failure or (type(recovery.get("failures")) is int and recovery["failures"] > 0
+                                      and str(recovery.get("failure", "")).startswith("RETURN_"))
             if failure or purpose == "RETURN_HOME":
                 self.observed["return"].add(aid)
             returning = calm and move["home_distance"] > RADII[role["role"]] + 2 and role["phase"] in {"IDLE", "ACTING", "MOVING"}
@@ -219,6 +228,12 @@ class Evaluator:
             if stock:
                 self.observed["stock_hunger"].add(aid)
             self.episode("stock_hunger", agent, row, stock and needs["hunger"] >= 0.95)
+            food_worker = (calm and role.get("extensions_enabled") is True and role["role"] == "WORKER"
+                           and agent.get("entry") != 1975 and isinstance(agent.get("home"), dict)
+                           and isinstance(agent.get("work"), dict))
+            if food_worker:
+                self.observed["empty_stock"].add(aid)
+            self.episode("empty_stock", agent, row, food_worker and economy["food"] == 0 and needs["hunger"] >= 0.95)
             predator = in_scope and role["role"] == "PREDATOR"
             if predator:
                 self.observed["predator_hunger"].add(aid)

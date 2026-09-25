@@ -19,6 +19,7 @@
 #define AIWORLD_LIVINGROLESTATE_H
 
 #include "LivingRolePolicy.h"
+#include "LivingReturnPolicy.h"
 #include "Action/ActionPosition.h"
 #include "ObjectGuid.h"
 #include "Goal/GoalType.h"
@@ -63,8 +64,17 @@ struct LivingRoleState
     uint32 ReturnFailures = 0;
     uint64 ReturnRetryAtMs = 0;
     char const* ReturnFailure = "NONE";
+    char const* ReturnStrategy = "NONE";
+    uint32 ReturnSearchSequence = 0;
+    uint64 ReturnStalledSinceMs = 0;
+    ActionPosition ReturnStallAnchor;
+    float ReturnHomeLimit = 0.0f;
+    bool ReturningHome = false;
+    std::vector<ActionPosition> ReturnTrail;
+    LivingReturnPolicy::Diagnostics ReturnDiagnostics;
     ActionPosition MoveStart;
     bool StockMeal = false;
+    bool GatheringFood = false;
     uint64 ForageUntilMs = 0;
     uint64 NextForageAtMs = 0;
     uint32 ForageLeg = 0;

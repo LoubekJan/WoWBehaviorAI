@@ -185,7 +185,7 @@ vrátí základní cyklus rolí; uložené zásoby zůstanou zachované.
 | Krátká paměť | NPC se 60 s po posledním pozorování snaží nejít přes nebezpečné místo. Když cesta domů není bezpečná, vyčkává a rozhlíží se. | Místní paměť konkrétní materializace; po unloadu nebo restartu zaniká. Připravené starší docházkové rutiny tuto novou kontrolu trasy zatím nepoužívají. |
 | Rozdíly mezi jedinci | Stabilní opatrnost mění dosah vnímání a prahy ústupu bojovníků. | Odvozena z AgentId, zachová se při restartu. Oproti základním prahům rozdíl až ±6 procentních bodů zdraví; nezvířecí nevojáci a kořist dál utíkají bez boje. Není to učení zkušeností. |
 | Výběr kořisti | Predátor porovnává vzdálenost a zdraví kořisti. Forest Spider navíc upřednostňuje Rabbit/Fawn. | Cow/Deer zůstávají platnou kořistí; původní vlčí pilot se nemění. Nejvýše 8 pokusů o cestu při jednom rozhodnutí. |
-| Práce a jídlo | Dřevorubec entry 1975 vyrobí 2 Resource, ostatní klasifikovaní pracovníci 4 Food. Dokončené místní jídlo odečte 1 Food, pokud jej NPC má. | Jednou za syntetické pracovní okno, vlastní zásoba do 20. Lokální práce musí trvat nepřerušených 15 s a skončit ve stejném pracovním okně. Připravená rutina přidá produkci ke svému existujícímu dokončení práce a mzdě. |
+| Práce a jídlo | Dřevorubec entry 1975 vyrobí 2 Resource, ostatní klasifikovaní pracovníci 6 Food. Dokončené místní jídlo odečte 1 Food, pokud jej NPC má. | Jednou za syntetické pracovní okno, vlastní zásoba do 20. Lokální práce musí trvat nepřerušených 15 s a skončit ve stejném pracovním okně. Připravená rutina přidá produkci ke svému existujícímu dokončení práce a mzdě. |
 | Hovor | NPC při gestu otočí hlavu/tělo ke skutečnému vhodnému sousedovi do 6 yardů. Bez partnera se rozhlédne. | Stejná WorldFaction, bez boje, viditelný stojící partner. Text rozhovoru ani trvalé vztahy nevznikají. |
 
 Stáda a dvojice jsou **místní koordinace**, nikoliv nové záznamy v
@@ -227,7 +227,7 @@ nastavená jiným systémem se nesnižuje ani nepřeteče.
 6. `.go creature 81257`: před prací dřevorubce si zapiš `resource`. Během
    pracovní části syntetického dne nech proběhnout `WORK` alespoň 15 s.
    Očekávej nárůst o 2, nejvýše na 20; další práce ve stejném okně už nic
-   nepřidá. U pracovníka farmy ověř obdobně Food +4 a po dokončeném místním
+   nepřidá. U pracovníka farmy ověř obdobně Food +6 a po dokončeném místním
    `EAT` pokles o 1. U Pa Maclure zůstává rozhodující jeho připravená rutina.
    Zvlášť přeruš práci před dokončením a ověř, že se zásoba nezmění.
 7. Odejdi z načtené oblasti a vrať se, případně restartuj server. Zásoby
@@ -387,6 +387,9 @@ Opakovaný test po sestavení a restartu:
 
 ## Úpravy podle čtyřhodinového záznamu — 24. 9. 2026
 
+Historický popis první opravy; návratové odbočky a produkci jídla dále
+upravuje změna z 25. 9. popsaná níže.
+
 Záznam bez zásahů hráče zachytil 81 NPC s návratovým problémem nejméně
 minutu, z toho 62 déle než hodinu. Dále ukázal hlad Pa Maclure navzdory
 zásobám a útěk Expeditionary Priest mimo Elwynn. Následující změny jsou
@@ -458,6 +461,57 @@ nepotřebují novou verzi schématu.
 Strop Resource/Food 20 a výroba dřevorubců zůstávají dosavadní; doprava
 surovin a společné sklady nejsou součástí této opravy.
 
+## Úpravy podle druhého záznamu — 25. 9. 2026
+
+Druhý čtyřhodinový běh bez zásahů obsahoval 2 880 čerstvých vzorků. Automatický
+test zjistil 330 NPC se zablokovaným návratem; 315 případů trvalo nejméně hodinu.
+Samostatná kontrola jejich nejdelších epizod potvrdila nulový posun. Pa Maclure
+už jedl, ale pozorovaná spotřeba 62 Food převýšila doplnění 48 Food.
+
+| Oblast | Oprava |
+| --- | --- |
+| Cesta kolem překážky | Úplná navmesh cesta může vést za roh bez přímého výhledu na konec kroku. Přímý výhled dál vyžaduje náhradní cesta bez navmeshe. Neúplné cesty a průchody přes překážky se odmítají. |
+| Správné podlaží | Body navmeshe a skutečně navštívené body si ponechávají svou výšku. Nové volné cíle hledají blízký povrch; konec výsledné cesty musí souhlasit s požadovaným místem. |
+| Návrat po vlastní trase | NPC si pamatuje nejvýše 64 skutečně navštívených bodů. Když běžný návrat selže, postupuje zpět po těchto bodech; každou cestu znovu ověří. Historie se nepřenáší přes novou materializaci. |
+| Obchůzky | Další pokusy zkoušejí osm různých směrů v měnící se vzdálenosti 3–12 yardů, včetně krátkého kroku od domova. Celá obchůzka musí zůstat v Elwynnu a v pevném okruhu odvozeném při začátku návratu. Kontrola nebezpečí platí dál. |
+| Další hledání kořisti | Nová hledací výprava začne až po skutečném návratu do domovského okruhu. Během návratu lze dál reagovat na dostupnou kořist a hrozby. |
+| Jídlo pracovníků | Běžná dokončená práce doplní 6 Food místo 4. Pracovník s připraveným domovem/pracovištěm, prázdnou zásobou a hladem ≥ 0,65 může dojít na své pracoviště a po nepřerušených 15 s práce získat 2 Food i mimo pracovní dobu. Nouzové doplnění nepřidává mzdu ani nemění denní odměnu. Dřevorubců se netýká. |
+| Diagnostika | Observer v4, záznam i `.aiworld group status` uchovají poslední chybu návratu během náhradních činností. Observer/záznam navíc obsahují počty odmítnutí podle příčiny, příznaky cesty a výšku. Skutečný posun ukončí měření nehybnosti. |
+| Automatický test | Přidána kontrola dlouhého hladovění pracovníka s prázdnou zásobou. Zůstávají kontroly návratů, pohybu, hranic a jídla při dostupných zásobách. Příjem protokolu a kompatibilita starších záznamů se testují v CI. |
+
+Obnova neteleportuje NPC a nezaručuje cestu tam, kde navmesh žádnou nenabízí.
+Výsledný pokles počtu zaseknutých NPC musí ověřit nový běh skutečného serveru.
+
+### Ověření oprav z 25. 9.
+
+Při ručním nasazení aktualizuj nejprve příjemce protokolu a potom engine:
+
+```sh
+docker compose up -d --build world-viewer
+make build
+make restart-world
+```
+
+Restart proveď až po úspěšném sestavení. Databázová migrace není potřeba.
+Observer `/api/state` má po prvním exportu hlásit `version: 4`; obnov stránku.
+Standardní CI deploy toto pořadí zachovává a následně sám spustí čtyřhodinový
+test. Po ručním nasazení použij `make test-aiworld`.
+
+1. Krátký ruční test odděl od dlouhého běhu. Sleduj pavouky `.go creature 80406`
+   a `.go creature 80700` po hledání nebo neúspěšném lovu. Očekávej skutečné
+   návratové přesuny; při problému čti `return strategy`, `lastFailure`,
+   `stalledMs` a podrobnosti v Observeru. `stalledMs` nesmí narůstat přes
+   skutečný posun delší než jeden yard.
+2. U `.go creature 80683` sleduj Food během práce a jídla: běžná práce +6
+   do stropu 20, dokončené jídlo −1 a pokles hladu. Při prázdné zásobě očekávej
+   `FOOD_SUPPLY`, přesun na pracoviště a po 15 s práce +2 Food. Přerušená
+   práce zásobu nedoplní. Pokud zásoba neklesne na nulu, nouzový scénář nebyl ověřen.
+3. Čtyřhodinový běh nech bez zásahů s `AIWorld.ElwynnAlwaysActive = 1`.
+   Po minutě ověř `make record-aiworld-status`. Po skončení porovnej report,
+   zejména počty a délky zablokovaných návratů, hlad predátorů a zásoby 80683.
+   Pošli celou session včetně všech gzip částí a souhrnu podle
+   [návodu](ObserverRecording.md).
+
 ## Hranice této změny
 
 Jde o místní rozhodování, skutečný pohyb, boj a viditelné animace.
@@ -474,6 +528,17 @@ Globální demografie, nové questy z nedostatku, sémantické cestovní trasy,
 trvalé vztahy a dlouhodobé učení zůstávají pro navazující rozšíření.
 
 ## Automatická kontrola
+
+Úpravy z 25. 9. prošly **42 C++ testy / 3 753 assertions** (role, pohyb,
+telemetrie), sadou 60 Python testů Observeru (jeden POSIX test se ve Windows
+přeskakuje) a 8 JavaScript testy. V Linuxu samostatně prošlo všech 38 testů
+sběru/vyhodnocení včetně `SIGTERM`. API test přijímá plný snímek 3 540 NPC
+s diagnostikou v4; jeho velikost vyžaduje limit 12 MiB místo původních 8 MiB.
+Prošla syntaktická kontrola `LivingRole.cpp`, `TelemetryCapture.cpp` a
+`TelemetryJsonCodec.cpp`. Kontrolu celého příkazového souboru blokuje lokálně
+chybějící Boost preprocessor; úplný build serveru ani test skutečné navmeshe
+lokálně proveden nebyl. Výše uvedené testy tedy nepotvrzují výsledek dalšího
+čtyřhodinového běhu.
 
 Úpravy podle záznamu z 24. 9. prošly **1 711 assertions ve 34 testech** pod
 MSVC/Catch2: zahrnují průchod trasy přes zakázanou oblast i při legálních

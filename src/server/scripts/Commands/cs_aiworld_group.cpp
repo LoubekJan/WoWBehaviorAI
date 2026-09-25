@@ -76,6 +76,7 @@ EndScriptData */
 #include "World.h"
 #include "WorldSession.h"
 #include <string>
+#include <string_view>
 
 using namespace Trinity::ChatCommands;
 
@@ -187,6 +188,9 @@ public:
                         role->AssistStatus, role->NearbyAllies, role->AlliesInCombat));
                 handler->SendSysMessage(Trinity::StringFormat("AIWorld role: extensions={} awareness={} movement={} caution={:.2f} food={} resource={}",
                     role->ExtensionsEnabled, role->Awareness, role->MovementPurpose, role->Caution, role->Food, role->Resource));
+                if (role->ReturnFailures || std::string_view(role->ReturnStrategy) != "NONE")
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld return: strategy={} failure={} attempts={} stalledMs={} trailPoints={}",
+                        role->ReturnStrategy, role->ReturnFailure, role->ReturnFailures, role->ReturnStalledMs, role->ReturnTrailPoints));
                 if (role->CompanionSpawnId)
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld role: local companion spawnId={} (not persistent group membership)", role->CompanionSpawnId));
             }

@@ -6,7 +6,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MAX_AGENTS = 10_000
-MAX_REQUEST_BYTES = 8 * 1024 * 1024
+# Full Elwynn snapshots with v4 recovery diagnostics exceed the former 8 MiB.
+MAX_REQUEST_BYTES = 12 * 1024 * 1024
 STALE_AFTER_MS = 5_000
 MEMORY_PAGE_SIZE = 25
 
@@ -41,6 +42,26 @@ class Economy(ProtocolModel):
     resource: int = Field(ge=0)
 
 
+class ReturnRecovery(ProtocolModel):
+    failures: int = Field(ge=0)
+    trail_points: int = Field(ge=0, le=64)
+    retry_ms: int = Field(ge=0)
+    stalled_ms: int = Field(ge=0)
+    strategy: str = Field(max_length=80)
+    failure: str = Field(max_length=100)
+    candidates: int = Field(ge=0)
+    path_type: int = Field(ge=0)
+    requested_z: float
+    resolved_z: float | None
+    rejected: dict[Literal['invalid', 'height', 'zone', 'los', 'path', 'bounds', 'danger'], int] = Field(max_length=7)
+
+    @model_validator(mode="after")
+    def nonnegative_rejections(self):
+        if any(n < 0 for n in self.rejected.values()):
+            raise ValueError("Negative rejection count")
+        return self
+
+
 class LivingRole(ProtocolModel):
     enabled: bool
     extensions_enabled: bool
@@ -69,6 +90,7 @@ class LivingRole(ProtocolModel):
     prey_move_speed: float | None = Field(default=None, ge=0)
     sprint_multiplier: float | None = Field(default=None, ge=0)
     sprint_remaining_ms: int | None = Field(default=None, ge=0)
+    return_recovery: ReturnRecovery | None = None
 
 
 class Movement(ProtocolModel):
@@ -192,7 +214,7 @@ class MemoryPage(ProtocolModel):
 
 
 class TelemetryBatch(ProtocolModel):
-    version: Literal[1, 2, 3]
+    version: Literal[1, 2, 3, 4]
     captured_at_ms: int = Field(ge=0)
     agents: list[Agent] = Field(max_length=MAX_AGENTS)
     memory_page: MemoryPage | None = None

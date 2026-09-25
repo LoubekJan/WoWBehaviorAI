@@ -20,6 +20,12 @@ def snapshot(capture=1000):
 
 
 class TelemetryGateTests(unittest.TestCase):
+    def test_new_recovery_protocol_can_start_postdeploy_recording(self):
+        frames = [snapshot(1000), snapshot(1100)]
+        for frame in frames:
+            frame['version'] = 4
+        self.assertEqual(self.wait(frames)[0]['status'], 'ready')
+
     def wait(self, responses, after=1000, timeout=5):
         clock = [0.0]
 

@@ -20,7 +20,7 @@ APP_DIR = Path(__file__).parent
 
 
 def create_app(telemetry_token: str | None = None) -> FastAPI:
-    app = FastAPI(title="AI World Viewer", version="3.0.0")
+    app = FastAPI(title="AI World Viewer", version="4.0.0")
     app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
     app.state.telemetry_token = (
         telemetry_token if telemetry_token is not None else os.getenv("WORLD_VIEWER_TELEMETRY_TOKEN", "")
@@ -105,7 +105,7 @@ def create_app(telemetry_token: str | None = None) -> FastAPI:
         received_monotonic: float | None = app.state.received_monotonic
         age_ms = max(0, int((time.monotonic() - received_monotonic) * 1000)) if received_monotonic is not None else None
         return {
-            "version": snapshot.version if snapshot is not None else 3,
+            "version": snapshot.version if snapshot is not None else 4,
             "configured": bool(app.state.telemetry_token),
             "captured_at_ms": snapshot.captured_at_ms if snapshot is not None else None,
             "received_at_ms": app.state.received_at_ms,

@@ -164,7 +164,7 @@ namespace LivingRolePolicy
         // Bounded personal stocks, persisted with the existing work-window
         // marker. Interrupted attempts never call this completion function.
         if (entry == 1975) economy.Resource += std::min(2u, 20u - std::min(20u, economy.Resource));
-        else economy.Food += std::min(4u, 20u - std::min(20u, economy.Food));
+        else economy.Food += std::min(6u, 20u - std::min(20u, economy.Food));
         economy.LastRewardedWorkWindowId = window;
         return true;
     }
@@ -194,6 +194,20 @@ namespace LivingRolePolicy
     {
         if (!economy.Food) return false;
         --economy.Food;
+        return true;
+    }
+
+    inline bool CanGatherFood(Role role, uint32 entry)
+    {
+        return role == Role::Worker && entry != 1975;
+    }
+
+    // A completed emergency harvest at the worker's own workplace. No money
+    // or daily reward marker: only replace an empty personal food supply.
+    inline bool GatherEmergencyFood(AgentEconomyState& economy)
+    {
+        if (economy.Food) return false;
+        economy.Food = 2;
         return true;
     }
 

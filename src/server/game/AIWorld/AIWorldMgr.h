@@ -298,6 +298,11 @@ class TC_GAME_API AIWorldMgr
             char const* MovementPurpose = "NONE";
             uint32 Food = 0;
             uint32 Resource = 0;
+            uint32 ReturnFailures = 0;
+            uint32 ReturnTrailPoints = 0;
+            uint64 ReturnStalledMs = 0;
+            char const* ReturnStrategy = "NONE";
+            char const* ReturnFailure = "NONE";
             uint64 CompanionSpawnId = 0;
         };
         std::optional<LivingRoleDebugInfo> DescribeLivingRole(Creature const& creature) const;

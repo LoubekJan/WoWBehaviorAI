@@ -161,6 +161,23 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                 role.NearbyAllies = info.NearbyAllies; role.AlliesInCombat = info.AlliesInCombat;
                 role.CompanionSpawnId = info.CompanionSpawnId;
                 role.LastHuntTargetSpawnId = info.HuntTargetSpawnId;
+                auto const& recovery = record->LivingRole;
+                if (recovery.ReturningHome || recovery.ReturnFailures)
+                {
+                    ReturnRecoveryTelemetry diagnostic;
+                    diagnostic.Failures = recovery.ReturnFailures;
+                    diagnostic.TrailPoints = uint32(recovery.ReturnTrail.size());
+                    diagnostic.RetryMs = recovery.ReturnRetryAtMs > nowMs ? recovery.ReturnRetryAtMs - nowMs : 0;
+                    diagnostic.StalledMs = recovery.ReturnStalledSinceMs && nowMs >= recovery.ReturnStalledSinceMs ? nowMs - recovery.ReturnStalledSinceMs : 0;
+                    diagnostic.Strategy = recovery.ReturnStrategy;
+                    diagnostic.Failure = recovery.ReturnFailure;
+                    diagnostic.Candidates = recovery.ReturnDiagnostics.Candidates;
+                    diagnostic.PathType = recovery.ReturnDiagnostics.PathType;
+                    diagnostic.Rejections = recovery.ReturnDiagnostics.Rejected;
+                    diagnostic.RequestedZ = recovery.ReturnDiagnostics.RequestedZ;
+                    diagnostic.ResolvedZ = recovery.ReturnDiagnostics.ResolvedZ;
+                    role.ReturnRecovery = std::move(diagnostic);
+                }
                 if (info.HuntStatus)
                 {
                     role.SprintMultiplier = info.SprintMultiplier;
