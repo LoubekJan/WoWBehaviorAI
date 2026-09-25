@@ -16,21 +16,25 @@ class Policy:
     minimum_seconds: float = 3600
     fresh_fraction: float = 0.95
     return_seconds: float = 300
+    return_duration_seconds: float = 600
     motion_seconds: float = 60
     outside_seconds: float = 30
     stock_hunger_seconds: float = 600
     empty_stock_seconds: float = 600
     predator_hunger_seconds: float = 1800
+    prey_hunger_seconds: float = 600
     position_tolerance: float = 1
 
 
 CHECKS = {
     "return": "Návrat bez dlouhého zablokování",
+    "return_duration": "Dokončení návratu i při pohybu",
     "motion": "Pohybový úkol se skutečným posunem",
     "outside": "Zachování řízení v Elwynnu",
     "stock_hunger": "Jídlo při hladu a dostupných zásobách",
     "empty_stock": "Obnovení prázdné zásoby jídla u pracovní rutiny",
     "predator_hunger": "Dlouhodobý hlad predátorů (upozornění)",
+    "prey_hunger": "Dlouhodobý hlad kořisti v klidu",
 }
 RADII = {"PREDATOR": 12, "PREY": 6, "GUARD": 8, "COMBATANT": 10,
          "CIVILIAN": 4, "WORKER": 4, "TRAVELER": 12, "SERVICE": 0}
@@ -220,6 +224,14 @@ class Evaluator:
                 self.observed["return"].add(aid)
             returning = calm and move["home_distance"] > RADII[role["role"]] + 2 and role["phase"] in {"IDLE", "ACTING", "MOVING"}
             self.episode("return", agent, row, returning, stationary=True, start=failure)
+            # A moving A->B->A loop resets the stationary test forever. Once
+            # a return is observed, time the whole attempt until home, an
+            # interruption or a different activity; animations/idle persist.
+            return_attempt = (returning and role["status"] in {"READY", "ACTIVE"}
+                              and (purpose == "NONE" or purpose.startswith("RETURN_")))
+            if return_attempt and (failure or purpose == "RETURN_HOME"):
+                self.observed["return_duration"].add(aid)
+            self.episode("return_duration", agent, row, return_attempt, start=failure or purpose == "RETURN_HOME")
             motion = calm and role["phase"] == "MOVING" and purpose in LOCAL_MOVES
             if motion:
                 self.observed["motion"].add(aid)
@@ -238,6 +250,10 @@ class Evaluator:
             if predator:
                 self.observed["predator_hunger"].add(aid)
             self.episode("predator_hunger", agent, row, predator and needs["hunger"] >= 0.95)
+            prey = calm and role["role"] == "PREY" and role["phase"] in {"IDLE", "ACTING", "MOVING"}
+            if prey:
+                self.observed["prey_hunger"].add(aid)
+            self.episode("prey_hunger", agent, row, prey and needs["hunger"] >= 0.95)
         # A disappeared, dead or abstract agent cannot carry an episode over a
         # respawn/grid reload. Retained spawn positions are never movement data.
         for identity in list(self.runs):

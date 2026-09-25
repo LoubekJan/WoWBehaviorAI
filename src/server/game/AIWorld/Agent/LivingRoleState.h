@@ -71,6 +71,7 @@ struct LivingRoleState
     float ReturnHomeLimit = 0.0f;
     bool ReturningHome = false;
     std::vector<ActionPosition> ReturnTrail;
+    LivingReturnPolicy::RouteMemory ReturnRoute;
     LivingReturnPolicy::Diagnostics ReturnDiagnostics;
     ActionPosition MoveStart;
     bool StockMeal = false;

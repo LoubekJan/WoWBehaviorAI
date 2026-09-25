@@ -3,6 +3,43 @@
 Lokální rozšíření z 22. 9. 2026 navazuje na ve hře ověřený vlčí pilot.
 Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 2026 výslovně potvrdil také funkční lov Forest Spider a pomoc blízkých Defias. Oba původně neúspěšné scénáře tak mají potvrzený opakovaný herní test.
 
+## Oprava návratů po doplnění navigace — 25. 9. 2026
+
+Po doplnění chybějících dlaždic mapy 0 uživatel doložil načtenou dlaždici
+`0004934.mmtile` a cestu pozemního NPC s `Result: true`, `Length: 13`,
+`Type: 1`. To potvrzuje skutečný navmesh v testovaném místě; samo o sobě to
+ještě neověřuje všechny trasy ani níže popsanou opravu chování.
+
+- Návratový cíl se kontroluje také **po** přepočtu výšky a konce cesty.
+  Posun nejvýše jeden yard se zamítne jako `RETURN_ZERO_STEP`; hledání
+  pokračuje dalšími kandidáty.
+- Po zvolení vlastní stopy NPC nejprve pokračuje po ní. Dosažený bod se
+  odstraní podle skutečně vyřešeného cíle, i když se jeho výška změnila.
+  Paměť nejvýše 64 poloh během návratu odmítá opakovaný cíl do jednoho yardu
+  (`RETURN_REPEATED_STEP`). Nová materializace, dosažení domova nebo nové
+  pronásledování/útěk tuto paměť zahodí.
+- I pohybující se návrat po minutě umožní základní potřeby: hladová kořist
+  může dokončit pastvu, unavené role odpočívat. Kontrola se opakuje nejvýše
+  jednou za minutu mezi kroky (`RETURN_NEEDS_BREAK`). Zapamatované nebezpečí
+  dále omezuje činnost na sledování okolí. Predátor může při návratu v
+  dosavadním dosahu 80 yardů hledat dostupnou kořist; nevytváří se mu jídlo.
+- Připojení k blízkému druhovi nepřebije potřebný návrat domů.
+- Záznamník navíc hlásí desetiminutový nedokončený návrat i při pohybu
+  (`return_duration`) a desetiminutový hlad kořisti v klidu (`prey_hunger`).
+
+Po sestavení a nasazení sleduj zejména spawny **80782, 80992, 81328, 80672,
+80406, 80418, 80697 a 80623**. Návraty se mohou skládat z více kroků,
+ale nemají donekonečna opakovat stejné cíle. Při dlouhém návratu kořisti
+má dokončená pastva snížit hlad. Poté nech nový čtyřhodinový záznam běžet
+bez zásahů; GitHub CI deploy jej zapne automaticky.
+
+Lokálně prošlo 39 C++ testů / 3 718 assertions, 21 testů vyhodnocování
+chování a 20 testů záznamníku/deploy gate (jeden další test vyžadující
+POSIX signály byl ve Windows vynechán). Prošla syntaktická kontrola
+`LivingRole.cpp` a obou jednotek zachycování/serializace telemetrie.
+Úplný build a herní ověření těchto změn musí proběhnout při nasazení;
+lokální prostředí nemá úplnou instalaci Boost pro sestavení serveru.
+
 ## Rozsah a zapnutí
 
 `AIWorld.LivingRolesEnabled = 1` je připravené v `deploy/worldserver.conf`.

@@ -607,6 +607,10 @@ TEST_CASE("Role observations cannot survive a new materialization", "[AIWorld][L
     record.LivingRole.ReturningHome = true;
     record.LivingRole.ReturnHomeLimit = 80.0f;
     record.LivingRole.ReturnTrail.push_back({0, 10, 20, 30});
+    record.LivingRole.ReturnRoute.FollowingTrail = true;
+    record.LivingRole.ReturnRoute.TrailTarget = ActionPosition{0, 10, 20, 30};
+    record.LivingRole.ReturnRoute.Remember({0, 12, 20, 30});
+    record.LivingRole.ReturnRoute.NextCareAtMs = 60000;
     record.LivingRole.ReturnDiagnostics.Candidates = 12;
     record.LivingRole.GatheringFood = true;
     record.LivingRole.ForageUntilMs = 120000;
@@ -624,6 +628,10 @@ TEST_CASE("Role observations cannot survive a new materialization", "[AIWorld][L
     REQUIRE(!record.LivingRole.ReturningHome);
     REQUIRE(record.LivingRole.ReturnHomeLimit == 0.0f);
     REQUIRE(record.LivingRole.ReturnTrail.empty());
+    REQUIRE(!record.LivingRole.ReturnRoute.FollowingTrail);
+    REQUIRE(!record.LivingRole.ReturnRoute.TrailTarget);
+    REQUIRE(record.LivingRole.ReturnRoute.Visited.empty());
+    REQUIRE(record.LivingRole.ReturnRoute.NextCareAtMs == 0);
     REQUIRE(record.LivingRole.ReturnDiagnostics.Candidates == 0);
     REQUIRE(!record.LivingRole.GatheringFood);
     REQUIRE(record.LivingRole.ForageUntilMs == 0);
@@ -752,6 +760,72 @@ TEST_CASE("Observed return trail backtracks around a wall and does not record it
     auto size = trail.size();
     ObserveTrail(trail, {0,0,0,std::numeric_limits<float>::quiet_NaN()}, false);
     REQUIRE(trail.size() == size);
+}
+
+TEST_CASE("Return validation rejects the recorded zero step after resolving its floor", "[AIWorld][LivingRole]")
+{
+    using namespace LivingReturnPolicy;
+    // Spawn 80782 repeatedly chose this old breadcrumb: its proposed height
+    // was distinct, but the engine resolved it to its current position.
+    ActionPosition here{0, -9747.294f, -396.1371f, 52.74369f};
+    ActionPosition proposed = here;
+    proposed.Z = 55.43322f;
+    REQUIRE(UsefulStep(here, proposed));
+    ActionPosition resolved = proposed;
+    resolved.Z = here.Z;
+    REQUIRE_FALSE(UsefulStep(here, resolved));
+    resolved.X += 3.5f;
+    REQUIRE(UsefulStep(here, resolved));
+    resolved.MapId = 1;
+    REQUIRE_FALSE(UsefulStep(here, resolved));
+    resolved = here;
+    resolved.Z = std::numeric_limits<float>::quiet_NaN();
+    REQUIRE_FALSE(UsefulStep(here, resolved));
+}
+
+TEST_CASE("Return trail consumes resolved arrivals and rejects walking back into its own loop", "[AIWorld][LivingRole]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition home{0, -30, 0, 52}, corner{0, -15, 8, 52}, original{0, -5, 8, 55}, start{0, 0, 0, 52};
+    std::vector<ActionPosition> trail{home, corner, original, start};
+    RouteMemory route;
+    route.Remember(start);
+    route.FollowingTrail = true;
+    route.TrailTarget = original;
+    route.TrailDestination = original;
+    route.TrailDestination.Z = 52;
+    route.ArriveOnTrail(start, trail);
+    REQUIRE(trail.size() == 4); // selecting a step is not an arrival
+    route.Remember(route.TrailDestination);
+    route.ArriveOnTrail(route.TrailDestination, trail);
+    REQUIRE(trail.size() == 2); // consume even though original height differs
+    REQUIRE(!route.TrailTarget);
+    REQUIRE(route.FollowingTrail);
+    REQUIRE(route.Revisited(start)); // former HOME_PATH leg would undo progress
+    auto next = TrailSteps(trail, route.TrailDestination);
+    REQUIRE(!next.empty());
+    REQUIRE(next.front().X == corner.X);
+    REQUIRE_FALSE(route.Revisited(next.front()));
+    // Memory stays bounded, rejects a nearby repeat and distinguishes floors.
+    for (unsigned i = 0; i < 1000; ++i) route.Remember({0, float(i * 4), 0, 52});
+    REQUIRE(route.Visited.size() == MaxTrailPoints);
+    REQUIRE(route.Revisited({0, 3996.5f, 0, 52}));
+    REQUIRE_FALSE(route.Revisited({0, 3996.5f, 0, 62}));
+    REQUIRE_FALSE(route.Revisited({1, 3996.5f, 0, 52}));
+}
+
+TEST_CASE("Moving recovery leaves time for basic needs without waiting for a path failure", "[AIWorld][LivingRole]")
+{
+    LivingReturnPolicy::RouteMemory route;
+    route.NextCareAtMs = 61000;
+    REQUIRE_FALSE(route.NeedsPause(60000, 1, 0));
+    // Successive real moves do not reset the opportunity to graze/rest.
+    for (unsigned i = 0; i < 20; ++i) route.Remember({0, float(i * 4), 0, 52});
+    REQUIRE(route.NeedsPause(61000, 1, 0));
+    REQUIRE(route.NeedsPause(61000, 0, 1));
+    REQUIRE_FALSE(route.NeedsPause(61000, 0.4f, 0.2f));
+    route.NextCareAtMs = 121000;
+    REQUIRE_FALSE(route.NeedsPause(66000, 1, 1));
 }
 
 TEST_CASE("Empty food is replenished by completed work without duplicate money or free meals", "[AIWorld][LivingRole]")

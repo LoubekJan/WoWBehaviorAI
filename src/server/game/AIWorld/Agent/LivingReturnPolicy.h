@@ -19,6 +19,7 @@
 #define AIWORLD_LIVINGRETURNPOLICY_H
 
 #include "Action/ActionPosition.h"
+#include "Action/ArrivalTolerance.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -51,6 +52,57 @@ namespace LivingReturnPolicy
     {
         return std::hypot(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
     }
+
+    // Check the engine's resolved endpoint, not the proposed height. A trail
+    // point on another floor can resolve right back onto the actor itself.
+    inline bool UsefulStep(ActionPosition const& from, ActionPosition const& resolved)
+    {
+        return Finite(from) && Finite(resolved) && from.MapId == resolved.MapId && Distance(from, resolved) > 1.0f;
+    }
+
+    struct RouteMemory
+    {
+        bool FollowingTrail = false;
+        std::optional<ActionPosition> TrailTarget;
+        ActionPosition TrailDestination;
+        std::vector<ActionPosition> Visited;
+        uint64 NextCareAtMs = 0;
+
+        void Remember(ActionPosition const& here)
+        {
+            if (!Finite(here)) return;
+            if (!Visited.empty() && Visited.back().MapId != here.MapId) Visited.clear();
+            if (!Visited.empty() && Distance(Visited.back(), here) <= 1.0f) return;
+            if (Visited.size() == MaxTrailPoints) Visited.erase(Visited.begin());
+            Visited.push_back(here);
+        }
+
+        bool Revisited(ActionPosition const& resolved) const
+        {
+            return std::any_of(Visited.begin(), Visited.end(), [&](ActionPosition const& point)
+            { return point.MapId == resolved.MapId && Distance(point, resolved) <= 1.0f; });
+        }
+
+        // Call only after real displacement. Consume the original breadcrumb
+        // using arrival at its resolved destination, even if its Z changed.
+        void ArriveOnTrail(ActionPosition const& here, std::vector<ActionPosition>& trail)
+        {
+            if (!TrailTarget || !Finite(here) || here.MapId != TrailDestination.MapId ||
+                Distance(here, TrailDestination) > ArrivalToleranceYards) return;
+            for (std::size_t i = 0; i < trail.size(); ++i)
+                if (trail[i].MapId == TrailTarget->MapId && Distance(trail[i], *TrailTarget) < 0.01f)
+                {
+                    trail.resize(i);
+                    break;
+                }
+            TrailTarget.reset();
+        }
+
+        bool NeedsPause(uint64 nowMs, float hunger, float fatigue) const
+        {
+            return nowMs >= NextCareAtMs && (hunger >= 0.65f || fatigue >= 0.7f);
+        }
+    };
 
     // Actual observed positions only. Revisited points erase loops; recovery
     // consumes the trail instead of recording its own steps back out again.

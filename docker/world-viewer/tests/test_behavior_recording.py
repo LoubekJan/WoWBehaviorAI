@@ -11,8 +11,9 @@ import unittest
 from app import behavior
 
 
-POLICY = behavior.Policy(minimum_seconds=60, return_seconds=30, motion_seconds=20,
-                         outside_seconds=30, stock_hunger_seconds=30, empty_stock_seconds=30, predator_hunger_seconds=60)
+POLICY = behavior.Policy(minimum_seconds=60, return_seconds=30, return_duration_seconds=90, motion_seconds=20,
+                         outside_seconds=30, stock_hunger_seconds=30, empty_stock_seconds=30,
+                         predator_hunger_seconds=60, prey_hunger_seconds=60)
 METADATA = {"format_version": 1, "session_id": "test-session", "interval_seconds": 5, "label": "test"}
 
 
@@ -110,7 +111,61 @@ class BehaviorTests(unittest.TestCase):
         rows = samples(npc=stranded())
         for i, row in enumerate(rows):
             row["state"]["agents"][0]["position"]["x"] += i * 2
-        self.assertEqual(evaluate(rows)["status"], "PASS")
+        self.assertNotIn("return", [f["check"] for f in evaluate(rows)["findings"]])
+
+    def test_moving_return_loop_is_detected_across_idle_and_recovery_breaks(self):
+        rows = samples(npc=stranded())
+        for i, row in enumerate(rows):
+            npc = row["state"]["agents"][0]
+            npc["position"]["x"] += (i % 2) * 12
+            npc["movement"]["moving"] = i % 3 == 0
+            npc["living_role"].update(phase="MOVING" if i % 3 == 0 else "ACTING",
+                                      movement_purpose="RETURN_HOME" if i % 3 == 0 else "NONE")
+        report = evaluate(rows)
+        self.assertEqual([f["check"] for f in report["findings"]], ["return_duration"])
+        self.assertEqual(report["findings"][0]["duration_seconds"], 120)
+
+    def test_long_return_ends_on_arrival_or_new_activity_or_interruption(self):
+        for interruption in ("home", "forage", "combat", "flee", "group", "gap", "absent", "dead", "abstract"):
+            with self.subTest(interruption=interruption):
+                rows = samples(npc=stranded())
+                for i, row in enumerate(rows):
+                    npc = row["state"]["agents"][0]
+                    npc["position"]["x"] += i * 2
+                    npc["living_role"].update(phase="MOVING", movement_purpose="RETURN_HOME")
+                npc = rows[12]["state"]["agents"][0]
+                if interruption == "home": npc["movement"]["home_distance"] = 0
+                elif interruption == "forage": npc["living_role"]["movement_purpose"] = "FORAGE_SEARCH"
+                elif interruption == "combat": npc["in_combat"] = True
+                elif interruption == "flee": npc["living_role"]["phase"] = "SEEKING_SAFETY"
+                elif interruption == "group": npc["living_role"]["status"] = "GROUP_ACTIVITY"
+                elif interruption == "gap": rows[12]["status"] = "stale"
+                elif interruption == "absent": rows[12]["state"]["agents"] = [agent(42)]
+                elif interruption == "dead": npc["alive"] = False
+                else: npc["position"]["source"] = "spawn"
+                self.assertNotIn("return_duration", [f["check"] for f in evaluate(rows)["findings"]])
+
+    def test_prey_starvation_is_a_failure_even_during_movement_but_grazing_resets_it(self):
+        npc = agent(80672, "PREY")
+        npc["needs"]["hunger"] = 1
+        rows = samples(npc=npc)
+        for i, row in enumerate(rows):
+            npc = row["state"]["agents"][0]
+            npc["position"]["x"] += i * 2
+            npc["living_role"].update(phase="MOVING", movement_purpose="LOCAL_ROAM")
+        self.assertEqual([f["check"] for f in evaluate(rows)["findings"]], ["prey_hunger"])
+        for row in rows:
+            if row["sequence"] % 6 == 0:
+                row["state"]["agents"][0]["needs"]["hunger"] = 0.3
+        self.assertFalse(evaluate(rows)["findings"])
+
+    def test_distant_foraging_is_not_an_observed_return(self):
+        rows = samples(npc=stranded())
+        for i, row in enumerate(rows):
+            npc = row["state"]["agents"][0]
+            npc["position"]["x"] += i * 2
+            npc["living_role"].update(phase="MOVING", movement_purpose="FORAGE_SEARCH")
+        self.assertFalse(evaluate(rows)["findings"])
 
     def test_claimed_movement_without_position_change_is_detected(self):
         npc = agent()

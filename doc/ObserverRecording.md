@@ -47,14 +47,16 @@ verze 2, 3 nebo 4. Verze 1 neobsahuje potřebné údaje a dostane `INCONCLUSIVE`
 | Kontrola | Výchozí pravidlo |
 | --- | --- |
 | Zablokovaný návrat | Po hlášeném selhání návratu je NPC alespoň 5 minut nejvýše 1 yard od sledovaného bodu a dál mimo svůj běžný domovský okruh. Změna na náhradní animaci nebo `movement=NONE` toto měření sama nezruší. |
+| Nedokončený návrat | Po pozorovaném `RETURN_HOME` nebo selhání návratu zůstává místní role alespoň 10 minut mimo domovský okruh. Pohyb toto měření nenuluje, takže zachytí i chození tam a zpět. Návrat domů, jiná činnost, boj, root, evade nebo výpadek návaznost přeruší. |
 | Pohyb bez postupu | Nejméně 60 sekund v místním `MOVING` bez posunu přes 1 yard; samotné `moving=true` nestačí jako důkaz pohybu. Boj, root a evade se nepočítají. |
 | Odchod z Elwynnu | NPC dříve pozorované pod řízením role zůstává alespoň 30 sekund v `OUTSIDE_ELWYNN`. Po výpadku, smrti či ztrátě živé reprezentace se návaznost neodvozuje. |
 | Hlad navzdory zásobám | Civilní/bojová role se zapnutým rozšířením má mimo boj alespoň 10 minut hlad ≥ 0,95 a Food > 0. |
 | Prázdná zásoba pracovníka | Pracovník s připraveným domovem a pracovištěm má mimo boj alespoň 10 minut hlad ≥ 0,95 a Food = 0. Vyžaduje zapnuté rozšíření; dřevorubec entry 1975 vyrábějící suroviny je vynechán. |
 | Hlad predátorů | Souvislý hlad ≥ 0,95 po 30 minut vyvolá upozornění. Sám nezpůsobí selhání — kořist nemusí být dostupná. |
+| Hlad kořisti | Kořist v `IDLE`, `ACTING` či `MOVING` má mimo boj, root a evade alespoň 10 minut hlad ≥ 0,95. Zachytí i hladovění při pohybu; pastva se skutečným poklesem hladu měření ukončí. |
 
 Report uvádí spawn, nejdelší pozorovanou epizodu daného pravidla, časy UTC,
-souřadnice a poslední pohybový důvod. Prvních pět překročených prahů znamená
+souřadnice a poslední pohybový důvod. Překročení kteréhokoli prahu kromě upozornění na hlad predátorů znamená
 `FAIL` a zaslouží kontrolu; report sám neurčuje příčinu chyby navmeshe.
 Souhrny rolí ukazují vzorkované začátky lovu/krmení, poklesy hladu a změny zásob.
 Stání služeb ani dosažení stropu surovin 20 nejsou automaticky závadou.
