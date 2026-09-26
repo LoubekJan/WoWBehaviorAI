@@ -16,6 +16,7 @@
  */
 
 #include "ActionExecutor.h"
+#include "Agent/LivingRecoveryPath.h"
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/LivingHuntPolicy.h"
 #include "ChaseMovementGenerator.h"
@@ -100,8 +101,28 @@ ActionResult ActionExecutor::ExecuteMoveTo(ActionRequest const& request, Creatur
         return result;
     }
 
-    actor.GetMotionMaster()->MovePoint(MovePointId,
-        request.Destination->X, request.Destination->Y, request.Destination->Z);
+    if (request.Recovery)
+    {
+        Movement::PointsArray points;
+        if (request.SourceGoal != GoalType::LocalActivity ||
+            !RecoveryMovement::SamePoint(*request.Destination, request.Recovery->Destination) ||
+            !LivingRecoveryPath::Build(actor, *request.Recovery, points))
+        {
+            result.Status = ActionExecutionStatus::Failed;
+            result.Reason = ActionExecutionReason::EngineRejected;
+            return result;
+        }
+        auto* movement = new PointMovementGenerator<Creature>(MovePointId,
+            request.Destination->X, request.Destination->Y, request.Destination->Z, true);
+        // Recompute with the SAME filter and safety gates when resumed or when
+        // speed changes. Never replay an old route from its original start.
+        movement->SetPathProvider([recovery = *request.Recovery](Creature* owner, Movement::PointsArray& route)
+        { return LivingRecoveryPath::Build(*owner, recovery, route); });
+        actor.GetMotionMaster()->Add(movement);
+    }
+    else
+        actor.GetMotionMaster()->MovePoint(MovePointId,
+            request.Destination->X, request.Destination->Y, request.Destination->Z);
 
     result.Status = ActionExecutionStatus::Started;
     result.Reason = ActionExecutionReason::None;

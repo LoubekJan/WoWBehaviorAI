@@ -19,6 +19,7 @@
 #define AIWORLD_ACTIONVALIDATIONCONTEXT_H
 
 #include "ActionPosition.h"
+#include "RecoveryMovement.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/AgentType.h"
 #include "Define.h"
@@ -207,6 +208,7 @@ struct ActionValidationContext
     // Independently selected, ground/zone/path-checked refuge or alarm point.
     // Only the world-thread role planner may supply this authority.
     std::optional<ActionPosition> RoleMovementDestination;
+    std::optional<RecoveryMovement> ApprovedRecovery;
     bool FreshAllyAlarm = false;
     bool TargetIsSocialPartner = false;
 };

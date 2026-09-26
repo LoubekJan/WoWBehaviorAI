@@ -60,17 +60,45 @@ bool PointMovementGenerator<T>::DoInitialize(T* owner)
         return true;
     }
 
-    owner->AddUnitState(UNIT_STATE_ROAMING_MOVE);
+    return LaunchMovement(owner);
+}
 
+template<class T>
+bool PointMovementGenerator<T>::LaunchMovement(T* owner, bool applyFacing)
+{
+    // StopMoving synchronizes the current spline position to the actor. A
+    // strict provider must validate exactly the start that Launch will use.
+    if (_pathProvider) owner->StopMoving();
     Movement::MoveSplineInit init(owner);
-    init.MoveTo(_x, _y, _z , _generatePath);
+    if (_pathProvider)
+    {
+        Movement::PointsArray path;
+        if (!_pathProvider(owner, path) || path.size() < 2)
+        {
+            owner->StopMoving();
+            owner->ClearUnitState(UNIT_STATE_ROAMING_MOVE);
+            return false;
+        }
+        init.MovebyPath(path);
+        // This is a per-spline capability, not a persistent UNIT_FLAG change.
+        if (Creature* creature = owner->ToCreature(); creature && creature->CanEnterWater())
+            init.SetSwim();
+    }
+    else
+        init.MoveTo(_x, _y, _z, _generatePath);
+    owner->AddUnitState(UNIT_STATE_ROAMING_MOVE);
     if (_speed > 0.0f)
         init.SetVelocity(_speed);
 
-    if (_finalOrient)
+    if (applyFacing && _finalOrient)
         init.SetFacing(*_finalOrient);
 
-    init.Launch();
+    if (!init.Launch() && _pathProvider)
+    {
+        owner->StopMoving();
+        owner->ClearUnitState(UNIT_STATE_ROAMING_MOVE);
+        return false;
+    }
 
     // Call for creature group update
     if (Creature* creature = owner->ToCreature())
@@ -113,17 +141,7 @@ bool PointMovementGenerator<T>::DoUpdate(T* owner, uint32 /*diff*/)
     {
         MovementGenerator::RemoveFlag(MOVEMENTGENERATOR_FLAG_INTERRUPTED | MOVEMENTGENERATOR_FLAG_SPEED_UPDATE_PENDING);
 
-        owner->AddUnitState(UNIT_STATE_ROAMING_MOVE);
-
-        Movement::MoveSplineInit init(owner);
-        init.MoveTo(_x, _y, _z, _generatePath);
-        if (_speed > 0.0f) // Default value for point motion type is 0.0, if 0.0 spline will use GetSpeed on unit
-            init.SetVelocity(_speed);
-        init.Launch();
-
-        // Call for creature group update
-        if (Creature* creature = owner->ToCreature())
-            creature->SignalFormationMovement();
+        if (!LaunchMovement(owner, false)) return false;
     }
 
     if (owner->movespline->Finalized())

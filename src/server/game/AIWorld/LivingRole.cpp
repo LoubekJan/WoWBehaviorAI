@@ -19,6 +19,7 @@
 #include "Agent/LivingForagePolicy.h"
 #include "Agent/LivingHuntPolicy.h"
 #include "Agent/LivingReturnPolicy.h"
+#include "Agent/LivingRecoveryPath.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/WolfBehaviorPolicy.h"
@@ -93,7 +94,7 @@ namespace
     bool CheckRolePath(Creature& creature, ActionPosition& destination,
         ActionPosition const* danger = nullptr, float clearance = 8.0f, char const** failure = nullptr,
         Position const* homeBound = nullptr, float homeRadius = 0.0f, bool routePoint = false,
-        LivingReturnPolicy::Diagnostics* diagnostics = nullptr)
+        LivingReturnPolicy::Diagnostics* diagnostics = nullptr, bool rejoin = false)
     {
         auto reject = [&](char const* reason, LivingReturnPolicy::Rejection kind)
         {
@@ -107,6 +108,7 @@ namespace
             diagnostics->RequestedZ = destination.Z;
             diagnostics->ResolvedZ.reset();
             diagnostics->PathType = 0;
+            diagnostics->Navigation = {};
         }
         if (destination.MapId != creature.GetMapId() || !std::isfinite(destination.X) ||
             !std::isfinite(destination.Y) || !std::isfinite(destination.Z) ||
@@ -116,7 +118,9 @@ namespace
         // A navmesh/observed point already carries its floor. Looking down
         // from a different height can silently replace it with another floor.
         // New roaming proposals, however, still need a nearby ground height.
-        if (!routePoint)
+        // A valid recovery point in water keeps its swimming height. Looking
+        // down to the river bed can replace it with an unrelated far polygon.
+        if (!routePoint && !(diagnostics && LivingRecoveryPath::InSwimmableWater(creature, destination)))
         {
             float hint = destination.Z;
             std::optional<float> ground;
@@ -133,6 +137,20 @@ namespace
         if (diagnostics) diagnostics->ResolvedZ = destination.Z;
         if (map->GetZoneId(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z) != 12)
             return reject("RETURN_OUTSIDE_ZONE", LivingReturnPolicy::Zone);
+        if (diagnostics)
+        {
+            if (!homeBound) return reject("RETURN_INVALID_STEP", LivingReturnPolicy::Invalid);
+            RecoveryMovement recovery{destination, {creature.GetMapId(), homeBound->GetPositionX(),
+                homeBound->GetPositionY(), homeBound->GetPositionZ()}, homeRadius,
+                danger ? std::optional<ActionPosition>(*danger) : std::nullopt, rejoin};
+            Movement::PointsArray points;
+            if (!LivingRecoveryPath::Build(creature, recovery, points, diagnostics))
+                return reject("RETURN_NO_PATH", LivingReturnPolicy::Path);
+            auto const& end = points.back();
+            destination.X = end.x; destination.Y = end.y; destination.Z = end.z;
+            diagnostics->ResolvedZ = end.z;
+            return true;
+        }
         PathGenerator path(&creature);
         bool calculated = path.CalculatePath(destination.X, destination.Y, destination.Z, false);
         if (diagnostics) diagnostics->PathType = uint32(path.GetPathType());
@@ -173,12 +191,23 @@ namespace
         state.ReturnDiagnostics = {};
         failure = "RETURN_NO_PATH";
         state.ReturnRoute.TrailTarget.reset();
-        auto accept = [&](ActionPosition& step, bool routePoint, bool bounded = false)
+        state.ReturnRoute.PendingBacktrack.reset();
+        ActionPosition current{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+        std::optional<ActionPosition> backtrack, backtrackTrail;
+        LivingReturnPolicy::Diagnostics backtrackDiagnostics;
+        auto accept = [&](ActionPosition& step, bool routePoint, bool rejoin = false,
+            std::optional<ActionPosition> trailPoint = std::nullopt)
         {
-            if (!CheckRolePath(creature, step, danger, 8.0f, &failure, bounded ? &home : nullptr,
-                state.ReturnHomeLimit, routePoint, &state.ReturnDiagnostics)) return false;
+            if (!CheckRolePath(creature, step, danger, 8.0f, &failure, &home,
+                state.ReturnHomeLimit, routePoint, &state.ReturnDiagnostics, rejoin)) return false;
             if (state.ReturnRoute.Revisited(step))
             {
+                if (!rejoin && !backtrack && state.ReturnRoute.CanBacktrack(current, step))
+                {
+                    backtrack = step;
+                    backtrackTrail = trailPoint;
+                    backtrackDiagnostics = state.ReturnDiagnostics;
+                }
                 failure = "RETURN_REPEATED_STEP";
                 ++state.ReturnDiagnostics.Rejected[LivingReturnPolicy::Invalid];
                 return false;
@@ -188,11 +217,10 @@ namespace
         auto followTrail = [&]() -> std::optional<ActionPosition>
         {
             state.ReturnStrategy = "TRAIL";
-            ActionPosition current{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
             for (auto step : LivingReturnPolicy::TrailSteps(state.ReturnTrail, current))
             {
                 ActionPosition original = step;
-                if (accept(step, true))
+                if (accept(step, true, false, original))
                 {
                     state.ReturnRoute.FollowingTrail = true;
                     state.ReturnRoute.TrailTarget = original;
@@ -210,6 +238,7 @@ namespace
             if (auto step = followTrail()) return step;
         state.ReturnStrategy = "HOME_PATH";
         PathGenerator route(&creature);
+        route.AllowSteepSlopes();
         bool completeRoute = route.CalculatePath(home.GetPositionX(), home.GetPositionY(), home.GetPositionZ(), false) &&
             !(route.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT));
 
@@ -257,8 +286,29 @@ namespace
             ActionPosition from{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
             ActionPosition destination{creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
             for (auto step : LivingReturnPolicy::Detours(from, destination, ++state.ReturnSearchSequence))
-                if (accept(step, false, true))
+                if (accept(step, false))
                     return step;
+        }
+        if (auto step = LivingRecoveryPath::RejoinPosition(creature);
+            step && LivingReturnPolicy::UsefulStep(current, *step))
+        {
+            state.ReturnStrategy = "NAV_REJOIN";
+            if (accept(*step, true, true)) return step;
+        }
+        if (backtrack)
+        {
+            state.ReturnStrategy = "BACKTRACK";
+            backtrackDiagnostics.Candidates = state.ReturnDiagnostics.Candidates;
+            backtrackDiagnostics.Rejected = state.ReturnDiagnostics.Rejected;
+            state.ReturnDiagnostics = backtrackDiagnostics;
+            state.ReturnRoute.PendingBacktrack = LivingReturnPolicy::RouteMemory::Backtrack{current, *backtrack};
+            state.ReturnRoute.TrailTarget = backtrackTrail;
+            if (backtrackTrail)
+            {
+                state.ReturnRoute.FollowingTrail = true;
+                state.ReturnRoute.TrailDestination = *backtrack;
+            }
+            return backtrack;
         }
         return std::nullopt;
     }
@@ -742,6 +792,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
     }
     std::optional<ActionPosition> approvedRoleDestination;
+    std::optional<RecoveryMovement> approvedRecovery;
 
     // Build authoritative facts at dispatch time. No request itself can grant
     // prey classification, participation, a threat identity, or an animation.
@@ -761,6 +812,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         context.LivingRole = role;
         context.LivingRoleExtensionsAllowed = extensions;
         context.RoleMovementDestination = approvedRoleDestination;
+        context.ApprovedRecovery = approvedRecovery;
         context.FreshAllyAlarm = alarmDestination.has_value();
         context.ExpectedAmbientActivity = request.AmbientActivity;
         context.WildlifeRestAllowed = creature.GetStandState() == UNIT_STAND_STATE_STAND;
@@ -1421,7 +1473,19 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
         ActionRequest move;
         move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = destination;
-        if (start(move, Phase::Moving)) state.MovementPurpose = returningHome ? "RETURN_HOME" : "LOCAL_ROAM";
+        if (returningHome)
+        {
+            approvedRecovery = RecoveryMovement{destination, {creature.GetMapId(), home.GetPositionX(),
+                home.GetPositionY(), home.GetPositionZ()}, state.ReturnHomeLimit,
+                rememberedDanger ? std::optional<ActionPosition>(*rememberedDanger) : std::nullopt,
+                std::string_view(state.ReturnStrategy) == "NAV_REJOIN"};
+            move.Recovery = approvedRecovery;
+        }
+        if (start(move, Phase::Moving))
+        {
+            state.MovementPurpose = returningHome ? "RETURN_HOME" : "LOCAL_ROAM";
+            if (returningHome) state.ReturnRoute.CommitBacktrack();
+        }
         else if (returningHome)
         {
             FailedReturn(state, nowMs, "RETURN_MOVE_REJECTED", here);

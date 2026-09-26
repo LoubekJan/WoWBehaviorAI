@@ -20,6 +20,7 @@
 
 #include "Action/ActionPosition.h"
 #include "Action/ArrivalTolerance.h"
+#include "NavigationDiagnostics.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -41,6 +42,7 @@ namespace LivingReturnPolicy
         uint32 PathType = 0;
         float RequestedZ = 0.0f;
         std::optional<float> ResolvedZ;
+        NavigationDiagnostics Navigation;
     };
 
     inline bool Finite(ActionPosition const& point)
@@ -60,13 +62,84 @@ namespace LivingReturnPolicy
         return Finite(from) && Finite(resolved) && from.MapId == resolved.MapId && Distance(from, resolved) > 1.0f;
     }
 
+    // A short connector to an existing ground polygon is permitted only over
+    // continuously supported, visible terrain. No projection across a cliff,
+    // to another floor, or through a wall. Callbacks use the live map geometry.
+    template<class HeightAt, class ClearSegment>
+    std::vector<ActionPosition> SurfaceConnector(ActionPosition const& from, ActionPosition const& to,
+        HeightAt&& heightAt, ClearSegment&& clearSegment)
+    {
+        if (!UsefulStep(from, to)) return {};
+        float length = std::hypot(to.X - from.X, to.Y - from.Y);
+        if (length < 0.5f || length > 6.0f || std::abs(to.Z - from.Z) > 3.0f) return {};
+        auto startHeight = heightAt(from);
+        if (!startHeight || !std::isfinite(*startHeight) || std::abs(*startHeight - from.Z) > 1.0f) return {};
+        std::vector<ActionPosition> result{from};
+        unsigned steps = unsigned(std::ceil(length / 0.5f));
+        float previousHeight = *startHeight;
+        for (unsigned i = 1; i <= steps; ++i)
+        {
+            float t = float(i) / float(steps);
+            ActionPosition point{from.MapId, from.X + (to.X - from.X) * t,
+                from.Y + (to.Y - from.Y) * t, from.Z + (to.Z - from.Z) * t};
+            auto height = heightAt(point);
+            if (!height || !std::isfinite(*height) || std::abs(*height - point.Z) > 1.0f ||
+                std::abs(*height - previousHeight) > 0.75f) return {};
+            point.Z = *height;
+            if (!clearSegment(result.back(), point)) return {};
+            result.push_back(point);
+            previousHeight = *height;
+        }
+        return result;
+    }
+
+    template<class InWater, class ClearSegment>
+    std::vector<ActionPosition> WaterConnector(ActionPosition const& from, ActionPosition const& to,
+        bool canEnterWater, InWater&& inWater, ClearSegment&& clearSegment)
+    {
+        if (!canEnterWater || !UsefulStep(from, to) || Distance(from, to) > 30.0f) return {};
+        unsigned steps = unsigned(std::ceil(Distance(from, to) / 0.5f));
+        std::vector<ActionPosition> result;
+        ActionPosition previous = from;
+        for (unsigned i = 0; i <= steps; ++i)
+        {
+            float t = float(i) / float(steps);
+            ActionPosition point{from.MapId, from.X + (to.X - from.X) * t,
+                from.Y + (to.Y - from.Y) * t, from.Z + (to.Z - from.Z) * t};
+            if (!inWater(point) || !clearSegment(previous, point)) return {};
+            result.push_back(point);
+            previous = point;
+        }
+        return result;
+    }
+
     struct RouteMemory
     {
         bool FollowingTrail = false;
         std::optional<ActionPosition> TrailTarget;
         ActionPosition TrailDestination;
         std::vector<ActionPosition> Visited;
+        struct Backtrack { ActionPosition From, To; };
+        std::vector<Backtrack> Backtracks;
+        std::optional<Backtrack> PendingBacktrack;
         uint64 NextCareAtMs = 0;
+
+        bool CanBacktrack(ActionPosition const& from, ActionPosition const& to) const
+        {
+            // Only a fallback after all new routes fail. Each directed edge
+            // once, at most 16 in a return episode; movement does not reset it.
+            return UsefulStep(from, to) && Backtracks.size() < 16 &&
+                std::none_of(Backtracks.begin(), Backtracks.end(), [&](Backtrack const& edge)
+                { return edge.From.MapId == from.MapId && Distance(edge.From, from) <= 2.0f &&
+                    Distance(edge.To, to) <= 2.0f; });
+        }
+
+        void CommitBacktrack()
+        {
+            if (PendingBacktrack && CanBacktrack(PendingBacktrack->From, PendingBacktrack->To))
+                Backtracks.push_back(*PendingBacktrack);
+            PendingBacktrack.reset();
+        }
 
         void Remember(ActionPosition const& here)
         {

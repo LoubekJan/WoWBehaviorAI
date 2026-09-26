@@ -80,6 +80,14 @@ namespace
         WriteJsonField(out, "strategy", recovery.Strategy); WriteJsonField(out, "failure", recovery.Failure);
         WriteJsonField(out, "candidates", recovery.Candidates); WriteJsonField(out, "path_type", recovery.PathType);
         WriteJsonField(out, "requested_z", recovery.RequestedZ); WriteJsonField(out, "resolved_z", recovery.ResolvedZ);
+        WriteJsonField(out, "backtracks", recovery.Backtracks);
+        auto const& nav = recovery.Navigation;
+        out << ",\"navigation\":{\"mesh\":"; WriteValue(out, nav.Mesh);
+        WriteJsonField(out, "start_tile", nav.StartTile); WriteJsonField(out, "end_tile", nav.EndTile);
+        WriteJsonField(out, "filter", nav.Filter); WriteJsonField(out, "start_flags", nav.StartFlags);
+        WriteJsonField(out, "end_flags", nav.EndFlags); WriteJsonField(out, "start_distance", nav.StartDistance);
+        WriteJsonField(out, "end_distance", nav.EndDistance); WriteJsonField(out, "swimming", nav.Swimming);
+        WriteJsonField(out, "rejoin", nav.Rejoin); WriteJsonField(out, "failure", nav.Failure); out << '}';
         char const* names[] = { "invalid", "height", "zone", "los", "path", "bounds", "danger" };
         out << ",\"rejected\":{";
         for (std::size_t i = 0; i < recovery.Rejections.size(); ++i)

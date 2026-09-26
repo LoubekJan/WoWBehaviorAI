@@ -19,6 +19,7 @@
 #define _PATH_GENERATOR_H
 
 #include "MapDefines.h"
+#include "NavigationDiagnostics.h"
 #include "DetourNavMesh.h"
 #include "DetourNavMeshQuery.h"
 #include "MoveSplineInitArgs.h"
@@ -68,6 +69,17 @@ class TC_GAME_API PathGenerator
         void SetUseStraightPath(bool useStraightPath) { _useStraightPath = useStraightPath; }
         void SetPathLengthLimit(float distance) { _pointPathLimit = std::min<uint32>(uint32(distance/SMOOTH_PATH_STEP_SIZE), MAX_POINT_PATH_LENGTH); }
         void SetUseRaycast(bool useRaycast) { _useRaycast = useRaycast; }
+        // Explicit opt-in for a bounded recovery from terrain reached in combat.
+        // Ordinary roaming and every existing caller keep their original filter.
+        void AllowSteepSlopes()
+        {
+            if (_filter.getIncludeFlags() & NAV_GROUND)
+                _filter.setIncludeFlags(_filter.getIncludeFlags() | NAV_GROUND_STEEP);
+        }
+        NavigationDiagnostics const& GetNavigationDiagnostics() const { return _diagnostics; }
+        // Finds a nearby ground polygon only. The caller must validate and walk
+        // the connector; this never moves/teleports the owner or forces a path.
+        bool FindRecoveryPosition(G3D::Vector3& point) const;
 
         // result getters
         G3D::Vector3 const& GetStartPosition() const { return _startPosition; }
@@ -103,6 +115,7 @@ class TC_GAME_API PathGenerator
         dtNavMeshQuery const* _navMeshQuery;    // the nav mesh query used to find the path
 
         dtQueryFilter _filter;  // use single filter for all movements, update it when needed
+        NavigationDiagnostics _diagnostics;
 
         void SetStartPosition(G3D::Vector3 const& point) { _startPosition = point; }
         void SetEndPosition(G3D::Vector3 const& point) { _actualEndPosition = point; _endPosition = point; }

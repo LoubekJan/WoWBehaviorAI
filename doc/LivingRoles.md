@@ -3,6 +3,58 @@
 Lokální rozšíření z 22. 9. 2026 navazuje na ve hře ověřený vlčí pilot.
 Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 2026 výslovně potvrdil také funkční lov Forest Spider a pomoc blízkých Defias. Oba původně neúspěšné scénáře tak mají potvrzený opakovaný herní test.
 
+## Zotavení na svazích, ve vodě a ve slepých uličkách — 26. 9. 2026
+
+Poslední čtyřhodinový běh bez zásahů zachytil 34 nehybných návratů.
+Oprava cílí na rozdíl mezi terénem povoleným při boji a v klidu, polohy
+mimo vhodný polygon a trvalé odmítání navštívených bodů:
+
+- Pouze autorizovaný návrat živé role povolí také `NAV_GROUND_STEEP`.
+  Výpočet i vykonání kroku používají stejnou kontrolu; nová cesta se ověří
+  také po přerušení a změně rychlosti. Neplatná cesta zastaví tento přesun.
+- Krátké připojení k blízkému pozemnímu polygonu (`NAV_REJOIN`) má nejvýše
+  6 yardů vodorovně a 3 yardy výškově. Povrch a kolize se kontrolují po
+  půl yardu; chybějící podklad, útes, jiná podlaha či překážka krok odmítnou.
+- Pro NPC s oprávněním vstupovat do vody je dostupný vodní spojovací krok.
+  Každý jeho půlyardový úsek musí být ve vodě a bez kolize. Nestačí mokrý
+  začátek a konec; cesta přes suchý břeh se takto nepovolí.
+- Teprve když nevyjde nový cíl, je povolen ověřený ústup na navštívený bod
+  (`BACKTRACK`). Stejný orientovaný úsek nejvýše jednou a celkem nejvýše
+  16 takových ústupů během jednoho návratu. Skutečný pohyb tento limit
+  neobnovuje; zůstává omezené čekání a péče o základní potřeby.
+- Všechny tyto cesty vyžadují načtené navigační dlaždice, zůstávají uvnitř
+  Elwynnu a původní meze návratu (vzdálenost od domova při zahájení +16
+  yardů). Nadále se vyhýbají zapamatovanému nebezpečí.
+
+Jde o opravu návratů již řízených NPC. Běžné toulání ani jiné zóny
+nedostávají nový terénní filtr. Teleportace ani změna spawnů se nepoužívá.
+Nevyřeší-li se cesta bezpečně, NPC zůstane u omezených opakovaných pokusů
+a report nadále označí dlouhé zablokování jako chybu.
+
+Při nasazení sestav také `world-viewer`: rozšíření protokolu v4 přidává
+`return_recovery.navigation` a `backtracks`; aktualizovaný Observer přijímá
+i starší snímky bez těchto polí. Detail NPC ukazuje dlaždice, filtr, příznaky
+polygonů a vzdálenosti od sítě, způsob zotavení a důvod odmítnutí.
+Záznamník zachová stejná pole v archivu i JSON nálezech.
+
+Po deployi nech automatický čtyřhodinový test běžet bez zásahů. Sleduj
+zejména **80896, 80418, 146118 a 146164** a žáby s dřívějším typem cesty
+68. Srovnávací základ je 34 NPC v kontrole `return`, 33 v `return_duration`,
+0 v `motion` a 0 v `prey_hunger`. Cílem je odstranit dlouhé nehybnosti
+bez návratu cyklení či hladovění kořisti. Není nutné stát u NPC.
+
+Lokálně prošlo **43 C++ testů rolí / 3 789 assertions** a **6 testů
+telemetrie / 67 assertions**. Testy pokrývají vycouvání a limit cyklů,
+spojovací kroky přes svah, odmítnutí děr, stěn a jiné podlahy, souvislou
+vodu, přesnou autorizaci návratu a serializaci nové diagnostiky.
+Prošlo také **64 Python testů** (jeden další POSIX test se ve Windows
+přeskakuje), **8 JavaScript testů** a syntaktické kontroly upravených
+pohybových i telemetrických jednotek. API přijalo snímek 3 540 NPC včetně
+nové diagnostiky. Úplné sestavení a pohyb na skutečných mapách ověří až CI a nový serverový
+běh; lokálně není kompletní Boost. Samostatná kontrola syntaxe
+`PathGenerator.cpp` vynechává nesouvisející metrický modul, jehož hlavička
+vyžaduje chybějící část Boost.
+
 ## Oprava návratů po doplnění navigace — 25. 9. 2026
 
 Po doplnění chybějících dlaždic mapy 0 uživatel doložil načtenou dlaždici

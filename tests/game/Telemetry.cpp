@@ -56,12 +56,23 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     recovery.Strategy = "TRAIL"; recovery.Failure = "RETURN_NO_PATH";
     recovery.StalledMs = 600000; recovery.Candidates = 8; recovery.Rejections[4] = 8;
     recovery.RequestedZ = 45.57f;
+    recovery.Backtracks = 2;
+    recovery.Navigation.Mesh = recovery.Navigation.StartTile = recovery.Navigation.EndTile = true;
+    recovery.Navigation.Filter = 3; recovery.Navigation.StartFlags = 2;
+    recovery.Navigation.StartDistance = 9.25f;
+    recovery.Navigation.Failure = "NO_COMPLETE_PATH";
     auto json = SerializeAgentTelemetry({agent}, 1234);
     REQUIRE(json.find("\"return_recovery\":{") != std::string::npos);
     REQUIRE(json.find("\"failure\":\"RETURN_NO_PATH\"") != std::string::npos);
     REQUIRE(json.find("\"stalled_ms\":600000") != std::string::npos);
     REQUIRE(json.find("\"resolved_z\":null") != std::string::npos);
     REQUIRE(json.find("\"path\":8") != std::string::npos);
+    REQUIRE(json.find("\"backtracks\":2") != std::string::npos);
+    REQUIRE(json.find("\"navigation\":{\"mesh\":true") != std::string::npos);
+    REQUIRE(json.find("\"start_distance\":9.25") != std::string::npos);
+    REQUIRE(json.find("\"end_distance\":null") != std::string::npos);
+    REQUIRE(json.find("\"filter\":3") != std::string::npos);
+    REQUIRE(json.find("\"failure\":\"NO_COMPLETE_PATH\"") != std::string::npos);
     agent.Live.reset();
     REQUIRE(SerializeAgentTelemetry({agent}, 1234).find("\"return_recovery\"") == std::string::npos);
 }

@@ -814,6 +814,104 @@ TEST_CASE("Return trail consumes resolved arrivals and rejects walking back into
     REQUIRE_FALSE(route.Revisited({1, 3996.5f, 0, 52}));
 }
 
+TEST_CASE("A return can escape a visited dead end without reopening a ping pong loop", "[AIWorld][LivingRole]")
+{
+    using namespace LivingReturnPolicy;
+    RouteMemory route;
+    ActionPosition a{0, 10, 8, 2}, b{0, 14, 8, 2}, exit{0, 10, 12, 2};
+    route.Remember(a); route.Remember(b);
+    REQUIRE(route.Revisited(a));
+    REQUIRE(route.CanBacktrack(b, a));
+    route.PendingBacktrack = RouteMemory::Backtrack{b, a};
+    // A rejected engine dispatch must not consume the allowance.
+    REQUIRE(route.Backtracks.empty());
+    route.CommitBacktrack(); route.Remember(a);
+    REQUIRE(route.Backtracks.size() == 1);
+    REQUIRE_FALSE(route.PendingBacktrack.has_value());
+    REQUIRE_FALSE(route.Revisited(exit));
+    // Even if only the old outward leg remains possible, it cannot oscillate.
+    REQUIRE(route.CanBacktrack(a, b));
+    route.PendingBacktrack = RouteMemory::Backtrack{a, b};
+    route.CommitBacktrack(); route.Remember(b);
+    REQUIRE_FALSE(route.CanBacktrack(b, a));
+    REQUIRE_FALSE(route.CanBacktrack({0, 14.4f, 8, 2}, {0, 10.4f, 8, 2}));
+    REQUIRE_FALSE(route.CanBacktrack(b, b));
+    for (unsigned i = 0; i < 14; ++i)
+    {
+        route.PendingBacktrack = RouteMemory::Backtrack{{0, float(i*10+30), 0, 2}, {0, float(i*10+35), 0, 2}};
+        route.CommitBacktrack();
+    }
+    REQUIRE(route.Backtracks.size() == 16);
+    REQUIRE_FALSE(route.CanBacktrack(b, exit));
+}
+
+TEST_CASE("Navmesh rejoin walks continuous ground and refuses gaps walls and another floor", "[AIWorld][LivingRole]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition from{0, 0, 0, 10}, to{0, 6, 0, 12};
+    auto ground = [](ActionPosition const& p) -> std::optional<float> { return 10 + p.X / 3; };
+    auto clear = [](ActionPosition const&, ActionPosition const&) { return true; };
+    auto path = SurfaceConnector(from, to, ground, clear);
+    REQUIRE(path.size() == 13);
+    REQUIRE(path.back().Z == 12);
+    for (std::size_t i = 1; i < path.size(); ++i) REQUIRE(Distance(path[i-1], path[i]) < 0.6f);
+    REQUIRE(SurfaceConnector(from, to, [](auto const&) -> std::optional<float> { return std::nullopt; }, clear).empty());
+    REQUIRE(SurfaceConnector(from, to, [](auto const&) -> std::optional<float> { return 0.0f; }, clear).empty());
+    REQUIRE(SurfaceConnector(from, to, [](auto const& p) -> std::optional<float>
+        { return p.X > 2 && p.X < 4 ? 3 : 10 + p.X / 3; }, clear).empty());
+    REQUIRE(SurfaceConnector(from, to, ground, [](auto const& a, auto const& b)
+        { return !(a.X < 3 && b.X >= 3); }).empty());
+    REQUIRE(SurfaceConnector(from, {0, 7, 0, 12}, ground, clear).empty());
+    REQUIRE(SurfaceConnector(from, {0, 6, 0, 20}, ground, clear).empty());
+    REQUIRE(SurfaceConnector(from, {1, 6, 0, 12}, ground, clear).empty());
+    REQUIRE(SurfaceConnector(from, {0, 6, 0, std::numeric_limits<float>::quiet_NaN()}, ground, clear).empty());
+}
+
+TEST_CASE("Recovery swimming requires a continuous wet collision free route", "[AIWorld][LivingRole]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition from{0, 0, 0, 10}, to{0, 12, 0, 10};
+    auto wet = [](auto const&) { return true; };
+    auto clear = [](auto const&, auto const&) { return true; };
+    REQUIRE(WaterConnector(from, to, true, wet, clear).size() == 25);
+    REQUIRE(WaterConnector(from, to, false, wet, clear).empty());
+    // Endpoints alone look swimmable, but the middle crosses a dry bank.
+    REQUIRE(WaterConnector(from, to, true, [](auto const& p) { return p.X < 5 || p.X > 7; }, clear).empty());
+    REQUIRE(WaterConnector(from, to, true, wet, [](auto const& a, auto const& b)
+        { return !(a.X < 6 && b.X >= 6); }).empty());
+    REQUIRE(WaterConnector(from, {0, 31, 0, 10}, true, wet, clear).empty());
+    REQUIRE(WaterConnector(from, {1, 12, 0, 10}, true, wet, clear).empty());
+    REQUIRE(WaterConnector(from, from, true, wet, clear).empty());
+}
+
+TEST_CASE("Recovery traversal is authorized for the exact local return only", "[AIWorld][LivingRole]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::MoveTo; request.SourceGoal = GoalType::LocalActivity;
+    request.Destination = ActionPosition{0, 10, 0, 0};
+    request.Recovery = RecoveryMovement{*request.Destination, {0, 20, 0, 0}, 36, std::nullopt, false};
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = true;
+    context.LivingRoleZoneId = 12; context.LivingRole = LivingRolePolicy::Role::Predator;
+    context.ActiveGoalType = request.SourceGoal;
+    REQUIRE_FALSE(actions.Validate(request, context).Allowed);
+    context.ApprovedRecovery = request.Recovery;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    SECTION("different destination") { request.Destination->X = 11; }
+    SECTION("wider home bounds") { request.Recovery->HomeRadius += 10; }
+    SECTION("different home") { request.Recovery->Home.X += 10; }
+    SECTION("unapproved rejoin") { request.Recovery->Rejoin = true; }
+    SECTION("unapproved danger") { request.Recovery->Danger = ActionPosition{0, 0, 10, 0}; }
+    SECTION("combat") { context.InCombat = true; }
+    SECTION("outside Elwynn") { context.LivingRoleZoneId = 40; }
+    SECTION("outside AIWorld") { context.ControlMode = AgentControlMode::ObserveOnly; }
+    SECTION("different action") { request.Type = ActionType::Ambient; }
+    SECTION("different goal") { request.SourceGoal = *context.ActiveGoalType = GoalType::GoHome; }
+    REQUIRE_FALSE(actions.Validate(request, context).Allowed);
+}
+
 TEST_CASE("Moving recovery leaves time for basic needs without waiting for a path failure", "[AIWorld][LivingRole]")
 {
     LivingReturnPolicy::RouteMemory route;

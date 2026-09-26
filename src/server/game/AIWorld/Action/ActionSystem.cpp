@@ -121,6 +121,11 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
         (!context.LivingRoleExtensionsAllowed || request.Type != ActionType::MoveTo))
         return { false, ActionRejectReason::GoalMismatch };
 
+    if (request.Recovery && (request.Type != ActionType::MoveTo || request.SourceGoal != GoalType::LocalActivity ||
+        !context.ApprovedRecovery || !(*request.Recovery == *context.ApprovedRecovery) ||
+        !request.Destination || !RecoveryMovement::SamePoint(request.Recovery->Destination, *request.Destination)))
+        return { false, ActionRejectReason::GoalMismatch };
+
     switch (request.Type)
     {
         case ActionType::Flee:

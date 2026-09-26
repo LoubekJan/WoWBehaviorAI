@@ -192,6 +192,32 @@ Pokud za celou dobu nezíská ani jeden čerstvý neprázdný snímek, skončí 
 
 ## 3. Průběh testu
 
+Pro porovnání opravy návratů z 26. 9. nech **celé čtyři hodiny bez zásahů**.
+Nový svět i Observer nasazuj společně; recorder se po CI deployi spouští
+dosavadním automatickým postupem. Vedle výsledku `return` kontroluj také
+`return_duration`, který zachytí nekonečný návrat i při skutečném pohybu.
+Předchozí běh měl 34 nehybných návratů a 33 nedokončených návratů nad
+deset minut. Hlad kořisti a pohyb bez posunu byly bez nálezu a mají tak zůstat.
+
+V detailu NPC a `return_recovery.navigation` jsou nově dostupné:
+
+| Pole | Význam |
+| --- | --- |
+| `mesh`, `start_tile`, `end_tile` | Dostupnost navigační sítě a obou dlaždic při posledním výpočtu. |
+| `filter`, `start_flags`, `end_flags` | Povolené typy terénu a příznaky nejbližších nalezených polygonů. |
+| `start_distance`, `end_distance` | Vzdálenost ve 3D od polygonu v yardech; `null` znamená, že nebyl nalezen/změřen. |
+| `swimming`, `rejoin` | Byl sestaven vodní spojovací krok nebo krátké připojení na pozemní síť. |
+| `failure` | Např. `MISSING_NAVMESH_TILE`, `NO_COMPLETE_PATH`, `REJOIN_UNSAFE_SURFACE`, `PATH_BOUNDS`, `DANGER_BLOCKED`; `NONE` bez odmítnutí. |
+| `return_recovery.backtracks` | Počet zahájených povolených ústupů do navštíveného bodu, nejvýše 16 za návrat. |
+
+Jde o uchovanou poslední diagnostiku, nikoli počítadlo nových událostí.
+`path_type` zůstává výsledkem původního výpočtu navmeshe: u povoleného
+vodního spojení může mít dál hodnotu 68, ale `swimming=true` a `failure=NONE`.
+Nenulová chyba může následně odmítnout i sestavený spojovací krok.
+Staré záznamy nemají `navigation` a nelze z nich dodatečně zjistit vzdálenosti
+od polygonů. Samotný hlad predátorů dál zůstává upozorněním: bez dostupné
+kořisti není důkazem chyby pohybu.
+
 Nech nejprve svět alespoň hodinu běžet bez vlastních zásahů. Pro simulaci bez
 přítomnosti hráče musí být na běžícím serveru aktivní `AIWorld.ElwynnAlwaysActive = 1`;
 v aktuální verzované konfiguraci je zapnuté. Díky tomu nemusíš stát u pavouků.

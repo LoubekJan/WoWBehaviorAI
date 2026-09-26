@@ -19,6 +19,7 @@
 #define AIWORLD_ACTIONREQUEST_H
 
 #include "ActionPosition.h"
+#include "RecoveryMovement.h"
 #include "ActionTargetRef.h"
 #include "Agent/AgentId.h"
 #include "Agent/GroupId.h"
@@ -67,6 +68,9 @@ struct ActionRequest
     // actor's current map, has finite coordinates, and is within a bounded
     // range - see ActionSystem::ValidateMoveTo().
     std::optional<ActionPosition> Destination;
+    // Planner-authorized recovery; the executor rechecks the complete path on
+    // launch/resume. No request may grant itself this traversal policy.
+    std::optional<RecoveryMovement> Recovery;
 
     // Milestone 2.12G3C1: which external entity this request claims to be
     // approaching - only meaningful for a MoveTo request whose SourceGoal

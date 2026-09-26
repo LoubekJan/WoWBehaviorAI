@@ -176,6 +176,8 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                     diagnostic.Rejections = recovery.ReturnDiagnostics.Rejected;
                     diagnostic.RequestedZ = recovery.ReturnDiagnostics.RequestedZ;
                     diagnostic.ResolvedZ = recovery.ReturnDiagnostics.ResolvedZ;
+                    diagnostic.Navigation = recovery.ReturnDiagnostics.Navigation;
+                    diagnostic.Backtracks = uint32(recovery.ReturnRoute.Backtracks.size());
                     role.ReturnRecovery = std::move(diagnostic);
                 }
                 if (info.HuntStatus)

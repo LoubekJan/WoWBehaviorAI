@@ -19,6 +19,7 @@
 #include "Goal/GoalType.h"
 #include "Needs/NeedsState.h"
 #include "Scheduler/SimulationTier.h"
+#include "NavigationDiagnostics.h"
 #include <array>
 #include <optional>
 #include <string>
@@ -34,6 +35,8 @@ struct ReturnRecoveryTelemetry
     std::array<uint32, 7> Rejections{};
     float RequestedZ = 0.0f;
     std::optional<float> ResolvedZ;
+    NavigationDiagnostics Navigation;
+    uint32 Backtracks = 0;
 };
 
 struct LivingRoleTelemetry

@@ -25,6 +25,7 @@
 #include "DetourCommon.h"
 #include "DetourNavMeshQuery.h"
 #include "Metric.h"
+#include <cmath>
 
 ////////////////// PathGenerator //////////////////
 PathGenerator::PathGenerator(WorldObject const* owner) :
@@ -55,6 +56,7 @@ PathGenerator::~PathGenerator()
 
 bool PathGenerator::CalculatePath(float destX, float destY, float destZ, bool forceDest)
 {
+    _diagnostics = {};
     float x, y, z;
     _source->GetPosition(x, y, z);
 
@@ -76,6 +78,11 @@ bool PathGenerator::CalculatePath(float destX, float destY, float destZ, bool fo
     // make sure navMesh works - we can run on map w/o mmap
     // check if the start and end point have a .mmtile loaded (can we pass via not loaded tile on the way?)
     Unit const* _sourceUnit = _source->ToUnit();
+    UpdateFilter();
+    _diagnostics.Mesh = _navMesh && _navMeshQuery;
+    _diagnostics.StartTile = _diagnostics.Mesh && HaveTile(start);
+    _diagnostics.EndTile = _diagnostics.Mesh && HaveTile(dest);
+    _diagnostics.Filter = _filter.getIncludeFlags();
     if (!_navMesh || !_navMeshQuery || (_sourceUnit && _sourceUnit->HasUnitState(UNIT_STATE_IGNORE_PATHFINDING)) ||
         !HaveTile(start) || !HaveTile(dest))
     {
@@ -84,10 +91,24 @@ bool PathGenerator::CalculatePath(float destX, float destY, float destZ, bool fo
         return true;
     }
 
-    UpdateFilter();
-
     BuildPolyPath(start, dest);
     return true;
+}
+
+bool PathGenerator::FindRecoveryPosition(G3D::Vector3& point) const
+{
+    if (!_navMesh || !_navMeshQuery) return false;
+    G3D::Vector3 from(_source->GetPositionX(), _source->GetPositionY(), _source->GetPositionZ());
+    if (!HaveTile(from)) return false;
+    float origin[] = { from.y, from.z, from.x }, extents[] = { 6.0f, 3.0f, 6.0f }, closest[3];
+    dtQueryFilter ground = _filter;
+    ground.setIncludeFlags(NAV_GROUND | NAV_GROUND_STEEP);
+    dtPolyRef poly = INVALID_POLYREF;
+    if (dtStatusFailed(_navMeshQuery->findNearestPoly(origin, extents, &ground, &poly, closest)) || !poly)
+        return false;
+    point = G3D::Vector3(closest[2], closest[0], closest[1]);
+    return HaveTile(point) && std::hypot(point.x - from.x, point.y - from.y) <= 6.0f &&
+        std::abs(point.z - from.z) <= 3.0f;
 }
 
 dtPolyRef PathGenerator::GetPathPolyByPosition(dtPolyRef const* polyPath, uint32 polyPathSize, float const* point, float* distance) const
@@ -166,6 +187,19 @@ void PathGenerator::BuildPolyPath(G3D::Vector3 const& startPos, G3D::Vector3 con
 
     dtPolyRef startPoly = GetPolyByLocation(startPoint, &distToStartPoly);
     dtPolyRef endPoly = GetPolyByLocation(endPoint, &distToEndPoly);
+
+    if (startPoly != INVALID_POLYREF)
+    {
+        _diagnostics.StartDistance = distToStartPoly;
+        unsigned short flags = 0;
+        if (dtStatusSucceed(_navMesh->getPolyFlags(startPoly, &flags))) _diagnostics.StartFlags = flags;
+    }
+    if (endPoly != INVALID_POLYREF)
+    {
+        _diagnostics.EndDistance = distToEndPoly;
+        unsigned short flags = 0;
+        if (dtStatusSucceed(_navMesh->getPolyFlags(endPoly, &flags))) _diagnostics.EndFlags = flags;
+    }
 
     _type = PathType(PATHFIND_NORMAL);
 

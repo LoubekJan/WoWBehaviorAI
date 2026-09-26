@@ -42,6 +42,20 @@ class Economy(ProtocolModel):
     resource: int = Field(ge=0)
 
 
+class NavigationDiagnostics(ProtocolModel):
+    mesh: bool
+    start_tile: bool
+    end_tile: bool
+    filter: int = Field(ge=0, le=65535)
+    start_flags: int = Field(ge=0, le=65535)
+    end_flags: int = Field(ge=0, le=65535)
+    start_distance: float | None = Field(ge=0)
+    end_distance: float | None = Field(ge=0)
+    swimming: bool
+    rejoin: bool
+    failure: str = Field(max_length=80)
+
+
 class ReturnRecovery(ProtocolModel):
     failures: int = Field(ge=0)
     trail_points: int = Field(ge=0, le=64)
@@ -53,6 +67,8 @@ class ReturnRecovery(ProtocolModel):
     path_type: int = Field(ge=0)
     requested_z: float
     resolved_z: float | None
+    navigation: NavigationDiagnostics | None = None
+    backtracks: int = Field(default=0, ge=0, le=16)
     rejected: dict[Literal['invalid', 'height', 'zone', 'los', 'path', 'bounds', 'danger'], int] = Field(max_length=7)
 
     @model_validator(mode="after")

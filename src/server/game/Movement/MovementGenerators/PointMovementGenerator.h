@@ -20,6 +20,10 @@
 
 #include "MovementGenerator.h"
 #include "Optional.h"
+#include <G3D/Vector3.h>
+#include "MoveSplineInitArgs.h"
+#include <functional>
+#include <utility>
 
 class Creature;
 
@@ -41,8 +45,15 @@ class PointMovementGenerator : public MovementGeneratorMedium<T, PointMovementGe
 
         uint32 GetId() const { return _movementId; }
 
+        // Optional strict route builder. Called on every launch/resume/speed
+        // change; false stops this move instead of falling back to a straight line.
+        using PathProvider = std::function<bool(T*, Movement::PointsArray&)>;
+        void SetPathProvider(PathProvider provider) { _pathProvider = std::move(provider); }
+
     private:
         void MovementInform(T*);
+        bool LaunchMovement(T*, bool applyFacing = true);
+        PathProvider _pathProvider;
 
         uint32 _movementId;
         float _x, _y, _z;

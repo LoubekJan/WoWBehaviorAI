@@ -53,6 +53,13 @@ def v2_batch() -> dict:
     return json.loads((Path(__file__).parent / "fixtures" / "telemetry_v2.json").read_text(encoding="utf-8"))
 
 
+def navigation_diagnostics() -> dict:
+    return {'mesh': True, 'start_tile': True, 'end_tile': True,
+            'filter': 3, 'start_flags': 2, 'end_flags': 1,
+            'start_distance': 9.25, 'end_distance': None,
+            'swimming': False, 'rejoin': False, 'failure': 'NO_COMPLETE_PATH'}
+
+
 def return_recovery() -> dict:
     return {"failures": 8, "trail_points": 64, "retry_ms": 15000, "stalled_ms": 90000,
             "strategy": "TRAIL", "failure": "RETURN_NO_PATH", "candidates": 8, "path_type": 8,
@@ -69,11 +76,30 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
         state = self.client.get('/api/state').json()
         self.assertEqual(state['version'], 4)
-        self.assertEqual(state['agents'][0]['living_role']['return_recovery'], recovery)
+        self.assertEqual(state['agents'][0]['living_role']['return_recovery'],
+                         {**recovery, 'navigation': None, 'backtracks': 0})
         recovery['rejected']['path'] = -1
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 422)
         # A malformed batch must not replace the last good observation.
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery']['rejected']['path'], 8)
+
+    def test_navigation_diagnostics_roundtrip_and_limits(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        nav = navigation_diagnostics()
+        recovery = {**return_recovery(), 'navigation': nav, 'backtracks': 2}
+        payload['agents'][0]['living_role']['return_recovery'] = recovery
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], recovery)
+        for field, value in [('start_distance', -1), ('end_distance', 'NaN'), ('filter', 65536),
+                             ('failure', 'x' * 81), ('unknown', 1)]:
+            with self.subTest(field=field):
+                bad = copy.deepcopy(payload)
+                bad['agents'][0]['living_role']['return_recovery']['navigation'][field] = value
+                self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        recovery['backtracks'] = 17
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 422)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery']['backtracks'], 2)
 
     def setUp(self) -> None:
         self.client = TestClient(create_app("test-secret"))
@@ -164,6 +190,7 @@ class WorldViewerApiTests(unittest.TestCase):
         payload["version"] = 4
         prototype = payload["agents"][0]
         prototype["living_role"]["return_recovery"] = return_recovery()
+        prototype["living_role"]["return_recovery"].update(navigation=navigation_diagnostics(), backtracks=16)
         payload["agents"] = [{**prototype, "agent_id": i, "spawn_id": i} for i in range(3540)]
         body = json.dumps(payload, separators=(",", ":")).encode()
         self.assertLess(len(body), MAX_REQUEST_BYTES)
