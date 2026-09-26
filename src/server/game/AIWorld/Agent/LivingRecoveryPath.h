@@ -14,5 +14,6 @@ namespace LivingRecoveryPath
     bool Build(Creature& creature, RecoveryMovement const& request, Movement::PointsArray& points,
         LivingReturnPolicy::Diagnostics* diagnostics = nullptr);
     std::optional<ActionPosition> RejoinPosition(Creature& creature);
+    std::vector<ActionPosition> RejoinPositions(Creature& creature);
 }
 #endif

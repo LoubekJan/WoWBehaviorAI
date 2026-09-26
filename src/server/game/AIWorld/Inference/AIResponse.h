@@ -65,6 +65,7 @@ struct AIResponse
     // DynamicTask stays empty, never a "best effort" partial fill.
     QuestRequestProvenance QuestProvenance;
     std::optional<DynamicTaskResponse> DynamicTask;
+    std::optional<RecoveryAdviceResponse> Recovery;
 };
 
 #endif // AIWORLD_AIRESPONSE_H

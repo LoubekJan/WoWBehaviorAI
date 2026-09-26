@@ -174,12 +174,25 @@ class OpenAICompatibleTaskProvider:
         self._transport = transport
 
     async def generate(self, request: DynamicTaskRequest) -> QuestProposalDraft:
+        content = await self.complete(SYSTEM_PROMPT, request.context.model_dump_json())
+
+        try:
+            draft_payload = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ModelProviderMalformedContent("model output was not valid JSON") from exc
+
+        try:
+            return QuestProposalDraft.model_validate(draft_payload)
+        except ValidationError as exc:
+            raise ModelProviderMalformedContent("model output failed draft schema validation") from exc
+
+    async def complete(self, system_prompt: str, context: str) -> str:
         payload = {
             "model": self._config.model_name,
             "max_tokens": self._config.max_tokens,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": request.context.model_dump_json()},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": context},
             ],
             "response_format": {"type": "json_object"},
         }
@@ -229,17 +242,8 @@ class OpenAICompatibleTaskProvider:
         except httpx.HTTPError as exc:
             raise ModelProviderUnavailable("model provider unreachable") from exc
 
-        content = _extract_message_content(bytes(raw_body))
+        return _extract_message_content(bytes(raw_body))
 
-        try:
-            draft_payload = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise ModelProviderMalformedContent("model output was not valid JSON") from exc
-
-        try:
-            return QuestProposalDraft.model_validate(draft_payload)
-        except ValidationError as exc:
-            raise ModelProviderMalformedContent("model output failed draft schema validation") from exc
 
 
 def _extract_message_content(raw_body: bytes) -> str:

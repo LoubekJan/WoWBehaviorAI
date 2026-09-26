@@ -63,6 +63,7 @@ class Evaluator:
         self.worst = {}
         self.observed = {key: set() for key in CHECKS}
         self.roles = {}
+        self.advice = {}
         self.inside = set()
         self.last_time = self.last_capture = self.last_sequence = None
         self.first_time = None
@@ -186,6 +187,17 @@ class Evaluator:
                     or any(not isinstance(role.get(k), str) for k in ("phase", "activity", "movement_purpose"))):
                 self.quality["invalid_live_agent"] += 1
                 continue
+            advice = role.get("advice")
+            if isinstance(advice, dict) and type(advice.get("lifetime_ms")) is int:
+                key = f"{aid}:{advice['lifetime_ms']}"
+                stats = self.advice.setdefault(key, {"agent_id": aid, "spawn_id": agent["spawn_id"],
+                    "lifetime_ms": advice["lifetime_ms"], "counters": {}})
+                stats["enabled"] = advice.get("enabled") is True
+                stats["last_status"] = str(advice.get("status", "UNKNOWN"))[:80]
+                for metric in ("requests", "selected", "started", "arrived", "home_success", "food_success", "rejected", "unavailable", "reused"):
+                    value = advice.get(metric)
+                    if type(value) is int and value >= 0:
+                        stats["counters"][metric] = max(value, stats["counters"].get(metric, 0))
             old = self.previous.get(aid)
             if old and (old["spawn_id"] != agent["spawn_id"] or old["position"]["map_id"] != pos["map_id"]
                         or old["living_role"]["role"] != role["role"]):
@@ -296,6 +308,7 @@ class Evaluator:
                             "fresh_time_fraction": round(fraction, 5), "live_role_samples": self.live_samples,
                             "problems": dict(self.quality), "integrity_errors": errors},
                 "checks": checks, "findings": findings, "roles": self.roles,
+                "recovery_advice": list(self.advice.values()),
                 "not_tested": ["Řízené napadení hráčem a pomoc spojenců", "Správnost jednotlivých úderů a animací",
                                "Výkon CPU serveru", "Pilot smečkových vlků"],
                 "interpretation": "PASS = v dostatečném záznamu nebylo nalezeno porušení těchto pravidel. "
@@ -325,6 +338,16 @@ def write_report(report: dict, output: Path):
                      ("check", "spawn_id", "name", "duration_seconds", "start_utc", "end_utc", "movement_purpose")) + " |")
     if not report["findings"]:
         lines += ["", "Žádné překročení prahů. Neověřené scénáře tím nejsou potvrzené."]
+    advice = report.get("recovery_advice", [])
+    if advice:
+        lines += ["", "## Pomoc lokální AI", "",
+            "Čítače jsou maxima za každou materializaci NPC. Přijatý návrh ani spuštěný krok není dokončený návrat.", "",
+            "| Spawn | Požadavky | Vybráno AI | Z paměti | Spuštěno | Dosažený krok | Návrat domů | Nalezené jídlo | Zamítnuto | Chyby AI | Poslední stav |",
+            "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
+        for item in advice:
+            c = item["counters"]
+            values = [item["spawn_id"], *[c.get(k, 0) for k in ("requests", "selected", "reused", "started", "arrived", "home_success", "food_success", "rejected", "unavailable")], item["last_status"]]
+            lines.append("| " + " | ".join(str(v).replace("|", "/").replace("\n", " ").replace("\r", " ") for v in values) + " |")
     lines += ["", "## Meze testu", "", *["- " + item for item in report["not_tested"]], "",
               "Prahy a souhrny rolí, poklesů hladu, zásob a přechodů lovu jsou v behavior-report.json.", ""]
     for filename, content in (("behavior-report.json", json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n"),

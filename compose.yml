@@ -110,6 +110,11 @@ services:
       AI_TASK_MODEL_ENABLED: ${AI_TASK_MODEL_ENABLED:-0}
       AI_TASK_MODEL_URL: ${AI_TASK_MODEL_URL:-}
       AI_TASK_MODEL_NAME: ${AI_TASK_MODEL_NAME:-}
+      # Recovery pilot reuses the existing model backend unless overridden.
+      # Enabling recovery does not enable dynamic quest generation.
+      AI_RECOVERY_MODEL_ENABLED: ${AI_RECOVERY_MODEL_ENABLED:-1}
+      AI_RECOVERY_MODEL_URL: ${AI_RECOVERY_MODEL_URL:-}
+      AI_RECOVERY_MODEL_NAME: ${AI_RECOVERY_MODEL_NAME:-}
       # Raised from 5000 to 30000 for 2.13A3B development - a real local
       # model's /dynamic-task response can take much longer than 5s,
       # especially with reasoning enabled; matches AIWorld.RequestTimeoutMs.

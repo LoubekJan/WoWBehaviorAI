@@ -140,6 +140,7 @@ namespace
         if (diagnostics)
         {
             if (!homeBound) return reject("RETURN_INVALID_STEP", LivingReturnPolicy::Invalid);
+            diagnostics->QueryDestination = destination;
             RecoveryMovement recovery{destination, {creature.GetMapId(), homeBound->GetPositionX(),
                 homeBound->GetPositionY(), homeBound->GetPositionZ()}, homeRadius,
                 danger ? std::optional<ActionPosition>(*danger) : std::nullopt, rejoin};
@@ -149,6 +150,9 @@ namespace
             auto const& end = points.back();
             destination.X = end.x; destination.Y = end.y; destination.Z = end.z;
             diagnostics->ResolvedZ = end.z;
+            if (!LivingReturnPolicy::UsefulStep({creature.GetMapId(), creature.GetPositionX(),
+                creature.GetPositionY(), creature.GetPositionZ()}, destination))
+                return reject("RETURN_ZERO_STEP", LivingReturnPolicy::Invalid);
             return true;
         }
         PathGenerator path(&creature);
@@ -200,6 +204,12 @@ namespace
         {
             if (!CheckRolePath(creature, step, danger, 8.0f, &failure, &home,
                 state.ReturnHomeLimit, routePoint, &state.ReturnDiagnostics, rejoin)) return false;
+            if (state.ReturnRoute.Failed(current, step))
+            {
+                failure = "RETURN_FAILED_EDGE";
+                ++state.ReturnDiagnostics.Rejected[LivingReturnPolicy::Invalid];
+                return false;
+            }
             if (state.ReturnRoute.Revisited(step))
             {
                 if (!rejoin && !backtrack && state.ReturnRoute.CanBacktrack(current, step))
@@ -214,6 +224,16 @@ namespace
             }
             return true;
         };
+        // Keep a complete corridor across legs instead of undoing an earlier
+        // detour with a newly chosen direct step at each corner.
+        state.ReturnRoute.Advance(current);
+        if (!state.ReturnRoute.Planned.empty())
+        {
+            auto step = state.ReturnRoute.Planned.front();
+            state.ReturnStrategy = "CORRIDOR";
+            if (accept(step, true)) return step;
+            state.ReturnRoute.Planned.clear();
+        }
         auto followTrail = [&]() -> std::optional<ActionPosition>
         {
             state.ReturnStrategy = "TRAIL";
@@ -240,7 +260,9 @@ namespace
         PathGenerator route(&creature);
         route.AllowSteepSlopes();
         bool completeRoute = route.CalculatePath(home.GetPositionX(), home.GetPositionY(), home.GetPositionZ(), false) &&
-            !(route.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT));
+            (route.GetPathType() & PATHFIND_NORMAL) &&
+            !(route.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT |
+                PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH | PATHFIND_FARFROMPOLY));
 
         std::vector<ActionPosition> points;
         points.reserve(route.GetPath().size() + 1);
@@ -252,6 +274,20 @@ namespace
             // A long escape can put home beyond the pathfinder's full-route
             // limit. A nearer step must still pass its own complete path check.
             points.push_back({ creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ() });
+
+        if (completeRoute && Movement::PathWithinBounds(route.GetPath(), [&](float x, float y, float z)
+            { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
+                home.GetExactDist2d(x, y) <= state.ReturnHomeLimit; }))
+        {
+            state.ReturnRoute.Planned = LivingReturnPolicy::Corridor(points);
+            state.ReturnRoute.Advance(current);
+            if (!state.ReturnRoute.Planned.empty())
+            {
+                auto step = state.ReturnRoute.Planned.front();
+                if (accept(step, true)) { state.ReturnStrategy = "CORRIDOR"; return step; }
+                state.ReturnRoute.Planned.clear();
+            }
+        }
 
         // A bend may hide the longest waypoint. Retry nearer points on the
         // same route, with bounded work and all the ordinary safety checks.
@@ -289,11 +325,11 @@ namespace
                 if (accept(step, false))
                     return step;
         }
-        if (auto step = LivingRecoveryPath::RejoinPosition(creature);
-            step && LivingReturnPolicy::UsefulStep(current, *step))
+        for (auto step : LivingRecoveryPath::RejoinPositions(creature))
         {
+            if (!LivingReturnPolicy::UsefulStep(current, step)) continue;
             state.ReturnStrategy = "NAV_REJOIN";
-            if (accept(*step, true, true)) return step;
+            if (accept(step, true, true)) return step;
         }
         if (backtrack)
         {
@@ -393,6 +429,13 @@ AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& c
     info.ReturnTrailPoints = uint32(record->LivingRole.ReturnTrail.size());
     info.ReturnStrategy = record->LivingRole.ReturnStrategy;
     info.ReturnFailure = record->LivingRole.ReturnFailure;
+    info.AdvicePilot = _recoveryAdviceAgents.contains(record->Id.Value);
+    info.AdviceEnabled = _recoveryAdviceEnabled;
+    info.AdviceStatus = record->LivingRole.Advice.Status;
+    info.AdviceRequests = record->LivingRole.Advice.Requests;
+    info.AdviceStarted = record->LivingRole.Advice.Started;
+    info.AdviceHomeSuccess = record->LivingRole.Advice.HomeSuccess;
+    info.AdviceFoodSuccess = record->LivingRole.Advice.FoodSuccess;
     uint64 observedAt = GetCurrentTimeMs();
     if (record->LivingRole.ReturnStalledSinceMs && observedAt >= record->LivingRole.ReturnStalledSinceMs)
         info.ReturnStalledMs = observedAt - record->LivingRole.ReturnStalledSinceMs;
@@ -526,6 +569,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     {
         state = {};
         state.RuntimeGuid = creature.GetGUID();
+        state.Advice.LifetimeAt = nowMs;
         state.NextDecisionAtMs = nowMs + record.Id.Value % 15000;
     }
     Position const home = creature.GetHomePosition();
@@ -533,6 +577,37 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     bool anchored = service || creature.IsQuestGiver();
     float radius = anchored ? 0.0f : LivingRolePolicy::RoamRadius(role);
     ActionPosition here{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+    auto& advice = state.Advice;
+    ActionPosition homePoint{here.MapId, home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
+    if (advice.PendingId && (!advice.Fresh(nowMs, here, homePoint) || creature.IsInCombat() || !creature.IsAlive()))
+    { ++advice.Rejected; advice.Status = "STALE"; advice.ClearPending(); }
+    if (record.Needs.Hunger >= 0.95f && creature.IsAlive())
+    { if (!state.HungrySinceMs) state.HungrySinceMs = nowMs; }
+    else state.HungrySinceMs = 0;
+    if (state.ReturningHome && homeDistance + 2.0f < state.BestHomeDistance)
+    { state.BestHomeDistance = homeDistance; state.HomeProgressAtMs = nowMs; }
+    if (advice.Active)
+    {
+        bool huntingForFood = !advice.ActiveReturning &&
+            (state.CurrentPhase == Phase::Hunting || state.CurrentPhase == Phase::Feeding);
+        if (creature.IsInCombat() && !huntingForFood)
+        { advice.Active.reset(); advice.Status = "INTERRUPTED"; }
+    }
+    if (advice.Active)
+    {
+        if (!advice.StepArrived && LivingReturnPolicy::Distance(here, advice.Active->Move.Destination) <= 2.0f)
+        { advice.StepArrived = true; ++advice.Arrived; advice.Status = "STEP_REACHED"; }
+        bool homeReached = advice.ActiveReturning && advice.StepArrived && homeDistance <= radius+2;
+        bool foodFound = !advice.ActiveReturning && advice.StepArrived && state.CurrentPhase == Phase::Feeding &&
+            record.Needs.Hunger + 0.1f < advice.ActiveHunger;
+        if (creature.IsAlive() && (homeReached || foodFound))
+        {
+            if (homeReached) { ++advice.HomeSuccess; advice.Status = "HOME_REACHED"; advice.RememberSuccess(); }
+            else { ++advice.FoodSuccess; advice.Status = "FOOD_FOUND"; advice.Active.reset(); }
+        }
+        else if (!creature.IsAlive() || nowMs > advice.ActiveAt + 180000)
+        { advice.Active.reset(); advice.Status = "OUTCOME_EXPIRED"; }
+    }
     // Actual displacement, including an interrupted return or emergency,
     // ends a stationary episode. A new action alone is not progress.
     if (state.ReturnStalledSinceMs && (state.ReturnStallAnchor.MapId != here.MapId ||
@@ -545,6 +620,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     if (homeDistance <= radius + 2.0f)
     {
         state.ReturningHome = false;
+        state.ReturnStartedAtMs = state.HomeProgressAtMs = 0;
         state.ReturnHomeLimit = 0.0f;
         state.ReturnTrail.clear();
         state.ReturnRoute = {};
@@ -904,7 +980,10 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             default: return false;
         }
         if (result.Status != ActionExecutionStatus::Started)
+        {
+            if (result.RecoveryNavigation) state.ReturnDiagnostics.Navigation = *result.RecoveryNavigation;
             return false;
+        }
         ActiveGoal goal;
         goal.Type = request.SourceGoal;
         goal.Priority = phase == Phase::Defending || IsEscaping(phase) ? GoalPriority::Emergency : GoalPriority::Normal;
@@ -918,7 +997,11 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.CurrentPhase = phase;
         if (IsEscaping(phase) || phase == Phase::Hunting || phase == Phase::Investigating)
         {
+            advice.ClearPending();
+            if (advice.Active && (advice.ActiveReturning || phase != Phase::Hunting))
+            { advice.Active.reset(); advice.Status = "INTERRUPTED"; }
             state.ReturningHome = false;
+            state.ReturnStartedAtMs = state.HomeProgressAtMs = 0;
             state.ReturnHomeLimit = 0.0f;
             state.ReturnRoute = {};
         }
@@ -1099,6 +1182,11 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 5000))
         {
             _needsSystem.SatisfyHunger(record.Needs);
+            if (advice.Active && !advice.ActiveReturning && advice.StepArrived &&
+                nowMs <= advice.ActiveAt + 180000 && record.Needs.Hunger + 0.1f < advice.ActiveHunger)
+            {
+                ++advice.FoodSuccess; advice.Status = "FOOD_FOUND"; advice.Active.reset();
+            }
             state.ForageUntilMs = 0;
             state.HasForageWaypoint = false;
             state.NextForageAtMs = nowMs + LivingForagePolicy::CooldownMs;
@@ -1146,9 +1234,18 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.ReturnRetryAtMs = state.ReturnStalledSinceMs = 0;
                 state.ReturnFailure = "NONE";
             }
-            else FailedReturn(state, nowMs, "RETURN_NO_PROGRESS", here);
+            else
+            {
+                state.ReturnRoute.Reject(state.MoveStart, state.Destination);
+                FailedReturn(state, nowMs, "RETURN_NO_PROGRESS", here);
+            }
         }
         if (foraging && !progressed) state.HasForageWaypoint = false;
+        if (foraging && progressed)
+        {
+            if (advice.Searched.size() == 32) advice.Searched.erase(advice.Searched.begin());
+            advice.Searched.push_back(here);
+        }
         state.NextDecisionAtMs = nowMs + (returningHome || foraging ? 1000 : 6000);
         return true;
     }
@@ -1323,6 +1420,37 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
 
     ActionPosition const* rememberedDanger = extensions && nowMs < state.DangerUntilMs ? &state.DangerPosition : nullptr;
+    auto rememberAdviceStart = [&](LivingAdviceCandidate const& candidate, bool returning)
+    {
+        advice.Active = candidate; advice.ActiveOrigin = here; advice.ActiveAt = nowMs;
+        advice.ActiveHunger = record.Needs.Hunger; advice.ActiveReturning = returning; advice.StepArrived = false;
+        ++advice.Started; advice.Status = "MOVE_STARTED";
+        if (candidate.Backtrack)
+        {
+            state.ReturnRoute.PendingBacktrack = LivingReturnPolicy::RouteMemory::Backtrack{here, candidate.Move.Destination};
+            state.ReturnRoute.CommitBacktrack();
+        }
+    };
+    if (extensions && hungryHunter && !anchored && !rememberedDanger && !state.ReturningHome)
+    {
+        if (auto candidate = TryLivingAdvice(record, creature, nowMs, false, nullptr))
+        {
+            approvedRecovery = candidate->Move;
+            ActionRequest search;
+            search.Type = ActionType::MoveTo; search.SourceGoal = GoalType::LocalActivity;
+            search.Destination = candidate->Move.Destination; search.Recovery = approvedRecovery;
+            if (start(search, Phase::Moving))
+            {
+                rememberAdviceStart(*candidate, false);
+                state.ForageUntilMs = nowMs + LivingForagePolicy::DurationMs;
+                state.HasForageWaypoint = false;
+                state.MovementPurpose = "FORAGE_SEARCH";
+                return true;
+            }
+            ++advice.Rejected; advice.Status = "EXECUTION_REJECTED";
+        }
+        if (advice.PendingId) { state.NextDecisionAtMs = nowMs+1000; return true; }
+    }
     if (extensions && hungryHunter && !anchored && !rememberedDanger)
     {
         if (!state.ForageUntilMs && homeDistance <= radius + 2.0f && nowMs >= state.NextForageAtMs &&
@@ -1411,12 +1539,15 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         ActionPosition destination{ creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ() };
         char const* failure = "LOCAL_PATH_BLOCKED";
         bool pathReady;
+        std::optional<LivingAdviceCandidate> advised;
         if (returningHome)
         {
             if (!state.ReturningHome)
             {
                 state.ReturningHome = true;
-                state.ReturnHomeLimit = homeDistance + 16.0f;
+                state.ReturnHomeLimit = LivingReturnPolicy::HomeLimit(homeDistance);
+                state.ReturnStartedAtMs = state.HomeProgressAtMs = nowMs;
+                state.BestHomeDistance = homeDistance;
                 state.ReturnRoute = {};
                 state.ReturnRoute.Remember(here);
                 state.ReturnRoute.NextCareAtMs = nowMs + 60000;
@@ -1430,14 +1561,29 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 if (!state.ReturnFailures) state.MovementPurpose = "RETURN_NEEDS_BREAK";
                 return true;
             }
-            if (nowMs < state.ReturnRetryAtMs)
+            advised = TryLivingAdvice(record, creature, nowMs, true, rememberedDanger);
+            if (advice.PendingId) { recoverHere(); return true; }
+            if (!advised && nowMs < state.ReturnRetryAtMs)
             {
                 recoverHere();
                 return true;
             }
-            auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state);
-            pathReady = step.has_value();
-            if (step) destination = *step;
+            if (advised)
+            {
+                destination = advised->Move.Destination;
+                state.ReturnDiagnostics = advised->Diagnostics;
+                state.ReturnStrategy = "AI_ADVICE";
+                state.ReturnRoute.Planned.clear();
+                state.ReturnRoute.TrailTarget.reset();
+                state.ReturnRoute.PendingBacktrack.reset();
+                pathReady = true;
+            }
+            else
+            {
+                auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state);
+                pathReady = step.has_value();
+                if (step) destination = *step;
+            }
         }
         else
         {
@@ -1479,15 +1625,20 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 home.GetPositionY(), home.GetPositionZ()}, state.ReturnHomeLimit,
                 rememberedDanger ? std::optional<ActionPosition>(*rememberedDanger) : std::nullopt,
                 std::string_view(state.ReturnStrategy) == "NAV_REJOIN"};
+            approvedRecovery->QueryDestination = state.ReturnDiagnostics.QueryDestination;
+            if (advised) approvedRecovery = advised->Move;
             move.Recovery = approvedRecovery;
         }
         if (start(move, Phase::Moving))
         {
             state.MovementPurpose = returningHome ? "RETURN_HOME" : "LOCAL_ROAM";
             if (returningHome) state.ReturnRoute.CommitBacktrack();
+            if (advised) rememberAdviceStart(*advised, true);
         }
         else if (returningHome)
         {
+            state.ReturnRoute.Reject(here, destination);
+            if (advised) { ++advice.Rejected; advice.Status = "EXECUTION_REJECTED"; }
             FailedReturn(state, nowMs, "RETURN_MOVE_REJECTED", here);
             recoverHere();
         }

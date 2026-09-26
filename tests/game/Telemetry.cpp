@@ -96,6 +96,28 @@ TEST_CASE("Observer never labels retained engine observations as background live
     CHECK(SerializeAgentTelemetry({}, 42) == "{\"version\":4,\"captured_at_ms\":42,\"agents\":[],\"memory_page\":null}");
 }
 
+TEST_CASE("Observer distinguishes model selection step arrival and actual recovery", "[AIWorld][Telemetry]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Live.emplace();
+    agent.LivingRole.emplace();
+    agent.LivingRole->Advice.emplace();
+    auto& advice = *agent.LivingRole->Advice;
+    advice.LifetimeAt = 123; advice.Enabled = true; advice.Requests = 3;
+    advice.Selected = 2; advice.Started = 1; advice.Status = "MOVE_STARTED";
+    agent.LivingRole->ReturnRecovery.emplace();
+    auto& nav = agent.LivingRole->ReturnRecovery->Navigation;
+    nav.Failure = "PATH_BOUNDS"; nav.Detail = "HOME_RADIUS"; nav.HomeRadius = 96;
+    nav.RejectedX = 100;
+    auto json = SerializeAgentTelemetry({agent}, 1000);
+    CHECK(json.find("\"lifetime_ms\":123") != std::string::npos);
+    CHECK(json.find("\"requests\":3") != std::string::npos);
+    CHECK(json.find("\"home_success\":0") != std::string::npos);
+    CHECK(json.find("\"arrived\":0") != std::string::npos);
+    CHECK(json.find("\"detail\":\"HOME_RADIUS\"") != std::string::npos);
+    CHECK(json.find("\"rejected_x\":100") != std::string::npos);
+}
+
 TEST_CASE("Observer memory reads are bounded and anchor pages against new insertions", "[AIWorld][Telemetry]")
 {
     LongTermMemory memory;

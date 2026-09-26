@@ -57,7 +57,7 @@ class TC_GAME_API AIClient
         // that only knows about /decision keeps compiling and behaving
         // exactly as before; AIWorldMgr passes a real configured value
         // once it actually starts calling SubmitDynamicTask() (2.13A3B).
-        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight = 0);
+        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight = 0, uint32 maxRecoveryInFlight = 0);
         ~AIClient();
 
         AIClient(AIClient const&) = delete;
@@ -116,6 +116,7 @@ class TC_GAME_API AIClient
         // /decision traffic can never starve dynamic-task admission, or
         // vice versa.
         uint64 SubmitDynamicTask(AIRequest request);
+        uint64 SubmitRecovery(AIRequest request);
 
         // Non-blocking pop of one completed response. Returns false if none
         // is queued yet.

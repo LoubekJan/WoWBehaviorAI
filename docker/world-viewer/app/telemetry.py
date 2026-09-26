@@ -54,6 +54,11 @@ class NavigationDiagnostics(ProtocolModel):
     swimming: bool
     rejoin: bool
     failure: str = Field(max_length=80)
+    detail: str = Field(default="NONE", max_length=80)
+    home_radius: float = Field(default=0, ge=0)
+    rejected_x: float | None = None
+    rejected_y: float | None = None
+    rejected_z: float | None = None
 
 
 class ReturnRecovery(ProtocolModel):
@@ -76,6 +81,23 @@ class ReturnRecovery(ProtocolModel):
         if any(n < 0 for n in self.rejected.values()):
             raise ValueError("Negative rejection count")
         return self
+
+
+class RecoveryAdvice(ProtocolModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    lifetime_ms: int = Field(ge=0)
+    enabled: bool
+    pending: bool
+    status: str = Field(max_length=80)
+    requests: int = Field(ge=0)
+    selected: int = Field(ge=0)
+    started: int = Field(ge=0)
+    arrived: int = Field(ge=0)
+    home_success: int = Field(ge=0)
+    food_success: int = Field(ge=0)
+    rejected: int = Field(ge=0)
+    unavailable: int = Field(ge=0)
+    reused: int = Field(ge=0)
 
 
 class LivingRole(ProtocolModel):
@@ -107,6 +129,7 @@ class LivingRole(ProtocolModel):
     sprint_multiplier: float | None = Field(default=None, ge=0)
     sprint_remaining_ms: int | None = Field(default=None, ge=0)
     return_recovery: ReturnRecovery | None = None
+    advice: RecoveryAdvice | None = None
 
 
 class Movement(ProtocolModel):

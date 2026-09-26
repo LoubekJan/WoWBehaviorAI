@@ -303,6 +303,9 @@ class TC_GAME_API AIWorldMgr
             uint64 ReturnStalledMs = 0;
             char const* ReturnStrategy = "NONE";
             char const* ReturnFailure = "NONE";
+            bool AdvicePilot = false, AdviceEnabled = false;
+            std::string AdviceStatus;
+            uint32 AdviceRequests = 0, AdviceStarted = 0, AdviceHomeSuccess = 0, AdviceFoodSuccess = 0;
             uint64 CompanionSpawnId = 0;
         };
         std::optional<LivingRoleDebugInfo> DescribeLivingRole(Creature const& creature) const;
@@ -2887,6 +2890,12 @@ class TC_GAME_API AIWorldMgr
         bool _livingWolvesEnabled = false;
         bool _livingRolesEnabled = false;
         bool _livingRoleExtensionsEnabled = false;
+        bool _recoveryAdviceEnabled = false;
+        std::unordered_set<uint64> _recoveryAdviceAgents;
+        uint64 _nextRecoveryAdviceAtMs = 0;
+        void HandleRecoveryAdvice(AIResponse const& response);
+        std::optional<LivingAdviceCandidate> TryLivingAdvice(AgentRecord& record, Creature& creature,
+            uint64 nowMs, bool returning, ActionPosition const* danger);
         bool UpdateLivingRole(AgentRecord& record, Creature& creature, uint64 nowMs);
         void StopLivingRole(AgentRecord& record, Creature& creature);
 

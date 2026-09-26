@@ -191,6 +191,13 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                         role.PreyMoveSpeed = info.PreyMoveSpeed;
                     }
                 }
+                if (_recoveryAdviceAgents.contains(record->Id.Value))
+                {
+                    auto const& source = record->LivingRole.Advice;
+                    role.Advice = RecoveryAdviceTelemetry{source.LifetimeAt, _recoveryAdviceEnabled, source.PendingId != 0, source.Status,
+                        source.Requests, source.Selected, source.Started, source.Arrived, source.HomeSuccess,
+                        source.FoodSuccess, source.Rejected, source.Unavailable, source.Reused};
+                }
                 item.LivingRole = std::move(role);
                 item.LivingWolf = IsLivingWolf(*record);
                 ObjectGuid targetGuid;

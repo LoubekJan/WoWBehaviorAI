@@ -68,6 +68,24 @@ def return_recovery() -> dict:
 
 
 class WorldViewerApiTests(unittest.TestCase):
+    def test_advice_counters_roundtrip_without_changing_behavior_status(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        advice = dict(lifetime_ms=123, enabled=True, pending=False, status='MOVE_STARTED',
+                      requests=3, selected=2, started=1, arrived=0, home_success=0,
+                      food_success=0, rejected=1, unavailable=0, reused=0)
+        payload['agents'][0]['living_role']['advice'] = advice
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        role = self.client.get('/api/state').json()['agents'][0]['living_role']
+        self.assertEqual(role['advice'], advice)
+        self.assertEqual(role['phase'], payload['agents'][0]['living_role']['phase'])
+        for field, value in [('requests', -1), ('started', True), ('status', 'x' * 81), ('unknown', 1)]:
+            with self.subTest(field=field):
+                bad = copy.deepcopy(payload)
+                bad['agents'][0]['living_role']['advice'][field] = value
+                self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['advice'], advice)
+
     def test_recovery_protocol_roundtrips_and_rejects_bad_diagnostics(self):
         payload = v2_batch()
         payload['version'] = 4
@@ -87,12 +105,13 @@ class WorldViewerApiTests(unittest.TestCase):
         payload = v2_batch()
         payload['version'] = 4
         nav = navigation_diagnostics()
+        nav.update(detail="HOME_RADIUS", home_radius=96.0, rejected_x=10.0, rejected_y=20.0, rejected_z=30.0)
         recovery = {**return_recovery(), 'navigation': nav, 'backtracks': 2}
         payload['agents'][0]['living_role']['return_recovery'] = recovery
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], recovery)
         for field, value in [('start_distance', -1), ('end_distance', 'NaN'), ('filter', 65536),
-                             ('failure', 'x' * 81), ('unknown', 1)]:
+                             ('failure', 'x' * 81), ('detail', 'x' * 81), ('home_radius', -1), ('unknown', 1)]:
             with self.subTest(field=field):
                 bad = copy.deepcopy(payload)
                 bad['agents'][0]['living_role']['return_recovery']['navigation'][field] = value
@@ -155,6 +174,7 @@ class WorldViewerApiTests(unittest.TestCase):
         # v2 omitted this later optional field; all original values survive.
         expected = copy.deepcopy(payload["agents"])
         expected[0]["living_role"]["return_recovery"] = None
+        expected[0]["living_role"]["advice"] = None
         self.assertEqual(state["agents"], expected)
         live, background = state["agents"]
         self.assertEqual(live["economy"]["money"], "18446744073709551615")

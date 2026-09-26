@@ -39,6 +39,15 @@ struct ReturnRecoveryTelemetry
     uint32 Backtracks = 0;
 };
 
+struct RecoveryAdviceTelemetry
+{
+    uint64 LifetimeAt = 0;
+    bool Enabled = false, Pending = false;
+    std::string Status;
+    uint32 Requests = 0, Selected = 0, Started = 0, Arrived = 0, HomeSuccess = 0,
+        FoodSuccess = 0, Rejected = 0, Unavailable = 0, Reused = 0;
+};
+
 struct LivingRoleTelemetry
 {
     bool Enabled = false;
@@ -56,6 +65,7 @@ struct LivingRoleTelemetry
     std::optional<float> SprintMultiplier;
     std::optional<uint32> SprintRemainingMs;
     std::optional<ReturnRecoveryTelemetry> ReturnRecovery;
+    std::optional<RecoveryAdviceTelemetry> Advice;
 };
 
 struct MovementTelemetry

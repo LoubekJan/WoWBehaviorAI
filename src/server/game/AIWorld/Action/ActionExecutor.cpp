@@ -104,10 +104,12 @@ ActionResult ActionExecutor::ExecuteMoveTo(ActionRequest const& request, Creatur
     if (request.Recovery)
     {
         Movement::PointsArray points;
+        LivingReturnPolicy::Diagnostics diagnostics;
         if (request.SourceGoal != GoalType::LocalActivity ||
             !RecoveryMovement::SamePoint(*request.Destination, request.Recovery->Destination) ||
-            !LivingRecoveryPath::Build(actor, *request.Recovery, points))
+            !LivingRecoveryPath::Build(actor, *request.Recovery, points, &diagnostics))
         {
+            result.RecoveryNavigation = diagnostics.Navigation;
             result.Status = ActionExecutionStatus::Failed;
             result.Reason = ActionExecutionReason::EngineRejected;
             return result;
@@ -291,6 +293,11 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
             ChaseSpeedBoost(LivingHuntPolicy::SprintRunMultiplier, LivingHuntPolicy::SprintDurationMs));
     else
         actor.GetMotionMaster()->MoveChase(&target);
+
+    if (request.SourceGoal == GoalType::PredatorHunt)
+        if (auto* chase = dynamic_cast<ChaseMovementGenerator*>(
+            actor.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE)))
+            chase->RequireCompleteElwynnPath();
 
     result.Status = ActionExecutionStatus::Started;
     result.Reason = ActionExecutionReason::None;

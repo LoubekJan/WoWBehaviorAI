@@ -23,6 +23,8 @@
 #include "MoveSpline.h"
 #include "MoveSplineInit.h"
 #include "PathGenerator.h"
+#include "MovementPathBounds.h"
+#include "Map.h"
 #include "Unit.h"
 #include "Util.h"
 
@@ -207,8 +209,14 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             if (owner->IsHovering())
                 owner->UpdateAllowedPositionZ(x, y, z);
 
+            if (_elwynnCompletePath) _path->AllowSteepSlopes();
             bool success = _path->CalculatePath(x, y, z, owner->CanFly());
-            if (!success || (_path->GetPathType() & (PATHFIND_NOPATH /* | PATHFIND_INCOMPLETE*/)))
+            bool unsafeHunt = _elwynnCompletePath &&
+                (owner->GetMapId() != 0 || (_path->GetPathType() & (PATHFIND_INCOMPLETE | PATHFIND_FARFROMPOLY |
+                    PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)) ||
+                !Movement::PathWithinBounds(_path->GetPath(), [&](float px, float py, float pz)
+                { return owner->GetMap()->GetZoneId(owner->GetPhaseMask(), px, py, pz) == 12; }));
+            if (!success || (_path->GetPathType() & PATHFIND_NOPATH) || unsafeHunt)
             {
                 if (cOwner)
                     cOwner->SetCannotReachTarget(true);

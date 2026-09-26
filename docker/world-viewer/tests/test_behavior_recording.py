@@ -56,6 +56,25 @@ def stranded():
 
 
 class BehaviorTests(unittest.TestCase):
+    def test_advice_uses_lifetime_maxima_and_never_masks_a_stalled_return(self):
+        rows = samples(npc=stranded())
+        for i, row in enumerate(rows):
+            advice = {"lifetime_ms": 100 if i < 12 else 200, "enabled": True,
+                "status": "MOVE_STARTED", "requests": 2, "selected": 1, "started": 1,
+                "arrived": 0, "home_success": 0, "food_success": 0, "rejected": 0,
+                "unavailable": 0, "reused": 0}
+            row['state']['agents'][0]['living_role']['advice'] = advice
+        report = evaluate(rows)
+        self.assertEqual(report['status'], 'FAIL')
+        self.assertEqual(len(report['recovery_advice']), 2)
+        self.assertEqual(sum(a['counters']['requests'] for a in report['recovery_advice']), 4)
+        self.assertEqual(sum(a['counters']['home_success'] for a in report['recovery_advice']), 0)
+        with tempfile.TemporaryDirectory() as temp:
+            behavior.write_report(report, Path(temp))
+            text = (Path(temp) / 'behavior-report.md').read_text(encoding='utf-8')
+            self.assertIn('Pomoc lokální AI', text)
+            self.assertIn('MOVE_STARTED', text)
+
     def test_version_four_preserves_return_diagnostics_through_idle(self):
         rows = samples(npc=stranded())
         for row in rows:

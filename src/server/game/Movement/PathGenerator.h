@@ -79,7 +79,7 @@ class TC_GAME_API PathGenerator
         NavigationDiagnostics const& GetNavigationDiagnostics() const { return _diagnostics; }
         // Finds a nearby ground polygon only. The caller must validate and walk
         // the connector; this never moves/teleports the owner or forces a path.
-        bool FindRecoveryPosition(G3D::Vector3& point) const;
+        bool FindRecoveryPosition(G3D::Vector3& point, G3D::Vector3 const* probe = nullptr) const;
 
         // result getters
         G3D::Vector3 const& GetStartPosition() const { return _startPosition; }

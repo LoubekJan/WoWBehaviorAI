@@ -43,6 +43,7 @@ namespace LivingReturnPolicy
         float RequestedZ = 0.0f;
         std::optional<float> ResolvedZ;
         NavigationDiagnostics Navigation;
+        std::optional<ActionPosition> QueryDestination;
     };
 
     inline bool Finite(ActionPosition const& point)
@@ -62,18 +63,50 @@ namespace LivingReturnPolicy
         return Finite(from) && Finite(resolved) && from.MapId == resolved.MapId && Distance(from, resolved) > 1.0f;
     }
 
+    // Fixed per episode, with room to walk around a wall. The independent
+    // Elwynn and collision checks still apply to every executed segment.
+    inline float HomeLimit(float initialDistance)
+    { return std::isfinite(initialDistance) ? std::max(96.0f, initialDistance + 64.0f) : 0.0f; }
+
+    inline std::vector<ActionPosition> Corridor(std::vector<ActionPosition> const& path)
+    {
+        std::vector<ActionPosition> result;
+        if (path.size() < 2 || !Finite(path.front())) return result;
+        float total = 0;
+        for (std::size_t i = 1; i < path.size(); ++i)
+        {
+            auto const& a = path[i-1]; auto const& b = path[i];
+            if (!Finite(b) || a.MapId != b.MapId) return {};
+            float length = Distance(a, b);
+            total += length;
+            if (!std::isfinite(total) || total > 480.0f) return {};
+            if (length <= 0.01f) continue;
+            unsigned steps = unsigned(std::ceil(length / 14.0f));
+            for (unsigned n = 1; n <= steps; ++n)
+            {
+                float t = float(n) / steps;
+                result.push_back({a.MapId, a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t, a.Z+(b.Z-a.Z)*t});
+                if (result.size() > 128) return {};
+            }
+        }
+        return result;
+    }
+
     // A short connector to an existing ground polygon is permitted only over
     // continuously supported, visible terrain. No projection across a cliff,
     // to another floor, or through a wall. Callbacks use the live map geometry.
     template<class HeightAt, class ClearSegment>
     std::vector<ActionPosition> SurfaceConnector(ActionPosition const& from, ActionPosition const& to,
-        HeightAt&& heightAt, ClearSegment&& clearSegment)
+        HeightAt&& heightAt, ClearSegment&& clearSegment, char const** failure = nullptr)
     {
-        if (!UsefulStep(from, to)) return {};
+        auto reject = [&](char const* reason) -> std::vector<ActionPosition>
+        { if (failure) *failure = reason; return {}; };
+        if (failure) *failure = "NONE";
+        if (!UsefulStep(from, to)) return reject("CONNECTOR_ZERO_STEP");
         float length = std::hypot(to.X - from.X, to.Y - from.Y);
-        if (length < 0.5f || length > 6.0f || std::abs(to.Z - from.Z) > 3.0f) return {};
+        if (length < 0.5f || length > 6.0f || std::abs(to.Z - from.Z) > 3.0f) return reject("CONNECTOR_RANGE");
         auto startHeight = heightAt(from);
-        if (!startHeight || !std::isfinite(*startHeight) || std::abs(*startHeight - from.Z) > 1.0f) return {};
+        if (!startHeight || !std::isfinite(*startHeight) || std::abs(*startHeight - from.Z) > 1.0f) return reject("CONNECTOR_START_HEIGHT");
         std::vector<ActionPosition> result{from};
         unsigned steps = unsigned(std::ceil(length / 0.5f));
         float previousHeight = *startHeight;
@@ -83,10 +116,10 @@ namespace LivingReturnPolicy
             ActionPosition point{from.MapId, from.X + (to.X - from.X) * t,
                 from.Y + (to.Y - from.Y) * t, from.Z + (to.Z - from.Z) * t};
             auto height = heightAt(point);
-            if (!height || !std::isfinite(*height) || std::abs(*height - point.Z) > 1.0f ||
-                std::abs(*height - previousHeight) > 0.75f) return {};
+            if (!height || !std::isfinite(*height) || std::abs(*height - point.Z) > 1.0f) return reject("CONNECTOR_SURFACE_HEIGHT");
+            if (std::abs(*height - previousHeight) > 0.75f) return reject("CONNECTOR_CLIFF");
             point.Z = *height;
-            if (!clearSegment(result.back(), point)) return {};
+            if (!clearSegment(result.back(), point)) return reject("CONNECTOR_OBSTACLE");
             result.push_back(point);
             previousHeight = *height;
         }
@@ -123,6 +156,27 @@ namespace LivingReturnPolicy
         std::vector<Backtrack> Backtracks;
         std::optional<Backtrack> PendingBacktrack;
         uint64 NextCareAtMs = 0;
+        std::vector<Backtrack> FailedEdges;
+        std::vector<ActionPosition> Planned;
+
+        bool Failed(ActionPosition const& from, ActionPosition const& to) const
+        {
+            return std::any_of(FailedEdges.begin(), FailedEdges.end(), [&](Backtrack const& edge)
+            { return edge.From.MapId == from.MapId && Distance(edge.From, from) <= 2.0f && Distance(edge.To, to) <= 1.0f; });
+        }
+        void Reject(ActionPosition const& from, ActionPosition const& to)
+        {
+            if (!Finite(from) || !Finite(to) || Failed(from, to)) return;
+            if (FailedEdges.size() == MaxTrailPoints) FailedEdges.erase(FailedEdges.begin());
+            FailedEdges.push_back({from, to});
+            Planned.clear();
+        }
+        void Advance(ActionPosition const& here)
+        {
+            while (!Planned.empty() && Planned.front().MapId == here.MapId &&
+                Distance(Planned.front(), here) <= ArrivalToleranceYards)
+                Planned.erase(Planned.begin());
+        }
 
         bool CanBacktrack(ActionPosition const& from, ActionPosition const& to) const
         {

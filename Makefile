@@ -83,6 +83,10 @@ reset-db:
 gpu-test:
 	$(COMPOSE) --profile gpu-check run --rm gpu-check
 
+.PHONY: test-recovery-ai
+test-recovery-ai:
+	$(COMPOSE) exec -T ai-server python -m app.recovery_smoke
+
 ## import a pinned TDB world-content dump: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]
 db-import-tdb:
 	@test -n "$(TDB_VERSION)" || (echo "Usage: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]"; exit 1)

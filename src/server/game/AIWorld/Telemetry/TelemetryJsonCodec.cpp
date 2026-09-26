@@ -87,7 +87,10 @@ namespace
         WriteJsonField(out, "filter", nav.Filter); WriteJsonField(out, "start_flags", nav.StartFlags);
         WriteJsonField(out, "end_flags", nav.EndFlags); WriteJsonField(out, "start_distance", nav.StartDistance);
         WriteJsonField(out, "end_distance", nav.EndDistance); WriteJsonField(out, "swimming", nav.Swimming);
-        WriteJsonField(out, "rejoin", nav.Rejoin); WriteJsonField(out, "failure", nav.Failure); out << '}';
+        WriteJsonField(out, "rejoin", nav.Rejoin); WriteJsonField(out, "failure", nav.Failure);
+        WriteJsonField(out, "detail", nav.Detail); WriteJsonField(out, "home_radius", nav.HomeRadius);
+        WriteJsonField(out, "rejected_x", nav.RejectedX); WriteJsonField(out, "rejected_y", nav.RejectedY);
+        WriteJsonField(out, "rejected_z", nav.RejectedZ); out << '}';
         char const* names[] = { "invalid", "height", "zone", "los", "path", "bounds", "danger" };
         out << ",\"rejected\":{";
         for (std::size_t i = 0; i < recovery.Rejections.size(); ++i)
@@ -120,6 +123,20 @@ namespace
         // Explicit dispatch avoids two-phase lookup of the later overload.
         out << ",\"return_recovery\":";
         if (role.ReturnRecovery) WriteValue(out, *role.ReturnRecovery); else out << "null";
+        out << ",\"advice\":";
+        if (role.Advice)
+        {
+            auto const& a = *role.Advice;
+            out << "{\"enabled\":"; WriteValue(out, a.Enabled);
+            WriteJsonField(out, "lifetime_ms", a.LifetimeAt);
+            WriteJsonField(out, "pending", a.Pending); WriteJsonField(out, "status", a.Status);
+            WriteJsonField(out, "requests", a.Requests); WriteJsonField(out, "selected", a.Selected);
+            WriteJsonField(out, "started", a.Started); WriteJsonField(out, "arrived", a.Arrived);
+            WriteJsonField(out, "home_success", a.HomeSuccess); WriteJsonField(out, "food_success", a.FoodSuccess);
+            WriteJsonField(out, "rejected", a.Rejected); WriteJsonField(out, "unavailable", a.Unavailable);
+            WriteJsonField(out, "reused", a.Reused); out << '}';
+        }
+        else out << "null";
         out << '}';
     }
     void WriteValue(std::ostream& out, MovementTelemetry const& movement)

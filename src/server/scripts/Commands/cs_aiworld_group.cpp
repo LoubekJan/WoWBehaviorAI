@@ -193,6 +193,10 @@ public:
                         role->ReturnStrategy, role->ReturnFailure, role->ReturnFailures, role->ReturnStalledMs, role->ReturnTrailPoints));
                 if (role->CompanionSpawnId)
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld role: local companion spawnId={} (not persistent group membership)", role->CompanionSpawnId));
+                if (role->AdvicePilot)
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld advice: enabled={} status={} requests={} started={} homeSuccess={} foodSuccess={}",
+                        role->AdviceEnabled, role->AdviceStatus, role->AdviceRequests, role->AdviceStarted,
+                        role->AdviceHomeSuccess, role->AdviceFoodSuccess));
             }
             if (std::optional<AIWorldMgr::WolfFormationDebugInfo> wolf = sAIWorldMgr->DescribeWolfFormation(*target);
                 wolf && target->GetEntry() == wolf->ExpectedEntry)

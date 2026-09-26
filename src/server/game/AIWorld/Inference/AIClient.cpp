@@ -763,7 +763,7 @@ namespace
         public:
             DynamicTaskSession(net::io_context& ioContext, std::string const& host, std::string const& port,
                 uint32 timeoutMs, AIRequest const& request, MPSCQueue<AIResponse>* responseQueue, std::atomic<uint32>* inFlightCount)
-                : _resolver(net::make_strand(ioContext)), _stream(net::make_strand(ioContext)),
+                : _resolver(net::make_strand(ioContext)), _stream(_resolver.get_executor()),
                   _resolveTimer(_resolver.get_executor()),
                   _host(host), _port(port), _timeoutMs(timeoutMs), _request(request),
                   _responseQueue(responseQueue), _inFlightCount(inFlightCount),
@@ -776,16 +776,16 @@ namespace
             {
                 _httpRequest.version(11);
                 _httpRequest.method(http::verb::post);
-                _httpRequest.target(DynamicTaskEndpoint);
+                _httpRequest.target(_request.Type == AIRequestType::Recovery ? "/recovery" : DynamicTaskEndpoint);
                 _httpRequest.set(http::field::host, _host + ":" + _port);
                 _httpRequest.set(http::field::user_agent, "TrinityCore-AIWorld");
                 _httpRequest.set(http::field::content_type, "application/json");
-                _httpRequest.body() = SerializeDynamicTaskRequest(_request.DynamicTask);
+                _httpRequest.body() = _request.Type == AIRequestType::Recovery ? SerializeRecoveryAdvice(_request.Recovery) : SerializeDynamicTaskRequest(_request.DynamicTask);
                 _httpRequest.prepare_payload();
 
-                TC_LOG_INFO("ai.world", "AI dynamic-task request id={} version={} agent={} snapshot={} submitted",
-                    _request.RequestId, ToUnderlying(_request.DynamicTask.Version),
-                    _request.DynamicTask.Context.Agent.Value, _request.DynamicTask.Context.SnapshotSequence);
+                TC_LOG_INFO("ai.world", "AI structured request id={} endpoint={} agent={} submitted",
+                    _request.RequestId, _request.Type == AIRequestType::Recovery ? "recovery" : "dynamic-task",
+                    _request.Type == AIRequestType::Recovery ? _request.Recovery.Agent.Value : _request.DynamicTask.Context.Agent.Value);
 
                 _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
                 _resolveTimer.async_wait(
@@ -807,7 +807,7 @@ namespace
 
             void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
             {
-                _resolveTimer.cancel();
+                if (_request.Type != AIRequestType::Recovery) _resolveTimer.cancel();
 
                 if (ec)
                     return Complete(false, 0, ec, std::nullopt, std::string(), false);
@@ -825,6 +825,7 @@ namespace
                 if (ec)
                     return Complete(false, 0, ec, std::nullopt, std::string(), false);
 
+                if (_completed.load(std::memory_order_acquire)) return;
                 _stream.expires_after(std::chrono::milliseconds(_timeoutMs));
                 http::async_write(_stream, _httpRequest,
                     beast::bind_front_handler(&DynamicTaskSession::OnWrite, shared_from_this()));
@@ -835,6 +836,7 @@ namespace
                 if (ec)
                     return Complete(false, 0, ec, std::nullopt, std::string(), false);
 
+                if (_completed.load(std::memory_order_acquire)) return;
                 http::async_read(_stream, _buffer, _parser,
                     beast::bind_front_handler(&DynamicTaskSession::OnRead, shared_from_this()));
             }
@@ -847,6 +849,15 @@ namespace
                 http::response<http::string_body> const& httpResponse = _parser.get();
                 uint32 statusCode = httpResponse.result_int();
                 bool success = statusCode >= 200 && statusCode < 300;
+
+                if (_request.Type == AIRequestType::Recovery)
+                {
+                    RecoveryAdviceResponse candidate;
+                    success = success && ParseRecoveryAdvice(httpResponse.body(), candidate) &&
+                        MatchesRecoveryAdvice(_request.Recovery, candidate);
+                    return Complete(success, statusCode, ec, std::nullopt, success ? "" : "recovery rejected", false,
+                        success ? std::optional<RecoveryAdviceResponse>(candidate) : std::nullopt);
+                }
 
                 std::optional<DynamicTaskResponse> parsed;
                 std::string rejectReason;
@@ -890,41 +901,46 @@ namespace
             // rejectReason/protocolMismatch follow the exact same meaning
             // as there. `parsed` is only set once success, well-formed
             // parse, AND envelope match all held - see OnRead().
-            void Complete(bool success, uint32 statusCode, beast::error_code ec, std::optional<DynamicTaskResponse> parsed, std::string const& rejectReason, bool protocolMismatch)
+            void Complete(bool success, uint32 statusCode, beast::error_code ec, std::optional<DynamicTaskResponse> parsed, std::string const& rejectReason, bool protocolMismatch,
+                std::optional<RecoveryAdviceResponse> recovery = std::nullopt)
             {
                 if (_completed.exchange(true, std::memory_order_acq_rel))
                     return;
 
+                _resolveTimer.cancel();
                 beast::error_code ignored;
+                _stream.socket().cancel(ignored);
                 _stream.socket().shutdown(tcp::socket::shutdown_both, ignored);
                 _inFlightCount->fetch_sub(1, std::memory_order_acq_rel);
 
                 uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - _startTime).count());
 
-                AgentId requestAgent = _request.DynamicTask.Context.Agent;
+                AgentId requestAgent = _request.Type == AIRequestType::Recovery ? _request.Recovery.Agent : _request.DynamicTask.Context.Agent;
 
                 if (ec == beast::error::timeout)
-                    TC_LOG_WARN("ai.world", "AI dynamic-task request id={} agent={} timed out after {}ms",
+                    TC_LOG_WARN("ai.world", "AI structured request id={} agent={} timed out after {}ms",
                         _request.RequestId, requestAgent.Value, _timeoutMs);
                 else if (ec)
-                    TC_LOG_WARN("ai.world", "AI dynamic-task request id={} agent={} failed: {}",
+                    TC_LOG_WARN("ai.world", "AI structured request id={} agent={} failed: {}",
                         _request.RequestId, requestAgent.Value, ec.message());
                 else if (!rejectReason.empty())
-                    TC_LOG_WARN("ai.world", "AI dynamic-task response id={} agent={} {} status={} latency={}ms",
+                    TC_LOG_WARN("ai.world", "AI structured response id={} agent={} {} status={} latency={}ms",
                         _request.RequestId, requestAgent.Value, rejectReason, statusCode, latencyMs);
                 else if (!success)
-                    TC_LOG_WARN("ai.world", "AI dynamic-task request id={} agent={} completed with non-2xx status={} latency={}ms",
+                    TC_LOG_WARN("ai.world", "AI structured request id={} agent={} completed with non-2xx status={} latency={}ms",
                         _request.RequestId, requestAgent.Value, statusCode, latencyMs);
                 else
-                    TC_LOG_INFO("ai.world", "AI dynamic-task response id={} agent={} snapshot={} latency={}ms",
-                        _request.RequestId, requestAgent.Value, _request.DynamicTask.Context.SnapshotSequence, latencyMs);
+                    TC_LOG_INFO("ai.world", "AI structured response id={} agent={} endpoint={} latency={}ms",
+                        _request.RequestId, requestAgent.Value,
+                        _request.Type == AIRequestType::Recovery ? "recovery" : "dynamic-task", latencyMs);
 
                 (void)protocolMismatch; // reserved for a future metrics pass, same as DecisionSession's own tag
 
                 AIResponse* response = new AIResponse();
                 response->RequestId = _request.RequestId;
-                response->Type = AIRequestType::DynamicTask;
+                response->Type = _request.Type;
+                response->Recovery = std::move(recovery);
                 response->Agent = requestAgent;
                 response->SnapshotSequence = _request.DynamicTask.Context.SnapshotSequence;
 
@@ -960,9 +976,9 @@ namespace
 
 struct AIClient::Impl
 {
-    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight)
+    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight, uint32 maxRecoveryInFlight)
         : IoContextRef(ioContext), Host(std::move(host)), Port(std::move(port)), RequestTimeoutMs(requestTimeoutMs),
-          MaxDecisionsInFlight(maxDecisionsInFlight), MaxDynamicTasksInFlight(maxDynamicTasksInFlight)
+          MaxDecisionsInFlight(maxDecisionsInFlight), MaxDynamicTasksInFlight(maxDynamicTasksInFlight), MaxRecoveryInFlight(maxRecoveryInFlight)
     {
     }
 
@@ -972,6 +988,8 @@ struct AIClient::Impl
     uint32 RequestTimeoutMs;
     uint32 MaxDecisionsInFlight;
     uint32 MaxDynamicTasksInFlight;
+    uint32 MaxRecoveryInFlight;
+    std::atomic<uint32> RecoveryInFlight { 0 };
     std::atomic<uint64> NextRequestId { 1 };
     MPSCQueue<AIResponse> ResponseQueue;
 
@@ -999,8 +1017,8 @@ struct AIClient::Impl
     std::atomic<uint32> DynamicTasksInFlight { 0 };
 };
 
-AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight)
-    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs, maxDecisionsInFlight, maxDynamicTasksInFlight))
+AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight, uint32 maxRecoveryInFlight)
+    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs, maxDecisionsInFlight, maxDynamicTasksInFlight, maxRecoveryInFlight))
 {
 }
 
@@ -1169,6 +1187,26 @@ uint64 AIClient::SubmitDynamicTask(AIRequest request)
     });
 
     return requestId;
+}
+
+uint64 AIClient::SubmitRecovery(AIRequest request)
+{
+    if (request.Recovery.Options.empty() || request.Recovery.Options.size() > 8) return 0;
+    uint32 current = _impl->RecoveryInFlight.load(std::memory_order_acquire);
+    do { if (current >= _impl->MaxRecoveryInFlight) return 0; }
+    while (!_impl->RecoveryInFlight.compare_exchange_weak(current, current+1, std::memory_order_acq_rel));
+    request.RequestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
+    request.Type = AIRequestType::Recovery;
+    request.Recovery.RequestId = request.RequestId;
+    net::io_context& context = _impl->IoContextRef;
+    auto* queue = &_impl->ResponseQueue;
+    auto* count = &_impl->RecoveryInFlight;
+    auto host = _impl->Host, port = _impl->Port;
+    net::post(context, [&context, host, port, request, queue, count]()
+    {
+        std::make_shared<DynamicTaskSession>(context, host, port, 10000, request, queue, count)->Run();
+    });
+    return request.RequestId;
 }
 
 bool AIClient::TryPopResponse(AIResponse& response)

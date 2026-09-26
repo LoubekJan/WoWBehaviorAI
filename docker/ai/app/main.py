@@ -1,7 +1,8 @@
 """AI bridge - health endpoint + versioned decision protocol stub (Etapa 1
 section 1.11 / Etapa 2 sections 2.9/2.9A/2.9B).
 
-No real inference yet - this exists so worldserver's async transport
+The /decision path below remains deterministic; /dynamic-task and /recovery
+use the configured model backend. The decision stub exists so worldserver's async transport
 (resolve/connect/write/read, timeouts, stale-response rejection) and, since
 2.9B, its structured DecisionResponse handling can be exercised end-to-end
 before any model is involved. Milestone 2.9A widened the request body from
@@ -54,7 +55,10 @@ from .model_provider import (
     OpenAICompatibleTaskProvider,
 )
 
+from .recovery import router as recovery_router, get_recovery_config
+
 app = FastAPI(title="ai-server", version="0.1.0")
+app.include_router(recovery_router)
 
 CURRENT_PROTOCOL_VERSION = 2
 
@@ -79,6 +83,8 @@ def health(config: ModelProviderConfig = Depends(get_task_model_config)) -> dict
         "status": "ok",
         "task_model_enabled": config.enabled,
         "task_model_configured": config.configured,
+        "recovery_model_enabled": get_recovery_config().enabled,
+        "recovery_model_configured": get_recovery_config().configured,
     }
 
 

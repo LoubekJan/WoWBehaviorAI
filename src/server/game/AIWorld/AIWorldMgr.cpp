@@ -57,6 +57,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <sstream>
 #include <vector>
 
 namespace
@@ -718,6 +719,16 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _livingWolvesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingWolvesEnabled", false);
     _livingRolesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRolesEnabled", false);
     _livingRoleExtensionsEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRoleExtensionsEnabled", false);
+    _recoveryAdviceEnabled = sConfigMgr->GetBoolDefault("AIWorld.RecoveryAdviceEnabled", false);
+    _recoveryAdviceAgents.clear();
+    _nextRecoveryAdviceAtMs = 0;
+    std::istringstream recoveryIds(sConfigMgr->GetStringDefault("AIWorld.RecoveryAdviceAgents", ""));
+    uint64 recoveryId;
+    while (recoveryIds >> recoveryId)
+    {
+        if (recoveryId && _recoveryAdviceAgents.size() < 32) _recoveryAdviceAgents.insert(recoveryId);
+        if (recoveryIds.peek() == ',') recoveryIds.ignore();
+    }
     TC_LOG_INFO("ai.world", "AI living roles enabled={} extensions={} scope=Elwynn controlled permanent NPCs",
         _livingRolesEnabled, _livingRoleExtensionsEnabled);
     bool wolfGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRoamEnabled", false);
@@ -1368,7 +1379,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // _dynamicTaskEnabled's own declaration comment.
     uint32 dynamicTaskSlots = _dynamicTaskEnabled ? _dynamicTaskMaxInFlight : 0;
 
-    _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight, dynamicTaskSlots);
+    _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight,
+        dynamicTaskSlots, _recoveryAdviceEnabled ? 2 : 0);
 
     // Opt-in observer. The token is supplied through the process environment
     // so it never has to be written to the worldserver configuration file.
@@ -8729,6 +8741,12 @@ void AIWorldMgr::Update(uint32 diff)
     while (drainedResponses < _aiResponseDrainMaxPerTick && _aiClient->TryPopResponse(response))
     {
         ++drainedResponses;
+
+        if (response.Type == AIRequestType::Recovery)
+        {
+            HandleRecoveryAdvice(response);
+            continue;
+        }
 
         if (response.Type == AIRequestType::DynamicTask)
         {

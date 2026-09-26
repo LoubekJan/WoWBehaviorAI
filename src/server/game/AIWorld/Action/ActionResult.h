@@ -22,6 +22,7 @@
 #include "Agent/AgentId.h"
 #include "Define.h"
 #include "Goal/GoalType.h"
+#include "NavigationDiagnostics.h"
 
 // Milestone 2.8C: what ActionExecutor actually did with an already-ALLOWED
 // ActionRequest - distinct from ActionValidationResult (may this run at
@@ -78,6 +79,7 @@ struct ActionResult
 
     GoalType SourceGoal = GoalType::FleeDanger;
     uint64 GoalStartedAtMs = 0;
+    std::optional<NavigationDiagnostics> RecoveryNavigation;
 };
 
 #endif // AIWORLD_ACTIONRESULT_H

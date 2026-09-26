@@ -3,6 +3,100 @@
 Lokální rozšíření z 22. 9. 2026 navazuje na ve hře ověřený vlčí pilot.
 Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 2026 výslovně potvrdil také funkční lov Forest Spider a pomoc blízkých Defias. Oba původně neúspěšné scénáře tak mají potvrzený opakovaný herní test.
 
+## Individuální pomoc lokální AI a oprava návratů — 26. 9. 2026
+
+Navazuje na běh `20260926T114312Z-af9bab2d`: 27 nehybných návratů,
+33 návratů přes deset minut, 26 právě zaseknutých NPC na konci záznamu.
+Úspěch změny musí potvrdit další herní běh. Jednotkové testy nenahrazují
+průchodnost konkrétních mapových míst.
+
+Návrat si drží úplnou cestu přes více úseků a pamatuje si odmítnuté
+orientované kroky. Pevný prostor pro obcházení překážky je pro daný
+návrat `max(96, počáteční vzdálenost od domova + 64)` yardů. Limit 16
+ústupů zůstává; pohyb jej neobnovuje. Každý úsek stále kontroluje kolize,
+domovskou mez, nebezpečí i hranici Elwynnu. Změna není teleportace.
+Normalizovaný konec cesty zachová původní navigační dotaz i při spuštění
+pohybu a musí představovat skutečný krok delší než jeden yard.
+
+Připojení k navigaci zkouší více blízkých polygonů se stejnými přísnými
+kontrolami podkladu a překážek. `navigation.detail` rozlišuje hranici
+zóny, domovský poloměr, limit kontrolované geometrie a důvod odmítnutí
+povrchového spojení. `rejected_x/y/z` a `home_radius` popisují zamítnutou
+mez. Pouze pronásledování řízené cílem `PREDATOR_HUNT` nyní vyžaduje
+úplnou cestu v Elwynnu i při každém přepočtu během lovu.
+
+Lokální model slouží jako pomoc při opakovaném selhání. Server předem
+ověří nejvýše osm možností, model přes `/recovery` vrátí jen token jedné
+z nich nebo nulu pro odmítnutí. Odpověď se váže na konkrétní požadavek,
+NPC a situaci; starší než 30 sekund nebo po změně polohy o více než dva
+yardy se zahodí. Před provedením se cesta znovu ověří proti aktuálnímu
+terénu a nebezpečí. Boj má přednost a ruší čekající radu.
+
+- Návrat žádá radu po nejméně 30 sekundách bez přiblížení k domovu,
+  pokud zároveň třikrát selhal nebo běží alespoň minutu.
+- Predátor žádá radu po dvou minutách hladu nejméně 0,95. Nabídka zohledňuje
+  viditelnou kořist a již prohledaná místa v dosavadním dosahu 80 yardů.
+- Nejvýše dva požadavky běží současně; nové požadavky mají globální rozestup
+  dvě sekundy a u jednoho NPC dvě minuty. Model má šestisekundový limit,
+  celý transport desetisekundový. Herní vlákno nečeká na síť.
+- Při nedostupném modelu či chybné odpovědi pokračuje běžná logika.
+  Pokud není žádná bezpečná možnost, model se nevolá (`NO_VALID_OPTIONS`).
+- Paměť nejvýše osmi dříve úspěšných kroků je lokální pro danou
+  materializaci NPC. Krok se zapamatuje až po skutečném návratu domů,
+  při použití se opět ověří. Nejde o přetrénování modelu ani trvalou databázi.
+
+**Zapnutí po deployi:** distribuční konfigurace je vypnutá. Projektová
+`deploy/worldserver.conf` zapíná pilot pro agent ID
+`80447,80461,146146,146129,146433,80992` (stráže, vlci, žába a pavouk).
+Seznam `AIWorld.RecoveryAdviceAgents` přijímá nejvýše 32 ID; prázdný
+seznam nezapne všechny NPC. Ostatní NPC dostanou opravy návratů, ale
+model nevolají. Pro srovnání lze přepnout `AIWorld.RecoveryAdviceEnabled=0`
+a restartovat worldserver se stejným sestavením.
+
+AI server přebírá existující `AI_TASK_MODEL_URL`, `AI_TASK_MODEL_NAME`
+a případný klíč. `AI_RECOVERY_MODEL_ENABLED=1` zapíná nový endpoint
+nezávisle na dynamických úkolech. Volitelné `AI_RECOVERY_MODEL_URL/NAME`
+mohou zvolit jiný backend. Adresa musí být dosažitelná z kontejneru
+`ai-server`. Nasazení musí sestavit worldserver, ai-server i world-viewer.
+
+CI po deployi provede skutečný dotaz na model přes `make test-recovery-ai`.
+Jde pouze o kontrolní výběr tokenu, který ve hře nic nevykoná. Selhání
+této kontroly nezastaví záznamník; chování bez dostupného modelu zůstává
+měřitelné. Kontrolu lze zopakovat ručně:
+
+```bash
+make test-recovery-ai
+make record-aiworld-status
+```
+
+U pilotního NPC ukáže `.aiworld group status` nový řádek `AIWorld advice`.
+Observer ukazuje stejný stav a `living_role.advice` se ukládá do archivu.
+Automatický report přidává tabulku **Pomoc lokální AI**: požadavky,
+výběry, spuštění, dosažené kroky, návraty domů, nalezené jídlo a chyby
+dostupnosti. Počítadla se oddělují podle materializace NPC (`lifetime_ms`).
+`MOVE_STARTED` není úspěch návratu. `HOME_REACHED` vyžaduje dosažený krok
+a domovskou oblast; `FOOD_FOUND` skutečné dokončené krmení po hledání.
+Nedokončená rada se po třech minutách přestane hodnotit jako aktivní;
+kontroly dlouhého návratu tím nezmizí.
+
+Při testu sleduj zejména stráže 80447/80461 při obcházce, vlky
+146146/146129 po lovu a žábu 146433 ve vodě. Pavouk 80992 má ověřit
+změnu hledání potravy. V případě `MODEL_UNAVAILABLE` ověř konfiguraci
+backendu příkazem výše; `NO_VALID_OPTIONS` znamená, že nepomůže další
+dotaz na model a je potřeba zkoumat navigační diagnostiku. Poté nech
+automatický čtyřhodinový běh bez zásahů a porovnej návraty, hlad a novou
+tabulku AI. Žádný zásah modelu nesmí sám vynulovat měřený problém.
+
+Lokální ověření: 50 C++ testů chování/protokolu (3 851 kontrol), sedm
+testů serializace telemetrie (73 kontrol), 74 Python testů AI serveru,
+66 úspěšných testů Observeru a osm JavaScript testů. Jeden test ukončení
+záznamníku signálem SIGTERM se na Windows záměrně přeskakuje. Nové testy
+pokrývají i cizí nebo zastaralou odpověď, neznámou volbu, odmítnutí,
+nedostupný model a limity souběhu; odpovědi modelu jsou v nich simulované.
+Úplné sestavení worldserveru a skutečnou inferenci zde nebylo možné
+ověřit. Místní Boost postrádá Asio a část Preprocessoru; úplnou kompilaci
+musí potvrdit CI a běžící model kontrola po deployi.
+
 ## Zotavení na svazích, ve vodě a ve slepých uličkách — 26. 9. 2026
 
 Poslední čtyřhodinový běh bez zásahů zachytil 34 nehybných návratů.

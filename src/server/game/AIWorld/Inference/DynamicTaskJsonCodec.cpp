@@ -17,6 +17,8 @@
 
 #include "DynamicTaskJsonCodec.h"
 #include "QuestContractLimits.h"
+#include "RecoveryAdvice.h"
+#include <locale>
 
 #include <cctype>
 #include <cmath>
@@ -834,4 +836,58 @@ bool ParseDynamicTaskResponse(std::string_view json, DynamicTaskResponse& respon
     response.Proposal = std::move(draft);
 
     return true;
+}
+
+std::string SerializeRecoveryAdvice(RecoveryAdviceRequest const& request)
+{
+    std::ostringstream out;
+    out.imbue(std::locale::classic());
+    out << "{\"protocol_version\":1,\"request_id\":" << request.RequestId
+        << ",\"agent_id\":" << request.Agent.Value << ",\"episode\":" << request.Episode;
+    for (auto const& field : {std::pair{"role", request.Role}, {"problem", request.Problem}, {"failure", request.Failure}})
+    { out << ",\"" << field.first << "\":"; AppendEscapedJsonString(out, field.second); }
+    out << ",\"hunger\":" << request.Hunger << ",\"home_distance\":" << request.HomeDistance
+        << ",\"stalled_ms\":" << request.StalledMs << ",\"failures\":" << request.Failures << ",\"options\":[";
+    bool first = true;
+    for (auto const& option : request.Options)
+    {
+        if (!first) out << ',';
+        first = false;
+        out << "{\"token\":" << option.Token << ",\"strategy\":";
+        AppendEscapedJsonString(out, option.Strategy);
+        out << ",\"dx\":" << option.X << ",\"dy\":" << option.Y << ",\"dz\":" << option.Z
+            << ",\"distance\":" << option.Distance << ",\"home_gain\":" << option.HomeGain
+            << ",\"nearby_prey\":" << option.NearbyPrey << ",\"visits\":" << option.Visits
+            << ",\"successes\":" << option.Successes << '}';
+    }
+    out << "]}";
+    return out.str();
+}
+
+bool ParseRecoveryAdvice(std::string_view json, RecoveryAdviceResponse& response)
+{
+    if (json.size() > 4096) return false;
+    std::vector<JsonObjectMember> members;
+    if (!ParseJsonRootObjectMembers(json, members) ||
+        !HasExactKeySet(members, {"protocol_version", "request_id", "agent_id", "episode", "choice"})) return false;
+    uint64 values[5]{};
+    unsigned index = 0;
+    for (auto key : {"protocol_version", "request_id", "agent_id", "episode", "choice"})
+    {
+        auto field = FindMember(members, key);
+        if (!ParseUInt64Value(json, field->ValueStart, field->ValueEnd, values[index++])) return false;
+    }
+    if (values[0] != 1 || !values[1] || !values[2] || !values[3] || values[4] > 8) return false;
+    response = {values[1], values[3], AgentId{values[2]}, uint32(values[4])};
+    return true;
+}
+
+bool MatchesRecoveryAdvice(RecoveryAdviceRequest const& request, RecoveryAdviceResponse const& response)
+{
+    if (!request.RequestId || response.RequestId != request.RequestId || response.Agent != request.Agent ||
+        response.Episode != request.Episode) return false;
+    if (response.Token == 0) return true;
+    for (auto const& option : request.Options)
+        if (option.Token == response.Token) return true;
+    return false;
 }

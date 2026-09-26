@@ -16,5 +16,8 @@ struct NavigationDiagnostics
     std::optional<float> StartDistance, EndDistance;
     bool Swimming = false, Rejoin = false;
     std::string Failure = "NONE";
+    std::string Detail = "NONE";
+    float HomeRadius = 0.0f;
+    std::optional<float> RejectedX, RejectedY, RejectedZ;
 };
 #endif

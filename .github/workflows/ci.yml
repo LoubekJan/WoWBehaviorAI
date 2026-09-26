@@ -20,6 +20,9 @@ jobs:
       - name: Test Observer, recording and behavior evaluation
         working-directory: docker/world-viewer
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Test local-model quest and recovery protocols
+        working-directory: docker/ai
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
 
   # PR gate: GitHub-hosted, ephemeral VM per run. ccache is restored from
   # actions/cache but the CMake/Ninja build dir itself is not persisted, so
@@ -265,6 +268,14 @@ jobs:
           wait_healthy world-viewer 30
 
           docker compose ps
+
+      - name: Probe recovery model without changing the world
+        # Keep recording available even when the optional model is offline.
+        # NPC telemetry reports MODEL_UNAVAILABLE / REQUEST_FAILED separately.
+        continue-on-error: true
+        run: |
+          cd /home/voslik/WoWBehaviorAI
+          make test-recovery-ai
 
       - name: AI smoke test
         run: |

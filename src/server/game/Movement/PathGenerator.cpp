@@ -95,12 +95,16 @@ bool PathGenerator::CalculatePath(float destX, float destY, float destZ, bool fo
     return true;
 }
 
-bool PathGenerator::FindRecoveryPosition(G3D::Vector3& point) const
+bool PathGenerator::FindRecoveryPosition(G3D::Vector3& point, G3D::Vector3 const* probe) const
 {
     if (!_navMesh || !_navMeshQuery) return false;
     G3D::Vector3 from(_source->GetPositionX(), _source->GetPositionY(), _source->GetPositionZ());
     if (!HaveTile(from)) return false;
-    float origin[] = { from.y, from.z, from.x }, extents[] = { 6.0f, 3.0f, 6.0f }, closest[3];
+    G3D::Vector3 center = probe ? *probe : from;
+    if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z) ||
+        std::hypot(center.x-from.x, center.y-from.y) > 6 || std::abs(center.z-from.z) > 3) return false;
+    float extent = probe ? 2.0f : 6.0f;
+    float origin[] = { center.y, center.z, center.x }, extents[] = { extent, 3.0f, extent }, closest[3];
     dtQueryFilter ground = _filter;
     ground.setIncludeFlags(NAV_GROUND | NAV_GROUND_STEEP);
     dtPolyRef poly = INVALID_POLYREF;
