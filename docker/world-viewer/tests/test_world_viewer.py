@@ -73,13 +73,19 @@ class WorldViewerApiTests(unittest.TestCase):
         payload['version'] = 4
         advice = dict(lifetime_ms=123, enabled=True, pending=False, status='MOVE_STARTED',
                       requests=3, selected=2, started=1, arrived=0, home_success=0,
-                      food_success=0, rejected=1, unavailable=0, reused=0)
+                      food_success=0, rejected=1, unavailable=0, reused=0,
+                      empty_search_rounds=2, failed_food_advice=3, known_food_places=4,
+                      retry_ms=900000, search_radius=128.0)
         payload['agents'][0]['living_role']['advice'] = advice
+        payload['agents'][0]['living_role'].update(move_end='NO_PROGRESS', move_no_progress_ms=15000, move_remaining=42.5)
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
         role = self.client.get('/api/state').json()['agents'][0]['living_role']
         self.assertEqual(role['advice'], advice)
         self.assertEqual(role['phase'], payload['agents'][0]['living_role']['phase'])
-        for field, value in [('requests', -1), ('started', True), ('status', 'x' * 81), ('unknown', 1)]:
+        self.assertEqual(role['move_end'], 'NO_PROGRESS')
+        self.assertEqual(role['move_remaining'], 42.5)
+        for field, value in [('requests', -1), ('started', True), ('status', 'x' * 81), ('unknown', 1),
+                             ('search_radius', 129.0), ('empty_search_rounds', 3), ('failed_food_advice', 4)]:
             with self.subTest(field=field):
                 bad = copy.deepcopy(payload)
                 bad['agents'][0]['living_role']['advice'][field] = value
@@ -175,6 +181,7 @@ class WorldViewerApiTests(unittest.TestCase):
         expected = copy.deepcopy(payload["agents"])
         expected[0]["living_role"]["return_recovery"] = None
         expected[0]["living_role"]["advice"] = None
+        expected[0]["living_role"].update(move_end='NONE', move_no_progress_ms=0, move_remaining=None)
         self.assertEqual(state["agents"], expected)
         live, background = state["agents"]
         self.assertEqual(live["economy"]["money"], "18446744073709551615")

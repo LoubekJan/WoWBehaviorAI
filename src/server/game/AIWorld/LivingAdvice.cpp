@@ -34,7 +34,8 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     using namespace LivingReturnPolicy;
     auto& state = record.LivingRole;
     auto& advice = state.Advice;
-    if (!_recoveryAdviceEnabled || !_recoveryAdviceAgents.contains(record.Id.Value) || !_aiClient ||
+    float forageRadius = LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds);
+    if (!_recoveryAdviceEnabled || !HasRecoveryAdvice(record.Id) || !_aiClient ||
         !creature.IsAlive() || creature.IsInCombat() || creature.IsInEvadeMode() ||
         creature.GetMapId() != 0 || creature.GetZoneId() != 12 ||
         record.ControlMode != AgentControlMode::AIWorldControlled || record.RuntimeGuid != creature.GetGUID())
@@ -46,7 +47,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     {
         candidate.Move.Danger = danger ? std::optional<ActionPosition>(*danger) : std::nullopt;
         candidate.Move.Home = home;
-        candidate.Move.HomeRadius = returning ? state.ReturnHomeLimit : LivingForagePolicy::HomeRadius;
+        candidate.Move.HomeRadius = returning ? state.ReturnHomeLimit : forageRadius;
         if (state.ReturnRoute.Failed(here, candidate.Move.Destination)) return false;
         candidate.Backtrack = returning && state.ReturnRoute.Revisited(candidate.Move.Destination);
         if (candidate.Backtrack && !state.ReturnRoute.CanBacktrack(here, candidate.Move.Destination)) return false;
@@ -74,7 +75,9 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     bool stalled = returning ? state.ReturningHome && state.HomeProgressAtMs && nowMs >= state.HomeProgressAtMs + 30000 &&
         (state.ReturnFailures >= 3 || nowMs >= state.ReturnStartedAtMs + 60000) :
         state.HungrySinceMs && nowMs >= state.HungrySinceMs + 120000;
-    if (!stalled || nowMs < advice.CooldownUntil || nowMs < _nextRecoveryAdviceAtMs) return std::nullopt;
+    if (!stalled || nowMs < advice.CooldownUntil || (!returning && advice.Active)) return std::nullopt;
+    if (!_recoveryAdviceBudget.Acquire(record.Id.Value, nowMs))
+    { advice.Status = "WAITING_TURN"; return std::nullopt; }
     // Previously successful steps are still checked against current geometry,
     // danger, failed edges and visit budgets. Memory is per materialization.
     if (returning)
@@ -111,7 +114,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
             target.Z = height;
         }
         LivingAdviceCandidate candidate;
-        candidate.Move = {target, home, returning ? state.ReturnHomeLimit : LivingForagePolicy::HomeRadius,
+        candidate.Move = {target, home, returning ? state.ReturnHomeLimit : forageRadius,
             danger ? std::optional<ActionPosition>(*danger) : std::nullopt, rejoin};
         candidate.Diagnostics.Candidates = 1;
         candidate.Diagnostics.RequestedZ = target.Z;
@@ -131,8 +134,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         option.Distance = Distance(here, candidate.Move.Destination);
         option.HomeGain = homeDistance - std::hypot(home.X-end.x, home.Y-end.y);
         option.Visits = candidate.Backtrack ? 1 : 0;
-        for (auto const& searched : advice.Searched)
-            if (Distance(searched, candidate.Move.Destination) < 8) ++option.Visits;
+        option.Visits += advice.Food.Visits(candidate.Move.Destination, nowMs);
         // Only already visible local prey contribute; no unloaded-grid or
         // omniscient target search. A hint is not permission to attack.
         for (auto const& prey : visiblePrey)
@@ -151,19 +153,47 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         for (auto const& point : Detours(here, home, ++state.ReturnSearchSequence)) add(point, "DETOUR");
     }
     else
+    {
+        auto toward = [&](ActionPosition const& waypoint, bool knownFood, bool observedPrey = false)
+        {
+            if (candidates.size() == 8 || (!observedPrey && advice.Food.Visits(waypoint, nowMs))) return;
+            if (auto point = LivingRecoveryPath::Toward(creature, waypoint, home, forageRadius))
+            {
+                size_t before = candidates.size();
+                add(*point, "FORAGE", true);
+                if (knownFood && candidates.size() > before) candidates.back().Option.Successes = 1;
+            }
+        };
+        if (auto hint = advice.Food.FoodHint(home, forageRadius, nowMs)) toward(*hint, true);
+        std::sort(visiblePrey.begin(), visiblePrey.end(), [&](auto const& a, auto const& b)
+            { return Distance(here, a) < Distance(here, b); });
+        for (size_t i = 0; i < std::min<size_t>(8, visiblePrey.size()); ++i) toward(visiblePrey[i], false, true);
         for (unsigned i = 0; i < 12 && candidates.size() < 8; ++i)
         {
-            auto waypoint = LivingForagePolicy::Waypoint(home, record.Id.Value, state.ForageLeg+i);
-            if (auto point = LivingForagePolicy::Step(here, waypoint, home)) add(*point, "FORAGE");
+            auto waypoint = LivingForagePolicy::Waypoint(home, record.Id.Value, state.ForageLeg++, advice.Food.EmptyRounds);
+            float height = creature.GetMap()->GetHeight(creature.GetPhaseMask(), waypoint.X, waypoint.Y, here.Z + 4, true);
+            if (!std::isfinite(height) || height <= INVALID_HEIGHT || std::abs(height - here.Z) > 12) continue;
+            waypoint.Z = height;
+            toward(waypoint, false);
         }
-    if (candidates.empty()) { advice.Status = "NO_VALID_OPTIONS"; return std::nullopt; }
+        // Do not spend model calls on the same already-searched places unless
+        // a new visible prey observation makes one of them useful again.
+        std::erase_if(candidates, [](auto const& c) { return c.Option.Visits && !c.Option.NearbyPrey && !c.Option.Successes; });
+    }
+    if (candidates.empty())
+    {
+        advice.Status = "NO_VALID_OPTIONS";
+        if (!returning) advice.CooldownUntil = nowMs + advice.Food.AdviceFailed();
+        return std::nullopt;
+    }
     AIRequest request;
     auto& context = request.Recovery;
     context.Agent = record.Id; context.Episode = nowMs;
     context.Role = LivingRolePolicy::ToString(LivingRolePolicy::Resolve(record.Type, creature.GetEntry(), false));
     context.Problem = returning ? "RETURN_HOME" : "FIND_FOOD";
     context.Failure = returning ? state.ReturnFailure : state.LastHuntStatus;
-    context.Failures = state.ReturnFailures; context.Hunger = record.Needs.Hunger;
+    context.Failures = returning ? state.ReturnFailures : advice.Food.FailedAdvice;
+    context.Hunger = record.Needs.Hunger;
     context.HomeDistance = homeDistance;
     context.StalledMs = nowMs - (returning ? state.HomeProgressAtMs : state.HungrySinceMs);
     for (auto const& candidate : candidates) context.Options.push_back(candidate.Option);
@@ -173,7 +203,6 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     advice.Origin = here; advice.Home = home; advice.Returning = returning;
     advice.Responded = false; advice.Choice.reset(); advice.Candidates = std::move(candidates);
     ++advice.Requests; advice.Status = "PENDING";
-    _nextRecoveryAdviceAtMs = nowMs+2000;
     TC_LOG_INFO("ai.world", "AI recovery agent={} request={} problem={} options={}", record.Id.Value, id,
         returning ? "RETURN_HOME" : "FIND_FOOD", advice.Candidates.size());
     return std::nullopt;

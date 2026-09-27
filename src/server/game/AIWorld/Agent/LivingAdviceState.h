@@ -5,6 +5,7 @@
 #include "Inference/RecoveryAdvice.h"
 #include "LivingReturnPolicy.h"
 #include "Action/RecoveryMovement.h"
+#include "LivingFoodMemory.h"
 
 struct LivingAdviceCandidate
 {
@@ -31,7 +32,7 @@ struct LivingAdviceState
     bool ActiveReturning = false, StepArrived = false;
     struct Memory { ActionPosition From; LivingAdviceCandidate Candidate; };
     std::vector<Memory> Successful;
-    std::vector<ActionPosition> Searched;
+    LivingFoodMemory Food;
 
     bool Fresh(uint64 now, ActionPosition const& here, ActionPosition const& home) const
     {

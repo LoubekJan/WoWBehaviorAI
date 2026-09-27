@@ -33,6 +33,7 @@
 #include "Agent/AgentGroupRegistry.h"
 #include "Agent/AgentGroupSimulationSystem.h"
 #include "Agent/AgentId.h"
+#include "Agent/LivingAdviceBudget.h"
 #include "Agent/AgentRegistry.h"
 #include "Agent/CoalitionCandidate.h"
 #include "Agent/CoalitionFormationAttempt.h"
@@ -2892,7 +2893,9 @@ class TC_GAME_API AIWorldMgr
         bool _livingRoleExtensionsEnabled = false;
         bool _recoveryAdviceEnabled = false;
         std::unordered_set<uint64> _recoveryAdviceAgents;
-        uint64 _nextRecoveryAdviceAtMs = 0;
+        bool _recoveryAdviceAllAgents = false;
+        LivingAdviceBudget _recoveryAdviceBudget;
+        bool HasRecoveryAdvice(AgentId id) const { return _recoveryAdviceAllAgents || _recoveryAdviceAgents.contains(id.Value); }
         void HandleRecoveryAdvice(AIResponse const& response);
         std::optional<LivingAdviceCandidate> TryLivingAdvice(AgentRecord& record, Creature& creature,
             uint64 nowMs, bool returning, ActionPosition const* danger);

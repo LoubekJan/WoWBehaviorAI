@@ -56,6 +56,48 @@ def stranded():
 
 
 class BehaviorTests(unittest.TestCase):
+    def test_physical_stall_survives_flee_idle_and_rest_changes(self):
+        rows = samples(count=81, npc=stranded())
+        for i, row in enumerate(rows):
+            role = row['state']['agents'][0]['living_role']
+            role.update(phase=('FLEEING' if i % 2 else 'ACTING'),
+                        movement_purpose=('BOUNDED_ESCAPE' if i % 2 else 'RETURN_NO_PATH'))
+        report = evaluate(rows)
+        physical = [f for f in report['findings'] if f['check'] == 'physical_stall']
+        self.assertEqual(len(physical), 1)
+        self.assertEqual(physical[0]['duration_seconds'], 400)
+        self.assertFalse([f for f in report['findings'] if f['check'] == 'return'])
+
+    def test_physical_stall_resets_on_displacement_home_or_lifecycle(self):
+        for interruption in ('position', 'home', 'dead', 'missing', 'gap', 'map'):
+            with self.subTest(interruption=interruption):
+                rows = samples(count=101, npc=stranded())
+                npc = rows[50]['state']['agents'][0]
+                if interruption == 'position': npc['position']['x'] += 2
+                elif interruption == 'home': npc['movement']['home_distance'] = 0
+                elif interruption == 'dead': npc['alive'] = False
+                elif interruption == 'missing': rows[50]['state']['agents'] = []
+                elif interruption == 'gap': rows[50]['status'] = 'stale'
+                else: npc['position']['map_id'] = 1
+                self.assertNotIn('physical_stall', [f['check'] for f in evaluate(rows)['findings']])
+
+    def test_physical_stall_suspends_combat_and_roots_without_claiming_recovery(self):
+        rows = samples(count=141, npc=stranded())
+        for i, row in enumerate(rows):
+            npc = row['state']['agents'][0]
+            npc['in_combat'] = 20 <= i < 40
+            npc['movement']['blocked'] = 60 <= i < 80
+        physical = [f for f in evaluate(rows)['findings'] if f['check'] == 'physical_stall']
+        self.assertEqual(physical[0]['duration_seconds'], 490)
+        # Resting away from home, without any failed movement evidence, is
+        # insufficient to accuse a worker of being physically stuck.
+        rows = samples(count=141, npc=agent(role='WORKER'))
+        for row in rows:
+            npc = row['state']['agents'][0]
+            npc['movement']['home_distance'] = 50
+            npc['living_role'].update(phase='ACTING', activity='WORK')
+        self.assertNotIn('physical_stall', [f['check'] for f in evaluate(rows)['findings']])
+
     def test_advice_uses_lifetime_maxima_and_never_masks_a_stalled_return(self):
         rows = samples(npc=stranded())
         for i, row in enumerate(rows):

@@ -105,6 +105,11 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     auto& advice = *agent.LivingRole->Advice;
     advice.LifetimeAt = 123; advice.Enabled = true; advice.Requests = 3;
     advice.Selected = 2; advice.Started = 1; advice.Status = "MOVE_STARTED";
+    advice.SearchRadius = 128; advice.EmptySearchRounds = 2; advice.FailedFoodAdvice = 3;
+    advice.RetryMs = 900000; advice.KnownFoodPlaces = 4;
+    agent.LivingRole->MoveEnd = "NO_PROGRESS";
+    agent.LivingRole->MoveNoProgressMs = 15000;
+    agent.LivingRole->MoveRemaining = 42.5f;
     agent.LivingRole->ReturnRecovery.emplace();
     auto& nav = agent.LivingRole->ReturnRecovery->Navigation;
     nav.Failure = "PATH_BOUNDS"; nav.Detail = "HOME_RADIUS"; nav.HomeRadius = 96;
@@ -114,6 +119,12 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     CHECK(json.find("\"requests\":3") != std::string::npos);
     CHECK(json.find("\"home_success\":0") != std::string::npos);
     CHECK(json.find("\"arrived\":0") != std::string::npos);
+    CHECK(json.find("\"search_radius\":128") != std::string::npos);
+    CHECK(json.find("\"failed_food_advice\":3") != std::string::npos);
+    CHECK(json.find("\"retry_ms\":900000") != std::string::npos);
+    CHECK(json.find("\"move_end\":\"NO_PROGRESS\"") != std::string::npos);
+    CHECK(json.find("\"move_no_progress_ms\":15000") != std::string::npos);
+    CHECK(json.find("\"move_remaining\":42.5") != std::string::npos);
     CHECK(json.find("\"detail\":\"HOME_RADIUS\"") != std::string::npos);
     CHECK(json.find("\"rejected_x\":100") != std::string::npos);
 }

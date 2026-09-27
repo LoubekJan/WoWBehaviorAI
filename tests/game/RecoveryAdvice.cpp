@@ -3,7 +3,88 @@
 #include "tc_catch2.h"
 #include "Inference/RecoveryAdvice.h"
 #include "Agent/LivingAdviceState.h"
+#include "Agent/LivingAdviceBudget.h"
+#include "Agent/LivingMovementWatchdog.h"
+#include "Agent/LivingForagePolicy.h"
 #include <limits>
+
+TEST_CASE("All-NPC advice admission bounds work and gives waiting agents a turn", "[AIWorld][RecoveryAdvice]")
+{
+    LivingAdviceBudget budget;
+    REQUIRE(budget.Acquire(1, 1000));
+    REQUIRE_FALSE(budget.Acquire(2, 1000));
+    REQUIRE_FALSE(budget.Acquire(3, 1000));
+    REQUIRE_FALSE(budget.Acquire(1, 3000)); // hot caller cannot jump the queue
+    REQUIRE(budget.Acquire(2, 3000));
+    REQUIRE_FALSE(budget.Acquire(3, 3000));
+    REQUIRE(budget.Acquire(3, 5000));
+    REQUIRE_FALSE(budget.Acquire(4, 5000));
+    REQUIRE(budget.Acquire(4, 40001)); // absent head expires
+}
+
+TEST_CASE("A crowd of eligible NPCs shares the global advice budget", "[AIWorld][RecoveryAdvice]")
+{
+    LivingAdviceBudget budget;
+    std::vector<uint64> admitted;
+    for (uint64 now = 1000; now <= 255000; now += 1000)
+        for (uint64 id = 1; id <= 128; ++id)
+            if (std::find(admitted.begin(), admitted.end(), id) == admitted.end() && budget.Acquire(id, now))
+                admitted.push_back(id);
+    REQUIRE(admitted.size() == 128);
+    for (size_t i = 0; i < admitted.size(); ++i) REQUIRE(admitted[i] == i + 1);
+}
+
+TEST_CASE("Role movement can follow long detours but stalls and loops terminate", "[AIWorld][RecoveryAdvice]")
+{
+    LivingMovementWatchdog move;
+    move.Begin(1000, {0,0,0,0});
+    for (uint64 t = 5000; t <= 120000; t += 5000)
+        REQUIRE(move.Continue(1000+t, {0,float(t)/1000,0,0}, false));
+    REQUIRE_FALSE(move.Continue(136000, {0,120,0,0}, false));
+    REQUIRE(std::string(move.End) == "NO_PROGRESS");
+    move.Begin(1000, {0,0,0,0});
+    for (uint64 t = 5000; t < 180000; t += 5000)
+        REQUIRE(move.Continue(1000+t, {0,float(t % 10000),0,0}, false));
+    REQUIRE_FALSE(move.Continue(181000, {0,10,0,0}, false));
+    REQUIRE(std::string(move.End) == "DURATION_LIMIT");
+    move.Begin(1000, {0,0,0,0});
+    REQUIRE_FALSE(move.Continue(9000, {0,10,0,0}, true));
+    REQUIRE(std::string(move.End) == "ESCAPE_LIMIT");
+}
+
+TEST_CASE("Food memory distinguishes a meal from a search and forgets stale evidence", "[AIWorld][RecoveryAdvice]")
+{
+    LivingFoodMemory memory;
+    ActionPosition home{0,0,0,0}, food{0,40,0,0};
+    memory.Searched(food, 1000);
+    REQUIRE_FALSE(memory.FoodHint(home, 80, 1000).has_value());
+    REQUIRE(memory.Visits(food, 1000) == 1);
+    memory.EmptyRound(); memory.EmptyRound(); memory.EmptyRound();
+    REQUIRE(LivingForagePolicy::SearchRadius(memory.EmptyRounds) == 128);
+    for (uint32 leg = 0; leg < 120; ++leg)
+    {
+        auto waypoint = LivingForagePolicy::Waypoint(home, 80992, leg, memory.EmptyRounds);
+        REQUIRE(LivingReturnPolicy::Distance(home, waypoint) <= 128);
+    }
+    REQUIRE(memory.AdviceFailed() == 240000);
+    REQUIRE(memory.AdviceFailed() == 480000);
+    REQUIRE(memory.AdviceFailed() == 900000);
+    REQUIRE(memory.AdviceFailed() == 900000);
+    memory.Fed(food, 2000);
+    REQUIRE(memory.FailedAdvice == 0);
+    REQUIRE(memory.EmptyRounds == 0);
+    REQUIRE(memory.FoodHint(home, 80, 2000).has_value());
+    REQUIRE_FALSE(memory.FoodHint({1,0,0,0}, 80, 2000).has_value());
+    REQUIRE_FALSE(memory.FoodHint(home, 30, 2000).has_value());
+    memory.Searched(food, 3000);
+    REQUIRE_FALSE(memory.FoodHint(home, 80, 4000).has_value());
+    REQUIRE(memory.FoodHint(home, 80, 603000).has_value());
+    REQUIRE_FALSE(memory.FoodHint(home, 80, 1802000).has_value());
+    for (unsigned i = 0; i < 100; ++i)
+    { memory.Searched({0,float(i)*10,0,0}, 2000000+i); memory.Fed({0,float(i)*10,100,0}, 2000000+i); }
+    REQUIRE(memory.Searches.size() == 32);
+    REQUIRE(memory.Meals.size() == 8);
+}
 
 TEST_CASE("Recovery response cannot invent geometry or alter the response schema", "[AIWorld][RecoveryAdvice]")
 {

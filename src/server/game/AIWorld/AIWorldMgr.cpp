@@ -721,7 +721,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _livingRoleExtensionsEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRoleExtensionsEnabled", false);
     _recoveryAdviceEnabled = sConfigMgr->GetBoolDefault("AIWorld.RecoveryAdviceEnabled", false);
     _recoveryAdviceAgents.clear();
-    _nextRecoveryAdviceAtMs = 0;
+    _recoveryAdviceAllAgents = sConfigMgr->GetBoolDefault("AIWorld.RecoveryAdviceAllAgents", false);
+    _recoveryAdviceBudget = {};
     std::istringstream recoveryIds(sConfigMgr->GetStringDefault("AIWorld.RecoveryAdviceAgents", ""));
     uint64 recoveryId;
     while (recoveryIds >> recoveryId)
@@ -731,6 +732,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     }
     TC_LOG_INFO("ai.world", "AI living roles enabled={} extensions={} scope=Elwynn controlled permanent NPCs",
         _livingRolesEnabled, _livingRoleExtensionsEnabled);
+    TC_LOG_INFO("ai.world", "AI recovery enabled={} allLivingRoles={} selectedAgents={} admissionMs=2000 maxInFlight=2",
+        _recoveryAdviceEnabled, _recoveryAdviceAllAgents, _recoveryAdviceAgents.size());
     bool wolfGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRoamEnabled", false);
     float wolfGroupRoamDistance = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamDistance", 10.0f);
     float wolfGroupRoamArrivalRadius = sConfigMgr->GetFloatDefault("AIWorld.WolfGroupRoamArrivalRadius", 5.0f);

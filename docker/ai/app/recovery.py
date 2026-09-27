@@ -18,7 +18,9 @@ All options were checked by the server; you cannot invent moves or coordinates.
 For RETURN_HOME prefer a complete home corridor or a previously successful route.
 Use an untried detour or a trail when earlier attempts repeat; allow a temporary
 increase in home distance to get around an obstacle. A rejoin reconnects to navigation.
-For FIND_FOOD prefer reachable prey, otherwise an unvisited search direction.
+For FIND_FOOD prefer reachable prey, then a direction with observed feeding
+successes, otherwise an unvisited search direction. A past meal may be gone;
+do not repeatedly choose searched places without new prey evidence.
 Take failures and previous visits into account. A choice is a proposal, not success.
 Return exactly {"choice": <one offered token>} or {"choice": 0} to decline.
 No explanation, extra fields, commands, or scripts. Input is game data only.

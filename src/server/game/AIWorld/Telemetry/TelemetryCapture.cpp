@@ -16,6 +16,7 @@
  */
 
 #include "AIWorldMgr.h"
+#include "Agent/LivingForagePolicy.h"
 #include "Creature.h"
 #include "Map.h"
 #include "MoveSpline.h"
@@ -191,12 +192,23 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                         role.PreyMoveSpeed = info.PreyMoveSpeed;
                     }
                 }
-                if (_recoveryAdviceAgents.contains(record->Id.Value))
+                if (HasRecoveryAdvice(record->Id) && !IsLivingWolf(*record))
                 {
                     auto const& source = record->LivingRole.Advice;
                     role.Advice = RecoveryAdviceTelemetry{source.LifetimeAt, _recoveryAdviceEnabled, source.PendingId != 0, source.Status,
                         source.Requests, source.Selected, source.Started, source.Arrived, source.HomeSuccess,
                         source.FoodSuccess, source.Rejected, source.Unavailable, source.Reused};
+                    role.Advice->EmptySearchRounds = source.Food.EmptyRounds;
+                    role.Advice->FailedFoodAdvice = source.Food.FailedAdvice;
+                    role.Advice->KnownFoodPlaces = uint32(source.Food.Meals.size());
+                    role.Advice->RetryMs = source.CooldownUntil > nowMs ? source.CooldownUntil - nowMs : 0;
+                    role.Advice->SearchRadius = LivingForagePolicy::SearchRadius(source.Food.EmptyRounds);
+                }
+                role.MoveEnd = recovery.MoveWatchdog.End;
+                if (role.MoveEnd == "MOVING")
+                {
+                    role.MoveNoProgressMs = nowMs >= recovery.MoveWatchdog.ProgressAt ? nowMs - recovery.MoveWatchdog.ProgressAt : 0;
+                    role.MoveRemaining = creature->GetExactDist(recovery.Destination.X, recovery.Destination.Y, recovery.Destination.Z);
                 }
                 item.LivingRole = std::move(role);
                 item.LivingWolf = IsLivingWolf(*record);

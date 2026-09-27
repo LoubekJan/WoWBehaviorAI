@@ -17,6 +17,7 @@ class Policy:
     fresh_fraction: float = 0.95
     return_seconds: float = 300
     return_duration_seconds: float = 600
+    physical_stall_seconds: float = 300
     motion_seconds: float = 60
     outside_seconds: float = 30
     stock_hunger_seconds: float = 600
@@ -29,6 +30,7 @@ class Policy:
 CHECKS = {
     "return": "Návrat bez dlouhého zablokování",
     "return_duration": "Dokončení návratu i při pohybu",
+    "physical_stall": "Skutečné zaseknutí napříč změnami chování",
     "motion": "Pohybový úkol se skutečným posunem",
     "outside": "Zachování řízení v Elwynnu",
     "stock_hunger": "Jídlo při hladu a dostupných zásobách",
@@ -78,7 +80,7 @@ class Evaluator:
         self.inside.clear()
         self.last_was_fresh = False
 
-    def episode(self, key, agent, row, condition, *, stationary=False, start=True):
+    def episode(self, key, agent, row, condition, *, stationary=False, start=True, paused=False):
         identity = (agent["agent_id"], key)
         if not condition:
             self.runs.pop(identity, None)
@@ -95,7 +97,19 @@ class Evaluator:
                    "role": agent["living_role"]["role"], "start_seconds": row["elapsed_seconds"],
                    "start_utc": row.get("recorded_at_utc"), "position": point}
             self.runs[identity] = run
+        if key == "physical_stall":
+            # Combat/root/evade suspend the clock but never count as physical
+            # recovery. A real position change still resets the anchor above.
+            previous = run.get("last_seconds", row["elapsed_seconds"])
+            if paused or run.get("paused", False):
+                run["paused_seconds"] = run.get("paused_seconds", 0) + row["elapsed_seconds"] - previous
+            run["last_seconds"] = row["elapsed_seconds"]
+            run["paused"] = paused
+            if paused:
+                return
         duration = row["elapsed_seconds"] - run["start_seconds"]
+        if key == "physical_stall":
+            duration -= run.get("paused_seconds", 0)
         limit = getattr(self.policy, key + "_seconds" if key != "return" else "return_seconds")
         if duration < limit:
             return
@@ -199,8 +213,12 @@ class Evaluator:
                     if type(value) is int and value >= 0:
                         stats["counters"][metric] = max(value, stats["counters"].get(metric, 0))
             old = self.previous.get(aid)
+            old_advice = old['living_role'].get('advice') if old else None
+            lifetime_changed = (isinstance(old_advice, dict) and isinstance(advice, dict)
+                                and old_advice.get('lifetime_ms') != advice.get('lifetime_ms'))
             if old and (old["spawn_id"] != agent["spawn_id"] or old["position"]["map_id"] != pos["map_id"]
-                        or old["living_role"]["role"] != role["role"]):
+                        or old["living_role"]["role"] != role["role"]
+                        or lifetime_changed):
                 for key in CHECKS:
                     self.runs.pop((aid, key), None)
                 self.inside.discard(aid)
@@ -244,6 +262,17 @@ class Evaluator:
             if return_attempt and (failure or purpose == "RETURN_HOME"):
                 self.observed["return_duration"].add(aid)
             self.episode("return_duration", agent, row, return_attempt, start=failure or purpose == "RETURN_HOME")
+            # A phase flip (especially repeated fleeing -> idle) cannot hide
+            # an immobile NPC. Seed from a movement/return attempt, not from
+            # standing workers, service NPCs or ordinary resting wildlife.
+            physical = (in_scope and role["status"] in {"READY", "ACTIVE"}
+                        and move["home_distance"] > RADII[role["role"]] + 2)
+            physical_start = calm and (failure or purpose in LOCAL_MOVES
+                                        or purpose in {"BOUNDED_ESCAPE", "AWAY_FROM_DANGER", "CHECK_ALLY_ALARM"})
+            if physical and physical_start:
+                self.observed["physical_stall"].add(aid)
+            self.episode("physical_stall", agent, row, physical, stationary=True,
+                         start=physical_start, paused=not calm)
             motion = calm and role["phase"] == "MOVING" and purpose in LOCAL_MOVES
             if motion:
                 self.observed["motion"].add(aid)
@@ -340,11 +369,15 @@ def write_report(report: dict, output: Path):
         lines += ["", "Žádné překročení prahů. Neověřené scénáře tím nejsou potvrzené."]
     advice = report.get("recovery_advice", [])
     if advice:
+        active_advice = [item for item in advice if any(item['counters'].values()) or item['last_status'] != 'IDLE']
+        active_advice.sort(key=lambda item: (-item['counters'].get('requests', 0), item['spawn_id']))
         lines += ["", "## Pomoc lokální AI", "",
+            f"Přístup k AI byl zaznamenán u {len({item['agent_id'] for item in advice if item.get('enabled')})} NPC. "
+            f"Aktivitu nebo čekání má {len(active_advice)} materializací; tabulka uvádí nejvýše 100, úplná data jsou v JSON.", "",
             "Čítače jsou maxima za každou materializaci NPC. Přijatý návrh ani spuštěný krok není dokončený návrat.", "",
             "| Spawn | Požadavky | Vybráno AI | Z paměti | Spuštěno | Dosažený krok | Návrat domů | Nalezené jídlo | Zamítnuto | Chyby AI | Poslední stav |",
             "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"]
-        for item in advice:
+        for item in active_advice[:100]:
             c = item["counters"]
             values = [item["spawn_id"], *[c.get(k, 0) for k in ("requests", "selected", "reused", "started", "arrived", "home_success", "food_success", "rejected", "unavailable")], item["last_status"]]
             lines.append("| " + " | ".join(str(v).replace("|", "/").replace("\n", " ").replace("\r", " ") for v in values) + " |")

@@ -120,6 +120,8 @@ namespace
         WriteJsonField(out, "hunt_target_distance", role.HuntTargetDistance);
         WriteJsonField(out, "prey_run_speed", role.PreyRunSpeed); WriteJsonField(out, "prey_move_speed", role.PreyMoveSpeed);
         WriteJsonField(out, "sprint_multiplier", role.SprintMultiplier); WriteJsonField(out, "sprint_remaining_ms", role.SprintRemainingMs);
+        WriteJsonField(out, "move_end", role.MoveEnd); WriteJsonField(out, "move_no_progress_ms", role.MoveNoProgressMs);
+        WriteJsonField(out, "move_remaining", role.MoveRemaining);
         // Explicit dispatch avoids two-phase lookup of the later overload.
         out << ",\"return_recovery\":";
         if (role.ReturnRecovery) WriteValue(out, *role.ReturnRecovery); else out << "null";
@@ -134,7 +136,12 @@ namespace
             WriteJsonField(out, "started", a.Started); WriteJsonField(out, "arrived", a.Arrived);
             WriteJsonField(out, "home_success", a.HomeSuccess); WriteJsonField(out, "food_success", a.FoodSuccess);
             WriteJsonField(out, "rejected", a.Rejected); WriteJsonField(out, "unavailable", a.Unavailable);
-            WriteJsonField(out, "reused", a.Reused); out << '}';
+            WriteJsonField(out, "reused", a.Reused);
+            WriteJsonField(out, "empty_search_rounds", a.EmptySearchRounds);
+            WriteJsonField(out, "failed_food_advice", a.FailedFoodAdvice);
+            WriteJsonField(out, "known_food_places", a.KnownFoodPlaces);
+            WriteJsonField(out, "retry_ms", a.RetryMs); WriteJsonField(out, "search_radius", a.SearchRadius);
+            out << '}';
         }
         else out << "null";
         out << '}';

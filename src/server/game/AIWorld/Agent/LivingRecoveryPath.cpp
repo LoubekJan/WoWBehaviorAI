@@ -9,6 +9,35 @@
 
 namespace LivingRecoveryPath
 {
+    std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
+        ActionPosition const& home, float radius)
+    {
+        // Follow the first corridor corner instead of repeatedly proposing a
+        // straight step through the same cave wall. This only proposes a leg;
+        // Build revalidates the complete executed leg before it can start.
+        if (creature.GetMapId() != 0 || target.MapId != 0 || home.MapId != 0 ||
+            !LivingReturnPolicy::Finite(target) || !LivingReturnPolicy::Finite(home) ||
+            !std::isfinite(radius) || radius <= 0 || creature.GetExactDist2d(target.X, target.Y) > 256) return std::nullopt;
+        PathGenerator path(&creature);
+        path.AllowSteepSlopes();
+        if (!path.CalculatePath(target.X, target.Y, target.Z, false) || !(path.GetPathType() & PATHFIND_NORMAL) ||
+            (path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_FARFROMPOLY |
+                PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH))) return std::nullopt;
+        auto points = path.GetPath();
+        if (points.size() < 2 || creature.GetExactDist(points.front().x, points.front().y, points.front().z) > 1.5f ||
+            LivingReturnPolicy::Distance(target, {0, points.back().x, points.back().y, points.back().z}) > 1.5f) return std::nullopt;
+        points.front() = {creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+        if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
+            { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
+                std::hypot(x-home.X, y-home.Y) <= radius; })) return std::nullopt;
+        std::vector<ActionPosition> route;
+        for (auto const& p : points) route.push_back({0, p.x, p.y, p.z});
+        auto legs = LivingReturnPolicy::Corridor(route);
+        for (auto const& leg : legs)
+            if (LivingReturnPolicy::UsefulStep(route.front(), leg)) return leg;
+        return std::nullopt;
+    }
+
     bool InSwimmableWater(Creature const& creature, ActionPosition const& point)
     {
         if (!creature.CanEnterWater() || point.MapId != creature.GetMapId()) return false;

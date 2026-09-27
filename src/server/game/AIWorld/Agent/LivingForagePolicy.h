@@ -18,11 +18,12 @@ namespace LivingForagePolicy
     constexpr uint64 DurationMs = 120000;
     constexpr uint64 CooldownMs = 60000;
     constexpr float HomeRadius = 80.0f;
+    inline float SearchRadius(uint32 emptyRounds) { return HomeRadius + 24.0f * std::min(emptyRounds, 2u); }
 
-    inline ActionPosition Waypoint(ActionPosition const& home, uint64 id, uint32 leg)
+    inline ActionPosition Waypoint(ActionPosition const& home, uint64 id, uint32 leg, uint32 emptyRounds = 0)
     {
         float angle = float((id % 360 + uint64(leg) * 137) % 360) * 6.28318530718f / 360.0f;
-        float radius = 24.0f + 20.0f * (leg % 3);
+        float radius = 24.0f + 20.0f * (leg % 3) + 24.0f * std::min(emptyRounds, 2u);
         return { home.MapId, home.X + radius * std::cos(angle), home.Y + radius * std::sin(angle), home.Z };
     }
 

@@ -46,6 +46,9 @@ struct RecoveryAdviceTelemetry
     std::string Status;
     uint32 Requests = 0, Selected = 0, Started = 0, Arrived = 0, HomeSuccess = 0,
         FoodSuccess = 0, Rejected = 0, Unavailable = 0, Reused = 0;
+    uint32 EmptySearchRounds = 0, FailedFoodAdvice = 0, KnownFoodPlaces = 0;
+    uint64 RetryMs = 0;
+    float SearchRadius = 80;
 };
 
 struct LivingRoleTelemetry
@@ -66,6 +69,9 @@ struct LivingRoleTelemetry
     std::optional<uint32> SprintRemainingMs;
     std::optional<ReturnRecoveryTelemetry> ReturnRecovery;
     std::optional<RecoveryAdviceTelemetry> Advice;
+    std::string MoveEnd = "NONE";
+    uint64 MoveNoProgressMs = 0;
+    std::optional<float> MoveRemaining;
 };
 
 struct MovementTelemetry

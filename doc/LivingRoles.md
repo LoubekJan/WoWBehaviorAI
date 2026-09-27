@@ -3,7 +3,40 @@
 Lokální rozšíření z 22. 9. 2026 navazuje na ve hře ověřený vlčí pilot.
 Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 2026 výslovně potvrdil také funkční lov Forest Spider a pomoc blízkých Defias. Oba původně neúspěšné scénáře tak mají potvrzený opakovaný herní test.
 
-## Individuální pomoc lokální AI a oprava návratů — 26. 9. 2026
+## Plošná pomoc lokální AI a opravy podle záznamu — 27. 9. 2026
+
+Po běhu `20260926T172121Z-0eb8fce2` je v projektové konfiguraci pomoc
+modelu dostupná všem oprávněným individuálním rolím AIWorldu v Elwynnu.
+Aktivuje se při problému; běžné chování dál běží v herní logice. Nemění
+vlastnictví vanilla NPC, questových skriptů ani samostatný cyklus smečkových
+vlků `WOLF_PACK_CYCLE`.
+
+- Přesun už nekončí automaticky po 20 sekundách. Kontroluje skutečný posun
+  přes jeden yard; bez něj končí po 15 sekundách, s pohybem nejpozději po
+  třech minutách. Krátký únik `SEEKING_SAFETY` dál trvá nejvýše osm sekund.
+- Model i sestavování nabídek mají společnou frontu a rozestup dvě sekundy.
+  Opakovaně se hlásící NPC nepřeskočí čekající. Nepřítomný žadatel po 30
+  sekundách bez přihlášení uvolní místo; síťové požadavky mají dál limit dva.
+- Predátoři si pamatují nejvýše osm skutečných míst krmení na 30 minut a
+  32 prohledaných/odmítnutých míst na deset minut. Úspěch vzniká až po
+  krmení. Bez jídla se po dvou kolech hledání dosah zvýší z 80 přes 104
+  na nejvýše 128 yardů od domova; stále platí hranice Elwynnu a úplná cesta.
+- Hledání sleduje zatáčky navigační cesty. Dříve opakovaný přímý krok
+  proti stěně jeskyně tak může nahradit bezpečná obcházka. Všechny místní
+  přesuny používají ověřenou cestu i po změně rychlosti nebo obnovení pohybu.
+  Lov navíc kontroluje cestu po zkrácení konce do vzdálenosti pro útok.
+- Po neúspěšném hledání pomocí modelu se další dotaz odloží o 4, 8, pak
+  nejvýše 15 minut. Běžné hledání pokračuje. Dokud se hodnotí předchozí
+  rada (nejvýše tři minuty), další ji nepřepisuje.
+- Nová kontrola `physical_stall` měří nehybnost napříč fázemi. Boj,
+  znehybnění a evade měření pozastaví; skutečný posun nebo návrat domů
+  epizodu ukončí. Stojící NPC bez předchozího pokusu o pohyb neoznačuje.
+
+Tyto změny neopravují chybějící nebo nepoužitelnou navigační geometrii
+ani nevytvářejí potravu tam, kde není kořist. Výsledek zbývajících 22
+zaseknutých NPC musí potvrdit nový běh; model vybírá jen ověřené možnosti.
+
+## Individuální pomoc lokální AI a oprava návratů — původní základ
 
 Navazuje na běh `20260926T114312Z-af9bab2d`: 27 nehybných návratů,
 33 návratů přes deset minut, 26 právě zaseknutých NPC na konci záznamu.
@@ -35,7 +68,7 @@ terénu a nebezpečí. Boj má přednost a ruší čekající radu.
 - Návrat žádá radu po nejméně 30 sekundách bez přiblížení k domovu,
   pokud zároveň třikrát selhal nebo běží alespoň minutu.
 - Predátor žádá radu po dvou minutách hladu nejméně 0,95. Nabídka zohledňuje
-  viditelnou kořist a již prohledaná místa v dosavadním dosahu 80 yardů.
+  viditelnou kořist, skutečná místa krmení a prohledaná místa v dosahu 80–128 yardů.
 - Nejvýše dva požadavky běží současně; nové požadavky mají globální rozestup
   dvě sekundy a u jednoho NPC dvě minuty. Model má šestisekundový limit,
   celý transport desetisekundový. Herní vlákno nečeká na síť.
@@ -46,11 +79,11 @@ terénu a nebezpečí. Boj má přednost a ruší čekající radu.
   při použití se opět ověří. Nejde o přetrénování modelu ani trvalou databázi.
 
 **Zapnutí po deployi:** distribuční konfigurace je vypnutá. Projektová
-`deploy/worldserver.conf` zapíná pilot pro agent ID
-`80447,80461,146146,146129,146433,80992` (stráže, vlci, žába a pavouk).
-Seznam `AIWorld.RecoveryAdviceAgents` přijímá nejvýše 32 ID; prázdný
-seznam nezapne všechny NPC. Ostatní NPC dostanou opravy návratů, ale
-model nevolají. Pro srovnání lze přepnout `AIWorld.RecoveryAdviceEnabled=0`
+`deploy/worldserver.conf` nastavuje `AIWorld.RecoveryAdviceEnabled=1`
+a `AIWorld.RecoveryAdviceAllAgents=1`. Tím se ruší omezení na šest pilotních
+NPC při zachování pravidel vlastnictví a Elwynnu. Při `AllAgents=0` platí
+seznam `AIWorld.RecoveryAdviceAgents`, nejvýše 32 ID; prázdný seznam
+v tomto režimu znamená žádné NPC. Pro srovnání lze přepnout `AIWorld.RecoveryAdviceEnabled=0`
 a restartovat worldserver se stejným sestavením.
 
 AI server přebírá existující `AI_TASK_MODEL_URL`, `AI_TASK_MODEL_NAME`
@@ -69,7 +102,7 @@ make test-recovery-ai
 make record-aiworld-status
 ```
 
-U pilotního NPC ukáže `.aiworld group status` nový řádek `AIWorld advice`.
+U vybraného NPC ukáže `.aiworld group status` řádek `AIWorld advice`.
 Observer ukazuje stejný stav a `living_role.advice` se ukládá do archivu.
 Automatický report přidává tabulku **Pomoc lokální AI**: požadavky,
 výběry, spuštění, dosažené kroky, návraty domů, nalezené jídlo a chyby

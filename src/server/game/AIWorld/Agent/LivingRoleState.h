@@ -21,6 +21,7 @@
 #include "LivingRolePolicy.h"
 #include "LivingReturnPolicy.h"
 #include "LivingAdviceState.h"
+#include "LivingMovementWatchdog.h"
 #include "Action/ActionPosition.h"
 #include "ObjectGuid.h"
 #include "Goal/GoalType.h"
@@ -78,6 +79,7 @@ struct LivingRoleState
     float BestHomeDistance = 0;
     LivingAdviceState Advice;
     ActionPosition MoveStart;
+    LivingMovementWatchdog MoveWatchdog;
     bool StockMeal = false;
     bool GatheringFood = false;
     uint64 ForageUntilMs = 0;

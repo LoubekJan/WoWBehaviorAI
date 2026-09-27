@@ -227,6 +227,33 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             if (shortenPath)
                 _path->ShortenPathUntilDist(PositionToVector3(target), maxTarget);
 
+            // Shortening creates a new endpoint/segment. Validate the route
+            // that will actually be launched, including its live start and
+            // final segment, rather than only the pre-shortening path.
+            auto huntPoints = _elwynnCompletePath ? _path->GetPath() : Movement::PointsArray{};
+            if (_elwynnCompletePath)
+            {
+                bool startsHere = !huntPoints.empty() && (huntPoints.front() - PositionToVector3(owner)).length() <= 1.5f;
+                if (!huntPoints.empty()) huntPoints.front() = PositionToVector3(owner);
+                bool safe = startsHere && huntPoints.size() >= 2 && Movement::PathWithinBounds(huntPoints,
+                    [&](float px, float py, float pz)
+                    { return owner->GetMap()->GetZoneId(owner->GetPhaseMask(), px, py, pz) == 12; });
+                if (safe && shortenPath)
+                {
+                    auto const& a = huntPoints[huntPoints.size()-2];
+                    auto const& b = huntPoints.back();
+                    safe = owner->GetMap()->isInLineOfSight(a.x, a.y, a.z + 0.5f, b.x, b.y, b.z + 0.5f,
+                        owner->GetPhaseMask(), LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing);
+                }
+                if (!safe)
+                {
+                    if (cOwner) cOwner->SetCannotReachTarget(true);
+                    owner->StopMoving();
+                    _path = nullptr;
+                    return true;
+                }
+            }
+
             if (cOwner)
                 cOwner->SetCannotReachTarget(false);
 
@@ -250,7 +277,7 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             AddFlag(MOVEMENTGENERATOR_FLAG_INFORM_ENABLED);
 
             Movement::MoveSplineInit init(owner);
-            init.MovebyPath(_path->GetPath());
+            init.MovebyPath(_elwynnCompletePath ? huntPoints : _path->GetPath());
             init.SetWalk(walk);
             if (!walk && !owner->HasUnitMovementFlag(MOVEMENTFLAG_FLYING | MOVEMENTFLAG_SWIMMING) &&
                 _speedBoost.GetMultiplier() > 1.0f)

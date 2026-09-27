@@ -98,6 +98,11 @@ class RecoveryAdvice(ProtocolModel):
     rejected: int = Field(ge=0)
     unavailable: int = Field(ge=0)
     reused: int = Field(ge=0)
+    empty_search_rounds: int = Field(default=0, ge=0, le=2)
+    failed_food_advice: int = Field(default=0, ge=0, le=3)
+    known_food_places: int = Field(default=0, ge=0, le=8)
+    retry_ms: int = Field(default=0, ge=0)
+    search_radius: float = Field(default=80, ge=80, le=128)
 
 
 class LivingRole(ProtocolModel):
@@ -130,6 +135,9 @@ class LivingRole(ProtocolModel):
     sprint_remaining_ms: int | None = Field(default=None, ge=0)
     return_recovery: ReturnRecovery | None = None
     advice: RecoveryAdvice | None = None
+    move_end: str = Field(default="NONE", max_length=80)
+    move_no_progress_ms: int = Field(default=0, ge=0)
+    move_remaining: float | None = Field(default=None, ge=0)
 
 
 class Movement(ProtocolModel):

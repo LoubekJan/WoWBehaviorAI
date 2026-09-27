@@ -11,6 +11,8 @@ class Creature;
 namespace LivingRecoveryPath
 {
     bool InSwimmableWater(Creature const& creature, ActionPosition const& point);
+    std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
+        ActionPosition const& home, float radius);
     bool Build(Creature& creature, RecoveryMovement const& request, Movement::PointsArray& points,
         LivingReturnPolicy::Diagnostics* diagnostics = nullptr);
     std::optional<ActionPosition> RejoinPosition(Creature& creature);

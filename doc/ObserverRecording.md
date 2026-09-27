@@ -234,6 +234,25 @@ v detailu NPC se tímto záznamníkem nestahuje.
 
 ## 4. Ukončení a soubory k poslání
 
+Po rozšíření pomoci AI z 27. 9. sleduj také kontrolu `physical_stall`.
+Na rozdíl od kontroly konkrétního návratu sleduje fyzickou nehybnost i při
+střídání `FLEEING`, `ACTING` a `IDLE`. Začíná až při pokusu o pohyb mimo
+domovskou oblast; boj/root/evade čas pozastaví. Hranice je pět minut.
+Nový nález při přepočtu starého záznamu tedy nemusí znamenat novou herní chybu.
+
+Archiv obsahuje `living_role.move_end` (`ARRIVED`, `INTERRUPTED`,
+`NO_PROGRESS`, `DURATION_LIMIT`, `ESCAPE_LIMIT` nebo právě `MOVING`),
+`move_no_progress_ms` a během přesunu `move_remaining` v yardech.
+To dovoluje odlišit ukončený přesun od předčasného zastavení. V `advice`
+jsou navíc `empty_search_rounds`, `failed_food_advice`, `known_food_places`,
+`search_radius` a `retry_ms`. Počet zapamatovaných míst není počet úlovků;
+pozitivní vzpomínka může být stará. Úspěch dál měří `food_success` a pokles hladu.
+
+Po deployi ověř `make test-recovery-ai` a `make record-aiworld-status`.
+Nech automatický čtyřhodinový záznam doběhnout bez zásahů a pošli celou
+složku včetně reportů. Důležité je pokrytí pomoci napříč NPC, pokles
+dlouhých nehybných epizod a skutečné krmení; samotný počet AI dotazů není úspěch.
+
 Po nastavené době se záznam sám uzavře. Pro dřívější ukončení:
 
 ```sh
