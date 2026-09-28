@@ -211,11 +211,18 @@ namespace
                 ++state.ReturnDiagnostics.Rejected[LivingReturnPolicy::Invalid];
                 return false;
             }
+            if (rejoin)
+            {
+                if (state.ReturnRoute.Allows(current, step, false, true)) return true;
+                failure = "RETURN_REJOIN_EXHAUSTED";
+                ++state.ReturnDiagnostics.Rejected[LivingReturnPolicy::Invalid];
+                return false;
+            }
             // A validated complete route may retrace the outward journey.
             // The visit budget only guards speculative fallback detours.
             if (!completeCorridor && state.ReturnRoute.Revisited(step))
             {
-                if (!rejoin && !backtrack && state.ReturnRoute.CanBacktrack(current, step))
+                if (!backtrack && state.ReturnRoute.Allows(current, step, false, false))
                 {
                     backtrack = step;
                     backtrackTrail = trailPoint;
@@ -328,7 +335,7 @@ namespace
                 if (accept(step, false))
                     return step;
         }
-        for (auto step : LivingRecoveryPath::RejoinPositions(creature))
+        for (auto step : LivingRecoveryPath::RejoinPositions(creature, &state.ReturnDiagnostics.Navigation))
         {
             if (!LivingReturnPolicy::UsefulStep(current, step)) continue;
             state.ReturnStrategy = "NAV_REJOIN";
@@ -599,6 +606,11 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.BestHomeDistance = homeDistance; state.HomeProgressAtMs = nowMs;
         state.ReturnRoute.Backtracks.clear();
     }
+    // A verified corridor may first lead away from home around an obstacle.
+    // Consuming its actual reached legs is progress; Euclidean distance alone
+    // must not repeatedly interrupt that route with a fresh model decision.
+    if (state.ReturningHome && state.ReturnRoute.Advance(here))
+        state.HomeProgressAtMs = nowMs;
     if (advice.Active)
     {
         bool huntingForFood = !advice.ActiveReturning &&
@@ -1484,6 +1496,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     {
         loadNearby();
         state.NearbyPrey = state.AttackablePrey = 0;
+        state.Forage.ScannedAtMs = nowMs;
+        state.Forage.NearbyPrey = state.Forage.AttackablePrey = state.Forage.ReachablePrey = 0;
         state.LastHuntStatus = "NO_PREY";
         bool actionRejected = false;
         bool preyOnCooldown = false;
@@ -1495,9 +1509,11 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 IsService(*candidate) || candidate->IsQuestGiver() || candidate->GetZoneId() != 12)
                 continue;
             ++state.NearbyPrey;
+            ++state.Forage.NearbyPrey;
             if (!creature.IsValidAttackTarget(candidate))
                 continue;
             ++state.AttackablePrey;
+            ++state.Forage.AttackablePrey;
             if (!validThreat(candidate))
                 continue;
             if (candidate->GetGUID() == state.UnreachablePreyGuid && nowMs < state.UnreachablePreyUntilMs)
@@ -1521,6 +1537,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             if (path.CalculatePath(candidate->GetPositionX(), candidate->GetPositionY(), candidate->GetPositionZ(), false) &&
                 !(path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE)))
             {
+                ++state.Forage.ReachablePrey;
                 ActionRequest hunt;
                 hunt.Type = ActionType::Attack; hunt.SourceGoal = GoalType::PredatorHunt;
                 if (start(hunt, Phase::Hunting, candidate))
@@ -1545,6 +1562,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         advice.Active = candidate; advice.ActiveOrigin = here; advice.ActiveAt = nowMs;
         advice.ActiveHunger = record.Needs.Hunger; advice.ActiveReturning = returning; advice.StepArrived = false;
         ++advice.Started; advice.Status = "MOVE_STARTED";
+        if (!returning) ++state.Forage.StepsStarted;
         if (candidate.Backtrack)
         {
             state.ReturnRoute.PendingBacktrack = LivingReturnPolicy::RouteMemory::Backtrack{here, candidate.Move.Destination};
@@ -1582,37 +1600,48 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (state.ForageUntilMs)
         {
             ActionPosition origin{creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
-            for (uint32 attempt = 0; attempt < 3; ++attempt)
+            for (uint32 attempt = 0; attempt < 6; ++attempt)
             {
+                state.Forage.SearchAtMs = nowMs;
+                ++state.Forage.RouteAttempts;
                 if (!state.HasForageWaypoint || creature.GetExactDist2d(state.ForageWaypoint.X, state.ForageWaypoint.Y) <= 3.0f)
                 {
-                    auto hint = advice.Food.FoodHint(origin, LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds), nowMs);
-                    state.ForageWaypoint = hint ? *hint : LivingForagePolicy::Waypoint(origin, record.Id.Value,
-                        state.ForageLeg++, advice.Food.EmptyRounds);
+                    auto hint = attempt < 3 ? advice.Food.FoodHint(origin,
+                        LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds), nowMs) : std::nullopt;
+                    state.ForageWaypoint = hint ? *hint : attempt < 3 ? LivingForagePolicy::Waypoint(origin, record.Id.Value,
+                        state.ForageLeg++, advice.Food.EmptyRounds) : LivingForagePolicy::LocalWaypoint(here, record.Id.Value, state.ForageLeg++);
                     state.HasForageWaypoint = hint.has_value();
                     if (!hint)
                     {
                         float height = creature.GetMap()->GetHeight(creature.GetPhaseMask(), state.ForageWaypoint.X,
                             state.ForageWaypoint.Y, here.Z + 4, true);
-                        if (!std::isfinite(height) || height <= INVALID_HEIGHT || std::abs(height - here.Z) > 12) continue;
+                        if (!std::isfinite(height) || height <= INVALID_HEIGHT || std::abs(height - here.Z) > 12)
+                        {
+                            ++state.Forage.HeightRejected; state.Forage.Navigation = {};
+                            state.Forage.Navigation.Failure = "HEIGHT_INVALID";
+                            continue;
+                        }
                         state.ForageWaypoint.Z = height;
                         state.HasForageWaypoint = true;
                     }
                 }
                 auto step = LivingRecoveryPath::Toward(creature, state.ForageWaypoint, origin,
-                    LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds));
+                    LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds), &state.Forage.Navigation);
                 if (step)
                 {
                     ActionRequest search;
                     search.Type = ActionType::MoveTo; search.SourceGoal = GoalType::LocalActivity; search.Destination = step;
                     if (start(search, Phase::Moving))
                     {
+                        ++state.Forage.StepsStarted;
                         state.MovementPurpose = "FORAGE_SEARCH";
                         return true;
                     }
+                    state.Forage.Navigation.Failure = "EXECUTION_REJECTED";
                 }
                 state.HasForageWaypoint = false;
-                advice.Food.Searched(state.ForageWaypoint, nowMs);
+                ++state.Forage.PathRejected;
+                advice.Food.Unreachable(state.ForageWaypoint, nowMs);
             }
             state.ForageUntilMs = 0;
             advice.Food.EmptyRound();
@@ -1713,7 +1742,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 destination = advised->Move.Destination;
                 state.ReturnDiagnostics = advised->Diagnostics;
                 state.ReturnStrategy = "AI_ADVICE";
-                state.ReturnRoute.Planned.clear();
+                if (!advised->FollowsCorridor) state.ReturnRoute.Planned.clear();
                 state.ReturnRoute.TrailTarget.reset();
                 state.ReturnRoute.PendingBacktrack.reset();
                 pathReady = true;
@@ -1773,7 +1802,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (start(move, Phase::Moving))
         {
             state.MovementPurpose = returningHome ? "RETURN_HOME" : "LOCAL_ROAM";
-            if (returningHome) state.ReturnRoute.CommitBacktrack();
+            if (returningHome)
+            {
+                state.ReturnRoute.CommitBacktrack();
+                if (approvedRecovery && approvedRecovery->Rejoin)
+                    state.ReturnRoute.CommitRejoin(here, destination);
+            }
             if (advised) rememberAdviceStart(*advised, true);
         }
         else if (returningHome)

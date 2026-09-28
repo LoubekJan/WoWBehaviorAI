@@ -163,6 +163,7 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                 role.CompanionSpawnId = info.CompanionSpawnId;
                 role.LastHuntTargetSpawnId = info.HuntTargetSpawnId;
                 auto const& recovery = record->LivingRole;
+                if (recovery.Forage.ScannedAtMs || recovery.Forage.SearchAtMs) role.Forage = recovery.Forage;
                 if (recovery.ReturningHome || recovery.ReturnFailures)
                 {
                     ReturnRecoveryTelemetry diagnostic;
@@ -179,6 +180,8 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                     diagnostic.ResolvedZ = recovery.ReturnDiagnostics.ResolvedZ;
                     diagnostic.Navigation = recovery.ReturnDiagnostics.Navigation;
                     diagnostic.Backtracks = uint32(recovery.ReturnRoute.Backtracks.size());
+                    diagnostic.Rejoins = uint32(recovery.ReturnRoute.Rejoins.size());
+                    diagnostic.CorridorPoints = uint32(recovery.ReturnRoute.Planned.size());
                     role.ReturnRecovery = std::move(diagnostic);
                 }
                 if (info.HuntStatus)

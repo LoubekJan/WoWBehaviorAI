@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from copy import copy
 import gzip
 import json
 import math
@@ -128,6 +129,16 @@ class Evaluator:
         recovery = agent["living_role"].get("return_recovery")
         if isinstance(recovery, dict):
             detail["return_recovery"] = recovery
+        forage = agent["living_role"].get("forage")
+        if key == "predator_hunger" and isinstance(forage, dict):
+            detail["forage"] = forage
+            scan = forage.get("scanned_at_ms")
+            capture = row["state"]["captured_at_ms"]
+            detail["food_observation"] = (
+                "STALE_SCAN" if type(scan) is not int or not 0 < scan <= capture or capture-scan > 60000 else
+                "NO_LOCAL_PREY" if forage.get("nearby_prey") == 0 else
+                "PREY_NOT_ATTACKABLE" if forage.get("attackable_prey") == 0 else
+                "NO_REACHABLE_PREY" if forage.get("reachable_prey") == 0 else "REACHABLE_PREY_SEEN")
         if duration > self.worst.get(identity, {}).get("duration_seconds", -1):
             self.worst[identity] = detail
 
@@ -334,9 +345,27 @@ class Evaluator:
         self.previous = current
         self.last_was_fresh = True
 
-    def finish(self, summary: dict, *, integrity_errors: list[str] | None = None) -> dict:
+    def checkpoint(self, summary: dict, minimum_seconds: float = 900) -> dict:
+        """Read-only view of navigation checks; keep the four-hour state intact."""
+        early = copy(self)
+        early.policy = replace(self.policy, minimum_seconds=minimum_seconds)
+        report = early.finish(summary, partial=True)
+        selected = {"return", "return_duration", "physical_stall", "motion", "outside", "advice_wait"}
+        report["checks"] = [c for c in report["checks"] if c["id"] in selected]
+        report["findings"] = [f for f in report["findings"] if f["check"] in selected]
+        report["scope"] = "early_navigation"
+        report["recording_complete"] = False
+        report["status"] = ("FAIL" if report["findings"] else "PASS" if
+            report["quality"]["status"] == "PASS" and all(c["status"] in {"PASS", "NOT_OBSERVED"} for c in report["checks"])
+            else "INCONCLUSIVE")
+        report["exit_code"] = {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 2}[report["status"]]
+        report["not_tested"] = [*report["not_tested"], "Dlouhodobý hlad a pozdější část pokračujícího běhu"]
+        return report
+
+    def finish(self, summary: dict, *, integrity_errors: list[str] | None = None, partial: bool = False) -> dict:
         errors = list(integrity_errors or [])
-        if summary.get("status") != "finished" or summary.get("stop_reason") not in {"duration", "stopped"}:
+        if not (partial and summary.get("status") == "running") and (
+                summary.get("status") != "finished" or summary.get("stop_reason") not in {"duration", "stopped"}):
             errors.append("recording_not_completed")
         if summary.get("samples") != self.samples or summary.get("counts") != dict(self.counts):
             errors.append("summary_sample_counts_mismatch")
@@ -385,6 +414,8 @@ def write_report(report: dict, output: Path):
     for check in report["checks"]:
         lines.append(f"| {check['label']} | {check['status']} | {check['observed_agents']} | {check['affected_agents']} |")
     quality = report["quality"]
+    if report.get("scope") == "early_navigation":
+        lines += ["", "Průběžná kontrola navigace. Záznam pokračuje; tento výsledek nenahrazuje závěrečný čtyřhodinový test."]
     lines += ["", f"Kvalita dat: **{quality['status']}**; {quality['samples']} vzorků, "
               f"{quality['continuous_fresh_seconds']:.0f} s souvisle navazujících čerstvých dat "
               f"({quality['fresh_time_fraction']:.1%} délky běhu).",
@@ -397,6 +428,15 @@ def write_report(report: dict, output: Path):
                      ("check", "spawn_id", "name", "duration_seconds", "start_utc", "end_utc", "movement_purpose")) + " |")
     if not report["findings"]:
         lines += ["", "Žádné překročení prahů. Neověřené scénáře tím nejsou potvrzené."]
+    food = [f for f in report['findings'] if f.get('food_observation')]
+    if food:
+        lines += ["", "## Pozorování potravy u hladových predátorů", "",
+            "Poslední místní pozorování, nikoli důkaz, že v celém lovišti není potrava. "
+            "STALE_SCAN znamená chybějící či starší než minutový průzkum. Podrobnosti cesty jsou v JSON.", "",
+            "| Spawn | Pozorování | Poslední výsledek hledání cesty |", "| ---: | --- | --- |"]
+        for f in food:
+            lines.append(f"| {f['spawn_id']} | {clean(f['food_observation'])} | "
+                         f"{clean(f['forage'].get('navigation', {}).get('failure', 'UNKNOWN'))} |")
     advice = report.get("recovery_advice", [])
     if advice:
         active_advice = [item for item in advice if any(item['counters'].values()) or item['last_status'] != 'IDLE']

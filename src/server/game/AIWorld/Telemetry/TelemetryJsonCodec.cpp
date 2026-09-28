@@ -72,6 +72,27 @@ namespace
         out << ','; WriteString(out, key); out << ':'; WriteValue(out, value);
     }
 
+    void WriteNavigation(std::ostream& out, NavigationDiagnostics const& nav)
+    {
+        out << "{\"mesh\":"; WriteValue(out, nav.Mesh);
+        WriteJsonField(out, "start_tile", nav.StartTile); WriteJsonField(out, "end_tile", nav.EndTile);
+        WriteJsonField(out, "filter", nav.Filter); WriteJsonField(out, "start_flags", nav.StartFlags);
+        WriteJsonField(out, "end_flags", nav.EndFlags); WriteJsonField(out, "start_distance", nav.StartDistance);
+        WriteJsonField(out, "end_distance", nav.EndDistance); WriteJsonField(out, "swimming", nav.Swimming);
+        WriteJsonField(out, "rejoin", nav.Rejoin); WriteJsonField(out, "failure", nav.Failure);
+        WriteJsonField(out, "detail", nav.Detail); WriteJsonField(out, "home_radius", nav.HomeRadius);
+        WriteJsonField(out, "rejected_x", nav.RejectedX); WriteJsonField(out, "rejected_y", nav.RejectedY);
+        WriteJsonField(out, "rejected_z", nav.RejectedZ);
+        WriteJsonField(out, "source_z", nav.SourceZ); WriteJsonField(out, "support_z", nav.SupportZ);
+        WriteJsonField(out, "source_x", nav.SourceX); WriteJsonField(out, "source_y", nav.SourceY);
+        WriteJsonField(out, "projection_x", nav.ProjectionX); WriteJsonField(out, "projection_y", nav.ProjectionY);
+        WriteJsonField(out, "projection_z", nav.ProjectionZ); WriteJsonField(out, "projection_ground_z", nav.ProjectionGroundZ);
+        WriteJsonField(out, "rejected_ground_z", nav.RejectedGroundZ); WriteJsonField(out, "previous_ground_z", nav.PreviousGroundZ);
+        WriteJsonField(out, "connector_samples", nav.ConnectorSamples);
+        WriteJsonField(out, "projection_failure", nav.ProjectionFailure);
+        WriteJsonField(out, "projection_probes", nav.ProjectionProbes); out << '}';
+    }
+
     void WriteValue(std::ostream& out, ReturnRecoveryTelemetry const& recovery)
     {
         out << "{\"failures\":" << recovery.Failures;
@@ -81,17 +102,8 @@ namespace
         WriteJsonField(out, "candidates", recovery.Candidates); WriteJsonField(out, "path_type", recovery.PathType);
         WriteJsonField(out, "requested_z", recovery.RequestedZ); WriteJsonField(out, "resolved_z", recovery.ResolvedZ);
         WriteJsonField(out, "backtracks", recovery.Backtracks);
-        auto const& nav = recovery.Navigation;
-        out << ",\"navigation\":{\"mesh\":"; WriteValue(out, nav.Mesh);
-        WriteJsonField(out, "start_tile", nav.StartTile); WriteJsonField(out, "end_tile", nav.EndTile);
-        WriteJsonField(out, "filter", nav.Filter); WriteJsonField(out, "start_flags", nav.StartFlags);
-        WriteJsonField(out, "end_flags", nav.EndFlags); WriteJsonField(out, "start_distance", nav.StartDistance);
-        WriteJsonField(out, "end_distance", nav.EndDistance); WriteJsonField(out, "swimming", nav.Swimming);
-        WriteJsonField(out, "rejoin", nav.Rejoin); WriteJsonField(out, "failure", nav.Failure);
-        WriteJsonField(out, "detail", nav.Detail); WriteJsonField(out, "home_radius", nav.HomeRadius);
-        WriteJsonField(out, "rejected_x", nav.RejectedX); WriteJsonField(out, "rejected_y", nav.RejectedY);
-        WriteJsonField(out, "rejected_z", nav.RejectedZ);
-        WriteJsonField(out, "source_z", nav.SourceZ); WriteJsonField(out, "support_z", nav.SupportZ); out << '}';
+        WriteJsonField(out, "rejoins", recovery.Rejoins); WriteJsonField(out, "corridor_points", recovery.CorridorPoints);
+        out << ",\"navigation\":"; WriteNavigation(out, recovery.Navigation);
         char const* names[] = { "invalid", "height", "zone", "los", "path", "bounds", "danger" };
         out << ",\"rejected\":{";
         for (std::size_t i = 0; i < recovery.Rejections.size(); ++i)
@@ -123,6 +135,19 @@ namespace
         WriteJsonField(out, "sprint_multiplier", role.SprintMultiplier); WriteJsonField(out, "sprint_remaining_ms", role.SprintRemainingMs);
         WriteJsonField(out, "move_end", role.MoveEnd); WriteJsonField(out, "move_no_progress_ms", role.MoveNoProgressMs);
         WriteJsonField(out, "move_remaining", role.MoveRemaining);
+        out << ",\"forage\":";
+        if (role.Forage)
+        {
+            auto const& f = *role.Forage;
+            out << "{\"scanned_at_ms\":" << f.ScannedAtMs;
+            WriteJsonField(out, "search_at_ms", f.SearchAtMs);
+            WriteJsonField(out, "nearby_prey", f.NearbyPrey); WriteJsonField(out, "attackable_prey", f.AttackablePrey);
+            WriteJsonField(out, "reachable_prey", f.ReachablePrey); WriteJsonField(out, "route_attempts", f.RouteAttempts);
+            WriteJsonField(out, "height_rejected", f.HeightRejected); WriteJsonField(out, "path_rejected", f.PathRejected);
+            WriteJsonField(out, "steps_started", f.StepsStarted);
+            out << ",\"navigation\":"; WriteNavigation(out, f.Navigation); out << '}';
+        }
+        else out << "null";
         // Explicit dispatch avoids two-phase lookup of the later overload.
         out << ",\"return_recovery\":";
         if (role.ReturnRecovery) WriteValue(out, *role.ReturnRecovery); else out << "null";

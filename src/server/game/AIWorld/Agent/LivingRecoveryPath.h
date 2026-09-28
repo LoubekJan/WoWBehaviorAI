@@ -12,10 +12,10 @@ namespace LivingRecoveryPath
 {
     bool InSwimmableWater(Creature const& creature, ActionPosition const& point);
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
-        ActionPosition const& home, float radius);
+        ActionPosition const& home, float radius, NavigationDiagnostics* diagnostics = nullptr);
     bool Build(Creature& creature, RecoveryMovement const& request, Movement::PointsArray& points,
         LivingReturnPolicy::Diagnostics* diagnostics = nullptr);
-    std::optional<ActionPosition> RejoinPosition(Creature& creature);
-    std::vector<ActionPosition> RejoinPositions(Creature& creature);
+    std::optional<ActionPosition> RejoinPosition(Creature& creature, NavigationDiagnostics* diagnostics = nullptr);
+    std::vector<ActionPosition> RejoinPositions(Creature& creature, NavigationDiagnostics* diagnostics = nullptr);
 }
 #endif

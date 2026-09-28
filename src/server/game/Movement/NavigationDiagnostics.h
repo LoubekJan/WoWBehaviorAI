@@ -20,5 +20,11 @@ struct NavigationDiagnostics
     float HomeRadius = 0.0f;
     std::optional<float> RejectedX, RejectedY, RejectedZ;
     std::optional<float> SourceZ, SupportZ;
+    std::optional<float> SourceX, SourceY;
+    std::optional<float> ProjectionX, ProjectionY, ProjectionZ, ProjectionGroundZ;
+    std::optional<float> RejectedGroundZ, PreviousGroundZ;
+    uint32 ConnectorSamples = 0;
+    std::string ProjectionFailure = "NONE";
+    uint32 ProjectionProbes = 0;
 };
 #endif

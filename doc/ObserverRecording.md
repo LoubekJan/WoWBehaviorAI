@@ -24,6 +24,15 @@ report; nedostatek dat označí jako `INCONCLUSIVE`, prokázanou chybu jako `FAI
 Zelený deploy potvrzuje spuštění sběru, nikoli výsledek čtyřhodinového testu.
 Pozdější `FAIL` nebo `INCONCLUSIVE` nezmění výsledek CI a nevrací nasazení zpět.
 Finální výsledek najdeš v reportu a přes `make record-aiworld-status`.
+
+Po 15 minutách navíc automaticky vznikne `early-navigation/behavior-report.md`
+a JSON ve stejné složce záznamu. Tento průběžný report kontroluje zaseknutí,
+dokončení návratů, pohyb, udržení řízení v Elwynnu a frontu AI. Stav je i v
+`summary.json` pod `early_navigation` a ve výpisu `make record-aiworld-status`.
+Nevyžaduje další službu ani spuštění příkazu po deployi. Záznam pokračuje až
+do svého obvyklého konce i při FAIL, aby zůstaly důkazy pro rozbor. PASS tohoto
+krátkého reportu nepotvrzuje čtyřhodinový výsledek ani nepozorované scénáře.
+Samostatný záznamník umožňuje interval změnit přes `--checkpoint-minutes`.
 Při neúspěšných kontrolách deploye se nový test nespustí; pokud se nepodaří
 ověřit jeho první data, CI jej zastaví a označí deploy jako neúspěšný.
 
@@ -39,6 +48,31 @@ skončení uloží `behavior-report.md` pro čtení a `behavior-report.json` pro
 automatické zpracování. Souhrn `summary.json` dostane také pole `behavior`.
 Výsledky najdeš v nové složce `runtime/recordings/aiworld-<čas>-<id>/`.
 Test nemění NPC ani neposílá příkazy do hry. Není třeba překládat worldserver.
+
+Nová diagnostika navigace a hledání potravy vyžaduje také nasazení nového
+worldserveru. U neúspěšného napojení zaznamená skutečné XY/Z, původní výšku
+polygonu i její převod na povrch enginu, první odmítnutý bod, jeho povrch,
+předchozí výšku a počet kontrolovaných úseků. `rejoins` počítá omezené pokusy
+o napojení; `corridor_points` zbývající body již ověřené trasy.
+Pokud se nenajde ani návrh bodu napojení, `projection_failure` rozliší
+chybějící síť/dlaždici, nenalezený povrchový polygon, nesoulad jeho výšky
+a překročení rozsahu; `projection_probes` udává počet provedených sond.
+
+`living_role.forage` odděluje čas posledního průzkumu kořisti od času hledání
+cesty. Obsahuje místně viděnou/napadnutelnou/dosažitelnou kořist, počty návrhů
+tras, odmítnutých výšek a cest, zahájených přesunů a poslední navigační důvod.
+Hladový predátor dostane v reportu `NO_LOCAL_PREY`, `PREY_NOT_ATTACKABLE`,
+`NO_REACHABLE_PREY`, `REACHABLE_PREY_SEEN` nebo `STALE_SCAN`. Poslední označení
+znamená průzkum starší než minuta nebo chybějící čas; absence kořisti v jednom
+lokálním průzkumu není důkaz absence potravy v celém Elwynnu.
+
+Krátké regresní scénáře návratů se spouštějí automaticky v existujícím CTest
+CI kroku před deployem. Samostatně je lze spustit v sestaveném testovacím
+build adresáři (`BUILD_TESTING=1`) přes `make test-recovery-navigation`.
+Kontrolují souvislý nerovný povrch, propast, jiné patro, překážku, omezené
+napojení z místa mimo navigační síť, dokončení návratu přes navštívené body a
+odlišení neúspěšné cesty od skutečně prohledaného místa. Používají řízenou
+geometrii; skutečné mmaps/vmaps ověřuje až pozorování na serveru.
 
 Pro srovnatelné výsledky nech svět běžet bez zásahů a nastav
 `AIWorld.ElwynnAlwaysActive = 1`. Záznamník musí sledovat aktuální telemetrii

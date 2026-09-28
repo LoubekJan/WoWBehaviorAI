@@ -5,6 +5,46 @@ Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 20
 
 ## Plošná pomoc lokální AI a opravy podle záznamu — 27. 9. 2026
 
+### Navazující oprava navigace a hledání potravy — 28. 9. 2026
+
+Napojení na navmesh sjednocuje surovou výšku polygonu s povrchem enginu.
+Potom po půlyardových krocích sleduje skutečný povrch; neporovnává dolík či
+hřeben s přímkou mezi koncovými body. Zachovává původní polohu NPC, kontroluje
+kolize i případné srovnání výšky a odmítá skok na jiné patro, propast, stěnu,
+chybějící dlaždice nebo překročení hranic. Rozsah spojovacího úseku zůstává
+nejvýše 6 yardů, srovnání počáteční výšky nejvýše 3 yardy.
+
+Běžný návrat i AI používají stejnou paměť povolených kroků. Bezpečné napojení
+může projít navštíveným bodem i po vyčerpání spekulativních obcházek; každá
+orientovaná spojnice jen jednou, nejvýše 8 napojení za epizodu návratu.
+Selhané úseky zůstávají zakázané. AI krok po již ověřené trase zachová její
+pokračování. Dosažení dalšího bodu této trasy aktualizuje postup i při
+obcházení překážky směrem od domova. Kontrola skutečného dokončení návratu
+nadále běží nezávisle na pouhém pohybu.
+
+Hladový predátor po selhání vzdálených bodů zkouší také krátké směry 8–16
+yardů od aktuální pozice; celá cesta stále musí být uvnitř loviště a Elwynnu.
+Nepřístupný bod se ukládá odděleně od skutečně navštíveného místa. Negativní
+záznam cesty vyprší po minutě a skutečné dosažení místa nebo jídlo ho vymaže.
+Tím selhaný pokus nemůže na deset minut předstírat prohledání jeskyně.
+
+Nové regresní scénáře jsou v `tests/game/RecoveryAdvice.cpp` s tagem
+`[RecoveryNavigation]`; běží automaticky přes stávající CI/CTest. Pro
+samostatné spuštění existuje `make test-recovery-navigation`. Model se v těchto
+testech nevolá. Průběžný patnáctiminutový report, jeho rozsah a diagnostiku
+popisuje [ObserverRecording.md](ObserverRecording.md). Reálný výsledek na
+serverových mmaps/vmaps musí potvrdit další herní záznam.
+
+Lokální ověření tohoto balíku: 65 testů chování/protokolu (4 434 assertions),
+7 testů serializace telemetrie (92 assertions) a 77 testů Observeru prošlo;
+další test ukončení procesu signálem je na Windows přeskočen. Prošla syntax
+běhových jednotek návratů, rad AI, exekutoru akcí a telemetrie. Celý
+`PathGenerator.cpp` lokálně blokuje chybějící hlavička Boost `small_vector.hpp`;
+změněná metoda byla samostatně syntakticky ověřena jako přesná kopie jejího
+zdroje proti skutečným hlavičkám enginu. Úplné sestavení/linkování patří do CI.
+
+### Předchozí změny
+
 Po dalším běhu `20260927T151045Z-eef927bb` jsou opraveny tyto mechanismy:
 
 - Čekající žádost se obnovuje v pravidelném updatu, i během odpočinku.

@@ -9,7 +9,7 @@
 struct LivingFoodMemory
 {
     struct Observation { ActionPosition Point; uint64 At; };
-    std::vector<Observation> Meals, Searches;
+    std::vector<Observation> Meals, Searches, Blocked;
     uint32 EmptyRounds = 0, FailedAdvice = 0;
     static bool Recent(Observation const& o, uint64 now, uint64 age)
     { return now >= o.At && now - o.At < age; }
@@ -19,10 +19,21 @@ struct LivingFoodMemory
         if (list.size() >= limit) list.erase(list.begin());
         list.push_back({point, now});
     }
-    void Searched(ActionPosition const& point, uint64 now) { Remember(Searches, point, now, 32); }
+    void Searched(ActionPosition const& point, uint64 now)
+    {
+        Remember(Searches, point, now, 32);
+        std::erase_if(Blocked, [&](auto const& o) { return LivingReturnPolicy::Distance(o.Point, point) < 8; });
+    }
+    void Unreachable(ActionPosition const& point, uint64 now) { Remember(Blocked, point, now, 32); }
+    bool RecentlyBlocked(ActionPosition const& point, uint64 now) const
+    {
+        return std::any_of(Blocked.begin(), Blocked.end(), [&](auto const& o)
+        { return Recent(o, now, 60000) && o.Point.MapId == point.MapId && LivingReturnPolicy::Distance(o.Point, point) < 8; });
+    }
     void Fed(ActionPosition const& point, uint64 now)
     {
         Remember(Meals, point, now, 8);
+        std::erase_if(Blocked, [&](auto const& o) { return LivingReturnPolicy::Distance(o.Point, point) < 8; });
         std::erase_if(Searches, [&](auto const& o) { return LivingReturnPolicy::Distance(o.Point, point) < 8; });
         EmptyRounds = FailedAdvice = 0;
     }
@@ -35,7 +46,8 @@ struct LivingFoodMemory
     {
         for (auto it = Meals.rbegin(); it != Meals.rend(); ++it)
             if (Recent(*it, now, 1800000) && it->Point.MapId == home.MapId &&
-                std::hypot(it->Point.X-home.X, it->Point.Y-home.Y) <= radius && !Visits(it->Point, now)) return it->Point;
+                std::hypot(it->Point.X-home.X, it->Point.Y-home.Y) <= radius &&
+                !Visits(it->Point, now) && !RecentlyBlocked(it->Point, now)) return it->Point;
         return std::nullopt;
     }
     void EmptyRound() { EmptyRounds = std::min(EmptyRounds + 1, 2u); }

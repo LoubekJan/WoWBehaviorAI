@@ -13,6 +13,7 @@ struct LivingAdviceCandidate
     RecoveryMovement Move;
     LivingReturnPolicy::Diagnostics Diagnostics;
     bool Backtrack = false;
+    bool FollowsCorridor = false;
 };
 struct LivingAdviceState
 {

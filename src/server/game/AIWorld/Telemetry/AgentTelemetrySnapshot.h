@@ -20,6 +20,7 @@
 #include "Needs/NeedsState.h"
 #include "Scheduler/SimulationTier.h"
 #include "NavigationDiagnostics.h"
+#include "Agent/LivingForageState.h"
 #include <array>
 #include <optional>
 #include <string>
@@ -37,6 +38,7 @@ struct ReturnRecoveryTelemetry
     std::optional<float> ResolvedZ;
     NavigationDiagnostics Navigation;
     uint32 Backtracks = 0;
+    uint32 Rejoins = 0, CorridorPoints = 0;
 };
 
 struct RecoveryAdviceTelemetry
@@ -73,6 +75,7 @@ struct LivingRoleTelemetry
     std::optional<uint32> SprintRemainingMs;
     std::optional<ReturnRecoveryTelemetry> ReturnRecovery;
     std::optional<RecoveryAdviceTelemetry> Advice;
+    std::optional<LivingForageState> Forage;
     std::string MoveEnd = "NONE";
     uint64 MoveNoProgressMs = 0;
     std::optional<float> MoveRemaining;

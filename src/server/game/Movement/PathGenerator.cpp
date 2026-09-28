@@ -95,24 +95,36 @@ bool PathGenerator::CalculatePath(float destX, float destY, float destZ, bool fo
     return true;
 }
 
-bool PathGenerator::FindRecoveryPosition(G3D::Vector3& point, G3D::Vector3 const* probe) const
+bool PathGenerator::FindRecoveryPosition(G3D::Vector3& point, G3D::Vector3 const* probe, NavigationDiagnostics* diagnostics) const
 {
-    if (!_navMesh || !_navMeshQuery) return false;
+    auto fail = [&](char const* reason)
+    { if (diagnostics) diagnostics->ProjectionFailure = reason; return false; };
+    if (diagnostics)
+    {
+        ++diagnostics->ProjectionProbes;
+        diagnostics->ProjectionX.reset(); diagnostics->ProjectionY.reset(); diagnostics->ProjectionZ.reset();
+        diagnostics->ProjectionGroundZ.reset(); diagnostics->ProjectionFailure = "NONE";
+    }
+    if (!_navMesh || !_navMeshQuery) return fail("NO_NAVMESH");
     G3D::Vector3 from(_source->GetPositionX(), _source->GetPositionY(), _source->GetPositionZ());
-    if (!HaveTile(from)) return false;
+    if (!HaveTile(from)) return fail("MISSING_START_TILE");
     G3D::Vector3 center = probe ? *probe : from;
     if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z) ||
-        std::hypot(center.x-from.x, center.y-from.y) > 6 || std::abs(center.z-from.z) > 3) return false;
+        std::hypot(center.x-from.x, center.y-from.y) > 6 || std::abs(center.z-from.z) > 3) return fail("INVALID_PROBE");
     float extent = probe ? 2.0f : 6.0f;
     float origin[] = { center.y, center.z, center.x }, extents[] = { extent, 3.0f, extent }, closest[3];
     dtQueryFilter ground = _filter;
     ground.setIncludeFlags(NAV_GROUND | NAV_GROUND_STEEP);
     dtPolyRef poly = INVALID_POLYREF;
     if (dtStatusFailed(_navMeshQuery->findNearestPoly(origin, extents, &ground, &poly, closest)) || !poly)
-        return false;
+        return fail("NO_GROUND_POLYGON");
     point = G3D::Vector3(closest[2], closest[0], closest[1]);
-    return HaveTile(point) && std::hypot(point.x - from.x, point.y - from.y) <= 6.0f &&
-        std::abs(point.z - from.z) <= 3.0f;
+    if (diagnostics)
+    { diagnostics->ProjectionX = point.x; diagnostics->ProjectionY = point.y; diagnostics->ProjectionZ = point.z; }
+    if (!HaveTile(point)) return fail("MISSING_PROJECTION_TILE");
+    if (std::hypot(point.x-from.x, point.y-from.y) > 6.0f) return fail("PROJECTION_RANGE");
+    if (std::abs(point.z-from.z) > 3.0f) return fail("PROJECTION_HEIGHT");
+    return true;
 }
 
 dtPolyRef PathGenerator::GetPathPolyByPosition(dtPolyRef const* polyPath, uint32 polyPathSize, float const* point, float* distance) const

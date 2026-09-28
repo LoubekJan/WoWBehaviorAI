@@ -56,6 +56,66 @@ def stranded():
 
 
 class BehaviorTests(unittest.TestCase):
+    def test_early_navigation_pass_does_not_finish_or_clear_long_run(self):
+        rows = samples(count=201)
+        evaluator = behavior.Evaluator(METADATA)
+        for row in rows:
+            evaluator.observe(row)
+        running = {**summary(rows), 'status': 'running'}
+        before = copy.deepcopy(evaluator.__dict__)
+        report = evaluator.checkpoint(running)
+        self.assertEqual(report['status'], 'PASS')
+        self.assertFalse(report['recording_complete'])
+        self.assertEqual(report['scope'], 'early_navigation')
+        self.assertNotIn('predator_hunger', [c['id'] for c in report['checks']])
+        self.assertEqual(evaluator.__dict__, before)
+        self.assertEqual(evaluator.finish(summary(rows))['status'], 'INCONCLUSIVE')
+        # The same continuing evaluator must still find a later real stall.
+        later = samples(count=281, npc=stranded())
+        for row in later[201:]:
+            evaluator.observe(row)
+        self.assertEqual(evaluator.finish(summary(later))['status'], 'FAIL')
+
+    def test_early_navigation_detects_stall_but_cannot_pass_missing_data(self):
+        for npc in (agent(), stranded()):
+            rows = samples(count=201, npc=npc)
+            evaluator = behavior.Evaluator(METADATA)
+            for row in rows: evaluator.observe(row)
+            result = evaluator.checkpoint({**summary(rows), 'status': 'running'})
+            self.assertEqual(result['status'], 'FAIL' if npc['movement']['home_distance'] else 'PASS')
+        short = behavior.Evaluator(METADATA)
+        rows = samples(count=2)
+        for row in rows: short.observe(row)
+        self.assertEqual(short.checkpoint({**summary(rows), 'status': 'running'})['status'], 'INCONCLUSIVE')
+
+    def test_early_navigation_rejects_moving_in_circles_without_reaching_home(self):
+        rows = samples(count=201, npc=stranded())
+        evaluator = behavior.Evaluator(METADATA)
+        for i, row in enumerate(rows):
+            npc = row['state']['agents'][0]
+            npc['position']['x'] += 8 * (i % 2)
+            npc['movement']['moving'] = True
+            npc['living_role'].update(phase='MOVING', movement_purpose='RETURN_HOME')
+            evaluator.observe(row)
+        report = evaluator.checkpoint({**summary(rows), 'status': 'running'})
+        self.assertEqual(report['status'], 'FAIL')
+        self.assertIn('return_duration', [f['check'] for f in report['findings']])
+        self.assertNotIn('physical_stall', [f['check'] for f in report['findings']])
+
+    def test_hunger_evidence_distinguishes_absent_prey_from_stale_scan(self):
+        rows = samples(npc=agent())
+        for row in rows:
+            npc = row['state']['agents'][0]
+            npc['needs']['hunger'] = 1.0
+            npc['living_role']['forage'] = dict(scanned_at_ms=row['state']['captured_at_ms'],
+                nearby_prey=0, attackable_prey=0, reachable_prey=0, navigation={'failure': 'NO_COMPLETE_PATH'})
+        finding = next(f for f in evaluate(rows)['findings'] if f['check'] == 'predator_hunger')
+        self.assertEqual(finding['food_observation'], 'NO_LOCAL_PREY')
+        self.assertEqual(finding['forage']['navigation']['failure'], 'NO_COMPLETE_PATH')
+        for row in rows: row['state']['agents'][0]['living_role']['forage']['scanned_at_ms'] = 1
+        finding = next(f for f in evaluate(rows)['findings'] if f['check'] == 'predator_hunger')
+        self.assertEqual(finding['food_observation'], 'STALE_SCAN')
+
     def test_threat_return_loop_is_reported_separately_from_calm_hunger(self):
         rows = samples(count=141, npc=agent(role='PREY'))
         for i, row in enumerate(rows):

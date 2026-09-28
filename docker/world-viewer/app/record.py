@@ -150,13 +150,15 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
     last_status = None
     next_summary = started
     reason = "duration"
+    checkpoint = None
+    checkpoint_seconds = getattr(args, "checkpoint_minutes", 15) * 60
     print(f"Recording to {recording.directory}", flush=True)
 
     def summary() -> dict:
         return {"kind": "summary", "updated_at_utc": utc_now(),
                 "elapsed_seconds": round(time.monotonic() - started, 3),
                 "samples": samples, "counts": dict(counts), "max_agents": max_agents,
-                "last_status": last_status}
+                "last_status": last_status, **({"early_navigation": checkpoint} if checkpoint else {})}
 
     try:
         recording.save_summary({**summary(), "status": "running"})
@@ -188,6 +190,12 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
             recording.write(sample)
             if evaluator:
                 evaluator.observe(sample)
+                if checkpoint is None and sample["elapsed_seconds"] >= checkpoint_seconds:
+                    report = evaluator.checkpoint({**summary(), "status": "running"}, checkpoint_seconds)
+                    write_report(report, recording.directory / "early-navigation")
+                    checkpoint = {"status": report["status"], "exit_code": report["exit_code"],
+                                  "report": "early-navigation/behavior-report.json", "findings": len(report["findings"])}
+                    print(json.dumps({"early_navigation": checkpoint}), flush=True)
             changed = status != last_status
             last_status = status
             if changed or time.monotonic() >= next_summary:
@@ -240,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--analyze", action="store_true", help="evaluate behavior and write a final report")
     parser.add_argument("--minimum-minutes", type=positive_number, default=60.0,
                         help="minimum fresh observation time required by behavior checks")
+    parser.add_argument("--checkpoint-minutes", type=positive_number, default=15.0,
+                        help="write an early navigation report without stopping the recording")
     args = parser.parse_args(argv)
     endpoint = urlsplit(args.url)
     if (endpoint.scheme not in ("http", "https") or not endpoint.hostname or endpoint.username or

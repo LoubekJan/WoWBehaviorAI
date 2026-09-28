@@ -9,6 +9,103 @@
 #include "Agent/LivingEscapeProgress.h"
 #include <limits>
 
+TEST_CASE("Recovery navigation crosses a continuous hollow without cutting terrain", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    // The surface is two yards below the endpoint chord; the old interpolation
+    // rejected its middle despite every half-yard step being walkable.
+    auto ground = [](auto const& p) -> std::optional<float> { return 10.0f - std::min(p.X, 6.0f-p.X) * (2.0f/3.0f); };
+    auto clear = [](auto const&, auto const&) { return true; };
+    NavigationDiagnostics nav;
+    char const* reason = "NONE";
+    auto path = SurfaceConnector({0,0,0,11.58f}, {0,6,0,10}, ground, clear, &reason, ActionPosition{0,0,0,10}, &nav);
+    REQUIRE_FALSE(path.empty());
+    REQUIRE(path.front().Z == Approx(11.58));
+    REQUIRE(path.back().X == 6);
+    REQUIRE(path.back().Z == 10);
+    REQUIRE(std::min_element(path.begin(), path.end(), [](auto const& a, auto const& b) { return a.Z < b.Z; })->Z == Approx(8));
+    REQUIRE(nav.ConnectorSamples == 12);
+    for (size_t i = 2; i < path.size(); ++i) REQUIRE(std::abs(path[i].Z-path[i-1].Z) <= .75f);
+}
+
+TEST_CASE("Recovery navigation records the first unsafe segment and rejects another floor", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    auto clear = [](auto const&, auto const&) { return true; };
+    NavigationDiagnostics nav;
+    char const* reason = "NONE";
+    auto cliff = [](auto const& p) -> std::optional<float> { return p.X < 2 ? 10 : 6; };
+    REQUIRE(SurfaceConnector({0,0,0,10}, {0,4,0,10}, cliff, clear, &reason, {}, &nav).empty());
+    REQUIRE(std::string(reason) == "CONNECTOR_CLIFF");
+    REQUIRE(nav.RejectedX == 2); REQUIRE(nav.RejectedGroundZ == 6); REQUIRE(nav.PreviousGroundZ == 10);
+    auto flat = [](auto const&) -> std::optional<float> { return 10; };
+    REQUIRE(SurfaceConnector({0,0,0,10}, {0,4,0,12}, flat, clear, &reason).empty());
+    REQUIRE(std::string(reason) == "CONNECTOR_END_HEIGHT");
+    REQUIRE(SurfaceConnector({0,0,0,10}, {0,4,0,10}, flat,
+        [](auto const&, auto const& b) { return b.X < 2; }, &reason, {}, &nav).empty());
+    REQUIRE(std::string(reason) == "CONNECTOR_OBSTACLE"); REQUIRE(nav.RejectedX == 2);
+    REQUIRE(nav.ConnectorSamples == 4);
+}
+
+TEST_CASE("Recovery navigation rejoins a visited polygon then completes the home corridor", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    RouteMemory memory;
+    ActionPosition stranded{0,0,0,1.58f}, joined{0,4,0,0}, corner{0,4,14,0}, home{0,0,14,0};
+    memory.Remember(joined);
+    // Exhaustion of unrelated exploratory backtracks must not forbid a safe
+    // surface repair. It still must not permit the same repair indefinitely.
+    for (unsigned i = 0; i < 16; ++i) memory.Backtracks.push_back({{0,float(i*5),40,0}, {0,float(i*5),45,0}});
+    REQUIRE(memory.Allows(stranded, joined, false, true));
+    auto route = SurfaceConnector(stranded, joined,
+        [](auto const&) -> std::optional<float> { return 0; }, [](auto const&, auto const&) { return true; }, nullptr, joined);
+    REQUIRE_FALSE(route.empty());
+    memory.CommitRejoin(stranded, joined);
+    REQUIRE_FALSE(memory.Allows(stranded, joined, false, true));
+    ActionPosition here = route.back();
+    memory.Remember(corner); memory.Remember(home);
+    memory.Planned = Corridor({joined, corner, home});
+    unsigned arrivals = 0;
+    while (!memory.Planned.empty() && arrivals < 10)
+    {
+        auto next = memory.Planned.front();
+        REQUIRE(memory.Allows(here, next, true, false));
+        REQUIRE_FALSE(memory.Advance(here)); // merely planning is no progress
+        here = next;
+        REQUIRE(memory.Advance(here)); ++arrivals;
+    }
+    REQUIRE(Distance(here, home) < .01f);
+    REQUIRE(memory.Planned.empty());
+    memory.Reject(joined, corner);
+    REQUIRE_FALSE(memory.Allows(joined, corner, true, false));
+}
+
+TEST_CASE("Recovery food exploration does not count a blocked route as a search", "[AIWorld][RecoveryNavigation]")
+{
+    LivingFoodMemory food;
+    ActionPosition home{0,0,0,0}, meal{0,20,0,0};
+    food.Fed(meal, 1000); food.Unreachable(meal, 2000);
+    REQUIRE(food.Visits(meal, 2000) == 0);
+    REQUIRE_FALSE(food.FoodHint(home, 80, 2000).has_value());
+    REQUIRE(food.FoodHint(home, 80, 62000).has_value());
+    bool foundLocal = false;
+    for (uint32 i = 0; i < 6; ++i)
+    {
+        auto p = LivingForagePolicy::LocalWaypoint(home, 80992, i);
+        REQUIRE(LivingReturnPolicy::Distance(home, p) >= 7.99f);
+        REQUIRE(LivingReturnPolicy::Distance(home, p) <= 16.01f);
+        foundLocal |= p.X > 0 && p.Y > 0; // a local open quadrant in a narrow cave
+    }
+    REQUIRE(foundLocal);
+    food.Searched(meal, 63000);
+    REQUIRE(food.Visits(meal, 63000) == 1);
+    REQUIRE_FALSE(food.FoodHint(home, 80, 63000).has_value());
+    food.Unreachable(meal, 64000);
+    food.Fed(meal, 65000); // fresh positive evidence supersedes a failed query
+    REQUIRE_FALSE(food.RecentlyBlocked(meal, 65000));
+    REQUIRE(food.FoodHint(home, 80, 65000).has_value());
+}
+
 TEST_CASE("All-NPC advice admission bounds work and gives waiting agents a turn", "[AIWorld][RecoveryAdvice]")
 {
     LivingAdviceBudget budget;
@@ -140,7 +237,7 @@ TEST_CASE("Ground recovery needs agreeing support and a collision free settling 
     REQUIRE(path[1].Z == 0);
     REQUIRE(path.back().X == 4);
     REQUIRE(SurfaceConnector(from, to, flat, clear, &reason, ActionPosition{0,0,0,2.2f}).empty());
-    REQUIRE(SurfaceConnector(from, to, flat, clear, &reason, ActionPosition{0,2,0,0}).empty());
+    REQUIRE_FALSE(SurfaceConnector(from, to, flat, clear, &reason, ActionPosition{0,2,0,0}).empty());
     REQUIRE(SurfaceConnector({0,0,0,4}, to, flat, clear, &reason, support).empty());
     REQUIRE(SurfaceConnector(from, to, flat, [](auto const& a, auto const& b) { return a.Z == b.Z; }, &reason, support).empty());
     REQUIRE(std::string(reason) == "CONNECTOR_START_OBSTACLE");

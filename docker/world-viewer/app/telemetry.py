@@ -61,6 +61,17 @@ class NavigationDiagnostics(ProtocolModel):
     rejected_z: float | None = None
     source_z: float | None = Field(default=None, strict=True)
     support_z: float | None = Field(default=None, strict=True)
+    source_x: float | None = Field(default=None, strict=True)
+    source_y: float | None = Field(default=None, strict=True)
+    projection_x: float | None = Field(default=None, strict=True)
+    projection_y: float | None = Field(default=None, strict=True)
+    projection_z: float | None = Field(default=None, strict=True)
+    projection_ground_z: float | None = Field(default=None, strict=True)
+    rejected_ground_z: float | None = Field(default=None, strict=True)
+    previous_ground_z: float | None = Field(default=None, strict=True)
+    connector_samples: int = Field(default=0, ge=0, le=64, strict=True)
+    projection_failure: str = Field(default="NONE", max_length=80)
+    projection_probes: int = Field(default=0, ge=0, le=64, strict=True)
 
 
 class ReturnRecovery(ProtocolModel):
@@ -76,6 +87,8 @@ class ReturnRecovery(ProtocolModel):
     resolved_z: float | None
     navigation: NavigationDiagnostics | None = None
     backtracks: int = Field(default=0, ge=0, le=16)
+    rejoins: int = Field(default=0, ge=0, le=8)
+    corridor_points: int = Field(default=0, ge=0, le=128)
     rejected: dict[Literal['invalid', 'height', 'zone', 'los', 'path', 'bounds', 'danger'], int] = Field(max_length=7)
 
     @model_validator(mode="after")
@@ -111,6 +124,20 @@ class RecoveryAdvice(ProtocolModel):
     queue_kind: Literal['NONE', 'RETURN', 'FOOD'] = 'NONE'
 
 
+class ForageDiagnostics(ProtocolModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    scanned_at_ms: int = Field(ge=0)
+    search_at_ms: int = Field(ge=0)
+    nearby_prey: int = Field(ge=0)
+    attackable_prey: int = Field(ge=0)
+    reachable_prey: int = Field(ge=0)
+    route_attempts: int = Field(ge=0)
+    height_rejected: int = Field(ge=0)
+    path_rejected: int = Field(ge=0)
+    steps_started: int = Field(ge=0)
+    navigation: NavigationDiagnostics
+
+
 class LivingRole(ProtocolModel):
     enabled: bool
     extensions_enabled: bool
@@ -141,6 +168,7 @@ class LivingRole(ProtocolModel):
     sprint_remaining_ms: int | None = Field(default=None, ge=0)
     return_recovery: ReturnRecovery | None = None
     advice: RecoveryAdvice | None = None
+    forage: ForageDiagnostics | None = None
     move_end: str = Field(default="NONE", max_length=80)
     move_no_progress_ms: int = Field(default=0, ge=0)
     move_remaining: float | None = Field(default=None, ge=0)

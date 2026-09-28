@@ -116,6 +116,14 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     nav.Failure = "PATH_BOUNDS"; nav.Detail = "HOME_RADIUS"; nav.HomeRadius = 96;
     nav.RejectedX = 100;
     nav.SourceZ = 53.25f; nav.SupportZ = 55.5f;
+    nav.SourceX = 10; nav.ProjectionZ = 53.5f; nav.ProjectionGroundZ = 55.5f;
+    nav.RejectedGroundZ = 57; nav.PreviousGroundZ = 55.5f; nav.ConnectorSamples = 4;
+    nav.ProjectionFailure = "NO_GROUND_POLYGON"; nav.ProjectionProbes = 9;
+    agent.LivingRole->ReturnRecovery->Rejoins = 2;
+    agent.LivingRole->Forage.emplace();
+    agent.LivingRole->Forage->ScannedAtMs = 900;
+    agent.LivingRole->Forage->RouteAttempts = 12;
+    agent.LivingRole->Forage->Navigation.Failure = "NO_COMPLETE_PATH";
     auto json = SerializeAgentTelemetry({agent}, 1000);
     CHECK(json.find("\"lifetime_ms\":123") != std::string::npos);
     CHECK(json.find("\"requests\":3") != std::string::npos);
@@ -134,6 +142,14 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     CHECK(json.find("\"queue_dispatchable\":true") != std::string::npos);
     CHECK(json.find("\"source_z\":53.25") != std::string::npos);
     CHECK(json.find("\"support_z\":55.5") != std::string::npos);
+    CHECK(json.find("\"projection_ground_z\":55.5") != std::string::npos);
+    CHECK(json.find("\"rejected_ground_z\":57") != std::string::npos);
+    CHECK(json.find("\"connector_samples\":4") != std::string::npos);
+    CHECK(json.find("\"projection_failure\":\"NO_GROUND_POLYGON\"") != std::string::npos);
+    CHECK(json.find("\"projection_probes\":9") != std::string::npos);
+    CHECK(json.find("\"rejoins\":2") != std::string::npos);
+    CHECK(json.find("\"forage\":{\"scanned_at_ms\":900") != std::string::npos);
+    CHECK(json.find("\"route_attempts\":12") != std::string::npos);
 }
 
 TEST_CASE("Observer memory reads are bounded and anchor pages against new insertions", "[AIWorld][Telemetry]")

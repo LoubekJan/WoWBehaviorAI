@@ -98,29 +98,49 @@ namespace LivingReturnPolicy
     template<class HeightAt, class ClearSegment>
     std::vector<ActionPosition> SurfaceConnector(ActionPosition const& from, ActionPosition const& to,
         HeightAt&& heightAt, ClearSegment&& clearSegment, char const** failure = nullptr,
-        std::optional<ActionPosition> startSupport = std::nullopt)
+        std::optional<ActionPosition> startSupport = std::nullopt, NavigationDiagnostics* diagnostics = nullptr)
     {
+        ActionPosition tested = from;
+        std::optional<float> testedGround, previousGround;
+        if (diagnostics)
+        {
+            diagnostics->ConnectorSamples = 0;
+            diagnostics->RejectedX.reset(); diagnostics->RejectedY.reset(); diagnostics->RejectedZ.reset();
+            diagnostics->RejectedGroundZ.reset(); diagnostics->PreviousGroundZ.reset();
+        }
         auto reject = [&](char const* reason) -> std::vector<ActionPosition>
-        { if (failure) *failure = reason; return {}; };
+        {
+            if (failure) *failure = reason;
+            if (diagnostics)
+            {
+                diagnostics->RejectedX = tested.X; diagnostics->RejectedY = tested.Y; diagnostics->RejectedZ = tested.Z;
+                diagnostics->RejectedGroundZ = testedGround; diagnostics->PreviousGroundZ = previousGround;
+            }
+            return {};
+        };
         if (failure) *failure = "NONE";
         if (!UsefulStep(from, to)) return reject("CONNECTOR_ZERO_STEP");
         float length = std::hypot(to.X - from.X, to.Y - from.Y);
         if (length < 0.5f || length > 6.0f || std::abs(to.Z - from.Z) > 3.0f) return reject("CONNECTOR_RANGE");
         auto startHeight = heightAt(from);
+        testedGround = startHeight;
         if (!startHeight || !std::isfinite(*startHeight)) return reject("CONNECTOR_START_HEIGHT");
         ActionPosition grounded = from;
         grounded.Z = *startHeight;
         std::vector<ActionPosition> result{from};
         if (std::abs(*startHeight - from.Z) > 1.0f)
         {
-            // Only settle a stale movement height when BOTH the engine ground
-            // and a nearby ground polygon agree on the supporting surface.
-            // Keep the actual start and collision-check the vertical leg.
+            // The caller supplies a ground-normalized nearby polygon. It may
+            // be beside an off-mesh actor. The sampled connector below must
+            // continuously reach that terrain; proximity in XY alone is not
+            // proof of a floor, and raw navmesh Z is not engine ground Z.
             if (!startSupport || !Finite(*startSupport) || startSupport->MapId != from.MapId ||
                 std::abs(*startHeight-from.Z) > 3.0f ||
-                std::hypot(startSupport->X-from.X, startSupport->Y-from.Y) > 0.75f ||
-                std::abs(startSupport->Z-*startHeight) > 1.0f)
+                std::hypot(startSupport->X-from.X, startSupport->Y-from.Y) > 6.0f)
                 return reject("CONNECTOR_START_HEIGHT");
+            auto supportHeight = heightAt(*startSupport);
+            if (!supportHeight || !std::isfinite(*supportHeight) || std::abs(*supportHeight-startSupport->Z) > 1.0f)
+                return reject("CONNECTOR_SUPPORT_HEIGHT");
             if (!clearSegment(from, grounded)) return reject("CONNECTOR_START_OBSTACLE");
             result.push_back(grounded);
         }
@@ -130,15 +150,20 @@ namespace LivingReturnPolicy
         {
             float t = float(i) / float(steps);
             ActionPosition point{from.MapId, from.X + (to.X - from.X) * t,
-                from.Y + (to.Y - from.Y) * t, grounded.Z + (to.Z - grounded.Z) * t};
+                from.Y + (to.Y - from.Y) * t, previousHeight};
+            // Follow the actual surface, not the chord between endpoints.
+            // A continuous hollow or crest is not a missing floor.
             auto height = heightAt(point);
-            if (!height || !std::isfinite(*height) || std::abs(*height - point.Z) > 1.0f) return reject("CONNECTOR_SURFACE_HEIGHT");
+            tested = point; testedGround = height; previousGround = previousHeight;
+            if (diagnostics) ++diagnostics->ConnectorSamples;
+            if (!height || !std::isfinite(*height)) return reject("CONNECTOR_SURFACE_HEIGHT");
             if (std::abs(*height - previousHeight) > 0.75f) return reject("CONNECTOR_CLIFF");
             point.Z = *height;
             if (!clearSegment(result.back(), point)) return reject("CONNECTOR_OBSTACLE");
             result.push_back(point);
             previousHeight = *height;
         }
+        if (std::abs(previousHeight - to.Z) > 1.0f) return reject("CONNECTOR_END_HEIGHT");
         return result;
     }
 
@@ -173,7 +198,24 @@ namespace LivingReturnPolicy
         std::optional<Backtrack> PendingBacktrack;
         uint64 NextCareAtMs = 0;
         std::vector<Backtrack> FailedEdges;
+        std::vector<Backtrack> Rejoins;
         std::vector<ActionPosition> Planned;
+
+        // Shared by deterministic recovery and model candidates. A verified
+        // corridor may retrace a visited place. A surface rejoin is a bounded
+        // one-shot repair, independent of the speculative detour budget.
+        bool Allows(ActionPosition const& from, ActionPosition const& to, bool corridor, bool rejoin) const
+        {
+            if (!UsefulStep(from, to) || Failed(from, to)) return false;
+            if (rejoin)
+                return Rejoins.size() < 8 && std::none_of(Rejoins.begin(), Rejoins.end(), [&](Backtrack const& edge)
+                { return edge.From.MapId == from.MapId && Distance(edge.From, from) <= 2 && Distance(edge.To, to) <= 1; });
+            return corridor || !Revisited(to) || CanBacktrack(from, to);
+        }
+        void CommitRejoin(ActionPosition const& from, ActionPosition const& to)
+        {
+            if (Allows(from, to, false, true)) Rejoins.push_back({from, to});
+        }
 
         bool Failed(ActionPosition const& from, ActionPosition const& to) const
         {
@@ -187,11 +229,13 @@ namespace LivingReturnPolicy
             FailedEdges.push_back({from, to});
             Planned.clear();
         }
-        void Advance(ActionPosition const& here)
+        bool Advance(ActionPosition const& here)
         {
+            bool advanced = false;
             while (!Planned.empty() && Planned.front().MapId == here.MapId &&
                 Distance(Planned.front(), here) <= ArrivalToleranceYards)
-                Planned.erase(Planned.begin());
+            { Planned.erase(Planned.begin()); advanced = true; }
+            return advanced;
         }
 
         bool CanBacktrack(ActionPosition const& from, ActionPosition const& to) const

@@ -134,6 +134,23 @@ class RecordingTests(unittest.TestCase):
         self.assertTrue((directory / "behavior-report.md").exists())
         self.assertEqual(report, behavior.analyze(directory))
 
+    def test_early_report_keeps_recording_until_its_normal_end(self) -> None:
+        self.args.analyze = True
+        self.args.checkpoint_minutes = 0.01 / 60
+        self.responses = [(200, state()) for _ in range(8)]
+        code, result, rows = self.run_recording()
+        directory = next(Path(self.temp.name).iterdir())
+        early = json.loads((directory / 'early-navigation/behavior-report.json').read_text(encoding='utf-8'))
+        self.assertEqual(early['scope'], 'early_navigation')
+        self.assertFalse(early['recording_complete'])
+        self.assertEqual(early['status'], 'INCONCLUSIVE')
+        self.assertEqual(result['early_navigation']['status'], 'INCONCLUSIVE')
+        self.assertEqual(result['samples'], 8)
+        self.assertLess(early['quality']['samples'], result['samples'])
+        self.assertEqual(code, 2)
+        final = json.loads((directory / 'behavior-report.json').read_text(encoding='utf-8'))
+        self.assertEqual(final, behavior.analyze(directory))
+
     def test_duration_is_automatic_and_empty_test_is_not_successful(self) -> None:
         self.args.hours = 0.08 / 3600
         self.args.interval = 5  # waiting ends at deadline, not five seconds later
