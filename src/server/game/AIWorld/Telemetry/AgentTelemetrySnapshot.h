@@ -49,6 +49,10 @@ struct RecoveryAdviceTelemetry
     uint32 EmptySearchRounds = 0, FailedFoodAdvice = 0, KnownFoodPlaces = 0;
     uint64 RetryMs = 0;
     float SearchRadius = 80;
+    std::optional<uint64> QueueWaitMs;
+    uint32 QueueSize = 0;
+    bool QueueDispatchable = false;
+    std::string QueueKind = "NONE";
 };
 
 struct LivingRoleTelemetry

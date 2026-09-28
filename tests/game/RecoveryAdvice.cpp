@@ -6,6 +6,7 @@
 #include "Agent/LivingAdviceBudget.h"
 #include "Agent/LivingMovementWatchdog.h"
 #include "Agent/LivingForagePolicy.h"
+#include "Agent/LivingEscapeProgress.h"
 #include <limits>
 
 TEST_CASE("All-NPC advice admission bounds work and gives waiting agents a turn", "[AIWorld][RecoveryAdvice]")
@@ -50,6 +51,100 @@ TEST_CASE("Role movement can follow long detours but stalls and loops terminate"
     move.Begin(1000, {0,0,0,0});
     REQUIRE_FALSE(move.Continue(9000, {0,10,0,0}, true));
     REQUIRE(std::string(move.End) == "ESCAPE_LIMIT");
+}
+
+TEST_CASE("Advice tickets survive long decision sleeps without blocking moving actors", "[AIWorld][RecoveryAdvice]")
+{
+    LivingAdviceBudget budget;
+    REQUIRE(budget.Acquire(1, 1000));
+    REQUIRE_FALSE(budget.Acquire(2, 1000));
+    REQUIRE_FALSE(budget.Acquire(3, 1000));
+    for (uint64 now = 2000; now <= 36000; now += 1000)
+    {
+        budget.Refresh(2, now, true, false, false); // still moving; keep ticket
+        budget.Refresh(3, now, true, false);
+        if (now == 3000) REQUIRE(budget.Acquire(3, now));
+    }
+    REQUIRE(budget.WaitMs(2, 36000) == 35000);
+    budget.Refresh(2, 36000, true, false);
+    REQUIRE(budget.Ready(2, 36000));
+    REQUIRE(budget.Acquire(2, 36000)); // original ticket, not a new tail entry
+    REQUIRE_FALSE(budget.WaitMs(2, 36000));
+}
+
+TEST_CASE("Slow decision makers receive advice in a sustained four hour crowd", "[AIWorld][RecoveryAdvice]")
+{
+    LivingAdviceBudget budget;
+    std::array<uint64, 121> next{}, requests{};
+    for (uint64 now = 1000; now <= 14400000; now += 1000)
+    {
+        for (uint64 id = 0; id < next.size(); ++id)
+        {
+            bool eligible = now >= next[id];
+            budget.Refresh(id, now, eligible, id == 120);
+            // Runtime wakes an idle/resting actor at its turn. Otherwise this
+            // actor normally makes a local decision only every 35 seconds.
+            if (!eligible || (now % (id == 120 ? 35000 : 5000) && !budget.Ready(id, now))) continue;
+            if (budget.Acquire(id, now, id == 120))
+            { ++requests[id]; next[id] = now + 120000; }
+        }
+    }
+    for (auto count : requests) REQUIRE(count >= 20);
+}
+
+TEST_CASE("Urgent returns get priority while food requests and cancellation remain live", "[AIWorld][RecoveryAdvice]")
+{
+    LivingAdviceBudget budget;
+    REQUIRE(budget.Acquire(99, 1000));
+    REQUIRE_FALSE(budget.Acquire(1, 1000));
+    for (uint64 id = 2; id <= 5; ++id) REQUIRE_FALSE(budget.Acquire(id, 1000, true));
+    REQUIRE(budget.Acquire(2, 3000, true));
+    REQUIRE(budget.Acquire(3, 5000, true));
+    REQUIRE(budget.Acquire(4, 7000, true));
+    REQUIRE_FALSE(budget.Acquire(5, 9000, true));
+    REQUIRE(budget.Acquire(1, 9000));
+    budget.Refresh(5, 10000, false, true); // dead, combat, changed goal or home
+    REQUIRE_FALSE(budget.WaitMs(5, 10000));
+    REQUIRE(budget.Size() == 0);
+}
+
+TEST_CASE("Escape progress survives generator restarts and reacts to a changed threat", "[AIWorld][RecoveryAdvice]")
+{
+    LivingEscapeProgress escape;
+    ActionPosition here{0,10,0,0}, danger{0,0,0,0};
+    REQUIRE_FALSE(escape.Observe(1000, here, danger));
+    REQUIRE_FALSE(escape.Observe(6000, here, danger));
+    REQUIRE(escape.Observe(9000, here, danger));
+    escape.Routes.Reject(here, {0,26,0,0});
+    escape.Failed(9000);
+    REQUIRE(escape.RetryAt == 11000);
+    REQUIRE(escape.Observe(40000, here, danger)); // restarting did not erase it
+    REQUIRE(escape.Routes.Failed(here, {0,26,0,0}));
+    REQUIRE_FALSE(escape.Routes.Failed(here, {0,18,8,0}));
+    REQUIRE_FALSE(escape.Observe(41000, here, {0,3,0,0}));
+    REQUIRE(escape.Failures == 0);
+    REQUIRE_FALSE(escape.Observe(47000, {0,12,0,0}, danger));
+}
+
+TEST_CASE("Ground recovery needs agreeing support and a collision free settling leg", "[AIWorld][RecoveryAdvice]")
+{
+    using namespace LivingReturnPolicy;
+    auto flat = [](auto const&) -> std::optional<float> { return 0.0f; };
+    auto clear = [](auto const&, auto const&) { return true; };
+    ActionPosition from{0,0,0,2.2f}, to{0,4,0,0}, support{0,0,0,0.1f};
+    char const* reason = "NONE";
+    REQUIRE(SurfaceConnector(from, to, flat, clear).empty());
+    auto path = SurfaceConnector(from, to, flat, clear, &reason, support);
+    REQUIRE(path.size() == 10);
+    REQUIRE(path.front().Z == from.Z); // no teleport or hidden start change
+    REQUIRE(path[1].Z == 0);
+    REQUIRE(path.back().X == 4);
+    REQUIRE(SurfaceConnector(from, to, flat, clear, &reason, ActionPosition{0,0,0,2.2f}).empty());
+    REQUIRE(SurfaceConnector(from, to, flat, clear, &reason, ActionPosition{0,2,0,0}).empty());
+    REQUIRE(SurfaceConnector({0,0,0,4}, to, flat, clear, &reason, support).empty());
+    REQUIRE(SurfaceConnector(from, to, flat, [](auto const& a, auto const& b) { return a.Z == b.Z; }, &reason, support).empty());
+    REQUIRE(std::string(reason) == "CONNECTOR_START_OBSTACLE");
+    REQUIRE(SurfaceConnector(from, to, [](auto const& p) -> std::optional<float> { return p.X > 2 ? -5.0f : 0.0f; }, clear, &reason, support).empty());
 }
 
 TEST_CASE("Food memory distinguishes a meal from a search and forgets stale evidence", "[AIWorld][RecoveryAdvice]")

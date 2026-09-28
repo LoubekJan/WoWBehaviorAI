@@ -75,7 +75,8 @@ class WorldViewerApiTests(unittest.TestCase):
                       requests=3, selected=2, started=1, arrived=0, home_success=0,
                       food_success=0, rejected=1, unavailable=0, reused=0,
                       empty_search_rounds=2, failed_food_advice=3, known_food_places=4,
-                      retry_ms=900000, search_radius=128.0)
+                      retry_ms=900000, search_radius=128.0, queue_wait_ms=45000, queue_size=8,
+                      queue_dispatchable=True, queue_kind='RETURN')
         payload['agents'][0]['living_role']['advice'] = advice
         payload['agents'][0]['living_role'].update(move_end='NO_PROGRESS', move_no_progress_ms=15000, move_remaining=42.5)
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
@@ -85,7 +86,8 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(role['move_end'], 'NO_PROGRESS')
         self.assertEqual(role['move_remaining'], 42.5)
         for field, value in [('requests', -1), ('started', True), ('status', 'x' * 81), ('unknown', 1),
-                             ('search_radius', 129.0), ('empty_search_rounds', 3), ('failed_food_advice', 4)]:
+                             ('search_radius', 129.0), ('empty_search_rounds', 3), ('failed_food_advice', 4),
+                             ('queue_wait_ms', -1), ('queue_size', 2049), ('queue_dispatchable', 1), ('queue_kind', 'UNKNOWN')]:
             with self.subTest(field=field):
                 bad = copy.deepcopy(payload)
                 bad['agents'][0]['living_role']['advice'][field] = value
@@ -111,13 +113,15 @@ class WorldViewerApiTests(unittest.TestCase):
         payload = v2_batch()
         payload['version'] = 4
         nav = navigation_diagnostics()
-        nav.update(detail="HOME_RADIUS", home_radius=96.0, rejected_x=10.0, rejected_y=20.0, rejected_z=30.0)
+        nav.update(detail="HOME_RADIUS", home_radius=96.0, rejected_x=10.0, rejected_y=20.0, rejected_z=30.0,
+                   source_z=53.25, support_z=55.5)
         recovery = {**return_recovery(), 'navigation': nav, 'backtracks': 2}
         payload['agents'][0]['living_role']['return_recovery'] = recovery
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], recovery)
         for field, value in [('start_distance', -1), ('end_distance', 'NaN'), ('filter', 65536),
-                             ('failure', 'x' * 81), ('detail', 'x' * 81), ('home_radius', -1), ('unknown', 1)]:
+                             ('failure', 'x' * 81), ('detail', 'x' * 81), ('home_radius', -1), ('unknown', 1),
+                             ('source_z', 'NaN'), ('support_z', True)]:
             with self.subTest(field=field):
                 bad = copy.deepcopy(payload)
                 bad['agents'][0]['living_role']['return_recovery']['navigation'][field] = value

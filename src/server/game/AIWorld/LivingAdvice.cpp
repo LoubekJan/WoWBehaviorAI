@@ -46,6 +46,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     auto revalidate = [&](LivingAdviceCandidate& candidate)
     {
         candidate.Move.Danger = danger ? std::optional<ActionPosition>(*danger) : std::nullopt;
+        candidate.Move.DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
         candidate.Move.Home = home;
         candidate.Move.HomeRadius = returning ? state.ReturnHomeLimit : forageRadius;
         if (state.ReturnRoute.Failed(here, candidate.Move.Destination)) return false;
@@ -76,7 +77,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         (state.ReturnFailures >= 3 || nowMs >= state.ReturnStartedAtMs + 60000) :
         state.HungrySinceMs && nowMs >= state.HungrySinceMs + 120000;
     if (!stalled || nowMs < advice.CooldownUntil || (!returning && advice.Active)) return std::nullopt;
-    if (!_recoveryAdviceBudget.Acquire(record.Id.Value, nowMs))
+    if (!_recoveryAdviceBudget.Acquire(record.Id.Value, nowMs, returning))
     { advice.Status = "WAITING_TURN"; return std::nullopt; }
     // Previously successful steps are still checked against current geometry,
     // danger, failed edges and visit budgets. Memory is per materialization.
@@ -116,6 +117,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         LivingAdviceCandidate candidate;
         candidate.Move = {target, home, returning ? state.ReturnHomeLimit : forageRadius,
             danger ? std::optional<ActionPosition>(*danger) : std::nullopt, rejoin};
+        candidate.Move.DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
         candidate.Diagnostics.Candidates = 1;
         candidate.Diagnostics.RequestedZ = target.Z;
         candidate.Diagnostics.QueryDestination = target;

@@ -22,6 +22,7 @@
 #include "LivingReturnPolicy.h"
 #include "LivingAdviceState.h"
 #include "LivingMovementWatchdog.h"
+#include "LivingEscapeProgress.h"
 #include "Action/ActionPosition.h"
 #include "ObjectGuid.h"
 #include "Goal/GoalType.h"
@@ -80,6 +81,11 @@ struct LivingRoleState
     LivingAdviceState Advice;
     ActionPosition MoveStart;
     LivingMovementWatchdog MoveWatchdog;
+    ObjectGuid EscapeThreatGuid, BlockedThreatGuid;
+    LivingEscapeProgress EscapeProgress;
+    ActionPosition BlockedThreatPosition;
+    uint64 BlockedThreatUntilMs = 0;
+    float PreviousHealthPressure = 0;
     bool StockMeal = false;
     bool GatheringFood = false;
     uint64 ForageUntilMs = 0;

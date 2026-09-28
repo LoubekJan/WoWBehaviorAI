@@ -59,6 +59,8 @@ class NavigationDiagnostics(ProtocolModel):
     rejected_x: float | None = None
     rejected_y: float | None = None
     rejected_z: float | None = None
+    source_z: float | None = Field(default=None, strict=True)
+    support_z: float | None = Field(default=None, strict=True)
 
 
 class ReturnRecovery(ProtocolModel):
@@ -103,6 +105,10 @@ class RecoveryAdvice(ProtocolModel):
     known_food_places: int = Field(default=0, ge=0, le=8)
     retry_ms: int = Field(default=0, ge=0)
     search_radius: float = Field(default=80, ge=80, le=128)
+    queue_wait_ms: int | None = Field(default=None, ge=0)
+    queue_size: int = Field(default=0, ge=0, le=2048)
+    queue_dispatchable: bool = False
+    queue_kind: Literal['NONE', 'RETURN', 'FOOD'] = 'NONE'
 
 
 class LivingRole(ProtocolModel):

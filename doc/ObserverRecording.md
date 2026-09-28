@@ -249,6 +249,20 @@ jsou navíc `empty_search_rounds`, `failed_food_advice`, `known_food_places`,
 pozitivní vzpomínka může být stará. Úspěch dál měří `food_success` a pokles hladu.
 
 Po deployi ověř `make test-recovery-ai` a `make record-aiworld-status`.
+Po opravě běhu `20260927T151045Z-eef927bb` archiv navíc obsahuje skutečné
+`advice.queue_wait_ms` (null mimo frontu), `queue_size`, `queue_dispatchable`
+a `queue_kind` (`RETURN` nebo `FOOD`). Samotný uchovávaný text `WAITING_TURN`
+už není podkladem pro měření čekání. Kontrola `advice_wait` hledá souvislé
+čekání způsobilého NPC delší než deset minut a zároveň delší než odhad
+celého průchodu aktuální frontou s rezervou (deset sekund na položku).
+Nová žádost měření restartuje; staré archivy bez těchto polí mají pro tuto
+kontrolu výsledek `NOT_OBSERVED`.
+
+Hlad kořisti při opakovaném nebezpečí má vlastní upozornění
+`prey_threat_hunger`. Neoznačuje se jako hlad „v klidu“, ale z reportu
+nezmizí. Navigační diagnostika přidává `source_z` a `support_z` pro porovnání
+skutečné počáteční výšky a podporujícího povrchu při připojení.
+
 Nech automatický čtyřhodinový záznam doběhnout bez zásahů a pošli celou
 složku včetně reportů. Důležité je pokrytí pomoci napříč NPC, pokles
 dlouhých nehybných epizod a skutečné krmení; samotný počet AI dotazů není úspěch.

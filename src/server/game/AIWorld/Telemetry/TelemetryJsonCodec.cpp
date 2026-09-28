@@ -90,7 +90,8 @@ namespace
         WriteJsonField(out, "rejoin", nav.Rejoin); WriteJsonField(out, "failure", nav.Failure);
         WriteJsonField(out, "detail", nav.Detail); WriteJsonField(out, "home_radius", nav.HomeRadius);
         WriteJsonField(out, "rejected_x", nav.RejectedX); WriteJsonField(out, "rejected_y", nav.RejectedY);
-        WriteJsonField(out, "rejected_z", nav.RejectedZ); out << '}';
+        WriteJsonField(out, "rejected_z", nav.RejectedZ);
+        WriteJsonField(out, "source_z", nav.SourceZ); WriteJsonField(out, "support_z", nav.SupportZ); out << '}';
         char const* names[] = { "invalid", "height", "zone", "los", "path", "bounds", "danger" };
         out << ",\"rejected\":{";
         for (std::size_t i = 0; i < recovery.Rejections.size(); ++i)
@@ -141,6 +142,8 @@ namespace
             WriteJsonField(out, "failed_food_advice", a.FailedFoodAdvice);
             WriteJsonField(out, "known_food_places", a.KnownFoodPlaces);
             WriteJsonField(out, "retry_ms", a.RetryMs); WriteJsonField(out, "search_radius", a.SearchRadius);
+            WriteJsonField(out, "queue_wait_ms", a.QueueWaitMs); WriteJsonField(out, "queue_size", a.QueueSize);
+            WriteJsonField(out, "queue_dispatchable", a.QueueDispatchable); WriteJsonField(out, "queue_kind", a.QueueKind);
             out << '}';
         }
         else out << "null";

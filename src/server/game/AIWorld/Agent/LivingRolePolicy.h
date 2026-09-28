@@ -121,6 +121,7 @@ namespace LivingRolePolicy
     inline uint32 Personality(uint64 id) { return uint32((id ^ (id >> 32)) * 2654435761u); }
     inline float Caution(uint64 id) { return float(Personality(id) % 101) / 100.0f; }
     inline float NoticeRadius(uint64 id) { return 9.0f + 5.0f * Caution(id); }
+    inline float SafetyRadius(uint64 id) { return NoticeRadius(id) + 3.0f; }
     inline bool ShouldFlee(Role role, float pressure, bool fleeing, uint64 id)
     {
         return ShouldFlee(role, pressure + (Caution(id) - 0.5f) * 0.12f, fleeing);

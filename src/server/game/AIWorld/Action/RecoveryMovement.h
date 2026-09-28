@@ -13,6 +13,7 @@ struct RecoveryMovement
     bool Rejoin = false;
     // Preserve the query endpoint when the planner normalizes its last point.
     std::optional<ActionPosition> QueryDestination;
+    float DangerRadius = 8.0f;
 
     static bool SamePoint(ActionPosition const& a, ActionPosition const& b)
     { return a.MapId == b.MapId && a.X == b.X && a.Y == b.Y && a.Z == b.Z; }
@@ -20,7 +21,7 @@ struct RecoveryMovement
     bool operator==(RecoveryMovement const& other) const
     {
         return SamePoint(Destination, other.Destination) && SamePoint(Home, other.Home) &&
-            HomeRadius == other.HomeRadius && Rejoin == other.Rejoin &&
+            HomeRadius == other.HomeRadius && Rejoin == other.Rejoin && DangerRadius == other.DangerRadius &&
             Danger.has_value() == other.Danger.has_value() && (!Danger || SamePoint(*Danger, *other.Danger)) &&
             QueryDestination.has_value() == other.QueryDestination.has_value() &&
             (!QueryDestination || SamePoint(*QueryDestination, *other.QueryDestination));

@@ -107,6 +107,7 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     advice.Selected = 2; advice.Started = 1; advice.Status = "MOVE_STARTED";
     advice.SearchRadius = 128; advice.EmptySearchRounds = 2; advice.FailedFoodAdvice = 3;
     advice.RetryMs = 900000; advice.KnownFoodPlaces = 4;
+    advice.QueueWaitMs = 45000; advice.QueueSize = 8; advice.QueueDispatchable = true; advice.QueueKind = "RETURN";
     agent.LivingRole->MoveEnd = "NO_PROGRESS";
     agent.LivingRole->MoveNoProgressMs = 15000;
     agent.LivingRole->MoveRemaining = 42.5f;
@@ -114,6 +115,7 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     auto& nav = agent.LivingRole->ReturnRecovery->Navigation;
     nav.Failure = "PATH_BOUNDS"; nav.Detail = "HOME_RADIUS"; nav.HomeRadius = 96;
     nav.RejectedX = 100;
+    nav.SourceZ = 53.25f; nav.SupportZ = 55.5f;
     auto json = SerializeAgentTelemetry({agent}, 1000);
     CHECK(json.find("\"lifetime_ms\":123") != std::string::npos);
     CHECK(json.find("\"requests\":3") != std::string::npos);
@@ -127,6 +129,11 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     CHECK(json.find("\"move_remaining\":42.5") != std::string::npos);
     CHECK(json.find("\"detail\":\"HOME_RADIUS\"") != std::string::npos);
     CHECK(json.find("\"rejected_x\":100") != std::string::npos);
+    CHECK(json.find("\"queue_wait_ms\":45000") != std::string::npos);
+    CHECK(json.find("\"queue_kind\":\"RETURN\"") != std::string::npos);
+    CHECK(json.find("\"queue_dispatchable\":true") != std::string::npos);
+    CHECK(json.find("\"source_z\":53.25") != std::string::npos);
+    CHECK(json.find("\"support_z\":55.5") != std::string::npos);
 }
 
 TEST_CASE("Observer memory reads are bounded and anchor pages against new insertions", "[AIWorld][Telemetry]")

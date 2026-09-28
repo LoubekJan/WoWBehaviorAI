@@ -97,7 +97,8 @@ namespace LivingReturnPolicy
     // to another floor, or through a wall. Callbacks use the live map geometry.
     template<class HeightAt, class ClearSegment>
     std::vector<ActionPosition> SurfaceConnector(ActionPosition const& from, ActionPosition const& to,
-        HeightAt&& heightAt, ClearSegment&& clearSegment, char const** failure = nullptr)
+        HeightAt&& heightAt, ClearSegment&& clearSegment, char const** failure = nullptr,
+        std::optional<ActionPosition> startSupport = std::nullopt)
     {
         auto reject = [&](char const* reason) -> std::vector<ActionPosition>
         { if (failure) *failure = reason; return {}; };
@@ -106,15 +107,30 @@ namespace LivingReturnPolicy
         float length = std::hypot(to.X - from.X, to.Y - from.Y);
         if (length < 0.5f || length > 6.0f || std::abs(to.Z - from.Z) > 3.0f) return reject("CONNECTOR_RANGE");
         auto startHeight = heightAt(from);
-        if (!startHeight || !std::isfinite(*startHeight) || std::abs(*startHeight - from.Z) > 1.0f) return reject("CONNECTOR_START_HEIGHT");
+        if (!startHeight || !std::isfinite(*startHeight)) return reject("CONNECTOR_START_HEIGHT");
+        ActionPosition grounded = from;
+        grounded.Z = *startHeight;
         std::vector<ActionPosition> result{from};
+        if (std::abs(*startHeight - from.Z) > 1.0f)
+        {
+            // Only settle a stale movement height when BOTH the engine ground
+            // and a nearby ground polygon agree on the supporting surface.
+            // Keep the actual start and collision-check the vertical leg.
+            if (!startSupport || !Finite(*startSupport) || startSupport->MapId != from.MapId ||
+                std::abs(*startHeight-from.Z) > 3.0f ||
+                std::hypot(startSupport->X-from.X, startSupport->Y-from.Y) > 0.75f ||
+                std::abs(startSupport->Z-*startHeight) > 1.0f)
+                return reject("CONNECTOR_START_HEIGHT");
+            if (!clearSegment(from, grounded)) return reject("CONNECTOR_START_OBSTACLE");
+            result.push_back(grounded);
+        }
         unsigned steps = unsigned(std::ceil(length / 0.5f));
         float previousHeight = *startHeight;
         for (unsigned i = 1; i <= steps; ++i)
         {
             float t = float(i) / float(steps);
             ActionPosition point{from.MapId, from.X + (to.X - from.X) * t,
-                from.Y + (to.Y - from.Y) * t, from.Z + (to.Z - from.Z) * t};
+                from.Y + (to.Y - from.Y) * t, grounded.Z + (to.Z - grounded.Z) * t};
             auto height = heightAt(point);
             if (!height || !std::isfinite(*height) || std::abs(*height - point.Z) > 1.0f) return reject("CONNECTOR_SURFACE_HEIGHT");
             if (std::abs(*height - previousHeight) > 0.75f) return reject("CONNECTOR_CLIFF");
@@ -181,7 +197,8 @@ namespace LivingReturnPolicy
         bool CanBacktrack(ActionPosition const& from, ActionPosition const& to) const
         {
             // Only a fallback after all new routes fail. Each directed edge
-            // once, at most 16 in a return episode; movement does not reset it.
+            // once, at most 16 without a new best distance to home. Merely
+            // walking sideways or restarting an animation does not reset it.
             return UsefulStep(from, to) && Backtracks.size() < 16 &&
                 std::none_of(Backtracks.begin(), Backtracks.end(), [&](Backtrack const& edge)
                 { return edge.From.MapId == from.MapId && Distance(edge.From, from) <= 2.0f &&

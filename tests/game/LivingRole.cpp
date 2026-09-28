@@ -498,6 +498,45 @@ TEST_CASE("Directed refuge movement requires a live danger and the independently
     REQUIRE(!actions.Validate(request, context).Allowed);
 }
 
+TEST_CASE("A recovery escape retains threat identity and exact movement authorization", "[AIWorld][LivingRole]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::MoveTo; request.SourceGoal = GoalType::SeekSafety;
+    request.Destination = ActionPosition{0,4,0,0};
+    request.Target = ActionTargetRef{ObjectGuid::Create<HighGuid::Unit>(30, 1), 30};
+    request.FleeFromGuid = request.Target->Guid;
+    request.Recovery = RecoveryMovement{*request.Destination, {0,0,0,0}, 96, ActionPosition{0,-10,0,0}, true};
+    ActionValidationContext context;
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = context.LivingRoleExtensionsAllowed = true;
+    context.LivingRoleZoneId = 12; context.LivingRole = LivingRolePolicy::Role::Prey;
+    context.ActiveGoalType = request.SourceGoal; context.RoleMovementDestination = request.Destination;
+    context.ApprovedRecovery = request.Recovery;
+    context.FleeSourceGuid = context.TargetGuid = request.Target->Guid; context.TargetEntry = 30;
+    context.TargetResolved = context.TargetAlive = context.TargetWithinAttackRange = context.TargetInLineOfSight = true;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    SECTION("forged clearance") { request.Recovery->DangerRadius = 0; }
+    SECTION("unapproved recovery") { context.ApprovedRecovery.reset(); }
+    SECTION("dead threat") { context.TargetAlive = false; }
+    SECTION("unrelated source") { context.FleeSourceGuid.Clear(); }
+    REQUIRE_FALSE(actions.Validate(request, context).Allowed);
+}
+
+TEST_CASE("Refuge care and return clearance do not walk prey straight back into notice range", "[AIWorld][LivingRole]")
+{
+    using namespace LivingRolePolicy;
+    for (uint64 id : {80328u, 146491u, 86821u})
+    {
+        float safe = SafetyRadius(id), notice = NoticeRadius(id);
+        REQUIRE(safe > notice);
+        REQUIRE_FALSE(AvoidsDanger(20,0,notice-0.5f,0,0,0,safe));
+        REQUIRE(AvoidsDanger(20,0,20,6,0,0,safe));
+    }
+    REQUIRE(RecoveryActivity(Role::Prey, 1.0f, false) == Activity::Graze);
+    REQUIRE(RecoveryActivity(Role::Prey, 1.0f, true) == Activity::Look);
+}
+
 TEST_CASE("A local alarm authorizes only guard investigation and never a speculative attack", "[AIWorld][LivingRole]")
 {
     ActionSystem actions;

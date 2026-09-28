@@ -5,6 +5,36 @@ Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 20
 
 ## Plošná pomoc lokální AI a opravy podle záznamu — 27. 9. 2026
 
+Po dalším běhu `20260927T151045Z-eef927bb` jsou opraveny tyto mechanismy:
+
+- Čekající žádost se obnovuje v pravidelném updatu, i během odpočinku.
+  Čekající NPC ukončí odpočinek, jakmile přijde na řadu; rozpracovanou chůzi,
+  krmení a práci fronta nepřerušuje ani na ně nečeká. Návraty mají přednost
+  v poměru nejvýše tři přijetí před jedním čekajícím hledáním potravy.
+  Smrt, boj, změna cíle či zánik problému žádost ruší. Odpověď modelu může
+  ukončit čekací odpočinek dříve, než vyprší její platnost.
+- Kompletní ověřená cesta domů smí projít již navštíveným bodem. Omezení
+  opakování zůstává pro spekulativní obcházky; rozpočet se obnoví pouze při
+  nové nejlepší vzdálenosti k domovu, nikoli při libovolném pohybu.
+- Připojení k navmeshi používá stejnou výškovou konvenci jako běžný pohyb.
+  Malý rozdíl počáteční výšky lze srovnat pohybovým úsekem jen tehdy, když
+  povrch potvrzuje blízký zemní polygon i herní geometrie a celý úsek je
+  průchozí. Bez podporujícího povrchu, přes stěnu nebo sráz se krok odmítne.
+- Kontrola posunu útěku přežívá restart generátoru. Po osmi sekundách bez
+  posunu hledá jiné směry a mimo boj také bezpečný krok zpět na navmesh.
+  Opakované neúspěchy mají omezenou frekvenci. Pasivní NPC za potvrzeně
+  neprůchodnou překážkou se dočasně přestane považovat za bezprostřední
+  hrozbu; přesun, útok nebo nové zranění vyvolá nové posouzení.
+- Při návratu od nebezpečí platí odstup větší než vzdálenost jeho vnímání.
+  Hladová kořist se může nejdřív napást v bezpečném úkrytu. Přibližující se
+  hrozba stále může pasení přerušit.
+
+Testy zahrnují čtyřhodinovou **simulaci fronty**, střídání 35sekundových
+rozhodnutí s častými žadateli, střet priorit, nepohyblivý útěk, nepovolené
+změny únikové cesty a odmítnutí nebezpečného výškového připojení. Simulace
+fronty není čtyřhodinový herní test. Skutečný výsledek na geometrii serveru
+musí potvrdit další záznam; model nedokáže vytvořit chybějící cestu či kořist.
+
 Po běhu `20260926T172121Z-0eb8fce2` je v projektové konfiguraci pomoc
 modelu dostupná všem oprávněným individuálním rolím AIWorldu v Elwynnu.
 Aktivuje se při problému; běžné chování dál běží v herní logice. Nemění
@@ -15,8 +45,9 @@ vlků `WOLF_PACK_CYCLE`.
   přes jeden yard; bez něj končí po 15 sekundách, s pohybem nejpozději po
   třech minutách. Krátký únik `SEEKING_SAFETY` dál trvá nejvýše osm sekund.
 - Model i sestavování nabídek mají společnou frontu a rozestup dvě sekundy.
-  Opakovaně se hlásící NPC nepřeskočí čekající. Nepřítomný žadatel po 30
-  sekundách bez přihlášení uvolní místo; síťové požadavky mají dál limit dva.
+  Pořadí uvnitř každé priority zachovává čekající žádosti. Nepřítomný žadatel
+  po 30 sekundách bez pravidelného updatu uvolní místo; běžná prodleva mezi
+  rozhodnutími jeho pořadí neruší. Síťové požadavky mají dál limit dva.
 - Predátoři si pamatují nejvýše osm skutečných míst krmení na 30 minut a
   32 prohledaných/odmítnutých míst na deset minut. Úspěch vzniká až po
   krmení. Bez jídla se po dvou kolech hledání dosah zvýší z 80 přes 104

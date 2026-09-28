@@ -56,12 +56,47 @@ def stranded():
 
 
 class BehaviorTests(unittest.TestCase):
+    def test_threat_return_loop_is_reported_separately_from_calm_hunger(self):
+        rows = samples(count=141, npc=agent(role='PREY'))
+        for i, row in enumerate(rows):
+            npc = row['state']['agents'][0]
+            npc['needs']['hunger'] = 1.0
+            npc['position']['x'] += (i % 3) * 8
+            npc['living_role'].update(awareness='REMEMBERED_DANGER', danger_remaining_ms=50000,
+                phase='SEEKING_SAFETY' if i % 3 == 0 else 'MOVING', movement_purpose='RETURN_HOME')
+        findings = evaluate(rows)['findings']
+        self.assertFalse([f for f in findings if f['check'] == 'prey_hunger'])
+        fear = [f for f in findings if f['check'] == 'prey_threat_hunger']
+        self.assertEqual(len(fear), 1)
+        self.assertEqual(fear[0]['severity'], 'warning')
+        self.assertEqual(fear[0]['duration_seconds'], 700)
+
+    def test_queue_wait_checks_actual_tickets_and_accounts_for_load(self):
+        rows = samples(count=141)
+        for i, row in enumerate(rows):
+            row['state']['agents'][0]['living_role']['advice'] = {
+                'lifetime_ms': 1, 'enabled': True, 'status': 'WAITING_TURN',
+                'queue_wait_ms': i * 5000, 'queue_size': 2, 'queue_dispatchable': True}
+        self.assertEqual(len([f for f in evaluate(rows)['findings'] if f['check'] == 'advice_wait']), 1)
+        for row in rows:
+            row['state']['agents'][0]['living_role']['advice']['queue_size'] = 100
+        self.assertFalse([f for f in evaluate(rows)['findings'] if f['check'] == 'advice_wait'])
+        for row in rows:
+            advice = row['state']['agents'][0]['living_role']['advice']
+            advice['queue_size'] = 2
+            advice['queue_wait_ms'] %= 300000  # served and queued again between samples
+        self.assertFalse([f for f in evaluate(rows)['findings'] if f['check'] == 'advice_wait'])
+        for row in rows:
+            row['state']['agents'][0]['living_role']['advice'].pop('queue_wait_ms')
+        report = evaluate(rows)
+        self.assertEqual(next(c['status'] for c in report['checks'] if c['id'] == 'advice_wait'), 'NOT_OBSERVED')
+
     def test_physical_stall_survives_flee_idle_and_rest_changes(self):
         rows = samples(count=81, npc=stranded())
         for i, row in enumerate(rows):
             role = row['state']['agents'][0]['living_role']
             role.update(phase=('FLEEING' if i % 2 else 'ACTING'),
-                        movement_purpose=('BOUNDED_ESCAPE' if i % 2 else 'RETURN_NO_PATH'))
+                        movement_purpose=('BOUNDED_ESCAPE', 'ESCAPE_NO_PATH', 'ESCAPE_NAV_REJOIN', 'RETURN_NO_PATH')[i % 4])
         report = evaluate(rows)
         physical = [f for f in report['findings'] if f['check'] == 'physical_stall']
         self.assertEqual(len(physical), 1)

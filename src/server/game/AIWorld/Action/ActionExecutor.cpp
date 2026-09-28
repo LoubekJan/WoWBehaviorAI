@@ -105,7 +105,7 @@ ActionResult ActionExecutor::ExecuteMoveTo(ActionRequest const& request, Creatur
     {
         Movement::PointsArray points;
         LivingReturnPolicy::Diagnostics diagnostics;
-        if (request.SourceGoal != GoalType::LocalActivity ||
+        if ((request.SourceGoal != GoalType::LocalActivity && request.SourceGoal != GoalType::SeekSafety) ||
             !RecoveryMovement::SamePoint(*request.Destination, request.Recovery->Destination) ||
             !LivingRecoveryPath::Build(actor, *request.Recovery, points, &diagnostics))
         {

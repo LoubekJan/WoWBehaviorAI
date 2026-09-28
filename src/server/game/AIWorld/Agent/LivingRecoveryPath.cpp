@@ -9,6 +9,18 @@
 
 namespace LivingRecoveryPath
 {
+    namespace
+    {
+        bool NormalizeGround(Creature& creature, G3D::Vector3& point)
+        {
+            // Match PathGenerator::NormalizePath / the actor's own height
+            // query (including its search offset and hover height).
+            float ground = creature.GetMapHeight(point.x, point.y, point.z);
+            if (!std::isfinite(ground) || ground <= INVALID_HEIGHT || std::abs(ground-point.z) > 3.0f) return false;
+            point.z = ground + creature.GetHoverOffset();
+            return true;
+        }
+    }
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
         ActionPosition const& home, float radius)
     {
@@ -53,7 +65,7 @@ namespace LivingRecoveryPath
         PathGenerator query(&creature);
         query.AllowSteepSlopes();
         G3D::Vector3 point;
-        if (!query.FindRecoveryPosition(point)) return std::nullopt;
+        if (!query.FindRecoveryPosition(point) || !NormalizeGround(creature, point)) return std::nullopt;
         return ActionPosition{creature.GetMapId(), point.x, point.y, point.z};
     }
 
@@ -68,7 +80,7 @@ namespace LivingRecoveryPath
             float angle = float(i) * 0.78539816f;
             G3D::Vector3 probe(creature.GetPositionX()+4*std::cos(angle),
                 creature.GetPositionY()+4*std::sin(angle), creature.GetPositionZ()), point;
-            if (query.FindRecoveryPosition(point, &probe))
+            if (query.FindRecoveryPosition(point, &probe) && NormalizeGround(creature, point))
             {
                 ActionPosition candidate{creature.GetMapId(), point.x, point.y, point.z};
                 if (std::none_of(result.begin(), result.end(), [&](auto const& p)
@@ -99,6 +111,7 @@ namespace LivingRecoveryPath
             !creature.IsAlive() || !UsefulStep(from, to) || !UsefulStep(from, request.Destination) || Distance(from, to) > 30.0f ||
             !Finite(request.Home) || request.Home.MapId != from.MapId ||
             !std::isfinite(request.HomeRadius) || request.HomeRadius <= 0.0f ||
+            !std::isfinite(request.DangerRadius) || request.DangerRadius < 0.0f || request.DangerRadius > 30.0f ||
             (request.Danger && (!Finite(*request.Danger) || request.Danger->MapId != from.MapId))) return reject("INVALID_REQUEST");
         Map* map = creature.GetMap();
         auto clearSegment = [&](ActionPosition const& a, ActionPosition const& b)
@@ -126,14 +139,23 @@ namespace LivingRecoveryPath
         {
             G3D::Vector3 probe(to.X, to.Y, to.Z), projected;
             if (!creature.CanWalk() || !path.FindRecoveryPosition(projected, &probe) ||
+                !NormalizeGround(creature, projected) ||
                 Distance({from.MapId, projected.x, projected.y, projected.z}, to) > 1.0f) return reject("REJOIN_CHANGED");
             char const* connectorFailure = "NONE";
+            std::optional<ActionPosition> support;
+            G3D::Vector3 startProjection;
+            if (path.FindRecoveryPosition(startProjection))
+                support = ActionPosition{from.MapId, startProjection.x, startProjection.y,
+                    startProjection.z + creature.GetHoverOffset()};
+            nav.SourceZ = from.Z;
             auto connector = SurfaceConnector(from, to, [&](ActionPosition const& p) -> std::optional<float>
             {
-                float height = map->GetHeight(creature.GetPhaseMask(), p.X, p.Y, p.Z + 1.0f, true);
+                float height = creature.GetMapHeight(p.X, p.Y, p.Z);
                 if (!std::isfinite(height) || height <= INVALID_HEIGHT) return std::nullopt;
+                height += creature.GetHoverOffset();
+                if (RecoveryMovement::SamePoint(p, from)) nav.SupportZ = height;
                 return height;
-            }, clearSegment, &connectorFailure);
+            }, clearSegment, &connectorFailure, support);
             nav.Detail = connectorFailure;
             for (auto const& p : connector) points.emplace_back(p.X, p.Y, p.Z);
             nav.Rejoin = !points.empty();
@@ -184,8 +206,9 @@ namespace LivingRecoveryPath
         if (!UsefulStep(from, resolved)) return reject("ZERO_STEP");
         if (request.QueryDestination && Distance(resolved, request.Destination) > 1.0f) return reject("ENDPOINT_CHANGED");
         for (std::size_t i = 1; request.Danger && i < points.size(); ++i)
-            if (!LivingRolePolicy::AvoidsDanger(points[i-1].x, points[i-1].y, points[i].x, points[i].y,
-                request.Danger->X, request.Danger->Y, 8.0f)) return reject("DANGER_BLOCKED");
+            if (std::hypot(points[i].x-points[i-1].x, points[i].y-points[i-1].y) > 0.1f &&
+                !LivingRolePolicy::AvoidsDanger(points[i-1].x, points[i-1].y, points[i].x, points[i].y,
+                request.Danger->X, request.Danger->Y, request.DangerRadius)) return reject("DANGER_BLOCKED");
         if (diagnostics) diagnostics->Navigation = nav;
         return true;
     }

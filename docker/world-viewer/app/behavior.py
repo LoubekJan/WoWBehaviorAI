@@ -24,6 +24,8 @@ class Policy:
     empty_stock_seconds: float = 600
     predator_hunger_seconds: float = 1800
     prey_hunger_seconds: float = 600
+    prey_threat_hunger_seconds: float = 600
+    advice_wait_seconds: float = 600
     position_tolerance: float = 1
 
 
@@ -37,7 +39,10 @@ CHECKS = {
     "empty_stock": "Obnovení prázdné zásoby jídla u pracovní rutiny",
     "predator_hunger": "Dlouhodobý hlad predátorů (upozornění)",
     "prey_hunger": "Dlouhodobý hlad kořisti v klidu",
+    "prey_threat_hunger": "Dlouhodobý hlad kořisti při opakovaném nebezpečí (upozornění)",
+    "advice_wait": "Obsluha způsobilých NPC ve frontě AI",
 }
+WARNING_CHECKS = {"predator_hunger", "prey_threat_hunger"}
 RADII = {"PREDATOR": 12, "PREY": 6, "GUARD": 8, "COMBATANT": 10,
          "CIVILIAN": 4, "WORKER": 4, "TRAVELER": 12, "SERVICE": 0}
 SCOPED = {"READY", "ACTIVE", "CURATED_ROUTINE", "GROUP_ACTIVITY"}
@@ -80,7 +85,7 @@ class Evaluator:
         self.inside.clear()
         self.last_was_fresh = False
 
-    def episode(self, key, agent, row, condition, *, stationary=False, start=True, paused=False):
+    def episode(self, key, agent, row, condition, *, stationary=False, start=True, paused=False, minimum_seconds=0):
         identity = (agent["agent_id"], key)
         if not condition:
             self.runs.pop(identity, None)
@@ -111,13 +116,15 @@ class Evaluator:
         if key == "physical_stall":
             duration -= run.get("paused_seconds", 0)
         limit = getattr(self.policy, key + "_seconds" if key != "return" else "return_seconds")
-        if duration < limit:
+        if duration < max(limit, minimum_seconds):
             return
         detail = {**run, "check": key, "duration_seconds": round(duration, 3),
                   "end_utc": row.get("recorded_at_utc"), "end_seconds": row["elapsed_seconds"],
                   "movement_purpose": agent["living_role"]["movement_purpose"],
                   "home_distance": agent["movement"]["home_distance"],
-                  "severity": "warning" if key == "predator_hunger" else "failure"}
+                  "severity": "warning" if key in WARNING_CHECKS else "failure"}
+        if key == "advice_wait":
+            detail["advice"] = agent["living_role"]["advice"]
         recovery = agent["living_role"].get("return_recovery")
         if isinstance(recovery, dict):
             detail["return_recovery"] = recovery
@@ -268,7 +275,8 @@ class Evaluator:
             physical = (in_scope and role["status"] in {"READY", "ACTIVE"}
                         and move["home_distance"] > RADII[role["role"]] + 2)
             physical_start = calm and (failure or purpose in LOCAL_MOVES
-                                        or purpose in {"BOUNDED_ESCAPE", "AWAY_FROM_DANGER", "CHECK_ALLY_ALARM"})
+                                        or purpose in {"BOUNDED_ESCAPE", "AWAY_FROM_DANGER", "CHECK_ALLY_ALARM",
+                                                       "ESCAPE_NAV_REJOIN", "ESCAPE_NO_PATH"})
             if physical and physical_start:
                 self.observed["physical_stall"].add(aid)
             self.episode("physical_stall", agent, row, physical, stationary=True,
@@ -291,10 +299,32 @@ class Evaluator:
             if predator:
                 self.observed["predator_hunger"].add(aid)
             self.episode("predator_hunger", agent, row, predator and needs["hunger"] >= 0.95)
-            prey = calm and role["role"] == "PREY" and role["phase"] in {"IDLE", "ACTING", "MOVING"}
+            danger_remaining = role.get("danger_remaining_ms", 0)
+            danger = ((finite(danger_remaining) and danger_remaining > 0) or
+                      str(role.get("awareness", "QUIET")) in {"PREDATOR_SEEN", "DIRECT_THREAT", "REMEMBERED_DANGER",
+                          "HOSTILE_APPROACH", "HERD_ALARM", "ALLY_IN_DANGER"} or
+                      role["phase"] in {"FLEEING", "SEEKING_SAFETY"})
+            prey = calm and not danger and role["role"] == "PREY" and role["phase"] in {"IDLE", "ACTING", "MOVING"}
             if prey:
                 self.observed["prey_hunger"].add(aid)
             self.episode("prey_hunger", agent, row, prey and needs["hunger"] >= 0.95)
+            threatened_prey = in_scope and danger and role["role"] == "PREY"
+            if threatened_prey:
+                self.observed["prey_threat_hunger"].add(aid)
+            self.episode("prey_threat_hunger", agent, row, threatened_prey and needs["hunger"] >= 0.95)
+            queue_wait = advice.get("queue_wait_ms") if isinstance(advice, dict) else None
+            queue_size = advice.get("queue_size", 0) if isinstance(advice, dict) else 0
+            queued = (calm and type(queue_wait) is int and queue_wait >= 0 and type(queue_size) is int and
+                      0 < queue_size <= 2048 and advice.get("queue_dispatchable") is True)
+            if queued:
+                self.observed["advice_wait"].add(aid)
+                previous_wait = old_advice.get("queue_wait_ms") if isinstance(old_advice, dict) else None
+                if type(previous_wait) is int and queue_wait < previous_wait:
+                    self.runs.pop((aid, "advice_wait"), None)  # new ticket between samples
+            # Include the 3:1 return/food priority and update cadence. A busy
+            # queue is not itself a fault; a stuck eligible ticket beyond a
+            # generous full service round is.
+            self.episode("advice_wait", agent, row, queued, minimum_seconds=queue_size * 10 if queued else 0)
         # A disappeared, dead or abstract agent cannot carry an episode over a
         # respawn/grid reload. Retained spawn positions are never movement data.
         for identity in list(self.runs):
@@ -324,7 +354,7 @@ class Evaluator:
             cases = [f for f in findings if f["check"] == key]
             enough_time = self.fresh_seconds >= getattr(self.policy, key + "_seconds")
             checks.append({"id": key, "label": label, "observed_agents": len(self.observed[key]),
-                           "status": ("WARN" if key == "predator_hunger" else "FAIL") if cases else
+                           "status": ("WARN" if key in WARNING_CHECKS else "FAIL") if cases else
                            "NOT_OBSERVED" if not self.observed[key] else "PASS" if sufficient and enough_time else "INCONCLUSIVE",
                            "affected_agents": len(cases)})
         complete = sufficient and all(check["status"] != "INCONCLUSIVE" for check in checks)

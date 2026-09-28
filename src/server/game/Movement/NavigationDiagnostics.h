@@ -19,5 +19,6 @@ struct NavigationDiagnostics
     std::string Detail = "NONE";
     float HomeRadius = 0.0f;
     std::optional<float> RejectedX, RejectedY, RejectedZ;
+    std::optional<float> SourceZ, SupportZ;
 };
 #endif

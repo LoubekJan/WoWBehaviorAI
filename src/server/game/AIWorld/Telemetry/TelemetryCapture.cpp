@@ -203,6 +203,11 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                     role.Advice->KnownFoodPlaces = uint32(source.Food.Meals.size());
                     role.Advice->RetryMs = source.CooldownUntil > nowMs ? source.CooldownUntil - nowMs : 0;
                     role.Advice->SearchRadius = LivingForagePolicy::SearchRadius(source.Food.EmptyRounds);
+                    role.Advice->QueueWaitMs = _recoveryAdviceBudget.WaitMs(record->Id.Value, nowMs);
+                    role.Advice->QueueSize = _recoveryAdviceBudget.Size();
+                    role.Advice->QueueDispatchable = _recoveryAdviceBudget.Dispatchable(record->Id.Value);
+                    if (role.Advice->QueueWaitMs)
+                        role.Advice->QueueKind = recovery.ReturningHome ? "RETURN" : "FOOD";
                 }
                 role.MoveEnd = recovery.MoveWatchdog.End;
                 if (role.MoveEnd == "MOVING")
