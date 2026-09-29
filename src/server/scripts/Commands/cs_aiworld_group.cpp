@@ -75,6 +75,7 @@ EndScriptData */
 #include "Log.h"
 #include "Chat.h"
 #include "Creature.h"
+#include "Map.h"
 #include "Faction/WorldFactionId.h"
 #include "StringFormat.h"
 #include "World.h"
