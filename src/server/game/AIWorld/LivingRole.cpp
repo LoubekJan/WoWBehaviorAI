@@ -616,7 +616,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state = {};
         state.RuntimeGuid = creature.GetGUID();
         state.Advice.LifetimeAt = nowMs;
-        state.NextDecisionAtMs = nowMs + record.Id.Value % 15000;
+        state.NextDecisionAtMs = nowMs + LivingRolePolicy::PauseMs(record.Id.Value, 0, 0, 14999);
     }
     Position const home = creature.GetHomePosition();
     float homeDistance = creature.GetExactDist2d(home.GetPositionX(), home.GetPositionY());
@@ -834,7 +834,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     };
     if ((LivingRolePolicy::HelpsAllies(role) || extensions) && !threat && nowMs >= state.NextSenseAtMs)
     {
-        state.NextSenseAtMs = nowMs + 1000 + (extensions ? record.Id.Value % 500 : 0);
+        state.NextSenseAtMs = nowMs + 1000 + (extensions ? StableAgentHash(record.Id.Value) % 500 : 0);
         state.NearbyAllies = state.AlliesInCombat = 0;
         state.LastAssistStatus = "NO_ALLIES";
         state.CompanionGuid.Clear();
@@ -1414,7 +1414,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             advice.Food.Searched(here, nowMs);
         }
-        state.NextDecisionAtMs = nowMs + (returningHome || foraging ? 1000 : 6000);
+        state.NextDecisionAtMs = nowMs + (returningHome || foraging ? 1000 :
+            LivingRolePolicy::PauseMs(record.Id.Value, state.Cycle, 4000, 8000));
         return true;
     }
     if (state.CurrentPhase == Phase::Acting)
@@ -1456,7 +1457,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (state.Activity == Activity::Rest)
             record.Needs.Fatigue = 0.0f;
         StopLivingRole(record, creature);
-        state.NextDecisionAtMs = nowMs + 8000 + record.Id.Value % 7000;
+        state.NextDecisionAtMs = nowMs + LivingRolePolicy::PauseMs(record.Id.Value, state.Cycle, 8000, 14999);
         return true;
     }
 
@@ -1514,7 +1515,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         return false;
     if (nowMs < state.NextDecisionAtMs || creature.IsInCombat() || !OwnsRoleMovement(record, creature))
         return true;
-    state.NextDecisionAtMs = nowMs + 10000;
+    state.NextDecisionAtMs = nowMs + LivingRolePolicy::PauseMs(record.Id.Value, state.Cycle, 8000, 12000);
     uint64 cycle = ++state.Cycle + record.Id.Value;
 
     bool hungryHunter = role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false);

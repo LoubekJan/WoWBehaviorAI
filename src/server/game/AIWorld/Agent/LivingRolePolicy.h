@@ -22,6 +22,7 @@
 #include "AgentEconomyState.h"
 #include "Faction/WorldFactionId.h"
 #include "Reconciliation/SpawnParticipationMode.h"
+#include "Scheduler/StableAgentHash.h"
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -31,6 +32,15 @@ namespace LivingRolePolicy
 {
     enum class Role : uint8 { None, Predator, Prey, Guard, Combatant, Civilian, Worker, Traveler, Service };
     enum class Activity : uint8 { None, Roam, Look, Talk, Work, Graze, Eat, Rest };
+
+    // Adjacent spawn IDs must not produce adjacent millisecond delays.
+    // Vary each peaceful pause as well, so matching movement durations do
+    // not keep neighbours on the same repeating walk/stop cycle.
+    inline uint32 PauseMs(uint64 agent, uint64 cycle, uint32 minimum, uint32 maximum)
+    {
+        return minimum + uint32(StableAgentHash(agent ^ StableAgentHash(cycle + 1)) %
+            (uint64(maximum) - minimum + 1));
+    }
 
     inline bool KnownRole(Role role)
     {

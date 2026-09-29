@@ -1164,7 +1164,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         nearbyPerceptionIntervalMs = 100;
     }
     _nearbyPerceptionIntervalMs = uint32(nearbyPerceptionIntervalMs);
-    _nearbyPerceptionTimer = 0;
+    _perceptionUpdates = {};
 
     int32 shortTermMemoryTtlMs = sConfigMgr->GetIntDefault("AIWorld.ShortTermMemoryTtlMs", 60000);
     if (shortTermMemoryTtlMs < 1000)
@@ -1198,7 +1198,9 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         needsUpdateIntervalMs = 100;
     }
     _needsUpdateIntervalMs = uint32(needsUpdateIntervalMs);
-    _needsUpdateTimer = 0;
+    _needsUpdates = {};
+    _agentUpdatesRefreshAtMs = 0;
+    _updateTiming = {};
 
     _needsRates.HungerPerSecond = std::clamp(
         sConfigMgr->GetFloatDefault("AIWorld.NeedsHungerRatePerSecond", 0.0002f), 0.0f, 1.0f);
@@ -8539,6 +8541,14 @@ void AIWorldMgr::Update(uint32 diff)
     if (!_enabled)
         return;
 
+    auto const updateStart = std::chrono::steady_clock::now();
+    auto elapsedSince = [](auto start)
+    { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); };
+    uint64 const updateNowMs = CurrentTimeMs();
+    if (!_updateTiming.Ticks) _updateTiming.StartedAtMs = updateNowMs;
+    ++_updateTiming.Ticks;
+    _updateTiming.MaxWorldDiffMs = std::max(_updateTiming.MaxWorldDiffMs, diff);
+
     // Drained first: sMapMgr->Update(diff) (which runs immediately before
     // AIWorldMgr::Update() in World::Update()) is where map/combat workers
     // publish whatever happened this tick.
@@ -8686,12 +8696,18 @@ void AIWorldMgr::Update(uint32 diff)
         }
     }
 
-    _nearbyPerceptionTimer += diff;
-    if (_nearbyPerceptionTimer >= _nearbyPerceptionIntervalMs)
+    if (updateNowMs >= _agentUpdatesRefreshAtMs)
     {
-        _nearbyPerceptionTimer = 0;
-        ScanNearbyEntities();
+        auto ids = _registry.GetAgents();
+        _perceptionUpdates.Sync(ids, updateNowMs, _nearbyPerceptionIntervalMs, 0x50455243);
+        _needsUpdates.Sync(ids, updateNowMs, _needsUpdateIntervalMs, 0x4e454544);
+        _agentUpdatesRefreshAtMs = updateNowMs + 1000;
     }
+    auto perceptionStart = std::chrono::steady_clock::now();
+    ScanNearbyEntities();
+    double perceptionMs = elapsedSince(perceptionStart);
+    _updateTiming.MaxPerceptionMs = std::max(_updateTiming.MaxPerceptionMs, perceptionMs);
+    _updateTiming.PerceptionLateMs = std::max(_updateTiming.PerceptionLateMs, _perceptionUpdates.OldestLateMs(updateNowMs));
 
     _memoryMaintenanceTimer += diff;
     if (_memoryMaintenanceTimer >= 1000)
@@ -8700,13 +8716,11 @@ void AIWorldMgr::Update(uint32 diff)
         _shortTermMemory.Expire(CurrentTimeMs());
     }
 
-    _needsUpdateTimer += diff;
-    if (_needsUpdateTimer >= _needsUpdateIntervalMs)
-    {
-        uint32 elapsedMs = _needsUpdateTimer;
-        _needsUpdateTimer = 0;
-        UpdateNeeds(elapsedMs);
-    }
+    auto needsStart = std::chrono::steady_clock::now();
+    UpdateNeeds();
+    double needsMs = elapsedSince(needsStart);
+    _updateTiming.MaxNeedsMs = std::max(_updateTiming.MaxNeedsMs, needsMs);
+    _updateTiming.NeedsLateMs = std::max(_updateTiming.NeedsLateMs, _needsUpdates.OldestLateMs(updateNowMs));
 
     _healthTimer += diff;
     if (_healthTimer >= _healthIntervalMs)
@@ -8831,6 +8845,7 @@ void AIWorldMgr::Update(uint32 diff)
         ValidateDecisionIntent(response.Agent, *record, response);
     }
 
+    auto telemetryStart = std::chrono::steady_clock::now();
     if (_telemetryExporter)
     {
         _telemetryTimer += diff;
@@ -8840,6 +8855,20 @@ void AIWorldMgr::Update(uint32 diff)
             if (!_telemetryExporter->Busy())
                 CaptureTelemetry(sMapMgr->FindBaseNonInstanceMap(0));
         }
+    }
+    double telemetryMs = elapsedSince(telemetryStart);
+    double totalMs = elapsedSince(updateStart);
+    _updateTiming.MaxTelemetryMs = std::max(_updateTiming.MaxTelemetryMs, telemetryMs);
+    _updateTiming.MaxTotalMs = std::max(_updateTiming.MaxTotalMs, totalMs);
+    _updateTiming.MaxOtherMs = std::max(_updateTiming.MaxOtherMs, totalMs - needsMs - perceptionMs - telemetryMs);
+    if (updateNowMs >= _updateTiming.StartedAtMs + 30000)
+    {
+        TC_LOG_INFO("ai.world", "AIWORLD_UPDATE windowMs={} ticks={} worldDiffMaxMs={} totalMaxMs={:.2f} needsMaxMs={:.2f} perceptionMaxMs={:.2f} telemetryMaxMs={:.2f} otherMaxMs={:.2f} needsAgents={} perceptionAgents={} needsLateMaxMs={} perceptionLateMaxMs={}",
+            updateNowMs - _updateTiming.StartedAtMs, _updateTiming.Ticks, _updateTiming.MaxWorldDiffMs,
+            _updateTiming.MaxTotalMs, _updateTiming.MaxNeedsMs, _updateTiming.MaxPerceptionMs,
+            _updateTiming.MaxTelemetryMs, _updateTiming.MaxOtherMs, _updateTiming.NeedsAgents,
+            _updateTiming.PerceptionAgents, _updateTiming.NeedsLateMs, _updateTiming.PerceptionLateMs);
+        _updateTiming = {};
     }
 }
 
@@ -11342,7 +11371,7 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
     }
 }
 
-// World thread only, on its own ~1s cadence (_nearbyPerceptionIntervalMs),
+// World thread only, staggered ~1s per-agent cadence (_nearbyPerceptionIntervalMs),
 // independent of any WorldEvent - Milestone 2.4B/2.4C. Same "live Creature
 // existence is the authority, not record->WorldState" rule as
 // ProcessWorldEvent()'s perception loop, for the same reason: trusting
@@ -11350,8 +11379,17 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 // just closed there.
 void AIWorldMgr::ScanNearbyEntities()
 {
-    for (AgentId id : _registry.GetAgents())
+    uint64 nowMs = CurrentTimeMs();
+    auto const started = std::chrono::steady_clock::now();
+    // A single agent's scan is indivisible. Check both limits before the
+    // next agent, leaving overdue work queued fairly for the following tick.
+    for (uint32 count = 0; count < 128 && std::chrono::steady_clock::now() - started < std::chrono::milliseconds(4); ++count)
     {
+        auto update = _perceptionUpdates.PopDue(nowMs);
+        if (!update) break;
+        ++_updateTiming.PerceptionAgents;
+        _updateTiming.PerceptionLateMs = std::max(_updateTiming.PerceptionLateMs, update->LateMs);
+        AgentId id = update->Agent;
         AgentRecord* record = _registry.Find(id);
         if (!record)
             continue;
@@ -11404,7 +11442,7 @@ void AIWorldMgr::ScanNearbyEntities()
     }
 }
 
-// World thread only, on its own ~1s cadence (_needsUpdateIntervalMs),
+// World thread only, staggered ~1s per-agent cadence (_needsUpdateIntervalMs),
 // independent of the decision scheduler's cadence - Milestone
 // 2.6A/2.6B1/2.6B2. Only
 // Materialized agents drift; Abstract agents are frozen rather than
@@ -11416,12 +11454,18 @@ void AIWorldMgr::ScanNearbyEntities()
 // is required here too rather than trusting the flag. The lookup itself
 // stays in AIWorldMgr on the world thread; NeedsSystem only ever sees the
 // plain-value NeedsUpdateContext built from it, never the Creature*.
-void AIWorldMgr::UpdateNeeds(uint32 elapsedMs)
+void AIWorldMgr::UpdateNeeds()
 {
     uint64 nowMs = CurrentTimeMs();
-
-    for (AgentId id : _registry.GetAgents())
+    auto const started = std::chrono::steady_clock::now();
+    for (uint32 count = 0; count < 128 && std::chrono::steady_clock::now() - started < std::chrono::milliseconds(4); ++count)
     {
+        auto update = _needsUpdates.PopDue(nowMs);
+        if (!update) break;
+        ++_updateTiming.NeedsAgents;
+        _updateTiming.NeedsLateMs = std::max(_updateTiming.NeedsLateMs, update->LateMs);
+        AgentId id = update->Agent;
+        uint32 elapsedMs = update->ElapsedMs;
         AgentRecord* record = _registry.Find(id);
         if (!record)
             continue;

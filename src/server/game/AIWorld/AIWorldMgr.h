@@ -79,6 +79,7 @@
 #include "Quest/DynamicQuestPlayerCompletion.h"
 #include "Quest/DynamicQuestRegistry.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
+#include "Scheduler/AgentUpdateScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
 #include "Scheduler/GroupCoarseSimulationScheduler.h"
 #include "Scheduler/SimulationScheduleState.h"
@@ -372,7 +373,7 @@ class TC_GAME_API AIWorldMgr
         void ProcessWorldEvent(WorldEvent& event);
         void ProcessObservation(Observation const& observation);
         void ScanNearbyEntities();
-        void UpdateNeeds(uint32 elapsedMs);
+        void UpdateNeeds();
         void CaptureTelemetry(Map* elwynnMap);
         // Reuse command diagnostics without a linear FindBySpawn per exported agent.
         LivingRoleDebugInfo DescribeLivingRole(Creature const& creature, AgentRecord const& record) const;
@@ -3126,7 +3127,7 @@ class TC_GAME_API AIWorldMgr
         // Milestone 2.10A/2.10B: how often RunDecisionScheduler() itself
         // runs - not every tick (GetAgents() allocates, so this avoids
         // paying that cost every single world tick the way
-        // _needsUpdateTimer/_nearbyPerceptionTimer already don't either),
+        // the needs/perception schedules already don't either),
         // and deliberately faster than either per-agent decision interval
         // below (AIWorld.DecisionSchedulerIntervalMs, default 250ms) - see
         // RunDecisionScheduler()'s own comment for why scheduler-poll
@@ -4108,7 +4109,7 @@ class TC_GAME_API AIWorldMgr
         // authority for whether an agent can perceive anything, not
         // record->WorldState.
         uint32 _nearbyPerceptionIntervalMs = 1000;
-        uint32 _nearbyPerceptionTimer = 0;
+        AgentUpdateScheduler _perceptionUpdates;
 
         // Milestone 2.5A/2.5B1: deduplicated, TTL'd summary of every
         // Observation ProcessObservation() sees, weighted by
@@ -4148,7 +4149,17 @@ class TC_GAME_API AIWorldMgr
         NeedsSystem _needsSystem;
         NeedsUpdateRates _needsRates;
         uint32 _needsUpdateIntervalMs = 1000;
-        uint32 _needsUpdateTimer = 0;
+        AgentUpdateScheduler _needsUpdates;
+        uint64 _agentUpdatesRefreshAtMs = 0;
+        struct UpdateTiming
+        {
+            uint64 StartedAtMs = 0;
+            uint32 Ticks = 0, MaxWorldDiffMs = 0;
+            uint64 NeedsAgents = 0, PerceptionAgents = 0;
+            uint64 NeedsLateMs = 0, PerceptionLateMs = 0;
+            double MaxTotalMs = 0, MaxNeedsMs = 0, MaxPerceptionMs = 0;
+            double MaxTelemetryMs = 0, MaxOtherMs = 0;
+        } _updateTiming;
 
         // Milestone 2.7A: deterministic, level-triggered goal candidate
         // generation from NeedsState, run right after UpdateNeeds() so it
