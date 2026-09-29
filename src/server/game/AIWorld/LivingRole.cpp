@@ -191,13 +191,14 @@ namespace
     }
 
     std::optional<ActionPosition> FindRoleReturnStep(Creature& creature, Position const& home,
-        ActionPosition const* danger, char const*& failure, LivingRoleState& state, float clearance)
+        ActionPosition const* danger, char const*& failure, LivingRoleState& state, float clearance, float arrivalRadius)
     {
         state.ReturnDiagnostics = {};
         failure = "RETURN_NO_PATH";
         state.ReturnRoute.TrailTarget.reset();
         state.ReturnRoute.PendingBacktrack.reset();
         ActionPosition current{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+        ActionPosition homePoint{current.MapId, home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
         std::optional<ActionPosition> backtrack, backtrackTrail;
         LivingReturnPolicy::Diagnostics backtrackDiagnostics;
         auto accept = [&](ActionPosition& step, bool routePoint, bool rejoin = false,
@@ -242,6 +243,21 @@ namespace
             auto step = state.ReturnRoute.Planned.front();
             state.ReturnStrategy = "CORRIDOR";
             if (accept(step, true, false, std::nullopt, true)) return step;
+            state.ReturnRoute.Planned.clear();
+        }
+        // Plan to a reachable point in the actual home arrival area. A spawn
+        // coordinate itself can be outside the usable ground polygon.
+        if (auto corridor = LivingRecoveryPath::HomeCorridor(creature, current, homePoint,
+            arrivalRadius, state.ReturnHomeLimit, danger, clearance, &state.ReturnDiagnostics); !corridor.empty())
+        {
+            state.ReturnRoute.Planned = std::move(corridor);
+            state.ReturnRoute.Advance(current);
+            if (!state.ReturnRoute.Planned.empty())
+            {
+                auto step = state.ReturnRoute.Planned.front();
+                state.ReturnStrategy = "CORRIDOR";
+                if (accept(step, true, false, std::nullopt, true)) return step;
+            }
             state.ReturnRoute.Planned.clear();
         }
         auto followTrail = [&]() -> std::optional<ActionPosition>
@@ -339,7 +355,16 @@ namespace
         {
             if (!LivingReturnPolicy::UsefulStep(current, step)) continue;
             state.ReturnStrategy = "NAV_REJOIN";
-            if (accept(step, true, true)) return step;
+            if (!accept(step, true, true)) continue;
+            auto continuation = LivingRecoveryPath::HomeCorridor(creature, step, homePoint,
+                arrivalRadius, state.ReturnHomeLimit, danger, clearance);
+            if (!state.ReturnRoute.PlanRejoin(current, step, std::move(continuation)))
+            {
+                failure = "RETURN_REJOIN_NO_CONTINUATION";
+                ++state.ReturnDiagnostics.Rejected[LivingReturnPolicy::Path];
+                continue;
+            }
+            return step;
         }
         if (backtrack)
         {
@@ -629,6 +654,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             if (homeReached) { ++advice.HomeSuccess; advice.Status = "HOME_REACHED"; advice.RememberSuccess(); }
             else { ++advice.FoodSuccess; advice.Status = "FOOD_FOUND"; advice.Food.Fed(here, nowMs); advice.Active.reset(); }
+        }
+        else if (creature.IsAlive() && advice.ActiveReturning && advice.StepArrived && state.ReturningHome &&
+            nowMs >= advice.ActiveAt + 30000 && nowMs >= state.HomeProgressAtMs + 30000)
+        {
+            state.ReturnRoute.MarkIneffective(advice.ActiveOrigin, advice.Active->Move.Destination);
+            advice.Active.reset(); advice.Status = "INEFFECTIVE_STEP";
         }
         else if (!creature.IsAlive() || nowMs > advice.ActiveAt + 180000)
         {
@@ -1742,14 +1773,14 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 destination = advised->Move.Destination;
                 state.ReturnDiagnostics = advised->Diagnostics;
                 state.ReturnStrategy = "AI_ADVICE";
-                if (!advised->FollowsCorridor) state.ReturnRoute.Planned.clear();
+                if (!advised->FollowsCorridor) state.ReturnRoute.Planned = advised->Continuation;
                 state.ReturnRoute.TrailTarget.reset();
                 state.ReturnRoute.PendingBacktrack.reset();
                 pathReady = true;
             }
             else
             {
-                auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state, LivingRolePolicy::SafetyRadius(record.Id.Value));
+                auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state, LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f);
                 pathReady = step.has_value();
                 if (step) destination = *step;
             }

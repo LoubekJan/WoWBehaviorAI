@@ -89,6 +89,8 @@ class ReturnRecovery(ProtocolModel):
     backtracks: int = Field(default=0, ge=0, le=16)
     rejoins: int = Field(default=0, ge=0, le=8)
     corridor_points: int = Field(default=0, ge=0, le=128)
+    home_path_type: int = Field(default=0, ge=0, le=255, strict=True)
+    home_path_failure: str = Field(default="NOT_CHECKED", max_length=100)
     rejected: dict[Literal['invalid', 'height', 'zone', 'los', 'path', 'bounds', 'danger'], int] = Field(max_length=7)
 
     @model_validator(mode="after")

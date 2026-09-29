@@ -14,6 +14,7 @@ struct LivingAdviceCandidate
     LivingReturnPolicy::Diagnostics Diagnostics;
     bool Backtrack = false;
     bool FollowsCorridor = false;
+    std::vector<ActionPosition> Continuation;
 };
 struct LivingAdviceState
 {

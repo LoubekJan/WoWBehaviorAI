@@ -56,9 +56,21 @@ PathGenerator::~PathGenerator()
 
 bool PathGenerator::CalculatePath(float destX, float destY, float destZ, bool forceDest)
 {
-    _diagnostics = {};
     float x, y, z;
     _source->GetPosition(x, y, z);
+    return CalculatePathFromInternal({x, y, z}, destX, destY, destZ, forceDest);
+}
+
+bool PathGenerator::CalculatePathFrom(G3D::Vector3 const& start, G3D::Vector3 const& destination)
+{
+    Clear();
+    return CalculatePathFromInternal(start, destination.x, destination.y, destination.z, false);
+}
+
+bool PathGenerator::CalculatePathFromInternal(G3D::Vector3 const& origin, float destX, float destY, float destZ, bool forceDest)
+{
+    _diagnostics = {};
+    float x = origin.x, y = origin.y, z = origin.z;
 
     if (!Trinity::IsValidMapCoord(destX, destY, destZ) || !Trinity::IsValidMapCoord(x, y, z))
         return false;

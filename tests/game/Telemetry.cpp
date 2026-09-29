@@ -57,6 +57,8 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     recovery.StalledMs = 600000; recovery.Candidates = 8; recovery.Rejections[4] = 8;
     recovery.RequestedZ = 45.57f;
     recovery.Backtracks = 2;
+    recovery.HomePathType = 4;
+    recovery.HomePathFailure = "NO_COMPLETE_PATH";
     recovery.Navigation.Mesh = recovery.Navigation.StartTile = recovery.Navigation.EndTile = true;
     recovery.Navigation.Filter = 3; recovery.Navigation.StartFlags = 2;
     recovery.Navigation.StartDistance = 9.25f;
@@ -68,6 +70,8 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     REQUIRE(json.find("\"resolved_z\":null") != std::string::npos);
     REQUIRE(json.find("\"path\":8") != std::string::npos);
     REQUIRE(json.find("\"backtracks\":2") != std::string::npos);
+    REQUIRE(json.find("\"home_path_type\":4") != std::string::npos);
+    REQUIRE(json.find("\"home_path_failure\":\"NO_COMPLETE_PATH\"") != std::string::npos);
     REQUIRE(json.find("\"navigation\":{\"mesh\":true") != std::string::npos);
     REQUIRE(json.find("\"start_distance\":9.25") != std::string::npos);
     REQUIRE(json.find("\"end_distance\":null") != std::string::npos);

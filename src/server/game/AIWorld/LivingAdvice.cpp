@@ -43,6 +43,9 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     ActionPosition here{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
     auto const& homePosition = creature.GetHomePosition();
     ActionPosition home{creature.GetMapId(), homePosition.GetPositionX(), homePosition.GetPositionY(), homePosition.GetPositionZ()};
+    auto role = LivingRolePolicy::Resolve(record.Type, creature.GetEntry(), false);
+    float arrivalRadius = ((role == LivingRolePolicy::Role::Service || creature.IsQuestGiver()) ?
+        0.0f : LivingRolePolicy::RoamRadius(role)) + 2.0f;
     auto revalidate = [&](LivingAdviceCandidate& candidate)
     {
         candidate.Move.Danger = danger ? std::optional<ActionPosition>(*danger) : std::nullopt;
@@ -54,10 +57,17 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
             !state.ReturnRoute.Planned.empty() && Distance(candidate.Move.Destination, state.ReturnRoute.Planned.front()) <= 1;
         candidate.Backtrack = returning && !candidate.Move.Rejoin && !candidate.FollowsCorridor &&
             state.ReturnRoute.Revisited(candidate.Move.Destination);
-        if (returning && !state.ReturnRoute.Allows(here, candidate.Move.Destination,
-            candidate.FollowsCorridor, candidate.Move.Rejoin)) return false;
         Movement::PointsArray points;
-        return LivingRecoveryPath::Build(creature, candidate.Move, points, &candidate.Diagnostics);
+        if (!LivingRecoveryPath::Build(creature, candidate.Move, points, &candidate.Diagnostics)) return false;
+        if (returning && !candidate.FollowsCorridor)
+        {
+            candidate.Continuation = LivingRecoveryPath::HomeCorridor(creature, candidate.Move.Destination,
+                home, arrivalRadius, state.ReturnHomeLimit, danger, candidate.Move.DangerRadius, &candidate.Diagnostics);
+            if (candidate.Continuation.empty()) return false;
+        }
+        if (returning && !state.ReturnRoute.Allows(here, candidate.Move.Destination,
+            candidate.FollowsCorridor || !candidate.Continuation.empty(), candidate.Move.Rejoin)) return false;
+        return true;
     };
     if (advice.PendingId)
     {

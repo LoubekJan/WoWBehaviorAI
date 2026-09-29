@@ -397,3 +397,59 @@ TEST_CASE("Normalized return keeps the exact query endpoint in authorization", "
     request.Destination = {0,0.2f,0,0};
     REQUIRE_FALSE(LivingReturnPolicy::UsefulStep({0,0,0,0}, request.Destination));
 }
+
+TEST_CASE("Recovery navigation tries reachable home area without widening arrival", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition home{0, -9836, -685, 31};
+    for (float radius : {2.0f, 6.0f, 14.0f})
+    {
+        auto targets = HomeTargets(home, radius);
+        REQUIRE(targets.size() == 9);
+        REQUIRE(Distance(targets.front(), home) == 0);
+        for (auto const& target : targets)
+        {
+            CHECK(target.MapId == home.MapId);
+            CHECK(target.Z == home.Z);
+            CHECK(std::hypot(target.X-home.X, target.Y-home.Y) < radius);
+        }
+    }
+    CHECK(HomeTargets(home, 0).size() == 1);
+    CHECK(HomeTargets(home, -1).empty());
+}
+
+TEST_CASE("Recovery navigation does not burn eight rejoins on dead end side steps", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    RouteMemory memory;
+    ActionPosition from{0, 50, 0, 0};
+    for (unsigned i = 0; i < 8; ++i)
+    {
+        CHECK_FALSE(memory.PlanRejoin(from, {0, 50, 2.0f + i, 0}, {}));
+        CHECK(memory.Rejoins.empty());
+        CHECK(memory.Planned.empty());
+    }
+    ActionPosition join{0, 50, 4, 0};
+    auto continuation = Corridor({join, {0, 25, 4, 0}, {0, 0, 0, 0}});
+    REQUIRE(memory.PlanRejoin(from, join, continuation));
+    memory.CommitRejoin(from, join);
+    CHECK(memory.Rejoins.size() == 1);
+    REQUIRE_FALSE(memory.Planned.empty());
+    CHECK(memory.Planned.back().X == 0);
+    CHECK_FALSE(memory.PlanRejoin(from, join, continuation));
+    auto first = memory.Planned.front();
+    REQUIRE(memory.Advance(first));
+    CHECK(memory.Planned.size() == continuation.size() - 1);
+}
+
+TEST_CASE("Recovery navigation remembers ineffective reached steps without erasing new corridor", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    RouteMemory memory;
+    memory.Planned = {{0, 10, 0, 0}, {0, 0, 0, 0}};
+    memory.MarkIneffective({0, 50, 0, 0}, {0, 50, 4, 0});
+    CHECK_FALSE(memory.Allows({0, 50, 0, 0}, {0, 50, 4, 0}, false, false));
+    CHECK_FALSE(memory.Allows({0, 50, 0, 0}, {0, 50, 4, 0}, false, true));
+    CHECK(memory.Planned.size() == 2);
+    CHECK(memory.Allows({0, 50, 0, 0}, {0, 40, 0, 0}, true, false));
+}

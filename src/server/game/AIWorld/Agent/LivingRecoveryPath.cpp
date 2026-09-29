@@ -60,6 +60,60 @@ namespace LivingRecoveryPath
         return fail("NO_USEFUL_LEG");
     }
 
+    std::vector<ActionPosition> HomeCorridor(Creature& creature, ActionPosition const& from,
+        ActionPosition const& home, float arrivalRadius, float limit, ActionPosition const* danger, float clearance,
+        LivingReturnPolicy::Diagnostics* diagnostics)
+    {
+        using namespace LivingReturnPolicy;
+        auto reason = [&](char const* value) { if (diagnostics) diagnostics->HomePathFailure = value; };
+        if (diagnostics) diagnostics->HomePathType = 0;
+        reason("INVALID_REQUEST");
+        if (!Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 ||
+            !std::isfinite(limit) || limit <= 0 || !std::isfinite(arrivalRadius) || arrivalRadius < 0) return {};
+        if (std::hypot(from.X-home.X, from.Y-home.Y) <= arrivalRadius)
+        { reason("NONE"); return {from}; }
+        for (auto target : HomeTargets(home, arrivalRadius))
+        {
+            if (diagnostics) diagnostics->HomePathType = 0;
+            G3D::Vector3 ground(target.X, target.Y, target.Z);
+            if (!NormalizeGround(creature, ground)) { reason("HOME_GROUND_HEIGHT"); continue; }
+            target.Z = ground.z;
+            PathGenerator path(&creature);
+            path.AllowSteepSlopes();
+            bool calculated = path.CalculatePathFrom({from.X, from.Y, from.Z}, {target.X, target.Y, target.Z});
+            if (diagnostics) diagnostics->HomePathType = uint32(path.GetPathType());
+            reason("NO_COMPLETE_PATH");
+            if (!calculated ||
+                !(path.GetPathType() & PATHFIND_NORMAL) ||
+                (path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT |
+                    PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH | PATHFIND_FARFROMPOLY))) continue;
+            auto const& points = path.GetPath();
+            reason("ENDPOINT_MISMATCH");
+            if (points.size() < 2 || Distance(from, {0, points.front().x, points.front().y, points.front().z}) > 1.5f ||
+                Distance(target, {0, points.back().x, points.back().y, points.back().z}) > 1.5f ||
+                std::hypot(points.back().x-home.X, points.back().y-home.Y) > arrivalRadius) continue;
+            reason("PATH_BOUNDS");
+            if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
+                { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
+                    std::hypot(x-home.X, y-home.Y) <= limit; })) continue;
+            reason("DANGER_BLOCKED");
+            bool safe = true;
+            std::vector<ActionPosition> route{from};
+            for (auto const& point : points)
+            {
+                if (danger && !LivingRolePolicy::AvoidsDanger(route.back().X, route.back().Y,
+                    point.x, point.y, danger->X, danger->Y, clearance)) { safe = false; break; }
+                route.push_back({0, point.x, point.y, point.z});
+            }
+            if (safe)
+            {
+                reason("CORRIDOR_LIMIT");
+                if (auto corridor = Corridor(route); !corridor.empty()) { reason("NONE"); return corridor; }
+            }
+        }
+        return {};
+    }
+
     bool InSwimmableWater(Creature const& creature, ActionPosition const& point)
     {
         if (!creature.CanEnterWater() || point.MapId != creature.GetMapId()) return false;

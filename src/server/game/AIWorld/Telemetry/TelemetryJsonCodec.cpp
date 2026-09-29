@@ -102,6 +102,8 @@ namespace
         WriteJsonField(out, "candidates", recovery.Candidates); WriteJsonField(out, "path_type", recovery.PathType);
         WriteJsonField(out, "requested_z", recovery.RequestedZ); WriteJsonField(out, "resolved_z", recovery.ResolvedZ);
         WriteJsonField(out, "backtracks", recovery.Backtracks);
+        WriteJsonField(out, "home_path_type", recovery.HomePathType);
+        WriteJsonField(out, "home_path_failure", recovery.HomePathFailure);
         WriteJsonField(out, "rejoins", recovery.Rejoins); WriteJsonField(out, "corridor_points", recovery.CorridorPoints);
         out << ",\"navigation\":"; WriteNavigation(out, recovery.Navigation);
         char const* names[] = { "invalid", "height", "zone", "los", "path", "bounds", "danger" };

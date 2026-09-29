@@ -333,3 +333,19 @@ K záznamu připoj krátce verzi/commit nasazeného serveru, délku testu a své
 pozorování. Volitelně přilož `runtime/logs/Server.log` z téže doby — zkopíruj ho
 **před restartem worldserveru**, protože aktuální konfigurace jej při startu
 přepisuje.
+
+### Ověření opravy návratů z 2026-09-29
+
+Po deployi nechat automatický recorder běžet čtyři hodiny bez hráčských/GM
+zásahů. `make record-aiworld-status` ukáže průběh; `early_navigation` zůstává
+jednorázovým výsledkem z 15. minuty, nikoli živým počtem chyb.
+Pokud selže, průběžný report lze zkontrolovat hned, ale běh nerestartovat.
+Na konci předat celý adresář včetně `summary.json`, obou behavior reportů
+a všech `part-*.jsonl.gz`.
+
+Výchozí srovnání je session `20260928T165107Z-090c4443`: 35 unikátních NPC
+s chybou, 34 `physical_stall`, 31 `return_duration`, 209 varování na hlad
+predátorů. Medvěd 146193 má mít dokončený návrat nebo alespoň diagnostikované
+konkrétní selhání, nikoli opakované dosažené mezicíle bez návratu. Nová pole
+`return_recovery.home_path_type` a `home_path_failure` rozlišují výsledek
+celé cesty do návratové oblasti od posledního krátkého kandidáta.

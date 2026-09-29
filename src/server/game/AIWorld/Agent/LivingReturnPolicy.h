@@ -25,6 +25,7 @@
 #include <array>
 #include <cmath>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace LivingReturnPolicy
@@ -34,12 +35,30 @@ namespace LivingReturnPolicy
     constexpr float MaxStepLength = 28.0f;
     constexpr std::size_t MaxTrailPoints = 64;
 
+    // Stay strictly inside the existing arrival radius, rather than requiring
+    // the exact spawn point to lie on a reachable navigation polygon.
+    inline std::vector<ActionPosition> HomeTargets(ActionPosition const& home, float arrivalRadius)
+    {
+        if (!std::isfinite(arrivalRadius) || arrivalRadius < 0) return {};
+        std::vector<ActionPosition> targets{home};
+        float ring = std::max(0.0f, arrivalRadius - 1.0f);
+        if (ring < 1) return targets;
+        for (unsigned i = 0; i < 8; ++i)
+        {
+            float angle = float(i) * 0.785398163f;
+            targets.push_back({home.MapId, home.X + ring * std::cos(angle), home.Y + ring * std::sin(angle), home.Z});
+        }
+        return targets;
+    }
+
     enum Rejection : std::size_t { Invalid, Height, Zone, Los, Path, Bounds, Danger, RejectionCount };
     struct Diagnostics
     {
         uint32 Candidates = 0;
         std::array<uint32, RejectionCount> Rejected{};
         uint32 PathType = 0;
+        uint32 HomePathType = 0;
+        std::string HomePathFailure = "NOT_CHECKED";
         float RequestedZ = 0.0f;
         std::optional<float> ResolvedZ;
         NavigationDiagnostics Navigation;
@@ -216,6 +235,12 @@ namespace LivingReturnPolicy
         {
             if (Allows(from, to, false, true)) Rejoins.push_back({from, to});
         }
+        bool PlanRejoin(ActionPosition const& from, ActionPosition const& to, std::vector<ActionPosition> continuation)
+        {
+            if (continuation.empty() || !Allows(from, to, false, true)) return false;
+            Planned = std::move(continuation);
+            return true;
+        }
 
         bool Failed(ActionPosition const& from, ActionPosition const& to) const
         {
@@ -224,10 +249,14 @@ namespace LivingReturnPolicy
         }
         void Reject(ActionPosition const& from, ActionPosition const& to)
         {
+            MarkIneffective(from, to);
+            Planned.clear();
+        }
+        void MarkIneffective(ActionPosition const& from, ActionPosition const& to)
+        {
             if (!Finite(from) || !Finite(to) || Failed(from, to)) return;
             if (FailedEdges.size() == MaxTrailPoints) FailedEdges.erase(FailedEdges.begin());
             FailedEdges.push_back({from, to});
-            Planned.clear();
         }
         bool Advance(ActionPosition const& here)
         {

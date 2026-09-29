@@ -63,6 +63,9 @@ class TC_GAME_API PathGenerator
         // Calculate the path from owner to given destination
         // return: true if new path was calculated, false otherwise (no change needed)
         bool CalculatePath(float destX, float destY, float destZ, bool forceDest = false);
+        // Planning only. Does not relocate the owner; execution must validate
+        // again from its actual position. Recovery uses this for lookahead.
+        bool CalculatePathFrom(G3D::Vector3 const& start, G3D::Vector3 const& destination);
         bool IsInvalidDestinationZ(Unit const* target) const;
 
         // option setters - use optional
@@ -95,6 +98,7 @@ class TC_GAME_API PathGenerator
         void ShortenPathUntilDist(G3D::Vector3 const& point, float dist);
 
     private:
+        bool CalculatePathFromInternal(G3D::Vector3 const& start, float destX, float destY, float destZ, bool forceDest);
 
         dtPolyRef _pathPolyRefs[MAX_PATH_LENGTH];   // array of detour polygon references
         uint32 _polyLength;                         // number of polygons in the path

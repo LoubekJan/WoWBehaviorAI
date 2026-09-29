@@ -175,6 +175,8 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                     diagnostic.Failure = recovery.ReturnFailure;
                     diagnostic.Candidates = recovery.ReturnDiagnostics.Candidates;
                     diagnostic.PathType = recovery.ReturnDiagnostics.PathType;
+                    diagnostic.HomePathType = recovery.ReturnDiagnostics.HomePathType;
+                    diagnostic.HomePathFailure = recovery.ReturnDiagnostics.HomePathFailure;
                     diagnostic.Rejections = recovery.ReturnDiagnostics.Rejected;
                     diagnostic.RequestedZ = recovery.ReturnDiagnostics.RequestedZ;
                     diagnostic.ResolvedZ = recovery.ReturnDiagnostics.ResolvedZ;

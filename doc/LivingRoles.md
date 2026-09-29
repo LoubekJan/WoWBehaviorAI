@@ -887,3 +887,35 @@ Kompletní sestavení/linkování
 serveru a samostatnou kontrolu příkazového souboru i `Object.cpp` blokuje chybějící plná
 instalace Boost. Tyto kontroly nenahrazují runtime ověření pohybu, navmeshe,
 animací, dostupnosti kořisti ani výkonu při větším počtu načtených NPC.
+
+## Návrat s ověřeným pokračováním (2026-09-29)
+
+Po záznamu medvěda 146193, který během 20 sekund spotřeboval osm rejoinů,
+plánovač zkouší přesný domov a osm bodů uvnitř již existujícího návratového
+poloměru. Poloměr úspěšného návratu se nezvětšuje. Každý bod musí mít
+odpovídající výšku a úplnou navmesh cestu uvnitř Elwynnu a návratové oblasti.
+
+Rejoin už nestačí ověřit jako krátký bezpečný pohyb: musí z jeho konce vést
+úplná cesta do návratové oblasti. Ta se uloží do `ReturnRoute.Planned` a
+další kroky ji spotřebovávají; každý vykonaný krok se znovu ověřuje ze skutečné
+polohy. `PathGenerator::CalculatePathFrom` slouží pouze k plánování z kandidáta,
+NPC nepřemisťuje a nepoužívá nucenou cestu. Na jeden dotaz se zkouší nejvýše
+devět domácích bodů. Stejné pokračování musí mít i nové návratové možnosti AI.
+
+Pokud AI mezicíl dosáhne, ale následně alespoň 30 sekund nenastane pokrok
+k domovu ani spotřebování bodu návratové trasy, přesun dostane stav
+`INEFFECTIVE_STEP`. Stejná směrovaná hrana se v této návratové epizodě znovu
+nenabízí. Paměť má nejvýše 64 hran; nové plánované trase její zápis neublíží.
+Limity rejoinů a backtracků ani kontroly kolizí se nezvyšují.
+
+Telemetrie návratu doplňuje `home_path_type` a `home_path_failure`. Zachycují
+poslední zkoušenou úplnou cestu do domácí oblasti odděleně od krátkého kroku
+v `navigation`. `NOT_CHECKED` znamená, že se tento dotaz neprováděl; nejde
+o úspěch. Při zamítnutí rejoinu bez pokračování se hlásí
+`RETURN_REJOIN_NO_CONTINUATION`.
+
+Komponentové regrese pokrývají návratovou oblast, osm nepoužitelných bočních
+kroků bez spotřebování rejoin rozpočtu, zachování navazující trasy a paměť
+neúčinné hrany. Nenahrazují test skutečné geometrie serveru. Po deployi je
+potřeba nový záznam bez zásahů; sledovat zejména `return_duration`,
+`physical_stall`, vývoj `home_distance`, `corridor_points` a `home_success`.

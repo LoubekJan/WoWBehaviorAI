@@ -38,6 +38,8 @@ struct ReturnRecoveryTelemetry
     std::optional<float> ResolvedZ;
     NavigationDiagnostics Navigation;
     uint32 Backtracks = 0;
+    uint32 HomePathType = 0;
+    std::string HomePathFailure = "NOT_CHECKED";
     uint32 Rejoins = 0, CorridorPoints = 0;
 };
 
