@@ -91,6 +91,12 @@ class ReturnRecovery(ProtocolModel):
     corridor_points: int = Field(default=0, ge=0, le=128)
     home_path_type: int = Field(default=0, ge=0, le=255, strict=True)
     home_path_failure: str = Field(default="NOT_CHECKED", max_length=100)
+    refuge_active: bool = Field(default=False, strict=True)
+    refuge_episodes: int = Field(default=0, ge=0, strict=True)
+    refuge_moves: int = Field(default=0, ge=0, strict=True)
+    refuge_blocked: int = Field(default=0, ge=0, strict=True)
+    refuge_remaining_ms: int = Field(default=0, ge=0, le=120000, strict=True)
+    refuge_anchor: Point | None = None
     rejected: dict[Literal['invalid', 'height', 'zone', 'los', 'path', 'bounds', 'danger'], int] = Field(max_length=7)
 
     @model_validator(mode="after")

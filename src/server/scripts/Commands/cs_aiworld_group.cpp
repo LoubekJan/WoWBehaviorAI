@@ -69,6 +69,10 @@ EndScriptData */
 #include "Agent/AgentGroupPolicyDecision.h"
 #include "Agent/AgentId.h"
 #include "Agent/GroupId.h"
+#include "Agent/LivingRecoveryPath.h"
+#include "Agent/LivingRolePolicy.h"
+#include "PathGenerator.h"
+#include "Log.h"
 #include "Chat.h"
 #include "Creature.h"
 #include "Faction/WorldFactionId.h"
@@ -138,6 +142,8 @@ public:
         static ChatCommandTable groupTable =
         {
             { "status", HandleAIWorldGroupStatusCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Console::No },
+            { "navigation", HandleAIWorldNavigationCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Console::No },
+            { "navigationfrom", HandleAIWorldNavigationFromCommand, rbac::RBAC_PERM_COMMAND_DEBUG, Console::No },
             { "join",   HandleAIWorldGroupJoinCommand,   rbac::RBAC_PERM_COMMAND_DEBUG, Console::No },
             { "leave",  HandleAIWorldGroupLeaveCommand,  rbac::RBAC_PERM_COMMAND_DEBUG, Console::No },
         };
@@ -150,6 +156,80 @@ public:
             { "aiworld", aiworldTable },
         };
         return commandTable;
+    }
+
+    static bool HandleAIWorldNavigationCommand(ChatHandler* handler)
+    { return ProbeNavigation(handler, std::nullopt); }
+
+    static bool HandleAIWorldNavigationFromCommand(ChatHandler* handler, float x, float y, float z)
+    { return ProbeNavigation(handler, ActionPosition{0, x, y, z}); }
+
+    static bool ProbeNavigation(ChatHandler* handler, std::optional<ActionPosition> source)
+    {
+        if (!ResolveTargetAgent(handler)) return false;
+        Creature* target = handler->getSelectedCreature();
+        auto role = sAIWorldMgr->DescribeLivingRole(*target);
+        if (!role || target->GetMapId() != 0 || target->GetZoneId() != 12)
+        { handler->SendSysMessage("AIWorld navigation: select an AIWorld creature in Elwynn."); return false; }
+        auto emit = [&](std::string const& line)
+        {
+            handler->SendSysMessage(line);
+            TC_LOG_INFO("ai.world", "AIWORLD_NAV_PROBE spawn={} {}", target->GetSpawnId(), line);
+        };
+        auto const& h = target->GetHomePosition();
+        ActionPosition home{target->GetMapId(), h.GetPositionX(), h.GetPositionY(), h.GetPositionZ()};
+        ActionPosition here{target->GetMapId(), target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()};
+        if (source) here = *source;
+        if (!LivingReturnPolicy::Finite(here) || std::hypot(here.X-home.X, here.Y-home.Y) > 256 ||
+            std::abs(here.Z-home.Z) > 100)
+        { handler->SendSysMessage("AIWorld navigation: source must be finite and within 256 yards / 100 height of home."); return false; }
+        emit(source ? "Recorded-position probe; NPC is not moved. Uses currently loaded geometry." : "Live-position probe; NPC is not moved.");
+        emit(Trinity::StringFormat("AIWorld navigation: spawn={} xyz=({:.3f},{:.3f},{:.3f}) home=({:.3f},{:.3f},{:.3f})",
+            target->GetSpawnId(), here.X, here.Y, here.Z, home.X, home.Y, home.Z));
+        emit(Trinity::StringFormat("arrivalRadius={:.1f} returnLimit={:.1f} localRecovery={} episodes={} moves={} blocked={}",
+            role->ArrivalRadius, role->ReturnLimit, role->RefugeActive, role->RefugeEpisodes, role->RefugeMoves, role->RefugeBlocked));
+        emit(Trinity::StringFormat("sourceGround={:.3f} sourceZ={:.3f} hover={:.3f}",
+            target->GetMapHeight(here.X, here.Y, here.Z), here.Z, target->GetHoverOffset()));
+        unsigned index = 0;
+        for (auto point : LivingReturnPolicy::HomeTargets(home, role->ArrivalRadius))
+        {
+            float height = target->GetMapHeight(point.X, point.Y, point.Z);
+            bool ground = std::isfinite(height) && height > INVALID_HEIGHT && std::abs(height-point.Z) <= 3;
+            if (ground) point.Z = height + target->GetHoverOffset();
+            PathGenerator path(target); path.AllowSteepSlopes();
+            bool calculated = path.CalculatePathFrom({here.X, here.Y, here.Z}, {point.X, point.Y, point.Z});
+            auto const& nav = path.GetNavigationDiagnostics();
+            emit(Trinity::StringFormat("home[{}] ground={} groundZ={:.3f} xyz=({:.3f},{:.3f},{:.3f}) calculated={} pathType={}",
+                index++, ground, height, point.X, point.Y, point.Z, calculated, uint32(path.GetPathType())));
+            emit(Trinity::StringFormat("poly start={} end={} flags={}/{} distance={:.3f}/{:.3f} tiles={}/{}/{}",
+                nav.StartPolygon, nav.EndPolygon, nav.StartFlags, nav.EndFlags,
+                nav.StartDistance.value_or(-1), nav.EndDistance.value_or(-1), nav.Mesh, nav.StartTile, nav.EndTile));
+            if (!path.GetPath().empty())
+            {
+                auto const& first = path.GetPath().front(); auto const& end = path.GetPath().back();
+                emit(Trinity::StringFormat("resolved start=({:.3f},{:.3f},{:.3f}) end=({:.3f},{:.3f},{:.3f}) points={}",
+                    first.x, first.y, first.z, end.x, end.y, end.z, path.GetPath().size()));
+            }
+        }
+        if (source)
+        { emit("Recorded-position probe complete. Live surface connectors require the NPC at the tested position."); return true; }
+        index = 0;
+        for (auto const& point : LivingRecoveryPath::RejoinPositions(*target))
+        {
+            LivingReturnPolicy::Diagnostics diagnostic;
+            Movement::PointsArray points;
+            RecoveryMovement request{point, home, role->ReturnLimit > 0 ? role->ReturnLimit :
+                LivingReturnPolicy::HomeLimit(std::hypot(here.X-home.X, here.Y-home.Y)), {}, true};
+            bool valid = LivingRecoveryPath::Build(*target, request, points, &diagnostic);
+            auto const& nav = diagnostic.Navigation;
+            emit(Trinity::StringFormat("rejoin[{}] xyz=({:.3f},{:.3f},{:.3f}) valid={} failure={} detail={}",
+                index++, point.X, point.Y, point.Z, valid, nav.Failure, nav.Detail));
+            emit(Trinity::StringFormat("rejected=({:.3f},{:.3f},{:.3f}) ground={:.3f} previous={:.3f}",
+                nav.RejectedX.value_or(0), nav.RejectedY.value_or(0), nav.RejectedZ.value_or(0),
+                nav.RejectedGroundZ.value_or(0), nav.PreviousGroundZ.value_or(0)));
+        }
+        emit("Read-only probe complete. AIWORLD_NAV_PROBE lines are also in the ai.world log.");
+        return true;
     }
 
     static bool HandleAIWorldGroupStatusCommand(ChatHandler* handler)
@@ -191,6 +271,9 @@ public:
                 if (role->ReturnFailures || std::string_view(role->ReturnStrategy) != "NONE")
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld return: strategy={} failure={} attempts={} stalledMs={} trailPoints={}",
                         role->ReturnStrategy, role->ReturnFailure, role->ReturnFailures, role->ReturnStalledMs, role->ReturnTrailPoints));
+                if (role->RefugeEpisodes)
+                    handler->SendSysMessage(Trinity::StringFormat("AIWorld local recovery: active={} episodes={} moves={} blocked={}",
+                        role->RefugeActive, role->RefugeEpisodes, role->RefugeMoves, role->RefugeBlocked));
                 if (role->CompanionSpawnId)
                     handler->SendSysMessage(Trinity::StringFormat("AIWorld role: local companion spawnId={} (not persistent group membership)", role->CompanionSpawnId));
                 if (role->AdvicePilot)

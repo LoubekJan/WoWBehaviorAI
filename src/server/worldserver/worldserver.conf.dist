@@ -4331,6 +4331,10 @@ AIWorld.LivingRolesEnabled = 0
 # Early danger awareness, refuges/alarms, local herds, risk memory and work stocks.
 # Requires LivingRolesEnabled. Scope remains controlled permanent Elwynn roles.
 AIWorld.LivingRoleExtensionsEnabled = 0
+
+# Temporary local recovery pilot for one existing spawn; 0 disables it.
+# Does not change the spawn/home, teleport, or apply hunger damage.
+AIWorld.LocalRecoverySpawnId = 0
 AIWorld.WolfGroupHuntEnabled = 0
 
 #

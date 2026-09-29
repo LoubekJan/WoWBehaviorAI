@@ -184,6 +184,12 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                     diagnostic.Backtracks = uint32(recovery.ReturnRoute.Backtracks.size());
                     diagnostic.Rejoins = uint32(recovery.ReturnRoute.Rejoins.size());
                     diagnostic.CorridorPoints = uint32(recovery.ReturnRoute.Planned.size());
+                    diagnostic.RefugeActive = recovery.Refuge.Active(nowMs);
+                    diagnostic.RefugeEpisodes = recovery.Refuge.Episodes;
+                    diagnostic.RefugeMoves = recovery.Refuge.Moves;
+                    diagnostic.RefugeBlocked = recovery.Refuge.Blocked;
+                    diagnostic.RefugeRemainingMs = recovery.Refuge.Until > nowMs ? recovery.Refuge.Until-nowMs : 0;
+                    diagnostic.RefugeAnchor = recovery.Refuge.Anchor;
                     role.ReturnRecovery = std::move(diagnostic);
                 }
                 if (info.HuntStatus)

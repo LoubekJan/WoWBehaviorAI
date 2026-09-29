@@ -107,7 +107,9 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(state['version'], 4)
         self.assertEqual(state['agents'][0]['living_role']['return_recovery'],
                          {**recovery, 'navigation': None, 'backtracks': 0, 'rejoins': 0, 'corridor_points': 0,
-                          'home_path_type': 0, 'home_path_failure': 'NOT_CHECKED'})
+                          'home_path_type': 0, 'home_path_failure': 'NOT_CHECKED',
+                          'refuge_active': False, 'refuge_episodes': 0, 'refuge_moves': 0,
+                          'refuge_blocked': 0, 'refuge_remaining_ms': 0, 'refuge_anchor': None})
         recovery['rejected']['path'] = -1
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 422)
         # A malformed batch must not replace the last good observation.
@@ -122,12 +124,16 @@ class WorldViewerApiTests(unittest.TestCase):
         nav.update(projection_x=10.25, projection_y=20.0, projection_z=53.5, projection_ground_z=55.5,
                    rejected_ground_z=57.0, previous_ground_z=55.5, connector_samples=4)
         recovery = {**return_recovery(), 'navigation': nav, 'backtracks': 2, 'rejoins': 1, 'corridor_points': 3,
-                    'home_path_type': 4, 'home_path_failure': 'NO_COMPLETE_PATH'}
+                    'home_path_type': 4, 'home_path_failure': 'NO_COMPLETE_PATH',
+                    'refuge_active': True, 'refuge_episodes': 2, 'refuge_moves': 3,
+                    'refuge_blocked': 4, 'refuge_remaining_ms': 120000,
+                    'refuge_anchor': {'map_id': 0, 'x': 10.0, 'y': 20.0, 'z': 30.0}}
         payload['agents'][0]['living_role']['return_recovery'] = recovery
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], recovery)
         for field, value in [('home_path_type', -1), ('home_path_type', True), ('home_path_type', 256),
-                             ('home_path_failure', 'x' * 101)]:
+                             ('home_path_failure', 'x' * 101), ('refuge_active', 1),
+                             ('refuge_episodes', True), ('refuge_moves', -1), ('refuge_remaining_ms', 120001)]:
             bad = copy.deepcopy(payload)
             bad['agents'][0]['living_role']['return_recovery'][field] = value
             self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)

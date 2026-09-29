@@ -304,6 +304,9 @@ class TC_GAME_API AIWorldMgr
             uint64 ReturnStalledMs = 0;
             char const* ReturnStrategy = "NONE";
             char const* ReturnFailure = "NONE";
+            float ArrivalRadius = 0, ReturnLimit = 0;
+            bool RefugeActive = false;
+            uint32 RefugeEpisodes = 0, RefugeMoves = 0, RefugeBlocked = 0;
             bool AdvicePilot = false, AdviceEnabled = false;
             std::string AdviceStatus;
             uint32 AdviceRequests = 0, AdviceStarted = 0, AdviceHomeSuccess = 0, AdviceFoodSuccess = 0;
@@ -2891,6 +2894,7 @@ class TC_GAME_API AIWorldMgr
         bool _livingWolvesEnabled = false;
         bool _livingRolesEnabled = false;
         bool _livingRoleExtensionsEnabled = false;
+        uint32 _livingRecoverySpawnId = 0;
         bool _recoveryAdviceEnabled = false;
         std::unordered_set<uint64> _recoveryAdviceAgents;
         bool _recoveryAdviceAllAgents = false;

@@ -59,6 +59,9 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     recovery.Backtracks = 2;
     recovery.HomePathType = 4;
     recovery.HomePathFailure = "NO_COMPLETE_PATH";
+    recovery.RefugeActive = true; recovery.RefugeEpisodes = 2; recovery.RefugeMoves = 3;
+    recovery.RefugeBlocked = 4; recovery.RefugeRemainingMs = 120000;
+    recovery.RefugeAnchor = ActionPosition{0, 10, 20, 30};
     recovery.Navigation.Mesh = recovery.Navigation.StartTile = recovery.Navigation.EndTile = true;
     recovery.Navigation.Filter = 3; recovery.Navigation.StartFlags = 2;
     recovery.Navigation.StartDistance = 9.25f;
@@ -72,6 +75,12 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     REQUIRE(json.find("\"backtracks\":2") != std::string::npos);
     REQUIRE(json.find("\"home_path_type\":4") != std::string::npos);
     REQUIRE(json.find("\"home_path_failure\":\"NO_COMPLETE_PATH\"") != std::string::npos);
+    REQUIRE(json.find("\"refuge_active\":true") != std::string::npos);
+    REQUIRE(json.find("\"refuge_episodes\":2") != std::string::npos);
+    REQUIRE(json.find("\"refuge_moves\":3") != std::string::npos);
+    REQUIRE(json.find("\"refuge_blocked\":4") != std::string::npos);
+    REQUIRE(json.find("\"refuge_remaining_ms\":120000") != std::string::npos);
+    REQUIRE(json.find("\"refuge_anchor\":{\"map_id\":0,\"x\":10,\"y\":20,\"z\":30}") != std::string::npos);
     REQUIRE(json.find("\"navigation\":{\"mesh\":true") != std::string::npos);
     REQUIRE(json.find("\"start_distance\":9.25") != std::string::npos);
     REQUIRE(json.find("\"end_distance\":null") != std::string::npos);

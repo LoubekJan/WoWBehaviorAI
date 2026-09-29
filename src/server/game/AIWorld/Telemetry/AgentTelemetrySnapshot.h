@@ -41,6 +41,10 @@ struct ReturnRecoveryTelemetry
     uint32 HomePathType = 0;
     std::string HomePathFailure = "NOT_CHECKED";
     uint32 Rejoins = 0, CorridorPoints = 0;
+    bool RefugeActive = false;
+    uint32 RefugeEpisodes = 0, RefugeMoves = 0, RefugeBlocked = 0;
+    uint64 RefugeRemainingMs = 0;
+    std::optional<ActionPosition> RefugeAnchor;
 };
 
 struct RecoveryAdviceTelemetry

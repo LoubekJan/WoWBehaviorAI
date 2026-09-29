@@ -13,6 +13,8 @@ struct NavigationDiagnostics
 {
     bool Mesh = false, StartTile = false, EndTile = false;
     uint32 Filter = 0, StartFlags = 0, EndFlags = 0;
+    // Transient IDs for the read-only live probe, never persisted as handles.
+    uint64 StartPolygon = 0, EndPolygon = 0;
     std::optional<float> StartDistance, EndDistance;
     bool Swimming = false, Rejoin = false;
     std::string Failure = "NONE";

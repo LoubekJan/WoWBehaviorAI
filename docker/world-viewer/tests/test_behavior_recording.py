@@ -56,6 +56,22 @@ def stranded():
 
 
 class BehaviorTests(unittest.TestCase):
+    def test_local_recovery_movement_does_not_hide_unfinished_home_return(self):
+        rows = samples(count=61, npc=stranded())
+        for i, row in enumerate(rows):
+            npc = row['state']['agents'][0]
+            moving = i % 2 == 0
+            npc['position']['x'] += 8 * (i % 2)
+            npc['movement']['moving'] = moving
+            npc['living_role'].update(phase='MOVING' if moving else 'ACTING',
+                movement_purpose='LOCAL_RECOVERY_MOVE' if moving else 'LOCAL_RECOVERY_CARE',
+                return_recovery={'refuge_active': True, 'failures': 0})
+        report = evaluate(rows)
+        self.assertIn('return_duration', [f['check'] for f in report['findings']])
+        self.assertNotIn('physical_stall', [f['check'] for f in report['findings']])
+        for row in rows: row['state']['agents'][0]['position']['x'] = -9606.48
+        self.assertIn('physical_stall', [f['check'] for f in evaluate(rows)['findings']])
+
     def test_early_navigation_pass_does_not_finish_or_clear_long_run(self):
         rows = samples(count=201)
         evaluator = behavior.Evaluator(METADATA)

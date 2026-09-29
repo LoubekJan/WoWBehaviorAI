@@ -47,7 +47,7 @@ WARNING_CHECKS = {"predator_hunger", "prey_threat_hunger"}
 RADII = {"PREDATOR": 12, "PREY": 6, "GUARD": 8, "COMBATANT": 10,
          "CIVILIAN": 4, "WORKER": 4, "TRAVELER": 12, "SERVICE": 0}
 SCOPED = {"READY", "ACTIVE", "CURATED_ROUTINE", "GROUP_ACTIVITY"}
-LOCAL_MOVES = {"RETURN_HOME", "FORAGE_SEARCH", "LOCAL_ROAM", "HERD_COHESION", "PATROL_COMPANION", "FOOD_SUPPLY"}
+LOCAL_MOVES = {"RETURN_HOME", "FORAGE_SEARCH", "LOCAL_ROAM", "HERD_COHESION", "PATROL_COMPANION", "FOOD_SUPPLY", "LOCAL_RECOVERY_MOVE"}
 
 
 def finite(value) -> bool:
@@ -263,12 +263,13 @@ class Evaluator:
             self.episode("outside", agent, row, outside)
             calm = in_scope and not agent["in_combat"] and not move["blocked"] and not move["evading"]
             purpose = role["movement_purpose"]
+            local_recovery = purpose in {"LOCAL_RECOVERY_MOVE", "LOCAL_RECOVERY_CARE"}
             failure = purpose.startswith("RETURN_") and purpose != "RETURN_HOME"
             recovery = role.get("return_recovery")
             if isinstance(recovery, dict):
                 failure = failure or (type(recovery.get("failures")) is int and recovery["failures"] > 0
                                       and str(recovery.get("failure", "")).startswith("RETURN_"))
-            if failure or purpose == "RETURN_HOME":
+            if failure or purpose == "RETURN_HOME" or local_recovery:
                 self.observed["return"].add(aid)
             returning = calm and move["home_distance"] > RADII[role["role"]] + 2 and role["phase"] in {"IDLE", "ACTING", "MOVING"}
             self.episode("return", agent, row, returning, stationary=True, start=failure)
@@ -276,10 +277,10 @@ class Evaluator:
             # a return is observed, time the whole attempt until home, an
             # interruption or a different activity; animations/idle persist.
             return_attempt = (returning and role["status"] in {"READY", "ACTIVE"}
-                              and (purpose == "NONE" or purpose.startswith("RETURN_")))
-            if return_attempt and (failure or purpose == "RETURN_HOME"):
+                              and (purpose == "NONE" or purpose.startswith("RETURN_") or local_recovery))
+            if return_attempt and (failure or purpose == "RETURN_HOME" or local_recovery):
                 self.observed["return_duration"].add(aid)
-            self.episode("return_duration", agent, row, return_attempt, start=failure or purpose == "RETURN_HOME")
+            self.episode("return_duration", agent, row, return_attempt, start=failure or purpose == "RETURN_HOME" or local_recovery)
             # A phase flip (especially repeated fleeing -> idle) cannot hide
             # an immobile NPC. Seed from a movement/return attempt, not from
             # standing workers, service NPCs or ordinary resting wildlife.

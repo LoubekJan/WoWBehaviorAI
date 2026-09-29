@@ -464,6 +464,12 @@ AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& c
     info.ReturnTrailPoints = uint32(record->LivingRole.ReturnTrail.size());
     info.ReturnStrategy = record->LivingRole.ReturnStrategy;
     info.ReturnFailure = record->LivingRole.ReturnFailure;
+    info.ArrivalRadius = ((IsService(creature) || creature.IsQuestGiver()) ? 0.0f : LivingRolePolicy::RoamRadius(role)) + 2;
+    info.ReturnLimit = record->LivingRole.ReturnHomeLimit;
+    info.RefugeActive = record->LivingRole.Refuge.Active(GetCurrentTimeMs());
+    info.RefugeEpisodes = record->LivingRole.Refuge.Episodes;
+    info.RefugeMoves = record->LivingRole.Refuge.Moves;
+    info.RefugeBlocked = record->LivingRole.Refuge.Blocked;
     info.AdvicePilot = HasRecoveryAdvice(record->Id);
     info.AdviceEnabled = _recoveryAdviceEnabled;
     info.AdviceStatus = record->LivingRole.Advice.Status;
@@ -679,6 +685,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     if (homeDistance <= radius + 2.0f)
     {
+        state.Refuge = {};
         state.ReturningHome = false;
         state.ReturnStartedAtMs = state.HomeProgressAtMs = 0;
         state.ReturnHomeLimit = 0.0f;
@@ -697,7 +704,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     LivingReturnPolicy::ObserveTrail(state.ReturnTrail, here, state.ReturningHome);
     // Renew queue membership on every update, including rests and cooldowns
     // between local decisions. No geometry or model work happens here.
-    bool stalledReturn = state.ReturningHome && state.HomeProgressAtMs && nowMs >= state.HomeProgressAtMs + 30000 &&
+    bool stalledReturn = !state.Refuge.Active(nowMs) && state.ReturningHome && state.HomeProgressAtMs && nowMs >= state.HomeProgressAtMs + 30000 &&
         (state.ReturnFailures >= 3 || nowMs >= state.ReturnStartedAtMs + 60000);
     bool foodAdvice = !state.ReturningHome && role == Role::Predator && !anchored && !advice.Active &&
         state.HungrySinceMs && nowMs >= state.HungrySinceMs + 120000 && nowMs >= state.DangerUntilMs &&
@@ -1535,6 +1542,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         std::vector<Creature*> candidates;
         for (Creature* candidate : nearby)
         {
+            if (state.Refuge.Active(nowMs)) continue;
             if (_agentTypeCatalog.Resolve(candidate->GetEntry()) != AgentType::Prey || !candidate->IsAlive() ||
                 candidate->IsPet() || !candidate->GetCharmerOrOwnerGUID().IsEmpty() || candidate->IsControlledByPlayer() ||
                 IsService(*candidate) || candidate->IsQuestGiver() || candidate->GetZoneId() != 12)
@@ -1706,6 +1714,50 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         (creature.GetExactDist2d(rememberedDanger->X, rememberedDanger->Y) >= LivingRolePolicy::SafetyRadius(record.Id.Value) ||
             nowMs < state.BlockedThreatUntilMs))
     { recoverHere(); state.MovementPurpose = "REFUGE_CARE"; return true; }
+
+    // Retain return timers and the real spawn. These local steps are not home
+    // progress and must not turn an unresolved return into a telemetry PASS.
+    if (extensions && _livingRecoverySpawnId && creature.GetSpawnId() == _livingRecoverySpawnId &&
+        !anchored && !rememberedDanger && state.ReturningHome &&
+        (role == Role::Predator || role == Role::Prey))
+    {
+        if (state.Refuge.Begin(nowMs, state.ReturnStartedAtMs, state.HomeProgressAtMs, here, homePoint, state.ReturnHomeLimit))
+        {
+            _recoveryAdviceBudget.Cancel(record.Id.Value);
+            advice.ClearPending(); advice.Active.reset(); advice.Status = "LOCAL_RECOVERY";
+        }
+        if (state.Refuge.Active(nowMs))
+        {
+            // Alternate actual role care (including grazing) with movement.
+            if (cycle % 2 == 0)
+            {
+                for (unsigned i = 0; i < 8; ++i)
+                {
+                    float angle = float((cycle * 137 + i * 45) % 360) * GroupMemberFormation::TwoPi / 360.0f;
+                    auto target = *state.Refuge.Anchor;
+                    target.X += 8.0f * std::cos(angle); target.Y += 8.0f * std::sin(angle);
+                    float ground = creature.GetMapHeight(target.X, target.Y, here.Z);
+                    if (!std::isfinite(ground) || ground <= INVALID_HEIGHT || std::abs(ground-here.Z) > 3) continue;
+                    target.Z = ground + creature.GetHoverOffset();
+                    if (!state.Refuge.Contains(target)) continue;
+                    RecoveryMovement recovery{target, state.Refuge.Home, state.Refuge.HomeLimit, {}, false};
+                    Movement::PointsArray points;
+                    if (!LivingRecoveryPath::Build(creature, recovery, points)) continue;
+                    if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
+                        { return state.Refuge.Contains({here.MapId, x, y, z}); })) continue;
+                    approvedRecovery = recovery;
+                    ActionRequest move;
+                    move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity;
+                    move.Destination = target; move.Recovery = recovery;
+                    if (start(move, Phase::Moving))
+                    { ++state.Refuge.Moves; state.MovementPurpose = "LOCAL_RECOVERY_MOVE"; return true; }
+                }
+                ++state.Refuge.Blocked;
+            }
+            recoverHere(); state.MovementPurpose = "LOCAL_RECOVERY_CARE";
+            return true;
+        }
+    }
 
     // Local cohesion is not a persisted coalition. Only a visible, compatible
     // lower-id neighbor can lead; home bounds prevent a chain across the map.

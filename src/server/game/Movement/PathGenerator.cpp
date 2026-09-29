@@ -215,6 +215,8 @@ void PathGenerator::BuildPolyPath(G3D::Vector3 const& startPos, G3D::Vector3 con
 
     dtPolyRef startPoly = GetPolyByLocation(startPoint, &distToStartPoly);
     dtPolyRef endPoly = GetPolyByLocation(endPoint, &distToEndPoly);
+    _diagnostics.StartPolygon = uint64(startPoly);
+    _diagnostics.EndPolygon = uint64(endPoly);
 
     if (startPoly != INVALID_POLYREF)
     {

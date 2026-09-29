@@ -24,6 +24,7 @@
 #include "LivingMovementWatchdog.h"
 #include "LivingEscapeProgress.h"
 #include "LivingForageState.h"
+#include "LivingRefugePolicy.h"
 #include "Action/ActionPosition.h"
 #include "ObjectGuid.h"
 #include "Goal/GoalType.h"
@@ -95,6 +96,7 @@ struct LivingRoleState
     bool HasForageWaypoint = false;
     ActionPosition ForageWaypoint;
     LivingForageState Forage;
+    LivingRefugeState Refuge;
     char const* Awareness = "QUIET";
     char const* MovementPurpose = "NONE";
 };

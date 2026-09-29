@@ -3,11 +3,45 @@
 #include "tc_catch2.h"
 #include "Inference/RecoveryAdvice.h"
 #include "Agent/LivingAdviceState.h"
+#include "Agent/LivingRefugePolicy.h"
 #include "Agent/LivingAdviceBudget.h"
 #include "Agent/LivingMovementWatchdog.h"
 #include "Agent/LivingForagePolicy.h"
 #include "Agent/LivingEscapeProgress.h"
 #include <limits>
+
+TEST_CASE("Recovery refuge waits for failure then reserves a real home retry window", "[AIWorld][RecoveryNavigation]")
+{
+    LivingRefugeState s;
+    ActionPosition here{0,50,0,0}, home{0,0,0,0};
+    CHECK_FALSE(s.Begin(300999, 1000, 1000, here, home, 96));
+    CHECK_FALSE(s.Begin(301000, 1000, 300000, here, home, 96));
+    REQUIRE(s.Begin(301000, 1000, 1000, here, home, 96));
+    CHECK(s.Active(420999));
+    CHECK_FALSE(s.Active(421000));
+    CHECK_FALSE(s.Begin(421000, 1000, 1000, here, home, 96));
+    REQUIRE(s.Begin(481000, 1000, 1000, here, home, 96));
+    CHECK(s.Episodes == 2);
+}
+
+TEST_CASE("Recovery refuge never shifts its anchor or expands original home boundary", "[AIWorld][RecoveryNavigation]")
+{
+    LivingRefugeState s;
+    ActionPosition home{0,0,0,0};
+    REQUIRE(s.Begin(301000, 1000, 1000, {0,90,0,0}, home, 96));
+    CHECK(s.Contains({0,95,0,0}));
+    CHECK_FALSE(s.Contains({0,97,0,0}));
+    CHECK_FALSE(s.Contains({0,78,1,0}));
+    CHECK_FALSE(s.Contains({1,90,0,0}));
+    REQUIRE(s.Begin(481000, 1000, 1000, {0,95,0,0}, home, 150));
+    CHECK(s.Anchor->X == 90);
+    CHECK(s.HomeLimit == 96);
+    CHECK_FALSE(s.Begin(661000, 1000, 1000, {0,110,0,0}, home, 150));
+    CHECK_FALSE(s.Contains({0,90,0,std::numeric_limits<float>::infinity()}));
+    s = {}; // Real arrival or rematerialization clears the temporary episode.
+    CHECK_FALSE(s.Active(700000));
+    CHECK_FALSE(s.Contains(home));
+}
 
 TEST_CASE("Recovery navigation crosses a continuous hollow without cutting terrain", "[AIWorld][RecoveryNavigation]")
 {
