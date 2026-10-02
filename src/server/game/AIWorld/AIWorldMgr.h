@@ -4157,6 +4157,8 @@ class TC_GAME_API AIWorldMgr
             uint32 Ticks = 0, MaxWorldDiffMs = 0;
             uint64 NeedsAgents = 0, PerceptionAgents = 0;
             uint64 NeedsLateMs = 0, PerceptionLateMs = 0;
+            uint64 PlanningStarted = 0, PlanningDeferred = 0;
+            double PlanningTotalMs = 0, MaxPlanningOperationMs = 0;
             double MaxTotalMs = 0, MaxNeedsMs = 0, MaxPerceptionMs = 0;
             double MaxTelemetryMs = 0, MaxOtherMs = 0;
         } _updateTiming;

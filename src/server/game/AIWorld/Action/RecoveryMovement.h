@@ -11,6 +11,9 @@ struct RecoveryMovement
     float HomeRadius = 0.0f;
     std::optional<ActionPosition> Danger;
     bool Rejoin = false;
+    // Explicit opt-in for a fully validated terrain route across a navmesh
+    // gap. Each short leg must still be checked again before execution.
+    bool SurfaceCorridor = false;
     // Preserve the query endpoint when the planner normalizes its last point.
     std::optional<ActionPosition> QueryDestination;
     float DangerRadius = 8.0f;
@@ -21,7 +24,8 @@ struct RecoveryMovement
     bool operator==(RecoveryMovement const& other) const
     {
         return SamePoint(Destination, other.Destination) && SamePoint(Home, other.Home) &&
-            HomeRadius == other.HomeRadius && Rejoin == other.Rejoin && DangerRadius == other.DangerRadius &&
+            HomeRadius == other.HomeRadius && Rejoin == other.Rejoin && SurfaceCorridor == other.SurfaceCorridor &&
+            DangerRadius == other.DangerRadius &&
             Danger.has_value() == other.Danger.has_value() && (!Danger || SamePoint(*Danger, *other.Danger)) &&
             QueryDestination.has_value() == other.QueryDestination.has_value() &&
             (!QueryDestination || SamePoint(*QueryDestination, *other.QueryDestination));

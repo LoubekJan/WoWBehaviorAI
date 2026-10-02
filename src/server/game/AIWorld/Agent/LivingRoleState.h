@@ -25,6 +25,7 @@
 #include "LivingEscapeProgress.h"
 #include "LivingForageState.h"
 #include "LivingRefugePolicy.h"
+#include "LivingPlanningState.h"
 #include "Action/ActionPosition.h"
 #include "ObjectGuid.h"
 #include "Goal/GoalType.h"
@@ -78,6 +79,9 @@ struct LivingRoleState
     std::vector<ActionPosition> ReturnTrail;
     LivingReturnPolicy::RouteMemory ReturnRoute;
     LivingReturnPolicy::Diagnostics ReturnDiagnostics;
+    LivingPlanningContext Planning;
+    LivingReturnSearch ReturnSearch;
+    std::vector<LivingHuntProbe> HuntRejected;
     uint64 ReturnStartedAtMs = 0, HomeProgressAtMs = 0, HungrySinceMs = 0;
     float BestHomeDistance = 0;
     LivingAdviceState Advice;

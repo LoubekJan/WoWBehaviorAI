@@ -108,8 +108,11 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(state['agents'][0]['living_role']['return_recovery'],
                          {**recovery, 'navigation': None, 'backtracks': 0, 'rejoins': 0, 'corridor_points': 0,
                           'home_path_type': 0, 'home_path_failure': 'NOT_CHECKED',
+                          'home_surface_failure': 'NOT_CHECKED', 'home_path_surface': False,
                           'home_path_rejected': dict.fromkeys(('ground', 'path', 'endpoint', 'bounds', 'danger', 'corridor'), 0),
                           'continuation_path_type': 0, 'continuation_path_failure': 'NOT_CHECKED',
+                          'continuation_surface_failure': 'NOT_CHECKED', 'continuation_path_surface': False,
+                          'planning_deferred': False, 'surface_corridor': False,
                           'continuation_path_rejected': dict.fromkeys(('ground', 'path', 'endpoint', 'bounds', 'danger', 'corridor'), 0),
                           'refuge_active': False, 'refuge_episodes': 0, 'refuge_moves': 0,
                           'refuge_blocked': 0, 'refuge_remaining_ms': 0, 'refuge_anchor': None})
@@ -128,8 +131,11 @@ class WorldViewerApiTests(unittest.TestCase):
                    rejected_ground_z=57.0, previous_ground_z=55.5, connector_samples=4)
         recovery = {**return_recovery(), 'navigation': nav, 'backtracks': 2, 'rejoins': 1, 'corridor_points': 3,
                     'home_path_type': 4, 'home_path_failure': 'NO_COMPLETE_PATH',
+                    'home_surface_failure': 'NOT_CHECKED', 'home_path_surface': False,
                     'home_path_rejected': dict(ground=7, path=2, endpoint=0, bounds=0, danger=0, corridor=0),
                     'continuation_path_type': 1, 'continuation_path_failure': 'ENDPOINT_MISMATCH',
+                    'continuation_surface_failure': 'NOT_CHECKED', 'continuation_path_surface': False,
+                    'planning_deferred': False, 'surface_corridor': False,
                     'continuation_path_rejected': dict(ground=0, path=8, endpoint=1, bounds=0, danger=0, corridor=0),
                     'refuge_active': True, 'refuge_episodes': 2, 'refuge_moves': 3,
                     'refuge_blocked': 4, 'refuge_remaining_ms': 120000,
@@ -158,6 +164,38 @@ class WorldViewerApiTests(unittest.TestCase):
         recovery['backtracks'] = 17
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 422)
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery']['backtracks'], 2)
+
+    def test_planning_and_surface_diagnostics_are_independent_strict_fields(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        recovery = {**return_recovery(), 'planning_deferred': True, 'surface_corridor': True,
+                    'home_surface_failure': 'SURFACE_OBSTACLE', 'home_path_surface': False,
+                    'continuation_surface_failure': 'NONE', 'continuation_path_surface': True}
+        payload['agents'][0]['living_role']['return_recovery'] = recovery
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        actual = self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery']
+        for field in ('planning_deferred', 'surface_corridor', 'home_surface_failure', 'home_path_surface',
+                      'continuation_surface_failure', 'continuation_path_surface'):
+            self.assertEqual(actual[field], recovery[field])
+        self.assertEqual(actual['failure'], 'RETURN_NO_PATH')
+        self.assertEqual(actual['home_path_failure'], 'NOT_CHECKED')
+        self.assertEqual(actual['rejected']['path'], 8)
+        for field in ('planning_deferred', 'surface_corridor', 'home_path_surface', 'continuation_path_surface'):
+            for value in (0, 1, 'true', 'false', None):
+                with self.subTest(field=field, value=value):
+                    bad = copy.deepcopy(payload)
+                    bad['agents'][0]['living_role']['return_recovery'][field] = value
+                    self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        for field in ('home_surface_failure', 'continuation_surface_failure'):
+            for value in (1, True, None, 'x' * 101):
+                with self.subTest(field=field, value=value):
+                    bad = copy.deepcopy(payload)
+                    bad['agents'][0]['living_role']['return_recovery'][field] = value
+                    self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        bad = copy.deepcopy(payload)
+        bad['agents'][0]['living_role']['return_recovery']['unknown_planning_flag'] = True
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], actual)
 
     def test_forage_diagnostics_roundtrip_and_validation(self):
         payload = v2_batch()

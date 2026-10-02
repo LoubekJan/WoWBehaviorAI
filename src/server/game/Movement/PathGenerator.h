@@ -68,8 +68,13 @@ class TC_GAME_API PathGenerator
                 _filter.setIncludeFlags(_filter.getIncludeFlags() | NAV_GROUND_STEEP);
         }
         NavigationDiagnostics const& GetNavigationDiagnostics() const { return _diagnostics; }
-        // Finds a nearby ground polygon only. The caller must validate and walk
-        // the connector; this never moves/teleports the owner or forces a path.
+        // A validated terrain leg still requires the installed navmesh and
+        // both tiles, but does not need to repeat a known failing A* query.
+        NavigationDiagnostics RecoveryTiles(G3D::Vector3 const& from, G3D::Vector3 const& to) const;
+        bool RecoveryTile(G3D::Vector3 const& point) const;
+        // Finds a nearby ground polygon and returns its physical terrain
+        // height (raw navmesh height remains in diagnostics). The caller must
+        // validate and walk the connector; this never moves/teleports the owner.
         bool FindRecoveryPosition(G3D::Vector3& point, G3D::Vector3 const* probe = nullptr,
             NavigationDiagnostics* diagnostics = nullptr) const;
 

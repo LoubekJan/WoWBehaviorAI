@@ -50,6 +50,7 @@
 #include "Reconciliation/CreatureSpawnCensus.h"
 #include "Reconciliation/CreatureSpawnZoneFilter.h"
 #include "Reconciliation/SpawnReconciliationPlan.h"
+#include "Scheduler/PlanningWorkBudget.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -8717,7 +8718,17 @@ void AIWorldMgr::Update(uint32 diff)
     }
 
     auto needsStart = std::chrono::steady_clock::now();
-    UpdateNeeds();
+    PlanningWorkBudget planningBudget(std::chrono::microseconds(2000), 16, needsStart);
+    {
+        PlanningWorkBudget::Scope planningScope(planningBudget);
+        UpdateNeeds();
+    }
+    auto const& planning = planningBudget.GetStatistics();
+    _updateTiming.PlanningStarted += planning.Started;
+    _updateTiming.PlanningDeferred += planning.Deferred;
+    _updateTiming.PlanningTotalMs += double(planning.OperationUs) / 1000.0;
+    _updateTiming.MaxPlanningOperationMs = std::max(_updateTiming.MaxPlanningOperationMs,
+        double(planning.MaxOperationUs) / 1000.0);
     double needsMs = elapsedSince(needsStart);
     _updateTiming.MaxNeedsMs = std::max(_updateTiming.MaxNeedsMs, needsMs);
     _updateTiming.NeedsLateMs = std::max(_updateTiming.NeedsLateMs, _needsUpdates.OldestLateMs(updateNowMs));
@@ -8863,11 +8874,13 @@ void AIWorldMgr::Update(uint32 diff)
     _updateTiming.MaxOtherMs = std::max(_updateTiming.MaxOtherMs, totalMs - needsMs - perceptionMs - telemetryMs);
     if (updateNowMs >= _updateTiming.StartedAtMs + 30000)
     {
-        TC_LOG_INFO("ai.world", "AIWORLD_UPDATE windowMs={} ticks={} worldDiffMaxMs={} totalMaxMs={:.2f} needsMaxMs={:.2f} perceptionMaxMs={:.2f} telemetryMaxMs={:.2f} otherMaxMs={:.2f} needsAgents={} perceptionAgents={} needsLateMaxMs={} perceptionLateMaxMs={}",
+        TC_LOG_INFO("ai.world", "AIWORLD_UPDATE windowMs={} ticks={} worldDiffMaxMs={} totalMaxMs={:.2f} needsMaxMs={:.2f} perceptionMaxMs={:.2f} telemetryMaxMs={:.2f} otherMaxMs={:.2f} needsAgents={} perceptionAgents={} needsLateMaxMs={} perceptionLateMaxMs={} planningStarted={} planningDeferred={} planningTotalMs={:.2f} planningMaxMs={:.2f}",
             updateNowMs - _updateTiming.StartedAtMs, _updateTiming.Ticks, _updateTiming.MaxWorldDiffMs,
             _updateTiming.MaxTotalMs, _updateTiming.MaxNeedsMs, _updateTiming.MaxPerceptionMs,
             _updateTiming.MaxTelemetryMs, _updateTiming.MaxOtherMs, _updateTiming.NeedsAgents,
-            _updateTiming.PerceptionAgents, _updateTiming.NeedsLateMs, _updateTiming.PerceptionLateMs);
+            _updateTiming.PerceptionAgents, _updateTiming.NeedsLateMs, _updateTiming.PerceptionLateMs,
+            _updateTiming.PlanningStarted, _updateTiming.PlanningDeferred, _updateTiming.PlanningTotalMs,
+            _updateTiming.MaxPlanningOperationMs);
         _updateTiming = {};
     }
 }

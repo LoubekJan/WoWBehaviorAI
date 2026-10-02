@@ -21,6 +21,7 @@
 #include "Action/ActionPosition.h"
 #include "Action/ArrivalTolerance.h"
 #include "NavigationDiagnostics.h"
+#include "Agent/LivingSurfaceCorridor.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -55,6 +56,8 @@ namespace LivingReturnPolicy
     enum class HomePathFailure : std::size_t { Ground, NoPath, Endpoint, Bounds, Danger, Corridor, Count };
     struct HomePathReport
     {
+        bool SurfaceCorridor = false;
+        std::string SurfaceFailure = "NOT_CHECKED";
         std::array<uint32, std::size_t(HomePathFailure::Count)> Rejected{};
         uint32 PathType = 0;
         std::string Failure = "NOT_CHECKED";
@@ -76,6 +79,7 @@ namespace LivingReturnPolicy
     };
     struct Diagnostics
     {
+        bool Deferred = false;
         uint32 Candidates = 0;
         std::array<uint32, RejectionCount> Rejected{};
         uint32 PathType = 0;
@@ -95,6 +99,52 @@ namespace LivingReturnPolicy
     {
         return std::hypot(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
     }
+
+    inline bool SamePosition(ActionPosition const& a, ActionPosition const& b)
+    { return a.MapId == b.MapId && a.X == b.X && a.Y == b.Y && a.Z == b.Z; }
+
+    // A suspended search resumes at the first untested home candidate. Its
+    // result is valid only for this exact geometric request; execution still
+    // validates from the actor's live position.
+    struct HomeCorridorSearch
+    {
+        HomePathReport Report;
+        std::size_t NextTarget = 0;
+        bool Done = false, HasContext = false, ArrivalChecked = false;
+        std::size_t NextSurfaceTarget = 0;
+        std::array<bool, 9> SurfaceEligible{};
+        std::array<std::optional<ActionPosition>, 9> GroundTargets{};
+        LivingSurfaceCorridor::Search Surface;
+        ActionPosition From, Home;
+        std::optional<ActionPosition> Danger;
+        float ArrivalRadius = 0, Limit = 0, Clearance = 0;
+
+        bool Matches(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
+            ActionPosition const* danger, float clearance) const
+        {
+            return HasContext && SamePosition(From, from) && SamePosition(Home, home) &&
+                ArrivalRadius == radius && Limit == limit && Clearance == clearance &&
+                Danger.has_value() == bool(danger) && (!danger || SamePosition(*Danger, *danger));
+        }
+        void Begin(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
+            ActionPosition const* danger, float clearance)
+        {
+            *this = {};
+            HasContext = true; From = from; Home = home;
+            ArrivalRadius = radius; Limit = limit; Clearance = clearance;
+            if (danger) Danger = *danger;
+            Report.Failure = "INVALID_REQUEST";
+        }
+    };
+
+    struct RejoinSearch
+    {
+        ActionPosition From;
+        std::vector<ActionPosition> Candidates;
+        NavigationDiagnostics Navigation;
+        std::size_t NextProbe = 0;
+        bool Done = false, HasContext = false;
+    };
 
     // A ring target carries home's Z only as a seed. If it is on a slope,
     // follow supported terrain from home rather than rejecting the entire
@@ -283,6 +333,7 @@ namespace LivingReturnPolicy
         std::vector<Backtrack> FailedEdges;
         std::vector<Backtrack> Rejoins;
         std::vector<ActionPosition> Planned;
+        bool SurfaceCorridor = false;
 
         // Shared by deterministic recovery and model candidates. A verified
         // corridor may retrace a visited place. A surface rejoin is a bounded
@@ -315,6 +366,7 @@ namespace LivingReturnPolicy
         {
             MarkIneffective(from, to);
             Planned.clear();
+            SurfaceCorridor = false;
         }
         void MarkIneffective(ActionPosition const& from, ActionPosition const& to)
         {
@@ -328,6 +380,7 @@ namespace LivingReturnPolicy
             while (!Planned.empty() && Planned.front().MapId == here.MapId &&
                 Distance(Planned.front(), here) <= ArrivalToleranceYards)
             { Planned.erase(Planned.begin()); advanced = true; }
+            if (Planned.empty()) SurfaceCorridor = false;
             return advanced;
         }
 

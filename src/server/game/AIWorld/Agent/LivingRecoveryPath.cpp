@@ -6,19 +6,35 @@
 #include "Map.h"
 #include "MovementPathBounds.h"
 #include "PathGenerator.h"
+#include "Scheduler/PlanningWorkBudget.h"
 
 namespace LivingRecoveryPath
 {
     namespace
     {
-        bool NormalizeGround(Creature& creature, G3D::Vector3& point)
+        std::optional<float> TerrainHeight(Creature const& creature, ActionPosition const& point, float lift = 0.3f)
         {
-            // Match PathGenerator::NormalizePath / the actor's own height
-            // query (including its search offset and hover height).
-            float ground = creature.GetMapHeight(point.x, point.y, point.z);
-            if (!std::isfinite(ground) || ground <= INVALID_HEIGHT || std::abs(ground-point.z) > 3.0f) return false;
-            point.z = ground + creature.GetHoverOffset();
+            // Query just above the expected feet, not GetMapHeight's two-yard
+            // lift: that lift can select a nearby ledge or the floor above.
+            float hover = creature.GetHoverOffset();
+            float height = creature.GetMap()->GetHeight(creature.GetPhaseMask(), point.X, point.Y,
+                point.Z-hover+lift, true, 3.0f);
+            if (!std::isfinite(height) || height <= INVALID_HEIGHT) return std::nullopt;
+            return height + hover;
+        }
+        bool ClearGroundSegment(Creature const& creature, ActionPosition const& a, ActionPosition const& b)
+        {
+            for (float lift : {0.3f, std::max(0.5f, creature.GetCollisionHeight())})
+                if (!creature.GetMap()->isInLineOfSight(a.X, a.Y, a.Z+lift, b.X, b.Y, b.Z+lift,
+                    creature.GetPhaseMask(), LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing)) return false;
             return true;
+        }
+        bool ClearSurfaceBody(Creature const& creature, ActionPosition const& a, ActionPosition const& b)
+        {
+            return LivingSurfaceCorridor::BodyClear(a, b, creature.GetBoundingRadius(), creature.GetCollisionHeight(),
+                [&](ActionPosition const& from, ActionPosition const& to)
+                { return creature.GetMap()->isInLineOfSight(from.X, from.Y, from.Z, to.X, to.Y, to.Z,
+                    creature.GetPhaseMask(), LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing); });
         }
     }
 
@@ -28,17 +44,10 @@ namespace LivingRecoveryPath
         if (home.MapId != creature.GetMapId()) return std::nullopt;
         return LivingReturnPolicy::GroundHomeTarget(home, target,
             [&](ActionPosition const& p) -> std::optional<float>
-            {
-                float height = creature.GetMapHeight(p.X, p.Y, p.Z);
-                if (!std::isfinite(height) || height <= INVALID_HEIGHT) return std::nullopt;
-                return height + creature.GetHoverOffset();
-            },
+            { return TerrainHeight(creature, p, LivingReturnPolicy::SamePosition(p, home) ? 0.3f : 0.8f); },
             [&](ActionPosition const& a, ActionPosition const& b)
             {
-                for (float lift : {0.3f, std::max(0.5f, creature.GetCollisionHeight())})
-                    if (!creature.GetMap()->isInLineOfSight(a.X, a.Y, a.Z+lift, b.X, b.Y, b.Z+lift,
-                        creature.GetPhaseMask(), LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing)) return false;
-                return true;
+                return ClearGroundSegment(creature, a, b);
             });
     }
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
@@ -82,26 +91,52 @@ namespace LivingRecoveryPath
 
     std::vector<ActionPosition> HomeCorridor(Creature& creature, ActionPosition const& from,
         ActionPosition const& home, float arrivalRadius, float limit, ActionPosition const* danger, float clearance,
-        LivingReturnPolicy::Diagnostics* diagnostics)
+        LivingReturnPolicy::Diagnostics* diagnostics, LivingReturnPolicy::HomeCorridorSearch* search)
     {
         using namespace LivingReturnPolicy;
-        HomePathReport localReport;
-        auto& report = diagnostics ? diagnostics->HomePath : localReport;
-        report = {};
-        report.Failure = "INVALID_REQUEST";
+        HomeCorridorSearch localSearch;
+        auto& cursor = search ? *search : localSearch;
+        if (!cursor.Matches(from, home, arrivalRadius, limit, danger, clearance))
+            cursor.Begin(from, home, arrivalRadius, limit, danger, clearance);
+        auto& report = cursor.Report;
+        if (diagnostics) { diagnostics->Deferred = false; diagnostics->HomePath = report; }
+        auto publish = [&] { if (diagnostics) diagnostics->HomePath = report; };
+        if (cursor.Done) return {};
         if (!Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 || creature.GetMapId() != 0 ||
-            !std::isfinite(limit) || limit <= 0 || !std::isfinite(arrivalRadius) || arrivalRadius < 0) return {};
-        if (std::hypot(from.X-home.X, from.Y-home.Y) <= arrivalRadius &&
-            HomeEndpointMatches(home, arrivalRadius, from, GroundHomeTarget(creature, home, from)))
-        { report.Failure = "NONE"; return {from}; }
-        for (auto target : HomeTargets(home, arrivalRadius))
+            !std::isfinite(limit) || limit <= 0 || !std::isfinite(arrivalRadius) || arrivalRadius < 0 ||
+            !std::isfinite(clearance) || clearance < 0 || clearance > 30 ||
+            (danger && (!Finite(*danger) || danger->MapId != from.MapId)))
+        { cursor.Done = true; publish(); return {}; }
+        if (!cursor.ArrivalChecked)
         {
+            if (std::hypot(from.X-home.X, from.Y-home.Y) <= arrivalRadius)
+            {
+                std::optional<PlanningWorkBudget::Permit> permit;
+                if (search) permit.emplace(PlanningWorkBudget::TryAcquire());
+                if (permit && !*permit)
+                { if (diagnostics) diagnostics->Deferred = true; publish(); return {}; }
+                if (HomeEndpointMatches(home, arrivalRadius, from, GroundHomeTarget(creature, home, from)))
+                { report.Failure = "NONE"; cursor.Done = true; publish(); return {from}; }
+            }
+            cursor.ArrivalChecked = true;
+        }
+        auto targets = HomeTargets(home, arrivalRadius);
+        for (; cursor.NextTarget < targets.size(); ++cursor.NextTarget)
+        {
+            std::optional<PlanningWorkBudget::Permit> permit;
+            if (search) permit.emplace(PlanningWorkBudget::TryAcquire());
+            if (permit && !*permit)
+            { if (diagnostics) diagnostics->Deferred = true; publish(); return {}; }
+            auto target = targets[cursor.NextTarget];
             auto ground = GroundHomeTarget(creature, home, target);
             if (!ground) { report.Reject(HomePathFailure::Ground, 0); continue; }
             target = *ground;
+            cursor.GroundTargets[cursor.NextTarget] = target;
             PathGenerator path(&creature);
             path.AllowSteepSlopes();
             bool calculated = path.CalculatePathFrom({from.X, from.Y, from.Z}, {target.X, target.Y, target.Z});
+            auto const& navigation = path.GetNavigationDiagnostics();
+            cursor.SurfaceEligible[cursor.NextTarget] = navigation.Mesh && navigation.StartTile && navigation.EndTile;
             auto reject = [&](HomePathFailure failure) { report.Reject(failure, uint32(path.GetPathType())); };
             if (!calculated || !Movement::CompleteNavmeshPath(path.GetPathType()))
             { reject(HomePathFailure::NoPath); continue; }
@@ -129,8 +164,59 @@ namespace LivingRecoveryPath
             if (corridor.empty()) { reject(HomePathFailure::Corridor); continue; }
             report.PathType = uint32(path.GetPathType());
             report.Failure = "NONE";
+            cursor.Done = true;
+            publish();
             return corridor;
         }
+        // A navmesh hole is not evidence of a physical wall. Plan the whole
+        // alternative on supported terrain before accepting any short leg.
+        // The explicit marker keeps this separate from a complete navmesh
+        // result, and the movement provider revalidates each launched leg.
+        PathGenerator surfaceTiles(&creature);
+        while (cursor.NextSurfaceTarget < targets.size())
+        {
+            auto index = cursor.NextSurfaceTarget;
+            if (!cursor.SurfaceEligible[index] || !cursor.GroundTargets[index])
+            { ++cursor.NextSurfaceTarget; continue; }
+            std::optional<PlanningWorkBudget::Permit> permit;
+            if (search) permit.emplace(PlanningWorkBudget::TryAcquire());
+            if (permit && !*permit)
+            { if (diagnostics) diagnostics->Deferred = true; publish(); return {}; }
+            if (!cursor.Surface.Started)
+                cursor.Surface.Target = *cursor.GroundTargets[index];
+            auto status = LivingSurfaceCorridor::Advance(cursor.Surface, from, cursor.Surface.Target,
+                [&](ActionPosition const& p)
+                { return TerrainHeight(creature, p, SamePosition(p, from) ? 0.3f : 0.8f); },
+                [&](ActionPosition const& a, ActionPosition const& b)
+                {
+                    return (!danger || LivingRolePolicy::AvoidsDanger(a.X, a.Y, b.X, b.Y,
+                        danger->X, danger->Y, clearance)) && ClearSurfaceBody(creature, a, b);
+                },
+                [&](ActionPosition const& p)
+                { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
+                    std::hypot(p.X-home.X, p.Y-home.Y) <= limit; }, 8,
+                [&](ActionPosition const& p) { return surfaceTiles.RecoveryTile({p.X, p.Y, p.Z}); });
+            report.SurfaceFailure = cursor.Surface.Failure;
+            if (status == LivingSurfaceCorridor::Status::Pending)
+                continue;
+            if (status == LivingSurfaceCorridor::Status::Complete &&
+                HomeEndpointMatches(home, arrivalRadius, cursor.Surface.Route.back(),
+                    GroundHomeTarget(creature, home, cursor.Surface.Route.back())))
+            {
+                auto corridor = LivingSurfaceCorridor::Legs(cursor.Surface.Route);
+                if (!corridor.empty())
+                {
+                    report.SurfaceCorridor = true; report.Failure = "NONE";
+                    cursor.Done = true; publish(); return corridor;
+                }
+            }
+            if (status == LivingSurfaceCorridor::Status::Complete)
+                report.SurfaceFailure = "SURFACE_ENDPOINT_MISMATCH";
+            cursor.Surface = {};
+            ++cursor.NextSurfaceTarget;
+        }
+        cursor.Done = true;
+        publish();
         return {};
     }
 
@@ -150,35 +236,48 @@ namespace LivingRecoveryPath
         query.AllowSteepSlopes();
         G3D::Vector3 point;
         if (!query.FindRecoveryPosition(point, nullptr, diagnostics)) return std::nullopt;
-        if (!NormalizeGround(creature, point))
-        { if (diagnostics) diagnostics->ProjectionFailure = "PROJECTION_GROUND_HEIGHT"; return std::nullopt; }
-        if (diagnostics) diagnostics->ProjectionGroundZ = point.z;
         return ActionPosition{creature.GetMapId(), point.x, point.y, point.z};
     }
 
-    std::vector<ActionPosition> RejoinPositions(Creature& creature, NavigationDiagnostics* diagnostics)
+    std::vector<ActionPosition> RejoinPositions(Creature& creature, NavigationDiagnostics* diagnostics,
+        LivingReturnPolicy::RejoinSearch* search, bool* deferred)
     {
-        std::vector<ActionPosition> result;
-        if (diagnostics) diagnostics->ProjectionProbes = 0;
-        if (auto nearest = RejoinPosition(creature, diagnostics)) result.push_back(*nearest);
+        LivingReturnPolicy::RejoinSearch localSearch;
+        auto& cursor = search ? *search : localSearch;
+        ActionPosition from{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+        if (!cursor.HasContext || !LivingReturnPolicy::SamePosition(cursor.From, from))
+        { cursor = {}; cursor.HasContext = true; cursor.From = from; }
+        if (deferred) *deferred = false;
+        auto publish = [&] { if (diagnostics) *diagnostics = cursor.Navigation; };
+        // A resumed continuation has more recent connector diagnostics. Do
+        // not overwrite them with the final probe merely to reuse candidates.
+        if (cursor.Done) return cursor.Candidates;
         PathGenerator query(&creature);
         query.AllowSteepSlopes();
-        for (unsigned i = 0; i < 8; ++i)
+        // Nearest plus three rings: the old single four-yard ring could miss
+        // the valid edge inside the six-yard physical connector boundary.
+        for (; cursor.NextProbe < 25; ++cursor.NextProbe)
         {
-            float angle = float(i) * 0.78539816f;
-            G3D::Vector3 probe(creature.GetPositionX()+4*std::cos(angle),
-                creature.GetPositionY()+4*std::sin(angle), creature.GetPositionZ()), point;
-            if (query.FindRecoveryPosition(point, &probe, diagnostics))
+            std::optional<PlanningWorkBudget::Permit> permit;
+            if (search) permit.emplace(PlanningWorkBudget::TryAcquire());
+            if (permit && !*permit)
+            { if (deferred) *deferred = true; publish(); return {}; }
+            G3D::Vector3 probe(from.X, from.Y, from.Z), point;
+            if (cursor.NextProbe)
             {
-                if (!NormalizeGround(creature, point))
-                { if (diagnostics) diagnostics->ProjectionFailure = "PROJECTION_GROUND_HEIGHT"; continue; }
-                if (diagnostics) diagnostics->ProjectionGroundZ = point.z;
+                auto ring = (cursor.NextProbe-1) / 8;
+                float radius = ring == 0 ? 2.0f : ring == 1 ? 4.0f : 5.5f;
+                float angle = float((cursor.NextProbe-1) % 8) * 0.78539816f;
+                probe.x += radius*std::cos(angle); probe.y += radius*std::sin(angle);
+            }
+            if (query.FindRecoveryPosition(point, cursor.NextProbe ? &probe : nullptr, &cursor.Navigation))
+            {
                 ActionPosition candidate{creature.GetMapId(), point.x, point.y, point.z};
-                if (std::none_of(result.begin(), result.end(), [&](auto const& p)
-                    { return LivingReturnPolicy::Distance(p, candidate) < 1; })) result.push_back(candidate);
+                if (std::none_of(cursor.Candidates.begin(), cursor.Candidates.end(), [&](auto const& p)
+                    { return LivingReturnPolicy::Distance(p, candidate) < 1; })) cursor.Candidates.push_back(candidate);
             }
         }
-        return result;
+        cursor.Done = true; publish(); return cursor.Candidates;
     }
 
     bool Build(Creature& creature, RecoveryMovement const& request, Movement::PointsArray& points,
@@ -208,6 +307,7 @@ namespace LivingRecoveryPath
         Map* map = creature.GetMap();
         auto clearSegment = [&](ActionPosition const& a, ActionPosition const& b)
         {
+            if (request.SurfaceCorridor) return ClearSurfaceBody(creature, a, b);
             // Check foot clearance as well as body height (small fences matter).
             for (float lift : {0.3f, std::max(0.5f, creature.GetCollisionHeight())})
                 if (!map->isInLineOfSight(a.X, a.Y, a.Z + lift, b.X, b.Y, b.Z + lift,
@@ -216,8 +316,9 @@ namespace LivingRecoveryPath
         };
         PathGenerator path(&creature);
         path.AllowSteepSlopes();
-        bool calculated = path.CalculatePath(to.X, to.Y, to.Z, false);
-        nav = path.GetNavigationDiagnostics();
+        bool calculated = !request.SurfaceCorridor && path.CalculatePath(to.X, to.Y, to.Z, false);
+        nav = request.SurfaceCorridor ? path.RecoveryTiles({from.X, from.Y, from.Z}, {to.X, to.Y, to.Z}) :
+            path.GetNavigationDiagnostics();
         nav.SourceX = from.X; nav.SourceY = from.Y; nav.SourceZ = from.Z;
         nav.HomeRadius = request.HomeRadius;
         if (diagnostics)
@@ -228,31 +329,36 @@ namespace LivingRecoveryPath
         // Missing tiles are an installation problem, not permission to cross
         // arbitrary geometry with the engine's no-mmap straight-line fallback.
         if (!nav.Mesh || !nav.StartTile || !nav.EndTile) return reject("MISSING_NAVMESH_TILE");
-        if (request.Rejoin)
+        if (request.SurfaceCorridor)
+        {
+            if (!creature.CanWalk() || Distance(from, to) > 6.0f) return reject("SURFACE_RANGE");
+            LivingSurfaceCorridor::Search surface;
+            auto status = LivingSurfaceCorridor::Advance(surface, from, to,
+                [&](ActionPosition const& p)
+                { return TerrainHeight(creature, p, SamePosition(p, from) ? 0.3f : 0.8f); }, clearSegment,
+                [&](ActionPosition const& p)
+                { return map->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
+                    std::hypot(p.X-request.Home.X, p.Y-request.Home.Y) <= request.HomeRadius; }, 12,
+                [&](ActionPosition const& p) { return path.RecoveryTile({p.X, p.Y, p.Z}); });
+            nav.Detail = surface.Failure;
+            if (status != LivingSurfaceCorridor::Status::Complete) return reject(surface.Failure);
+            for (auto const& p : surface.Route) points.emplace_back(p.X, p.Y, p.Z);
+        }
+        else if (request.Rejoin)
         {
             G3D::Vector3 probe(to.X, to.Y, to.Z), projected;
             if (!creature.CanWalk() || !path.FindRecoveryPosition(projected, &probe, &nav)) return reject("REJOIN_CHANGED");
-            if (!NormalizeGround(creature, projected))
-            { nav.ProjectionFailure = "PROJECTION_GROUND_HEIGHT"; return reject("REJOIN_CHANGED"); }
             if (Distance({from.MapId, projected.x, projected.y, projected.z}, to) > 1.0f) return reject("REJOIN_CHANGED");
             char const* connectorFailure = "NONE";
             std::optional<ActionPosition> support;
             G3D::Vector3 startProjection;
             if (path.FindRecoveryPosition(startProjection, nullptr, &nav))
             {
-                nav.ProjectionX = startProjection.x; nav.ProjectionY = startProjection.y; nav.ProjectionZ = startProjection.z;
-                if (NormalizeGround(creature, startProjection))
-                {
-                    nav.ProjectionGroundZ = startProjection.z;
-                    support = ActionPosition{from.MapId, startProjection.x, startProjection.y, startProjection.z};
-                }
-                else nav.ProjectionFailure = "PROJECTION_GROUND_HEIGHT";
+                support = ActionPosition{from.MapId, startProjection.x, startProjection.y, startProjection.z};
             }
             auto connector = SurfaceConnector(from, to, [&](ActionPosition const& p) -> std::optional<float>
             {
-                float height = creature.GetMapHeight(p.X, p.Y, p.Z);
-                if (!std::isfinite(height) || height <= INVALID_HEIGHT) return std::nullopt;
-                height += creature.GetHoverOffset();
+                auto height = TerrainHeight(creature, p);
                 if (RecoveryMovement::SamePoint(p, from)) nav.SupportZ = height;
                 return height;
             }, clearSegment, &connectorFailure, support, &nav);
@@ -271,7 +377,7 @@ namespace LivingRecoveryPath
         // Swimming capability comes from the movement template too. The native
         // CAN_SWIM flag may disappear after evade. Validate EVERY water segment
         // here instead of accepting the engine's endpoint-only water shortcut.
-        if (!request.Rejoin && points.empty() && creature.CanEnterWater())
+        if (!request.Rejoin && !request.SurfaceCorridor && points.empty() && creature.CanEnterWater())
         {
             auto connector = WaterConnector(from, to, creature.CanEnterWater(), [&](ActionPosition const& p)
             {

@@ -24,7 +24,9 @@
 #include "DisableMgr.h"
 #include "DetourCommon.h"
 #include "DetourNavMeshQuery.h"
+#include "RecoveryProjectionPolicy.h"
 #include "Metric.h"
+#include <array>
 #include <cmath>
 
 ////////////////// PathGenerator //////////////////
@@ -107,6 +109,21 @@ bool PathGenerator::CalculatePathFromInternal(G3D::Vector3 const& origin, float 
     return true;
 }
 
+NavigationDiagnostics PathGenerator::RecoveryTiles(G3D::Vector3 const& from, G3D::Vector3 const& to) const
+{
+    NavigationDiagnostics result;
+    result.Mesh = _navMesh && _navMeshQuery;
+    result.StartTile = result.Mesh && HaveTile(from);
+    result.EndTile = result.Mesh && HaveTile(to);
+    result.Filter = _filter.getIncludeFlags();
+    return result;
+}
+
+bool PathGenerator::RecoveryTile(G3D::Vector3 const& point) const
+{
+    return _navMesh && _navMeshQuery && HaveTile(point);
+}
+
 bool PathGenerator::FindRecoveryPosition(G3D::Vector3& point, G3D::Vector3 const* probe, NavigationDiagnostics* diagnostics) const
 {
     auto fail = [&](char const* reason)
@@ -117,25 +134,61 @@ bool PathGenerator::FindRecoveryPosition(G3D::Vector3& point, G3D::Vector3 const
         diagnostics->ProjectionX.reset(); diagnostics->ProjectionY.reset(); diagnostics->ProjectionZ.reset();
         diagnostics->ProjectionGroundZ.reset(); diagnostics->ProjectionFailure = "NONE";
     }
+    if (diagnostics) diagnostics->Mesh = _navMesh && _navMeshQuery;
     if (!_navMesh || !_navMeshQuery) return fail("NO_NAVMESH");
     G3D::Vector3 from(_source->GetPositionX(), _source->GetPositionY(), _source->GetPositionZ());
+    if (diagnostics) diagnostics->StartTile = HaveTile(from);
     if (!HaveTile(from)) return fail("MISSING_START_TILE");
     G3D::Vector3 center = probe ? *probe : from;
     if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z) ||
         std::hypot(center.x-from.x, center.y-from.y) > 6 || std::abs(center.z-from.z) > 3) return fail("INVALID_PROBE");
+    float hover = _source->ToUnit() ? _source->ToUnit()->GetHoverOffset() : 0.0f;
+    auto heightAt = [&](RecoveryProjectionPolicy::Point const& p) -> std::optional<float>
+    {
+        float height = _source->GetMap()->GetHeight(_source->GetPhaseMask(), p.X, p.Y,
+            p.Z-hover+0.3f, true, 3.0f);
+        if (!std::isfinite(height) || height <= INVALID_HEIGHT) return std::nullopt;
+        return height+hover;
+    };
+    if (auto height = heightAt({center.x, center.y, from.z}); height && std::abs(*height-from.z) <= 3.0f)
+        center.z = *height;
     float extent = probe ? 2.0f : 6.0f;
-    float origin[] = { center.y, center.z, center.x }, extents[] = { extent, 3.0f, extent }, closest[3];
+    // Match the ordinary small polygon query's vertical extent. This search
+    // extent is not an execution tolerance: Resolve and SurfaceConnector
+    // still enforce the original physical height and distance limits.
+    float origin[] = { center.y, center.z, center.x }, extents[] = { extent, 5.0f, extent };
     dtQueryFilter ground = _filter;
     ground.setIncludeFlags(NAV_GROUND | NAV_GROUND_STEEP);
-    dtPolyRef poly = INVALID_POLYREF;
-    if (dtStatusFailed(_navMeshQuery->findNearestPoly(origin, extents, &ground, &poly, closest)) || !poly)
+    std::array<dtPolyRef, 64> polygons{};
+    int count = 0;
+    dtStatus status = _navMeshQuery->queryPolygons(origin, extents, &ground, polygons.data(), &count, int(polygons.size()));
+    if (dtStatusFailed(status) || dtStatusDetail(status, DT_BUFFER_TOO_SMALL)) return fail("PROJECTION_QUERY_LIMIT");
+    if (!count)
         return fail("NO_GROUND_POLYGON");
-    point = G3D::Vector3(closest[2], closest[0], closest[1]);
+    std::array<RecoveryProjectionPolicy::Point, 64> candidates{};
+    std::size_t candidateCount = 0;
+    // The nearest polygon in the rectangular query can lie outside the
+    // circular connector boundary. Test the other bounded candidates before
+    // declaring that there is no physically reachable projection.
+    for (int i = 0; i < count; ++i)
+    {
+        float closest[3];
+        if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(polygons[i], origin, closest, nullptr))) continue;
+        candidates[candidateCount++] = {closest[2], closest[0], closest[1]};
+    }
+    char const* failure = "NO_GROUND_POLYGON";
+    auto resolved = RecoveryProjectionPolicy::Nearest({from.x, from.y, from.z}, {center.x, center.y, center.z},
+        candidates.data(), candidateCount, heightAt,
+        [&](RecoveryProjectionPolicy::Point const& p) { return HaveTile({p.X, p.Y, p.Z}); }, &failure);
+    if (!resolved) return fail(failure);
+    point = {resolved->Ground.X, resolved->Ground.Y, resolved->Ground.Z};
     if (diagnostics)
-    { diagnostics->ProjectionX = point.x; diagnostics->ProjectionY = point.y; diagnostics->ProjectionZ = point.z; }
-    if (!HaveTile(point)) return fail("MISSING_PROJECTION_TILE");
-    if (std::hypot(point.x-from.x, point.y-from.y) > 6.0f) return fail("PROJECTION_RANGE");
-    if (std::abs(point.z-from.z) > 3.0f) return fail("PROJECTION_HEIGHT");
+    {
+        diagnostics->ProjectionX = resolved->Polygon.X; diagnostics->ProjectionY = resolved->Polygon.Y;
+        diagnostics->ProjectionZ = resolved->Polygon.Z;
+        diagnostics->ProjectionGroundZ = point.z; diagnostics->ProjectionFailure = "NONE";
+        diagnostics->EndTile = true;
+    }
     return true;
 }
 

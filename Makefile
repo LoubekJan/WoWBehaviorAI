@@ -90,7 +90,7 @@ test-recovery-ai:
 .PHONY: test-recovery-navigation
 ## Requires a build configured with BUILD_TESTING=1; no running game is needed.
 test-recovery-navigation:
-	$(COMPOSE) run --rm --no-deps tc-dev ctest --test-dir "$(BUILD_DIR)" --output-on-failure --no-tests=error -R "^Recovery (navigation|food)"
+	$(COMPOSE) run --rm --no-deps tc-dev ctest --test-dir "$(BUILD_DIR)" --output-on-failure --no-tests=error -R "^(Recovery (navigation|food)|Planning )"
 
 ## import a pinned TDB world-content dump: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]
 db-import-tdb:

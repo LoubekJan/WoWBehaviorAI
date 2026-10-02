@@ -98,6 +98,41 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     REQUIRE(SerializeAgentTelemetry({agent}, 1234).find("\"return_recovery\"") == std::string::npos);
 }
 
+TEST_CASE("Observer distinguishes deferred planning and complete terrain corridors from path failures", "[AIWorld][Telemetry]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Live.emplace(); agent.Live->Alive = true;
+    agent.LivingRole.emplace();
+    auto& recovery = agent.LivingRole->ReturnRecovery.emplace();
+    recovery.PlanningDeferred = true;
+    recovery.SurfaceCorridor = true;
+    recovery.HomePathSurface = false;
+    recovery.ContinuationPathSurface = true;
+    std::string homeSurfaceFailure = "SURFACE_OBSTACLE";
+    std::string continuationSurfaceFailure = "NONE";
+    recovery.HomeSurfaceFailure = homeSurfaceFailure;
+    recovery.ContinuationSurfaceFailure = continuationSurfaceFailure;
+    homeSurfaceFailure = continuationSurfaceFailure = "CHANGED_AFTER_CAPTURE";
+    auto json = SerializeAgentTelemetry({agent}, 1234);
+    REQUIRE(json.find("\"planning_deferred\":true") != std::string::npos);
+    REQUIRE(json.find("\"surface_corridor\":true") != std::string::npos);
+    REQUIRE(json.find("\"home_path_surface\":false") != std::string::npos);
+    REQUIRE(json.find("\"continuation_path_surface\":true") != std::string::npos);
+    REQUIRE(json.find("\"home_surface_failure\":\"SURFACE_OBSTACLE\"") != std::string::npos);
+    REQUIRE(json.find("\"continuation_surface_failure\":\"NONE\"") != std::string::npos);
+    REQUIRE(json.find("CHANGED_AFTER_CAPTURE") == std::string::npos);
+    // A yield is separate from the actual route failure and rejection counts.
+    REQUIRE(json.find("\"home_path_failure\":\"NOT_CHECKED\"") != std::string::npos);
+    REQUIRE(json.find("\"home_path_rejected\":{\"ground\":0,\"path\":0,\"endpoint\":0,\"bounds\":0,\"danger\":0,\"corridor\":0}") != std::string::npos);
+
+    recovery = {};
+    json = SerializeAgentTelemetry({agent}, 1234);
+    for (char const* field : {"planning_deferred", "surface_corridor", "home_path_surface", "continuation_path_surface"})
+        REQUIRE(json.find(std::string("\"") + field + "\":false") != std::string::npos);
+    for (char const* field : {"home_surface_failure", "continuation_surface_failure"})
+        REQUIRE(json.find(std::string("\"") + field + "\":\"NOT_CHECKED\"") != std::string::npos);
+}
+
 TEST_CASE("Observer never labels retained engine observations as background live data", "[AIWorld][Telemetry]")
 {
     AgentTelemetrySnapshot background;

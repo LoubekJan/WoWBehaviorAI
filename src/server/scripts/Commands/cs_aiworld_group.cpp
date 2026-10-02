@@ -218,9 +218,10 @@ public:
             LivingReturnPolicy::HomeLimit(std::hypot(here.X-home.X, here.Y-home.Y));
         auto corridor = LivingRecoveryPath::HomeCorridor(*target, here, home, role->ArrivalRadius, limit,
             nullptr, 0, &homeDiagnostic);
-        emit(Trinity::StringFormat("home corridorPoints={} failure={} pathType={} rejectedGround={} rejectedPath={} rejectedEndpoint={}",
+        emit(Trinity::StringFormat("home corridorPoints={} failure={} pathType={} rejectedGround={} rejectedPath={} rejectedEndpoint={} surfaceCorridor={} surfaceFailure={}",
             corridor.size(), homeDiagnostic.HomePath.Failure, homeDiagnostic.HomePath.PathType,
-            homeDiagnostic.HomePath.Rejected[0], homeDiagnostic.HomePath.Rejected[1], homeDiagnostic.HomePath.Rejected[2]));
+            homeDiagnostic.HomePath.Rejected[0], homeDiagnostic.HomePath.Rejected[1], homeDiagnostic.HomePath.Rejected[2],
+            homeDiagnostic.HomePath.SurfaceCorridor, homeDiagnostic.HomePath.SurfaceFailure));
         if (source)
         { emit("Recorded-position probe complete. Live surface connectors require the NPC at the tested position."); return true; }
         index = 0;
@@ -241,8 +242,9 @@ public:
             {
                 auto continuation = LivingRecoveryPath::HomeCorridor(*target, point, home, role->ArrivalRadius,
                     limit, nullptr, 0, &diagnostic);
-                emit(Trinity::StringFormat("continuation points={} failure={} pathType={}",
-                    continuation.size(), diagnostic.HomePath.Failure, diagnostic.HomePath.PathType));
+                emit(Trinity::StringFormat("continuation points={} failure={} pathType={} surfaceCorridor={} surfaceFailure={}",
+                    continuation.size(), diagnostic.HomePath.Failure, diagnostic.HomePath.PathType,
+                    diagnostic.HomePath.SurfaceCorridor, diagnostic.HomePath.SurfaceFailure));
             }
         }
         emit("Read-only probe complete. AIWORLD_NAV_PROBE lines are also in the ai.world log.");

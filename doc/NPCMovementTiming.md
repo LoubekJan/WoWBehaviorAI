@@ -12,6 +12,15 @@ výpočet se nepřerušuje, takže jeden náročný agent může tento rozpočet
 Odložená práce zůstane ve frontě podle stáří termínu. Vynechané intervaly se
 nepřehrávají hromadně; potřeby dostávají skutečně uplynulý čas daného agenta.
 
+Výpočty nových cest uvnitř potřeb mají navíc společný rozpočet 2 ms a nejvýše
+16 plánovacích pokusů na aktualizaci světa. Kontrola probíhá před jednotlivými
+kandidáty a krátkými dávkami kontroly terénu. Dokončení již zahájeného dotazu se
+nepřerušuje. Rozpočet proto není tvrdý limit délky jednoho dotazu na navigaci.
+Nedokončené hledání si pamatuje dalšího kandidáta; odložení nezvyšuje počítadlo
+selhání návratu. Pohyb, dokončení krmení a reakce na nebezpečí pokračují před
+kontrolou rozpočtu. Změna polohy, domova, nebezpečí či fáze světa zruší původní
+rozpracovaný dotaz; stejně tak 30 sekund bez skutečného postupu hledání.
+
 Počáteční rozhodnutí se rozptylují v rozsahu 0–15 sekund. Běžná pauza po
 přesunu trvá 4–8 sekund, po činnosti 8–15 sekund; liší se mezi NPC i dalšími
 cykly stejného NPC. Návrat domů a hledání potravy zachovávají krátkou
@@ -62,6 +71,8 @@ z různých aktualizací; nesčítají se.
 | `otherMaxMs` | Ostatní práce AIWorld: události, skupiny, plánovače atd. |
 | `needsAgents`, `perceptionAgents` | Počet odbavených položek; zahrnuje i kontrolu nenahraných NPC. |
 | `needsLateMaxMs`, `perceptionLateMaxMs` | Největší zpoždění proti termínu agenta, včetně čekající práce. |
+| `planningStarted`, `planningDeferred` | Počet zahájených plánovacích bloků a odložení kvůli rozpočtu. Odložení není chyba cesty. |
+| `planningTotalMs`, `planningMaxMs` | Součet časů plánovacích bloků a nejdelší jednotlivý blok v okně. |
 
 Opakovaná zpoždění přes sekundový interval znamenají, že fronta nestíhá.
 Velké `worldDiffMaxMs` při malém `totalMaxMs` ukazuje na potřebu měřit také
