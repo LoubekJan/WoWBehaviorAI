@@ -21,6 +21,26 @@ namespace LivingRecoveryPath
             return true;
         }
     }
+
+    std::optional<ActionPosition> GroundHomeTarget(Creature& creature, ActionPosition const& home,
+        ActionPosition const& target)
+    {
+        if (home.MapId != creature.GetMapId()) return std::nullopt;
+        return LivingReturnPolicy::GroundHomeTarget(home, target,
+            [&](ActionPosition const& p) -> std::optional<float>
+            {
+                float height = creature.GetMapHeight(p.X, p.Y, p.Z);
+                if (!std::isfinite(height) || height <= INVALID_HEIGHT) return std::nullopt;
+                return height + creature.GetHoverOffset();
+            },
+            [&](ActionPosition const& a, ActionPosition const& b)
+            {
+                for (float lift : {0.3f, std::max(0.5f, creature.GetCollisionHeight())})
+                    if (!creature.GetMap()->isInLineOfSight(a.X, a.Y, a.Z+lift, b.X, b.Y, b.Z+lift,
+                        creature.GetPhaseMask(), LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing)) return false;
+                return true;
+            });
+    }
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
         ActionPosition const& home, float radius, NavigationDiagnostics* diagnostics)
     {
@@ -65,38 +85,37 @@ namespace LivingRecoveryPath
         LivingReturnPolicy::Diagnostics* diagnostics)
     {
         using namespace LivingReturnPolicy;
-        auto reason = [&](char const* value) { if (diagnostics) diagnostics->HomePathFailure = value; };
-        if (diagnostics) diagnostics->HomePathType = 0;
-        reason("INVALID_REQUEST");
-        if (!Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 ||
+        HomePathReport localReport;
+        auto& report = diagnostics ? diagnostics->HomePath : localReport;
+        report = {};
+        report.Failure = "INVALID_REQUEST";
+        if (!Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 || creature.GetMapId() != 0 ||
             !std::isfinite(limit) || limit <= 0 || !std::isfinite(arrivalRadius) || arrivalRadius < 0) return {};
-        if (std::hypot(from.X-home.X, from.Y-home.Y) <= arrivalRadius)
-        { reason("NONE"); return {from}; }
+        if (std::hypot(from.X-home.X, from.Y-home.Y) <= arrivalRadius &&
+            HomeEndpointMatches(home, arrivalRadius, from, GroundHomeTarget(creature, home, from)))
+        { report.Failure = "NONE"; return {from}; }
         for (auto target : HomeTargets(home, arrivalRadius))
         {
-            if (diagnostics) diagnostics->HomePathType = 0;
-            G3D::Vector3 ground(target.X, target.Y, target.Z);
-            if (!NormalizeGround(creature, ground)) { reason("HOME_GROUND_HEIGHT"); continue; }
-            target.Z = ground.z;
+            auto ground = GroundHomeTarget(creature, home, target);
+            if (!ground) { report.Reject(HomePathFailure::Ground, 0); continue; }
+            target = *ground;
             PathGenerator path(&creature);
             path.AllowSteepSlopes();
             bool calculated = path.CalculatePathFrom({from.X, from.Y, from.Z}, {target.X, target.Y, target.Z});
-            if (diagnostics) diagnostics->HomePathType = uint32(path.GetPathType());
-            reason("NO_COMPLETE_PATH");
-            if (!calculated ||
-                !(path.GetPathType() & PATHFIND_NORMAL) ||
-                (path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT |
-                    PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH | PATHFIND_FARFROMPOLY))) continue;
-            auto const& points = path.GetPath();
-            reason("ENDPOINT_MISMATCH");
+            auto reject = [&](HomePathFailure failure) { report.Reject(failure, uint32(path.GetPathType())); };
+            if (!calculated || !Movement::CompleteNavmeshPath(path.GetPathType()))
+            { reject(HomePathFailure::NoPath); continue; }
+            auto points = path.GetPath();
             if (points.size() < 2 || Distance(from, {0, points.front().x, points.front().y, points.front().z}) > 1.5f ||
-                Distance(target, {0, points.back().x, points.back().y, points.back().z}) > 1.5f ||
-                std::hypot(points.back().x-home.X, points.back().y-home.Y) > arrivalRadius) continue;
-            reason("PATH_BOUNDS");
+                std::hypot(points.back().x-home.X, points.back().y-home.Y) > arrivalRadius ||
+                !HomeEndpointMatches(home, arrivalRadius, {0, points.back().x, points.back().y, points.back().z},
+                    GroundHomeTarget(creature, home, {0, points.back().x, points.back().y, points.back().z})))
+            { reject(HomePathFailure::Endpoint); continue; }
+            points.front() = {from.X, from.Y, from.Z};
             if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
                 { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
-                    std::hypot(x-home.X, y-home.Y) <= limit; })) continue;
-            reason("DANGER_BLOCKED");
+                    std::hypot(x-home.X, y-home.Y) <= limit; }))
+            { reject(HomePathFailure::Bounds); continue; }
             bool safe = true;
             std::vector<ActionPosition> route{from};
             for (auto const& point : points)
@@ -105,11 +124,12 @@ namespace LivingRecoveryPath
                     point.x, point.y, danger->X, danger->Y, clearance)) { safe = false; break; }
                 route.push_back({0, point.x, point.y, point.z});
             }
-            if (safe)
-            {
-                reason("CORRIDOR_LIMIT");
-                if (auto corridor = Corridor(route); !corridor.empty()) { reason("NONE"); return corridor; }
-            }
+            if (!safe) { reject(HomePathFailure::Danger); continue; }
+            auto corridor = Corridor(route);
+            if (corridor.empty()) { reject(HomePathFailure::Corridor); continue; }
+            report.PathType = uint32(path.GetPathType());
+            report.Failure = "NONE";
+            return corridor;
         }
         return {};
     }

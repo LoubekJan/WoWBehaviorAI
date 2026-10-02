@@ -24,6 +24,7 @@
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/WolfBehaviorPolicy.h"
 #include "ChaseMovementGenerator.h"
+#include "ElwynnHuntPath.h"
 #include "CombatManager.h"
 #include "Creature.h"
 #include "Log.h"
@@ -356,8 +357,10 @@ namespace
             if (!LivingReturnPolicy::UsefulStep(current, step)) continue;
             state.ReturnStrategy = "NAV_REJOIN";
             if (!accept(step, true, true)) continue;
+            LivingReturnPolicy::Diagnostics continuationDiagnostics;
             auto continuation = LivingRecoveryPath::HomeCorridor(creature, step, homePoint,
-                arrivalRadius, state.ReturnHomeLimit, danger, clearance);
+                arrivalRadius, state.ReturnHomeLimit, danger, clearance, &continuationDiagnostics);
+            state.ReturnDiagnostics.ContinuationPath = continuationDiagnostics.HomePath;
             if (!state.ReturnRoute.PlanRejoin(current, step, std::move(continuation)))
             {
                 failure = "RETURN_REJOIN_NO_CONTINUATION";
@@ -1574,8 +1577,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         for (Creature* candidate : candidates)
         {
             PathGenerator path(&creature);
-            if (path.CalculatePath(candidate->GetPositionX(), candidate->GetPositionY(), candidate->GetPositionZ(), false) &&
-                !(path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE)))
+            Movement::PointsArray huntPath;
+            if (Movement::BuildElwynnHuntPath(creature, *candidate, path, huntPath))
             {
                 ++state.Forage.ReachablePrey;
                 ActionRequest hunt;

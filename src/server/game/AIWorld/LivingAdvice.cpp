@@ -61,8 +61,10 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         if (!LivingRecoveryPath::Build(creature, candidate.Move, points, &candidate.Diagnostics)) return false;
         if (returning && !candidate.FollowsCorridor)
         {
+            LivingReturnPolicy::Diagnostics continuationDiagnostics;
             candidate.Continuation = LivingRecoveryPath::HomeCorridor(creature, candidate.Move.Destination,
-                home, arrivalRadius, state.ReturnHomeLimit, danger, candidate.Move.DangerRadius, &candidate.Diagnostics);
+                home, arrivalRadius, state.ReturnHomeLimit, danger, candidate.Move.DangerRadius, &continuationDiagnostics);
+            candidate.Diagnostics.ContinuationPath = continuationDiagnostics.HomePath;
             if (candidate.Continuation.empty()) return false;
         }
         if (returning && !state.ReturnRoute.Allows(here, candidate.Move.Destination,

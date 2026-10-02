@@ -52,13 +52,34 @@ namespace LivingReturnPolicy
     }
 
     enum Rejection : std::size_t { Invalid, Height, Zone, Los, Path, Bounds, Danger, RejectionCount };
+    enum class HomePathFailure : std::size_t { Ground, NoPath, Endpoint, Bounds, Danger, Corridor, Count };
+    struct HomePathReport
+    {
+        std::array<uint32, std::size_t(HomePathFailure::Count)> Rejected{};
+        uint32 PathType = 0;
+        std::string Failure = "NOT_CHECKED";
+        std::size_t Stage = 0;
+
+        void Reject(HomePathFailure stage, uint32 pathType)
+        {
+            std::size_t index = std::size_t(stage);
+            ++Rejected[index];
+            // Keep the attempt which got furthest, not the final ring point
+            // whose height may fail before a navmesh query even takes place.
+            if (index < Stage) return;
+            Stage = index;
+            PathType = pathType;
+            char const* names[] = {"HOME_GROUND_HEIGHT", "NO_COMPLETE_PATH", "ENDPOINT_MISMATCH",
+                "PATH_BOUNDS", "DANGER_BLOCKED", "CORRIDOR_LIMIT"};
+            Failure = names[index];
+        }
+    };
     struct Diagnostics
     {
         uint32 Candidates = 0;
         std::array<uint32, RejectionCount> Rejected{};
         uint32 PathType = 0;
-        uint32 HomePathType = 0;
-        std::string HomePathFailure = "NOT_CHECKED";
+        HomePathReport HomePath, ContinuationPath;
         float RequestedZ = 0.0f;
         std::optional<float> ResolvedZ;
         NavigationDiagnostics Navigation;
@@ -73,6 +94,49 @@ namespace LivingReturnPolicy
     inline float Distance(ActionPosition const& a, ActionPosition const& b)
     {
         return std::hypot(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+    }
+
+    // A ring target carries home's Z only as a seed. If it is on a slope,
+    // follow supported terrain from home rather than rejecting the entire
+    // accumulated elevation change. This resolves a destination, not a route:
+    // the caller must still obtain a complete navmesh path to it.
+    template<class HeightAt, class ClearSegment>
+    std::optional<ActionPosition> GroundHomeTarget(ActionPosition const& home, ActionPosition target,
+        HeightAt&& heightAt, ClearSegment&& clearSegment)
+    {
+        if (!Finite(home) || !Finite(target) || home.MapId != target.MapId) return std::nullopt;
+        float length = std::hypot(target.X-home.X, target.Y-home.Y);
+        if (length > 32.0f) return std::nullopt;
+        target.Z = home.Z;
+        auto height = heightAt(target);
+        if (height && std::isfinite(*height) && std::abs(*height-home.Z) <= 3.0f)
+        { target.Z = *height; return target; }
+        auto homeHeight = heightAt(home);
+        if (!homeHeight || !std::isfinite(*homeHeight) || std::abs(*homeHeight-home.Z) > 3.0f || length < 0.01f)
+            return std::nullopt;
+        ActionPosition previous = home;
+        previous.Z = *homeHeight;
+        unsigned steps = unsigned(std::ceil(length / 0.5f));
+        for (unsigned i = 1; i <= steps; ++i)
+        {
+            float t = float(i) / float(steps);
+            ActionPosition point{home.MapId, home.X+(target.X-home.X)*t, home.Y+(target.Y-home.Y)*t, previous.Z};
+            height = heightAt(point);
+            if (!height || !std::isfinite(*height) || std::abs(*height-previous.Z) > 0.75f) return std::nullopt;
+            point.Z = *height;
+            if (!clearSegment(previous, point)) return std::nullopt;
+            previous = point;
+        }
+        return previous;
+    }
+
+    inline bool HomeEndpointMatches(ActionPosition const& home, float radius, ActionPosition const& endpoint,
+        std::optional<ActionPosition> const& supported)
+    {
+        return Finite(home) && Finite(endpoint) && home.MapId == endpoint.MapId &&
+            std::isfinite(radius) && radius >= 0 && std::hypot(endpoint.X-home.X, endpoint.Y-home.Y) <= radius &&
+            supported && Finite(*supported) && supported->MapId == endpoint.MapId &&
+            Distance(endpoint, *supported) <= 1.0f;
     }
 
     // Check the engine's resolved endpoint, not the proposed height. A trail

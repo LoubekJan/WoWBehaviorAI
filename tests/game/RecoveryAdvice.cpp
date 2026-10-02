@@ -487,3 +487,67 @@ TEST_CASE("Recovery navigation remembers ineffective reached steps without erasi
     CHECK(memory.Planned.size() == 2);
     CHECK(memory.Allows({0, 50, 0, 0}, {0, 40, 0, 0}, true, false));
 }
+
+TEST_CASE("Home ring resolves supported slopes beyond the spawn height tolerance", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition home{0, 0, 0, 0};
+    auto clear = [](auto const&, auto const&) { return true; };
+    for (float slope : {-0.5f, 0.5f})
+    {
+        auto height = [=](ActionPosition const& p) -> std::optional<float> { return slope*p.X; };
+        auto target = GroundHomeTarget(home, {0,13,0,0}, height, clear);
+        REQUIRE(target.has_value());
+        CHECK(target->Z == Approx(slope*13));
+        CHECK(HomeEndpointMatches(home, 14, *target, target));
+        CHECK(std::abs(target->Z-home.Z) > 3);
+    }
+}
+
+TEST_CASE("Home height resolution does not cross a cliff wall hole or stacked floor", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition home{0,0,0,0}, target{0,13,0,0};
+    auto clear = [](auto const&, auto const&) { return true; };
+    auto slope = [](ActionPosition const& p) -> std::optional<float> { return p.X*0.5f; };
+    CHECK_FALSE(GroundHomeTarget(home, target, slope, [](auto const& a, auto const& b)
+        { return !(a.X < 6 && b.X >= 6); }).has_value());
+    CHECK_FALSE(GroundHomeTarget(home, target, [](ActionPosition const& p) -> std::optional<float>
+        { return p.X < 6 ? 0.0f : 8.0f; }, clear).has_value());
+    CHECK_FALSE(GroundHomeTarget(home, target, [](ActionPosition const& p) -> std::optional<float>
+        { if (p.X >= 6 && p.X <= 7) return std::nullopt; return p.X*0.5f; }, clear).has_value());
+    CHECK_FALSE(GroundHomeTarget(home, target, [](auto const&) -> std::optional<float>
+        { return std::numeric_limits<float>::quiet_NaN(); }, clear).has_value());
+    CHECK_FALSE(GroundHomeTarget(home, {1,13,0,0}, slope, clear).has_value());
+    CHECK_FALSE(GroundHomeTarget(home, {0,1000,0,0}, slope, clear).has_value());
+}
+
+TEST_CASE("Complete home paths may end anywhere supported inside the existing arrival area", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition home{0,0,0,0}, end{0,9,0,4.5f};
+    auto support = GroundHomeTarget(home, end,
+        [](ActionPosition const& p) -> std::optional<float> { return p.X*0.5f; },
+        [](auto const&, auto const&) { return true; });
+    CHECK(HomeEndpointMatches(home, 14, end, support));
+    CHECK_FALSE(HomeEndpointMatches(home, 8, end, support));
+    CHECK_FALSE(HomeEndpointMatches(home, 14, {0,9,0,12}, support));
+    CHECK_FALSE(HomeEndpointMatches(home, 14, end, std::nullopt));
+    CHECK_FALSE(HomeEndpointMatches(home, -1, end, support));
+    CHECK_FALSE(HomeEndpointMatches(home, 14, {1,9,0,4.5f}, support));
+}
+
+TEST_CASE("Home diagnostics retain complete-path failures across later height rejections", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    Diagnostics diagnostics;
+    diagnostics.HomePath.Reject(HomePathFailure::NoPath, 8);
+    for (unsigned i = 0; i < 7; ++i) diagnostics.HomePath.Reject(HomePathFailure::Ground, 0);
+    CHECK(diagnostics.HomePath.Failure == "NO_COMPLETE_PATH");
+    CHECK(diagnostics.HomePath.PathType == 8);
+    CHECK(diagnostics.HomePath.Rejected[0] == 7);
+    CHECK(diagnostics.HomePath.Rejected[1] == 1);
+    diagnostics.ContinuationPath.Reject(HomePathFailure::Endpoint, 1);
+    CHECK(diagnostics.HomePath.Failure == "NO_COMPLETE_PATH");
+    CHECK(diagnostics.ContinuationPath.Failure == "ENDPOINT_MISMATCH");
+}

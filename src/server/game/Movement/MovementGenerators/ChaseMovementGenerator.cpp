@@ -23,7 +23,7 @@
 #include "MoveSpline.h"
 #include "MoveSplineInit.h"
 #include "PathGenerator.h"
-#include "MovementPathBounds.h"
+#include "ElwynnHuntPath.h"
 #include "Map.h"
 #include "Unit.h"
 #include "Util.h"
@@ -190,68 +190,47 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             if (!_path || moveToward != _movingTowards)
                 _path = std::make_unique<PathGenerator>(owner);
 
-            float x, y, z;
-            bool shortenPath;
-            // if we want to move toward the target and there's no fixed angle...
-            if (moveToward && !angle)
-            {
-                // ...we'll pathfind to the center, then shorten the path
-                target->GetPosition(x, y, z);
-                shortenPath = true;
-            }
-            else
-            {
-                // otherwise, we fall back to nearpoint finding
-                target->GetNearPoint(owner, x, y, z, (moveToward ? maxTarget : minTarget) - hitboxSum, angle ? target->ToAbsoluteAngle(angle->RelativeAngle) : target->GetAbsoluteAngle(owner));
-                shortenPath = false;
-            }
-
-            if (owner->IsHovering())
-                owner->UpdateAllowedPositionZ(x, y, z);
-
-            if (_elwynnCompletePath) _path->AllowSteepSlopes();
-            bool success = _path->CalculatePath(x, y, z, owner->CanFly());
-            bool unsafeHunt = _elwynnCompletePath &&
-                (owner->GetMapId() != 0 || (_path->GetPathType() & (PATHFIND_INCOMPLETE | PATHFIND_FARFROMPOLY |
-                    PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)) ||
-                !Movement::PathWithinBounds(_path->GetPath(), [&](float px, float py, float pz)
-                { return owner->GetMap()->GetZoneId(owner->GetPhaseMask(), px, py, pz) == 12; }));
-            if (!success || (_path->GetPathType() & PATHFIND_NOPATH) || unsafeHunt)
-            {
-                if (cOwner)
-                    cOwner->SetCannotReachTarget(true);
-                owner->StopMoving();
-                return true;
-            }
-
-            if (shortenPath)
-                _path->ShortenPathUntilDist(PositionToVector3(target), maxTarget);
-
-            // Shortening creates a new endpoint/segment. Validate the route
-            // that will actually be launched, including its live start and
-            // final segment, rather than only the pre-shortening path.
-            auto huntPoints = _elwynnCompletePath ? _path->GetPath() : Movement::PointsArray{};
+            Movement::PointsArray huntPoints;
             if (_elwynnCompletePath)
             {
-                bool startsHere = !huntPoints.empty() && (huntPoints.front() - PositionToVector3(owner)).length() <= 1.5f;
-                if (!huntPoints.empty()) huntPoints.front() = PositionToVector3(owner);
-                bool safe = startsHere && huntPoints.size() >= 2 && Movement::PathWithinBounds(huntPoints,
-                    [&](float px, float py, float pz)
-                    { return owner->GetMap()->GetZoneId(owner->GetPhaseMask(), px, py, pz) == 12; });
-                if (safe && shortenPath)
-                {
-                    auto const& a = huntPoints[huntPoints.size()-2];
-                    auto const& b = huntPoints.back();
-                    safe = owner->GetMap()->isInLineOfSight(a.x, a.y, a.z + 0.5f, b.x, b.y, b.z + 0.5f,
-                        owner->GetPhaseMask(), LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing);
-                }
-                if (!safe)
+                if (!Movement::BuildElwynnHuntPath(*owner, *target, *_path, huntPoints))
                 {
                     if (cOwner) cOwner->SetCannotReachTarget(true);
                     owner->StopMoving();
                     _path = nullptr;
                     return true;
                 }
+            }
+            else
+            {
+                float x, y, z;
+                bool shortenPath;
+                // if we want to move toward the target and there's no fixed angle...
+                if (moveToward && !angle)
+                {
+                    // ...we'll pathfind to the center, then shorten the path
+                    target->GetPosition(x, y, z);
+                    shortenPath = true;
+                }
+                else
+                {
+                    // otherwise, we fall back to nearpoint finding
+                    target->GetNearPoint(owner, x, y, z, (moveToward ? maxTarget : minTarget) - hitboxSum, angle ? target->ToAbsoluteAngle(angle->RelativeAngle) : target->GetAbsoluteAngle(owner));
+                    shortenPath = false;
+                }
+
+                if (owner->IsHovering())
+                    owner->UpdateAllowedPositionZ(x, y, z);
+
+                bool success = _path->CalculatePath(x, y, z, owner->CanFly());
+                if (!success || (_path->GetPathType() & PATHFIND_NOPATH))
+                {
+                    if (cOwner) cOwner->SetCannotReachTarget(true);
+                    owner->StopMoving();
+                    return true;
+                }
+                if (shortenPath)
+                    _path->ShortenPathUntilDist(PositionToVector3(target), maxTarget);
             }
 
             if (cOwner)

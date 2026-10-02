@@ -10,6 +10,8 @@ class Creature;
 
 namespace LivingRecoveryPath
 {
+    std::optional<ActionPosition> GroundHomeTarget(Creature& creature, ActionPosition const& home,
+        ActionPosition const& target);
     std::vector<ActionPosition> HomeCorridor(Creature& creature, ActionPosition const& from,
         ActionPosition const& home, float arrivalRadius, float limit,
         ActionPosition const* danger = nullptr, float clearance = 0,

@@ -104,6 +104,21 @@ namespace
         WriteJsonField(out, "backtracks", recovery.Backtracks);
         WriteJsonField(out, "home_path_type", recovery.HomePathType);
         WriteJsonField(out, "home_path_failure", recovery.HomePathFailure);
+        WriteJsonField(out, "continuation_path_type", recovery.ContinuationPathType);
+        WriteJsonField(out, "continuation_path_failure", recovery.ContinuationPathFailure);
+        auto writePathRejected = [&](char const* key, auto const& rejected)
+        {
+            out << ','; WriteString(out, key); out << ":{";
+            char const* names[] = {"ground", "path", "endpoint", "bounds", "danger", "corridor"};
+            for (std::size_t i = 0; i < rejected.size(); ++i)
+            {
+                if (i) out << ',';
+                WriteString(out, names[i]); out << ':' << rejected[i];
+            }
+            out << '}';
+        };
+        writePathRejected("home_path_rejected", recovery.HomePathRejected);
+        writePathRejected("continuation_path_rejected", recovery.ContinuationPathRejected);
         WriteJsonField(out, "refuge_active", recovery.RefugeActive);
         WriteJsonField(out, "refuge_episodes", recovery.RefugeEpisodes);
         WriteJsonField(out, "refuge_moves", recovery.RefugeMoves);

@@ -195,12 +195,13 @@ public:
         for (auto point : LivingReturnPolicy::HomeTargets(home, role->ArrivalRadius))
         {
             float height = target->GetMapHeight(point.X, point.Y, point.Z);
-            bool ground = std::isfinite(height) && height > INVALID_HEIGHT && std::abs(height-point.Z) <= 3;
-            if (ground) point.Z = height + target->GetHoverOffset();
+            auto grounded = LivingRecoveryPath::GroundHomeTarget(*target, home, point);
+            bool ground = grounded.has_value();
+            if (grounded) point = *grounded;
             PathGenerator path(target); path.AllowSteepSlopes();
             bool calculated = path.CalculatePathFrom({here.X, here.Y, here.Z}, {point.X, point.Y, point.Z});
             auto const& nav = path.GetNavigationDiagnostics();
-            emit(Trinity::StringFormat("home[{}] ground={} groundZ={:.3f} xyz=({:.3f},{:.3f},{:.3f}) calculated={} pathType={}",
+            emit(Trinity::StringFormat("home[{}] ground={} rawGroundZ={:.3f} xyz=({:.3f},{:.3f},{:.3f}) calculated={} pathType={}",
                 index++, ground, height, point.X, point.Y, point.Z, calculated, uint32(path.GetPathType())));
             emit(Trinity::StringFormat("poly start={} end={} flags={}/{} distance={:.3f}/{:.3f} tiles={}/{}/{}",
                 nav.StartPolygon, nav.EndPolygon, nav.StartFlags, nav.EndFlags,
@@ -212,6 +213,14 @@ public:
                     first.x, first.y, first.z, end.x, end.y, end.z, path.GetPath().size()));
             }
         }
+        LivingReturnPolicy::Diagnostics homeDiagnostic;
+        float limit = role->ReturnLimit > 0 ? role->ReturnLimit :
+            LivingReturnPolicy::HomeLimit(std::hypot(here.X-home.X, here.Y-home.Y));
+        auto corridor = LivingRecoveryPath::HomeCorridor(*target, here, home, role->ArrivalRadius, limit,
+            nullptr, 0, &homeDiagnostic);
+        emit(Trinity::StringFormat("home corridorPoints={} failure={} pathType={} rejectedGround={} rejectedPath={} rejectedEndpoint={}",
+            corridor.size(), homeDiagnostic.HomePath.Failure, homeDiagnostic.HomePath.PathType,
+            homeDiagnostic.HomePath.Rejected[0], homeDiagnostic.HomePath.Rejected[1], homeDiagnostic.HomePath.Rejected[2]));
         if (source)
         { emit("Recorded-position probe complete. Live surface connectors require the NPC at the tested position."); return true; }
         index = 0;
@@ -228,6 +237,13 @@ public:
             emit(Trinity::StringFormat("rejected=({:.3f},{:.3f},{:.3f}) ground={:.3f} previous={:.3f}",
                 nav.RejectedX.value_or(0), nav.RejectedY.value_or(0), nav.RejectedZ.value_or(0),
                 nav.RejectedGroundZ.value_or(0), nav.PreviousGroundZ.value_or(0)));
+            if (valid)
+            {
+                auto continuation = LivingRecoveryPath::HomeCorridor(*target, point, home, role->ArrivalRadius,
+                    limit, nullptr, 0, &diagnostic);
+                emit(Trinity::StringFormat("continuation points={} failure={} pathType={}",
+                    continuation.size(), diagnostic.HomePath.Failure, diagnostic.HomePath.PathType));
+            }
         }
         emit("Read-only probe complete. AIWORLD_NAV_PROBE lines are also in the ai.world log.");
         return true;

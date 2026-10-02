@@ -108,6 +108,9 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(state['agents'][0]['living_role']['return_recovery'],
                          {**recovery, 'navigation': None, 'backtracks': 0, 'rejoins': 0, 'corridor_points': 0,
                           'home_path_type': 0, 'home_path_failure': 'NOT_CHECKED',
+                          'home_path_rejected': dict.fromkeys(('ground', 'path', 'endpoint', 'bounds', 'danger', 'corridor'), 0),
+                          'continuation_path_type': 0, 'continuation_path_failure': 'NOT_CHECKED',
+                          'continuation_path_rejected': dict.fromkeys(('ground', 'path', 'endpoint', 'bounds', 'danger', 'corridor'), 0),
                           'refuge_active': False, 'refuge_episodes': 0, 'refuge_moves': 0,
                           'refuge_blocked': 0, 'refuge_remaining_ms': 0, 'refuge_anchor': None})
         recovery['rejected']['path'] = -1
@@ -125,6 +128,9 @@ class WorldViewerApiTests(unittest.TestCase):
                    rejected_ground_z=57.0, previous_ground_z=55.5, connector_samples=4)
         recovery = {**return_recovery(), 'navigation': nav, 'backtracks': 2, 'rejoins': 1, 'corridor_points': 3,
                     'home_path_type': 4, 'home_path_failure': 'NO_COMPLETE_PATH',
+                    'home_path_rejected': dict(ground=7, path=2, endpoint=0, bounds=0, danger=0, corridor=0),
+                    'continuation_path_type': 1, 'continuation_path_failure': 'ENDPOINT_MISMATCH',
+                    'continuation_path_rejected': dict(ground=0, path=8, endpoint=1, bounds=0, danger=0, corridor=0),
                     'refuge_active': True, 'refuge_episodes': 2, 'refuge_moves': 3,
                     'refuge_blocked': 4, 'refuge_remaining_ms': 120000,
                     'refuge_anchor': {'map_id': 0, 'x': 10.0, 'y': 20.0, 'z': 30.0}}
@@ -133,6 +139,9 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], recovery)
         for field, value in [('home_path_type', -1), ('home_path_type', True), ('home_path_type', 256),
                              ('home_path_failure', 'x' * 101), ('refuge_active', 1),
+                             ('home_path_rejected', {'path': -1}), ('home_path_rejected', {'ground': True}),
+                             ('home_path_rejected', {'unknown': 1}), ('continuation_path_rejected', {'path': 10}),
+                             ('continuation_path_type', 256), ('continuation_path_failure', 'x' * 101),
                              ('refuge_episodes', True), ('refuge_moves', -1), ('refuge_remaining_ms', 120001)]:
             bad = copy.deepcopy(payload)
             bad['agents'][0]['living_role']['return_recovery'][field] = value

@@ -74,6 +74,15 @@ class NavigationDiagnostics(ProtocolModel):
     projection_probes: int = Field(default=0, ge=0, le=64, strict=True)
 
 
+class HomePathRejections(ProtocolModel):
+    ground: int = Field(default=0, ge=0, le=9, strict=True)
+    path: int = Field(default=0, ge=0, le=9, strict=True)
+    endpoint: int = Field(default=0, ge=0, le=9, strict=True)
+    bounds: int = Field(default=0, ge=0, le=9, strict=True)
+    danger: int = Field(default=0, ge=0, le=9, strict=True)
+    corridor: int = Field(default=0, ge=0, le=9, strict=True)
+
+
 class ReturnRecovery(ProtocolModel):
     failures: int = Field(ge=0)
     trail_points: int = Field(ge=0, le=64)
@@ -91,6 +100,10 @@ class ReturnRecovery(ProtocolModel):
     corridor_points: int = Field(default=0, ge=0, le=128)
     home_path_type: int = Field(default=0, ge=0, le=255, strict=True)
     home_path_failure: str = Field(default="NOT_CHECKED", max_length=100)
+    home_path_rejected: HomePathRejections = Field(default_factory=HomePathRejections)
+    continuation_path_type: int = Field(default=0, ge=0, le=255, strict=True)
+    continuation_path_failure: str = Field(default="NOT_CHECKED", max_length=100)
+    continuation_path_rejected: HomePathRejections = Field(default_factory=HomePathRejections)
     refuge_active: bool = Field(default=False, strict=True)
     refuge_episodes: int = Field(default=0, ge=0, strict=True)
     refuge_moves: int = Field(default=0, ge=0, strict=True)

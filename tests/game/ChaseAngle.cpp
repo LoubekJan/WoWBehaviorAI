@@ -18,6 +18,7 @@
 #include "tc_catch2.h"
 #include "Agent/GroupMemberFormation.h"
 #include "MovementDefines.h"
+#include "CompleteChasePath.h"
 #include "Position.h"
 #include <limits>
 
@@ -119,4 +120,69 @@ TEST_CASE("Invalid chase speed boosts retain the normal movement speed", "[Movem
     ChaseSpeedBoost noDuration(1.35f, 0);
     REQUIRE(noDuration.GetMultiplier() == 1.0f);
     REQUIRE(!noDuration.Update(1));
+}
+
+namespace
+{
+    struct HuntPoint { float x, y, z; };
+    struct HuntPathFixture
+    {
+        std::vector<HuntPoint> Points{{0,0,0}, {4,0,0}, {10,0,0}};
+        std::vector<HuntPoint> Shortened{{0,0,0}, {4,0,0}, {8,0,0}};
+        PathType Type = PATHFIND_NORMAL;
+        bool Steep = false, Calculated = true, DidShorten = false;
+        void AllowSteepSlopes() { Steep = true; }
+        bool CalculatePath(float, float, float, bool force) { return Calculated && Steep && !force; }
+        PathType GetPathType() const { return Type; }
+        auto const& GetPath() const { return Points; }
+        void ShortenPathUntilDist(HuntPoint const&, float) { DidShorten = true; Points = Shortened; }
+    };
+}
+
+TEST_CASE("Hunt preflight and execution require a complete navigation path", "[AIWorld][Movement][HuntPath]")
+{
+    auto contains = [](float, float, float) { return true; };
+    auto clear = [](auto const&, auto const&) { return true; };
+    std::vector<HuntPoint> result;
+    auto prepare = [&](HuntPathFixture& path)
+    {
+        return Movement::PrepareCompleteChasePath(path, HuntPoint{0,0,0}, HuntPoint{10,0,0},
+            HuntPoint{10,0,0}, 2, true, result, contains, clear);
+    };
+    HuntPathFixture good;
+    REQUIRE(prepare(good));
+    REQUIRE(result.size() == 3);
+    CHECK(result.back().x == 8);
+    CHECK(good.Steep);
+    CHECK(good.DidShorten);
+    for (int flags : {0, 2, 4, 8, 16, 32, 64, 128, 1|2, 1|4, 1|8, 1|16, 1|32, 1|64, 1|128})
+    {
+        HuntPathFixture bad;
+        bad.Type = PathType(flags);
+        CHECK_FALSE(prepare(bad));
+        CHECK(result.empty());
+        CHECK_FALSE(bad.DidShorten);
+    }
+    HuntPathFixture failed;
+    failed.Calculated = false;
+    CHECK_FALSE(prepare(failed));
+}
+
+TEST_CASE("Hunt validates the actual start and shortened final segment", "[AIWorld][Movement][HuntPath]")
+{
+    HuntPathFixture path;
+    HuntPoint start{0,0,0};
+    std::vector<HuntPoint> result;
+    auto contains = [](float x, float, float) { return x >= 0 && x <= 10; };
+    bool clear = true;
+    SECTION("off-mesh start") { start.x = 2; }
+    SECTION("boundary crossed before shortening") { path.Points[1].x = 11; }
+    SECTION("boundary crossed by shortened segment") { path.Shortened.back().x = 11; }
+    SECTION("wall at shortened endpoint") { clear = false; }
+    SECTION("invalid shortened height") { path.Shortened.back().z = std::numeric_limits<float>::quiet_NaN(); }
+    SECTION("real start outside zone") { start.x = -0.5f; }
+    SECTION("empty shortened path") { path.Shortened.clear(); }
+    CHECK_FALSE(Movement::PrepareCompleteChasePath(path, start, HuntPoint{10,0,0},
+        HuntPoint{10,0,0}, 2, true, result, contains, [&](auto const&, auto const&) { return clear; }));
+    CHECK(result.empty());
 }

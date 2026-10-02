@@ -59,6 +59,10 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     recovery.Backtracks = 2;
     recovery.HomePathType = 4;
     recovery.HomePathFailure = "NO_COMPLETE_PATH";
+    recovery.HomePathRejected = {7, 2, 0, 0, 0, 0};
+    recovery.ContinuationPathType = 1;
+    recovery.ContinuationPathFailure = "ENDPOINT_MISMATCH";
+    recovery.ContinuationPathRejected = {0, 8, 1, 0, 0, 0};
     recovery.RefugeActive = true; recovery.RefugeEpisodes = 2; recovery.RefugeMoves = 3;
     recovery.RefugeBlocked = 4; recovery.RefugeRemainingMs = 120000;
     recovery.RefugeAnchor = ActionPosition{0, 10, 20, 30};
@@ -75,6 +79,10 @@ TEST_CASE("Observer preserves bounded return diagnostics independently of the an
     REQUIRE(json.find("\"backtracks\":2") != std::string::npos);
     REQUIRE(json.find("\"home_path_type\":4") != std::string::npos);
     REQUIRE(json.find("\"home_path_failure\":\"NO_COMPLETE_PATH\"") != std::string::npos);
+    REQUIRE(json.find("\"home_path_rejected\":{\"ground\":7,\"path\":2,\"endpoint\":0,\"bounds\":0,\"danger\":0,\"corridor\":0}") != std::string::npos);
+    REQUIRE(json.find("\"continuation_path_type\":1") != std::string::npos);
+    REQUIRE(json.find("\"continuation_path_failure\":\"ENDPOINT_MISMATCH\"") != std::string::npos);
+    REQUIRE(json.find("\"continuation_path_rejected\":{\"ground\":0,\"path\":8,\"endpoint\":1,\"bounds\":0,\"danger\":0,\"corridor\":0}") != std::string::npos);
     REQUIRE(json.find("\"refuge_active\":true") != std::string::npos);
     REQUIRE(json.find("\"refuge_episodes\":2") != std::string::npos);
     REQUIRE(json.find("\"refuge_moves\":3") != std::string::npos);
