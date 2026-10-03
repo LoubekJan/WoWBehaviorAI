@@ -55,7 +55,126 @@ def stranded():
     return npc
 
 
+def deferred(npc=None):
+    npc = copy.deepcopy(npc or agent())
+    npc['living_role'].update(phase='IDLE', activity='NONE', movement_purpose='PLANNING_DEFERRED',
+                              advice={'lifetime_ms': 1})
+    return npc
+
+
 class BehaviorTests(unittest.TestCase):
+    def test_deferred_decision_at_home_is_a_failure_after_300_seconds(self):
+        rows = samples(count=61, npc=deferred())
+        report = evaluate(rows)
+        self.assertEqual(report['status'], 'FAIL')
+        self.assertEqual([f['check'] for f in report['findings']], ['planning_deferred'])
+        finding = report['findings'][0]
+        self.assertEqual((finding['start_seconds'], finding['duration_seconds'], finding['home_distance']), (0, 300, 0))
+        self.assertEqual(finding['lifetime_ms'], 1)
+        self.assertEqual(finding['severity'], 'failure')
+        self.assertFalse(evaluate(rows[:-1])['findings'])
+        evaluator = behavior.Evaluator(METADATA, POLICY)
+        for row in rows: evaluator.observe(row)
+        self.assertIn('planning_deferred', [f['check'] for f in evaluator.checkpoint(
+            {**summary(rows), 'status': 'running'}, minimum_seconds=60)['findings']])
+
+    def test_deferred_return_survives_rest_without_charging_care_to_decision_wait(self):
+        rows = samples(count=85, npc=deferred(stranded()))
+        for i, row in enumerate(rows):
+            role = row['state']['agents'][0]['living_role']
+            role['return_recovery'] = {'failures': 0, 'strategy': 'CORRIDOR', 'failure': 'NONE'}
+            if 20 <= i < 24 or 40 <= i < 44:
+                role.update(phase='ACTING', activity='REST', movement_purpose='NEEDS_CARE')
+        report = evaluate(rows)
+        findings = {f['check']: f for f in report['findings']}
+        self.assertEqual(findings['return_duration']['duration_seconds'], 420)
+        self.assertEqual(findings['planning_deferred']['duration_seconds'], 370)
+        self.assertEqual(findings['planning_deferred']['paused_seconds'], 50)
+        # A bounded idle handoff after care preserves the pending decision.
+        for i in (24, 44):
+            rows[i]['state']['agents'][0]['living_role'].update(movement_purpose='NONE')
+        findings = {f['check']: f for f in evaluate(rows)['findings']}
+        self.assertEqual(findings['planning_deferred']['duration_seconds'], 360)
+        self.assertEqual(findings['planning_deferred']['start_seconds'], 0)
+        self.assertEqual(findings['return_duration']['duration_seconds'], 420)
+
+    def test_deferred_foraging_does_not_invent_a_home_return(self):
+        rows = samples(count=61, npc=deferred(stranded()))
+        findings = {f['check'] for f in evaluate(rows)['findings']}
+        self.assertEqual(findings, {'planning_deferred'})
+        # A return seeded before the deferral also persists on legacy telemetry
+        # that does not retain a return_recovery object.
+        rows[0]['state']['agents'][0]['living_role']['movement_purpose'] = 'RETURN_HOME'
+        self.assertIn('return_duration', [f['check'] for f in evaluate(rows)['findings']])
+
+    def test_ordinary_rest_and_idle_cannot_seed_or_preserve_a_deferred_wait_forever(self):
+        for purpose, phase, activity in (('NONE', 'IDLE', 'NONE'), ('NEEDS_CARE', 'ACTING', 'REST'),
+                                         ('PLANNING_DEFERRED', 'ACTING', 'REST')):
+            with self.subTest(purpose=purpose, phase=phase):
+                npc = deferred()
+                npc['living_role'].update(movement_purpose=purpose, phase=phase, activity=activity)
+                self.assertNotIn('planning_deferred', [f['check'] for f in evaluate(samples(141, npc))['findings']])
+        rows = samples(count=141, npc=deferred())
+        for i in range(20, len(rows)):
+            rows[i]['state']['agents'][0]['living_role'].update(
+                phase='ACTING' if i < 24 else 'IDLE', activity='REST' if i < 24 else 'NONE',
+                movement_purpose='NEEDS_CARE' if i < 24 else 'NONE')
+        self.assertNotIn('planning_deferred', [f['check'] for f in evaluate(rows)['findings']])
+
+    def test_deferred_wait_and_return_reset_on_real_actions_and_lifecycle_interruptions(self):
+        interruptions = ('position', 'food', 'hunting', 'feeding', 'eat', 'graze', 'work', 'talk',
+            'combat', 'flee', 'root', 'evade', 'group', 'disabled', 'observe', 'dead', 'missing',
+            'abstract', 'map', 'gap', 'sequence', 'clock', 'lifetime', 'spawn')
+        for interruption in interruptions:
+            with self.subTest(interruption=interruption):
+                rows = samples(count=61, npc=deferred(stranded()))
+                for row in rows:
+                    row['state']['agents'][0]['living_role']['return_recovery'] = {'failures': 0}
+                row = rows[30]
+                npc = row['state']['agents'][0]
+                role = npc['living_role']
+                if interruption == 'position': npc['position']['z'] += 2
+                elif interruption == 'food': npc['needs']['hunger'] = 0.1
+                elif interruption in ('hunting', 'feeding'): role['phase'] = interruption.upper()
+                elif interruption in ('eat', 'graze', 'work', 'talk'):
+                    role.update(phase='ACTING', activity=interruption.upper())
+                elif interruption == 'combat': npc['in_combat'] = True
+                elif interruption == 'flee': role['phase'] = 'SEEKING_SAFETY'
+                elif interruption == 'root': npc['movement']['blocked'] = True
+                elif interruption == 'evade': npc['movement']['evading'] = True
+                elif interruption == 'group': role['status'] = 'GROUP_ACTIVITY'
+                elif interruption == 'disabled': role['enabled'] = False
+                elif interruption == 'observe': npc['control_mode'] = 'OBSERVE_ONLY'
+                elif interruption == 'dead': npc['alive'] = False
+                elif interruption == 'missing': row['state']['agents'] = [agent(42)]
+                elif interruption == 'abstract': npc['position']['source'] = 'spawn'
+                elif interruption == 'map': npc['position']['map_id'] = 1
+                elif interruption == 'gap': row['status'] = 'stale'
+                elif interruption == 'sequence': row['sequence'] += 1
+                elif interruption == 'clock': row['state']['captured_at_ms'] = 1
+                elif interruption in ('lifetime', 'spawn'):
+                    for later in rows[30:]:
+                        other = later['state']['agents'][0]
+                        if interruption == 'lifetime': other['living_role']['advice']['lifetime_ms'] = 2
+                        else: other['spawn_id'] = 99
+                findings = {f['check'] for f in evaluate(rows)['findings']}
+                self.assertNotIn('planning_deferred', findings)
+                # Movement is allowed during a timed return, and an unlabelled
+                # feeding drop need not prove home arrival. All actual actions
+                # and continuity changes still split its episode.
+                if interruption not in ('position', 'food'):
+                    evaluator = behavior.Evaluator(METADATA, behavior.replace(POLICY, return_duration_seconds=300))
+                    for value in rows: evaluator.observe(value)
+                    self.assertNotIn('return_duration', [f['check'] for f in evaluator.finish(summary(rows))['findings']])
+
+    def test_deferred_wait_resets_on_xyz_progress_during_care(self):
+        rows = samples(count=85, npc=deferred())
+        for i in range(20, 45):
+            npc = rows[i]['state']['agents'][0]
+            npc['position']['z'] += 2
+            npc['living_role'].update(phase='ACTING', activity='LOOK', movement_purpose='NEEDS_CARE')
+        self.assertNotIn('planning_deferred', [f['check'] for f in evaluate(rows)['findings']])
+
     def test_local_recovery_movement_does_not_hide_unfinished_home_return(self):
         rows = samples(count=61, npc=stranded())
         for i, row in enumerate(rows):
@@ -508,6 +627,22 @@ class ArchiveTests(unittest.TestCase):
                                           "--output", str(Path(self.temp.name) / "out")])
                 self.assertEqual(code, expected)
                 self.assertTrue(all(p.read_bytes() == data for p, data in original.items()))
+
+    def test_cli_deferred_threshold_is_configurable_and_rejects_nonpositive_nonfinite_values(self):
+        self.archive(samples(npc=deferred()), 100)
+        output = Path(self.temp.name) / 'out'
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = behavior.main([str(self.directory), '--minimum-minutes', '1',
+                                  '--planning-deferred-seconds', '60', '--output', str(output)])
+        self.assertEqual(code, 3)
+        report = json.loads((output / 'behavior-report.json').read_text(encoding='utf-8'))
+        self.assertEqual(report['policy']['planning_deferred_seconds'], 60)
+        self.assertEqual([f['check'] for f in report['findings']], ['planning_deferred'])
+        for value in ('0', '-1', 'nan', 'inf'):
+            with self.subTest(value=value), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as raised:
+                    behavior.main([str(self.directory), f'--planning-deferred-seconds={value}'])
+                self.assertEqual(raised.exception.code, 2)
 
 
 if __name__ == "__main__":

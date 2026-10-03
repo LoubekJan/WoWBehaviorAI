@@ -28,6 +28,7 @@ class Policy:
     prey_threat_hunger_seconds: float = 600
     advice_wait_seconds: float = 600
     position_tolerance: float = 1
+    planning_deferred_seconds: float = 300
 
 
 CHECKS = {
@@ -42,12 +43,15 @@ CHECKS = {
     "prey_hunger": "Dlouhodobý hlad kořisti v klidu",
     "prey_threat_hunger": "Dlouhodobý hlad kořisti při opakovaném nebezpečí (upozornění)",
     "advice_wait": "Obsluha způsobilých NPC ve frontě AI",
+    "planning_deferred": "Dlouhodobě odkládané rozhodování",
 }
 WARNING_CHECKS = {"predator_hunger", "prey_threat_hunger"}
 RADII = {"PREDATOR": 12, "PREY": 6, "GUARD": 8, "COMBATANT": 10,
          "CIVILIAN": 4, "WORKER": 4, "TRAVELER": 12, "SERVICE": 0}
 SCOPED = {"READY", "ACTIVE", "CURATED_ROUTINE", "GROUP_ACTIVITY"}
 LOCAL_MOVES = {"RETURN_HOME", "FORAGE_SEARCH", "LOCAL_ROAM", "HERD_COHESION", "PATROL_COMPANION", "FOOD_SUPPLY", "LOCAL_RECOVERY_MOVE"}
+CARE_PURPOSES = {"NEEDS_CARE", "REFUGE_CARE", "LOCAL_RECOVERY_CARE"}
+CARE_SETTLE_SECONDS = 15  # bounded ordinary idle pause after a sampled care action
 
 
 def finite(value) -> bool:
@@ -103,9 +107,9 @@ class Evaluator:
                    "role": agent["living_role"]["role"], "start_seconds": row["elapsed_seconds"],
                    "start_utc": row.get("recorded_at_utc"), "position": point}
             self.runs[identity] = run
-        if key == "physical_stall":
-            # Combat/root/evade suspend the clock but never count as physical
-            # recovery. A real position change still resets the anchor above.
+        if key in {"physical_stall", "planning_deferred"}:
+            # Physical stalls suspend during combat/root/evade; planning waits
+            # suspend only during explicit care. Neither pause proves movement.
             previous = run.get("last_seconds", row["elapsed_seconds"])
             if paused or run.get("paused", False):
                 run["paused_seconds"] = run.get("paused_seconds", 0) + row["elapsed_seconds"] - previous
@@ -114,7 +118,7 @@ class Evaluator:
             if paused:
                 return
         duration = row["elapsed_seconds"] - run["start_seconds"]
-        if key == "physical_stall":
+        if key in {"physical_stall", "planning_deferred"}:
             duration -= run.get("paused_seconds", 0)
         limit = getattr(self.policy, key + "_seconds" if key != "return" else "return_seconds")
         if duration < max(limit, minimum_seconds):
@@ -126,6 +130,12 @@ class Evaluator:
                   "severity": "warning" if key in WARNING_CHECKS else "failure"}
         if key == "advice_wait":
             detail["advice"] = agent["living_role"]["advice"]
+        if key == "planning_deferred":
+            advice = agent["living_role"].get("advice")
+            detail["lifetime_ms"] = advice.get("lifetime_ms") if isinstance(advice, dict) else None
+            planning = agent["living_role"].get("planning")
+            if isinstance(planning, dict):
+                detail["planning"] = planning
         recovery = agent["living_role"].get("return_recovery")
         if isinstance(recovery, dict):
             detail["return_recovery"] = recovery
@@ -273,14 +283,41 @@ class Evaluator:
                 self.observed["return"].add(aid)
             returning = calm and move["home_distance"] > RADII[role["role"]] + 2 and role["phase"] in {"IDLE", "ACTING", "MOVING"}
             self.episode("return", agent, row, returning, stationary=True, start=failure)
+            care = (role["phase"] == "ACTING" and role["activity"] in {"REST", "LOOK"}
+                    and (purpose in CARE_PURPOSES or purpose.startswith("RETURN_")
+                         or purpose == "PLANNING_DEFERRED"))
             # A moving A->B->A loop resets the stationary test forever. Once
             # a return is observed, time the whole attempt until home, an
             # interruption or a different activity; animations/idle persist.
+            deferred_return = purpose == "PLANNING_DEFERRED" and isinstance(recovery, dict)
+            return_care = care and (isinstance(recovery, dict) or (aid, "return_duration") in self.runs)
             return_attempt = (returning and role["status"] in {"READY", "ACTIVE"}
-                              and (purpose == "NONE" or purpose.startswith("RETURN_") or local_recovery))
-            if return_attempt and (failure or purpose == "RETURN_HOME" or local_recovery):
+                              and (role["phase"] != "ACTING" or role["activity"] in {"NONE", "REST", "LOOK"})
+                              and (purpose in {"NONE", "PLANNING_DEFERRED"}
+                                   or purpose.startswith("RETURN_") or local_recovery or return_care))
+            return_start = failure or purpose == "RETURN_HOME" or local_recovery or deferred_return
+            if return_attempt and return_start:
                 self.observed["return_duration"].add(aid)
-            self.episode("return_duration", agent, row, return_attempt, start=failure or purpose == "RETURN_HOME" or local_recovery)
+            self.episode("return_duration", agent, row, return_attempt, start=return_start)
+            # A pending decision can starve even at the exact home position.
+            # Seed only from the explicit yield purpose, not ordinary idle.
+            # Care preserves the wait but spends none of its failure budget;
+            # eating/hunting/other actions and observed feeding reset it.
+            planning_run = self.runs.get((aid, "planning_deferred"))
+            feeding_progress = old is not None and old["needs"]["hunger"] - needs["hunger"] > 0.1
+            planning_scope = (calm and role["status"] in {"READY", "ACTIVE"}
+                              and role["phase"] in {"IDLE", "ACTING"} and not feeding_progress)
+            deferred = (purpose == "PLANNING_DEFERRED" and not care
+                        and (role["phase"] == "IDLE" or role["activity"] == "NONE"))
+            settling = (planning_run is not None and role["phase"] == "IDLE" and purpose == "NONE"
+                        and 0 <= t - planning_run.get("care_last_seconds", -math.inf) <= CARE_SETTLE_SECONDS)
+            if planning_scope and care and planning_run is not None:
+                planning_run["care_last_seconds"] = t
+            planning_wait = planning_scope and (deferred or care or settling)
+            if planning_scope and deferred:
+                self.observed["planning_deferred"].add(aid)
+            self.episode("planning_deferred", agent, row, planning_wait, stationary=True,
+                         start=deferred, paused=care or settling)
             # A phase flip (especially repeated fleeing -> idle) cannot hide
             # an immobile NPC. Seed from a movement/return attempt, not from
             # standing workers, service NPCs or ordinary resting wildlife.
@@ -351,7 +388,7 @@ class Evaluator:
         early = copy(self)
         early.policy = replace(self.policy, minimum_seconds=minimum_seconds)
         report = early.finish(summary, partial=True)
-        selected = {"return", "return_duration", "physical_stall", "motion", "outside", "advice_wait"}
+        selected = {"return", "return_duration", "physical_stall", "motion", "outside", "advice_wait", "planning_deferred"}
         report["checks"] = [c for c in report["checks"] if c["id"] in selected]
         report["findings"] = [f for f in report["findings"] if f["check"] in selected]
         report["scope"] = "early_navigation"
@@ -517,11 +554,16 @@ def main(argv=None):
     parser.add_argument("session", type=Path)
     parser.add_argument("--output", type=Path, help="report directory; defaults to the session")
     parser.add_argument("--minimum-minutes", type=float, default=60)
+    parser.add_argument("--planning-deferred-seconds", type=float, default=Policy().planning_deferred_seconds,
+                        help="maximum observed decision deferral time, excluding stationary care (default: 300)")
     args = parser.parse_args(argv)
     if not math.isfinite(args.minimum_minutes) or args.minimum_minutes <= 0:
         parser.error("--minimum-minutes must be positive and finite")
+    if not math.isfinite(args.planning_deferred_seconds) or args.planning_deferred_seconds <= 0:
+        parser.error("--planning-deferred-seconds must be positive and finite")
     try:
-        report = analyze(args.session, Policy(minimum_seconds=args.minimum_minutes * 60))
+        report = analyze(args.session, Policy(minimum_seconds=args.minimum_minutes * 60,
+                         planning_deferred_seconds=args.planning_deferred_seconds))
         write_report(report, args.output or args.session)
     except (OSError, ValueError, TypeError) as error:
         print(f"Cannot evaluate recording: {type(error).__name__}", file=sys.stderr)

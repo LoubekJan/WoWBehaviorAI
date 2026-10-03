@@ -1,10 +1,11 @@
 """Recovery protocol regressions requiring only the production Pydantic model."""
 import json
 import unittest
+from pathlib import Path
 
 from pydantic import ValidationError
 
-from app.telemetry import ReturnRecovery
+from app.telemetry import LivingPlanning, LivingRole, ReturnRecovery
 
 
 def legacy_recovery():
@@ -50,6 +51,41 @@ class RecoveryPlanningProtocolTests(unittest.TestCase):
     def test_new_fields_do_not_relax_unknown_key_rejection(self):
         with self.assertRaises(ValidationError):
             ReturnRecovery.model_validate({**legacy_recovery(), "planning_deferred": True, "unknown_planning": True})
+
+
+class LivingPlanningProtocolTests(unittest.TestCase):
+    def test_legacy_living_roles_default_to_unknown_work_without_return_recovery(self):
+        batch = json.loads((Path(__file__).parent / "fixtures/telemetry_v2.json").read_text(encoding="utf-8"))
+        source = next(a["living_role"] for a in batch["agents"] if a.get("living_role"))
+        source.pop("return_recovery", None)
+        parsed = LivingRole.model_validate(source)
+        self.assertIsNone(parsed.return_recovery)
+        self.assertEqual(parsed.planning.model_dump(), dict(deferred=False, reason="NONE", stage="NONE",
+                         wait_ms=0, query_age_ms=0, no_progress_ms=0, resets=0))
+
+    def test_admission_and_work_budget_survive_json_without_coercion(self):
+        for reason, stage in (("ADMISSION", "DECISION"), ("WORK_BUDGET", "ADVICE"),
+                              ("WORK_BUDGET", "RETURN"), ("WORK_BUDGET", "HUNT"), ("WORK_BUDGET", "FORAGE")):
+            source = dict(deferred=True, reason=reason, stage=stage, wait_ms=43000,
+                          query_age_ms=50000, no_progress_ms=45000, resets=3)
+            parsed = LivingPlanning.model_validate_json(json.dumps(source))
+            self.assertEqual(parsed.model_dump(), source)
+            self.assertEqual(LivingPlanning.model_validate_json(parsed.model_dump_json()), parsed)
+
+    def test_malformed_planning_cannot_claim_progress_or_yield(self):
+        bad_fields = [("deferred", v) for v in (0, 1, "true", None)]
+        bad_fields += [("reason", v) for v in ("UNKNOWN", 1, None)]
+        bad_fields += [("stage", v) for v in ("UNKNOWN", 1, None)]
+        for field in ("wait_ms", "query_age_ms", "no_progress_ms", "resets"):
+            bad_fields += [(field, v) for v in (-1, True, "1", 1.5, None)]
+        bad_fields += [("wait_ms", 18446744073709551616), ("resets", 4294967296), ("unknown", 1)]
+        for field, value in bad_fields:
+            with self.subTest(field=field, value=value), self.assertRaises(ValidationError):
+                LivingPlanning.model_validate({field: value})
+
+    def test_literal_uint_limits_roundtrip(self):
+        parsed = LivingPlanning(wait_ms=18446744073709551615, resets=4294967295)
+        self.assertEqual(LivingPlanning.model_validate_json(parsed.model_dump_json()), parsed)
 
 
 if __name__ == "__main__":

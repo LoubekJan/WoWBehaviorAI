@@ -164,6 +164,11 @@ namespace
         WriteJsonField(out, "sprint_multiplier", role.SprintMultiplier); WriteJsonField(out, "sprint_remaining_ms", role.SprintRemainingMs);
         WriteJsonField(out, "move_end", role.MoveEnd); WriteJsonField(out, "move_no_progress_ms", role.MoveNoProgressMs);
         WriteJsonField(out, "move_remaining", role.MoveRemaining);
+        out << ",\"planning\":{\"deferred\":"; WriteValue(out, role.Planning.Deferred);
+        WriteJsonField(out, "reason", role.Planning.Reason); WriteJsonField(out, "stage", role.Planning.Stage);
+        WriteJsonField(out, "wait_ms", role.Planning.WaitMs); WriteJsonField(out, "query_age_ms", role.Planning.QueryAgeMs);
+        WriteJsonField(out, "no_progress_ms", role.Planning.NoProgressMs); WriteJsonField(out, "resets", role.Planning.Resets);
+        out << '}';
         out << ",\"forage\":";
         if (role.Forage)
         {

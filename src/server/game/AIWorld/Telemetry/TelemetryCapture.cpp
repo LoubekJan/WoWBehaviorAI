@@ -163,6 +163,7 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                 role.CompanionSpawnId = info.CompanionSpawnId;
                 role.LastHuntTargetSpawnId = info.HuntTargetSpawnId;
                 auto const& recovery = record->LivingRole;
+                role.Planning = CaptureLivingPlanningTelemetry(recovery.Planning, nowMs);
                 if (recovery.Forage.ScannedAtMs || recovery.Forage.SearchAtMs) role.Forage = recovery.Forage;
                 if (recovery.ReturningHome || recovery.ReturnFailures)
                 {
@@ -185,7 +186,8 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                     diagnostic.ContinuationSurfaceFailure = recovery.ReturnDiagnostics.ContinuationPath.SurfaceFailure;
                     diagnostic.ContinuationPathSurface = recovery.ReturnDiagnostics.ContinuationPath.SurfaceCorridor;
                     diagnostic.ContinuationPathRejected = recovery.ReturnDiagnostics.ContinuationPath.Rejected;
-                    diagnostic.PlanningDeferred = recovery.ReturnDiagnostics.Deferred;
+                    diagnostic.PlanningDeferred = recovery.ReturnDiagnostics.Deferred || recovery.Planning.Deferred ||
+                        recovery.Advice.Status == "PLANNING_DEFERRED";
                     diagnostic.SurfaceCorridor = recovery.ReturnRoute.SurfaceCorridor;
                     diagnostic.Rejections = recovery.ReturnDiagnostics.Rejected;
                     diagnostic.RequestedZ = recovery.ReturnDiagnostics.RequestedZ;

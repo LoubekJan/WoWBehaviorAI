@@ -21,6 +21,7 @@
 #include "Scheduler/SimulationTier.h"
 #include "NavigationDiagnostics.h"
 #include "Agent/LivingForageState.h"
+#include "Agent/LivingPlanningState.h"
 #include <array>
 #include <optional>
 #include <string>
@@ -70,6 +71,28 @@ struct RecoveryAdviceTelemetry
     std::string QueueKind = "NONE";
 };
 
+struct LivingPlanningTelemetry
+{
+    bool Deferred = false;
+    std::string Reason = "NONE", Stage = "NONE";
+    // Elapsed wall time, including stationary care; never a new work credit.
+    uint64 WaitMs = 0, QueryAgeMs = 0, NoProgressMs = 0;
+    uint32 Resets = 0;
+};
+
+inline LivingPlanningTelemetry CaptureLivingPlanningTelemetry(LivingPlanningContext const& source, uint64 nowMs)
+{
+    LivingPlanningTelemetry result;
+    result.Deferred = source.Deferred;
+    result.Reason = source.Reason;
+    result.Stage = source.Stage;
+    result.WaitMs = source.Deferred && source.DeferredAt && nowMs >= source.DeferredAt ? nowMs-source.DeferredAt : 0;
+    result.QueryAgeMs = source.StartedAt && nowMs >= source.StartedAt ? nowMs-source.StartedAt : 0;
+    result.NoProgressMs = source.ProgressAt && nowMs >= source.ProgressAt ? nowMs-source.ProgressAt : 0;
+    result.Resets = source.Resets;
+    return result;
+}
+
 struct LivingRoleTelemetry
 {
     bool Enabled = false;
@@ -89,6 +112,7 @@ struct LivingRoleTelemetry
     std::optional<ReturnRecoveryTelemetry> ReturnRecovery;
     std::optional<RecoveryAdviceTelemetry> Advice;
     std::optional<LivingForageState> Forage;
+    LivingPlanningTelemetry Planning;
     std::string MoveEnd = "NONE";
     uint64 MoveNoProgressMs = 0;
     std::optional<float> MoveRemaining;

@@ -165,6 +165,18 @@ class ForageDiagnostics(ProtocolModel):
     navigation: NavigationDiagnostics
 
 
+class LivingPlanning(ProtocolModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    deferred: bool = False
+    reason: Literal['NONE', 'ADMISSION', 'WORK_BUDGET'] = 'NONE'
+    stage: Literal['NONE', 'DECISION', 'HUNT', 'FORAGE', 'RETURN', 'ADVICE'] = 'NONE'
+    # Wall-time ages include explicit stationary care, unlike query work credit.
+    wait_ms: int = Field(default=0, ge=0, le=18446744073709551615)
+    query_age_ms: int = Field(default=0, ge=0, le=18446744073709551615)
+    no_progress_ms: int = Field(default=0, ge=0, le=18446744073709551615)
+    resets: int = Field(default=0, ge=0, le=4294967295)
+
+
 class LivingRole(ProtocolModel):
     enabled: bool
     extensions_enabled: bool
@@ -196,6 +208,7 @@ class LivingRole(ProtocolModel):
     return_recovery: ReturnRecovery | None = None
     advice: RecoveryAdvice | None = None
     forage: ForageDiagnostics | None = None
+    planning: LivingPlanning = Field(default_factory=LivingPlanning)
     move_end: str = Field(default="NONE", max_length=80)
     move_no_progress_ms: int = Field(default=0, ge=0)
     move_remaining: float | None = Field(default=None, ge=0)

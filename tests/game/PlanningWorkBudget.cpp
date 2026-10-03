@@ -49,15 +49,21 @@ TEST_CASE("Planning budget count limits and availability checks do not spend can
     REQUIRE(budget.GetStatistics().Deferred == 2);
 }
 
-TEST_CASE("Planning budget deadlines include cheap work and reject exact expiry", "[AIWorld][PlanningWorkBudget]")
+TEST_CASE("Planning budget excludes maintenance time and rejects exact query-work expiry", "[AIWorld][PlanningWorkBudget]")
 {
     PlanningWorkBudget budget(std::chrono::microseconds(2000), 16, At(1000));
     PlanningWorkBudget::Scope scope(budget);
-    REQUIRE_FALSE(PlanningWorkBudget::Available(At(999)));
-    REQUIRE(PlanningWorkBudget::Available(At(2999)));
-    REQUIRE_FALSE(PlanningWorkBudget::Available(At(3000)));
-    REQUIRE_FALSE(bool(PlanningWorkBudget::TryAcquire(At(3000))));
-    REQUIRE(budget.GetStatistics().Started == 0);
+    REQUIRE(PlanningWorkBudget::Available(At(999)));
+    REQUIRE(PlanningWorkBudget::Available(At(3000000)));
+    auto first = PlanningWorkBudget::TryAcquire(At(3000000));
+    first.Finish(At(3001500));
+    REQUIRE(PlanningWorkBudget::Available(At(9000000)));
+    auto second = PlanningWorkBudget::TryAcquire(At(9000000));
+    second.Finish(At(9000500));
+    REQUIRE_FALSE(PlanningWorkBudget::Available(At(9000500)));
+    REQUIRE_FALSE(bool(PlanningWorkBudget::TryAcquire(At(9000500))));
+    REQUIRE(budget.GetStatistics().Started == 2);
+    REQUIRE(budget.GetStatistics().OperationUs == 2000);
 }
 
 TEST_CASE("Planning budget measures each operation once when moved or completed early", "[AIWorld][PlanningWorkBudget]")
@@ -146,7 +152,9 @@ TEST_CASE("Planning resume reaches later candidates while overdue needs keep the
             }
         }
         REQUIRE(budget.GetStatistics().Started <= 4);
-        REQUIRE(usedUs <= 4100);
+        // Needs time is independent of the query budget. The 4 ms needs
+        // deadline can be overrun only by one atomic actor update here.
+        REQUIRE(usedUs < 6500);
     }
     REQUIRE(deferred > 0);
     REQUIRE(searches.size() == agents.size());

@@ -34,18 +34,37 @@ struct LivingPlanningCarePause
         EndedAt = now; Active = false;
         return true;
     }
-    bool Fresh(uint64 now, uint64 progressAt, uint64 timeoutMs = 30000) const
+    std::optional<uint64> PausedMs(uint64 now, uint64 progressAt, bool allowActive = false) const
     {
-        if (Active || now < progressAt) return false;
-        uint64 elapsed = now - progressAt;
+        if ((Active && !allowActive) || now < progressAt) return std::nullopt;
+        uint64 paused = 0;
         if (ProgressAnchor == progressAt)
         {
-            if (now < EndedAt) return false;
-            elapsed -= std::min(CompletedMs, elapsed);
+            if (now < EndedAt || (Active && now < StartedAt)) return std::nullopt;
+            paused = CompletedMs;
+            if (Active) paused += now - StartedAt;
         }
-        return elapsed < timeoutMs;
+        return std::min(paused, now - progressAt);
+    }
+    bool Fresh(uint64 now, uint64 progressAt, uint64 timeoutMs = 30000) const
+    {
+        auto paused = PausedMs(now, progressAt);
+        return paused && now - progressAt - *paused < timeoutMs;
     }
 };
+
+// Waiting for a cooperative planning turn is not query inactivity. Do not
+// invent progress timestamps: keep real work and administrative waits separate.
+inline bool LivingPlanningFresh(uint64 now, uint64 progressAt, LivingPlanningCarePause const& care,
+    LivingPlanningCarePause const& waiting, uint64 timeoutMs = 30000)
+{
+    auto careMs = care.PausedMs(now, progressAt);
+    auto waitMs = waiting.PausedMs(now, progressAt, true);
+    if (!careMs || !waitMs) return false;
+    uint64 elapsed = now - progressAt;
+    uint64 paused = std::min(*careMs, elapsed) + std::min(*waitMs, elapsed - std::min(*careMs, elapsed));
+    return elapsed - paused < timeoutMs;
+}
 
 // One unfinished decision, not a persistent geometry cache. A budget yield
 // retains the exact query context and the candidates already tested. Movement,
@@ -55,11 +74,17 @@ struct LivingPlanningContext
 {
     bool Deferred = false;
     uint64 StartedAt = 0, ProgressAt = 0;
+    uint64 DeferredAt = 0;
+    uint32 Resets = 0;
+    char const* Reason = "NONE";
+    char const* Stage = "NONE";
     ActionPosition Origin, Home;
     std::optional<ActionPosition> Danger;
     uint32 PhaseMask = 0, Capabilities = 0;
-    uint32 ForageAttempts = 0;
+    uint32 ForageAttempts = 0, RefugeAttempts = 0;
+    bool HuntScanned = false, CohesionChecked = false;
     LivingPlanningCarePause CarePause;
+    LivingPlanningCarePause BudgetPause;
 
     bool RouteContextMatches(ActionPosition const& home, std::optional<ActionPosition> const& danger,
         uint32 phaseMask, uint32 capabilities) const
@@ -71,21 +96,46 @@ struct LivingPlanningContext
     bool Resume(uint64 now, ActionPosition const& here, ActionPosition const& home,
         std::optional<ActionPosition> const& danger, uint32 phaseMask, uint32 capabilities) const
     {
-        return Deferred && now >= StartedAt && CarePause.Fresh(now, ProgressAt) &&
+        return Deferred && now >= StartedAt && LivingPlanningFresh(now, ProgressAt, CarePause, BudgetPause) &&
             RecoveryMovement::SamePoint(Origin, here) && RouteContextMatches(home, danger, phaseMask, capabilities);
     }
     void Begin(uint64 now, ActionPosition const& here, ActionPosition const& home,
         std::optional<ActionPosition> danger, uint32 phaseMask, uint32 capabilities)
     {
+        if (StartedAt && Deferred) ++Resets;
         StartedAt = ProgressAt = now; Origin = here; Home = home; Danger = std::move(danger);
         PhaseMask = phaseMask; Capabilities = capabilities; Deferred = false;
-        ForageAttempts = 0;
+        DeferredAt = 0; Reason = "NONE"; Stage = "DECISION";
+        ForageAttempts = RefugeAttempts = 0; HuntScanned = CohesionChecked = false;
         CarePause = {};
+        BudgetPause = {};
+    }
+    void MarkDeferred(uint64 now, char const* reason, char const* stage)
+    {
+        if (!DeferredAt) DeferredAt = now;
+        Deferred = true; Reason = reason; Stage = stage;
+        BudgetPause.Begin(now, ProgressAt);
+    }
+    void ClearWait()
+    {
+        Deferred = false; DeferredAt = 0; Reason = "NONE";
+        BudgetPause = {};
+    }
+    void MarkProgress(uint64 now)
+    {
+        ProgressAt = now;
+        ClearWait();
+    }
+    void ResumeWork(uint64 now)
+    {
+        BudgetPause.End(now, ProgressAt);
+        Deferred = false;
     }
     bool PauseForCare(uint64 now)
     {
-        if (now < StartedAt || (!CarePause.Active && !CarePause.Fresh(now, ProgressAt)) ||
+        if (now < StartedAt || (!CarePause.Active && !LivingPlanningFresh(now, ProgressAt, CarePause, BudgetPause)) ||
             !CarePause.Begin(now, ProgressAt)) return false;
+        BudgetPause.End(now, ProgressAt);
         Deferred = true;
         return true;
     }

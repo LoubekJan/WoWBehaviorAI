@@ -1,12 +1,30 @@
 # Ověření návratů a rozpočtu plánování
 
-Podklad: čtyřhodinový běh `20261002T151521Z-c174ec97`, build `853458f8a780`.
-Záznam má 2880 čerstvých vzorků; 35 fyzických blokací bylo ověřeno skutečnými
-polohami, 32 pokračovalo až do posledního vzorku. Samotný načtený navigační
-tile ani dosažení místního kroku neprokazují návrat do původní domácí oblasti.
+Podklad poslední opravy: čtyřhodinový běh `20261002T222533Z-7c41f470`,
+build `0b7b9118ff7c`, bez zásahů hráče. Má 2880 čerstvých vzorků. Oproti
+předchozímu běhu stoupl počet fyzických blokací z 35 na 98 a klesl počet
+krmení z 6256 na 2978. Medvěd 146194 stál celý běh doma a téměř pořád
+odkládal rozhodování. Výpočetní rozpočet spotřebovávala i běžná údržba
+potřeb; opakované pořadí NPC pak některým nedalo prostor pro hledání.
+Samotný načtený navigační tile ani dosažení místního kroku neprokazují
+návrat do původní domácí oblasti.
 
 ## Změny
 
+- Čekající NPC mají trvalou frontu. Nejstarší požadavek z právě připravených
+  NPC dostane přednost; po skutečné práci se přesune na konec. Odpočinek
+  dočasně odebere připravenost a zachová stáří rozpracovaného hledání.
+  Zánik NPC nebo ztráta řízení požadavek zruší.
+- Rozpočet 2 ms / 16 operací na aktualizaci účtuje pouze těla plánovacích
+  dotazů. Jedno NPC má díl 500 µs / 4 operace. Péče o potřeby jej nespotřebuje;
+  vnořené kontroly jedné operace se neúčtují dvakrát. Nedělitelná poslední
+  operace může časový limit překročit. Neobsloužené potřeby zůstávají splatné
+  a při skutečné obsluze dostanou celý uplynulý čas.
+- Čekání na výpočet samo nezruší hledání po 30 sekundách. Uchovává se kurzor
+  kandidátů i již přijatá odpověď AI; skutečný čas poslední práce se
+  nepřepisuje. Změna polohy, domova, nebezpečí, fáze či životní instance
+  nadále ruší neplatný kontext. Již odmítnutá kořist se v jednom hledání
+  neopakuje jen proto, že popošla; nové rozhodnutí ji může ověřit znovu.
 - Hledání návratu pokračuje od dalšího neotestovaného bodu po vyčerpání
   rozpočtu. Nedostatek výpočetního času není `NO_PATH`, selhání návratu ani
   důvod pro dlouhou zotavovací pauzu. Stejný rozhodovací cyklus se zachová.
@@ -39,6 +57,15 @@ Testy mají ověřit návrat přes chybějící navigační spojení na souvisl�
 odmítnutí stěny/srázu/jiného patra, pokračování pozdějších kandidátů přes
 vyčerpané rozpočty a zrušení rozpracovaného dotazu při změně jeho kontextu.
 Tyto syntetické testy nenahrazují běh nad skutečnými mmaps a vmaps.
+Zátěžové regrese navíc obsluhují 1859 NPC při trvalé poptávce, různých
+nákladech údržby, odpočinku a změnách členství. Ověřují přístup každého NPC
+k práci a zachování uplynulého času potřeb; neprokazují úspěšný lov v terénu.
+
+Observer zapisuje `living_role.planning` i pro NPC doma bez návratové
+diagnostiky. Pole `reason` rozlišuje čekání na pořadí (`ADMISSION`) od
+vyčerpaného dílu (`WORK_BUDGET`); `stage` označuje hledání lovu, potravy,
+návratu či rady AI. `wait_ms`, `query_age_ms`, `no_progress_ms` jsou skutečné
+stáří včetně péče; `resets` počítá zahazování rozpracovaných kontextů.
 
 ## Krátký test po deployi
 
@@ -66,14 +93,22 @@ Tyto syntetické testy nenahrazují běh nad skutečnými mmaps a vmaps.
 
    `planningDeferred` může být nenulové. Podstatný je vývoj
    `needsLateMaxMs`, `needsMaxMs` a `planningMaxMs`; samotný počet odložení
-   ani menší počet dotazů neprokazují zlepšení. Původní běh měl medián
-   půlminutových maxim zpoždění potřeb 2618 ms a maximum 8368 ms.
+   ani menší počet dotazů neprokazují zlepšení. Poslední běh měl medián
+   půlminutových maxim zpoždění potřeb přibližně 3017 ms.
 
 ## Čtyřhodinový běh
 
 Deploy automaticky zahajuje záznam. `make record-aiworld-status` ukáže jeho
 průběh. Po skončení musí být všechny vzorky čerstvé a build v `summary.json`
 musí odpovídat nasazené revizi. Výsledky jsou v `behavior-report.md/json`.
+
+Nová kontrola `planning_deferred` označí nejméně pět minut skutečně
+nehybného odkládání rozhodnutí i doma. Péče (`REST`/`LOOK`) čas kontroly
+pozastaví; pohyb, krmení, jiná skutečná aktivita, boj nebo změna životní
+instance ji ukončí. Kontrola `return_duration` už nepřestane měřit návrat
+při přechodu do `PLANNING_DEFERRED`. Obě kontroly jsou i v jednorázovém
+patnáctiminutovém reportu. Jeho FAIL je důvod k rozboru konkrétního NPC;
+PASS ještě nepotvrzuje celý čtyřhodinový běh.
 
 Vyhodnocuj fyzické blokace a nedokončené návraty společně s polohami a
 životními instancemi NPC. Respawn v domácí poloze není dokončený návrat

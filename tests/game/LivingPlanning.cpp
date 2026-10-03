@@ -4,6 +4,7 @@
 #include "Agent/LivingAdviceState.h"
 #include "Agent/LivingPlanningState.h"
 #include <cmath>
+#include <string_view>
 
 namespace
 {
@@ -98,6 +99,100 @@ TEST_CASE("Planning resume resets age and forage attempts for a new decision", "
     context.Deferred = true;
     REQUIRE(context.Resume(50100, Home, Origin, std::nullopt, 2, 5));
     REQUIRE_FALSE(context.Resume(50100, Origin, Home, Danger, 1, 7));
+}
+
+TEST_CASE("Planning waits retain work without inventing progress or restarting candidate stages", "[AIWorld][LivingPlanning]")
+{
+    LivingPlanningContext context;
+    context.Begin(1000, Origin, Home, Danger, 1, 7);
+    context.HuntScanned = true; context.CohesionChecked = true;
+    context.ForageAttempts = 4; context.RefugeAttempts = 3;
+    context.MarkDeferred(1500, "ADMISSION", "RETURN");
+    // A saturated queue can delay work past the old 30s timeout. Its cursor
+    // and real progress timestamp stay intact, not artificially refreshed.
+    REQUIRE(context.Resume(180000, Origin, Home, Danger, 1, 7));
+    REQUIRE(context.ProgressAt == 1000);
+    REQUIRE(context.StartedAt == 1000);
+    REQUIRE(context.DeferredAt == 1500);
+    context.ResumeWork(180000);
+    context.MarkDeferred(180100, "WORK_BUDGET", "RETURN");
+    REQUIRE(context.Resume(360000, Origin, Home, Danger, 1, 7));
+    REQUIRE(context.HuntScanned);
+    REQUIRE(context.CohesionChecked);
+    REQUIRE(context.ForageAttempts == 4);
+    REQUIRE(context.RefugeAttempts == 3);
+    REQUIRE(context.Resets == 0);
+    REQUIRE_FALSE(context.Resume(360000, Origin, Home, Danger, 2, 7));
+    context.Begin(360000, Origin, Home, Danger, 2, 7);
+    REQUIRE(context.Resets == 1);
+    REQUIRE_FALSE(context.HuntScanned);
+    REQUIRE_FALSE(context.CohesionChecked);
+    REQUIRE(context.ForageAttempts == 0);
+    REQUIRE(context.RefugeAttempts == 0);
+    REQUIRE(context.DeferredAt == 0);
+}
+
+TEST_CASE("Planning administrative wait and explicit care suspend different intervals", "[AIWorld][LivingPlanning]")
+{
+    LivingPlanningContext context;
+    context.Begin(1000, Origin, Home, Danger, 1, 7);
+    context.MarkDeferred(2000, "WORK_BUDGET", "ADVICE");
+    REQUIRE(context.PauseForCare(90000));
+    REQUIRE_FALSE(context.Resume(100000, Origin, Home, Danger, 1, 7));
+    REQUIRE(context.ResumeAfterCare(110000));
+    REQUIRE(context.Resume(110000, Origin, Home, Danger, 1, 7));
+    REQUIRE(context.ProgressAt == 1000);
+    // After care no active queue wait remains. Ordinary inactivity expires.
+    REQUIRE(context.Resume(138999, Origin, Home, Danger, 1, 7));
+    REQUIRE_FALSE(context.Resume(139000, Origin, Home, Danger, 1, 7));
+    context.MarkProgress(140000);
+    REQUIRE(context.ProgressAt == 140000);
+    REQUIRE_FALSE(context.Deferred);
+    REQUIRE(context.DeferredAt == 0);
+    REQUIRE(std::string_view(context.Reason) == "NONE");
+}
+
+TEST_CASE("Planning resume advice search survives denied work but rejects changed live context", "[AIWorld][LivingPlanning]")
+{
+    LivingAdviceSearch search;
+    search.Active = true; search.ProgressAt = 1000; search.Lifetime = 900;
+    search.Origin = Origin; search.Home = Home; search.Danger = Danger;
+    search.Returning = true; search.PhaseMask = 1; search.Capabilities = 3;
+    search.Radius = 128; search.ArrivalRadius = 14; search.Clearance = 8;
+    search.Next = 3; search.Continuation.NextTarget = 4;
+    search.BudgetPause.Begin(2000, search.ProgressAt);
+    REQUIRE(search.Matches(120000, 900, Origin, Home, Danger, true, 1, 3, 128, 14, 8));
+    REQUIRE(search.ProgressAt == 1000);
+    REQUIRE(search.Next == 3);
+    REQUIRE(search.Continuation.NextTarget == 4);
+    auto moved = Origin; moved.X += 1;
+    REQUIRE_FALSE(search.Matches(120000, 900, moved, Home, Danger, true, 1, 3, 128, 14, 8));
+    REQUIRE_FALSE(search.Matches(120000, 901, Origin, Home, Danger, true, 1, 3, 128, 14, 8));
+    search.BudgetPause.End(120000, search.ProgressAt);
+    search.MarkProgress(120000);
+    REQUIRE(search.Matches(149999, 900, Origin, Home, Danger, true, 1, 3, 128, 14, 8));
+    REQUIRE_FALSE(search.Matches(150000, 900, Origin, Home, Danger, true, 1, 3, 128, 14, 8));
+}
+
+TEST_CASE("Planning resume answered AI choice does not expire solely while revalidation waits", "[AIWorld][LivingPlanning]")
+{
+    LivingAdviceState advice;
+    advice.PendingId = 17; advice.RequestedAt = 1000; advice.Responded = true;
+    advice.Origin = Origin; advice.Home = Home;
+    advice.ReplyBudgetPause.Begin(2000, advice.RequestedAt);
+    REQUIRE(advice.Fresh(120000, Origin, Home));
+    REQUIRE(advice.RequestedAt == 1000);
+    auto moved = Origin; moved.X += 3;
+    REQUIRE_FALSE(advice.Fresh(120000, moved, Home));
+    auto home = Home; home.Y += 1;
+    REQUIRE_FALSE(advice.Fresh(120000, Origin, home));
+    REQUIRE_FALSE(advice.Fresh(999, Origin, Home));
+    advice.Responded = false;
+    REQUIRE_FALSE(advice.Fresh(120000, Origin, Home));
+    advice.Responded = true;
+    advice.ClearPending();
+    REQUIRE_FALSE(advice.ReplyBudgetPause.Active);
+    REQUIRE_FALSE(advice.Fresh(120000, Origin, Home));
 }
 
 TEST_CASE("Planning resume preserves its resolved connector until the next stage", "[AIWorld][LivingPlanning]")

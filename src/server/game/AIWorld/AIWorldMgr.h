@@ -80,6 +80,7 @@
 #include "Quest/DynamicQuestRegistry.h"
 #include "Scheduler/CoarseSimulationScheduler.h"
 #include "Scheduler/AgentUpdateScheduler.h"
+#include "Scheduler/PlanningWorkScheduler.h"
 #include "Scheduler/DecisionScheduler.h"
 #include "Scheduler/GroupCoarseSimulationScheduler.h"
 #include "Scheduler/SimulationScheduleState.h"
@@ -4150,6 +4151,7 @@ class TC_GAME_API AIWorldMgr
         NeedsUpdateRates _needsRates;
         uint32 _needsUpdateIntervalMs = 1000;
         AgentUpdateScheduler _needsUpdates;
+        PlanningWorkScheduler _planningWork;
         uint64 _agentUpdatesRefreshAtMs = 0;
         struct UpdateTiming
         {

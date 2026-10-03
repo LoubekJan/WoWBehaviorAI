@@ -133,6 +133,50 @@ TEST_CASE("Observer distinguishes deferred planning and complete terrain corrido
         REQUIRE(json.find(std::string("\"") + field + "\":\"NOT_CHECKED\"") != std::string::npos);
 }
 
+TEST_CASE("Observer captures admission starvation without return recovery", "[AIWorld][Telemetry]")
+{
+    LivingPlanningContext context;
+    context.Deferred = true;
+    context.Reason = "ADMISSION"; context.Stage = "DECISION";
+    context.DeferredAt = 200; context.StartedAt = 100; context.ProgressAt = 150;
+    context.Resets = 3;
+    AgentTelemetrySnapshot agent;
+    agent.Live.emplace(); agent.Live->Alive = true;
+    auto& role = agent.LivingRole.emplace();
+    role.MovementPurpose = "PLANNING_DEFERRED";
+    role.Planning = CaptureLivingPlanningTelemetry(context, 1200);
+    CHECK(role.Planning.WaitMs == 1000);
+    CHECK(role.Planning.QueryAgeMs == 1100);
+    CHECK(role.Planning.NoProgressMs == 1050);
+    CHECK(role.Planning.Resets == 3);
+    // Capture owns its strings even after runtime context changes.
+    context.Reason = "WORK_BUDGET"; context.Stage = "ADVICE";
+    auto json = SerializeAgentTelemetry({agent}, 1200);
+    REQUIRE(json.find("\"planning\":{\"deferred\":true,\"reason\":\"ADMISSION\",\"stage\":\"DECISION\",\"wait_ms\":1000,\"query_age_ms\":1100,\"no_progress_ms\":1050,\"resets\":3}") != std::string::npos);
+    REQUIRE(json.find("\"return_recovery\":null") != std::string::npos);
+    agent.Live.reset();
+    CHECK(SerializeAgentTelemetry({agent}, 1200).find("\"planning\":") == std::string::npos);
+}
+
+TEST_CASE("Observer planning ages do not underflow or invent work from capture", "[AIWorld][Telemetry]")
+{
+    LivingPlanningContext context;
+    auto empty = CaptureLivingPlanningTelemetry(context, 500);
+    CHECK_FALSE(empty.Deferred);
+    CHECK(empty.WaitMs == 0); CHECK(empty.QueryAgeMs == 0); CHECK(empty.NoProgressMs == 0);
+    context.StartedAt = 1000; context.ProgressAt = 1500; context.DeferredAt = 2000;
+    context.Deferred = true;
+    auto before = CaptureLivingPlanningTelemetry(context, 500);
+    CHECK(before.WaitMs == 0); CHECK(before.QueryAgeMs == 0); CHECK(before.NoProgressMs == 0);
+    auto first = CaptureLivingPlanningTelemetry(context, 2500);
+    auto later = CaptureLivingPlanningTelemetry(context, 3000);
+    CHECK(later.WaitMs == first.WaitMs+500);
+    CHECK(later.NoProgressMs == first.NoProgressMs+500);
+    CHECK(context.ProgressAt == 1500);
+    context.Deferred = false;
+    CHECK(CaptureLivingPlanningTelemetry(context, 3000).WaitMs == 0);
+}
+
 TEST_CASE("Observer never labels retained engine observations as background live data", "[AIWorld][Telemetry]")
 {
     AgentTelemetrySnapshot background;

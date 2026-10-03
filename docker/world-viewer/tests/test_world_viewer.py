@@ -165,6 +165,30 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 422)
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery']['backtracks'], 2)
 
+    def test_planning_without_return_recovery_roundtrips_and_invalid_batches_do_not_replace_it(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        role = payload['agents'][0]['living_role']
+        role.pop('return_recovery', None)
+        role['movement_purpose'] = 'PLANNING_DEFERRED'
+        planning = dict(deferred=True, reason='ADMISSION', stage='DECISION', wait_ms=67000,
+                        query_age_ms=68000, no_progress_ms=67000, resets=2)
+        role['planning'] = planning
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        actual = self.client.get('/api/state').json()['agents'][0]['living_role']
+        self.assertEqual(actual['planning'], planning)
+        self.assertIsNone(actual['return_recovery'])
+        for field, value in [('deferred', 1), ('reason', 'UNKNOWN'), ('stage', 'UNKNOWN'), ('wait_ms', -1),
+                             ('query_age_ms', True), ('no_progress_ms', '1'), ('resets', 4294967296), ('unknown', 1)]:
+            with self.subTest(field=field):
+                bad = copy.deepcopy(payload)
+                bad['agents'][0]['living_role']['planning'][field] = value
+                self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        bad = copy.deepcopy(payload)
+        bad['agents'][0]['living_role']['planning'] = None
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['planning'], planning)
+
     def test_planning_and_surface_diagnostics_are_independent_strict_fields(self):
         payload = v2_batch()
         payload['version'] = 4
@@ -270,6 +294,8 @@ class WorldViewerApiTests(unittest.TestCase):
         expected[0]["living_role"]["advice"] = None
         expected[0]["living_role"]["forage"] = None
         expected[0]["living_role"].update(move_end='NONE', move_no_progress_ms=0, move_remaining=None)
+        expected[0]["living_role"]["planning"] = dict(deferred=False, reason='NONE', stage='NONE', wait_ms=0,
+                                                    query_age_ms=0, no_progress_ms=0, resets=0)
         self.assertEqual(state["agents"], expected)
         live, background = state["agents"]
         self.assertEqual(live["economy"]["money"], "18446744073709551615")

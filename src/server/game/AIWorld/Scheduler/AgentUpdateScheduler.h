@@ -60,20 +60,45 @@ public:
 
     std::optional<Update> PopDue(uint64 nowMs)
     {
+        PruneStale();
         if (_due.empty() || _due.top().AtMs > nowMs) return std::nullopt;
         Entry entry = _due.top();
         _due.pop();
-        State& state = _states.at(entry.Id);
-        Update update{AgentId{entry.Id}, uint32(std::min<uint64>(nowMs - state.LastMs,
-            std::numeric_limits<uint32>::max())), nowMs - entry.AtMs};
-        state.LastMs = nowMs;
-        state.NextMs = nowMs + _intervalMs - (nowMs - entry.AtMs) % _intervalMs;
-        _due.push({state.NextMs, entry.Id});
-        return update;
+        return Advance(entry.Id, nowMs);
+    }
+
+    // Inspect a bounded cohort without advancing LastMs or its deadline.
+    // Callers may reorder this cohort, then pop only work they actually run.
+    std::vector<AgentId> DueAgents(uint64 nowMs, std::size_t limit = 128) const
+    {
+        PruneStale();
+        Queue due = _due;
+        std::vector<AgentId> result;
+        result.reserve(std::min(limit, _states.size()));
+        while (!due.empty() && due.top().AtMs <= nowMs && result.size() < limit)
+        {
+            Entry entry = due.top(); due.pop();
+            auto state = _states.find(entry.Id);
+            if (state != _states.end() && state->second.NextMs == entry.AtMs)
+                result.push_back(AgentId{entry.Id});
+        }
+        return result;
+    }
+
+    std::optional<Update> PopDueAgent(AgentId id, uint64 nowMs)
+    {
+        auto state = _states.find(id.Value);
+        if (!id || state == _states.end() || state->second.NextMs > nowMs) return std::nullopt;
+        // The old heap entry is left stale. Ordinary pops/peeks discard it;
+        // Sync rebuilds the queue and therefore removes every stale entry.
+        return Advance(id.Value, nowMs);
     }
 
     uint64 OldestLateMs(uint64 nowMs) const
-    { return !_due.empty() && nowMs > _due.top().AtMs ? nowMs - _due.top().AtMs : 0; }
+    {
+        PruneStale();
+        return !_due.empty() && nowMs > _due.top().AtMs ? nowMs - _due.top().AtMs : 0;
+    }
 
 private:
     struct State { uint64 LastMs; uint64 NextMs; };
@@ -84,8 +109,28 @@ private:
         { return a.AtMs != b.AtMs ? a.AtMs > b.AtMs : a.Id > b.Id; }
     };
     using Queue = std::priority_queue<Entry, std::vector<Entry>, Later>;
+
+    std::optional<Update> Advance(uint64 id, uint64 nowMs)
+    {
+        State& state = _states.at(id);
+        Update update{AgentId{id}, uint32(std::min<uint64>(nowMs - state.LastMs,
+            std::numeric_limits<uint32>::max())), nowMs - state.NextMs};
+        state.LastMs = nowMs;
+        state.NextMs = nowMs + _intervalMs - (nowMs - state.NextMs) % _intervalMs;
+        _due.push({state.NextMs, id});
+        return update;
+    }
+    void PruneStale() const
+    {
+        while (!_due.empty())
+        {
+            auto state = _states.find(_due.top().Id);
+            if (state != _states.end() && state->second.NextMs == _due.top().AtMs) break;
+            _due.pop();
+        }
+    }
     std::unordered_map<uint64, State> _states;
-    Queue _due;
+    mutable Queue _due;
     uint32 _intervalMs = 1;
 };
 

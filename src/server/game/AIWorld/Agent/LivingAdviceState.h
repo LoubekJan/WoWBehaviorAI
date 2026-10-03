@@ -68,12 +68,13 @@ struct LivingAdviceSearch
     LivingReturnPolicy::HomeCorridorSearch Continuation;
     LivingReturnPolicy::RejoinSearch Probes;
     LivingPlanningCarePause CarePause;
+    LivingPlanningCarePause BudgetPause;
 
     bool Matches(uint64 now, uint64 lifetime, ActionPosition const& here, ActionPosition const& home,
         std::optional<ActionPosition> const& danger, bool returning, uint32 phaseMask, uint32 capabilities,
         float radius, float arrivalRadius, float clearance) const
     {
-        return Active && CarePause.Fresh(now, ProgressAt) && Lifetime == lifetime &&
+        return Active && LivingPlanningFresh(now, ProgressAt, CarePause, BudgetPause) && Lifetime == lifetime &&
             RecoveryMovement::SamePoint(Origin, here) && RecoveryMovement::SamePoint(Home, home) &&
             Danger.has_value() == danger.has_value() && (!Danger || RecoveryMovement::SamePoint(*Danger, *danger)) &&
             Returning == returning && PhaseMask == phaseMask && Capabilities == capabilities &&
@@ -85,7 +86,8 @@ struct LivingAdviceSearch
         ResolvedTarget.reset(); Trial.reset(); Continuation = {};
     }
     void NextSeed(uint64 now)
-    { ++Next; ResolvedTarget.reset(); Trial.reset(); Continuation = {}; ProgressAt = now; }
+    { ++Next; ResolvedTarget.reset(); Trial.reset(); Continuation = {}; MarkProgress(now); }
+    void MarkProgress(uint64 now) { ProgressAt = now; BudgetPause = {}; }
 };
 
 struct LivingAdviceState
@@ -108,14 +110,17 @@ struct LivingAdviceState
     std::vector<Memory> Successful;
     LivingFoodMemory Food;
     LivingAdviceSearch Search;
+    LivingPlanningCarePause ReplyBudgetPause;
 
     bool Fresh(uint64 now, ActionPosition const& here, ActionPosition const& home) const
     {
-        return PendingId && now >= RequestedAt && now - RequestedAt <= 30000 &&
+        auto paused = Responded ? ReplyBudgetPause.PausedMs(now, RequestedAt, true) : std::optional<uint64>(0);
+        return PendingId && paused && now >= RequestedAt && now - RequestedAt - *paused <= 30000 &&
             here.MapId == Origin.MapId && LivingReturnPolicy::Distance(here, Origin) <= 2.0f &&
             RecoveryMovement::SamePoint(home, Home);
     }
-    void ClearPending() { PendingId = 0; Responded = false; Choice.reset(); Candidates.clear(); Search = {}; }
+    void ClearPending()
+    { PendingId = 0; Responded = false; Choice.reset(); Candidates.clear(); Search = {}; ReplyBudgetPause = {}; }
     LivingAdviceCandidate* ChosenCandidate()
     {
         if (!PendingId || !Responded || !Choice) return nullptr;

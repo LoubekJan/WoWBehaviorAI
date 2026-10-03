@@ -725,6 +725,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _recoveryAdviceAgents.clear();
     _recoveryAdviceAllAgents = sConfigMgr->GetBoolDefault("AIWorld.RecoveryAdviceAllAgents", false);
     _recoveryAdviceBudget = {};
+    _planningWork = {};
     std::istringstream recoveryIds(sConfigMgr->GetStringDefault("AIWorld.RecoveryAdviceAgents", ""));
     uint64 recoveryId;
     while (recoveryIds >> recoveryId)
@@ -8702,6 +8703,7 @@ void AIWorldMgr::Update(uint32 diff)
         auto ids = _registry.GetAgents();
         _perceptionUpdates.Sync(ids, updateNowMs, _nearbyPerceptionIntervalMs, 0x50455243);
         _needsUpdates.Sync(ids, updateNowMs, _needsUpdateIntervalMs, 0x4e454544);
+        _planningWork.SyncMembership(ids);
         _agentUpdatesRefreshAtMs = updateNowMs + 1000;
     }
     auto perceptionStart = std::chrono::steady_clock::now();
@@ -8718,7 +8720,7 @@ void AIWorldMgr::Update(uint32 diff)
     }
 
     auto needsStart = std::chrono::steady_clock::now();
-    PlanningWorkBudget planningBudget(std::chrono::microseconds(2000), 16, needsStart);
+    PlanningWorkBudget planningBudget(std::chrono::microseconds(2000), 16);
     {
         PlanningWorkBudget::Scope planningScope(planningBudget);
         UpdateNeeds();
@@ -11470,24 +11472,56 @@ void AIWorldMgr::ScanNearbyEntities()
 void AIWorldMgr::UpdateNeeds()
 {
     uint64 nowMs = CurrentTimeMs();
-    auto const started = std::chrono::steady_clock::now();
-    for (uint32 count = 0; count < 128 && std::chrono::steady_clock::now() - started < std::chrono::milliseconds(4); ++count)
+    auto due = _needsUpdates.DueAgents(nowMs);
+    std::vector<AgentId> ready;
+    std::unordered_set<uint64> readyIds;
+    _planningWork.ExpireUnseen(nowMs);
+    for (AgentId id : due)
     {
-        auto update = _needsUpdates.PopDue(nowMs);
-        if (!update) break;
+        AgentRecord const* record = _registry.Find(id);
+        bool eligible = record && _livingRolesEnabled && !IsLivingWolf(*record) &&
+            record->ControlMode == AgentControlMode::AIWorldControlled &&
+            !record->GroupCoordinationGoalState;
+        if (eligible && record->LivingRole.CurrentPhase == LivingRoleState::Phase::Idle &&
+            nowMs >= record->LivingRole.NextDecisionAtMs)
+        {
+            _planningWork.Request(id, nowMs);
+            ready.push_back(id); readyIds.insert(id.Value);
+        }
+        else if (eligible && record->LivingRole.Planning.Deferred &&
+            (record->LivingRole.CurrentPhase == LivingRoleState::Phase::Idle ||
+                record->LivingRole.Planning.CarePause.Active))
+            _planningWork.Request(id, nowMs); // Suspend readiness, not this search's waiting age.
+        else
+            _planningWork.Cancel(id);
+    }
+    _planningWork.BeginFrame(nowMs, ready);
+    auto priority = [&](AgentId id) { return readyIds.count(id.Value) ? _planningWork.Priority(id) :
+        std::numeric_limits<uint64>::max(); };
+    std::stable_sort(due.begin(), due.end(), [&](AgentId a, AgentId b)
+        { return priority(a) < priority(b); });
+    auto const started = std::chrono::steady_clock::now();
+    for (AgentId id : due)
+    {
+        if (std::chrono::steady_clock::now() - started >= std::chrono::milliseconds(4)) break;
+        auto update = _needsUpdates.PopDueAgent(id, nowMs);
+        if (!update) continue;
         ++_updateTiming.NeedsAgents;
         _updateTiming.NeedsLateMs = std::max(_updateTiming.NeedsLateMs, update->LateMs);
-        AgentId id = update->Agent;
         uint32 elapsedMs = update->ElapsedMs;
         AgentRecord* record = _registry.Find(id);
         if (!record)
+        {
+            _planningWork.Cancel(id);
             continue;
+        }
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
         Creature* creature = ResolveLiveCreature(*record, map);
 
         if (!creature)
         {
+            _planningWork.Cancel(id);
             // Milestone 2.8F: whatever engine movement ActiveActionState
             // claims is running went away along with the Creature - clear
             // it rather than let it keep claiming a movement that no
@@ -11612,6 +11646,7 @@ void AIWorldMgr::UpdateNeeds()
         // through the normal retention check.
         if (!context.Alive)
         {
+            _planningWork.Cancel(id);
             record->WolfActionRuntimeGuid.Clear();
             record->LivingRole = {};
             // Milestone 2.8F P2 fix: TrinityCore's own death handling
@@ -11666,7 +11701,14 @@ void AIWorldMgr::UpdateNeeds()
             continue;
         }
 
-        if (UpdateLivingRole(*record, *creature, nowMs))
+        bool livingRoleHandled;
+        {
+            PlanningWorkBudget::ActorScope planningActor(_planningWork, id, std::chrono::microseconds(500), 4);
+            livingRoleHandled = UpdateLivingRole(*record, *creature, nowMs);
+            if (!record->LivingRole.Planning.Deferred)
+                _planningWork.Cancel(id);
+        }
+        if (livingRoleHandled)
             continue;
 
         // Milestone 2.8F P2 fix: reconciliation for a completion that never

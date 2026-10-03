@@ -614,6 +614,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         !creature.GetCharmerOrOwnerGUID().IsEmpty() || creature.IsControlledByPlayer())
     {
         _recoveryAdviceBudget.Cancel(record.Id.Value);
+        _planningWork.Cancel(record.Id);
         if (!state.RuntimeGuid.IsEmpty())
         {
             StopLivingRole(record, creature);
@@ -624,6 +625,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     if (state.RuntimeGuid != creature.GetGUID())
     {
         _recoveryAdviceBudget.Cancel(record.Id.Value);
+        _planningWork.Cancel(record.Id);
         state = {};
         state.RuntimeGuid = creature.GetGUID();
         state.Advice.LifetimeAt = nowMs;
@@ -1119,9 +1121,13 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.CurrentPhase = phase;
         if (!preservePlanning)
         {
-            state.Planning.Deferred = false;
+            state.Planning.ClearWait();
+            state.Planning.Stage = "NONE";
             state.Planning.CarePause = {};
-            advice.Search.CarePause = {};
+            advice.ReplyBudgetPause.End(nowMs, advice.RequestedAt);
+            advice.Search = {};
+            if (advice.Status == "PLANNING_DEFERRED") advice.Status = "SEARCH_INTERRUPTED";
+            _planningWork.Cancel(record.Id);
             state.ReturnSearch = {};
             state.HuntRejected.clear();
         }
@@ -1558,13 +1564,16 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.HuntRejected.clear();
         ++state.Cycle;
     }
-    state.Planning.Deferred = false;
+    state.Planning.ResumeWork(nowMs);
     uint64 planningStarted = PlanningWorkBudget::StartedOperations();
     auto deferPlanning = [&]()
     {
-        if (PlanningWorkBudget::StartedOperations() > planningStarted)
-            state.Planning.ProgressAt = nowMs;
-        state.Planning.Deferred = true;
+        bool didWork = PlanningWorkBudget::StartedOperations() > planningStarted;
+        if (didWork) state.Planning.MarkProgress(nowMs);
+        state.Planning.MarkDeferred(nowMs, !didWork && !_planningWork.CanAdmit(record.Id) ? "ADMISSION" : "WORK_BUDGET",
+            state.Planning.Stage);
+        if (advice.Search.Active) advice.Search.BudgetPause.Begin(nowMs, advice.Search.ProgressAt);
+        if (advice.PendingId && advice.Responded) advice.ReplyBudgetPause.Begin(nowMs, advice.RequestedAt);
         state.NextDecisionAtMs = nowMs + LivingRolePolicy::PauseMs(record.Id.Value, state.Cycle, 100, 350);
         state.MovementPurpose = "PLANNING_DEFERRED";
         return true;
@@ -1581,7 +1590,10 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         bool paused = preservePendingReturn && resumingPlan &&
             (state.ReturnSearch.Started || advice.Search.Active) && state.Planning.PauseForCare(nowMs);
         if (paused && advice.Search.Active)
+        {
+            advice.Search.BudgetPause.End(nowMs, advice.Search.ProgressAt);
             advice.Search.CarePause.Begin(nowMs, advice.Search.ProgressAt);
+        }
         if (!start(watch, Phase::Acting, nullptr, paused) && paused)
         {
             state.Planning.ResumeAfterCare(nowMs);
@@ -1603,6 +1615,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         (creature.GetExactDist2d(rememberedDanger->X, rememberedDanger->Y) >= LivingRolePolicy::SafetyRadius(record.Id.Value) ||
             nowMs < state.BlockedThreatUntilMs))
     { recoverHere(true); state.MovementPurpose = "REFUGE_CARE"; return true; }
+    _planningWork.Request(record.Id, nowMs);
     if (!PlanningWorkBudget::Available())
     {
         bool care = !rememberedDanger && ((role == Role::Prey && record.Needs.Hunger >= 0.65f) ||
@@ -1631,10 +1644,11 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
 
     // Also scan the current surroundings during a bounded search/recovery;
     // prey still has to be actually visible, reachable and attackable.
-    if (hungryHunter && (homeDistance < 20.0f ||
+    if (hungryHunter && !state.Planning.HuntScanned && (homeDistance < 20.0f ||
         ((state.ForageUntilMs || state.ReturnFailures || state.ReturningHome) &&
             homeDistance <= LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds))))
     {
+        state.Planning.Stage = "HUNT";
         loadNearby();
         state.NearbyPrey = state.AttackablePrey = 0;
         state.Forage.ScannedAtMs = nowMs;
@@ -1676,8 +1690,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         for (Creature* candidate : candidates)
         {
             ActionPosition preyPoint{candidate->GetMapId(), candidate->GetPositionX(), candidate->GetPositionY(), candidate->GetPositionZ()};
+            // A moving rejected animal must not restart the same decision's
+            // first probes on every yield and starve forage/return/Advice.
+            // The next completed decision scans again; accepted hunts still
+            // build and dispatch against the target's current live position.
             if (std::any_of(state.HuntRejected.begin(), state.HuntRejected.end(), [&](LivingHuntProbe const& probe)
-                { return probe.Prey == candidate->GetGUID() && RecoveryMovement::SamePoint(probe.Position, preyPoint); }))
+                { return probe.Prey == candidate->GetGUID(); }))
                 continue;
             auto work = PlanningWorkBudget::TryAcquire();
             if (!work) return deferPlanning();
@@ -1702,14 +1720,15 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             if (rejected != state.HuntRejected.end()) rejected->Position = preyPoint;
             else
             {
-                if (state.HuntRejected.size() == 8) state.HuntRejected.erase(state.HuntRejected.begin());
                 state.HuntRejected.push_back({candidate->GetGUID(), preyPoint});
+                if (state.HuntRejected.size() == 8) break;
             }
         }
         if (!actionRejected)
             state.LastHuntStatus = candidates.empty() && preyOnCooldown ? "PREY_RETRY_DELAY" :
                 state.AttackablePrey ? "NO_REACHABLE_PREY" :
                 state.NearbyPrey ? "PREY_NOT_ATTACKABLE" : "NO_PREY";
+        state.Planning.HuntScanned = true;
     }
 
     auto rememberAdviceStart = [&](LivingAdviceCandidate const& candidate, bool returning)
@@ -1726,6 +1745,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     };
     if (extensions && hungryHunter && !anchored && !rememberedDanger && !state.ReturningHome)
     {
+        state.Planning.Stage = "ADVICE";
         if (auto candidate = TryLivingAdvice(record, creature, nowMs, false, nullptr))
         {
             approvedRecovery = candidate->Move;
@@ -1755,6 +1775,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
         if (state.ForageUntilMs)
         {
+            state.Planning.Stage = "FORAGE";
             ActionPosition origin{creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
             for (; state.Planning.ForageAttempts < 6; ++state.Planning.ForageAttempts)
             {
@@ -1831,8 +1852,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             // Alternate actual role care (including grazing) with movement.
             if (cycle % 2 == 0)
             {
-                for (unsigned i = 0; i < 8; ++i)
+                state.Planning.Stage = "RETURN";
+                for (; state.Planning.RefugeAttempts < 8; ++state.Planning.RefugeAttempts)
                 {
+                    unsigned i = state.Planning.RefugeAttempts;
+                    auto work = PlanningWorkBudget::TryAcquire();
+                    if (!work) return deferPlanning();
                     float angle = float((cycle * 137 + i * 45) % 360) * GroupMemberFormation::TwoPi / 360.0f;
                     auto target = *state.Refuge.Anchor;
                     target.X += 8.0f * std::cos(angle); target.Y += 8.0f * std::sin(angle);
@@ -1861,7 +1886,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
 
     // Local cohesion is not a persisted coalition. Only a visible, compatible
     // lower-id neighbor can lead; home bounds prevent a chain across the map.
-    if (extensions && !anchored && !rememberedDanger && !state.ReturningHome &&
+    if (extensions && !state.Planning.CohesionChecked && !anchored && !rememberedDanger && !state.ReturningHome &&
         homeDistance <= radius + 2.0f && !state.CompanionGuid.IsEmpty() && cycle % 3 == 0)
     {
         Creature* companion = ObjectAccessor::GetCreature(creature, state.CompanionGuid);
@@ -1870,6 +1895,10 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             !IsEscaping(member->LivingRole.CurrentPhase) && creature.GetExactDist2d(companion) > 6.0f &&
             home.GetExactDist2d(companion) <= 18.0f)
         {
+            state.Planning.Stage = "DECISION";
+            auto work = PlanningWorkBudget::TryAcquire();
+            if (!work) return deferPlanning();
+            state.Planning.CohesionChecked = true;
             float angle = freeSlotBearing(*companion, companion->GetAbsoluteAngle(&creature));
             ActionPosition slot{ creature.GetMapId(), companion->GetPositionX() + 4.0f * std::cos(angle),
                 companion->GetPositionY() + 4.0f * std::sin(angle), companion->GetPositionZ() };
@@ -1904,6 +1933,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.ReturnRoute.Remember(here);
                 state.ReturnRoute.NextCareAtMs = nowMs + 60000;
             }
+            state.Planning.Stage = "ADVICE";
             advised = TryLivingAdvice(record, creature, nowMs, true, rememberedDanger);
             if (advice.Status == "PLANNING_DEFERRED" && (advice.Search.Active || advice.PendingId)) return deferPlanning();
             if (advice.PendingId) { recoverHere(); return true; }
@@ -1928,6 +1958,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             }
             else
             {
+                state.Planning.Stage = "RETURN";
                 auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state, LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f);
                 if (state.ReturnDiagnostics.Deferred) return deferPlanning();
                 pathReady = step.has_value();
@@ -1936,6 +1967,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
         else
         {
+            state.Planning.Stage = "DECISION";
+            auto work = PlanningWorkBudget::TryAcquire();
+            if (!work) return deferPlanning();
             float angle = float((cycle * 137) % 360) * GroupMemberFormation::TwoPi / 360.0f;
             destination.X += radius * std::cos(angle);
             destination.Y += radius * std::sin(angle);

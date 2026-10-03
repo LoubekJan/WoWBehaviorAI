@@ -59,7 +59,8 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     auto operationsBefore = PlanningWorkBudget::StartedOperations();
     auto defer = [&]() -> std::optional<LivingAdviceCandidate>
     {
-        if (PlanningWorkBudget::StartedOperations() != operationsBefore) search.ProgressAt = nowMs;
+        if (PlanningWorkBudget::StartedOperations() != operationsBefore) search.MarkProgress(nowMs);
+        if (search.Active) search.BudgetPause.Begin(nowMs, search.ProgressAt);
         advice.Status = "PLANNING_DEFERRED";
         return std::nullopt;
     };
@@ -97,7 +98,10 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         { ++advice.Rejected; advice.Status = "STALE"; advice.ClearPending(); return std::nullopt; }
         if (!advice.Responded) return std::nullopt;
         auto candidate = advice.ChosenCandidate();
-        return advice.FinishChoice(candidate ? revalidate(*candidate) : LivingAdviceValidation::Invalid);
+        auto validation = candidate ? revalidate(*candidate) : LivingAdviceValidation::Invalid;
+        if (validation == LivingAdviceValidation::Deferred)
+            advice.ReplyBudgetPause.Begin(nowMs, advice.RequestedAt);
+        return advice.FinishChoice(validation);
     }
     bool stalled = returning ? state.ReturningHome && state.HomeProgressAtMs && nowMs >= state.HomeProgressAtMs + 30000 &&
         (state.ReturnFailures >= 3 || nowMs >= state.ReturnStartedAtMs + 60000) :
@@ -105,7 +109,11 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     if (!stalled || nowMs < advice.CooldownUntil || (!returning && advice.Active))
     { search = {}; return std::nullopt; }
     if (!search.Matches(nowMs, advice.LifetimeAt, here, home, dangerPoint, returning,
-        creature.GetPhaseMask(), capabilities, radius, arrivalRadius, clearance)) search = {};
+        creature.GetPhaseMask(), capabilities, radius, arrivalRadius, clearance))
+    {
+        if (search.Active) ++state.Planning.Resets;
+        search = {};
+    }
     if (!search.Active)
     {
         if (!_recoveryAdviceBudget.Acquire(record.Id.Value, nowMs, returning))
@@ -116,6 +124,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         search.Radius = radius; search.ArrivalRadius = arrivalRadius; search.Clearance = clearance;
         search.Current = returning ? Stage::Memory : Stage::Food;
     }
+    search.BudgetPause.End(nowMs, search.ProgressAt);
     auto observePrey = [&]()
     {
         std::list<Creature*> nearby;
@@ -170,7 +179,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
                         return candidate;
                     }
                 }
-                ++search.MemoryNext; search.ProgressAt = nowMs;
+                ++search.MemoryNext; search.MarkProgress(nowMs);
             }
             search.Advance(Stage::Routes);
         }
