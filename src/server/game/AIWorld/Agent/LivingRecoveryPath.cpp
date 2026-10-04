@@ -91,13 +91,13 @@ namespace LivingRecoveryPath
 
     std::vector<ActionPosition> HomeCorridor(Creature& creature, ActionPosition const& from,
         ActionPosition const& home, float arrivalRadius, float limit, ActionPosition const* danger, float clearance,
-        LivingReturnPolicy::Diagnostics* diagnostics, LivingReturnPolicy::HomeCorridorSearch* search)
+        LivingReturnPolicy::Diagnostics* diagnostics, LivingReturnPolicy::HomeCorridorSearch* search, bool allowDetour)
     {
         using namespace LivingReturnPolicy;
         HomeCorridorSearch localSearch;
         auto& cursor = search ? *search : localSearch;
-        if (!cursor.Matches(from, home, arrivalRadius, limit, danger, clearance))
-            cursor.Begin(from, home, arrivalRadius, limit, danger, clearance);
+        if (!cursor.Matches(from, home, arrivalRadius, limit, danger, clearance, allowDetour))
+            cursor.Begin(from, home, arrivalRadius, limit, danger, clearance, allowDetour);
         auto& report = cursor.Report;
         if (diagnostics) { diagnostics->Deferred = false; diagnostics->HomePath = report; }
         auto publish = [&] { if (diagnostics) diagnostics->HomePath = report; };
@@ -214,6 +214,42 @@ namespace LivingRecoveryPath
                 report.SurfaceFailure = "SURFACE_ENDPOINT_MISMATCH";
             cursor.Surface = {};
             ++cursor.NextSurfaceTarget;
+        }
+        // Search one complete terrain route from the real actor origin. This
+        // stage is deliberately disabled for speculative advice/rejoin seeds:
+        // repeating a graph for every nearby seed can delay the actual return
+        // for minutes. Every accepted edge uses the same support/body/tile
+        // gates as execution, and no partial route may leave this search.
+        if (allowDetour && creature.CanWalk() &&
+            std::any_of(cursor.SurfaceEligible.begin(), cursor.SurfaceEligible.end(), [](bool eligible) { return eligible; }))
+        {
+            while (cursor.Detour.State == LivingSurfaceCorridor::Status::Pending)
+            {
+                std::optional<PlanningWorkBudget::Permit> permit;
+                if (search) permit.emplace(PlanningWorkBudget::TryAcquire());
+                if (permit && !*permit)
+                { if (diagnostics) diagnostics->Deferred = true; publish(); return {}; }
+                LivingSurfaceDetour::Advance(cursor.Detour, from, home, arrivalRadius, limit,
+                    [&](ActionPosition const& p)
+                    { return TerrainHeight(creature, p, SamePosition(p, from) ? 0.3f : 0.8f); },
+                    [&](ActionPosition const& a, ActionPosition const& b)
+                    { return (!danger || LivingRolePolicy::AvoidsDanger(a.X, a.Y, b.X, b.Y,
+                        danger->X, danger->Y, clearance)) && ClearSurfaceBody(creature, a, b); },
+                    [&](ActionPosition const& p)
+                    { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
+                        std::hypot(p.X-home.X, p.Y-home.Y) <= limit; },
+                    [&](ActionPosition const& p)
+                    { return HomeEndpointMatches(home, arrivalRadius, p, GroundHomeTarget(creature, home, p)); },
+                    8, 1, [&](ActionPosition const& p) { return surfaceTiles.RecoveryTile({p.X, p.Y, p.Z}); });
+                report.DetourFailure = cursor.Detour.Failure;
+                report.DetourNodes = uint32(cursor.Detour.Nodes.size());
+                report.DetourEdges = cursor.Detour.EdgeAttempts;
+            }
+            if (cursor.Detour.State == LivingSurfaceCorridor::Status::Complete && !cursor.Detour.Route.empty())
+            {
+                report.SurfaceCorridor = true; report.Failure = "NONE";
+                cursor.Done = true; publish(); return cursor.Detour.Route;
+            }
         }
         cursor.Done = true;
         publish();

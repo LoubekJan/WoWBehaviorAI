@@ -109,9 +109,11 @@ class WorldViewerApiTests(unittest.TestCase):
                          {**recovery, 'navigation': None, 'backtracks': 0, 'rejoins': 0, 'corridor_points': 0,
                           'home_path_type': 0, 'home_path_failure': 'NOT_CHECKED',
                           'home_surface_failure': 'NOT_CHECKED', 'home_path_surface': False,
+                          'home_detour_failure': 'NOT_CHECKED', 'home_detour_nodes': 0, 'home_detour_edges': 0,
                           'home_path_rejected': dict.fromkeys(('ground', 'path', 'endpoint', 'bounds', 'danger', 'corridor'), 0),
                           'continuation_path_type': 0, 'continuation_path_failure': 'NOT_CHECKED',
                           'continuation_surface_failure': 'NOT_CHECKED', 'continuation_path_surface': False,
+                          'continuation_detour_failure': 'NOT_CHECKED', 'continuation_detour_nodes': 0, 'continuation_detour_edges': 0,
                           'planning_deferred': False, 'surface_corridor': False,
                           'continuation_path_rejected': dict.fromkeys(('ground', 'path', 'endpoint', 'bounds', 'danger', 'corridor'), 0),
                           'refuge_active': False, 'refuge_episodes': 0, 'refuge_moves': 0,
@@ -132,9 +134,11 @@ class WorldViewerApiTests(unittest.TestCase):
         recovery = {**return_recovery(), 'navigation': nav, 'backtracks': 2, 'rejoins': 1, 'corridor_points': 3,
                     'home_path_type': 4, 'home_path_failure': 'NO_COMPLETE_PATH',
                     'home_surface_failure': 'NOT_CHECKED', 'home_path_surface': False,
+                    'home_detour_failure': 'NOT_CHECKED', 'home_detour_nodes': 0, 'home_detour_edges': 0,
                     'home_path_rejected': dict(ground=7, path=2, endpoint=0, bounds=0, danger=0, corridor=0),
                     'continuation_path_type': 1, 'continuation_path_failure': 'ENDPOINT_MISMATCH',
                     'continuation_surface_failure': 'NOT_CHECKED', 'continuation_path_surface': False,
+                    'continuation_detour_failure': 'NOT_CHECKED', 'continuation_detour_nodes': 0, 'continuation_detour_edges': 0,
                     'planning_deferred': False, 'surface_corridor': False,
                     'continuation_path_rejected': dict(ground=0, path=8, endpoint=1, bounds=0, danger=0, corridor=0),
                     'refuge_active': True, 'refuge_episodes': 2, 'refuge_moves': 3,
@@ -219,6 +223,31 @@ class WorldViewerApiTests(unittest.TestCase):
         bad = copy.deepcopy(payload)
         bad['agents'][0]['living_role']['return_recovery']['unknown_planning_flag'] = True
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], actual)
+
+    def test_detour_diagnostics_roundtrip_and_invalid_batch_keeps_previous_state(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        recovery = {**return_recovery(), 'home_detour_failure': 'DETOUR_PENDING',
+                    'home_detour_nodes': 24, 'home_detour_edges': 37,
+                    'continuation_detour_failure': 'NONE', 'continuation_detour_nodes': 8,
+                    'continuation_detour_edges': 12}
+        payload['agents'][0]['living_role']['return_recovery'] = recovery
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        actual = self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery']
+        for field, value in recovery.items():
+            self.assertEqual(actual[field], value)
+        self.assertEqual(actual['home_path_failure'], 'NOT_CHECKED')
+        self.assertFalse(actual['surface_corridor'])
+        for prefix in ('home', 'continuation'):
+            invalid = [(f'{prefix}_detour_failure', value) for value in (1, True, None, 'x' * 101)]
+            for suffix in ('nodes', 'edges'):
+                invalid += [(f'{prefix}_detour_{suffix}', value) for value in (-1, True, '1', 1.5, None, 4294967296)]
+            for field, value in invalid:
+                with self.subTest(field=field, value=value):
+                    bad = copy.deepcopy(payload)
+                    bad['agents'][0]['living_role']['return_recovery'][field] = value
+                    self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['return_recovery'], actual)
 
     def test_forage_diagnostics_roundtrip_and_validation(self):

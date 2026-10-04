@@ -1,5 +1,47 @@
 # Ověření návratů a rozpočtu plánování
 
+## Obejití překážky při návratu (3. října)
+
+Běh `20261003T141818Z-9acccf90`, build `2f8ace9ef4d6`, obsahuje čtyři
+hodiny a 2880 čerstvých vzorků. Medvěd 146193 na konci neměnil XYZ 3460
+sekund a 146194 po dobu 8940 sekund, ve stejné životní instanci a bez boje.
+Hledání pokračovalo; domácí navmesh cesta končila `NO_COMPLETE_PATH` a
+přímá terénní alternativa `SURFACE_OBSTACLE`. Místní bezpečná spojka
+neprokazovala úplnou cestu domů. Konkrétní překážku musí ještě potvrdit
+test skutečného terénu; tento záznam nepotvrzuje její geometrii.
+
+- Po selhání úplné navmesh a přímé terénní cesty se zkouší omezené hledání
+  terénních mezibodů kolem překážky. Může nejprve vést od domova. Obsahuje
+  nejvýše 512 uzlů, 2048 pokusů o hranu a 480 yardů celkové trasy.
+- Každá hrana se ověřuje po nejvýše půl yardu proti skutečné podlaze,
+  kolizím těla, tiles, Elwynnu, domácí hranici a nebezpečí. Celá cesta musí
+  skončit na fyzicky podporovaném bodě původního domácího pásma. Samotný
+  dostupný místní krok se nepovažuje za hotový návrat.
+- Každý plánovací díl zpracuje nejvýše jednu hranu či její část, s nejvýše
+  osmi vnitřními výškovými vzorky. Ověření cíle v domácím pásmu je samostatný
+  omezený dotaz. Rozpočet účtuje skutečnou práci; rozpracovaný graf zůstává
+  zachovaný přes čekání i péči a při změně kontextu se zahodí.
+- Původní návratové hledání dostává přednost před tvorbou nových možností
+  pro lokální AI. Již běžící poradní hledání nebo odpověď se zachová.
+  Celý graf se neopakuje pro každý spekulativní poradní či rejoin bod.
+- Provedení zachová každý roh. Terénní waypoint se odebere až při skutečné
+  vzdálenosti nejvýše 0,5 yardu; spojka zůstane před svou navazující cestou
+  do fyzického dosažení. Každý spuštěný úsek se znovu ověří ze živé polohy.
+- Diagnostika `return_recovery.home_detour_failure`, `home_detour_nodes`
+  a `home_detour_edges` rozlišuje úspěch, vyčerpání hledání a dosažení
+  limitu. `NOT_CHECKED` znamená, že graf nebyl potřeba nebo povolen.
+  Stejné položky `continuation_detour_*` zachovávají oddělený důkaz
+  navazující cesty. Starší záznamy jsou nadále čitelné.
+
+Po nasazení ověř verzi binárky a nech nový čtyřhodinový běh bez ručních
+zásahů. U 146193 a 146194 kontroluj změny skutečných XYZ, návrat do
+původního domácího pásma ve stejné životní instanci a další krmení.
+Porovnej i celou populaci: `physical_stall`, `return_duration`, krmení,
+`planning_deferred` a výkonová maxima `AIWORLD_UPDATE`. Úspěšné syntetické
+obejití stěny ani `home_detour_failure=NONE` samy nepotvrzují pohyb ve hře.
+
+## Předchozí oprava rozpočtu plánování
+
 Podklad poslední opravy: čtyřhodinový běh `20261002T222533Z-7c41f470`,
 build `0b7b9118ff7c`, bez zásahů hráče. Má 2880 čerstvých vzorků. Oproti
 předchozímu běhu stoupl počet fyzických blokací z 35 na 98 a klesl počet

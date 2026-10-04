@@ -266,7 +266,7 @@ namespace
             else if (search.Current == Stage::Home)
             {
                 auto corridor = LivingRecoveryPath::HomeCorridor(creature, current, homePoint,
-                    arrivalRadius, state.ReturnHomeLimit, danger, clearance, &state.ReturnDiagnostics, &search.Home);
+                    arrivalRadius, state.ReturnHomeLimit, danger, clearance, &state.ReturnDiagnostics, &search.Home, true);
                 if (state.ReturnDiagnostics.Deferred) { yield(); return std::nullopt; }
                 if (!corridor.empty())
                 {
@@ -354,9 +354,9 @@ namespace
                         arrivalRadius, state.ReturnHomeLimit, danger, clearance, &continuationDiagnostics, &search.Continuation);
                     state.ReturnDiagnostics.ContinuationPath = continuationDiagnostics.HomePath;
                     if (continuationDiagnostics.Deferred) { yield(); return std::nullopt; }
-                    if (state.ReturnRoute.PlanRejoin(current, step, std::move(continuation)))
+                    if (state.ReturnRoute.PlanRejoin(current, step, std::move(continuation),
+                        continuationDiagnostics.HomePath.SurfaceCorridor))
                     {
-                        state.ReturnRoute.SurfaceCorridor = continuationDiagnostics.HomePath.SurfaceCorridor;
                         return step;
                     }
                     failure = "RETURN_REJOIN_NO_CONTINUATION";
@@ -664,7 +664,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     if (advice.Active)
     {
-        if (!advice.StepArrived && LivingReturnPolicy::Distance(here, advice.Active->Move.Destination) <= 2.0f)
+        if (!advice.StepArrived && LivingReturnPolicy::Distance(here, advice.Active->Move.Destination) <=
+            (advice.Active->Move.SurfaceCorridor ? 0.5f : 2.0f))
         { advice.StepArrived = true; ++advice.Arrived; advice.Status = "STEP_REACHED"; }
         bool homeReached = advice.ActiveReturning && advice.StepArrived && homeDistance <= radius+2;
         bool foodFound = !advice.ActiveReturning && advice.StepArrived && state.CurrentPhase == Phase::Feeding &&
@@ -1439,7 +1440,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             advice.Food.Searched(here, nowMs);
         }
-        state.NextDecisionAtMs = nowMs + (returningHome || foraging ? 1000 :
+        // Short, fully proved terrain legs keep their corners. Do not add an
+        // extra second of idle time at every corner; the next leg still waits
+        // for this actor's scheduled update and its planning permit.
+        bool continueSurface = returningHome && progressed && state.ReturnRoute.SurfaceCorridor &&
+            !state.ReturnRoute.Planned.empty();
+        state.NextDecisionAtMs = continueSurface ? nowMs : nowMs + (returningHome || foraging ? 1000 :
             LivingRolePolicy::PauseMs(record.Id.Value, state.Cycle, 4000, 8000));
         return true;
     }
@@ -1919,7 +1925,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         bool returningHome = homeDistance > radius + 2.0f;
         ActionPosition destination{ creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ() };
         char const* failure = "LOCAL_PATH_BLOCKED";
-        bool pathReady;
+        bool pathReady = false;
         std::optional<LivingAdviceCandidate> advised;
         if (returningHome)
         {
@@ -1933,8 +1939,25 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.ReturnRoute.Remember(here);
                 state.ReturnRoute.NextCareAtMs = nowMs + 60000;
             }
-            state.Planning.Stage = "ADVICE";
-            advised = TryLivingAdvice(record, creature, nowMs, true, rememberedDanger);
+            // Finish the original-origin search before generating expensive
+            // continuations for speculative model options. A complete terrain
+            // detour can be executed immediately; an existing model request or
+            // suspended advice search still keeps its already-tested context.
+            bool searchedReturn = false;
+            if (!advice.PendingId && !advice.Search.Active && nowMs >= state.ReturnRetryAtMs)
+            {
+                state.Planning.Stage = "RETURN";
+                auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state,
+                    LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f);
+                if (state.ReturnDiagnostics.Deferred) return deferPlanning();
+                searchedReturn = true;
+                if (step) { destination = *step; pathReady = true; }
+            }
+            if (!pathReady)
+            {
+                state.Planning.Stage = "ADVICE";
+                advised = TryLivingAdvice(record, creature, nowMs, true, rememberedDanger);
+            }
             if (advice.Status == "PLANNING_DEFERRED" && (advice.Search.Active || advice.PendingId)) return deferPlanning();
             if (advice.PendingId) { recoverHere(); return true; }
             if (!advised && nowMs < state.ReturnRetryAtMs)
@@ -1949,14 +1972,14 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.ReturnStrategy = "AI_ADVICE";
                 if (!advised->FollowsCorridor)
                 {
-                    state.ReturnRoute.Planned = advised->Continuation;
-                    state.ReturnRoute.SurfaceCorridor = advised->Diagnostics.ContinuationPath.SurfaceCorridor;
+                    state.ReturnRoute.PlanContinuation(destination, advised->Continuation,
+                        advised->Diagnostics.ContinuationPath.SurfaceCorridor);
                 }
                 state.ReturnRoute.TrailTarget.reset();
                 state.ReturnRoute.PendingBacktrack.reset();
                 pathReady = true;
             }
-            else
+            else if (!pathReady && !searchedReturn)
             {
                 state.Planning.Stage = "RETURN";
                 auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state, LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f);

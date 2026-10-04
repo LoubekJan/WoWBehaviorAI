@@ -16,7 +16,7 @@ namespace LivingRecoveryPath
         ActionPosition const& home, float arrivalRadius, float limit,
         ActionPosition const* danger = nullptr, float clearance = 0,
         LivingReturnPolicy::Diagnostics* diagnostics = nullptr,
-        LivingReturnPolicy::HomeCorridorSearch* search = nullptr);
+        LivingReturnPolicy::HomeCorridorSearch* search = nullptr, bool allowDetour = false);
     bool InSwimmableWater(Creature const& creature, ActionPosition const& point);
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
         ActionPosition const& home, float radius, NavigationDiagnostics* diagnostics = nullptr);

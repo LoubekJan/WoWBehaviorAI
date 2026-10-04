@@ -42,10 +42,14 @@ struct ReturnRecoveryTelemetry
     uint32 HomePathType = 0;
     std::string HomePathFailure = "NOT_CHECKED";
     std::string HomeSurfaceFailure = "NOT_CHECKED";
+    std::string HomeDetourFailure = "NOT_CHECKED";
+    uint32 HomeDetourNodes = 0, HomeDetourEdges = 0;
     std::array<uint32, 6> HomePathRejected{}, ContinuationPathRejected{};
     uint32 ContinuationPathType = 0;
     std::string ContinuationPathFailure = "NOT_CHECKED";
     std::string ContinuationSurfaceFailure = "NOT_CHECKED";
+    std::string ContinuationDetourFailure = "NOT_CHECKED";
+    uint32 ContinuationDetourNodes = 0, ContinuationDetourEdges = 0;
     bool PlanningDeferred = false, SurfaceCorridor = false;
     bool HomePathSurface = false, ContinuationPathSurface = false;
     uint32 Rejoins = 0, CorridorPoints = 0;

@@ -105,10 +105,16 @@ namespace
         WriteJsonField(out, "home_path_type", recovery.HomePathType);
         WriteJsonField(out, "home_path_failure", recovery.HomePathFailure);
         WriteJsonField(out, "home_surface_failure", recovery.HomeSurfaceFailure);
+        WriteJsonField(out, "home_detour_failure", recovery.HomeDetourFailure);
+        WriteJsonField(out, "home_detour_nodes", recovery.HomeDetourNodes);
+        WriteJsonField(out, "home_detour_edges", recovery.HomeDetourEdges);
         WriteJsonField(out, "home_path_surface", recovery.HomePathSurface);
         WriteJsonField(out, "continuation_path_type", recovery.ContinuationPathType);
         WriteJsonField(out, "continuation_path_failure", recovery.ContinuationPathFailure);
         WriteJsonField(out, "continuation_surface_failure", recovery.ContinuationSurfaceFailure);
+        WriteJsonField(out, "continuation_detour_failure", recovery.ContinuationDetourFailure);
+        WriteJsonField(out, "continuation_detour_nodes", recovery.ContinuationDetourNodes);
+        WriteJsonField(out, "continuation_detour_edges", recovery.ContinuationDetourEdges);
         WriteJsonField(out, "continuation_path_surface", recovery.ContinuationPathSurface);
         WriteJsonField(out, "planning_deferred", recovery.PlanningDeferred);
         WriteJsonField(out, "surface_corridor", recovery.SurfaceCorridor);

@@ -22,6 +22,7 @@
 #include "Action/ArrivalTolerance.h"
 #include "NavigationDiagnostics.h"
 #include "Agent/LivingSurfaceCorridor.h"
+#include "Agent/LivingSurfaceDetour.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,6 +59,8 @@ namespace LivingReturnPolicy
     {
         bool SurfaceCorridor = false;
         std::string SurfaceFailure = "NOT_CHECKED";
+        std::string DetourFailure = "NOT_CHECKED";
+        uint32 DetourNodes = 0, DetourEdges = 0;
         std::array<uint32, std::size_t(HomePathFailure::Count)> Rejected{};
         uint32 PathType = 0;
         std::string Failure = "NOT_CHECKED";
@@ -115,23 +118,26 @@ namespace LivingReturnPolicy
         std::array<bool, 9> SurfaceEligible{};
         std::array<std::optional<ActionPosition>, 9> GroundTargets{};
         LivingSurfaceCorridor::Search Surface;
+        LivingSurfaceDetour::Search Detour;
+        bool AllowDetour = false;
         ActionPosition From, Home;
         std::optional<ActionPosition> Danger;
         float ArrivalRadius = 0, Limit = 0, Clearance = 0;
 
         bool Matches(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
-            ActionPosition const* danger, float clearance) const
+            ActionPosition const* danger, float clearance, bool allowDetour = false) const
         {
             return HasContext && SamePosition(From, from) && SamePosition(Home, home) &&
-                ArrivalRadius == radius && Limit == limit && Clearance == clearance &&
+                ArrivalRadius == radius && Limit == limit && Clearance == clearance && AllowDetour == allowDetour &&
                 Danger.has_value() == bool(danger) && (!danger || SamePosition(*Danger, *danger));
         }
         void Begin(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
-            ActionPosition const* danger, float clearance)
+            ActionPosition const* danger, float clearance, bool allowDetour = false)
         {
             *this = {};
             HasContext = true; From = from; Home = home;
             ArrivalRadius = radius; Limit = limit; Clearance = clearance;
+            AllowDetour = allowDetour;
             if (danger) Danger = *danger;
             Report.Failure = "INVALID_REQUEST";
         }
@@ -350,10 +356,21 @@ namespace LivingReturnPolicy
         {
             if (Allows(from, to, false, true)) Rejoins.push_back({from, to});
         }
-        bool PlanRejoin(ActionPosition const& from, ActionPosition const& to, std::vector<ActionPosition> continuation)
+        void PlanContinuation(ActionPosition const& connector, std::vector<ActionPosition> continuation, bool surface)
+        {
+            Planned = std::move(continuation);
+            SurfaceCorridor = surface;
+            // The connector is not reached when its continuation is installed.
+            // Keep it as a guard so a nearby later corner cannot be consumed
+            // while the actor is still approaching this route's real start.
+            if (surface && !Planned.empty() && Distance(Planned.front(), connector) > 0.01f)
+                Planned.insert(Planned.begin(), connector);
+        }
+        bool PlanRejoin(ActionPosition const& from, ActionPosition const& to, std::vector<ActionPosition> continuation,
+            bool surface = false)
         {
             if (continuation.empty() || !Allows(from, to, false, true)) return false;
-            Planned = std::move(continuation);
+            PlanContinuation(to, std::move(continuation), surface);
             return true;
         }
 
@@ -378,7 +395,7 @@ namespace LivingReturnPolicy
         {
             bool advanced = false;
             while (!Planned.empty() && Planned.front().MapId == here.MapId &&
-                Distance(Planned.front(), here) <= ArrivalToleranceYards)
+                Distance(Planned.front(), here) <= (SurfaceCorridor ? 0.5f : ArrivalToleranceYards))
             { Planned.erase(Planned.begin()); advanced = true; }
             if (Planned.empty()) SurfaceCorridor = false;
             return advanced;

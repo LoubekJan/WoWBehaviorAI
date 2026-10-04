@@ -21,7 +21,7 @@ namespace LivingSurfaceCorridor
         std::vector<ActionPosition> Route;
         unsigned NextSample = 1, Samples = 0;
         float PreviousHeight = 0, Length = 0;
-        bool Started = false;
+        bool Started = false, ResolveEndpointHeight = false;
     };
     inline bool Finite(ActionPosition const& p)
     { return std::isfinite(p.X) && std::isfinite(p.Y) && std::isfinite(p.Z); }
@@ -65,19 +65,21 @@ namespace LivingSurfaceCorridor
     template<class HeightAt, class ClearSegment, class Contains, class HasTile = InstalledTiles>
     Status Advance(Search& search, ActionPosition const& from, ActionPosition const& target,
         HeightAt&& heightAt, ClearSegment&& clearSegment, Contains&& contains, unsigned sampleBudget = 8,
-        HasTile&& hasTile = {})
+        HasTile&& hasTile = {}, bool resolveEndpointHeight = false)
     {
         auto reject = [&](char const* reason)
         { search.Failure = reason; search.State = Status::Rejected; search.Route.clear(); return search.State; };
         auto same = [](ActionPosition const& a, ActionPosition const& b)
         { return a.MapId == b.MapId && a.X == b.X && a.Y == b.Y && a.Z == b.Z; };
-        if (search.Started && (!same(search.From, from) || !same(search.Target, target))) return reject("SURFACE_CONTEXT");
+        if (search.Started && (!same(search.From, from) || !same(search.Target, target) ||
+            search.ResolveEndpointHeight != resolveEndpointHeight)) return reject("SURFACE_CONTEXT");
         if (search.State != Status::Pending) return search.State;
         if (!search.Started)
         {
             search.Started = true; search.From = from; search.Target = target;
+            search.ResolveEndpointHeight = resolveEndpointHeight;
             if (!Finite(from) || !Finite(target) || from.MapId != target.MapId ||
-                !contains(from) || !contains(target)) return reject("SURFACE_BOUNDS");
+                !contains(from) || (!resolveEndpointHeight && !contains(target))) return reject("SURFACE_BOUNDS");
             if (!hasTile(from) || !hasTile(target)) return reject("SURFACE_MISSING_TILE");
             float distance = std::hypot(target.X-from.X, target.Y-from.Y);
             if (distance < 0.01f || distance > 480.0f) return reject("SURFACE_RANGE");
@@ -109,7 +111,11 @@ namespace LivingSurfaceCorridor
             search.PreviousHeight = *height;
         }
         if (search.NextSample <= search.Samples) return search.State;
-        if (std::abs(search.Route.back().Z-target.Z) > 1.0f) return reject("SURFACE_END_HEIGHT");
+        // A detour graph edge has no independently resolved endpoint yet.
+        // Its floor comes only from this continuously supported walk; the
+        // default execution/home-target path still requires its requested Z.
+        if (!resolveEndpointHeight && std::abs(search.Route.back().Z-target.Z) > 1.0f)
+            return reject("SURFACE_END_HEIGHT");
         search.State = Status::Complete;
         return search.State;
     }

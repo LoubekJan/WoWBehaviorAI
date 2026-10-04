@@ -293,3 +293,50 @@ TEST_CASE("Recovery navigation refuses a missing intermediate tile despite insta
     REQUIRE(Advance(execution, {0,4,0,0}, {0,7,0,0}, flat, clear, contains, 12, hasTile) == Status::Rejected);
     CHECK(std::string(execution.Failure) == "SURFACE_MISSING_TILE");
 }
+
+TEST_CASE("Recovery navigation preserves short terrain corners until physically reached", "[AIWorld][RecoveryNavigation][SurfaceCorridor]")
+{
+    LivingReturnPolicy::RouteMemory route;
+    route.Planned = {{0,2.5f,0,0}, {0,2.5f,2.5f,0}, {0,5,2.5f,0}};
+    route.SurfaceCorridor = true;
+    CHECK_FALSE(route.Advance({0,0,0,0})); // inside generic three-yard arrival tolerance
+    CHECK_FALSE(route.Advance({0,1.9f,0,0}));
+    REQUIRE(route.Advance({0,2.1f,0,0}));
+    REQUIRE(route.Planned.size() == 2);
+    CHECK(route.Planned.front().Y == 2.5f); // a right-angle turn is never skipped
+    CHECK_FALSE(route.Advance({0,2.5f,0,0}));
+    REQUIRE(route.Advance({0,2.5f,2.5f,0}));
+    CHECK(route.SurfaceCorridor);
+    REQUIRE(route.Advance({0,5,2.5f,0}));
+    CHECK_FALSE(route.SurfaceCorridor);
+
+    // Preserve existing navmesh arrival semantics independently.
+    route.Planned = {{0,2.5f,0,0}};
+    CHECK(route.Advance({0,0,0,0}));
+}
+
+TEST_CASE("Recovery navigation guards a surface continuation behind its unreached connector", "[AIWorld][RecoveryNavigation][SurfaceCorridor]")
+{
+    LivingReturnPolicy::RouteMemory route;
+    ActionPosition origin{0,0,0,0}, connector{0,2.5f,0,0};
+    // The continuation loops near the old origin while going around a wall.
+    REQUIRE(route.PlanRejoin(origin, connector, {{0,0,0.4f,0}, {0,0,3,0}}, true));
+    REQUIRE(route.Planned.size() == 3);
+    CHECK_FALSE(route.Advance(origin));
+    CHECK(route.Planned.front().X == connector.X);
+    REQUIRE(route.Advance(connector));
+    REQUIRE(route.Planned.size() == 2);
+    CHECK(route.Planned.front().Y == 0.4f);
+    CHECK_FALSE(route.Advance(connector));
+}
+
+TEST_CASE("Recovery navigation invalidates a changed detour search mode", "[AIWorld][RecoveryNavigation][SurfaceCorridor]")
+{
+    LivingReturnPolicy::HomeCorridorSearch search;
+    ActionPosition from{0,40,0,0}, home{0,0,0,0};
+    search.Begin(from, home, 14, 96, nullptr, 8, true);
+    CHECK(search.Matches(from, home, 14, 96, nullptr, 8, true));
+    CHECK_FALSE(search.Matches(from, home, 14, 96, nullptr, 8));
+    search.Begin(from, home, 14, 96, nullptr, 8);
+    CHECK_FALSE(search.AllowDetour);
+}

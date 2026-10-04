@@ -21,6 +21,10 @@ class RecoveryPlanningProtocolTests(unittest.TestCase):
             self.assertIs(getattr(parsed, field), False)
         for field in ("home_surface_failure", "continuation_surface_failure"):
             self.assertEqual(getattr(parsed, field), "NOT_CHECKED")
+        for prefix in ("home", "continuation"):
+            self.assertEqual(getattr(parsed, f"{prefix}_detour_failure"), "NOT_CHECKED")
+            self.assertEqual(getattr(parsed, f"{prefix}_detour_nodes"), 0)
+            self.assertEqual(getattr(parsed, f"{prefix}_detour_edges"), 0)
 
     def test_yield_and_each_route_source_survive_json_independently(self):
         payload = {**legacy_recovery(), "planning_deferred": True, "surface_corridor": True,
@@ -51,6 +55,33 @@ class RecoveryPlanningProtocolTests(unittest.TestCase):
     def test_new_fields_do_not_relax_unknown_key_rejection(self):
         with self.assertRaises(ValidationError):
             ReturnRecovery.model_validate({**legacy_recovery(), "planning_deferred": True, "unknown_planning": True})
+
+    def test_home_and_continuation_detour_work_roundtrips_independently(self):
+        payload = {**legacy_recovery(), "home_detour_failure": "DETOUR_PENDING",
+                   "home_detour_nodes": 24, "home_detour_edges": 37,
+                   "continuation_detour_failure": "NONE", "continuation_detour_nodes": 8,
+                   "continuation_detour_edges": 12}
+        parsed = ReturnRecovery.model_validate_json(json.dumps(payload))
+        self.assertEqual(ReturnRecovery.model_validate_json(parsed.model_dump_json()), parsed)
+        for key, value in payload.items():
+            self.assertEqual(parsed.model_dump()[key], value)
+        self.assertFalse(parsed.surface_corridor)
+        self.assertEqual(parsed.home_path_failure, "NOT_CHECKED")
+
+    def test_detour_counts_and_failure_strings_are_strict_and_bounded(self):
+        for prefix in ("home", "continuation"):
+            field = f"{prefix}_detour_failure"
+            self.assertEqual(getattr(ReturnRecovery.model_validate({**legacy_recovery(), field: "x" * 100}), field), "x" * 100)
+            for value in (1, True, None, "x" * 101, [], {}):
+                with self.subTest(field=field, value=value), self.assertRaises(ValidationError):
+                    ReturnRecovery.model_validate({**legacy_recovery(), field: value})
+            for suffix in ("nodes", "edges"):
+                field = f"{prefix}_detour_{suffix}"
+                parsed = ReturnRecovery.model_validate({**legacy_recovery(), field: 4294967295})
+                self.assertEqual(getattr(parsed, field), 4294967295)
+                for value in (-1, True, "1", 1.5, None, 4294967296, [], {}):
+                    with self.subTest(field=field, value=value), self.assertRaises(ValidationError):
+                        ReturnRecovery.model_validate({**legacy_recovery(), field: value})
 
 
 class LivingPlanningProtocolTests(unittest.TestCase):

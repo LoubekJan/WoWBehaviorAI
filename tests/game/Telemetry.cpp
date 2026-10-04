@@ -133,6 +133,37 @@ TEST_CASE("Observer distinguishes deferred planning and complete terrain corrido
         REQUIRE(json.find(std::string("\"") + field + "\":\"NOT_CHECKED\"") != std::string::npos);
 }
 
+TEST_CASE("Observer exports bounded detour search separately for home and continuation", "[AIWorld][Telemetry]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Live.emplace(); agent.Live->Alive = true;
+    agent.LivingRole.emplace();
+    auto& recovery = agent.LivingRole->ReturnRecovery.emplace();
+    std::string homeFailure = "DETOUR_PENDING", continuationFailure = "NONE";
+    recovery.HomeDetourFailure = homeFailure;
+    recovery.HomeDetourNodes = 24; recovery.HomeDetourEdges = 37;
+    recovery.ContinuationDetourFailure = continuationFailure;
+    recovery.ContinuationDetourNodes = 8; recovery.ContinuationDetourEdges = 12;
+    homeFailure = continuationFailure = "CHANGED_AFTER_CAPTURE";
+    auto json = SerializeAgentTelemetry({agent}, 1234);
+    REQUIRE(json.find("\"home_detour_failure\":\"DETOUR_PENDING\"") != std::string::npos);
+    REQUIRE(json.find("\"home_detour_nodes\":24") != std::string::npos);
+    REQUIRE(json.find("\"home_detour_edges\":37") != std::string::npos);
+    REQUIRE(json.find("\"continuation_detour_failure\":\"NONE\"") != std::string::npos);
+    REQUIRE(json.find("\"continuation_detour_nodes\":8") != std::string::npos);
+    REQUIRE(json.find("\"continuation_detour_edges\":12") != std::string::npos);
+    REQUIRE(json.find("CHANGED_AFTER_CAPTURE") == std::string::npos);
+    // Finishing one detour does not rewrite the other route or claim that the NPC moved.
+    REQUIRE(json.find("\"home_path_failure\":\"NOT_CHECKED\"") != std::string::npos);
+    REQUIRE(json.find("\"surface_corridor\":false") != std::string::npos);
+    recovery = {};
+    json = SerializeAgentTelemetry({agent}, 1234);
+    for (char const* field : {"home_detour_failure", "continuation_detour_failure"})
+        REQUIRE(json.find(std::string("\"") + field + "\":\"NOT_CHECKED\"") != std::string::npos);
+    for (char const* field : {"home_detour_nodes", "home_detour_edges", "continuation_detour_nodes", "continuation_detour_edges"})
+        REQUIRE(json.find(std::string("\"") + field + "\":0") != std::string::npos);
+}
+
 TEST_CASE("Observer captures admission starvation without return recovery", "[AIWorld][Telemetry]")
 {
     LivingPlanningContext context;
