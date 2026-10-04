@@ -9,8 +9,14 @@ class Unit;
 class PathGenerator;
 namespace Movement
 {
+    // The world-space origin Launch will actually use. Refuses active
+    // transports and does not change the actor, map or running spline.
+    bool PhysicalSplineSource(Unit const& owner, G3D::Vector3& source);
+
     // Default melee chase, without a formation angle or custom chase range.
-    // Planning has no combat/movement side effects; chase execution uses this too.
+    // Planning has no combat/movement side effects; chase execution uses this
+    // too. Dry walking routes are grounded after shortening, including every
+    // executed half-yard control, so an interrupted hunt retains support.
     bool BuildElwynnHuntPath(Unit& owner, Unit& target, PathGenerator& path, PointsArray& points);
 }
 #endif

@@ -105,6 +105,11 @@ namespace Movement
          */
         void SetSmooth();
 
+        /* Uses the checked straight segments without CatmullRom overshoot.
+         * This only changes this spline, including inherited flying animation.
+         */
+        void SetLinear();
+
         /* Enables CatmullRom spline interpolation mode, enables flying animation. Disabled by default
          */
         void SetFly();
@@ -160,6 +165,7 @@ namespace Movement
     inline void MoveSplineInit::SetFly() { args.flags.EnableFlying(); }
     inline void MoveSplineInit::SetWalk(bool enable) { args.walk = enable; }
     inline void MoveSplineInit::SetSmooth() { args.flags.EnableCatmullRom(); }
+    inline void MoveSplineInit::SetLinear() { args.flags.EnableLinear(); }
     inline void MoveSplineInit::SetCyclic() { args.flags.cyclic = true; }
     inline void MoveSplineInit::SetVelocity(float vel) { args.velocity = vel; args.HasVelocity = true; }
     inline void MoveSplineInit::SetBackward() { args.flags.backward = true; }

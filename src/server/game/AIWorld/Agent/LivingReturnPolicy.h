@@ -28,6 +28,7 @@
 #include <cmath>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace LivingReturnPolicy
@@ -130,6 +131,11 @@ namespace LivingReturnPolicy
             return HasContext && SamePosition(From, from) && SamePosition(Home, home) &&
                 ArrivalRadius == radius && Limit == limit && Clearance == clearance && AllowDetour == allowDetour &&
                 Danger.has_value() == bool(danger) && (!danger || SamePosition(*Danger, *danger));
+        }
+        std::vector<ActionPosition> TakeDetourRoute()
+        {
+            if (Detour.State != LivingSurfaceDetour::Status::Complete) return {};
+            return std::exchange(Detour.Route, std::vector<ActionPosition>{});
         }
         void Begin(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
             ActionPosition const* danger, float clearance, bool allowDetour = false)

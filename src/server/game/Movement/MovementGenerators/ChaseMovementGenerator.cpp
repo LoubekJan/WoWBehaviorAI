@@ -257,6 +257,7 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
 
             Movement::MoveSplineInit init(owner);
             init.MovebyPath(_elwynnCompletePath ? huntPoints : _path->GetPath());
+            if (_elwynnCompletePath && !owner->IsFlying()) init.SetLinear();
             init.SetWalk(walk);
             if (!walk && !owner->HasUnitMovementFlag(MOVEMENTFLAG_FLYING | MOVEMENTFLAG_SWIMMING) &&
                 _speedBoost.GetMultiplier() > 1.0f)

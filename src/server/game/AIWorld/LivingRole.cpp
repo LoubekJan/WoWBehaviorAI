@@ -194,7 +194,7 @@ namespace
     }
 
     std::optional<ActionPosition> FindRoleReturnStep(Creature& creature, Position const& home,
-        ActionPosition const* danger, char const*& failure, LivingRoleState& state, float clearance, float arrivalRadius)
+        ActionPosition const* danger, char const*& failure, LivingRoleState& state, float clearance, float arrivalRadius, uint64 nowMs)
     {
         using Stage = LivingReturnSearch::Stage;
         auto& search = state.ReturnSearch;
@@ -245,11 +245,19 @@ namespace
             }
             return true;
         };
-        // Each stage advances only after a real query. Budget exhaustion keeps
-        // its cursor and never counts as a bad route or a failed return.
-        while (search.Current != Stage::Done)
+        auto installCorridor = [&](std::vector<ActionPosition> corridor)
         {
-            if (search.Current == Stage::Corridor)
+            state.ReturnRoute.Planned = std::move(corridor);
+            state.ReturnRoute.SurfaceCorridor = state.ReturnDiagnostics.HomePath.SurfaceCorridor;
+            state.ReturnRoute.Advance(current);
+            // Retain the complete proof if execution validation must yield.
+            search.Advance(Stage::Corridor);
+        };
+        // The same stage runner is used by the pipeline regression tests.
+        // Cheap, validated alternatives precede a foreground terrain graph.
+        return search.Continue([&](Stage stage) -> std::optional<ActionPosition>
+        {
+            if (stage == Stage::Corridor)
             {
                 state.ReturnRoute.Advance(current);
                 if (!state.ReturnRoute.Planned.empty())
@@ -261,26 +269,33 @@ namespace
                     state.ReturnRoute.Planned.clear();
                     state.ReturnRoute.SurfaceCorridor = false;
                 }
-                search.Advance(search.Home.Done ? Stage::Trail : Stage::Home);
             }
-            else if (search.Current == Stage::Home)
+            else if (stage == Stage::Home)
             {
                 auto corridor = LivingRecoveryPath::HomeCorridor(creature, current, homePoint,
-                    arrivalRadius, state.ReturnHomeLimit, danger, clearance, &state.ReturnDiagnostics, &search.Home, true);
+                    arrivalRadius, state.ReturnHomeLimit, danger, clearance, &state.ReturnDiagnostics, &search.Home);
                 if (state.ReturnDiagnostics.Deferred) { yield(); return std::nullopt; }
-                if (!corridor.empty())
-                {
-                    state.ReturnRoute.Planned = std::move(corridor);
-                    state.ReturnRoute.SurfaceCorridor = state.ReturnDiagnostics.HomePath.SurfaceCorridor;
-                    state.ReturnRoute.Advance(current);
-                    // The complete route is retained even if this frame has
-                    // no time left to validate its first execution leg.
-                    search.Advance(Stage::Corridor);
-                    continue;
-                }
-                search.Advance(Stage::Trail);
+                if (!corridor.empty()) installCorridor(std::move(corridor));
             }
-            else if (search.Current == Stage::Trail)
+            else if (stage == Stage::SurfaceDetour)
+            {
+                state.ReturnStrategy = "SURFACE_DETOUR";
+                if (!search.CanContinueHomeDetour(nowMs))
+                {
+                    // Expire this graph, not the whole return decision. The
+                    // retained cheap-path results and later fallbacks survive.
+                    search.Home.Detour.State = LivingSurfaceCorridor::Status::Rejected;
+                    search.Home.Detour.Failure = "SURFACE_DETOUR_TIME_LIMIT";
+                    search.Home.Detour.Route.clear();
+                    search.Home.Report.DetourFailure = search.Home.Detour.Failure;
+                    state.ReturnDiagnostics.HomePath = search.Home.Report;
+                    return std::nullopt;
+                }
+                auto corridor = LivingRecoveryPath::SurfaceDetour(creature, search.Home, &state.ReturnDiagnostics);
+                if (state.ReturnDiagnostics.Deferred) { yield(); return std::nullopt; }
+                if (!corridor.empty()) installCorridor(std::move(corridor));
+            }
+            else if (stage == Stage::Trail)
             {
                 state.ReturnStrategy = "TRAIL";
                 if (search.Trials.empty())
@@ -298,19 +313,17 @@ namespace
                     if (state.ReturnDiagnostics.Deferred) return std::nullopt;
                     ++search.Next;
                 }
-                search.Advance(Stage::Direct);
             }
-            else if (search.Current == Stage::Direct || search.Current == Stage::Detour)
+            else if (stage == Stage::Direct || stage == Stage::Detour)
             {
-                bool direct = search.Current == Stage::Direct;
+                bool direct = stage == Stage::Direct;
                 state.ReturnStrategy = direct ? "HOME_PATH" : "DETOUR";
                 if (search.Trials.empty())
                 {
                     if (direct)
                     {
-                        // HomeCorridor already checked the complete home path.
-                        // A bounded nearer leg may still be reachable, without
-                        // repeating the same full pathfinder query a tenth time.
+                        // Try short steps before committing the actor to a
+                        // complete home-route or terrain-graph calculation.
                         for (float budget : {LivingReturnPolicy::MaxStepLength, 14.0f, 7.0f, 3.5f, 1.75f})
                             if (auto step = LivingReturnPolicy::PathStep({current, homePoint}, budget))
                                 search.Trials.push_back({*step, false});
@@ -326,9 +339,8 @@ namespace
                     if (state.ReturnDiagnostics.Deferred) return std::nullopt;
                     ++search.Next;
                 }
-                search.Advance(direct ? Stage::Detour : Stage::Rejoin);
             }
-            else if (search.Current == Stage::Rejoin)
+            else if (stage == Stage::Rejoin)
             {
                 bool deferred = false;
                 auto candidates = LivingRecoveryPath::RejoinPositions(creature, &state.ReturnDiagnostics.Navigation,
@@ -363,9 +375,8 @@ namespace
                     ++state.ReturnDiagnostics.Rejected[LivingReturnPolicy::Path];
                     ++search.Next; search.ConnectorReady = false; search.Connector.reset(); search.Continuation = {};
                 }
-                search.Advance(Stage::Backtrack);
             }
-            else if (search.Current == Stage::Backtrack)
+            else if (stage == Stage::Backtrack)
             {
                 search.Advance(Stage::Done);
                 if (search.Backtrack)
@@ -384,8 +395,8 @@ namespace
                     return search.Backtrack;
                 }
             }
-        }
-        return std::nullopt;
+            return std::nullopt;
+        }, [&] { return state.ReturnDiagnostics.Deferred; });
     }
 
     void FailedReturn(LivingRoleState& state, uint64 nowMs, char const* reason, ActionPosition const& here)
@@ -1948,7 +1959,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             {
                 state.Planning.Stage = "RETURN";
                 auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state,
-                    LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f);
+                    LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f, nowMs);
                 if (state.ReturnDiagnostics.Deferred) return deferPlanning();
                 searchedReturn = true;
                 if (step) { destination = *step; pathReady = true; }
@@ -1982,7 +1993,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             else if (!pathReady && !searchedReturn)
             {
                 state.Planning.Stage = "RETURN";
-                auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state, LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f);
+                auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state, LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f, nowMs);
                 if (state.ReturnDiagnostics.Deferred) return deferPlanning();
                 pathReady = step.has_value();
                 if (step) destination = *step;

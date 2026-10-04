@@ -3,8 +3,10 @@
 #include "tc_catch2.h"
 #include "Agent/LivingAdviceState.h"
 #include "Agent/LivingPlanningState.h"
+#include <algorithm>
 #include <cmath>
 #include <string_view>
+#include <vector>
 
 namespace
 {
@@ -419,4 +421,226 @@ TEST_CASE("Planning resume rejects moved actors and backward clocks after care",
         REQUIRE_FALSE(context.PauseForCare(51000));
         REQUIRE_FALSE(context.CarePause.Active);
     }
+}
+
+TEST_CASE("Return planning tries retained and local steps before a full home graph", "[AIWorld][LivingPlanning]")
+{
+    using Stage = LivingReturnSearch::Stage;
+    LivingReturnSearch search;
+    std::vector<Stage> visited;
+    Stage available = Stage::Corridor;
+    SECTION("retained route") { available = Stage::Corridor; }
+    SECTION("recorded reverse trail") { available = Stage::Trail; }
+    SECTION("short direct return step") { available = Stage::Direct; }
+    auto step = search.Continue([&](Stage stage) -> std::optional<ActionPosition>
+    {
+        visited.push_back(stage);
+        if (stage == available) return Home;
+        return std::nullopt;
+    }, [] { return false; });
+    REQUIRE(step.has_value());
+    REQUIRE(RecoveryMovement::SamePoint(*step, Home));
+    REQUIRE(visited.back() == available);
+    REQUIRE(std::find(visited.begin(), visited.end(), Stage::Home) == visited.end());
+    REQUIRE(std::find(visited.begin(), visited.end(), Stage::SurfaceDetour) == visited.end());
+    REQUIRE_FALSE(search.HomeDetourDeadline.Started);
+}
+
+TEST_CASE("Return planning validates a newly installed complete corridor before later fallbacks", "[AIWorld][LivingPlanning]")
+{
+    using Stage = LivingReturnSearch::Stage;
+    LivingReturnSearch search;
+    std::vector<Stage> visited;
+    bool installed = false;
+    auto step = search.Continue([&](Stage stage) -> std::optional<ActionPosition>
+    {
+        visited.push_back(stage);
+        if (stage == Stage::Home)
+        {
+            installed = true;
+            search.Home.NextTarget = 9;
+            search.Advance(Stage::Corridor);
+        }
+        else if (stage == Stage::Corridor && installed) return Home;
+        return std::nullopt;
+    }, [] { return false; });
+    REQUIRE(step.has_value());
+    REQUIRE(visited == std::vector<Stage>{Stage::Corridor, Stage::Trail, Stage::Direct, Stage::Home, Stage::Corridor});
+    REQUIRE(search.Home.NextTarget == 9);
+    REQUIRE_FALSE(search.HomeDetourDeadline.Started);
+}
+
+TEST_CASE("Return planning retains a deferred stage and resolved connector", "[AIWorld][LivingPlanning]")
+{
+    using Stage = LivingReturnSearch::Stage;
+    LivingReturnSearch search;
+    search.Current = Stage::Rejoin;
+    search.Next = 3;
+    search.Trials.push_back({Home, true});
+    search.ConnectorReady = true;
+    search.Connector = Origin;
+    unsigned attempts = 0;
+    auto step = search.Continue([&](Stage stage) -> std::optional<ActionPosition>
+    {
+        REQUIRE(stage == Stage::Rejoin);
+        ++attempts;
+        return std::nullopt;
+    }, [] { return true; });
+    REQUIRE_FALSE(step.has_value());
+    REQUIRE(attempts == 1);
+    REQUIRE(search.Current == Stage::Rejoin);
+    REQUIRE(search.Next == 3);
+    REQUIRE(search.Trials.size() == 1);
+    REQUIRE(search.ConnectorReady);
+    REQUIRE(search.Connector.has_value());
+    REQUIRE(RecoveryMovement::SamePoint(*search.Connector, Origin));
+}
+
+TEST_CASE("Return home graph expires while queries keep making real computational progress", "[AIWorld][LivingPlanning]")
+{
+    LivingPlanningContext context;
+    LivingReturnSearch search;
+    context.Begin(1000, Origin, Home, Danger, 1, 7);
+    search.Current = LivingReturnSearch::Stage::SurfaceDetour;
+    REQUIRE(search.AllowHomeDetour(1000));
+    // One admitted slice each second keeps the inactivity clock healthy but
+    // does not permit thirty more seconds of foreground graph work.
+    for (uint64 now = 2000; now <= 30000; now += 1000)
+    {
+        context.MarkProgress(now);
+        context.MarkDeferred(now, "WORK_BUDGET", "RETURN");
+        REQUIRE(context.Resume(now, Origin, Home, Danger, 1, 7));
+        REQUIRE(search.AllowHomeDetour(now));
+    }
+    context.MarkProgress(31000);
+    context.MarkDeferred(31000, "WORK_BUDGET", "RETURN");
+    REQUIRE(context.Resume(31000, Origin, Home, Danger, 1, 7));
+    REQUIRE_FALSE(search.AllowHomeDetour(31000));
+    REQUIRE(search.HomeDetourDeadline.Expired);
+    REQUIRE(search.HomeDetourDeadline.StartedAt == 1000);
+    REQUIRE(context.StartedAt == 1000);
+    REQUIRE(context.ProgressAt == 31000);
+    REQUIRE(context.Resets == 0);
+}
+
+TEST_CASE("Return home graph wall limit includes denied admission and explicit care", "[AIWorld][LivingPlanning]")
+{
+    LivingPlanningContext context;
+    LivingReturnSearch search;
+    context.Begin(1000, Origin, Home, Danger, 1, 7);
+    context.MarkDeferred(1000, "ADMISSION", "RETURN");
+    REQUIRE(search.AllowHomeDetour(1000));
+    uint64 resumeAt = 360000;
+    SECTION("denied admission alone") { }
+    SECTION("care cannot extend the total foreground window")
+    {
+        REQUIRE(context.PauseForCare(2000));
+        REQUIRE(context.ResumeAfterCare(61000));
+        resumeAt = 61000;
+    }
+    REQUIRE(context.Resume(resumeAt, Origin, Home, Danger, 1, 7));
+    REQUIRE_FALSE(search.AllowHomeDetour(resumeAt));
+    REQUIRE(context.ProgressAt == 1000);
+    REQUIRE(context.Resets == 0);
+    REQUIRE(search.HomeDetourDeadline.StartedAt == 1000);
+}
+
+TEST_CASE("Return home graph deadline starts only when the graph stage is reached", "[AIWorld][LivingPlanning]")
+{
+    LivingReturnSearch search;
+    // Cheap route validation may itself be delayed by other actors. It does
+    // not spend the graph window before this decision reaches that stage.
+    search.Advance(LivingReturnSearch::Stage::SurfaceDetour);
+    REQUIRE(search.AllowHomeDetour(180000));
+    REQUIRE(search.AllowHomeDetour(209999));
+    REQUIRE_FALSE(search.AllowHomeDetour(210000));
+    REQUIRE(search.HomeDetourDeadline.StartedAt == 180000);
+}
+
+TEST_CASE("Return home graph expiry continues other strategies without resetting their context", "[AIWorld][LivingPlanning]")
+{
+    using Stage = LivingReturnSearch::Stage;
+    LivingPlanningContext context;
+    LivingReturnSearch search;
+    context.Begin(1000, Origin, Home, Danger, 1, 7);
+    context.MarkDeferred(1000, "WORK_BUDGET", "RETURN");
+    search.Advance(Stage::SurfaceDetour);
+    search.Home.NextTarget = 9;
+    search.Home.Detour.EdgeAttempts = 27;
+    REQUIRE(search.AllowHomeDetour(1000));
+    bool deferred = false;
+    unsigned graphAttempts = 0;
+    auto step = search.Continue([&](Stage stage) -> std::optional<ActionPosition>
+    {
+        if (stage == Stage::SurfaceDetour)
+        {
+            ++graphAttempts;
+            REQUIRE_FALSE(search.AllowHomeDetour(31000));
+        }
+        else if (stage == Stage::Detour)
+        {
+            search.Next = 2;
+            deferred = true;
+        }
+        return std::nullopt;
+    }, [&] { return deferred; });
+    REQUIRE_FALSE(step.has_value());
+    REQUIRE(search.Current == Stage::Detour);
+    REQUIRE(search.Next == 2);
+    REQUIRE(search.Home.NextTarget == 9);
+    REQUIRE(search.Home.Detour.EdgeAttempts == 27);
+    REQUIRE(context.Resume(360000, Origin, Home, Danger, 1, 7));
+    deferred = false;
+    step = search.Continue([&](Stage stage) -> std::optional<ActionPosition>
+    {
+        REQUIRE(stage == Stage::Detour);
+        REQUIRE(search.Next == 2);
+        return Home;
+    }, [&] { return deferred; });
+    REQUIRE(step.has_value());
+    REQUIRE(graphAttempts == 1);
+    REQUIRE(context.Resets == 0);
+    // Explicit stage re-entry cannot restart the exhausted graph window.
+    search.Advance(Stage::SurfaceDetour);
+    REQUIRE_FALSE(search.AllowHomeDetour(360000));
+}
+
+TEST_CASE("Return home graph rejects backward clocks and a new search owns a fresh deadline", "[AIWorld][LivingPlanning]")
+{
+    LivingReturnSearch search;
+    uint64 startedAt = 1000;
+    SECTION("ordinary start timestamp") { }
+    SECTION("zero is a valid start timestamp") { startedAt = 0; }
+    REQUIRE(search.AllowHomeDetour(startedAt));
+    REQUIRE(search.AllowHomeDetour(startedAt + 4000));
+    REQUIRE_FALSE(search.AllowHomeDetour(startedAt + 3999));
+    REQUIRE_FALSE(search.AllowHomeDetour(startedAt + 5000));
+    REQUIRE(search.HomeDetourDeadline.Expired);
+
+    LivingPlanningContext context;
+    context.Begin(startedAt, Origin, Home, Danger, 1, 7);
+    context.MarkDeferred(startedAt, "WORK_BUDGET", "RETURN");
+    auto moved = Origin;
+    moved.X += 1;
+    REQUIRE_FALSE(context.Resume(startedAt + 6000, moved, Home, Danger, 1, 7));
+    context.Begin(startedAt + 6000, moved, Home, Danger, 1, 7);
+    search = {};
+    REQUIRE(search.AllowHomeDetour(startedAt + 6000));
+    REQUIRE_FALSE(search.HomeDetourDeadline.Expired);
+    REQUIRE(search.HomeDetourDeadline.StartedAt == startedAt + 6000);
+}
+
+TEST_CASE("Return planning exhausts each remaining fallback once", "[AIWorld][LivingPlanning]")
+{
+    using Stage = LivingReturnSearch::Stage;
+    LivingReturnSearch search;
+    std::vector<Stage> visited;
+    auto step = search.Continue([&](Stage stage) -> std::optional<ActionPosition>
+    { visited.push_back(stage); return std::nullopt; }, [] { return false; });
+    REQUIRE_FALSE(step.has_value());
+    REQUIRE(search.Current == Stage::Done);
+    REQUIRE(visited == std::vector<Stage>{Stage::Corridor, Stage::Trail, Stage::Direct, Stage::Home,
+        Stage::SurfaceDetour, Stage::Detour, Stage::Rejoin, Stage::Backtrack});
+    search.Continue([&](Stage) -> std::optional<ActionPosition>
+    { FAIL("An exhausted decision must not restart its home graph"); return std::nullopt; }, [] { return false; });
 }

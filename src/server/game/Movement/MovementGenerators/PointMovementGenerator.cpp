@@ -66,9 +66,8 @@ bool PointMovementGenerator<T>::DoInitialize(T* owner)
 template<class T>
 bool PointMovementGenerator<T>::LaunchMovement(T* owner, bool applyFacing)
 {
-    // StopMoving synchronizes the current spline position to the actor. A
-    // strict provider must validate exactly the start that Launch will use.
-    if (_pathProvider) owner->StopMoving();
+    // A strict provider reads the physical spline source itself. Stopping
+    // here can discard that source while cell relocation is still queued.
     Movement::MoveSplineInit init(owner);
     if (_pathProvider)
     {
@@ -80,6 +79,9 @@ bool PointMovementGenerator<T>::LaunchMovement(T* owner, bool applyFacing)
             return false;
         }
         init.MovebyPath(path);
+        // Validated ground/water segments must follow their proved controls.
+        // CAN_FLY alone otherwise makes the constructor use a curved spline.
+        if (!owner->IsFlying()) init.SetLinear();
         // This is a per-spline capability, not a persistent UNIT_FLAG change.
         if (Creature* creature = owner->ToCreature(); creature && creature->CanEnterWater())
             init.SetSwim();

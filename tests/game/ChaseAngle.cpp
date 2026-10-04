@@ -132,7 +132,7 @@ namespace
         PathType Type = PATHFIND_NORMAL;
         bool Steep = false, Calculated = true, DidShorten = false;
         void AllowSteepSlopes() { Steep = true; }
-        bool CalculatePath(float, float, float, bool force) { return Calculated && Steep && !force; }
+        bool CalculatePathFrom(HuntPoint const&, HuntPoint const&) { return Calculated && Steep; }
         PathType GetPathType() const { return Type; }
         auto const& GetPath() const { return Points; }
         void ShortenPathUntilDist(HuntPoint const&, float) { DidShorten = true; Points = Shortened; }

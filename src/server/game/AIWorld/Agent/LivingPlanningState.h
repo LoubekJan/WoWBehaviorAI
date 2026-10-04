@@ -147,9 +147,31 @@ struct LivingPlanningContext
     }
 };
 
+// A foreground home graph is allowed one wall-time window for this return
+// search. Query progress, denied admission and stationary care never renew it.
+// Expiry advances to other return strategies; it must not reset the whole
+// decision and begin the same graph again at the same physical position.
+struct LivingReturnHomeDetourDeadline
+{
+    static constexpr uint64 WallLimitMs = 30000;
+    bool Started = false, Expired = false;
+    uint64 StartedAt = 0, LastAt = 0;
+
+    bool Allow(uint64 now)
+    {
+        if (Expired) return false;
+        if (!Started)
+        { Started = true; StartedAt = LastAt = now; return true; }
+        if (now < LastAt || now - StartedAt >= WallLimitMs)
+        { Expired = true; return false; }
+        LastAt = now;
+        return true;
+    }
+};
+
 struct LivingReturnSearch
 {
-    enum class Stage : uint8 { Corridor, Home, Trail, Direct, Detour, Rejoin, Backtrack, Done };
+    enum class Stage : uint8 { Corridor, Trail, Direct, Home, SurfaceDetour, Detour, Rejoin, Backtrack, Done };
     struct Trial { ActionPosition Destination; bool RoutePoint = false; };
     Stage Current = Stage::Corridor;
     bool Started = false;
@@ -161,9 +183,49 @@ struct LivingReturnSearch
     std::optional<ActionPosition> Connector;
     std::optional<ActionPosition> Backtrack, BacktrackTrail;
     LivingReturnPolicy::Diagnostics BacktrackDiagnostics;
+    LivingReturnHomeDetourDeadline HomeDetourDeadline;
+
+    bool AllowHomeDetour(uint64 now) { return HomeDetourDeadline.Allow(now); }
+    // Completed proofs may await execution validation past the search window.
+    // The wall deadline limits unfinished graph work, not that retained proof.
+    bool CanContinueHomeDetour(uint64 now)
+    { return Home.Detour.State != LivingSurfaceCorridor::Status::Pending || AllowHomeDetour(now); }
+
+    static constexpr Stage NextFallback(Stage stage)
+    {
+        switch (stage)
+        {
+            case Stage::Corridor: return Stage::Trail;
+            case Stage::Trail: return Stage::Direct;
+            case Stage::Direct: return Stage::Home;
+            case Stage::Home: return Stage::SurfaceDetour;
+            case Stage::SurfaceDetour: return Stage::Detour;
+            case Stage::Detour: return Stage::Rejoin;
+            case Stage::Rejoin: return Stage::Backtrack;
+            case Stage::Backtrack: return Stage::Done;
+            case Stage::Done: return Stage::Done;
+        }
+        return Stage::Done;
+    }
 
     void Advance(Stage next)
     { Current = next; Next = 0; Trials.clear(); ConnectorReady = false; Connector.reset(); }
+
+    // A stage owns its query cursor. Refused work retains that cursor, while a
+    // completed route may explicitly return to Corridor for leg validation.
+    // Ordinary unsuccessful stages follow one shared fallback order.
+    template <typename TryStage, typename IsDeferred>
+    std::optional<ActionPosition> Continue(TryStage&& tryStage, IsDeferred&& isDeferred)
+    {
+        while (Current != Stage::Done)
+        {
+            Stage stage = Current;
+            if (auto step = tryStage(stage)) return step;
+            if (isDeferred()) return std::nullopt;
+            if (Current == stage) Advance(NextFallback(stage));
+        }
+        return std::nullopt;
+    }
 };
 
 struct LivingHuntProbe

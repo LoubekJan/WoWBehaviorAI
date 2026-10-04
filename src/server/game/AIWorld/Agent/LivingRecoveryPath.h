@@ -17,6 +17,11 @@ namespace LivingRecoveryPath
         ActionPosition const* danger = nullptr, float clearance = 0,
         LivingReturnPolicy::Diagnostics* diagnostics = nullptr,
         LivingReturnPolicy::HomeCorridorSearch* search = nullptr, bool allowDetour = false);
+    // Continue only the graph after HomeCorridor's navmesh/direct-surface
+    // candidates have failed; retain their tile eligibility and query cursors.
+    std::vector<ActionPosition> SurfaceDetour(Creature& creature,
+        LivingReturnPolicy::HomeCorridorSearch& search,
+        LivingReturnPolicy::Diagnostics* diagnostics = nullptr);
     bool InSwimmableWater(Creature const& creature, ActionPosition const& point);
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
         ActionPosition const& home, float radius, NavigationDiagnostics* diagnostics = nullptr);

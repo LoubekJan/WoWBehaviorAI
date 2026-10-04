@@ -3,10 +3,13 @@
 #include "LivingRecoveryPath.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Creature.h"
+#include "ElwynnHuntPath.h"
+#include "GroundedPathSupport.h"
 #include "Map.h"
 #include "MovementPathBounds.h"
 #include "PathGenerator.h"
 #include "Scheduler/PlanningWorkBudget.h"
+#include <utility>
 
 namespace LivingRecoveryPath
 {
@@ -215,43 +218,62 @@ namespace LivingRecoveryPath
             cursor.Surface = {};
             ++cursor.NextSurfaceTarget;
         }
-        // Search one complete terrain route from the real actor origin. This
-        // stage is deliberately disabled for speculative advice/rejoin seeds:
-        // repeating a graph for every nearby seed can delay the actual return
-        // for minutes. Every accepted edge uses the same support/body/tile
-        // gates as execution, and no partial route may leave this search.
-        if (allowDetour && creature.CanWalk() &&
-            std::any_of(cursor.SurfaceEligible.begin(), cursor.SurfaceEligible.end(), [](bool eligible) { return eligible; }))
+        if (allowDetour) return SurfaceDetour(creature, cursor, diagnostics);
+        cursor.Done = true;
+        publish();
+        return {};
+    }
+
+    std::vector<ActionPosition> SurfaceDetour(Creature& creature,
+        LivingReturnPolicy::HomeCorridorSearch& cursor, LivingReturnPolicy::Diagnostics* diagnostics)
+    {
+        using namespace LivingReturnPolicy;
+        auto& report = cursor.Report;
+        if (diagnostics) { diagnostics->Deferred = false; diagnostics->HomePath = report; }
+        auto publish = [&] { if (diagnostics) diagnostics->HomePath = report; };
+        auto const& from = cursor.From;
+        auto const& home = cursor.Home;
+        auto const* danger = cursor.Danger ? &*cursor.Danger : nullptr;
+        // A graph never repeats the cheap query stages, and cannot use tile
+        // eligibility obtained at another actor origin or geometric request.
+        if (!cursor.HasContext || !Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 ||
+            creature.GetMapId() != from.MapId || !creature.CanWalk() ||
+            !SamePosition(from, {creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()}) ||
+            cursor.NextTarget != cursor.GroundTargets.size() ||
+            cursor.NextSurfaceTarget != cursor.GroundTargets.size() ||
+            !std::any_of(cursor.SurfaceEligible.begin(), cursor.SurfaceEligible.end(), [](bool eligible) { return eligible; }))
+        { cursor.Done = true; publish(); return {}; }
+        PathGenerator surfaceTiles(&creature);
+        while (cursor.Detour.State == LivingSurfaceCorridor::Status::Pending)
         {
-            while (cursor.Detour.State == LivingSurfaceCorridor::Status::Pending)
-            {
-                std::optional<PlanningWorkBudget::Permit> permit;
-                if (search) permit.emplace(PlanningWorkBudget::TryAcquire());
-                if (permit && !*permit)
-                { if (diagnostics) diagnostics->Deferred = true; publish(); return {}; }
-                LivingSurfaceDetour::Advance(cursor.Detour, from, home, arrivalRadius, limit,
-                    [&](ActionPosition const& p)
-                    { return TerrainHeight(creature, p, SamePosition(p, from) ? 0.3f : 0.8f); },
-                    [&](ActionPosition const& a, ActionPosition const& b)
-                    { return (!danger || LivingRolePolicy::AvoidsDanger(a.X, a.Y, b.X, b.Y,
-                        danger->X, danger->Y, clearance)) && ClearSurfaceBody(creature, a, b); },
-                    [&](ActionPosition const& p)
-                    { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
-                        std::hypot(p.X-home.X, p.Y-home.Y) <= limit; },
-                    [&](ActionPosition const& p)
-                    { return HomeEndpointMatches(home, arrivalRadius, p, GroundHomeTarget(creature, home, p)); },
-                    8, 1, [&](ActionPosition const& p) { return surfaceTiles.RecoveryTile({p.X, p.Y, p.Z}); });
-                report.DetourFailure = cursor.Detour.Failure;
-                report.DetourNodes = uint32(cursor.Detour.Nodes.size());
-                report.DetourEdges = cursor.Detour.EdgeAttempts;
-            }
-            if (cursor.Detour.State == LivingSurfaceCorridor::Status::Complete && !cursor.Detour.Route.empty())
-            {
-                report.SurfaceCorridor = true; report.Failure = "NONE";
-                cursor.Done = true; publish(); return cursor.Detour.Route;
-            }
+            auto permit = PlanningWorkBudget::TryAcquire();
+            if (!permit)
+            { if (diagnostics) diagnostics->Deferred = true; publish(); return {}; }
+            LivingSurfaceDetour::Advance(cursor.Detour, from, home, cursor.ArrivalRadius, cursor.Limit,
+                [&](ActionPosition const& p)
+                { return TerrainHeight(creature, p, SamePosition(p, from) ? 0.3f : 0.8f); },
+                [&](ActionPosition const& a, ActionPosition const& b)
+                { return (!danger || LivingRolePolicy::AvoidsDanger(a.X, a.Y, b.X, b.Y,
+                    danger->X, danger->Y, cursor.Clearance)) && ClearSurfaceBody(creature, a, b); },
+                [&](ActionPosition const& p)
+                { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
+                    std::hypot(p.X-home.X, p.Y-home.Y) <= cursor.Limit; },
+                [&](ActionPosition const& p)
+                { return HomeEndpointMatches(home, cursor.ArrivalRadius, p, GroundHomeTarget(creature, home, p)); },
+                8, 1, [&](ActionPosition const& p) { return surfaceTiles.RecoveryTile({p.X, p.Y, p.Z}); });
+            report.DetourFailure = cursor.Detour.Failure;
+            report.DetourNodes = uint32(cursor.Detour.Nodes.size());
+            report.DetourEdges = cursor.Detour.EdgeAttempts;
         }
         cursor.Done = true;
+        if (cursor.Detour.State == LivingSurfaceCorridor::Status::Complete && !cursor.Detour.Route.empty())
+        {
+            report.SurfaceCorridor = true; report.Failure = "NONE";
+            publish();
+            // Publish a complete proof once. If its first execution leg fails,
+            // fallback orchestration cannot reinstall the same rejected route.
+            return cursor.TakeDetourRoute();
+        }
         publish();
         return {};
     }
@@ -321,7 +343,9 @@ namespace LivingRecoveryPath
     {
         using namespace LivingReturnPolicy;
         points.clear();
-        ActionPosition from{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+        G3D::Vector3 source(creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ());
+        bool sourceReady = Movement::PhysicalSplineSource(creature, source);
+        ActionPosition from{creature.GetMapId(), source.x, source.y, source.z};
         auto const& to = request.QueryDestination.value_or(request.Destination);
         NavigationDiagnostics nav;
         nav.SourceX = from.X; nav.SourceY = from.Y; nav.SourceZ = from.Z;
@@ -333,6 +357,7 @@ namespace LivingRecoveryPath
             points.clear();
             return false;
         };
+        if (!sourceReady) return reject("INVALID_MOVEMENT_SOURCE");
         if (from.MapId != 0 || creature.GetZoneId() != 12 || creature.IsInCombat() || creature.IsInEvadeMode() ||
             creature.IsPet() || creature.IsCharmed() || !creature.GetTransGUID().IsEmpty() ||
             !creature.IsAlive() || !UsefulStep(from, to) || !UsefulStep(from, request.Destination) || Distance(from, to) > 30.0f ||
@@ -352,7 +377,7 @@ namespace LivingRecoveryPath
         };
         PathGenerator path(&creature);
         path.AllowSteepSlopes();
-        bool calculated = !request.SurfaceCorridor && path.CalculatePath(to.X, to.Y, to.Z, false);
+        bool calculated = !request.SurfaceCorridor && path.CalculatePathFrom(source, {to.X, to.Y, to.Z});
         nav = request.SurfaceCorridor ? path.RecoveryTiles({from.X, from.Y, from.Z}, {to.X, to.Y, to.Z}) :
             path.GetNavigationDiagnostics();
         nav.SourceX = from.X; nav.SourceY = from.Y; nav.SourceZ = from.Z;
@@ -388,7 +413,7 @@ namespace LivingRecoveryPath
             char const* connectorFailure = "NONE";
             std::optional<ActionPosition> support;
             G3D::Vector3 startProjection;
-            if (path.FindRecoveryPosition(startProjection, nullptr, &nav))
+            if (path.FindRecoveryPosition(startProjection, &source, &nav))
             {
                 support = ActionPosition{from.MapId, startProjection.x, startProjection.y, startProjection.z};
             }
@@ -408,7 +433,39 @@ namespace LivingRecoveryPath
         {
             auto const& first = path.GetPath().front();
             if (Distance(from, {from.MapId, first.x, first.y, first.z}) <= 1.5f)
-                points = path.GetPath();
+            {
+                auto raw = path.GetPath();
+                G3D::Vector3 origin(from.X, from.Y, from.Z);
+                raw.front() = origin;
+                bool swimming = creature.CanEnterWater() && Movement::FullySwimmingPath(raw,
+                    [&](G3D::Vector3 const& p)
+                    { return InSwimmableWater(creature, {from.MapId, p.x, p.y, p.z}); });
+                if (creature.IsFlying() || swimming)
+                {
+                    points = std::move(raw);
+                    nav.Swimming = swimming;
+                }
+                else
+                {
+                    // A complete mesh leg can still carry elevated vertices.
+                    // Launch dense controls on the physical floor so stopping
+                    // between vertices cannot leave the actor floating above it.
+                    char const* groundFailure = "NONE";
+                    bool grounded = Movement::PrepareGroundedPath(raw, origin, points,
+                        [&](G3D::Vector3 const& p)
+                        { return TerrainHeight(creature, {from.MapId, p.x, p.y, p.z},
+                            p.x == origin.x && p.y == origin.y && p.z == origin.z ? 0.3f : 0.8f); },
+                        [&](G3D::Vector3 const& a, G3D::Vector3 const& b)
+                        { return ClearSurfaceBody(creature, {from.MapId, a.x, a.y, a.z},
+                            {from.MapId, b.x, b.y, b.z}); },
+                        [&](G3D::Vector3 const& p)
+                        { return map->GetZoneId(creature.GetPhaseMask(), p.x, p.y, p.z) == 12 &&
+                            std::hypot(p.x-request.Home.X, p.y-request.Home.Y) <= request.HomeRadius; },
+                        [&](G3D::Vector3 const& p) { return path.RecoveryTile(p); }, &groundFailure);
+                    nav.Detail = groundFailure;
+                    if (!grounded) return reject("UNSAFE_GROUND_PATH");
+                }
+            }
         }
         // Swimming capability comes from the movement template too. The native
         // CAN_SWIM flag may disappear after evade. Validate EVERY water segment

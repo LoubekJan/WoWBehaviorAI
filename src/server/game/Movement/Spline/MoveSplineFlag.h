@@ -96,6 +96,7 @@ namespace Movement
         void EnableFalling() { raw() = (raw() & ~(Mask_Animations | Parabolic | Flying | Animation)) | Falling; }
         void EnableFlying() { raw() = (raw() & ~(Falling | Catmullrom)) | Flying; }
         void EnableCatmullRom() { raw() = (raw() & ~Flying) | Catmullrom; }
+        void EnableLinear() { raw() &= ~Mask_CatmullRom; }
         void EnableFacingPoint() { raw() = (raw() & ~Mask_Final_Facing) | Final_Point; }
         void EnableFacingAngle() { raw() = (raw() & ~Mask_Final_Facing) | Final_Angle; }
         void EnableFacingTarget() { raw() = (raw() & ~Mask_Final_Facing) | Final_Target; }

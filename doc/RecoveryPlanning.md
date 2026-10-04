@@ -1,5 +1,98 @@
 # Ověření návratů a rozpočtu plánování
 
+## Pořadí návratových pokusů a časový limit grafu (4. října)
+
+Běh `20261004T070453Z-981d68ba`, build `2bd012ee6c97`, měl 2880
+čerstvých vzorků bez zásahů hráče. Výsledek zůstal `FAIL`: 61 NPC mělo
+fyzickou blokaci a 45 dlouhé odkládání plánování. Medvěd 146193 tentokrát
+chodil, krmil se a vracel se domů, ale novou objížďku nepoužil. Medvěd
+146194 zůstal po lovu nehybný 11700 sekund. Jeho vykázaná podpůrná výška
+byla o 2,92021 yardu níže než živé Z; záznam sám nepotvrzuje, která
+podlaha je správná. Výpočetní postup proto nelze zaměňovat za pohyb NPC.
+
+- Návrat nejprve využije zachovanou úplnou cestu, zpětnou stopu a krátké
+  ověřené kroky směrem domů. Potom zkouší úplnou navmesh/přímou terénní
+  cestu a až následně rozsáhlejší povrchový graf. Po něm pokračují místní
+  objížďky, rejoin a povolený návrat po již navštíveném úseku. Každý
+  pohybový krok nadále musí projít kontrolou ze skutečné aktuální polohy.
+- Nedokončené hledání povrchového grafu má nejvýše 30 sekund skutečného
+  uplynulého času od první obsluhy své etapy. Čekání na rozpočet i péče
+  do limitu patří; nové uzly,
+  hrany ani `MarkProgress` jej neobnovují. Při dalším plánovacím pokusu
+  po vypršení se zaznamená `SURFACE_DETOUR_TIME_LIMIT` a pokračuje další
+  návratová strategie. Samotný limit nezaručuje dosažení domova do 30 sekund.
+  Již dokončený důkaz zůstává zachovaný i při delším čekání na kontrolu
+  provedení; toto čekání jeho historický výsledek nepřepíše na timeout.
+- Vyprší pouze graf daného rozhodnutí. Výsledky levnějších pokusů,
+  zbývající kurzory a diagnostika zůstávají zachované; nevzniká nové celé
+  hledání při každé aktualizaci. Samostatné čekání na rozpočet stále
+  nezneplatňuje `Planning.Resume`. Změna skutečného geometrického kontextu
+  nadále zruší neplatnou cestu.
+- Úplný důkaz povrchové cesty se předá k provedení jednou. Pokud živá
+  kontrola prvního úseku cestu odmítne, tentýž již vydaný důkaz se nesmí
+  opakovaně instalovat a blokovat další strategie v tomto rozhodnutí.
+  Nové rozhodnutí může cestu ověřit znovu.
+
+Regrese `LivingReturnPipeline` používají stejný etapový koordinátor jako
+produkční návrat, skutečný plánovací rozpočet a inkrementální povrchový
+graf. Ověřují čtyři operace na jednu sekundovou obsluhu potřeb, pokračování
+zachované úplné cesty po odkladu a přechod na další strategii po vypršení
+grafu i při pokračujících výpočtech a pětisekundové péči. Samostatně drží
+platný dokončený důkaz přes 35sekundové čekání na rozpočet nebo péči;
+odmítnutý úsek potom pokračuje další strategií bez opakované instalace
+důkazu. Také drží
+živou polohu nezměněnou, dokud se ověřený krok výslovně neprovede; vybraný
+krok ani změna výpočetního kurzoru nejsou dokončený fyzický návrat.
+Adaptéry dotazů mají syntetický terén. Tyto testy neprokazují průchodnost
+konkrétního místa ve skutečných Elwynn mmaps/vmaps.
+
+Pohyb při lovu na suché zemi nyní po zkrácení navmesh cesty ověří celý
+skutečně prováděný úsek proti fyzické podlaze, po nejvýše půl yardu.
+Zachová živý počátek; další výšku odvozuje od předchozí ověřené podlahy
+a zahrne legitimní hover offset. Vedle podpory kontroluje tiles, hranici
+Elwynnu a kolize těla. Přijatá cesta obsahuje husté výškové body, aby
+přerušený pohyb nezůstával na interpolované navmesh výšce nad terénem.
+Počátek vzdálený od podpory více než jeden yard, sráz nebo neúplná kontrola
+cestu odmítne; NPC se kvůli tomu nepřemístí ani nenapíše nový domov.
+Limit je 64 yardů celé 3D cesty a 128 vzorků včetně počátku.
+Počet kontrol je omezený, ale skutečný čas dotazů VMAP musí ověřit živý
+běh a `AIWORLD_UPDATE`; čas syntetických callbacků jej neprokazuje.
+V krátké kontrole po nasazení sleduj zvlášť `needsLateMaxMs`
+(opoždění obsluhy potřeb), `needsMaxMs` (náklady obsluhy potřeb)
+a `planningMaxMs` (nejdražší plánovací operaci). Spolu se skutečným
+pohybem NPC porovnej několik po sobě jdoucích logovacích oken.
+
+Létání tuto pozemní kontrolu obchází jen při skutečném letu. Plavání ji
+obchází až po omezeném ověření, že ve vodě leží celý úsek včetně živého
+počátku; samotná schopnost plavat nebo mokrý cíl nestačí. Smíšená suchá
+a vodní cesta musí projít pozemní kontrolou, jinak je odmítnuta.
+Regrese `GroundedHuntPath` ověřují svah, patro nad terénem, přerušení
+pohybu, výškové a pracovní limity i mokrý úsek se suchým počátkem.
+AIWorld návratový provider a Elwynn lov navíc při skutečném pozemním
+pohybu výslovně používají lineární průchod ověřenými body. Schopnost
+`CAN_FLY` sama tak neaktivuje CatmullRom interpolaci, která by mohla
+přestřelit ověřené rohy nebo podlahu. Toto nastavení platí pouze pro
+tyto řízené trasy; skutečný let zachovává své letové provedení.
+Počátek lovu i spuštěného návratu se čte z právě běžící spline ve
+světových souřadnicích a předává do `CalculatePathFrom`. Běžné XYZ
+uložené u NPC mohou při přechodu mezi buňkami mapy dočasně zaostávat za
+spline; nejsou proto náhradou za skutečný počátek prováděného úseku.
+Výběr zdroje, ověření podpory i spuštění používají stejnou fyzickou
+polohu. Úspěšná předběžná kontrola nezastavuje běžící pohyb při každém
+přepočtu. Aktivní transport se tímto postupem odmítne; dokončená spline
+již používá uloženou světovou polohu NPC.
+Záznam již zaseknutého NPC tato prevence sama neopravuje; jeho návrat
+musí stále projít kontrolou ze skutečné živé polohy.
+
+Stejnou kontrolu fyzické podlahy používá i `LivingRecoveryPath::Build`
+pro běžnou suchou navmesh trasu návratu. Vedle podpory každého hustého
+bodu zde hlídá původní domácí poloměr, Elwynn, tiles a celé tělo.
+Neplatná podpora vrátí `navigation.failure=UNSAFE_GROUND_PATH`
+a konkrétní `navigation.detail=GROUND_PATH_*`. Skutečný konec musí
+nadále odpovídat požadovanému bodu do jednoho yardu; uzemnění nesmí
+změnit význam přijaté odpovědi AI ani povolit jiný cíl. Samostatné
+terénní spojky a vodní přechody zachovávají vlastní kontrolu celé trasy.
+
 ## Obejití překážky při návratu (3. října)
 
 Běh `20261003T141818Z-9acccf90`, build `2f8ace9ef4d6`, obsahuje čtyři

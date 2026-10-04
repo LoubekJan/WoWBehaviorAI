@@ -18,7 +18,7 @@ namespace Movement
     {
         output.clear();
         path.AllowSteepSlopes();
-        if (!path.CalculatePath(destination.x, destination.y, destination.z, false) ||
+        if (!path.CalculatePathFrom(origin, destination) ||
             !CompleteNavmeshPath(path.GetPathType()) || !PathWithinBounds(path.GetPath(), contains)) return false;
         if (shorten) path.ShortenPathUntilDist(target, stopDistance);
         auto points = path.GetPath();
