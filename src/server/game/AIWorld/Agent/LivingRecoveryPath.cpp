@@ -167,7 +167,7 @@ namespace LivingRecoveryPath
             if (corridor.empty()) { reject(HomePathFailure::Corridor); continue; }
             report.PathType = uint32(path.GetPathType());
             report.Failure = "NONE";
-            cursor.Done = true;
+            cursor.IssueCorridor(false);
             publish();
             return corridor;
         }
@@ -210,7 +210,7 @@ namespace LivingRecoveryPath
                 if (!corridor.empty())
                 {
                     report.SurfaceCorridor = true; report.Failure = "NONE";
-                    cursor.Done = true; publish(); return corridor;
+                    cursor.IssueCorridor(true); publish(); return corridor;
                 }
             }
             if (status == LivingSurfaceCorridor::Status::Complete)
@@ -239,8 +239,7 @@ namespace LivingRecoveryPath
         if (!cursor.HasContext || !Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 ||
             creature.GetMapId() != from.MapId || !creature.CanWalk() ||
             !SamePosition(from, {creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()}) ||
-            cursor.NextTarget != cursor.GroundTargets.size() ||
-            cursor.NextSurfaceTarget != cursor.GroundTargets.size() ||
+            !cursor.CandidatesExhausted(HomeTargets(home, cursor.ArrivalRadius).size()) ||
             !std::any_of(cursor.SurfaceEligible.begin(), cursor.SurfaceEligible.end(), [](bool eligible) { return eligible; }))
         { cursor.Done = true; publish(); return {}; }
         PathGenerator surfaceTiles(&creature);

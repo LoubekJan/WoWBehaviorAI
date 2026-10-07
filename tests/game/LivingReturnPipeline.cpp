@@ -2,6 +2,7 @@
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "tc_catch2.h"
 #include "Agent/LivingPlanningState.h"
+#include "GroundedPathSupport.h"
 #include "Scheduler/PlanningWorkBudget.h"
 #include <string>
 
@@ -42,6 +43,24 @@ namespace
         LivingSurfaceCorridor::Search execution;
         return LivingSurfaceCorridor::Advance(execution, from, to, pipelineFloor,
             pipelineClear, pipelineBounds, 12) == LivingSurfaceCorridor::Status::Complete;
+    }
+
+    bool ClearPipelineWall(ActionPosition const& a, ActionPosition const& b)
+    {
+        return (a.X <= 0.8f && b.X <= 0.8f) || (a.X >= 1.2f && b.X >= 1.2f) ||
+            (std::abs(a.Y) >= 1.2f && std::abs(b.Y) >= 1.2f);
+    }
+
+    bool GroundedPipelineLeg(ActionPosition const& to, char const** failure)
+    {
+        struct Point { float x, y, z; };
+        std::vector<Point> raw{{0, 0, 0}, {to.X, to.Y, to.Z}}, output;
+        return Movement::PrepareGroundedPath(raw, raw.front(), output,
+            [](Point const&) -> std::optional<float> { return 0.0f; },
+            [](Point const& a, Point const& b)
+            { return ClearPipelineWall({0,a.x,a.y,a.z}, {0,b.x,b.y,b.z}); },
+            [](Point const& p) { return pipelineBounds({0,p.x,p.y,p.z}); },
+            [](Point const&) { return true; }, failure);
     }
 }
 
@@ -359,4 +378,158 @@ TEST_CASE("Recovery navigation return pipeline does not reinstall a complete gra
     CHECK(search.Home.TakeDetourRoute().empty());
     CHECK_FALSE(search.HomeDetourDeadline.Expired);
     CHECK(LivingReturnPolicy::SamePosition(*result, ActionPosition{0, -3, 0, 0}));
+}
+
+TEST_CASE("Recovery navigation return pipeline resumes unvisited home candidates after a grounded execution rejection", "[AIWorld][RecoveryNavigation][ReturnPipeline][HomeContinuation]")
+{
+    bool useSecondNavmesh = true, firstSurfaceProof = false;
+    SECTION("next navmesh candidate provides a physically safe first leg") { }
+    SECTION("exhausted navmesh candidates still allow the full physical graph") { useSecondNavmesh = false; }
+    SECTION("a rejected issued surface chord does not skip its remaining candidates")
+    { useSecondNavmesh = false; firstSurfaceProof = true; }
+    LivingReturnSearch search;
+    LivingReturnPolicy::RouteMemory route;
+    PlanningWorkScheduler scheduler;
+    std::vector<std::size_t> navmeshQueries, surfaceIssues;
+    unsigned executionRejected = 0, graphQueries = 0;
+    std::optional<ActionPosition> result;
+    auto targets = LivingReturnPolicy::HomeTargets(PipelineHome, 3);
+    REQUIRE(targets.size() == 9);
+    auto goal = [](ActionPosition const& p)
+    { return std::hypot(p.X-PipelineHome.X,p.Y-PipelineHome.Y) <= 3 && std::abs(p.Z) <= 1; };
+    for (uint64 now = 1000; now <= 100000 && !result && search.Current != ReturnStage::Done; now += 1000)
+    {
+        scheduler.Request(AgentId{1},now); scheduler.BeginFrame(now,{AgentId{1}});
+        PlanningWorkBudget budget(std::chrono::microseconds(2000),16);
+        PlanningWorkBudget::Scope scope(budget);
+        PlanningWorkBudget::ActorScope actor(scheduler,AgentId{1});
+        PipelineQueries queries{now};
+        auto homeProvider = [&]() -> std::vector<ActionPosition>
+        {
+            auto& home = search.Home;
+            if (!home.HasContext) home.Begin(PipelineOrigin,PipelineHome,3,96,nullptr,8);
+            // This is the actual provider's order: a native candidate issues
+            // a route before its first leg receives physical execution proof.
+            if (home.Done) return {};
+            for (; home.NextTarget < targets.size(); ++home.NextTarget)
+            {
+                auto index = home.NextTarget;
+                if (!queries.Run([&]
+                {
+                    navmeshQueries.push_back(index);
+                    home.GroundTargets[index] = targets[index];
+                    home.SurfaceEligible[index] = true;
+                })) return {};
+                if (firstSurfaceProof) continue; // native mesh has a hole
+                home.Report.Failure = "NONE";
+                ActionPosition first{0,3,0,0};
+                if (useSecondNavmesh && index == 1) first = {0,0,3,0};
+                home.IssueCorridor(false);
+                return {first,targets[index]};
+            }
+            while (home.NextSurfaceTarget < targets.size())
+            {
+                auto index = home.NextSurfaceTarget;
+                if (!home.Surface.Started) home.Surface.Target = *home.GroundTargets[index];
+                if (!queries.Run([&]
+                {
+                    // Only the first surface proof saw open terrain. The
+                    // physical obstacle appears before that proof is executed.
+                    LivingSurfaceCorridor::Advance(home.Surface,PipelineOrigin,home.Surface.Target,
+                        pipelineFloor,[&](ActionPosition const& a,ActionPosition const& b)
+                        { return firstSurfaceProof && index == 0 ? true : ClearPipelineWall(a,b); },
+                        pipelineBounds,8);
+                })) return {};
+                if (home.Surface.State == LivingSurfaceCorridor::Status::Pending) continue;
+                if (home.Surface.State == LivingSurfaceCorridor::Status::Complete)
+                {
+                    auto corridor = LivingSurfaceCorridor::Legs(home.Surface.Route);
+                    REQUIRE_FALSE(corridor.empty());
+                    surfaceIssues.push_back(index);
+                    home.Report.SurfaceCorridor = true;
+                    home.IssueCorridor(true);
+                    return corridor;
+                }
+                home.Surface = {};
+                ++home.NextSurfaceTarget;
+            }
+            home.Done = true;
+            return {};
+        };
+        result = search.Continue([&](ReturnStage stage) -> std::optional<ActionPosition>
+        {
+            if (stage == ReturnStage::Corridor && !route.Planned.empty())
+            {
+                bool safe = false;
+                char const* failure = "NONE";
+                if (!queries.Run([&] { safe = GroundedPipelineLeg(route.Planned.front(),&failure); })) return std::nullopt;
+                if (safe) return route.Planned.front();
+                REQUIRE(std::string(failure) == "GROUND_PATH_OBSTACLE");
+                ++executionRejected;
+                route.Planned.clear();
+            }
+            if (stage == ReturnStage::Home)
+            {
+                auto corridor = homeProvider();
+                if (!corridor.empty())
+                { route.Planned = std::move(corridor); search.Advance(ReturnStage::Corridor); }
+            }
+            if (stage == ReturnStage::SurfaceDetour)
+            {
+                // The real SurfaceDetour provider refuses incomplete cheap
+                // candidate scans; only an actually exhausted scan may enter.
+                if (!search.Home.CandidatesExhausted(targets.size())) return std::nullopt;
+                if (!search.CanContinueHomeDetour(now)) return std::nullopt;
+                while (search.Home.Detour.State == LivingSurfaceCorridor::Status::Pending)
+                {
+                    if (!queries.Run([&]
+                    {
+                        ++graphQueries;
+                        LivingSurfaceDetour::Advance(search.Home.Detour,PipelineOrigin,PipelineHome,3,96,
+                            pipelineFloor,ClearPipelineWall,pipelineBounds,goal,8,1);
+                    })) return std::nullopt;
+                }
+                auto proof = search.Home.TakeDetourRoute();
+                if (!proof.empty())
+                { route.Planned = std::move(proof); search.Advance(ReturnStage::Corridor); }
+            }
+            return std::nullopt;
+        },[&] { return queries.Deferred; });
+        CHECK(queries.Started <= 4);
+    }
+    INFO("native queries=" << navmeshQueries.size() << " physical rejects=" << executionRejected << " graph queries=" << graphQueries);
+    REQUIRE(result.has_value());
+    CHECK(executionRejected >= 1);
+    char const* failure = "NONE";
+    REQUIRE(GroundedPipelineLeg(*result,&failure));
+    if (useSecondNavmesh)
+    {
+        REQUIRE(navmeshQueries == std::vector<std::size_t>{0,1});
+        CHECK(executionRejected == 1);
+        CHECK(graphQueries == 0);
+    }
+    else
+    {
+        REQUIRE(navmeshQueries == std::vector<std::size_t>{0,1,2,3,4,5,6,7,8});
+        CHECK(search.Home.CandidatesExhausted(targets.size()));
+        CHECK(graphQueries > 0);
+        if (firstSurfaceProof) REQUIRE(surfaceIssues == std::vector<std::size_t>{0});
+        else CHECK(executionRejected == 9);
+    }
+}
+
+TEST_CASE("Recovery navigation home graph exhaustion uses the actual single home target", "[AIWorld][RecoveryNavigation][ReturnPipeline][HomeContinuation]")
+{
+    LivingReturnSearch search;
+    auto targets = LivingReturnPolicy::HomeTargets(PipelineHome,1.0f);
+    REQUIRE(targets.size() == 1);
+    search.Home.Begin(PipelineOrigin,PipelineHome,1.0f,96,nullptr,8);
+    search.Home.IssueCorridor(false);
+    // Rejected execution does not retry that same native proof. Its one
+    // direct-surface candidate still needs to be tried before entering graph.
+    CHECK(search.Home.NextTarget == 1);
+    CHECK_FALSE(search.Home.Done);
+    CHECK_FALSE(search.Home.CandidatesExhausted(targets.size()));
+    search.Home.NextSurfaceTarget = 1; // that physical chord was also rejected
+    CHECK(search.Home.CandidatesExhausted(targets.size()));
 }

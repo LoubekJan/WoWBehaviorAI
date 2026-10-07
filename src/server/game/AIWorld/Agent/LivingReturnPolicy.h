@@ -137,6 +137,22 @@ namespace LivingReturnPolicy
             if (Detour.State != LivingSurfaceDetour::Status::Complete) return {};
             return std::exchange(Detour.Route, std::vector<ActionPosition>{});
         }
+        // Issuing one complete route is not exhaustion of all home targets.
+        // Execution may reject its first leg; the next provider call resumes
+        // after that issued candidate, retaining all other query results.
+        void IssueCorridor(bool surface)
+        {
+            Done = false;
+            if (surface)
+            {
+                ++NextSurfaceTarget;
+                Surface = {};
+            }
+            else
+                ++NextTarget;
+        }
+        bool CandidatesExhausted(std::size_t count) const
+        { return NextTarget == count && NextSurfaceTarget == count; }
         void Begin(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
             ActionPosition const* danger, float clearance, bool allowDetour = false)
         {
