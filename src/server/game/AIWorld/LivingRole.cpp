@@ -20,6 +20,7 @@
 #include "Scheduler/PlanningWorkBudget.h"
 #include "Agent/LivingHuntPolicy.h"
 #include "Agent/LivingReturnPolicy.h"
+#include "Agent/LivingReturnAdvice.h"
 #include "Agent/LivingRecoveryPath.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Agent/GroupMemberFormation.h"
@@ -743,7 +744,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     _recoveryAdviceBudget.Refresh(record.Id.Value, nowMs, queueEligible, stalledReturn, adviceDispatchable);
     if (advice.Status == "WAITING_TURN" && !_recoveryAdviceBudget.WaitMs(record.Id.Value, nowMs))
         advice.Status = "QUEUE_CANCELLED";
-    if (_recoveryAdviceBudget.Ready(record.Id.Value, nowMs) || (advice.PendingId && advice.Responded))
+    bool adviceOffered = _recoveryAdviceBudget.Ready(record.Id.Value, nowMs);
+    if (adviceOffered) advice.Admission.Record(LivingAdviceAdmissionEvent::ReadyObserved, nowMs);
+    if (adviceOffered || (advice.PendingId && advice.Responded))
     {
         // A queued actor may finish waiting without first sleeping through
         // another 20-second rest. Never interrupt feeding, work or movement.
@@ -1618,6 +1621,66 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
         state.MovementPurpose = state.ReturnFailure;
     };
+    auto rememberAdviceStart = [&](LivingAdviceCandidate const& candidate, bool returning)
+    {
+        advice.Active = candidate; advice.ActiveOrigin = here; advice.ActiveAt = nowMs;
+        advice.ActiveHunger = record.Needs.Hunger; advice.ActiveReturning = returning; advice.StepArrived = false;
+        ++advice.Started; advice.Status = "MOVE_STARTED";
+        if (!returning) ++state.Forage.StepsStarted;
+        if (candidate.Backtrack)
+        {
+            state.ReturnRoute.PendingBacktrack = LivingReturnPolicy::RouteMemory::Backtrack{here, candidate.Move.Destination};
+            state.ReturnRoute.CommitBacktrack();
+        }
+    };
+    auto startReturnAdvice = [&](LivingAdviceCandidate const& candidate)
+    {
+        auto const& destination = candidate.Move.Destination;
+        state.ReturnDiagnostics = candidate.Diagnostics;
+        state.ReturnStrategy = "AI_ADVICE";
+        if (!candidate.FollowsCorridor)
+            state.ReturnRoute.PlanContinuation(destination, candidate.Continuation,
+                candidate.Diagnostics.ContinuationPath.SurfaceCorridor);
+        state.ReturnRoute.TrailTarget.reset();
+        state.ReturnRoute.PendingBacktrack.reset();
+        approvedRecovery = candidate.Move;
+        ActionRequest move;
+        move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity;
+        move.Destination = destination; move.Recovery = approvedRecovery;
+        if (start(move, Phase::Moving))
+        {
+            state.MovementPurpose = "RETURN_HOME";
+            state.ReturnRoute.CommitBacktrack();
+            if (candidate.Move.Rejoin) state.ReturnRoute.CommitRejoin(here, destination);
+            rememberAdviceStart(candidate, true);
+        }
+        else
+        {
+            state.ReturnRoute.Reject(here, destination);
+            ++advice.Rejected; advice.Status = "EXECUTION_REJECTED";
+            FailedReturn(state, nowMs, "RETURN_MOVE_REJECTED", here);
+            recoverHere(true);
+        }
+        return true;
+    };
+    auto startFoodAdvice = [&](LivingAdviceCandidate const& candidate)
+    {
+        approvedRecovery = candidate.Move;
+        ActionRequest search;
+        search.Type = ActionType::MoveTo; search.SourceGoal = GoalType::LocalActivity;
+        search.Destination = candidate.Move.Destination; search.Recovery = approvedRecovery;
+        if (start(search, Phase::Moving))
+        {
+            rememberAdviceStart(candidate, false);
+            state.ForageUntilMs = nowMs + LivingForagePolicy::DurationMs;
+            state.HasForageWaypoint = false;
+            state.MovementPurpose = "FORAGE_SEARCH";
+            return true;
+        }
+        ++advice.Rejected; advice.Status = "EXECUTION_REJECTED";
+        return false;
+    };
+    bool hungryHunter = role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false);
     // Stationary care does not require navigation work. Preserve an unfinished
     // return across this explicit pause, without counting care as query work.
     if (state.ReturningHome && homeDistance > radius + 2.0f &&
@@ -1633,7 +1696,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             nowMs < state.BlockedThreatUntilMs))
     { recoverHere(true); state.MovementPurpose = "REFUGE_CARE"; return true; }
     _planningWork.Request(record.Id, nowMs);
-    if (!PlanningWorkBudget::Available())
+    bool planningAvailable = PlanningWorkBudget::Available();
+    if (!planningAvailable)
     {
         bool care = !rememberedDanger && ((role == Role::Prey && record.Needs.Hunger >= 0.65f) ||
             (!LivingRolePolicy::Wildlife(role) && record.Needs.Hunger >= 0.65f) ||
@@ -1644,13 +1708,48 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             state.MovementPurpose = "NEEDS_CARE";
             return true;
         }
+    }
+    using ReturnAdviceOutcome = LivingReturnAdvice::Outcome;
+    bool returningForAdvice = state.ReturningHome && homeDistance > radius + 2.0f;
+    bool canTryFoodAdvice = extensions && hungryHunter && !anchored && !rememberedDanger && !state.ReturningHome;
+    LivingReturnAdvice::Context adviceOrder{bool(advice.PendingId), advice.Search.Active,
+        adviceOffered && queueEligible, nowMs >= state.ReturnRetryAtMs};
+    std::optional<LivingAdviceCandidate> priorityAdvice;
+    LivingReturnAdvice::OnceAttempt priorityAttempt([&]()
+    {
+        state.Planning.Stage = "ADVICE";
+        priorityAdvice = TryLivingAdvice(record, creature, nowMs, returningForAdvice, rememberedDanger);
+        if (advice.Status == "PLANNING_DEFERRED" && (advice.Search.Active || advice.PendingId))
+            return ReturnAdviceOutcome::Deferred;
+        if (advice.PendingId) return ReturnAdviceOutcome::Pending;
+        return priorityAdvice ? ReturnAdviceOutcome::AdviceStep : ReturnAdviceOutcome::NoStep;
+    });
+    ReturnAdviceOutcome priorityOutcome = ReturnAdviceOutcome::NoStep;
+    // Queue admission is cheap. Claim an offered turn before foreground
+    // hunt/return work, even when its first safe query must yield. Existing
+    // requests/searches keep their context; care and safety already ran above.
+    if (!state.Refuge.Active(nowMs) && (returningForAdvice || canTryFoodAdvice))
+        priorityOutcome = LivingReturnAdvice::TryPriority(adviceOrder, priorityAttempt);
+    if (priorityOutcome == ReturnAdviceOutcome::Deferred) return deferPlanning();
+    if (priorityOutcome == ReturnAdviceOutcome::Pending)
+    {
+        if (returningForAdvice) recoverHere(true);
+        else state.NextDecisionAtMs = nowMs + 1000;
+        return true;
+    }
+    if (priorityAdvice)
+    {
+        if (returningForAdvice) return startReturnAdvice(*priorityAdvice);
+        if (startFoodAdvice(*priorityAdvice)) return true;
+    }
+    if (!planningAvailable)
+    {
         PlanningWorkBudget::MarkDeferred();
         return deferPlanning();
     }
     state.NextDecisionAtMs = nowMs + LivingRolePolicy::PauseMs(record.Id.Value, state.Cycle, 8000, 12000);
     uint64 cycle = state.Cycle + record.Id.Value;
 
-    bool hungryHunter = role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false);
     if (state.ForageUntilMs && (!extensions || !hungryHunter || nowMs >= state.ForageUntilMs))
     {
         if (extensions && hungryHunter && nowMs >= state.ForageUntilMs) advice.Food.EmptyRound();
@@ -1748,36 +1847,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.Planning.HuntScanned = true;
     }
 
-    auto rememberAdviceStart = [&](LivingAdviceCandidate const& candidate, bool returning)
-    {
-        advice.Active = candidate; advice.ActiveOrigin = here; advice.ActiveAt = nowMs;
-        advice.ActiveHunger = record.Needs.Hunger; advice.ActiveReturning = returning; advice.StepArrived = false;
-        ++advice.Started; advice.Status = "MOVE_STARTED";
-        if (!returning) ++state.Forage.StepsStarted;
-        if (candidate.Backtrack)
-        {
-            state.ReturnRoute.PendingBacktrack = LivingReturnPolicy::RouteMemory::Backtrack{here, candidate.Move.Destination};
-            state.ReturnRoute.CommitBacktrack();
-        }
-    };
-    if (extensions && hungryHunter && !anchored && !rememberedDanger && !state.ReturningHome)
+    if (!priorityAttempt.Tried() && extensions && hungryHunter && !anchored && !rememberedDanger && !state.ReturningHome)
     {
         state.Planning.Stage = "ADVICE";
         if (auto candidate = TryLivingAdvice(record, creature, nowMs, false, nullptr))
         {
-            approvedRecovery = candidate->Move;
-            ActionRequest search;
-            search.Type = ActionType::MoveTo; search.SourceGoal = GoalType::LocalActivity;
-            search.Destination = candidate->Move.Destination; search.Recovery = approvedRecovery;
-            if (start(search, Phase::Moving))
-            {
-                rememberAdviceStart(*candidate, false);
-                state.ForageUntilMs = nowMs + LivingForagePolicy::DurationMs;
-                state.HasForageWaypoint = false;
-                state.MovementPurpose = "FORAGE_SEARCH";
-                return true;
-            }
-            ++advice.Rejected; advice.Status = "EXECUTION_REJECTED";
+            if (startFoodAdvice(*candidate)) return true;
         }
         if (advice.Status == "PLANNING_DEFERRED" && (advice.Search.Active || advice.PendingId)) return deferPlanning();
         if (advice.PendingId) { state.NextDecisionAtMs = nowMs+1000; return true; }
@@ -1950,54 +2025,37 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.ReturnRoute.Remember(here);
                 state.ReturnRoute.NextCareAtMs = nowMs + 60000;
             }
-            // Finish the original-origin search before generating expensive
-            // continuations for speculative model options. A complete terrain
-            // detour can be executed immediately; an existing model request or
-            // suspended advice search still keeps its already-tested context.
-            bool searchedReturn = false;
-            if (!advice.PendingId && !advice.Search.Active && nowMs >= state.ReturnRetryAtMs)
+            auto outcome = LivingReturnAdvice::Select({bool(advice.PendingId), advice.Search.Active,
+                adviceOffered && queueEligible && stalledReturn, nowMs >= state.ReturnRetryAtMs}, [&]()
             {
                 state.Planning.Stage = "RETURN";
                 auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state,
                     LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f, nowMs);
-                if (state.ReturnDiagnostics.Deferred) return deferPlanning();
-                searchedReturn = true;
-                if (step) { destination = *step; pathReady = true; }
-            }
-            if (!pathReady)
+                if (state.ReturnDiagnostics.Deferred) return ReturnAdviceOutcome::Deferred;
+                if (!step) return ReturnAdviceOutcome::NoStep;
+                destination = *step;
+                return ReturnAdviceOutcome::ReturnStep;
+            }, [&]()
             {
+                if (priorityAttempt.Tried() && returningForAdvice)
+                {
+                    // An empty/invalid priority attempt falls through to the
+                    // original return cursor without a second admission/search.
+                    advised = priorityAdvice;
+                    return priorityAttempt();
+                }
                 state.Planning.Stage = "ADVICE";
                 advised = TryLivingAdvice(record, creature, nowMs, true, rememberedDanger);
-            }
-            if (advice.Status == "PLANNING_DEFERRED" && (advice.Search.Active || advice.PendingId)) return deferPlanning();
-            if (advice.PendingId) { recoverHere(); return true; }
-            if (!advised && nowMs < state.ReturnRetryAtMs)
-            {
-                recoverHere();
-                return true;
-            }
-            if (advised)
-            {
-                destination = advised->Move.Destination;
-                state.ReturnDiagnostics = advised->Diagnostics;
-                state.ReturnStrategy = "AI_ADVICE";
-                if (!advised->FollowsCorridor)
-                {
-                    state.ReturnRoute.PlanContinuation(destination, advised->Continuation,
-                        advised->Diagnostics.ContinuationPath.SurfaceCorridor);
-                }
-                state.ReturnRoute.TrailTarget.reset();
-                state.ReturnRoute.PendingBacktrack.reset();
-                pathReady = true;
-            }
-            else if (!pathReady && !searchedReturn)
-            {
-                state.Planning.Stage = "RETURN";
-                auto step = FindRoleReturnStep(creature, home, rememberedDanger, failure, state, LivingRolePolicy::SafetyRadius(record.Id.Value), radius + 2.0f, nowMs);
-                if (state.ReturnDiagnostics.Deferred) return deferPlanning();
-                pathReady = step.has_value();
-                if (step) destination = *step;
-            }
+                if (advice.Status == "PLANNING_DEFERRED" && (advice.Search.Active || advice.PendingId))
+                    return ReturnAdviceOutcome::Deferred;
+                if (advice.PendingId) return ReturnAdviceOutcome::Pending;
+                return advised ? ReturnAdviceOutcome::AdviceStep : ReturnAdviceOutcome::NoStep;
+            });
+            if (outcome == ReturnAdviceOutcome::Deferred) return deferPlanning();
+            if (outcome == ReturnAdviceOutcome::Pending || outcome == ReturnAdviceOutcome::RetryWait)
+            { recoverHere(outcome == ReturnAdviceOutcome::Pending); return true; }
+            pathReady = outcome == ReturnAdviceOutcome::ReturnStep || outcome == ReturnAdviceOutcome::AdviceStep;
+            if (advised) return startReturnAdvice(*advised);
         }
         else
         {
@@ -2046,7 +2104,6 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             approvedRecovery->DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
             approvedRecovery->SurfaceCorridor = state.ReturnRoute.SurfaceCorridor &&
                 std::string_view(state.ReturnStrategy) == "CORRIDOR";
-            if (advised) approvedRecovery = advised->Move;
             move.Recovery = approvedRecovery;
         }
         if (start(move, Phase::Moving))
@@ -2058,12 +2115,10 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 if (approvedRecovery && approvedRecovery->Rejoin)
                     state.ReturnRoute.CommitRejoin(here, destination);
             }
-            if (advised) rememberAdviceStart(*advised, true);
         }
         else if (returningHome)
         {
             state.ReturnRoute.Reject(here, destination);
-            if (advised) { ++advice.Rejected; advice.Status = "EXECUTION_REJECTED"; }
             FailedReturn(state, nowMs, "RETURN_MOVE_REJECTED", here);
             recoverHere();
         }

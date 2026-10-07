@@ -235,6 +235,7 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
                     role.Advice->QueueWaitMs = _recoveryAdviceBudget.WaitMs(record->Id.Value, nowMs);
                     role.Advice->QueueSize = _recoveryAdviceBudget.Size();
                     role.Advice->QueueDispatchable = _recoveryAdviceBudget.Dispatchable(record->Id.Value);
+                    role.Advice->Admission = CaptureAdviceAdmissionTelemetry(source.Admission, nowMs);
                     if (role.Advice->QueueWaitMs)
                         role.Advice->QueueKind = recovery.ReturningHome ? "RETURN" : "FOOD";
                 }

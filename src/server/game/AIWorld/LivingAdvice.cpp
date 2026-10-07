@@ -39,12 +39,20 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     auto& state = record.LivingRole;
     auto& advice = state.Advice;
     auto& search = advice.Search;
+    advice.Admission.Record(LivingAdviceAdmissionEvent::Entered, nowMs);
     if (advice.Status == "PLANNING_DEFERRED") advice.Status = "IDLE";
-    if (!_recoveryAdviceEnabled || !HasRecoveryAdvice(record.Id) || !_aiClient ||
-        !creature.IsAlive() || creature.IsInCombat() || creature.IsInEvadeMode() ||
-        creature.GetMapId() != 0 || creature.GetZoneId() != 12 ||
-        record.ControlMode != AgentControlMode::AIWorldControlled || record.RuntimeGuid != creature.GetGUID())
-    { search = {}; return std::nullopt; }
+    char const* gate = nullptr;
+    if (!_recoveryAdviceEnabled) gate = "DISABLED";
+    else if (!HasRecoveryAdvice(record.Id)) gate = "FEATURE_SCOPE";
+    else if (!_aiClient) gate = "NO_CLIENT";
+    else if (!creature.IsAlive()) gate = "DEAD";
+    else if (creature.IsInCombat()) gate = "IN_COMBAT";
+    else if (creature.IsInEvadeMode()) gate = "EVADING";
+    else if (creature.GetMapId() != 0 || creature.GetZoneId() != 12) gate = "OUTSIDE_ELWYNN";
+    else if (record.ControlMode != AgentControlMode::AIWorldControlled) gate = "CONTROL_MODE";
+    else if (record.RuntimeGuid != creature.GetGUID()) gate = "RUNTIME_GUID_MISMATCH";
+    if (gate)
+    { advice.Admission.Record(LivingAdviceAdmissionEvent::EarlyGate, nowMs, gate); search = {}; return std::nullopt; }
     float forageRadius = LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds);
     ActionPosition here{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
     auto const& homePosition = creature.GetHomePosition();
@@ -95,8 +103,12 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     {
         if (!advice.Fresh(nowMs, here, home) || advice.Returning != returning || advice.Candidates.empty() ||
             !advice.Candidates.front().ProofMatches(home, dangerPoint, creature.GetPhaseMask(), capabilities, radius, arrivalRadius, clearance))
-        { ++advice.Rejected; advice.Status = "STALE"; advice.ClearPending(); return std::nullopt; }
-        if (!advice.Responded) return std::nullopt;
+        {
+            advice.Admission.Record(LivingAdviceAdmissionEvent::EarlyGate, nowMs, "STALE_RESPONSE_CONTEXT");
+            ++advice.Rejected; advice.Status = "STALE"; advice.ClearPending(); return std::nullopt;
+        }
+        if (!advice.Responded)
+        { advice.Admission.Record(LivingAdviceAdmissionEvent::EarlyGate, nowMs, "PENDING_RESPONSE"); return std::nullopt; }
         auto candidate = advice.ChosenCandidate();
         auto validation = candidate ? revalidate(*candidate) : LivingAdviceValidation::Invalid;
         if (validation == LivingAdviceValidation::Deferred)
@@ -107,7 +119,11 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         (state.ReturnFailures >= 3 || nowMs >= state.ReturnStartedAtMs + 60000) :
         state.HungrySinceMs && nowMs >= state.HungrySinceMs + 120000;
     if (!stalled || nowMs < advice.CooldownUntil || (!returning && advice.Active))
-    { search = {}; return std::nullopt; }
+    {
+        advice.Admission.Record(LivingAdviceAdmissionEvent::EarlyGate, nowMs,
+            !stalled ? "NOT_STALLED" : nowMs < advice.CooldownUntil ? "COOLDOWN" : "ACTIVE_OUTCOME");
+        search = {}; return std::nullopt;
+    }
     if (!search.Matches(nowMs, advice.LifetimeAt, here, home, dangerPoint, returning,
         creature.GetPhaseMask(), capabilities, radius, arrivalRadius, clearance))
     {
@@ -116,8 +132,10 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     }
     if (!search.Active)
     {
+        advice.Admission.Record(LivingAdviceAdmissionEvent::AcquireAttempt, nowMs);
         if (!_recoveryAdviceBudget.Acquire(record.Id.Value, nowMs, returning))
         { advice.Status = "WAITING_TURN"; return std::nullopt; }
+        advice.Admission.Record(LivingAdviceAdmissionEvent::Acquired, nowMs);
         search.Active = true; search.ProgressAt = nowMs; search.Lifetime = advice.LifetimeAt;
         search.Origin = here; search.Home = home; search.Danger = dangerPoint; search.Returning = returning;
         search.PhaseMask = creature.GetPhaseMask(); search.Capabilities = capabilities;
@@ -335,6 +353,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     }
     if (search.Candidates.empty())
     {
+        advice.Admission.Record(LivingAdviceAdmissionEvent::NoValidOptions, nowMs);
         advice.Status = "NO_VALID_OPTIONS";
         advice.CooldownUntil = nowMs + (returning ? 120000 : advice.Food.AdviceFailed());
         search = {}; return std::nullopt;

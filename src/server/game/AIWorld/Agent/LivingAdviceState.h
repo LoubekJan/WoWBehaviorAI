@@ -7,6 +7,7 @@
 #include "Action/RecoveryMovement.h"
 #include "LivingFoodMemory.h"
 #include "LivingPlanningState.h"
+#include "LivingAdviceAdmission.h"
 
 struct LivingAdviceCandidate
 {
@@ -111,6 +112,7 @@ struct LivingAdviceState
     LivingFoodMemory Food;
     LivingAdviceSearch Search;
     LivingPlanningCarePause ReplyBudgetPause;
+    LivingAdviceAdmissionState Admission;
 
     bool Fresh(uint64 now, ActionPosition const& here, ActionPosition const& home) const
     {

@@ -131,6 +131,21 @@ class ReturnRecovery(ProtocolModel):
         return self
 
 
+class AdviceAdmission(ProtocolModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    ready_observed: int = Field(ge=0, le=4294967295)
+    entries: int = Field(ge=0, le=4294967295)
+    acquire_attempts: int = Field(ge=0, le=4294967295)
+    acquired: int = Field(ge=0, le=4294967295)
+    early_gates: int = Field(ge=0, le=4294967295)
+    local_empty_options: int = Field(ge=0, le=4294967295)
+    last_event: Literal['NONE', 'READY_OBSERVED', 'ENTERED', 'ACQUIRE_ATTEMPT',
+                        'ACQUIRED', 'EARLY_GATE', 'NO_VALID_OPTIONS']
+    last_reason: str = Field(max_length=80)
+    last_event_age_ms: int | None = Field(default=None, ge=0, le=18446744073709551615)
+    last_acquired_age_ms: int | None = Field(default=None, ge=0, le=18446744073709551615)
+
+
 class RecoveryAdvice(ProtocolModel):
     model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
     lifetime_ms: int = Field(ge=0)
@@ -155,6 +170,8 @@ class RecoveryAdvice(ProtocolModel):
     queue_size: int = Field(default=0, ge=0, le=2048)
     queue_dispatchable: bool = False
     queue_kind: Literal['NONE', 'RETURN', 'FOOD'] = 'NONE'
+    # Missing in older recordings means unavailable, not zero admissions.
+    admission: AdviceAdmission | None = None
 
 
 class ForageDiagnostics(ProtocolModel):

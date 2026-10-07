@@ -283,6 +283,32 @@ TEST_CASE("Observer distinguishes model selection step arrival and actual recove
     CHECK(json.find("\"route_attempts\":12") != std::string::npos);
 }
 
+TEST_CASE("Observer exports admission attempts independently of model and recovery counters", "[AIWorld][Telemetry]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Live.emplace(); agent.LivingRole.emplace(); agent.LivingRole->Advice.emplace();
+    auto legacy = SerializeAgentTelemetry({agent}, 1000);
+    CHECK(legacy.find("\"admission\":null") != std::string::npos);
+    LivingAdviceAdmissionState evidence;
+    evidence.Record(LivingAdviceAdmissionEvent::ReadyObserved, 100);
+    evidence.Record(LivingAdviceAdmissionEvent::Entered, 101);
+    evidence.Record(LivingAdviceAdmissionEvent::AcquireAttempt, 102);
+    evidence.Record(LivingAdviceAdmissionEvent::Acquired, 103);
+    evidence.Record(LivingAdviceAdmissionEvent::NoValidOptions, 104);
+    agent.LivingRole->Advice->Admission = CaptureAdviceAdmissionTelemetry(evidence, 1000);
+    auto json = SerializeAgentTelemetry({agent}, 1000);
+    CHECK(json.find("\"ready_observed\":1") != std::string::npos);
+    CHECK(json.find("\"entries\":1") != std::string::npos);
+    CHECK(json.find("\"acquire_attempts\":1") != std::string::npos);
+    CHECK(json.find("\"acquired\":1") != std::string::npos);
+    CHECK(json.find("\"local_empty_options\":1") != std::string::npos);
+    CHECK(json.find("\"last_event\":\"NO_VALID_OPTIONS\"") != std::string::npos);
+    CHECK(json.find("\"last_event_age_ms\":896") != std::string::npos);
+    CHECK(json.find("\"last_acquired_age_ms\":897") != std::string::npos);
+    CHECK(json.find("\"requests\":0") != std::string::npos);
+    CHECK(json.find("\"home_success\":0") != std::string::npos);
+}
+
 TEST_CASE("Observer memory reads are bounded and anchor pages against new insertions", "[AIWorld][Telemetry]")
 {
     LongTermMemory memory;

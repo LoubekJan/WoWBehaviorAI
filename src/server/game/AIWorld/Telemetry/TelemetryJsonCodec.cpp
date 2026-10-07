@@ -209,6 +209,23 @@ namespace
             WriteJsonField(out, "retry_ms", a.RetryMs); WriteJsonField(out, "search_radius", a.SearchRadius);
             WriteJsonField(out, "queue_wait_ms", a.QueueWaitMs); WriteJsonField(out, "queue_size", a.QueueSize);
             WriteJsonField(out, "queue_dispatchable", a.QueueDispatchable); WriteJsonField(out, "queue_kind", a.QueueKind);
+            out << ",\"admission\":";
+            if (a.Admission)
+            {
+                auto const& admission = *a.Admission;
+                out << "{\"ready_observed\":" << admission.ReadyObserved;
+                WriteJsonField(out, "entries", admission.Entries);
+                WriteJsonField(out, "acquire_attempts", admission.AcquireAttempts);
+                WriteJsonField(out, "acquired", admission.Acquired);
+                WriteJsonField(out, "early_gates", admission.EarlyGates);
+                WriteJsonField(out, "local_empty_options", admission.LocalEmptyOptions);
+                WriteJsonField(out, "last_event", admission.LastEvent);
+                WriteJsonField(out, "last_reason", admission.LastReason);
+                WriteJsonField(out, "last_event_age_ms", admission.LastEventAgeMs);
+                WriteJsonField(out, "last_acquired_age_ms", admission.LastAcquiredAgeMs);
+                out << '}';
+            }
+            else out << "null";
             out << '}';
         }
         else out << "null";

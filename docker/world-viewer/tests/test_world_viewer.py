@@ -71,6 +71,25 @@ def return_recovery() -> dict:
 
 
 class WorldViewerApiTests(unittest.TestCase):
+    def test_admission_evidence_roundtrips_without_becoming_model_requests(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        admission = dict(ready_observed=3, entries=2, acquire_attempts=1, acquired=1,
+                         early_gates=1, local_empty_options=1, last_event='NO_VALID_OPTIONS',
+                         last_reason='NO_VALID_OPTIONS', last_event_age_ms=5, last_acquired_age_ms=40)
+        payload['agents'][0]['living_role']['advice'] = dict(
+            lifetime_ms=123, enabled=True, pending=False, status='NO_VALID_OPTIONS',
+            requests=0, selected=0, started=0, arrived=0, home_success=0,
+            food_success=0, rejected=0, unavailable=0, reused=0, admission=admission)
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        admission['entries'] = 100
+        current = self.client.get('/api/state').json()['agents'][0]['living_role']['advice']
+        self.assertEqual(current['admission']['entries'], 2)
+        self.assertEqual(current['admission']['local_empty_options'], 1)
+        self.assertEqual(current['requests'], 0)
+        self.assertFalse(current['pending'])
+        self.assertEqual(current['status'], 'NO_VALID_OPTIONS')
+
     def test_advice_counters_roundtrip_without_changing_behavior_status(self):
         payload = v2_batch()
         payload['version'] = 4
@@ -84,7 +103,7 @@ class WorldViewerApiTests(unittest.TestCase):
         payload['agents'][0]['living_role'].update(move_end='NO_PROGRESS', move_no_progress_ms=15000, move_remaining=42.5)
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
         role = self.client.get('/api/state').json()['agents'][0]['living_role']
-        self.assertEqual(role['advice'], advice)
+        self.assertEqual(role['advice'], {**advice, 'admission': None})
         self.assertEqual(role['phase'], payload['agents'][0]['living_role']['phase'])
         self.assertEqual(role['move_end'], 'NO_PROGRESS')
         self.assertEqual(role['move_remaining'], 42.5)
@@ -95,7 +114,7 @@ class WorldViewerApiTests(unittest.TestCase):
                 bad = copy.deepcopy(payload)
                 bad['agents'][0]['living_role']['advice'][field] = value
                 self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
-        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['advice'], advice)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['advice'], {**advice, 'admission': None})
 
     def test_recovery_protocol_roundtrips_and_rejects_bad_diagnostics(self):
         payload = v2_batch()

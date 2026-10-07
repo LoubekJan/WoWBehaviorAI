@@ -22,6 +22,7 @@
 #include "NavigationDiagnostics.h"
 #include "Agent/LivingForageState.h"
 #include "Agent/LivingPlanningState.h"
+#include "Agent/LivingAdviceAdmission.h"
 #include <array>
 #include <optional>
 #include <string>
@@ -59,6 +60,28 @@ struct ReturnRecoveryTelemetry
     std::optional<ActionPosition> RefugeAnchor;
 };
 
+struct AdviceAdmissionTelemetry
+{
+    uint32 ReadyObserved = 0, Entries = 0, AcquireAttempts = 0, Acquired = 0,
+        EarlyGates = 0, LocalEmptyOptions = 0;
+    std::string LastEvent = "NONE", LastReason = "NONE";
+    std::optional<uint64> LastEventAgeMs, LastAcquiredAgeMs;
+};
+
+inline AdviceAdmissionTelemetry CaptureAdviceAdmissionTelemetry(LivingAdviceAdmissionState const& source, uint64 nowMs)
+{
+    AdviceAdmissionTelemetry result;
+    result.ReadyObserved = source.ReadyObserved; result.Entries = source.Entries;
+    result.AcquireAttempts = source.AcquireAttempts; result.Acquired = source.Acquired;
+    result.EarlyGates = source.EarlyGates; result.LocalEmptyOptions = source.LocalEmptyOptions;
+    result.LastEvent = ToString(source.LastEvent); result.LastReason = source.LastReason;
+    if (source.LastEvent != LivingAdviceAdmissionEvent::None && nowMs >= source.LastAt)
+        result.LastEventAgeMs = nowMs - source.LastAt;
+    if (source.Acquired && nowMs >= source.LastAcquiredAt)
+        result.LastAcquiredAgeMs = nowMs - source.LastAcquiredAt;
+    return result;
+}
+
 struct RecoveryAdviceTelemetry
 {
     uint64 LifetimeAt = 0;
@@ -73,6 +96,7 @@ struct RecoveryAdviceTelemetry
     uint32 QueueSize = 0;
     bool QueueDispatchable = false;
     std::string QueueKind = "NONE";
+    std::optional<AdviceAdmissionTelemetry> Admission;
 };
 
 struct LivingPlanningTelemetry
