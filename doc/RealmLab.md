@@ -1,6 +1,6 @@
 # Samostatný realm pro vlastní testovací mapu
 
-Stav přípravy: 8. října 2026. Větev `codex/realm-lab` vychází z
+Stav přípravy: 8. října 2026. Větev `AI-World-lab` vychází z
 `ai-world` na revizi `c08fec3f2a`. Připravené soubory oddělují provoz a
 CI/CD; vlastní mapa a přenos AI mimo Elwynn jsou další etapa.
 
@@ -37,12 +37,12 @@ realm `-1` má globální oprávnění i na novém realmu.
 
 | Parametr | Elwynn | Lab |
 |---|---|---|
-| Větev | `ai-world` | `codex/realm-lab` |
+| Větev | `ai-world` | `AI-World-lab` |
 | Deploy checkout | `/home/voslik/WoWBehaviorAI` | `/home/voslik/WoWBehaviorAI-lab` |
 | Compose projekt | Stávající | `aitc-lab` |
 | Přihlašovací port | 3724 | Společný 3724 |
-| World port na hostu | 8085 | 8086, uvnitř kontejneru 8085 |
-| Observer port | 8090 | 8091 |
+| World port na hostu | 8085 | 9086, uvnitř kontejneru 8085 |
+| Observer port | 8090 | 9091 |
 | RealmID | 1 | 2, po ověření dostupnosti |
 | MySQL volume | `aitc_mysql-data` | `aitc_lab_mysql-data` |
 | Runtime build/cache | `aitc_build-data` / `aitc_ccache-data` | `aitc_lab_build-data` / `aitc_lab_ccache-data` |
@@ -68,7 +68,7 @@ Původní běžící realm není potřeba přepínat na novou větev.
 ### 1. Nový checkout a oddělená konfigurace
 
 ```bash
-git clone --branch codex/realm-lab https://github.com/LoubekJan/WoWBehaviorAI.git /home/voslik/WoWBehaviorAI-lab
+git clone --branch AI-World-lab https://github.com/LoubekJan/WoWBehaviorAI.git /home/voslik/WoWBehaviorAI-lab
 cd /home/voslik/WoWBehaviorAI-lab
 cp deploy/lab/.env.example deploy/lab/.env
 chmod 600 deploy/lab/.env
@@ -176,7 +176,7 @@ požadavky jsou vypnuté. Vlastní mapa ještě není součástí této přípra
 
 ### 5. Samostatné CI/CD
 
-- `.github/workflows/realm-lab.yml`: push/PR na `codex/realm-lab`.
+- `.github/workflows/realm-lab.yml`: push/PR na `AI-World-lab`.
 - GitHub-hosted kontroly: konfigurace a izolace, Observer/AI protokoly,
   kontrola shody auth schématu/prepared statements proti `ai-world`.
 - PR C++ build běží na GitHub-hosted runneru; cizí PR nemá přístup k

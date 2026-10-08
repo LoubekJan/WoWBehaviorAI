@@ -4,7 +4,7 @@ Development guide for the WoWBehaviorAI fork of TrinityCore `3.3.5`.
 
 For architecture and milestone history see [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md).
 
-Separate custom-map realm preparation lives on `codex/realm-lab`.
+Separate custom-map realm preparation lives on `AI-World-lab`.
 See [RealmLab.md](doc/RealmLab.md) for shared login/accounts, isolated
 world/characters/AI persistence, first-time host setup and independent CI/CD.
 Use `make -f Makefile.lab` for this realm; the normal commands below target

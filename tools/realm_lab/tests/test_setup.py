@@ -71,9 +71,9 @@ class RealmSetupTests(unittest.TestCase):
         self.assertNotIn("DELETE", sql)
 
     def test_registration_requires_matching_readback(self):
-        row = "2\tAI World Lab\t192.168.0.248\t192.168.0.248\t255.255.255.0\t8086"
+        row = "2\tAI World Lab\t192.168.0.248\t192.168.0.248\t255.255.255.0\t9086"
         verify_registration(self.settings, row)
-        for bad in ("", row.replace("8086", "8085"), row.replace("AI World Lab", "Other realm")):
+        for bad in ("", row.replace("9086", "8085"), row.replace("AI World Lab", "Other realm")):
             with self.assertRaises(SetupError):
                 verify_registration(self.settings, bad)
 

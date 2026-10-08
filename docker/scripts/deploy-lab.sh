@@ -3,7 +3,7 @@
 # Does not register realms, update auth schemas, or restart the shared login.
 set -euo pipefail
 expected_revision="${1:?Expected tested revision is required}"
-test "$(git branch --show-current)" = codex/realm-lab
+test "$(git branch --show-current)" = AI-World-lab
 test "$(git rev-parse HEAD)" = "$expected_revision"
 test -f deploy/lab/.env
 

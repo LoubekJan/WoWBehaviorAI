@@ -21,7 +21,7 @@ x-lab-environment: &lab-environment
   LAB_REALM_ADDRESS: ${LAB_REALM_ADDRESS:?Set the client-reachable address}
   LAB_REALM_LOCAL_ADDRESS: ${LAB_REALM_LOCAL_ADDRESS:?Set the LAN address}
   LAB_REALM_LOCAL_SUBNET_MASK: ${LAB_REALM_LOCAL_SUBNET_MASK:-255.255.255.0}
-  LAB_WORLD_PORT: ${LAB_WORLD_PORT:-8086}
+  LAB_WORLD_PORT: ${LAB_WORLD_PORT:-9086}
   WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
 
 services:
@@ -64,7 +64,7 @@ services:
       - ./runtime/lab/data:/runtime/data:ro
       - ./runtime/lab/logs:/runtime/logs
     ports:
-      - "${LAB_WORLD_PORT:-8086}:8085"
+      - "${LAB_WORLD_PORT:-9086}:8085"
     healthcheck:
       test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/8085"]
       interval: 5s
@@ -95,7 +95,7 @@ services:
     environment:
       WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
     ports:
-      - "${LAB_VIEWER_PORT:-8091}:8000"
+      - "${LAB_VIEWER_PORT:-9091}:8000"
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

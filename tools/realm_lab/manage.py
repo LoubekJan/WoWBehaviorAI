@@ -79,7 +79,7 @@ class Settings:
             ipaddress.IPv4Network(f"0.0.0.0/{subnet}")
         except ValueError as exc:
             raise SetupError("LAB_REALM_LOCAL_SUBNET_MASK must be a valid IPv4 mask") from exc
-        port = number(env, "LAB_WORLD_PORT", "8086", 1, 65535)
+        port = number(env, "LAB_WORLD_PORT", "9086", 1, 65535)
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         return cls(

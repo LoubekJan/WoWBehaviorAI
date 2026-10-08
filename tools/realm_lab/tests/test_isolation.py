@@ -32,7 +32,7 @@ class RealmIsolationTests(unittest.TestCase):
                 if source.startswith("./runtime/"):
                     self.assertTrue(source.startswith("./runtime/lab/"), (name, mount))
         self.assertIn("./runtime/lab/data:/runtime/data:ro", lab["services"]["worldserver"]["volumes"])
-        self.assertEqual(lab["services"]["worldserver"]["ports"], ["${LAB_WORLD_PORT:-8086}:8085"])
+        self.assertEqual(lab["services"]["worldserver"]["ports"], ["${LAB_WORLD_PORT:-9086}:8085"])
 
     def test_only_worldserver_and_setup_tools_reach_shared_auth_network(self):
         lab = document("compose.lab.yml")
@@ -53,7 +53,7 @@ class RealmIsolationTests(unittest.TestCase):
     def test_cd_is_branch_bound_and_never_restarts_primary_services(self):
         workflow = document(".github/workflows/realm-lab.yml")
         deploy = workflow["jobs"]["deploy"]
-        self.assertIn("refs/heads/codex/realm-lab", deploy["if"])
+        self.assertIn("refs/heads/AI-World-lab", deploy["if"])
         self.assertIn("github.event_name == 'push'", deploy["if"])
         self.assertIn("REALM_LAB_DEPLOY_ENABLED", deploy["if"])
         self.assertIn("realm-lab-deploy", deploy["runs-on"])

@@ -2,9 +2,9 @@ name: Realm Lab CI/CD
 
 on:
   push:
-    branches: [codex/realm-lab]
+    branches: [AI-World-lab]
   pull_request:
-    branches: [codex/realm-lab]
+    branches: [AI-World-lab]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   contracts:
-    if: github.base_ref == 'codex/realm-lab' || github.ref == 'refs/heads/codex/realm-lab'
+    if: github.base_ref == 'AI-World-lab' || github.ref == 'refs/heads/AI-World-lab'
     runs-on: ubuntu-24.04
     services:
       mysql:
@@ -62,7 +62,7 @@ jobs:
           (cd docker/ai && python -m unittest discover -s tests -v)
 
   build-pr:
-    if: github.event_name == 'pull_request' && github.base_ref == 'codex/realm-lab'
+    if: github.event_name == 'pull_request' && github.base_ref == 'AI-World-lab'
     needs: contracts
     runs-on: ubuntu-24.04
     env:
@@ -93,7 +93,7 @@ jobs:
           ctest --test-dir build-lab --output-on-failure --no-tests=error
 
   build-server:
-    if: github.ref == 'refs/heads/codex/realm-lab' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/AI-World-lab' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: contracts
     runs-on: [self-hosted, linux, docker, wow, ci]
     concurrency:
@@ -116,7 +116,7 @@ jobs:
     needs: [contracts, build-server]
     # One-time provisioning must be finished before enabling this repository
     # variable. PRs and manual workflow runs never deploy.
-    if: github.ref == 'refs/heads/codex/realm-lab' && github.event_name == 'push' && vars.REALM_LAB_DEPLOY_ENABLED == 'true'
+    if: github.ref == 'refs/heads/AI-World-lab' && github.event_name == 'push' && vars.REALM_LAB_DEPLOY_ENABLED == 'true'
     environment: realm-lab
     runs-on: [self-hosted, linux, docker, wow, realm-lab-deploy]
     concurrency:
@@ -132,12 +132,12 @@ jobs:
           test -d "$lab_checkout/.git"
           git config --global --add safe.directory "$lab_checkout"
           cd "$lab_checkout"
-          test "$(git branch --show-current)" = codex/realm-lab
+          test "$(git branch --show-current)" = AI-World-lab
           # Close recording before changing its bind-mounted Python files.
           if test -f deploy/lab/.env; then
             docker compose --env-file deploy/lab/.env -f compose.lab.yml --profile recording stop --timeout 30 aiworld-recorder
           fi
-          git fetch origin codex/realm-lab
+          git fetch origin AI-World-lab
           git reset --hard "$TESTED_SHA"
           test "$(git rev-parse HEAD)" = "$TESTED_SHA"
       - name: Deploy lab infrastructure
