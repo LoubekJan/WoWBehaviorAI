@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "stage": "flat_untextured_area_ready",
+  "map_id": 725,
+  "area_id": 4988,
+  "area_bit": 3618,
+  "directory": "AIWorldLab",
+  "name": "AI World Lab",
+  "instance_type": 0,
+  "expansion": 2,
+  "tile": {
+    "x": 30,
+    "y": 31
+  },
+  "editor": {
+    "version": "Noggit Studio 3.1446+ [40bc7ed9]",
+    "exe_sha256": "81c40cac2c2ea5f1b9b23064e8702116dbfed31d2ea39457d622bad346a80592"
+  },
+  "client": {
+    "version": "3.3.5a",
+    "build": 12340,
+    "locale": "enUS",
+    "map_dbc_sha256": "261bd7c2c9dbdba1f2966ca21106673ed722c2e3681d227f1eed261b6ce870d5",
+    "area_dbc_sha256": "eb4bcfa77b03aed853c4783ac260a4259970effaad5b8a74d868783b4dbdc44e"
+  },
+  "terrain": {
+    "cells": 256,
+    "height_min": 0,
+    "height_max": 0,
+    "texture_layers": 0,
+    "water": false,
+    "holes": false,
+    "objects": false
+  },
+  "storage": {
+    "kind": "private_local_artifact",
+    "directory": "runtime/lab/map-source-artifacts",
+    "artifact": "aiworldlab-725-area4988-flat-untextured-v1.zip",
+    "bytes": 70952,
+    "sha256": "d5d63f47a85760baf4900a196284356b45122c0ab1a24929b7b1b56d741b4ab4"
+  },
+  "files": [
+    {
+      "path": "AI World Lab.noggitproj",
+      "bytes": 374,
+      "sha256": "b0510bf75c6e361702a0ccd432a6a827241ac51ee1d2f48e3e6384f7066645db"
+    },
+    {
+      "path": "DBFilesClient/Map.dbc",
+      "bytes": 43874,
+      "sha256": "540311f9f536c392929c533e17e7eb8111e25df852bc60ae5bdd35d6978babbc"
+    },
+    {
+      "path": "DBFilesClient/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "DBFilesClient/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdt",
+      "bytes": 32828,
+      "sha256": "f1d2bbcbbef0168c93f39e87700f83192e2edbb77cecd60208e58ec1c05a1c5d"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdl",
+      "bytes": 17566,
+      "sha256": "f509b1ce43d77f61ef3648bd071ff1a245d075ec0a0739bac0fa491d59889b46"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "bytes": 314516,
+      "sha256": "1d9c68613eb704ec9225dbfba6afb130d7f51f853c8e2c08e32c1b6466ed213f"
+    }
+  ],
+  "remaining": [
+    "reopen after area DBC update",
+    "paint one existing texture",
+    "record interior home and test positions",
+    "build matching client/server data"
+  ]
+}

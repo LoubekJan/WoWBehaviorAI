@@ -252,11 +252,27 @@ Etapa se označí za dokončenou až po splnění její podmínky a uložení d�
 
 ### 1. Projekt mapy a lab klient
 
-- [ ] Připravit samostatnou kopii klienta WoW 3.3.5a pro lab.
+- [x] Připravit samostatnou kopii klienta WoW 3.3.5a pro lab.
 - [ ] Založit Noggit RED projekt a ověřit, že umí vytvořit a znovu otevřít novou mapu.
-- [ ] Podle skutečných klientských DBC vybrat volné MapID a AreaID.
-- [ ] Zvolit MapID nejvýše 999; místní mmap generátor čte ID z prvních tří znaků názvu souboru. RealmID 2 je nezávislé číslo.
-- [ ] Určit verzované vstupy projektu a umístění velkých mapových zdrojů v LFS nebo privátním artefaktovém úložišti. Celý klient, runtime data a secrets nepatří do Gitu.
+- [x] Podle skutečných klientských DBC vybrat volné MapID a AreaID.
+- [x] Zvolit MapID nejvýše 999; místní mmap generátor čte ID z prvních tří znaků názvu souboru. RealmID 2 je nezávislé číslo.
+- [x] Určit verzované vstupy projektu a umístění velkých mapových zdrojů v LFS nebo privátním artefaktovém úložišti. Celý klient, runtime data a secrets nepatří do Gitu.
+
+Stav přípravy: klient `C:\WoWModding\Client-Lab` má build 12340 a locale
+enUS. Noggit Studio 3.1446+ `[40bc7ed9]` vytvořil projekt
+`runtime/lab/map-project` a mapu **725 / AIWorldLab / AI World Lab**.
+Typ mapy v tomto editoru je **None** (`InstanceType=0`), expanze WotLK (2).
+Podle skutečně načtených MPQ byla vybrána oblast **4988**, exploration bit
+**3618**. Mapu editor již načetl; po dodatečném doplnění `AreaTable.dbc`
+ještě zbývá nové otevření projektu a vizuální kontrola.
+
+V Gitu je [manifest projektu](../data/realm_lab/aiworldlab/project-manifest.json)
+a [postup práce se zdroji](../data/realm_lab/aiworldlab/README.md).
+Binární zdroje jsou v soukromém lokálním artefaktu
+`runtime/lab/map-source-artifacts/aiworldlab-725-area4988-flat-untextured-v1.zip`.
+Obsah balíku je omezený na vlastní mapu, její projekt a potřebné DBC;
+pracovní kopie Azerothu do něj nevstupuje. Před nasazením další verze
+zajistit také kopii artefaktu na lab hostu.
 
 **Hotovo, když:** editor otevře uložený projekt a zvolená ID nekolidují
 s klientskými daty. Práce v editoru není zatím ověřená pro bezobslužnou automatizaci.
@@ -266,7 +282,12 @@ s klientskými daty. Práce v editoru není zatím ověřená pro bezobslužnou 
 - [ ] Vytvořit jednu terénní dlaždici s rovnou testovací plochou přibližně 200 × 200 yardů a existující texturou.
 - [ ] Označit domov a několik kontrolních bodů uvnitř dlaždice, mimo její hrany.
 - [ ] Zachovat jeden povrch; první verze nemá vodu, svahy, budovy ani překážky.
-- [ ] Připravit WDT/ADT a potřebné změny `Map.dbc` a `AreaTable.dbc`; názvy adresáře a mapy musí souhlasit.
+- [x] Připravit WDT/ADT a potřebné změny `Map.dbc` a `AreaTable.dbc`; názvy adresáře a mapy musí souhlasit.
+
+Vytvořená dlaždice **(30, 31)** má 256 částí terénu a konstantní výšku 0.
+Neobsahuje vodu, díry ani objekty. Oblast 4988 je doplněná do DBC i všech
+256 částí ADT. Zatím má **nulový počet texturových vrstev**; další ruční
+krok je nanést jednu existující texturu a zaznamenat vnitřní kontrolní body.
 
 **Hotovo, když:** mapa jde znovu otevřít, její rovina je vizuálně ověřená
 a souřadnice kontrolních bodů jsou zaznamenané.
