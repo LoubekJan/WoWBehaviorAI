@@ -84,7 +84,10 @@ Budoucí úspěšné pushe do `AI-World-lab` tedy nasazují pouze lab.
 a [ověření neinteraktivních příkazů](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/37850347905)
 prošly včetně C++ buildu/testů, extraktorů a skutečných MySQL testů.
 Jejich deploy byl přeskočen, protože začaly před zapnutím deploy proměnné.
-Nový push ověří první automatické nasazení.
+[První automatické nasazení](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/37850754973)
+potom prošlo pro revizi `39d9cf62d8e1`. Ověření z 9. října potvrdilo zdravé
+lab služby, oba realmy online a dostupnost portů 9086/9091 z klientského
+počítače. Provozní záznam je na hostu v `runtime/lab/receipts/deployed.json`.
 
 Jednorázový import TDB a založení auth účtu z následujícího návodu se na
 tomto připraveném hostu neopakují. Aktuální provozní stav se ověřuje
@@ -237,39 +240,105 @@ Při selhání buildu lab zůstane zastavený; původní realm pokračuje.
 Není zde automatický rollback DB migrací. Zálohy lab MySQL jsou potřebné
 před změnami persistentních schémat.
 
-## Další práce pro vlastní mapu
+## TODO — vlastní mapa a ověřené návraty
 
-1. **Přidělit MapID/AreaID a vytvořit minimální mapu.** Jeden povrch,
-   rovina, jeden domov, několik predátorů a kořistí, bez vody/jeskyní
-   a více pater. Použít stávající WoW modely a textury.
-2. **Verzovat mapový projekt a jeho vstupy.** WDT/ADT, příslušné DBC
-   úpravy, SQL spawny, domovy a malý census. Běžný CI nemá klientská data;
-   build klientského patche a extrakce proběhnou na vybaveném hostu.
-   Velké mapové zdroje je potřeba uložit přes LFS nebo privátní artefaktové
-   úložiště; runtime výstupy a celý klient nepatří do tohoto Git repozitáře.
-3. **Sjednotit rozsah AI.** Odstranit rozptýlené předpoklady map 0 /
-   zone 12 v `LivingRole.cpp`, `LivingWolf.cpp`, `LivingRecoveryPath.cpp`,
-   `LivingRolePolicy`, `ElwynnHuntPath`, akčních validátorech a chase.
-   Jedna společná definice mapy, oblastí a hranic musí řídit lov, návrat,
-   perception, aktivaci populace i načítání gridů.
-4. **Připravit čistou populaci.** Historické characters migrace vytvářejí
-   několik Elwynn pilotních agentů; nový TDB obsahuje původní světové
-   spawny. Samostatná DB automaticky neznamená čistou testovací populaci.
-   Připravit explicitní lab bootstrap a ověřit nulové cizí agenty/skupiny,
-   bez zásahů do Elwynn DB. Nekopírovat jeho živé AI paměti ani postavy.
-5. **Zobecnit telemetrii a Observer.** Capture scope, mapové pozadí,
-   souřadnice, názvy a příslušné reporty musejí odpovídat nové mapě.
-   Připravený druhý Observer zatím čeká bez lab snapshotů.
-6. **Sestavit a zaznamenat shodný datový balík.** Klientský patch, server
-   DBC/maps/vmaps/mmaps, verze extraktorů a hashe. Kontrolovat regeneraci
-   změněných mmap dlaždic; samotná shodná verze formátu nevynutí přepočet.
-7. **Zapnout AI a ověřit pohyb.** Zachovat produkční lov/návrat,
-   opakovaně prokázat fyzický návrat bez respawnu/teleportu a následnou
-   další činnost. Začít jedním NPC, potom desítkami. Svah/překážku přidat
-   až po průchodu roviny. Modelové rady zapínat až po pohybovém základu.
+Plán z 9. října 2026. Infrastruktura labu a automatické CI/CD jsou hotové;
+níže uvedené mapové a AI etapy zatím nejsou dokončené. První cíl je jeden
+mob na vlastní rovné mapě, který se opakovaně fyzicky vrátí domů.
 
-Tato příprava neodstraňuje aktuální chyby návratu ani netvrdí, že se AI
-už přenesla na jinou mapu. Odděluje infrastrukturu pro její další vývoj.
+Etapy postupují v tomto pořadí. Společný rozsah AI v kódu lze připravovat
+souběžně s mapovým projektem, ale jeho aktivace počká na ověřenou navigaci.
+Etapa se označí za dokončenou až po splnění její podmínky a uložení důkazu.
+
+### 1. Projekt mapy a lab klient
+
+- [ ] Připravit samostatnou kopii klienta WoW 3.3.5a pro lab.
+- [ ] Založit Noggit RED projekt a ověřit, že umí vytvořit a znovu otevřít novou mapu.
+- [ ] Podle skutečných klientských DBC vybrat volné MapID a AreaID.
+- [ ] Zvolit MapID nejvýše 999; místní mmap generátor čte ID z prvních tří znaků názvu souboru. RealmID 2 je nezávislé číslo.
+- [ ] Určit verzované vstupy projektu a umístění velkých mapových zdrojů v LFS nebo privátním artefaktovém úložišti. Celý klient, runtime data a secrets nepatří do Gitu.
+
+**Hotovo, když:** editor otevře uložený projekt a zvolená ID nekolidují
+s klientskými daty. Práce v editoru není zatím ověřená pro bezobslužnou automatizaci.
+
+### 2. Minimální rovný terén
+
+- [ ] Vytvořit jednu terénní dlaždici s rovnou testovací plochou přibližně 200 × 200 yardů a existující texturou.
+- [ ] Označit domov a několik kontrolních bodů uvnitř dlaždice, mimo její hrany.
+- [ ] Zachovat jeden povrch; první verze nemá vodu, svahy, budovy ani překážky.
+- [ ] Připravit WDT/ADT a potřebné změny `Map.dbc` a `AreaTable.dbc`; názvy adresáře a mapy musí souhlasit.
+
+**Hotovo, když:** mapa jde znovu otevřít, její rovina je vizuálně ověřená
+a souřadnice kontrolních bodů jsou zaznamenané.
+
+### 3. Shodný klientský a serverový balík
+
+- [ ] Z mapového projektu sestavit klientský patch pro lab klienta.
+- [ ] Ze stejné verze obsahu získat `dbc`/`maps` pomocí `mapextractor`, potom `vmaps` pomocí `vmap4extractor` a `vmap4assembler`.
+- [ ] V čistém pracovním adresáři vygenerovat `mmaps` nové mapy, včetně debug geometrie pro kontrolu navigace.
+- [ ] Zapsat hashe vstupů a výstupů, revizi extraktorů, MapID/AreaID a verzi klientského patche do manifestu.
+- [ ] Nasadit balík pouze do `runtime/lab/data` a restartovat lab.
+
+**Hotovo, když:** klient a server používají dohledatelně shodný obsah a
+všechny mapové výstupy pocházejí z aktuálních vstupů. Pouhé opakované
+spuštění generátoru nestačí: existující mmap dlaždice stejné verze formátu
+může přeskočit i po změně terénu. Běžný CI nemá klientská data; extrakce
+proto musí proběhnout na vybaveném hostu.
+
+### 4. Mapa a navigace bez AIWorld
+
+- [ ] Přihlásit hráče na lab, vstoupit na kontrolní bod a ověřit správné MapID/AreaID.
+- [ ] Ověřit stabilní výšku podlahy, bez propadání a chybějících mapových souborů.
+- [ ] Pomocí `.gps`, `.mmap` a debug geometrie prověřit trasy mezi několika kontrolními body v obou směrech.
+- [ ] Ověřit běžný fyzický pohyb jednoho NPC mezi těmito body bez zapnutých living rolí.
+
+**Hotovo, když:** funguje navigace i skutečný pohyb v obou směrech.
+Selhání této etapy se nejprve řeší v mapových datech nebo základním pohybu.
+
+### 5. Přenos potřebných částí AI do labu
+
+- [ ] Zavést jednu společnou definici mapy, povolených oblastí a hranic simulace.
+- [ ] Nahradit rozptýlené předpoklady map 0 / zone 12 v living, lovu, návratu, perception, validátorech a chase. Zahrnout `LivingRolePolicy`, `LivingRole.cpp`, `LivingWolf.cpp`, `LivingRecoveryPath.cpp`, `ActionSystem` a `ElwynnHuntPath`.
+- [ ] Napojit načítání a aktualizaci gridů na nový rozsah a ověřit běh území bez přihlášeného hráče.
+- [ ] Připravit explicitní lab bootstrap: nové spawny, role, účast v simulaci, control mode a domovy. Auditovat a oddělit historické Elwynn piloty/skupiny vytvořené migracemi.
+- [ ] Upravit telemetrii, Observer, hranice zobrazení, recorder a vyhodnocení pro novou mapu. Ověřit, že snapshoty obsahují pouze lab populaci.
+- [ ] Přidat ověřovaný aktivační profil do `tools/realm_lab/manage.py`; současný generátor AI/living/telemetrii přepisuje na nulu. Neupravovat ručně vygenerovaný conf.
+- [ ] Při prvním zapnutí ponechat LLM/modelové požadavky vypnuté.
+
+**Hotovo, když:** jeden lab agent má správnou identitu, roli, domov a
+telemetrii a aktualizuje se i bez hráče. Aktivace musí navazovat na
+ověřený mapový balík a bootstrap.
+
+### 6. Samotný návrat jednoho predátora
+
+- [ ] Založit jednoho obyčejného predátora, například medvěda, bez skupiny, hladu a hrozeb.
+- [ ] Pro test měnit pouze aktuální polohu, například na vzdálenost 40 yardů; zachovat původní spawn i runtime home.
+- [ ] Použít současný produkční návratový systém a před testem stanovit časový limit dokončení.
+- [ ] Zaznamenat deset fyzických návratů z různých směrů do původní domácí oblasti a následnou další činnost.
+- [ ] Zopakovat ověření bez přihlášeného hráče.
+
+**Hotovo, když:** všechny požadované návraty jsou skutečně dokončené
+ve stejné životní instanci a ve stanoveném limitu. Přijetí pohybové akce,
+teleport, respawn nebo restart nejsou důkazem návratu.
+
+### 7. Lov a postupné rozšiřování
+
+- [ ] Přidat jednu kořist a zaznamenat deset cyklů lov → potrava → fyzický návrat → další činnost.
+- [ ] Po průchodu tohoto scénáře rozšířit populaci na deset NPC a ověřit plánovací rozpočet i návraty.
+- [ ] Teprve po průchodu roviny přidat mírný svah a zopakovat stejné scénáře.
+- [ ] Samostatně přidat jednu překážku s průchodem a zopakovat stejné scénáře.
+- [ ] Další typy terénu, skupiny a modelové rady přidávat až podle výsledků předchozích etap.
+
+**Hotovo, když:** každé rozšíření má samostatný průkazný záznam a nezhorší
+již ověřené návraty.
+
+### Postup při prvním selhání
+
+Při selhání etapu zastavit, uložit přesný scénář, revizi kódu, hashe dat a
+záznam pohybu. Reprodukovat stejný případ a určit, zda selhalo hledání
+cesty, její validace, provedení nebo rozpoznání dokončení. Další etapa
+počká na vysvětlení a ověření opravy; původní domov zůstává neměnný.
+Úspěch infrastruktury a CI/CD není důkazem funkční mapy ani návratů.
 
 ## Ověření a zdroje
 
