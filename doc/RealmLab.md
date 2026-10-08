@@ -60,6 +60,38 @@ CI overlay `compose.lab.ci.yml` se používá pouze při kompilaci/testech,
 nikoli při startu realmu. Vyžaduje Docker Compose >= 2.24.4 kvůli
 `!override` ([dokumentace Dockeru](https://docs.docker.com/reference/compose-file/merge/)).
 
+## Připravený host — 9. října 2026
+
+Na hostu `192.168.0.248` je připravený checkout
+`/home/voslik/WoWBehaviorAI-lab`, samostatná MySQL instance, oddělená
+kopie klientských dat a realm `AI World Lab` s ID 2. Přihlašování zůstává
+na původním authserveru. Veřejné lab porty jsou 9086 a 9091.
+
+Lab používá nově vygenerovaná hesla a telemetry token; soubory
+`deploy/lab/.env` a `deploy/runner/.env` mají práva 0600. Originální MySQL
+bylo připojeno do auth sítě bez restartu. Pro jeho budoucí nahrazení je
+v původním checkoutu uložený auth overlay a nastavený `COMPOSE_FILE`.
+Původní `.env` je zálohované v `runtime/lab-prep/` na tomto hostu.
+
+Základ světa je nový import `TDB335.25101`, nikoli dump živého Elwynnu.
+Archiv má SHA256
+`b426641e6ce8da02e4109b40e570c2db75f89c228a412b3113f82eb3c8725299`.
+Samostatný runner `wow-lab-deploy-runner` je zaregistrovaný a repository
+variable `REALM_LAB_DEPLOY_ENABLED` je zapnutá po výslovném schválení.
+Budoucí úspěšné pushe do `AI-World-lab` tedy nasazují pouze lab.
+
+[První CI](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/37848941333)
+a [ověření neinteraktivních příkazů](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/37850347905)
+prošly včetně C++ buildu/testů, extraktorů a skutečných MySQL testů.
+Jejich deploy byl přeskočen, protože začaly před zapnutím deploy proměnné.
+Nový push ověří první automatické nasazení.
+
+Jednorázový import TDB a založení auth účtu z následujícího návodu se na
+tomto připraveném hostu neopakují. Aktuální provozní stav se ověřuje
+pomocí `docker compose --env-file deploy/lab/.env -f compose.lab.yml ps`
+a posledního běhu `Realm Lab CI/CD`. Vlastní mapa a AI mimo Elwynn
+nadále čekají na samostatnou implementaci.
+
 ## První zprovoznění na Linux hostu
 
 Toto je jednorázový postup pro správce hostu; workflow jej samo neprovádí.
