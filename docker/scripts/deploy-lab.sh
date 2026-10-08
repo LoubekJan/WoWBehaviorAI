@@ -17,11 +17,11 @@ fi
 
 "${lab_compose[@]}" build
 make -f Makefile.lab dbc-factions
-"${lab_compose[@]}" run --rm --no-deps tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
+"${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
 # Stop only the lab world before replacing its installed binaries.
 "${lab_compose[@]}" stop worldserver
-"${lab_compose[@]}" run --rm --no-deps tc-dev bash /workspace/docker/scripts/build-lab.sh
+"${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh
 "${lab_compose[@]}" up -d lab-mysql ai-server world-viewer worldserver
 
 wait_healthy() {
@@ -43,9 +43,9 @@ for service in lab-mysql ai-server world-viewer worldserver; do
   wait_healthy "$service"
 done
 
-version="$("${lab_compose[@]}" exec -T worldserver /build/bin/worldserver --version)"
+version="$("${lab_compose[@]}" exec -T --interactive=false worldserver /build/bin/worldserver --version)"
 grep -Fq "${expected_revision:0:12}" <<< "$version"
-"${lab_compose[@]}" exec -T -w /workspace worldserver python3 -c '
+"${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver python3 -c '
 from pathlib import Path
 from tools.realm_lab.manage import Settings, render_config
 import os

@@ -110,7 +110,7 @@ jobs:
       - name: Build and test in isolated lab CI volumes
         run: |
           docker compose --env-file deploy/lab/.env.example -f compose.lab.yml -f compose.lab.ci.yml \
-            run --rm --no-deps tc-dev bash /workspace/docker/scripts/build-lab.sh /build/check_install
+            run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh /build/check_install
 
   deploy:
     needs: [contracts, build-server]

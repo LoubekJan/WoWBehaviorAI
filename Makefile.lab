@@ -1,6 +1,7 @@
 # Explicit entry point: make -f Makefile.lab <target>
 # No original-realm compose command or volume is used by these targets.
 LAB_COMPOSE := docker compose --env-file deploy/lab/.env -f compose.lab.yml
+LAB_RUN := $(LAB_COMPOSE) run --rm --no-deps -T --interactive=false
 LAB_CONFIGURE := cmake -S /workspace -B /build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/build -DTOOLS=1 -DBUILD_TESTING=ON
 .PHONY: bootstrap config build test import-tdb dbc-factions provision-auth register-realm preflight start stop restart-world logs record record-status
 
@@ -13,15 +14,15 @@ config:
 	$(LAB_COMPOSE) config --quiet
 
 build:
-	$(LAB_COMPOSE) run --rm --no-deps tc-dev bash -ec '$(LAB_CONFIGURE) && cmake --build /build && cmake --install /build'
+	$(LAB_RUN) tc-dev bash -ec '$(LAB_CONFIGURE) && cmake --build /build && cmake --install /build'
 
 test:
-	$(LAB_COMPOSE) run --rm --no-deps tc-dev ctest --test-dir /build --output-on-failure --no-tests=error
+	$(LAB_RUN) tc-dev ctest --test-dir /build --output-on-failure --no-tests=error
 
 import-tdb:
 	@test -n "$(TDB_VERSION)" && test -n "$(TDB_SHA256)" || (echo 'Set TDB_VERSION and TDB_SHA256'; exit 2)
 	$(LAB_COMPOSE) up -d lab-mysql
-	$(LAB_COMPOSE) run --rm --no-deps -e TDB_DB_HOST=lab-mysql -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh
+	$(LAB_RUN) -e TDB_DB_HOST=lab-mysql -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh
 
 # Preserve the existing world migration/DBC contract, in LAB output only.
 dbc-factions:
@@ -30,13 +31,13 @@ dbc-factions:
 # One-time operations only; never called automatically by CD. Supply the
 # shared-auth administrator password via exported LAB_AUTH_ADMIN_PASSWORD.
 provision-auth:
-	$(LAB_COMPOSE) run --rm --no-deps -e LAB_AUTH_ADMIN_USER -e LAB_AUTH_ADMIN_PASSWORD tc-dev python3 tools/realm_lab/manage.py provision-auth
+	$(LAB_RUN) -e LAB_AUTH_ADMIN_USER -e LAB_AUTH_ADMIN_PASSWORD tc-dev python3 tools/realm_lab/manage.py provision-auth
 
 register-realm:
-	$(LAB_COMPOSE) run --rm --no-deps tc-dev python3 tools/realm_lab/manage.py register-realm
+	$(LAB_RUN) tc-dev python3 tools/realm_lab/manage.py register-realm
 
 preflight:
-	$(LAB_COMPOSE) run --rm --no-deps tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
+	$(LAB_RUN) tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
 start: preflight
 	$(LAB_COMPOSE) up -d lab-mysql ai-server world-viewer worldserver
