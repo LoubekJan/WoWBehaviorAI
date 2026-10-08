@@ -64,6 +64,8 @@ struct LivingAdviceSearch
     std::size_t Next = 0, MemoryNext = 0;
     std::vector<Seed> Seeds;
     std::vector<LivingAdviceCandidate> Candidates;
+    LivingForageGroundSearch LocalGround;
+    std::optional<ActionPosition> GroundedTarget;
     std::optional<ActionPosition> ResolvedTarget;
     std::optional<LivingAdviceCandidate> Trial;
     LivingReturnPolicy::HomeCorridorSearch Continuation;
@@ -84,10 +86,10 @@ struct LivingAdviceSearch
     void Advance(Stage next)
     {
         Current = next; Next = 0; Seeds.clear(); SeedsReady = false;
-        ResolvedTarget.reset(); Trial.reset(); Continuation = {};
+        LocalGround = {}; GroundedTarget.reset(); ResolvedTarget.reset(); Trial.reset(); Continuation = {};
     }
     void NextSeed(uint64 now)
-    { ++Next; ResolvedTarget.reset(); Trial.reset(); Continuation = {}; MarkProgress(now); }
+    { ++Next; LocalGround = {}; GroundedTarget.reset(); ResolvedTarget.reset(); Trial.reset(); Continuation = {}; MarkProgress(now); }
     void MarkProgress(uint64 now) { ProgressAt = now; BudgetPause = {}; }
 };
 

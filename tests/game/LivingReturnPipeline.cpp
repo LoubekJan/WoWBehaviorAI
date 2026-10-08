@@ -100,6 +100,161 @@ TEST_CASE("Recovery navigation return pipeline executes a supported short leg be
     CHECK(LivingReturnPolicy::Distance(live, PipelineHome) > 3);
 }
 
+TEST_CASE("Recovery navigation return retries retain graph progress through sparse permits and stationary care", "[AIWorld][RecoveryNavigation][ReturnPipeline]")
+{
+    using Status = LivingSurfaceCorridor::Status;
+    LivingReturnSearch search;
+    LivingPlanningContext planning;
+    planning.Begin(1000, PipelineOrigin, PipelineHome, std::nullopt, 1, 1);
+    PlanningWorkScheduler scheduler;
+    unsigned slices = 0, fallbackRounds = 0, directCalls = 0, graphCalls = 0;
+    unsigned previousEdges = 0;
+    std::vector<ActionPosition> route;
+    std::optional<ActionPosition> result;
+    // A loaded population can leave this actor one query per ten seconds.
+    // A complete route needs more than a single thirty-second graph slice.
+    for (uint64 now = 1000; now <= 5000000 && !result; now += 10000)
+    {
+        scheduler.Request(AgentId{1}, now); scheduler.BeginFrame(now, {AgentId{1}});
+        PlanningWorkBudget budget(std::chrono::microseconds(2000), 1);
+        PlanningWorkBudget::Scope scope(budget);
+        PlanningWorkBudget::ActorScope actor(scheduler, AgentId{1});
+        PipelineQueries queries{now};
+        result = search.Continue([&](ReturnStage stage) -> std::optional<ActionPosition>
+        {
+            if (stage == ReturnStage::Direct) ++directCalls;
+            if (stage == ReturnStage::Home && !search.Home.HasContext)
+            {
+                search.Home.Begin(PipelineOrigin, PipelineHome, 3, 96, nullptr, 8);
+                search.Home.NextTarget = search.Home.NextSurfaceTarget = 9;
+                search.Home.Done = true; search.Home.SurfaceEligible.fill(true);
+            }
+            if (stage == ReturnStage::SurfaceDetour)
+            {
+                if (!search.CanContinueHomeDetour(now))
+                {
+                    search.Home.Report.DetourFailure = "SURFACE_DETOUR_SLICE_LIMIT";
+                    return std::nullopt;
+                }
+                ++graphCalls;
+                while (search.Home.Detour.State == Status::Pending)
+                {
+                    if (!queries.Run([&]
+                        {
+                            LivingSurfaceDetour::Advance(search.Home.Detour, PipelineOrigin, PipelineHome, 3, 96,
+                                pipelineFloor, ClearPipelineWall, pipelineBounds, [](ActionPosition const& p)
+                                { return std::hypot(p.X-PipelineHome.X,p.Y-PipelineHome.Y) <= 3 && std::abs(p.Z) <= 1; });
+                        })) return std::nullopt;
+                }
+                REQUIRE(search.Home.Detour.State == Status::Complete);
+                route = search.Home.TakeDetourRoute();
+                REQUIRE_FALSE(route.empty());
+                return route.front();
+            }
+            if (stage == ReturnStage::Backtrack) ++fallbackRounds;
+            return std::nullopt;
+        }, [&] { return queries.Deferred; });
+        CHECK(budget.GetStatistics().Started <= 1);
+        CHECK(search.Home.Detour.EdgeAttempts >= previousEdges);
+        previousEdges = search.Home.Detour.EdgeAttempts;
+        if (result) break;
+        if (queries.Deferred)
+        {
+            if (queries.Started) planning.MarkProgress(now);
+            planning.MarkDeferred(now, "WORK_BUDGET", "RETURN");
+            continue;
+        }
+        REQUIRE(search.Current == ReturnStage::Done);
+        REQUIRE(search.HomeDetourDeadline.Expired);
+        REQUIRE(search.HasPendingHomeDetour());
+        // This is the natural FailedReturn -> ambient recovery -> new decision
+        // boundary. Care must not erase the graph before context validation.
+        search.InterruptForAction(true);
+        planning.ClearWait();
+        REQUIRE(search.HasPendingHomeDetour());
+        REQUIRE(search.RestartForDecision(planning, now, PipelineOrigin, PipelineHome, std::nullopt, 1, 1, true));
+        planning.Begin(now, PipelineOrigin, PipelineHome, std::nullopt, 1, 1);
+        REQUIRE_FALSE(search.HomeDetourDeadline.Started);
+        REQUIRE(search.Home.Detour.EdgeAttempts == previousEdges);
+        ++slices;
+    }
+    REQUIRE(result.has_value());
+    CHECK(slices > 0);
+    CHECK(fallbackRounds == slices);
+    CHECK(directCalls == slices+1);
+    CHECK(graphCalls > slices);
+    CHECK(search.Home.Detour.EdgeAttempts > 8);
+    CHECK(search.Home.Detour.EdgeAttempts <= LivingSurfaceDetour::MaxEdges);
+    CHECK(search.Home.Detour.Nodes.size() <= LivingSurfaceDetour::MaxNodes);
+    auto previous = PipelineOrigin;
+    for (auto const& endpoint : route)
+    {
+        LivingSurfaceCorridor::Search execution;
+        REQUIRE(LivingSurfaceCorridor::Advance(execution, previous, endpoint, pipelineFloor,
+            ClearPipelineWall, pipelineBounds, 12) == Status::Complete);
+        previous = endpoint;
+    }
+    CHECK(std::hypot(previous.X-PipelineHome.X,previous.Y-PipelineHome.Y) <= 3);
+}
+
+TEST_CASE("Recovery navigation retained graph invalidates changed requests and interrupted episodes", "[AIWorld][RecoveryNavigation][ReturnPipeline]")
+{
+    LivingReturnSearch search;
+    LivingPlanningContext planning;
+    std::optional<ActionPosition> danger = ActionPosition{0, -20, -20, 0};
+    planning.Begin(1000, PipelineOrigin, PipelineHome, danger, 1, 1);
+    search.Home.Begin(PipelineOrigin, PipelineHome, 3, 96, &*danger, 8);
+    search.Home.NextTarget = search.Home.NextSurfaceTarget = 9;
+    search.Home.SurfaceEligible.fill(true);
+    REQUIRE(search.AllowHomeDetour(1000));
+    LivingSurfaceDetour::Advance(search.Home.Detour, PipelineOrigin, PipelineHome, 3, 96,
+        pipelineFloor, ClearPipelineWall, pipelineBounds, [](auto const&) { return false; });
+    REQUIRE(search.HasPendingHomeDetour());
+    auto from = PipelineOrigin, home = PipelineHome;
+    uint32 phase = 1, capabilities = 1;
+    uint64 now = 32000;
+    bool returning = true;
+    SECTION("actual movement") { from.X += 0.01f; }
+    SECTION("map") { from.MapId = 1; }
+    SECTION("home") { home.Z += 0.01f; }
+    SECTION("danger") { danger->X += 0.01f; }
+    SECTION("danger ended") { danger.reset(); }
+    SECTION("phase") { phase = 2; }
+    SECTION("capabilities") { capabilities = 2; }
+    SECTION("return episode ended") { returning = false; }
+    SECTION("clock moved backwards") { now = 999; }
+    SECTION("hunting or movement action") { search.InterruptForAction(false); }
+    SECTION("new life resets owning return state") { search = {}; }
+    SECTION("completed proof is not reused") { search.Home.Detour.State = LivingSurfaceCorridor::Status::Complete; }
+    SECTION("exhausted graph is not resumed") { search.Home.Detour.State = LivingSurfaceCorridor::Status::Rejected; }
+    REQUIRE_FALSE(search.RestartForDecision(planning, now, from, home, danger, phase, capabilities, returning));
+    CHECK_FALSE(search.Home.HasContext);
+    CHECK(search.Home.Detour.Nodes.empty());
+    CHECK(search.Home.Detour.Route.empty());
+    CHECK(search.Current == ReturnStage::Corridor);
+}
+
+TEST_CASE("Recovery navigation retained graph cannot reuse changed home radius bounds or clearance", "[AIWorld][RecoveryNavigation][ReturnPipeline]")
+{
+    LivingReturnSearch search;
+    LivingPlanningContext planning;
+    planning.Begin(1000, PipelineOrigin, PipelineHome, std::nullopt, 1, 1);
+    search.Home.Begin(PipelineOrigin, PipelineHome, 3, 96, nullptr, 8);
+    LivingSurfaceDetour::Advance(search.Home.Detour, PipelineOrigin, PipelineHome, 3, 96,
+        pipelineFloor, ClearPipelineWall, pipelineBounds, [](auto const&) { return false; });
+    REQUIRE(search.RestartForDecision(planning, 32000, PipelineOrigin, PipelineHome, std::nullopt, 1, 1, true));
+    float radius = 3, limit = 96, clearance = 8;
+    SECTION("arrival band") { radius = 2; }
+    SECTION("episode limit") { limit = 90; }
+    SECTION("danger clearance") { clearance = 9; }
+    // The engine HomeCorridor provider performs this request check before
+    // allowing a retained graph to reach SurfaceDetour.
+    REQUIRE_FALSE(search.Home.Matches(PipelineOrigin, PipelineHome, radius, limit, nullptr, clearance));
+    search.Home.Begin(PipelineOrigin, PipelineHome, radius, limit, nullptr, clearance);
+    CHECK_FALSE(search.Home.Detour.Started);
+    CHECK(search.Home.Detour.Nodes.empty());
+}
+
 TEST_CASE("Recovery navigation return pipeline retains a complete home corridor across an actor budget yield", "[AIWorld][RecoveryNavigation][ReturnPipeline]")
 {
     LivingReturnSearch search;
@@ -316,9 +471,7 @@ TEST_CASE("Recovery navigation return pipeline does not reinstall a complete gra
                 // A published proof may await leg validation for longer.
                 if (!search.CanContinueHomeDetour(now))
                 {
-                    search.Home.Detour.State = LivingSurfaceCorridor::Status::Rejected;
-                    search.Home.Detour.Failure = "SURFACE_DETOUR_TIME_LIMIT";
-                    search.Home.Report.DetourFailure = search.Home.Detour.Failure;
+                    search.Home.Report.DetourFailure = "SURFACE_DETOUR_SLICE_LIMIT";
                     return std::nullopt;
                 }
                 while (search.Home.Detour.State == LivingSurfaceCorridor::Status::Pending)

@@ -283,12 +283,10 @@ namespace
                 state.ReturnStrategy = "SURFACE_DETOUR";
                 if (!search.CanContinueHomeDetour(nowMs))
                 {
-                    // Expire this graph, not the whole return decision. The
-                    // retained cheap-path results and later fallbacks survive.
-                    search.Home.Detour.State = LivingSurfaceCorridor::Status::Rejected;
-                    search.Home.Detour.Failure = "SURFACE_DETOUR_TIME_LIMIT";
-                    search.Home.Detour.Route.clear();
-                    search.Home.Report.DetourFailure = search.Home.Detour.Failure;
+                    // Give the other return strategies their turn. A later
+                    // retry at this exact physical context resumes the bounded
+                    // graph instead of rechecking its first edges forever.
+                    search.Home.Report.DetourFailure = "SURFACE_DETOUR_SLICE_LIMIT";
                     state.ReturnDiagnostics.HomePath = search.Home.Report;
                     return std::nullopt;
                 }
@@ -997,11 +995,13 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     std::optional<ActionPosition> approvedRoleDestination;
     std::optional<RecoveryMovement> approvedRecovery;
+    std::optional<NavigationDiagnostics> lastRoleExecutionNavigation;
 
     // Build authoritative facts at dispatch time. No request itself can grant
     // prey classification, participation, a threat identity, or an animation.
     auto start = [&](ActionRequest request, Phase phase, Unit* target = nullptr, bool preservePlanning = false) -> bool
     {
+        lastRoleExecutionNavigation.reset();
         if (!OwnsRoleMovement(record, creature))
             return false;
         // Local roaming/foraging must execute with the same strict path
@@ -1120,6 +1120,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
         if (result.Status != ActionExecutionStatus::Started)
         {
+            lastRoleExecutionNavigation = result.RecoveryNavigation;
             if (result.RecoveryNavigation) state.ReturnDiagnostics.Navigation = *result.RecoveryNavigation;
             return false;
         }
@@ -1143,7 +1144,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             advice.Search = {};
             if (advice.Status == "PLANNING_DEFERRED") advice.Status = "SEARCH_INTERRUPTED";
             _planningWork.Cancel(record.Id);
-            state.ReturnSearch = {};
+            state.ReturnSearch.InterruptForAction(state.ReturningHome && phase == Phase::Acting &&
+                request.Type == ActionType::Ambient);
             state.HuntRejected.clear();
         }
         if (IsEscaping(phase) || phase == Phase::Hunting || phase == Phase::Investigating)
@@ -1578,8 +1580,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         creature.GetPhaseMask(), planningCapabilities);
     if (!resumingPlan)
     {
+        state.ReturnSearch.RestartForDecision(state.Planning, nowMs, here, homePoint, planningDanger,
+            creature.GetPhaseMask(), planningCapabilities, state.ReturningHome);
         state.Planning.Begin(nowMs, here, homePoint, planningDanger, creature.GetPhaseMask(), planningCapabilities);
-        state.ReturnSearch = {};
         state.ReturnDiagnostics.Deferred = false;
         state.HuntRejected.clear();
         ++state.Cycle;
@@ -1869,51 +1872,97 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             state.Planning.Stage = "FORAGE";
             ActionPosition origin{creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
+            auto forageWorkStarted = [&]()
+            {
+                state.Forage.SearchAtMs = nowMs;
+                if (!state.Planning.ForageAttemptStarted) ++state.Forage.RouteAttempts;
+                state.Planning.ForageAttemptStarted = true;
+            };
+            auto nextForageCandidate = [&]()
+            {
+                state.HasForageWaypoint = false;
+                state.Planning.ForageAttemptStarted = false;
+                state.Planning.ForageGround = {};
+                state.Planning.ForageStep.reset();
+            };
             for (; state.Planning.ForageAttempts < 6; ++state.Planning.ForageAttempts)
             {
                 uint32 attempt = state.Planning.ForageAttempts;
-                auto work = PlanningWorkBudget::TryAcquire();
-                if (!work) return deferPlanning();
-                state.Forage.SearchAtMs = nowMs;
-                ++state.Forage.RouteAttempts;
                 if (!state.HasForageWaypoint || creature.GetExactDist2d(state.ForageWaypoint.X, state.ForageWaypoint.Y) <= 3.0f)
                 {
-                    auto hint = attempt < 3 ? advice.Food.FoodHint(origin,
-                        LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds), nowMs) : std::nullopt;
-                    state.ForageWaypoint = hint ? *hint : attempt < 3 ? LivingForagePolicy::Waypoint(origin, record.Id.Value,
-                        state.ForageLeg++, advice.Food.EmptyRounds) : LivingForagePolicy::LocalWaypoint(here, record.Id.Value, state.ForageLeg++);
-                    state.HasForageWaypoint = hint.has_value();
-                    if (!hint)
+                    auto work = PlanningWorkBudget::TryAcquire();
+                    if (!work) return deferPlanning();
+                    forageWorkStarted();
+                    if (!state.Planning.ForageGround.Started)
                     {
-                        float height = creature.GetMap()->GetHeight(creature.GetPhaseMask(), state.ForageWaypoint.X,
-                            state.ForageWaypoint.Y, here.Z + 4, true);
-                        if (!std::isfinite(height) || height <= INVALID_HEIGHT || std::abs(height - here.Z) > 12)
+                        auto hint = attempt < 3 ? advice.Food.FoodHint(origin,
+                            LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds), nowMs) : std::nullopt;
+                        state.ForageWaypoint = hint ? *hint : attempt < 3 ? LivingForagePolicy::Waypoint(origin, record.Id.Value,
+                            state.ForageLeg++, advice.Food.EmptyRounds) : LivingForagePolicy::LocalWaypoint(here, record.Id.Value,
+                                state.ForageLeg++, advice.Food.EmptyRounds);
+                        state.HasForageWaypoint = hint.has_value();
+                        if (!hint && attempt < 3)
+                        {
+                            float height = creature.GetMap()->GetHeight(creature.GetPhaseMask(), state.ForageWaypoint.X,
+                                state.ForageWaypoint.Y, here.Z + 4, true);
+                            if (!std::isfinite(height) || height <= INVALID_HEIGHT || std::abs(height - here.Z) > 12)
+                            {
+                                ++state.Forage.HeightRejected; state.Forage.Navigation = {};
+                                state.Forage.Navigation.Failure = "HEIGHT_INVALID";
+                                nextForageCandidate();
+                                continue;
+                            }
+                            state.ForageWaypoint.Z = height;
+                            state.HasForageWaypoint = true;
+                        }
+                    }
+                    if (!state.HasForageWaypoint)
+                    {
+                        // Retain the same candidate while its expected-floor
+                        // walk yields. Each permit covers at most eight samples.
+                        auto status = LivingRecoveryPath::GroundLocalForageTarget(creature, here,
+                            state.ForageWaypoint, state.Planning.ForageGround);
+                        work.Finish();
+                        if (status == LivingSurfaceCorridor::Status::Pending) return deferPlanning();
+                        if (status == LivingSurfaceCorridor::Status::Rejected)
                         {
                             ++state.Forage.HeightRejected; state.Forage.Navigation = {};
                             state.Forage.Navigation.Failure = "HEIGHT_INVALID";
+                            nextForageCandidate();
                             continue;
                         }
-                        state.ForageWaypoint.Z = height;
+                        state.ForageWaypoint = *state.Planning.ForageGround.Resolved;
                         state.HasForageWaypoint = true;
+                        state.Planning.ForageGround = {};
                     }
                 }
-                auto step = LivingRecoveryPath::Toward(creature, state.ForageWaypoint, origin,
-                    LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds), &state.Forage.Navigation);
-                if (step)
+                if (!state.Planning.ForageStep)
                 {
+                    auto work = PlanningWorkBudget::TryAcquire();
+                    if (!work) return deferPlanning();
+                    forageWorkStarted();
+                    state.Planning.ForageStep = LivingRecoveryPath::Toward(creature, state.ForageWaypoint, origin,
+                        LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds), &state.Forage.Navigation);
+                }
+                if (state.Planning.ForageStep)
+                {
+                    auto work = PlanningWorkBudget::TryAcquire();
+                    if (!work) return deferPlanning();
                     ActionRequest search;
-                    search.Type = ActionType::MoveTo; search.SourceGoal = GoalType::LocalActivity; search.Destination = step;
+                    search.Type = ActionType::MoveTo; search.SourceGoal = GoalType::LocalActivity;
+                    search.Destination = state.Planning.ForageStep;
                     if (start(search, Phase::Moving))
                     {
                         ++state.Forage.StepsStarted;
                         state.MovementPurpose = "FORAGE_SEARCH";
                         return true;
                     }
-                    state.Forage.Navigation.Failure = "EXECUTION_REJECTED";
+                    if (lastRoleExecutionNavigation) state.Forage.Navigation = *lastRoleExecutionNavigation;
+                    else state.Forage.Navigation.Failure = "EXECUTION_REJECTED";
                 }
-                state.HasForageWaypoint = false;
                 ++state.Forage.PathRejected;
                 advice.Food.Unreachable(state.ForageWaypoint, nowMs);
+                nextForageCandidate();
             }
             state.ForageUntilMs = 0;
             advice.Food.EmptyRound();

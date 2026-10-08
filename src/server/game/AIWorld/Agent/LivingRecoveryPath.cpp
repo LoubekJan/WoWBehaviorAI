@@ -53,6 +53,15 @@ namespace LivingRecoveryPath
                 return ClearGroundSegment(creature, a, b);
             });
     }
+    LivingSurfaceCorridor::Status GroundLocalForageTarget(Creature& creature, ActionPosition const& from,
+        ActionPosition const& target, LivingForageGroundSearch& search)
+    {
+        return search.Advance(from, target,
+            [&](ActionPosition const& p)
+            { return TerrainHeight(creature, p, LivingReturnPolicy::SamePosition(p, from) ? 0.3f : 0.8f); },
+            [&](ActionPosition const& a, ActionPosition const& b) { return ClearGroundSegment(creature, a, b); });
+    }
+
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
         ActionPosition const& home, float radius, NavigationDiagnostics* diagnostics)
     {

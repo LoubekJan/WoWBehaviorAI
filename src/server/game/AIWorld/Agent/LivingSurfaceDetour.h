@@ -13,6 +13,7 @@ namespace LivingSurfaceDetour
 {
     using Status = LivingSurfaceCorridor::Status;
     constexpr float GridStep = 2.5f;
+    constexpr float NarrowGridStep = 1.25f;
     constexpr float MaxRouteLength = 480.0f;
     constexpr unsigned MaxNodes = 512;
     constexpr unsigned MaxEdges = 2048;
@@ -34,6 +35,7 @@ namespace LivingSurfaceDetour
         char const* LastEdgeFailure = "NOT_CHECKED";
         ActionPosition From, Home;
         float ArrivalRadius = 0, Limit = 0;
+        float Spacing = GridStep;
         // These may only be lowered, before the first call, e.g. in a test.
         unsigned NodeLimit = MaxNodes, EdgeLimit = MaxEdges;
         unsigned StartedNodeLimit = 0, StartedEdgeLimit = 0;
@@ -163,7 +165,19 @@ namespace LivingSurfaceDetour
         {
             if (search.Current == NoNode || search.NextDirection == 8)
             {
-                if (search.Open.empty()) return reject("SURFACE_DETOUR_EXHAUSTED");
+                if (search.Open.empty())
+                {
+                    // A supported ledge may turn before the first coarse
+                    // endpoint. Retry that isolated origin once at a shorter
+                    // spacing; never skip collision/support checks or spend a
+                    // fresh edge/node budget. Every resulting leg stays above
+                    // the recovery executor's one-yard useful-step threshold.
+                    if (search.Nodes.size() != 1 || search.Spacing != GridStep)
+                        return reject("SURFACE_DETOUR_EXHAUSTED");
+                    search.Spacing = NarrowGridStep;
+                    search.Nodes.front().Closed = false;
+                    Queue(search, 0);
+                }
                 search.Current = Pop(search); search.NextDirection = 0;
                 auto& current = search.Nodes[search.Current]; current.Closed = true; ++search.Expanded;
                 if (current.Remaining == 0 && isGoal(current.Position))
@@ -185,7 +199,7 @@ namespace LivingSurfaceDetour
                 auto direction = directions[search.NextDirection++];
                 auto const& current = search.Nodes[search.Current];
                 int x = current.X+direction[0], y = current.Y+direction[1];
-                ActionPosition target{from.MapId, from.X+x*GridStep, from.Y+y*GridStep, current.Position.Z};
+                ActionPosition target{from.MapId, from.X+x*search.Spacing, from.Y+y*search.Spacing, current.Position.Z};
                 if (std::hypot(target.X-from.X, target.Y-from.Y) > MaxRouteLength ||
                     std::hypot(target.X-home.X, target.Y-home.Y) > limit) continue;
                 auto existing = search.Index.find(Key(x,y));

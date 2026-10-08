@@ -8,6 +8,7 @@
 #include "Agent/LivingMovementWatchdog.h"
 #include "Agent/LivingForagePolicy.h"
 #include "Agent/LivingEscapeProgress.h"
+#include "Scheduler/PlanningWorkBudget.h"
 #include <limits>
 
 TEST_CASE("Recovery refuge waits for failure then reserves a real home retry window", "[AIWorld][RecoveryNavigation]")
@@ -138,6 +139,202 @@ TEST_CASE("Recovery food exploration does not count a blocked route as a search"
     food.Fed(meal, 65000); // fresh positive evidence supersedes a failed query
     REQUIRE_FALSE(food.RecentlyBlocked(meal, 65000));
     REQUIRE(food.FoodHint(home, 80, 65000).has_value());
+}
+
+TEST_CASE("Empty food searches retain reachable short candidates on the current cave floor", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingForagePolicy;
+    using namespace LivingReturnPolicy;
+    // A five-yard passage reaches a corner before any old local endpoint.
+    // The floor above is visible to a +4 height probe, but is not this floor.
+    ActionPosition here{0, -9033.841f, -562.5976f, 55.24212f};
+    constexpr float hover = 0.5f;
+    float floor = here.Z - hover;
+    auto inside = [&](ActionPosition const& p)
+    { return p.X > here.X && p.X <= here.X + 5 && std::abs(p.Y - here.Y) < 1; };
+    auto height = [&](ActionPosition const& p, float lift) -> std::optional<float>
+    {
+        if (!inside(p)) return std::nullopt;
+        float query = p.Z - hover + lift;
+        return (query >= floor + 3 ? floor + 3 : floor) + hover;
+    };
+    unsigned oldOptions = 0, shortOptions = 0;
+    for (uint32 leg = 0; leg < 120; ++leg)
+    {
+        auto old = LocalWaypoint(here, 80992, leg);
+        oldOptions += inside(old);
+        auto candidate = LocalWaypoint(here, 80992, leg, 2);
+        REQUIRE(UsefulStep(here, candidate));
+        REQUIRE(Distance(here, candidate) <= Distance(here, old));
+        LivingForageGroundSearch groundSearch;
+        auto status = groundSearch.Advance(here, candidate,
+            [&](auto const& p) { return height(p, 0.8f); }, [](auto const&, auto const&) { return true; });
+        while (status == LivingSurfaceCorridor::Status::Pending)
+            status = groundSearch.Advance(here, candidate,
+                [&](auto const& p) { return height(p, 0.8f); }, [](auto const&, auto const&) { return true; });
+        auto grounded = groundSearch.Resolved;
+        if (!grounded) continue;
+        ++shortOptions;
+        REQUIRE(grounded->Z == here.Z); // Includes hover exactly once.
+        REQUIRE(*height(candidate, 4.0f) - grounded->Z > 1.0f);
+        LivingSurfaceCorridor::Search proof;
+        auto supported = [&](ActionPosition const& p) -> std::optional<float>
+        { return p.X == here.X && p.Y == here.Y ? std::optional(here.Z) : height(p, 0.8f); };
+        REQUIRE(LivingSurfaceCorridor::Advance(proof, here, *grounded, supported,
+            [](auto const&, auto const&) { return true; }, [](auto const&) { return true; }, 32) ==
+            LivingSurfaceCorridor::Status::Complete);
+        // Resolving a target does not grant a walk through a wall or absent tile.
+        LivingSurfaceCorridor::Search wall, missingTile;
+        REQUIRE(LivingSurfaceCorridor::Advance(wall, here, *grounded, supported,
+            [](auto const&, auto const&) { return false; }, [](auto const&) { return true; }, 32) ==
+            LivingSurfaceCorridor::Status::Rejected);
+        REQUIRE(LivingSurfaceCorridor::Advance(missingTile, here, *grounded, supported,
+            [](auto const&, auto const&) { return true; }, [](auto const&) { return true; }, 32,
+            [](auto const&) { return false; }) == LivingSurfaceCorridor::Status::Rejected);
+    }
+    REQUIRE(oldOptions == 0);
+    REQUIRE(shortOptions > 0);
+}
+
+TEST_CASE("Local food grounding follows a supported slope but rejects a cliff", "[AIWorld][RecoveryNavigation]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition here{0,0,0,0.5f}, target{0,8,0,here.Z};
+    constexpr float hover = 0.5f;
+    auto slopedHeight = [&](ActionPosition const& p) -> std::optional<float>
+    {
+        float floor = p.X * 0.5f;
+        float query = p.Z - hover + 0.8f;
+        return query >= floor && query - floor <= 3 ? std::optional(floor + hover) : std::nullopt;
+    };
+    LivingForageGroundSearch groundSearch;
+    auto status = groundSearch.Advance(here, target, slopedHeight, [](auto const&, auto const&) { return true; });
+    while (status == LivingSurfaceCorridor::Status::Pending)
+        status = groundSearch.Advance(here, target, slopedHeight, [](auto const&, auto const&) { return true; });
+    auto grounded = groundSearch.Resolved;
+    REQUIRE(grounded.has_value());
+    REQUIRE(grounded->Z == 4.5f); // Cumulative climb >3 is valid via continuous support.
+    auto cliff = [&](ActionPosition const& p) -> std::optional<float>
+    { return p.X <= 2 ? hover : -5 + hover; };
+    LivingForageGroundSearch cliffSearch;
+    REQUIRE(cliffSearch.Advance(here, target, cliff, [](auto const&, auto const&) { return true; }) ==
+        LivingSurfaceCorridor::Status::Rejected);
+}
+
+TEST_CASE("Short local food candidates keep finite search memory exclusions", "[AIWorld][RecoveryAdvice]")
+{
+    LivingFoodMemory memory;
+    ActionPosition here{0,0,0,0};
+    memory.Searched(here, 1000);
+    auto shortLeg = LivingForagePolicy::LocalWaypoint(here, 80992, 0, 2);
+    REQUIRE(memory.Visits(shortLeg, 2000) == 1);
+    // Advice still avoids circling through recent searches. Natural forage
+    // uses the local candidate independently and proves its route again.
+    REQUIRE(LivingReturnPolicy::UsefulStep(here, shortLeg));
+    LivingForageGroundSearch groundSearch;
+    REQUIRE(groundSearch.Advance(here, shortLeg, [](auto const&) { return std::optional(0.0f); },
+        [](auto const&, auto const&) { return true; }) == LivingSurfaceCorridor::Status::Complete);
+    REQUIRE(memory.Visits(shortLeg, 601000) == 0);
+    REQUIRE_FALSE(memory.FoodHint(here, 80, 601000).has_value()); // Searching is never feeding.
+    memory.Unreachable(shortLeg, 602000);
+    REQUIRE(memory.RecentlyBlocked(shortLeg, 602001));
+    REQUIRE_FALSE(memory.RecentlyBlocked(shortLeg, 662000));
+}
+
+TEST_CASE("Local food grounding yields within eight samples before a separate navigation permit", "[AIWorld][RecoveryNavigation]")
+{
+    using Status = LivingSurfaceCorridor::Status;
+    ActionPosition here{0,0,0,0.5f}, target{0,16,0,0.5f};
+    LivingPlanningContext planning;
+    planning.Begin(1000, here, here, {}, 1, 1);
+    planning.ForageAttempts = 3;
+    unsigned turns = 0, edges = 0, totalHeights = 0;
+    float previousEdgeEnd = 0;
+    while (planning.ForageGround.State == Status::Pending)
+    {
+        REQUIRE(++turns <= 5);
+        uint64 now = 1000 + turns * 100;
+        unsigned heightsThisTurn = 0, segmentsThisTurn = 0;
+        PlanningWorkBudget budget(std::chrono::seconds(1), 1);
+        PlanningWorkBudget::Scope scope(budget);
+        {
+            auto work = PlanningWorkBudget::TryAcquire();
+            REQUIRE(bool(work));
+            auto height = [&](ActionPosition const& p) -> std::optional<float>
+            {
+                ++heightsThisTurn; ++totalHeights;
+                float floor = p.X * 0.5f;
+                float probe = p.Z - 0.5f + (p.X == 0 ? 0.3f : 0.8f);
+                return probe >= floor && probe-floor <= 3 ? std::optional(floor + 0.5f) : std::nullopt;
+            };
+            auto clear = [&](ActionPosition const& a, ActionPosition const& b)
+            {
+                ++segmentsThisTurn; ++edges;
+                CHECK(a.X == previousEdgeEnd); // No restarted/repeated slope samples after yielding.
+                previousEdgeEnd = b.X;
+                return true;
+            };
+            planning.ForageGround.Advance(here, target, height, clear);
+        } // Billing must finish before attempting the navmesh operation.
+        REQUIRE(heightsThisTurn <= 8);
+        REQUIRE(segmentsThisTurn <= 8);
+        auto navigation = PlanningWorkBudget::TryAcquire();
+        REQUIRE_FALSE(bool(navigation));
+        REQUIRE_FALSE(planning.ForageStep.has_value());
+        planning.MarkProgress(now);
+        planning.MarkDeferred(now, "WORK_BUDGET", "FORAGE");
+        REQUIRE(planning.Resume(now + 100, here, here, {}, 1, 1));
+        REQUIRE(planning.ForageAttempts == 3);
+    }
+    REQUIRE(turns == 5);
+    REQUIRE(edges == 32);
+    REQUIRE(totalHeights == 34); // One endpoint probe + origin +32 samples across five permits.
+    REQUIRE(planning.ForageGround.Resolved.has_value());
+    REQUIRE(planning.ForageGround.Resolved->Z == 8.5f);
+    {
+        PlanningWorkBudget budget(std::chrono::seconds(1), 1);
+        PlanningWorkBudget::Scope scope(budget);
+        auto navigation = PlanningWorkBudget::TryAcquire();
+        REQUIRE(bool(navigation));
+        planning.ForageStep = planning.ForageGround.Resolved; // Stand-in for the separately admitted Toward result.
+        navigation.Finish();
+        auto execution = PlanningWorkBudget::TryAcquire();
+        REQUIRE_FALSE(bool(execution));
+        REQUIRE(planning.ForageStep->Z == 8.5f); // Keep it instead of repeating endpoint/navmesh work.
+    }
+    auto moved = here; moved.X += 1;
+    REQUIRE_FALSE(planning.Resume(1700, moved, here, {}, 1, 1));
+    REQUIRE_FALSE(planning.Resume(1700, here, here, {}, 2, 1));
+    REQUIRE_FALSE(planning.Resume(1700, here, here, {}, 1, 2));
+    planning.Begin(1700, moved, here, {}, 1, 1);
+    REQUIRE_FALSE(planning.ForageGround.Started);
+    REQUIRE_FALSE(planning.ForageStep.has_value());
+    REQUIRE_FALSE(planning.ForageAttemptStarted);
+}
+
+TEST_CASE("Advice local ground cursor is discarded with its seed or physical context", "[AIWorld][RecoveryAdvice]")
+{
+    LivingAdviceSearch search;
+    ActionPosition here{0,0,0,0}, target{0,16,0,0};
+    search.Active = true; search.Lifetime = 1; search.Origin = search.Home = here;
+    search.ProgressAt = 1000; search.PhaseMask = search.Capabilities = 1;
+    search.Radius = 80; search.ArrivalRadius = 14; search.Clearance = 8;
+    auto height = [](ActionPosition const& p) -> std::optional<float>
+    { return p.X * 0.5f <= p.Z + 0.8f ? std::optional(p.X * 0.5f) : std::nullopt; };
+    REQUIRE(search.LocalGround.Advance(here, target, height, [](auto const&, auto const&) { return true; }) ==
+        LivingSurfaceCorridor::Status::Pending);
+    REQUIRE(search.Next == 0);
+    REQUIRE(search.LocalGround.Surface.NextSample == 7);
+    REQUIRE(search.Matches(1100, 1, here, here, {}, false, 1, 1, 80, 14, 8));
+    auto moved = here; moved.X = 1;
+    REQUIRE_FALSE(search.Matches(1100, 1, moved, here, {}, false, 1, 1, 80, 14, 8));
+    REQUIRE_FALSE(search.Matches(1100, 2, here, here, {}, false, 1, 1, 80, 14, 8));
+    REQUIRE_FALSE(search.Matches(1100, 1, here, here, {}, false, 2, 1, 80, 14, 8));
+    search.NextSeed(1100);
+    REQUIRE(search.Next == 1);
+    REQUIRE_FALSE(search.LocalGround.Started);
+    REQUIRE_FALSE(search.GroundedTarget.has_value());
+    REQUIRE_FALSE(search.ResolvedTarget.has_value());
 }
 
 TEST_CASE("All-NPC advice admission bounds work and gives waiting agents a turn", "[AIWorld][RecoveryAdvice]")

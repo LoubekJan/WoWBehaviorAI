@@ -238,7 +238,8 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
             else if (search.Current == Stage::Local)
                 for (unsigned i = 0; i < 6; ++i)
                 {
-                    Seed seed; seed.Target = LivingForagePolicy::LocalWaypoint(here, record.Id.Value, state.ForageLeg+i);
+                    Seed seed; seed.Target = LivingForagePolicy::LocalWaypoint(here, record.Id.Value,
+                        state.ForageLeg+i, advice.Food.EmptyRounds);
                     seed.Strategy = "FORAGE"; seed.Toward = seed.Ground = seed.LocalGround = seed.ForageLeg = true; search.Seeds.push_back(seed);
                 }
             search.SeedsReady = true;
@@ -246,25 +247,40 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         while (search.Next < search.Seeds.size() && search.Candidates.size() < MaxOptions)
         {
             auto const& seed = search.Seeds[search.Next];
-            if (!search.ResolvedTarget)
+            if (!search.GroundedTarget)
             {
                 if (seed.Toward && !seed.ObservedPrey && advice.Food.Visits(seed.Target, nowMs))
                 { search.NextSeed(nowMs); continue; }
                 auto work = PlanningWorkBudget::TryAcquire();
                 if (!work) return defer();
-                if (seed.ForageLeg) ++state.ForageLeg;
+                if (seed.ForageLeg && !search.LocalGround.Started) ++state.ForageLeg;
                 auto target = seed.Target;
-                if (seed.Ground || (!seed.RoutePoint && !seed.Toward && !LivingRecoveryPath::InSwimmableWater(creature, target)))
+                if (seed.LocalGround)
                 {
-                    float height = seed.LocalGround ? creature.GetMapHeight(target.X, target.Y, here.Z) :
-                        creature.GetMap()->GetHeight(creature.GetPhaseMask(), target.X, target.Y,
-                            (seed.Toward ? here.Z : target.Z) + 4, true);
+                    auto status = LivingRecoveryPath::GroundLocalForageTarget(creature, here, target, search.LocalGround);
+                    work.Finish();
+                    if (status == LivingSurfaceCorridor::Status::Pending) return defer();
+                    if (status == LivingSurfaceCorridor::Status::Rejected)
+                    { search.NextSeed(nowMs); continue; }
+                    target = *search.LocalGround.Resolved;
+                }
+                else if (seed.Ground || (!seed.RoutePoint && !seed.Toward && !LivingRecoveryPath::InSwimmableWater(creature, target)))
+                {
+                    float height = creature.GetMap()->GetHeight(creature.GetPhaseMask(), target.X, target.Y,
+                        (seed.Toward ? here.Z : target.Z) + 4, true);
                     if (!std::isfinite(height) || height <= INVALID_HEIGHT || std::abs(height-(seed.Toward ? here.Z : target.Z)) > 12)
                     { search.NextSeed(nowMs); continue; }
-                    target.Z = height + (seed.LocalGround ? creature.GetHoverOffset() : 0);
+                    target.Z = height;
                 }
+                search.GroundedTarget = target;
+            }
+            if (!search.ResolvedTarget)
+            {
+                auto target = *search.GroundedTarget;
                 if (seed.Toward)
                 {
+                    auto work = PlanningWorkBudget::TryAcquire();
+                    if (!work) return defer();
                     state.Forage.SearchAtMs = nowMs; ++state.Forage.RouteAttempts;
                     auto point = LivingRecoveryPath::Toward(creature, target, home, forageRadius, &state.Forage.Navigation);
                     if (!point)

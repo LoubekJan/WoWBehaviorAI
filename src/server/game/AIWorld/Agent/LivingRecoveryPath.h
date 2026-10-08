@@ -4,6 +4,7 @@
 #define AIWORLD_LIVINGRECOVERYPATH_H
 #include "Action/RecoveryMovement.h"
 #include "Agent/LivingReturnPolicy.h"
+#include "Agent/LivingForageGround.h"
 #include <G3D/Vector3.h>
 #include "MoveSplineInitArgs.h"
 class Creature;
@@ -12,6 +13,8 @@ namespace LivingRecoveryPath
 {
     std::optional<ActionPosition> GroundHomeTarget(Creature& creature, ActionPosition const& home,
         ActionPosition const& target);
+    LivingSurfaceCorridor::Status GroundLocalForageTarget(Creature& creature, ActionPosition const& from,
+        ActionPosition const& target, LivingForageGroundSearch& search);
     std::vector<ActionPosition> HomeCorridor(Creature& creature, ActionPosition const& from,
         ActionPosition const& home, float arrivalRadius, float limit,
         ActionPosition const* danger = nullptr, float clearance = 0,

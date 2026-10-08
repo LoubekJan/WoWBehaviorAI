@@ -4,6 +4,7 @@
 #define AIWORLD_LIVINGPLANNINGSTATE_H
 #include "Action/RecoveryMovement.h"
 #include "LivingReturnPolicy.h"
+#include "LivingForageGround.h"
 #include "ObjectGuid.h"
 
 // Only an explicit stationary care action suspends the inactivity clock.
@@ -82,6 +83,9 @@ struct LivingPlanningContext
     std::optional<ActionPosition> Danger;
     uint32 PhaseMask = 0, Capabilities = 0;
     uint32 ForageAttempts = 0, RefugeAttempts = 0;
+    bool ForageAttemptStarted = false;
+    LivingForageGroundSearch ForageGround;
+    std::optional<ActionPosition> ForageStep;
     bool HuntScanned = false, CohesionChecked = false;
     LivingPlanningCarePause CarePause;
     LivingPlanningCarePause BudgetPause;
@@ -107,6 +111,7 @@ struct LivingPlanningContext
         PhaseMask = phaseMask; Capabilities = capabilities; Deferred = false;
         DeferredAt = 0; Reason = "NONE"; Stage = "DECISION";
         ForageAttempts = RefugeAttempts = 0; HuntScanned = CohesionChecked = false;
+        ForageAttemptStarted = false; ForageGround = {}; ForageStep.reset();
         CarePause = {};
         BudgetPause = {};
     }
@@ -147,10 +152,10 @@ struct LivingPlanningContext
     }
 };
 
-// A foreground home graph is allowed one wall-time window for this return
-// search. Query progress, denied admission and stationary care never renew it.
-// Expiry advances to other return strategies; it must not reset the whole
-// decision and begin the same graph again at the same physical position.
+// A foreground home graph is allowed one wall-time slice for this return
+// decision. Query progress, denied admission and stationary care never renew
+// the slice. Expiry advances to other return strategies. A later decision may
+// retain its bounded graph work when the physical request is still identical.
 struct LivingReturnHomeDetourDeadline
 {
     static constexpr uint64 WallLimitMs = 30000;
@@ -184,6 +189,46 @@ struct LivingReturnSearch
     std::optional<ActionPosition> Backtrack, BacktrackTrail;
     LivingReturnPolicy::Diagnostics BacktrackDiagnostics;
     LivingReturnHomeDetourDeadline HomeDetourDeadline;
+
+    bool HasPendingHomeDetour() const
+    { return Home.HasContext && Home.Detour.Started && Home.Detour.State == LivingSurfaceCorridor::Status::Pending; }
+
+    // Stationary recovery care ends the decision but not the return episode.
+    // Keep only the graph and the old clock guard until the next decision
+    // checks its full context. Moving, hunting and safety actions discard it.
+    void InterruptForAction(bool stationaryReturnCare)
+    {
+        auto retained = stationaryReturnCare && HasPendingHomeDetour() ?
+            std::move(Home) : LivingReturnPolicy::HomeCorridorSearch{};
+        auto deadline = HomeDetourDeadline;
+        *this = {};
+        Home = std::move(retained);
+        if (Home.HasContext) HomeDetourDeadline = deadline;
+    }
+
+    // A crowded planning scheduler may admit only a handful of graph edges
+    // within a slice. Retrying those first edges forever cannot find a route.
+    // Keep unfinished graph work across ordinary failed-return retries, while
+    // starting the cheap alternatives and their deadlines afresh. Every
+    // execution leg is still revalidated against the live world by the caller.
+    bool RestartForDecision(LivingPlanningContext const& previous, uint64 now,
+        ActionPosition const& here, ActionPosition const& home, std::optional<ActionPosition> const& danger,
+        uint32 phaseMask, uint32 capabilities, bool returning)
+    {
+        bool retain = returning && HasPendingHomeDetour() &&
+            now >= previous.StartedAt && now >= previous.ProgressAt &&
+            (!HomeDetourDeadline.Started || now >= HomeDetourDeadline.LastAt) &&
+            RecoveryMovement::SamePoint(previous.Origin, here) &&
+            previous.RouteContextMatches(home, danger, phaseMask, capabilities) &&
+            LivingReturnPolicy::SamePosition(Home.From, here) &&
+            LivingReturnPolicy::SamePosition(Home.Home, home) &&
+            Home.Danger.has_value() == danger.has_value() &&
+            (!danger || LivingReturnPolicy::SamePosition(*Home.Danger, *danger));
+        auto retained = retain ? std::move(Home) : LivingReturnPolicy::HomeCorridorSearch{};
+        *this = {};
+        Home = std::move(retained);
+        return retain;
+    }
 
     bool AllowHomeDetour(uint64 now) { return HomeDetourDeadline.Allow(now); }
     // Completed proofs may await execution validation past the search window.

@@ -30,10 +30,13 @@ namespace LivingForagePolicy
     // Cave walls may cut off every home-centered ring. Explore short local
     // directions too; the caller still validates the entire navmesh route,
     // fixed home radius and Elwynn boundary.
-    inline ActionPosition LocalWaypoint(ActionPosition const& here, uint64 id, uint32 leg)
+    inline ActionPosition LocalWaypoint(ActionPosition const& here, uint64 id, uint32 leg, uint32 emptyRounds = 0)
     {
         float angle = float((id % 360 + uint64(leg) * 137) % 360) * 6.28318530718f / 360.0f;
-        float radius = 8.0f + 4.0f * (leg % 3);
+        // A cave corner can leave every 8+ yard endpoint on the other side
+        // of a wall. After an empty search, include shorter supported legs;
+        // the wider home search is retained and execution still proves a path.
+        float radius = (emptyRounds ? 4.0f : 8.0f) * (1.0f + 0.5f * (leg % 3));
         return {here.MapId, here.X + radius * std::cos(angle), here.Y + radius * std::sin(angle), here.Z};
     }
 

@@ -1,6 +1,33 @@
 # Ověření návratů a rozpočtu plánování
 
-## Pořadí návratových pokusů a časový limit grafu (4. října)
+## Pokračování návratu a místní hledání potravy (8. října)
+
+Dokončený běh `20261008T125951Z-104e6443`, build `5dadbf264438`,
+obsahuje 2880 čerstvých vzorků za čtyři hodiny bez zásahů hráče či GM.
+U 81183 se graf na stejných XYZ po časovém limitu resetoval 47krát,
+u 80740 29krát. NPC 80992 po 790. sekundě provedlo dalších 1194 pokusů
+o hledání potravy: 795 odmítlo výšku a 399 cestu, žádný nespustil pohyb.
+Samotné další opakování proto nestačilo.
+
+- Rozpracovaný povrchový graf po skončení časového dílu přežije běžnou
+  zotavovací péči a další návratové rozhodnutí při totožném kontextu.
+  Levnější strategie se znovu zkusí. Skutečný pohyb, změna domova,
+  nebezpečí, fáze, schopností nebo ukončení návratu starý graf zahodí.
+- Pokud všech osm prvních hran sítě 2,5 yd selže a existuje pouze
+  počáteční uzel, hledání jednou zkusí rozteč 1,25 yd. Obě rozteče
+  sdílejí limity 512 uzlů a 2048 hran. Podpora, kolize těla, tiles,
+  domácí hranice i úplný důkaz cesty zůstávají povinné.
+- Po prázdném hledání potravy se místní směry zkrátí na 4/6/8 yd.
+  Výška se hledá od aktuální podlahy, včetně hover offsetu. Hledání
+  pokračuje přes omezené dávky práce; nalezený místní cíl musí ještě
+  projít úplnou navigační i fyzickou kontrolou před spuštěním pohybu.
+
+Regrese ověřují pokračování s jedním dotazem za deset sekund, prostor
+pro ostatní návratové strategie, invalidaci kontextu a úzkou zatočenou
+rampu. Neprokazují průchodnost konkrétního místa 146194 ani krmení 80992
+ve skutečném terénu; to musí ověřit nový záznam.
+
+## Pořadí návratových pokusů a časový limit grafu (4. října, doplněno 8. října)
 
 Běh `20261004T070453Z-981d68ba`, build `2bd012ee6c97`, měl 2880
 čerstvých vzorků bez zásahů hráče. Výsledek zůstal `FAIL`: 61 NPC mělo
@@ -19,15 +46,17 @@ podlaha je správná. Výpočetní postup proto nelze zaměňovat za pohyb NPC.
   uplynulého času od první obsluhy své etapy. Čekání na rozpočet i péče
   do limitu patří; nové uzly,
   hrany ani `MarkProgress` jej neobnovují. Při dalším plánovacím pokusu
-  po vypršení se zaznamená `SURFACE_DETOUR_TIME_LIMIT` a pokračuje další
+  po vypršení se zaznamená `SURFACE_DETOUR_SLICE_LIMIT` a pokračuje další
   návratová strategie. Samotný limit nezaručuje dosažení domova do 30 sekund.
   Již dokončený důkaz zůstává zachovaný i při delším čekání na kontrolu
   provedení; toto čekání jeho historický výsledek nepřepíše na timeout.
-- Vyprší pouze graf daného rozhodnutí. Výsledky levnějších pokusů,
+- Vyprší pouze časový díl grafu daného rozhodnutí. Výsledky levnějších pokusů,
   zbývající kurzory a diagnostika zůstávají zachované; nevzniká nové celé
   hledání při každé aktualizaci. Samostatné čekání na rozpočet stále
   nezneplatňuje `Planning.Resume`. Změna skutečného geometrického kontextu
-  nadále zruší neplatnou cestu.
+  nadále zruší neplatnou cestu. Nedokončený graf může pokračovat v příštím
+  rozhodnutí při totožném kontextu; starší build při limitu hlásil
+  `SURFACE_DETOUR_TIME_LIMIT` a graf zahodil.
 - Úplný důkaz povrchové cesty se předá k provedení jednou. Pokud živá
   kontrola prvního úseku cestu odmítne, tentýž již vydaný důkaz se nesmí
   opakovaně instalovat a blokovat další strategie v tomto rozhodnutí.

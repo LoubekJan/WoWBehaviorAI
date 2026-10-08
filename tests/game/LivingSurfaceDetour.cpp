@@ -106,6 +106,74 @@ TEST_CASE("Recovery navigation surface detour never publishes a route through a 
     CHECK(search.Route.empty());
 }
 
+TEST_CASE("Recovery navigation surface detour refines an isolated origin on a narrow turning ramp", "[AIWorld][RecoveryNavigation][SurfaceDetour]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{0, 0, 0, 0}, home{0, 15, 2.5f, 3};
+    auto supported = [](ActionPosition const& p)
+    {
+        return (p.X >= -0.1f && p.X <= 1.35f && std::abs(p.Y) <= 0.1f) ||
+            (std::abs(p.X-1.25f) <= 0.1f && p.Y >= -0.1f && p.Y <= 2.6f) ||
+            (p.X >= 1.15f && p.X <= 16 && std::abs(p.Y-2.5f) <= 0.1f);
+    };
+    auto ramp = [&](ActionPosition const& p) -> std::optional<float>
+    { if (!supported(p)) return std::nullopt; return p.X*0.2f; };
+    auto goal = [&](ActionPosition const& p)
+    { return std::hypot(p.X-home.X,p.Y-home.Y) <= 2 && std::abs(p.Z-p.X*0.2f) < 0.01f; };
+    Search search;
+    FinishDetour(search, from, home, 2, ramp, clearDetour, supported, goal);
+    REQUIRE(search.State == Status::Complete);
+    REQUIRE(search.Spacing == NarrowGridStep);
+    CHECK(search.EdgeAttempts > 8);
+    REQUIRE_FALSE(search.Route.empty());
+    CHECK(search.Route.front().X == Approx(1.25f));
+    CHECK(search.Route.front().Y == Approx(0));
+    auto previous = from;
+    for (auto const& endpoint : search.Route)
+    {
+        CHECK(std::hypot(endpoint.X-previous.X,endpoint.Y-previous.Y,endpoint.Z-previous.Z) > 1);
+        LivingSurfaceCorridor::Search execution;
+        REQUIRE(LivingSurfaceCorridor::Advance(execution, previous, endpoint,
+            ramp, clearDetour, supported, 12) == Status::Complete);
+        previous = endpoint;
+    }
+    CHECK(goal(previous));
+}
+
+TEST_CASE("Recovery navigation narrow graph refinement retains edge limits and rejects unsafe escape", "[AIWorld][RecoveryNavigation][SurfaceDetour]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{0, 0, 0, 0}, home{0, 15, 0, 0};
+    Search search;
+    auto blocked = [](ActionPosition const&, ActionPosition const&) { return false; };
+    SECTION("sealed body obstacle")
+    {
+        FinishDetour(search, from, home, 3, flatDetour, blocked, boxDetour, homeBand(home,3));
+        CHECK(search.Spacing == NarrowGridStep);
+        CHECK(search.EdgeAttempts == 16);
+        CHECK(search.Nodes.size() == 1);
+        CHECK(std::string(search.Failure) == "SURFACE_DETOUR_EXHAUSTED");
+    }
+    SECTION("edge limit shared by both spacings")
+    {
+        search.EdgeLimit = 9;
+        FinishDetour(search, from, home, 3, flatDetour, blocked, boxDetour, homeBand(home,3));
+        CHECK(search.Spacing == NarrowGridStep);
+        CHECK(search.EdgeAttempts == 9);
+        CHECK(std::string(search.Failure) == "SURFACE_DETOUR_EDGE_LIMIT");
+    }
+    SECTION("cliff around the origin")
+    {
+        auto cliff = [](ActionPosition const& p) -> std::optional<float>
+        { return std::hypot(p.X,p.Y) < 0.6f ? 0.0f : -3.0f; };
+        FinishDetour(search, from, home, 3, cliff, clearDetour, boxDetour, homeBand(home,3));
+        CHECK(search.Spacing == NarrowGridStep);
+        CHECK(search.EdgeAttempts == 16);
+    }
+    REQUIRE(search.State == Status::Rejected);
+    CHECK(search.Route.empty());
+}
+
 TEST_CASE("Recovery navigation surface detour yields without callbacks and resumes its pending edge", "[AIWorld][RecoveryNavigation][SurfaceDetour]")
 {
     using namespace LivingSurfaceDetour;
