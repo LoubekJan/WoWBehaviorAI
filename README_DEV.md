@@ -4,6 +4,12 @@ Development guide for the WoWBehaviorAI fork of TrinityCore `3.3.5`.
 
 For architecture and milestone history see [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md).
 
+Separate custom-map realm preparation lives on `codex/realm-lab`.
+See [RealmLab.md](doc/RealmLab.md) for shared login/accounts, isolated
+world/characters/AI persistence, first-time host setup and independent CI/CD.
+Use `make -f Makefile.lab` for this realm; the normal commands below target
+the original Elwynn stack. Custom-map AI activation remains a separate step.
+
 ## Current status
 
 The development stack has been exercised on a real Ubuntu/NVIDIA host. The old README status that said Docker/GPU runtime was untested is no longer true.

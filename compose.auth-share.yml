@@ -1,0 +1,14 @@
+# One-time overlay for the ORIGINAL stack, not compose.lab.yml.
+# Keep it in the original stack's checkout and its deployment commands.
+# Alternative without recreating MySQL: docker network connect --alias
+# aiworld-auth-db aitc-shared-auth <original-mysql-container-id>.
+services:
+  mysql:
+    networks:
+      default: {}
+      shared-auth:
+        aliases: [aiworld-auth-db]
+networks:
+  shared-auth:
+    external: true
+    name: ${SHARED_AUTH_NETWORK:-aitc-shared-auth}

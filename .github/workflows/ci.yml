@@ -9,6 +9,7 @@ on:
 
 jobs:
   observer-behavior-tests:
+    if: github.base_ref == 'ai-world' || github.ref == 'refs/heads/ai-world'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -28,7 +29,7 @@ jobs:
   # actions/cache but the CMake/Ninja build dir itself is not persisted, so
   # this job always reconfigures/relinks from scratch.
   build-pr:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.base_ref == 'ai-world'
     runs-on: ubuntu-24.04
     env:
       CC: /usr/bin/gcc-13
@@ -87,7 +88,7 @@ jobs:
   # server's aitc_build-data/aitc_ccache-data — see compose.yml). First run
   # per volume is a full build; later runs are incremental.
   build-server:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/ai-world' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: [self-hosted, linux, docker, wow, ci]
     env:
       BUILD_VOLUME_NAME: aitc_ci_build-data

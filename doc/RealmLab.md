@@ -1,0 +1,259 @@
+# Samostatný realm pro vlastní testovací mapu
+
+Stav přípravy: 8. října 2026. Větev `codex/realm-lab` vychází z
+`ai-world` na revizi `c08fec3f2a`. Připravené soubory oddělují provoz a
+CI/CD; vlastní mapa a přenos AI mimo Elwynn jsou další etapa.
+
+## Rozdělení společných a samostatných částí
+
+| Část | Rozhodnutí | Důvod / důsledek |
+|---|---|---|
+| Přihlášení, `authserver`, databáze `auth` | Společné, spravované původním stackem | Stejné účty a společný seznam realmů. Lab nespouští druhý authserver. |
+| Záznam `auth.realmlist` | Samostatný, navržené ID 2 | Původní ID 1 se nemění. Registrace odmítá cizí ID/název. |
+| Postavy a AI stav | Nová `characters` ve vlastní MySQL instanci | Postavy, potřeby, paměti, skupiny a dynamické questy se nekopírují z Elwynnu. |
+| Svět | Nová `world` ve vlastní MySQL instanci | Spawny, domovy, lokace a klasifikace se později definují pro vlastní mapu. |
+| MySQL proces a datový volume | Samostatný pro lab | Reset či migrace labu nezasáhne původní `world`/`characters`. Názvy DB mohou zůstat stejné díky jiné instanci. |
+| Worldserver, knihovny a build volume | Samostatné | Každý realm může běžet na jiné revizi. Binárky se nesdílejí mezi běžícími realmy. |
+| TrinityCore/AIWorld zdrojový kód | Společný původ, samostatná větev | Opravy lze přenášet cíleným cherry-pickem. Upstream merge nesmí přepsat lab provozní soubory. |
+| Schémata a generátory dat | Znovupoužitelné | Verze migrací se uplatňují odděleně pro každou DB. Auth migrace vlastní pouze původní stack. |
+| Originální klientské modely a textury | Znovupoužitelné | Pro první mapu není potřeba vytvářet nové modely. |
+| DBC, `maps`, `vmaps`, `mmaps` | Vlastní výstupní adresář, mount pouze pro čtení | Lze vycházet z kopie stejného klientského základu, ale upravené výstupy se nesmí zapisovat do dat Elwynnu. |
+| Klientský patch / klient pro mapování | Vlastní | Doporučená samostatná kopie klienta pro lab; stejné přihlášení a účty. |
+| AI HTTP služba | Samostatná instance ze stejného kódu | Změny protokolu a restart labu neovlivní Elwynn. |
+| LLM server, modelové váhy, GPU | Mohou být společné | Sdílení výkonu může zkreslit časování; první pohybové testy mají modelové požadavky vypnuté. |
+| Observer, token a recorder | Samostatné instance/výstupy | Snapshoty a záznamy obou světů se nemíchají. Současná mapa Observeru ještě vyžaduje zobecnění. |
+| Account web | Společný, bez další lab instance | Vytváří společné účty. GM oprávnění na konkrétní realm se nastavují zvlášť. |
+| Docker host a CI runner | Mohou být společné | CPU/RAM/I/O jsou sdílené; oba buildy mohou soupeřit o výkon. CI volumes jsou oddělené. |
+| Deploy runner a pracovní checkout | Samostatné | Lab runner má vlastní label a vidí pouze lab checkout. Docker socket přesto poskytuje přístup k celému Docker hostu. |
+
+Sdílené účty znamenají také společná globální nastavení účtů, například
+bany a některé administrátorské operace. Oddělený realm není úplná
+bezpečnostní izolace od společného auth. Lab uživatel má jen DML práva na
+`auth.*`, žádné DDL ani přístup k původním `world`/`characters`. SQL práva
+neomezují DML na jednotlivé řádky podle RealmID. GM účet s oprávněním pro
+realm `-1` má globální oprávnění i na novém realmu.
+
+## Provozní rozložení
+
+| Parametr | Elwynn | Lab |
+|---|---|---|
+| Větev | `ai-world` | `codex/realm-lab` |
+| Deploy checkout | `/home/voslik/WoWBehaviorAI` | `/home/voslik/WoWBehaviorAI-lab` |
+| Compose projekt | Stávající | `aitc-lab` |
+| Přihlašovací port | 3724 | Společný 3724 |
+| World port na hostu | 8085 | 8086, uvnitř kontejneru 8085 |
+| Observer port | 8090 | 8091 |
+| RealmID | 1 | 2, po ověření dostupnosti |
+| MySQL volume | `aitc_mysql-data` | `aitc_lab_mysql-data` |
+| Runtime build/cache | `aitc_build-data` / `aitc_ccache-data` | `aitc_lab_build-data` / `aitc_lab_ccache-data` |
+| CI build/cache | `aitc_ci_build-data` / `aitc_ci_ccache-data` | `aitc_lab_ci_build-data` / `aitc_lab_ci_ccache-data` |
+| Runtime soubory | `runtime/` | `runtime/lab/` v lab checkoutu |
+| Secrets | `.env` | `deploy/lab/.env` |
+
+RealmID označuje server v seznamu realmů. **MapID označuje mapu uvnitř
+světa a je jiné číslo.** ID nové mapy zatím není zvolené; před jeho
+přidělením je nutné zkontrolovat `Map.dbc` a možnosti extraktorů.
+
+Používat `make -f Makefile.lab ...`. Běžný `make build/start/reset-db`
+nadále míří na původní stack; v lab checkoutu se pro provoz nepoužívá.
+CI overlay `compose.lab.ci.yml` se používá pouze při kompilaci/testech,
+nikoli při startu realmu. Vyžaduje Docker Compose >= 2.24.4 kvůli
+`!override` ([dokumentace Dockeru](https://docs.docker.com/reference/compose-file/merge/)).
+
+## První zprovoznění na Linux hostu
+
+Toto je jednorázový postup pro správce hostu; workflow jej samo neprovádí.
+Původní běžící realm není potřeba přepínat na novou větev.
+
+### 1. Nový checkout a oddělená konfigurace
+
+```bash
+git clone --branch codex/realm-lab https://github.com/LoubekJan/WoWBehaviorAI.git /home/voslik/WoWBehaviorAI-lab
+cd /home/voslik/WoWBehaviorAI-lab
+cp deploy/lab/.env.example deploy/lab/.env
+chmod 600 deploy/lab/.env
+```
+
+Nastavit vlastní DB hesla, telemetry token, dosažitelnou adresu serveru,
+RealmID a volné porty. Nenechat hodnoty `change-me-*`. Použít nového
+uživatele `lab_auth`, nikoli původního `trinity` s přístupem ke všem DB.
+
+### 2. Síť ke společnému auth MySQL
+
+```bash
+docker network create aitc-shared-auth
+```
+
+Pokud síť již existuje, ověřit ji pomocí `docker network inspect`.
+Do této sítě připojit pouze MySQL původního stacku a lab worldserver /
+setup nástroje. Název sítě musí odpovídat `SHARED_AUTH_NETWORK`.
+
+Pro připojení bez restartu původního MySQL:
+
+```bash
+cd /home/voslik/WoWBehaviorAI
+primary_mysql=$(docker compose ps -q mysql)
+test -n "$primary_mysql"
+docker network connect --alias aiworld-auth-db aitc-shared-auth "$primary_mysql"
+```
+
+Ruční připojení přetrvá restart stejného kontejneru, ale nepřetrvá jeho
+nahrazení. Pro trvalé připojení zkopírovat `compose.auth-share.yml` z lab
+checkoutu do původního checkoutu a do **původní** `.env` přidat:
+
+```dotenv
+COMPOSE_FILE=compose.yml:compose.auth-share.yml
+```
+
+Původní CD používá neparametrizované `docker compose up/restart`, které
+tuto hodnotu načte. Jednorázové `docker compose up -d mysql` s overlayem
+může MySQL kontejner znovu vytvořit a způsobit krátkou odstávku obou realmů;
+naplánovat tento přechod. Pokud byla síť nejprve připojena ručně, není
+nutné obnovu provést hned. Původní workflow nepoužívá `git clean`, takže
+zkopírovaný overlay zůstane zachován i při jeho `git reset --hard`.
+
+### 3. Lab build a účet pro společný auth
+
+```bash
+cd /home/voslik/WoWBehaviorAI-lab
+make -f Makefile.lab bootstrap
+make -f Makefile.lab build
+make -f Makefile.lab test
+
+export LAB_AUTH_ADMIN_USER=root
+read -rsp 'Shared auth MySQL admin password: ' LAB_AUTH_ADMIN_PASSWORD
+echo
+export LAB_AUTH_ADMIN_PASSWORD
+make -f Makefile.lab provision-auth
+unset LAB_AUTH_ADMIN_PASSWORD
+make -f Makefile.lab register-realm
+```
+
+Sdílený MySQL administrátor musí smět přistoupit přes Docker síť. Pokud
+root dovoluje jen lokální socket, použít správcem vytvořeného dočasného
+administrátora pro provisioning; nerozšiřovat vzdálený root jen kvůli labu.
+Provisioning odmítá převzít již existujícího uživatele. Při opakovaném
+setupu s již vytvořeným uživatelem tento krok přeskočit a ověřit jeho
+grants. Registrace realmu je opakovatelná pro stejný ID/název, nastaví
+adresu/port a založí počty postav existujících účtů pro nový realm.
+Řádek začne jako offline, dokud jej worldserver neaktivuje.
+
+### 4. Světová DB a klientská data
+
+```bash
+make -f Makefile.lab import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<overeny-sha256-archivu>
+```
+
+Použít kompatibilní základ TDB; nejde o dump živého Elwynnu. Import
+spouštět pouze pro novou prázdnou lab world DB, protože TDB import
+přepisuje obsah. Characters schéma a migrace vytvoří worldserver.
+
+Provisionovat kompletní kompatibilní extrahovaná data do
+`runtime/lab/data/{dbc,maps,vmaps,mmaps}`. Vlastní mapa se potom přidává
+právě sem. Kopie stejného základu / filesystem reflink je možná;
+symlink na zapisovatelná produkční data by zrušil oddělení.
+
+Do `runtime/lab/dbc-base/` dodat neupravené `Faction.dbc` a
+`FactionTemplate.dbc`, poté:
+
+```bash
+make -f Makefile.lab dbc-factions
+make -f Makefile.lab preflight
+make -f Makefile.lab start
+```
+
+Současné world migrace používají vlastní faction IDs, proto se znovu
+používá existující generátor, ale s explicitním **lab výstupem**.
+Nepoužívat původní `make dbc-factions`, který zapisuje do `runtime/data`.
+Preflight ověřuje přítomnost některých základních DBC a typů dat plus
+přesnou registraci realmu. Není to kompletní kontrola všech DBC, dlaždic
+ani důkaz průchodnosti nové mapy; další kontrolu provede startup serveru
+a později mapový acceptance test.
+
+V první fázi poběží samostatný server s kompatibilním základním světem.
+**AI, automatické načtení Elwynnu, export Elwynn telemetrie a modelové
+požadavky jsou vypnuté. Vlastní mapa ještě není součástí této přípravy.**
+
+### 5. Samostatné CI/CD
+
+- `.github/workflows/realm-lab.yml`: push/PR na `codex/realm-lab`.
+- GitHub-hosted kontroly: konfigurace a izolace, Observer/AI protokoly,
+  kontrola shody auth schématu/prepared statements proti `ai-world`.
+- PR C++ build běží na GitHub-hosted runneru; cizí PR nemá přístup k
+  Docker hostu ani lab secrets.
+- Push/manual C++ build: stávající `wow,ci` runner, nové lab CI volumes,
+  bez připojení do auth sítě. Kompilují se i všechny mapové extraktory.
+- Deploy: nový runner s labelem `realm-lab-deploy`, checkout
+  `/home/voslik/WoWBehaviorAI-lab`, prostředí GitHub `realm-lab`.
+- Deploy potřebuje repository variable `REALM_LAB_DEPLOY_ENABLED=true`.
+  Dokud není host připravený, tuto proměnnou nenastavovat. Ani ruční
+  spuštění workflow neprovádí deploy, pouze test/build.
+
+Lab runner lze přidat ze samostatného checkoutu:
+
+```bash
+cd /home/voslik/WoWBehaviorAI-lab/deploy/runner
+cp .env.example .env
+# Nastavit stejné repo a platný registrační PAT pro další runner.
+docker compose -f compose.lab.yml up -d --build
+```
+
+Není nutné kopírovat/přestavovat původní deploy runner. Lab CD nikdy
+nerestartuje authserver a nevykonává provisioning ani registraci realmu.
+Při kompilaci nových runtime binárek zastaví jen lab worldserver.
+Při selhání buildu lab zůstane zastavený; původní realm pokračuje.
+Není zde automatický rollback DB migrací. Zálohy lab MySQL jsou potřebné
+před změnami persistentních schémat.
+
+## Další práce pro vlastní mapu
+
+1. **Přidělit MapID/AreaID a vytvořit minimální mapu.** Jeden povrch,
+   rovina, jeden domov, několik predátorů a kořistí, bez vody/jeskyní
+   a více pater. Použít stávající WoW modely a textury.
+2. **Verzovat mapový projekt a jeho vstupy.** WDT/ADT, příslušné DBC
+   úpravy, SQL spawny, domovy a malý census. Běžný CI nemá klientská data;
+   build klientského patche a extrakce proběhnou na vybaveném hostu.
+   Velké mapové zdroje je potřeba uložit přes LFS nebo privátní artefaktové
+   úložiště; runtime výstupy a celý klient nepatří do tohoto Git repozitáře.
+3. **Sjednotit rozsah AI.** Odstranit rozptýlené předpoklady map 0 /
+   zone 12 v `LivingRole.cpp`, `LivingWolf.cpp`, `LivingRecoveryPath.cpp`,
+   `LivingRolePolicy`, `ElwynnHuntPath`, akčních validátorech a chase.
+   Jedna společná definice mapy, oblastí a hranic musí řídit lov, návrat,
+   perception, aktivaci populace i načítání gridů.
+4. **Připravit čistou populaci.** Historické characters migrace vytvářejí
+   několik Elwynn pilotních agentů; nový TDB obsahuje původní světové
+   spawny. Samostatná DB automaticky neznamená čistou testovací populaci.
+   Připravit explicitní lab bootstrap a ověřit nulové cizí agenty/skupiny,
+   bez zásahů do Elwynn DB. Nekopírovat jeho živé AI paměti ani postavy.
+5. **Zobecnit telemetrii a Observer.** Capture scope, mapové pozadí,
+   souřadnice, názvy a příslušné reporty musejí odpovídat nové mapě.
+   Připravený druhý Observer zatím čeká bez lab snapshotů.
+6. **Sestavit a zaznamenat shodný datový balík.** Klientský patch, server
+   DBC/maps/vmaps/mmaps, verze extraktorů a hashe. Kontrolovat regeneraci
+   změněných mmap dlaždic; samotná shodná verze formátu nevynutí přepočet.
+7. **Zapnout AI a ověřit pohyb.** Zachovat produkční lov/návrat,
+   opakovaně prokázat fyzický návrat bez respawnu/teleportu a následnou
+   další činnost. Začít jedním NPC, potom desítkami. Svah/překážku přidat
+   až po průchodu roviny. Modelové rady zapínat až po pohybovém základu.
+
+Tato příprava neodstraňuje aktuální chyby návratu ani netvrdí, že se AI
+už přenesla na jinou mapu. Odděluje infrastrukturu pro její další vývoj.
+
+## Ověření a zdroje
+
+Lokální kontrakty: `python -m unittest discover -s tools/realm_lab/tests -v`.
+Validace Compose může běžet bez Docker Engine pomocí `docker compose config`.
+Plný C++ build, MySQL integraci a souběh dvou živých realmů musí potvrdit
+CI / Linux host. Úspěšné CI infrastruktury není úspěšný test návratů.
+
+Při přípravě prošlo 14 lokálních testů konfigurace/izolace, validace
+runtime i CI Compose skutečným Compose 2.24.4 a syntaxe Bash skriptů.
+Sada Observeru: 105 testů, z toho 1 přeskočený; AI protokoly: 74 testů.
+Čtyři skutečné MySQL integrační testy jsou zapojené do CI proti jednorázové
+MySQL službě; místně jsou přeskočené, protože zde není Docker Engine.
+
+- [TrinityCore realmlist: samostatný záznam a shoda ID s RealmID](https://trinitycore.atlassian.net/wiki/spaces/tc/pages/2130016/).
+- Lokální `DatabaseLoader.h`: masky AUTH=1, CHARACTER=2, WORLD=4;
+  proto lab používá `Updates.EnableDatabases = 6`.
+- [Noggit RED, editor pro 3.3.5](https://gitlab.com/serayn/noggit-red).
+- [Generování a prohlížení vlastní navigace v TrinityCore 3.3.5](https://github.com/stoneharry/mmaps-for-custom-maps).

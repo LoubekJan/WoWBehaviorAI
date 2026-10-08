@@ -1,0 +1,146 @@
+# Independent realm; never combine this file with compose.yml.
+# docker compose --env-file deploy/lab/.env -f compose.lab.yml ...
+name: aitc-lab
+
+x-trinity-build: &trinity-build
+  context: .
+  dockerfile: docker/trinitycore/Dockerfile.dev
+  args:
+    USER_UID: ${DEV_UID:-1000}
+    USER_GID: ${DEV_GID:-1000}
+
+x-lab-environment: &lab-environment
+  TC_DB_USER: ${TC_DB_USER:?Set the dedicated lab DB user}
+  TC_DB_PASSWORD: ${TC_DB_PASSWORD:?Set the dedicated lab DB password}
+  TC_AUTH_DB_HOST: ${TC_AUTH_DB_HOST:-aiworld-auth-db}
+  TC_AUTH_DB_PORT: ${TC_AUTH_DB_PORT:-3306}
+  TC_AUTH_DB_USER: ${TC_AUTH_DB_USER:?Set the dedicated shared-auth user}
+  TC_AUTH_DB_PASSWORD: ${TC_AUTH_DB_PASSWORD:?Set the shared-auth password}
+  LAB_REALM_ID: ${LAB_REALM_ID:-2}
+  LAB_REALM_NAME: ${LAB_REALM_NAME:-AI World Lab}
+  LAB_REALM_ADDRESS: ${LAB_REALM_ADDRESS:?Set the client-reachable address}
+  LAB_REALM_LOCAL_ADDRESS: ${LAB_REALM_LOCAL_ADDRESS:?Set the LAN address}
+  LAB_REALM_LOCAL_SUBNET_MASK: ${LAB_REALM_LOCAL_SUBNET_MASK:-255.255.255.0}
+  LAB_WORLD_PORT: ${LAB_WORLD_PORT:-8086}
+  WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
+
+services:
+  lab-mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set the lab MySQL root password}
+      TC_DB_USER: ${TC_DB_USER:?Set the dedicated lab DB user}
+      TC_DB_PASSWORD: ${TC_DB_PASSWORD:?Set the dedicated lab DB password}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./deploy/lab/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, localhost]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  worldserver:
+    build: *trinity-build
+    image: aitc-lab-trinity-dev
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    depends_on:
+      lab-mysql:
+        condition: service_healthy
+      ai-server:
+        condition: service_healthy
+    working_dir: /build/bin
+    command: [python3, /workspace/tools/realm_lab/manage.py, run-world, /etc/trinitycore/worldserver.conf, /build/bin/worldserver]
+    environment: *lab-environment
+    networks: [default, shared-auth]
+    volumes:
+      - build-data:/build:ro
+      - ./deploy/worldserver.conf:/etc/trinitycore/worldserver.conf:ro
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./sql:/workspace/sql:ro
+      - ./runtime/lab/data:/runtime/data:ro
+      - ./runtime/lab/logs:/runtime/logs
+    ports:
+      - "${LAB_WORLD_PORT:-8086}:8085"
+    healthcheck:
+      test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/8085"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+
+  ai-server:
+    build: {context: docker/ai}
+    restart: unless-stopped
+    environment:
+      # Separate request service; optional GPU/model backend can be shared.
+      AI_TASK_MODEL_ENABLED: "0"
+      AI_RECOVERY_MODEL_ENABLED: "0"
+      AI_TASK_MODEL_URL: ${AI_TASK_MODEL_URL:-}
+      AI_TASK_MODEL_NAME: ${AI_TASK_MODEL_NAME:-}
+      AI_TASK_MODEL_API_KEY: ${AI_TASK_MODEL_API_KEY:-}
+      AI_TASK_MODEL_ENABLE_THINKING: ${AI_TASK_MODEL_ENABLE_THINKING:-0}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  world-viewer:
+    build: {context: docker/world-viewer}
+    restart: unless-stopped
+    environment:
+      WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
+    ports:
+      - "${LAB_VIEWER_PORT:-8091}:8000"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tc-dev:
+    profiles: [tools]
+    build: *trinity-build
+    image: aitc-lab-trinity-dev
+    environment: *lab-environment
+    networks: [default, shared-auth]
+    volumes:
+      - .:/workspace
+      - build-data:/build
+      - ccache-data:/ccache
+    command: [bash]
+    stdin_open: true
+    tty: true
+
+  aiworld-recorder:
+    profiles: [recording]
+    image: python:3.11-slim
+    restart: "no"
+    init: true
+    stop_grace_period: 20s
+    depends_on:
+      world-viewer:
+        condition: service_healthy
+    command: [python, -u, /record.py, --url, "http://world-viewer:8000/api/state", --output, /recordings, --hours, "${AIWORLD_RECORD_HOURS:-4}", --interval, "${AIWORLD_RECORD_INTERVAL:-5}", --label, "${AIWORLD_RECORD_LABEL:-realm-lab}", --build-label, "${AIWORLD_RECORD_BUILD_LABEL:-unknown}", --analyze, --minimum-minutes, "${AIWORLD_TEST_MINUTES:-60}"]
+    volumes:
+      - ./docker/world-viewer/app/record.py:/record.py:ro
+      - ./docker/world-viewer/app/behavior.py:/behavior.py:ro
+      - ./docker/world-viewer/app/recording_gate.py:/recording_gate.py:ro
+      - ./runtime/lab/recordings:/recordings
+
+networks:
+  shared-auth:
+    external: true
+    name: ${SHARED_AUTH_NETWORK:-aitc-shared-auth}
+
+volumes:
+  mysql-data:
+    name: aitc_lab_mysql-data
+  build-data:
+    name: aitc_lab_build-data
+  ccache-data:
+    name: aitc_lab_ccache-data

@@ -1,0 +1,16 @@
+# Only used for lab CI builds. Never use this overlay for lab startup.
+name: aitc-lab-ci
+services:
+  worldserver:
+    networks: !override [default]
+  tc-dev:
+    networks: !override [default]
+networks:
+  shared-auth: !reset null
+volumes:
+  mysql-data:
+    name: aitc_lab_ci_mysql-unused
+  build-data:
+    name: aitc_lab_ci_build-data
+  ccache-data:
+    name: aitc_lab_ci_ccache-data

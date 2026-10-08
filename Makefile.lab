@@ -1,0 +1,59 @@
+# Explicit entry point: make -f Makefile.lab <target>
+# No original-realm compose command or volume is used by these targets.
+LAB_COMPOSE := docker compose --env-file deploy/lab/.env -f compose.lab.yml
+LAB_CONFIGURE := cmake -S /workspace -B /build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/build -DTOOLS=1 -DBUILD_TESTING=ON
+.PHONY: bootstrap config build test import-tdb dbc-factions provision-auth register-realm preflight start stop restart-world logs record record-status
+
+bootstrap:
+	@test -f deploy/lab/.env || cp deploy/lab/.env.example deploy/lab/.env
+	@mkdir -p runtime/lab/data/dbc runtime/lab/data/maps runtime/lab/data/vmaps runtime/lab/data/mmaps runtime/lab/logs runtime/lab/recordings runtime/lab/client-patch runtime/lab/dbc-base
+	$(LAB_COMPOSE) build
+
+config:
+	$(LAB_COMPOSE) config --quiet
+
+build:
+	$(LAB_COMPOSE) run --rm --no-deps tc-dev bash -ec '$(LAB_CONFIGURE) && cmake --build /build && cmake --install /build'
+
+test:
+	$(LAB_COMPOSE) run --rm --no-deps tc-dev ctest --test-dir /build --output-on-failure --no-tests=error
+
+import-tdb:
+	@test -n "$(TDB_VERSION)" && test -n "$(TDB_SHA256)" || (echo 'Set TDB_VERSION and TDB_SHA256'; exit 2)
+	$(LAB_COMPOSE) up -d lab-mysql
+	$(LAB_COMPOSE) run --rm --no-deps -e TDB_DB_HOST=lab-mysql -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh
+
+# Preserve the existing world migration/DBC contract, in LAB output only.
+dbc-factions:
+	python3 tools/dbc/build_elwynn_factions.py --dbc-base-dir runtime/lab/dbc-base --out-dir runtime/lab/data/dbc
+
+# One-time operations only; never called automatically by CD. Supply the
+# shared-auth administrator password via exported LAB_AUTH_ADMIN_PASSWORD.
+provision-auth:
+	$(LAB_COMPOSE) run --rm --no-deps -e LAB_AUTH_ADMIN_USER -e LAB_AUTH_ADMIN_PASSWORD tc-dev python3 tools/realm_lab/manage.py provision-auth
+
+register-realm:
+	$(LAB_COMPOSE) run --rm --no-deps tc-dev python3 tools/realm_lab/manage.py register-realm
+
+preflight:
+	$(LAB_COMPOSE) run --rm --no-deps tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
+
+start: preflight
+	$(LAB_COMPOSE) up -d lab-mysql ai-server world-viewer worldserver
+
+stop:
+	$(LAB_COMPOSE) down
+
+restart-world:
+	$(LAB_COMPOSE) restart worldserver
+
+logs:
+	$(LAB_COMPOSE) logs -f
+
+# Use only after the custom map scope and live telemetry are implemented.
+record:
+	$(LAB_COMPOSE) up -d --no-deps --force-recreate aiworld-recorder
+
+record-status:
+	$(LAB_COMPOSE) ps -a aiworld-recorder
+	$(LAB_COMPOSE) logs --tail=5 aiworld-recorder

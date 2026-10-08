@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     gdb \
     pkg-config \
+    python3 \
     libboost-all-dev \
     libssl-dev \
     libmysqlclient-dev \

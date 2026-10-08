@@ -1,0 +1,151 @@
+name: Realm Lab CI/CD
+
+on:
+  push:
+    branches: [codex/realm-lab]
+  pull_request:
+    branches: [codex/realm-lab]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    if: github.base_ref == 'codex/realm-lab' || github.ref == 'refs/heads/codex/realm-lab'
+    runs-on: ubuntu-24.04
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: realm-ci-root
+          MYSQL_ROOT_HOST: '%'
+          MYSQL_DATABASE: auth
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install 'fastapi>=0.115,<1' 'httpx>=0.27,<1' 'PyYAML>=6,<7'
+          sudo apt-get update
+          sudo apt-get install -yq default-mysql-client
+      - name: Test realm boundaries and setup
+        env:
+          LAB_TEST_MYSQL: '1'
+          LAB_TEST_MYSQL_ROOT_PASSWORD: realm-ci-root
+        run: python -m unittest discover -s tools/realm_lab/tests -v
+      - name: Validate lab Compose, CI override and scripts
+        run: |
+          docker compose --env-file deploy/lab/.env.example -f compose.lab.yml config --quiet
+          docker compose --env-file deploy/lab/.env.example -f compose.lab.yml -f compose.lab.ci.yml config --quiet
+          for script in docker/scripts/build-lab.sh docker/scripts/deploy-lab.sh deploy/lab/mysql/01-init-users.sh; do
+            bash -n "$script"
+          done
+      - name: Check shared-auth compatibility with original realm
+        run: |
+          git fetch origin ai-world
+          git diff --exit-code origin/ai-world HEAD -- \
+            sql/base/auth_database.sql sql/updates/auth \
+            src/server/database/Database/Implementation/LoginDatabase.h \
+            src/server/database/Database/Implementation/LoginDatabase.cpp
+      - name: Test Observer and AI protocols
+        run: |
+          (cd docker/world-viewer && python -m unittest discover -s tests -v)
+          (cd docker/ai && python -m unittest discover -s tests -v)
+
+  build-pr:
+    if: github.event_name == 'pull_request' && github.base_ref == 'codex/realm-lab'
+    needs: contracts
+    runs-on: ubuntu-24.04
+    env:
+      CC: gcc-13
+      CXX: g++-13
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -yq ninja-build ccache libboost-all-dev libssl-dev default-libmysqlclient-dev libreadline-dev zlib1g-dev libbz2-dev
+      - uses: actions/cache@v4
+        with:
+          path: .ccache-lab
+          key: realm-lab-gcc13-${{ github.sha }}
+          restore-keys: realm-lab-gcc13-
+      - name: Build server, extractors and tests
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache-lab
+        run: |
+          cmake -S . -B build-lab -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_FLAGS_DEBUG='-DNDEBUG -g0' -DCMAKE_CXX_FLAGS_DEBUG='-DNDEBUG -g0' \
+            -DUSE_COREPCH=0 -DUSE_SCRIPTPCH=0 -DTOOLS=1 -DBUILD_TESTING=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build-lab --parallel 2
+          ctest --test-dir build-lab --output-on-failure --no-tests=error
+
+  build-server:
+    if: github.ref == 'refs/heads/codex/realm-lab' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: contracts
+    runs-on: [self-hosted, linux, docker, wow, ci]
+    concurrency:
+      group: realm-lab-build
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Prepare revision generation
+        run: |
+          mkdir -p CMakeFiles
+          chmod 0777 CMakeFiles
+      - name: Build and test in isolated lab CI volumes
+        run: |
+          docker compose --env-file deploy/lab/.env.example -f compose.lab.yml -f compose.lab.ci.yml \
+            run --rm --no-deps tc-dev bash /workspace/docker/scripts/build-lab.sh /build/check_install
+
+  deploy:
+    needs: [contracts, build-server]
+    # One-time provisioning must be finished before enabling this repository
+    # variable. PRs and manual workflow runs never deploy.
+    if: github.ref == 'refs/heads/codex/realm-lab' && github.event_name == 'push' && vars.REALM_LAB_DEPLOY_ENABLED == 'true'
+    environment: realm-lab
+    runs-on: [self-hosted, linux, docker, wow, realm-lab-deploy]
+    concurrency:
+      group: realm-lab-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Sync only the dedicated lab checkout to the tested commit
+        env:
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          lab_checkout=/home/voslik/WoWBehaviorAI-lab
+          test -d "$lab_checkout/.git"
+          git config --global --add safe.directory "$lab_checkout"
+          cd "$lab_checkout"
+          test "$(git branch --show-current)" = codex/realm-lab
+          # Close recording before changing its bind-mounted Python files.
+          if test -f deploy/lab/.env; then
+            docker compose --env-file deploy/lab/.env -f compose.lab.yml --profile recording stop --timeout 30 aiworld-recorder
+          fi
+          git fetch origin codex/realm-lab
+          git reset --hard "$TESTED_SHA"
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+      - name: Deploy lab infrastructure
+        env:
+          TESTED_SHA: ${{ github.sha }}
+        run: |
+          cd /home/voslik/WoWBehaviorAI-lab
+          bash docker/scripts/deploy-lab.sh "$TESTED_SHA"
+      - name: Report acceptance boundary
+        run: |
+          echo 'Realm lab infrastructure passed. Custom map, scope generalization and NPC return acceptance remain separate gates.' >> "$GITHUB_STEP_SUMMARY"

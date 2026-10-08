@@ -1,0 +1,18 @@
+# Additional runner only for lab deployment; reuse the existing CI runner.
+# Run from deploy/runner with its existing .env (GH_RUNNER_*).
+name: aitc-lab-runners
+services:
+  lab-runner:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      RUNNER_SCOPE: repo
+      REPO_URL: ${GH_RUNNER_REPO_URL}
+      ACCESS_TOKEN: ${GH_RUNNER_PAT}
+      RUNNER_NAME: ${GH_LAB_RUNNER_NAME:-wow-lab-deploy-runner}
+      LABELS: self-hosted,linux,docker,wow,realm-lab-deploy
+      DISABLE_AUTO_UPDATE: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/voslik/WoWBehaviorAI-lab:/home/voslik/WoWBehaviorAI-lab
