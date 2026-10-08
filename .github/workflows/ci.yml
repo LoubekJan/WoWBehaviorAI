@@ -304,16 +304,30 @@ jobs:
           echo
           echo "=== AIWorld startup ==="
 
-          WORLD_LOGS="$(docker compose logs --since=5m worldserver 2>&1)"
+          # Read only this process startup, with bounded output and time. A
+          # reused container can contain very large logs from earlier boots.
+          WORLD_CID="$(docker compose ps -q worldserver)"
+          test -n "$WORLD_CID"
+          WORLD_STARTED_AT="$(docker inspect --format '{{.State.StartedAt}}' "$WORLD_CID")"
+          if ! WORLD_LOGS="$(timeout 30s docker logs --since "$WORLD_STARTED_AT" --tail=50000 "$WORLD_CID" 2>&1)"; then
+            echo "::error::Could not read the current worldserver startup log"
+            printf '%s\n' "$WORLD_LOGS" | tail -200
+            exit 1
+          fi
+          if [ "$(docker compose ps -q worldserver)" != "$WORLD_CID" ] ||
+             [ "$(docker inspect --format '{{.State.StartedAt}}' "$WORLD_CID")" != "$WORLD_STARTED_AT" ]; then
+            echo "::error::Worldserver restarted while collecting its startup evidence"
+            exit 1
+          fi
 
           if ! grep -Fq "AI bridge target ai-server:8000" <<< "$WORLD_LOGS"; then
-            echo "::error::AIWorld bridge was not initialized"
+            echo "::error::Current startup log lacks the AIWorld bridge marker (initialization or incomplete log)"
             echo "$WORLD_LOGS" | tail -200
             exit 1
           fi
 
           if ! grep -Eq 'AI persistence loaded [1-9][0-9]* agents' <<< "$WORLD_LOGS"; then
-            echo "::error::AIWorld did not load persistent agents"
+            echo "::error::Current startup log lacks the persistent agents marker (initialization or incomplete log)"
             echo "$WORLD_LOGS" | tail -200
             exit 1
           fi

@@ -90,7 +90,7 @@ uint32 MemoryPersistence::LoadLongTermMemories(LongTermMemory& memory, AgentRegi
             continue;
 
         char const* sourceEventType = record.SourceEventType ? ToString(*record.SourceEventType) : "NONE";
-        TC_LOG_INFO("ai.world", "AI long-term memory loaded persistentId={} agent={} type={} importance={:.2f} sourceEventType={}",
+        TC_LOG_DEBUG("ai.world", "AI long-term memory loaded persistentId={} agent={} type={} importance={:.2f} sourceEventType={}",
             record.PersistentId, owner.Value, ToString(record.Type), record.Importance, sourceEventType);
 
         ++loaded;
