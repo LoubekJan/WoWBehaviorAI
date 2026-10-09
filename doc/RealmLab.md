@@ -511,7 +511,8 @@ cyklus. Terén ani klientský patch se kvůli populaci nemění.
 
 - [x] Nasadit dva predátory a čtyři kořisti s pevnými domovy a přirozeným hladem na mapu 725.
 - [x] Vyhodnotit hodinový záznam šestice: oba predátoři 15 krmení a 15 naměřených návratů; 29 návratů má zachycenou fázi RETURN_HOME. Domovy a scope beze změny, bez zaseknutí.
-- [ ] Podle výslovného požadavku rozšířit rovnou na 100 NPC (20 lovců / 80 kořistí), zachovat původních šest domovů a ověřit skutečnou zátěž i návraty všech lovců.
+- [x] Podle výslovného požadavku nasadit 100 NPC (20 lovců / 80 kořistí) a zachovat původních šest domovů.
+- [ ] Vyhodnotit souvislý záznam stovky, zátěž během lovů a opakované návraty všech dvaceti lovců.
 - [ ] Teprve po průchodu roviny přidat mírný svah a zopakovat stejné scénáře.
 - [ ] Samostatně přidat jednu překážku s průchodem a zopakovat stejné scénáře.
 - [ ] Další typy terénu, skupiny a modelové rady přidávat až podle výsledků předchozích etap.
@@ -519,7 +520,7 @@ cyklus. Terén ani klientský patch se kvůli populaci nemění.
 **Hotovo, když:** každé rozšíření má samostatný průkazný záznam a nezhorší
 již ověřené návraty.
 
-Pro rozšíření na stovku je připravený oddělený profil `hunt-100` a
+Rozšíření na stovku používá oddělený profil `hunt-100` a
 [definice všech 100 spawnů](../data/realm_lab/aiworldlab/hunt-population-100.json).
 Postup bootstrapu, aktivace a měření je v
 [populačním návodu](../tools/realm_lab/HUNT_POPULATION.md#populace-100-npc).
@@ -527,6 +528,16 @@ Původní `hunt-cycle` zůstává definicí šestice, takže její historická m
 nejsou vydávána za ověření stovky.
 [Hodinové ověření šestice](../data/realm_lab/aiworldlab/hunt-six-hour-verification.json)
 zachovává revizi, počty a hash soukromého surového záznamu.
+
+Stovka byla aktivovaná 9. 10. 2026 na revizi `9305787193`.
+[Záznam aktivace](../data/realm_lab/aiworldlab/hunt-100-activation.json)
+potvrzuje 100 živých řízených spawnů, všechny původní domovy, čtyři zdravé
+lab služby a nezměněný běh původního realmu/přihlášení. CI prošlo 83 realm
+kontraktů včetně migrace skutečného MySQL a 478 C++ testů.
+V prvních pěti 30sekundových oknech se obsloužilo přibližně 3000 aktualizací
+potřeb i vnímání na okno, maximální zpoždění bylo 6 ms a plánování nebylo
+odkládané. Jeden Docker vzorek ukázal 6,72 % CPU a 1,269 GiB paměti labu;
+jde o počáteční měření, nikoli hodinové přijetí chování či výkonu.
 
 ### Postup při prvním selhání
 
