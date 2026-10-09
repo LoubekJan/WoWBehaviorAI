@@ -1138,7 +1138,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             case ActionType::MoveTo: result = _actionExecutor.ExecuteMoveTo(request, creature); break;
             case ActionType::Attack: result = _actionExecutor.ExecuteAttack(request, creature, *target); break;
-            case ActionType::Flee: result = _actionExecutor.ExecuteFlee(request, creature, *target, 12); break;
+            case ActionType::Flee: result = _actionExecutor.ExecuteFlee(request, creature, *target, 0, &GetSimulationScope()); break;
             case ActionType::Eat: result = _actionExecutor.ExecuteEat(request, creature); break;
             case ActionType::Ambient: result = _actionExecutor.ExecuteAmbient(request, creature); break;
             default: return false;

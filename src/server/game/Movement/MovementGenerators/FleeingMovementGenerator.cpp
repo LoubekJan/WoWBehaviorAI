@@ -20,6 +20,7 @@
 #include "CreatureAI.h"
 #include "Map.h"
 #include "MovementPathBounds.h"
+#include "Simulation/SimulationPathBounds.h"
 #include "MovementDefines.h"
 #include "MoveSpline.h"
 #include "MoveSplineInit.h"
@@ -32,8 +33,10 @@
 #define MAX_QUIET_DISTANCE 43.0f
 
 template<class T>
-FleeingMovementGenerator<T>::FleeingMovementGenerator(ObjectGuid fleeTargetGUID, uint32 allowedZone)
-    : _fleeTargetGUID(fleeTargetGUID), _allowedZone(allowedZone), _timer(0)
+FleeingMovementGenerator<T>::FleeingMovementGenerator(ObjectGuid fleeTargetGUID, uint32 allowedZone,
+    SimulationScope const* scope)
+    : _fleeTargetGUID(fleeTargetGUID), _allowedZone(allowedZone),
+      _scope(scope ? std::make_optional(*scope) : std::nullopt), _timer(0)
 {
     this->Priority = MOTION_PRIORITY_HIGHEST;
     this->Flags = MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING;
@@ -175,6 +178,15 @@ void FleeingMovementGenerator<T>::SetTargetLocation(T* owner)
         return;
     }
 
+    if (_scope && (!Movement::CompleteNavmeshPath(_path->GetPathType()) ||
+        !Movement::PathWithinSimulationScope(_path->GetPath(), owner->GetMapId(), *_scope,
+            [&](float x, float y, float z)
+            { return owner->GetMap()->GetZoneId(owner->GetPhaseMask(), x, y, z); })))
+    {
+        _timer.Reset(500);
+        return;
+    }
+
     // Optional confinement is supplied only by the scoped AIWorld role
     // dispatcher. Ordinary fear/player/vanilla movement keeps its old policy.
     if (_allowedZone && ((_path->GetPathType() & (PATHFIND_INCOMPLETE | PATHFIND_SHORT)) ||
@@ -232,8 +244,8 @@ void FleeingMovementGenerator<T>::GetPoint(T* owner, Position &position)
     owner->MovePositionToFirstCollision(position, distance, angle);
 }
 
-template FleeingMovementGenerator<Player>::FleeingMovementGenerator(ObjectGuid, uint32);
-template FleeingMovementGenerator<Creature>::FleeingMovementGenerator(ObjectGuid, uint32);
+template FleeingMovementGenerator<Player>::FleeingMovementGenerator(ObjectGuid, uint32, SimulationScope const*);
+template FleeingMovementGenerator<Creature>::FleeingMovementGenerator(ObjectGuid, uint32, SimulationScope const*);
 template MovementGeneratorType FleeingMovementGenerator<Player>::GetMovementGeneratorType() const;
 template MovementGeneratorType FleeingMovementGenerator<Creature>::GetMovementGeneratorType() const;
 template bool FleeingMovementGenerator<Player>::DoInitialize(Player*);

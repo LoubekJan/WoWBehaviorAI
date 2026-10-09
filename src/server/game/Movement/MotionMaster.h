@@ -34,6 +34,7 @@ class PathGenerator;
 class Unit;
 class WorldObject;
 struct Position;
+struct SimulationScope;
 struct SplineChainLink;
 struct SplineChainResumeInfo;
 struct WaypointPath;
@@ -159,7 +160,7 @@ class TC_GAME_API MotionMaster
         void MoveChase(Unit* target, float dist, float angle) { MoveChase(target, ChaseRange(dist), ChaseAngle(angle)); }
         void MoveChase(Unit* target, float dist) { MoveChase(target, ChaseRange(dist)); }
         void MoveConfused();
-        void MoveFleeing(Unit* enemy, uint32 time = 0, uint32 allowedZone = 0);
+        void MoveFleeing(Unit* enemy, uint32 time = 0, uint32 allowedZone = 0, SimulationScope const* scope = nullptr);
         void MovePoint(uint32 id, Position const& pos, bool generatePath = true, Optional<float> finalOrient = {});
         void MovePoint(uint32 id, float x, float y, float z, bool generatePath = true, Optional<float> finalOrient = {});
         /*

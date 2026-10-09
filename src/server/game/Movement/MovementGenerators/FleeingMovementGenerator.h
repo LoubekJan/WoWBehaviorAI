@@ -20,6 +20,7 @@
 
 #include "MovementGenerator.h"
 #include "ObjectGuid.h"
+#include "Simulation/SimulationScope.h"
 #include "Timer.h"
 
 class Creature;
@@ -30,7 +31,8 @@ template<class T>
 class FleeingMovementGenerator : public MovementGeneratorMedium<T, FleeingMovementGenerator<T>>
 {
     public:
-        explicit FleeingMovementGenerator(ObjectGuid fleeTargetGUID, uint32 allowedZone = 0);
+        explicit FleeingMovementGenerator(ObjectGuid fleeTargetGUID, uint32 allowedZone = 0,
+            SimulationScope const* scope = nullptr);
 
         MovementGeneratorType GetMovementGeneratorType() const override;
 
@@ -49,14 +51,17 @@ class FleeingMovementGenerator : public MovementGeneratorMedium<T, FleeingMoveme
         std::unique_ptr<PathGenerator> _path;
         ObjectGuid _fleeTargetGUID;
         uint32 _allowedZone;
+        // Capture before initialization: Add() may launch the first spline.
+        std::optional<SimulationScope> _scope;
         TimeTracker _timer;
 };
 
 class TimedFleeingMovementGenerator : public FleeingMovementGenerator<Creature>
 {
     public:
-        explicit TimedFleeingMovementGenerator(ObjectGuid fleeTargetGUID, uint32 time, uint32 allowedZone = 0)
-            : FleeingMovementGenerator<Creature>(fleeTargetGUID, allowedZone), _totalFleeTime(time) { }
+        explicit TimedFleeingMovementGenerator(ObjectGuid fleeTargetGUID, uint32 time, uint32 allowedZone = 0,
+            SimulationScope const* scope = nullptr)
+            : FleeingMovementGenerator<Creature>(fleeTargetGUID, allowedZone, scope), _totalFleeTime(time) { }
 
         bool Update(Unit*, uint32) override;
         void Finalize(Unit*, bool, bool) override;

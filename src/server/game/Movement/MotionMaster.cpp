@@ -614,7 +614,7 @@ void MotionMaster::MoveConfused()
     }
 }
 
-void MotionMaster::MoveFleeing(Unit* enemy, uint32 time, uint32 allowedZone)
+void MotionMaster::MoveFleeing(Unit* enemy, uint32 time, uint32 allowedZone, SimulationScope const* scope)
 {
     if (!enemy)
         return;
@@ -623,9 +623,9 @@ void MotionMaster::MoveFleeing(Unit* enemy, uint32 time, uint32 allowedZone)
     if (_owner->GetTypeId() == TYPEID_UNIT)
     {
         if (time)
-            Add(new TimedFleeingMovementGenerator(enemy->GetGUID(), time, allowedZone));
+            Add(new TimedFleeingMovementGenerator(enemy->GetGUID(), time, allowedZone, scope));
         else
-            Add(new FleeingMovementGenerator<Creature>(enemy->GetGUID(), allowedZone));
+            Add(new FleeingMovementGenerator<Creature>(enemy->GetGUID(), allowedZone, scope));
     }
     else
         Add(new FleeingMovementGenerator<Player>(enemy->GetGUID()));

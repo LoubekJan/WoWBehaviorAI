@@ -30,7 +30,8 @@
 #include "SharedDefines.h"
 #include "Unit.h"
 
-ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource, uint32 allowedZone) const
+ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource,
+    uint32 allowedZone, SimulationScope const* scope) const
 {
     ActionResult result;
     result.Actor = request.Actor;
@@ -45,11 +46,19 @@ ActionResult ActionExecutor::ExecuteFlee(ActionRequest const& request, Creature&
         return result;
     }
 
+    if (scope && !scope->Contains(actor.GetMapId(), actor.GetZoneId(), actor.GetPositionX(),
+        actor.GetPositionY(), actor.GetPositionZ()))
+    {
+        result.Status = ActionExecutionStatus::Failed;
+        result.Reason = ActionExecutionReason::EngineRejected;
+        return result;
+    }
+
     // Untimed (time=0): the flee ends when AIWorld's own goal lifecycle
     // (SafetyPressure dropping below retention, or the goal timing out)
     // says it should, via StopFlee() - not on a TrinityCore-owned timer
     // this class would then have to coordinate with.
-    actor.GetMotionMaster()->MoveFleeing(&fleeSource, 0, allowedZone);
+    actor.GetMotionMaster()->MoveFleeing(&fleeSource, 0, allowedZone, scope);
 
     result.Status = ActionExecutionStatus::Started;
     result.Reason = ActionExecutionReason::None;

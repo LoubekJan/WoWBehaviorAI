@@ -97,7 +97,8 @@ pomocí `docker compose --env-file deploy/lab/.env -f compose.lab.yml ps`
 a posledního běhu `Realm Lab CI/CD`. Zdroj vlastní mapy a klientský patch
 jsou hotové; aktuální serverový mapový balík je nasazený. Po potvrzení
 nativního pohybu je aktivní profil `single-return` pro jednoho lab medvěda.
-LLM a skupiny jsou vypnuté; deset fyzických AI návratů čeká na další test.
+LLM a skupiny jsou vypnuté. Navazující profil `hunt-cycle` přidává druhého
+medvěda a čtyři jeleny pro automatický lov, krmení a návraty.
 
 ## První zprovoznění na Linux hostu
 
@@ -476,11 +477,30 @@ se zaznamenávají zvlášť. Série proběhne bez restartu a respawnu. Změny
 záznamu se pushnou po dokončení série, protože lab CI/CD zastavuje
 recorder a restartuje worldserver.
 
+Po prvním uživatelském potvrzení návratu uživatel zvolil pokračování
+automatickou populací lovců a kořisti. Ruční série zůstává dostupným
+regresním postupem; není vydávána za deset dokončených návratů.
+
 **Hotovo, když:** všechny požadované návraty jsou skutečně dokončené
 ve stejné životní instanci a ve stanoveném limitu. Přijetí pohybové akce,
 teleport, respawn nebo restart nejsou důkazem návratu.
 
 ### 7. Lov a postupné rozšiřování
+
+Aktuální navazující scénář je `LAB_AI_PROFILE=hunt-cycle`: **2 medvědi
+(1186 / Predator) a 4 jeleni (883 / Prey)**, spawny 900725–900730.
+Definice [populace](../data/realm_lab/aiworldlab/hunt-population.json)
+zachovává původní domov medvěda 900725 a přidává ostatní domovy do stejné
+ověřené oblasti. Nový bootstrap a aktivační kontrola povolují pouze tuto
+populaci. Hlad roste přirozeně `0.003/s`, první lov nastane přibližně po
+čtyřech minutách; modely a skupiny zůstávají vypnuté.
+
+[Postup nasazení a pozorování](../tools/realm_lab/HUNT_POPULATION.md)
+popisuje automatický cyklus a jeho důkazy. Útěk kořisti v labu nyní
+kontroluje mapu 725, root oblast 4988 a celý koridor uvnitř hranic;
+nepoužívá pevnou zónu 12. Kořist se po smrti obnovuje, každý spawn má
+prodlevu respawnu 120 sekund. Obnovení predátora přeruší jeho pozorovaný
+cyklus. Terén ani klientský patch se kvůli populaci nemění.
 
 - [ ] Přidat jednu kořist a zaznamenat deset cyklů lov → potrava → fyzický návrat → další činnost.
 - [ ] Po průchodu tohoto scénáře rozšířit populaci na deset NPC a ověřit plánovací rozpočet i návraty.

@@ -12651,7 +12651,8 @@ void AIWorldMgr::UpdateNeeds()
             // Allowed is never true without a resolved threat victim.
             if (validation.Allowed)
             {
-                ActionResult executionResult = _actionExecutor.ExecuteFlee(request, *creature, *capturedFleeSource);
+                ActionResult executionResult = _actionExecutor.ExecuteFlee(request, *creature, *capturedFleeSource,
+                    0, _restrictAgentsToSimulationScope ? &_simulationScope : nullptr);
 
                 TC_LOG_DEBUG("ai.world", "AI action execution agent={} type={} status={} reason={} targetGuid={}",
                     record->Id.Value, ToString(executionResult.Type), ToString(executionResult.Status),

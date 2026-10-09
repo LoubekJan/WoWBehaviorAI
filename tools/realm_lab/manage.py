@@ -17,9 +17,9 @@ import sys
 from typing import Mapping
 
 try:
-    from . import single_return
+    from . import hunt_population, single_return
 except ImportError:  # Direct script invocation inside the lab container.
-    import single_return
+    import hunt_population, single_return
 
 
 class SetupError(ValueError):
@@ -89,10 +89,10 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return"):
-            raise SetupError("LAB_AI_PROFILE must be disabled or single-return")
-        if profile == "single-return" and env.get("LAB_REALM_ID", "2") != "2":
-            raise SetupError("The reviewed single-return profile belongs to realm 2")
+        if profile not in ("disabled", "single-return", "hunt-cycle"):
+            raise SetupError("LAB_AI_PROFILE must be disabled, single-return or hunt-cycle")
+        if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
+            raise SetupError("The reviewed AI profiles belong to realm 2")
         return cls(
             number(env, "LAB_REALM_ID", "2", 2, 255), name,
             address(env, "LAB_REALM_ADDRESS"), address(env, "LAB_REALM_LOCAL_ADDRESS"),
@@ -106,7 +106,7 @@ class Settings:
         )
 
 
-def config_overrides(settings: Settings, scope: single_return.Scope | None = None) -> dict[str, str]:
+def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | None = None) -> dict[str, str]:
     auth = f"{settings.auth_host};{settings.auth_port};{settings.auth_user};{settings.auth_password};auth"
     local = f"lab-mysql;3306;{settings.db_user};{settings.db_password}"
     result = {
@@ -171,10 +171,19 @@ def config_overrides(settings: Settings, scope: single_return.Scope | None = Non
         result.update({"AIWorld.Enable": "1", "AIWorld.LivingRolesEnabled": "1",
                        "AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryHost": "world-viewer",
                        "AIWorld.TelemetryPort": "8000"})
+    elif settings.ai_profile == "hunt-cycle":
+        population = scope if isinstance(scope, hunt_population.Population) else hunt_population.Population.load()
+        result.update(population.config())
+        result.update({"AIWorld.Enable": "1", "AIWorld.LivingRolesEnabled": "1",
+                       "AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryHost": "world-viewer",
+                       "AIWorld.TelemetryPort": "8000", "AIWorld.LivingNeedEvolutionEnabled": "1",
+                       "AIWorld.NeedsHungerRatePerSecond": "0.003",
+                       "AIWorld.NeedsFatigueRatePerSecond": "0",
+                       "AIWorld.NeedsResourcePressureRatePerSecond": "0"})
     return result
 
 
-def render_config(template: str, settings: Settings, scope: single_return.Scope | None = None) -> str:
+def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | None = None) -> str:
     overrides = config_overrides(settings, scope)
     seen: set[str] = set()
     lines: list[str] = []
@@ -266,6 +275,34 @@ def activate_single(data: Path, settings: Settings, metadata: Path = single_retu
     print(f"Only lab NPC {single_return.SPAWN_ID} activated; set LAB_AI_PROFILE=single-return for the next startup.")
 
 
+def population_preflight(data: Path, settings: Settings, *, control: int | None,
+                         metadata: Path = single_return.METADATA, bootstrap: bool = False) -> hunt_population.Population:
+    population = hunt_population.verify_data(data, metadata)
+    rows = single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population)))
+    hunt_population.validate_snapshot(rows, population, control=control, bootstrap=bootstrap)
+    return population
+
+
+def bootstrap_hunt(data: Path, settings: Settings, metadata: Path = single_return.METADATA) -> None:
+    if settings.ai_profile != "disabled":
+        raise SetupError("Population bootstrap requires LAB_AI_PROFILE=disabled and the lab worldserver stopped")
+    population = population_preflight(data, settings, control=None, metadata=metadata, bootstrap=True)
+    lab_mysql(settings, hunt_population.bootstrap_sql(population))
+    hunt_population.validate_snapshot(single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population))),
+                                      population, control=0)
+    print("Two lab predators and four prey prepared in Observe mode; existing homes preserved.")
+
+
+def activate_hunt(data: Path, settings: Settings, metadata: Path = single_return.METADATA) -> None:
+    if settings.ai_profile != "disabled":
+        raise SetupError("Population activation requires LAB_AI_PROFILE=disabled and the lab worldserver stopped")
+    population = population_preflight(data, settings, control=None, metadata=metadata)
+    lab_mysql(settings, hunt_population.activation_sql(population))
+    hunt_population.validate_snapshot(single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population))),
+                                      population, control=1)
+    print("Only the six reviewed lab actors activated; select LAB_AI_PROFILE=hunt-cycle for startup.")
+
+
 def auth_user_sql(settings: Settings) -> str:
     account = f"{sql_literal(settings.auth_user)}@'%'"
     return f"""CREATE USER {account} IDENTIFIED BY {sql_literal(settings.auth_password)};
@@ -328,7 +365,7 @@ def main() -> None:
     sub.add_parser("register-realm")
     check = sub.add_parser("preflight")
     check.add_argument("data", type=Path)
-    for command in ("bootstrap-single", "activate-single", "preflight-single"):
+    for command in ("bootstrap-single", "activate-single", "preflight-single", "bootstrap-hunt", "activate-hunt", "preflight-hunt"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -338,6 +375,9 @@ def main() -> None:
             if settings.ai_profile == "single-return":
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = single_preflight(Path("/runtime/data"), settings, control=1)
+            elif settings.ai_profile == "hunt-cycle":
+                value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
+                scope = population_preflight(Path("/runtime/data"), settings, control=1)
             rendered = render_config(args.template.read_text(encoding="utf-8"), settings, scope)
             dest = Path("/tmp/lab-worldserver.conf")
             fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -365,6 +405,13 @@ def main() -> None:
         elif args.command == "preflight-single":
             single_preflight(args.data, settings, control=1 if settings.ai_profile == "single-return" else 0)
             print("Reviewed lab bundle, native confirmation and one-NPC database scope verified.")
+        elif args.command == "bootstrap-hunt":
+            bootstrap_hunt(args.data, settings)
+        elif args.command == "activate-hunt":
+            activate_hunt(args.data, settings)
+        elif args.command == "preflight-hunt":
+            population_preflight(args.data, settings, control=1 if settings.ai_profile == "hunt-cycle" else 0)
+            print("Reviewed lab bundle and exact two-predator/four-prey population verified.")
     except (SetupError, single_return.ProfileError, OSError) as exc:
         print(f"Lab setup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

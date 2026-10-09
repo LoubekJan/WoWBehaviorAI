@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile": "hunt-cycle",
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "v2",
+  "respawn_seconds": 120,
+  "purpose": "Autonomous hunt, corpse feeding, physical home return and next activity on reviewed flat terrain",
+  "agents": [
+    {"spawn_id": 900725, "entry": 1186, "role": "predator", "label": "aiworld_lab_single_return", "home": {"x": 266.667, "y": 800, "z": 0, "o": 0}},
+    {"spawn_id": 900726, "entry": 1186, "role": "predator", "label": "aiworld_lab_hunt_900726", "home": {"x": 326.667, "y": 800, "z": 0, "o": 0}},
+    {"spawn_id": 900727, "entry": 883, "role": "prey", "label": "aiworld_lab_hunt_900727", "home": {"x": 291.667, "y": 800, "z": 0, "o": 0}},
+    {"spawn_id": 900728, "entry": 883, "role": "prey", "label": "aiworld_lab_hunt_900728", "home": {"x": 256.667, "y": 826, "z": 0, "o": 0}},
+    {"spawn_id": 900729, "entry": 883, "role": "prey", "label": "aiworld_lab_hunt_900729", "home": {"x": 351.667, "y": 800, "z": 0, "o": 0}},
+    {"spawn_id": 900730, "entry": 883, "role": "prey", "label": "aiworld_lab_hunt_900730", "home": {"x": 336.667, "y": 774, "z": 0, "o": 0}}
+  ]
+}

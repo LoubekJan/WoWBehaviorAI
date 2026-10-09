@@ -1,5 +1,9 @@
 # One NPC return experiment
 
+The user has approved continuing with the autonomous predator/prey population
+in [HUNT_POPULATION.md](HUNT_POPULATION.md). This single-bear profile remains a
+regression option. The manual ten-cycle series has not been marked complete.
+
 This opt-in profile owns persistent spawn/agent `900725`, native Elder Black Bear
 entry `1186`, on map `725` / area `4988`. Its home and scope come from versioned
 `data/realm_lab/aiworldlab/test-points.json`. The bootstrap uses private

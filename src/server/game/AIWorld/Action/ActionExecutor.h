@@ -25,6 +25,7 @@
 
 class Creature;
 class Unit;
+struct SimulationScope;
 
 // Milestone 2.8B/2.8C/2.8D: the one place in AIWorld allowed to touch TrinityCore's
 // engine API to actually make a Creature do something - the third step of
@@ -69,7 +70,8 @@ class TC_GAME_API ActionExecutor
         // itself. Returns Failed/UnsupportedAction (and does nothing) if
         // request.Type is not Flee - defensive only; every current call
         // site already validated this before calling.
-        ActionResult ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource, uint32 allowedZone = 0) const;
+        ActionResult ExecuteFlee(ActionRequest const& request, Creature& actor, Unit& fleeSource,
+            uint32 allowedZone = 0, SimulationScope const* scope = nullptr) const;
 
         // Ends a flee started by ExecuteFlee() - removes only the
         // FLEEING_MOTION_TYPE generator (never MotionMaster::Clear(),

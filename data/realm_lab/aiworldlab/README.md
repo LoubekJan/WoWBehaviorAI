@@ -162,7 +162,7 @@ také uvedl, že první autonomní AIWorld návrat vypadá funkčně; časy a
 GUID před/po zatím nezaznamenal. Mapový generátorový manifest nadále
 popisuje stav při původní extrakci. Aktivace AI se řídí lab profilem.
 
-Profil `single-return` je aktivní pro persistentního medvěda **900725**.
+Profil `single-return` připravil persistentního medvěda **900725**.
 [Záznam aktivace](scope-activation.json) potvrzuje krátký běh bez hráče,
 jediného kontrolovaného predátora na mapě 725, pevný domov, nulové
 potřeby a nepřítomnost skupiny. Modelové požadavky jsou vypnuté.
@@ -171,3 +171,10 @@ medvěda 40 yardů přes follow a pozoruje autonomní návrat po follow stop,
 v limitu 60 sekund do domácí oblasti o poloměru 14 yardů. Deset fyzických
 cyklů a jejich opakování bez hráče zatím nejsou ověřené. Nové potvrzení
 prvního návratu je v [hráčském záznamu](in-game-validation.json).
+
+Navazující profil **`hunt-cycle`** používá dva medvědy a čtyři jeleny,
+spawny 900725–900730. [Definice populace](hunt-population.json) určuje
+jejich role a pevné domovy. Hlad roste přirozeně; lov, krmení a návraty
+probíhají automaticky. Modelové požadavky a skupiny zůstávají vypnuté.
+[Podrobný postup](../../../tools/realm_lab/HUNT_POPULATION.md) uvádí
+nasazení, záznam a ověření celého cyklu.

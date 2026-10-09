@@ -43,7 +43,7 @@
     "ten_cycles_verified": false,
     "playerless_displaced_return_verified": false,
     "return_series_plan": {
-      "status": "prepared_recording_started",
+      "status": "superseded_by_user_authorized_autonomous_hunt_population",
       "required_cycles": 10,
       "order": ["minus_x", "plus_x", "minus_y", "plus_y", "plus_x", "minus_x", "plus_y", "minus_y", "minus_x", "plus_x"],
       "per_cycle_limit_seconds": 60,
