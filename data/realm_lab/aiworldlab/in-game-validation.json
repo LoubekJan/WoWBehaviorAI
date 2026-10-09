@@ -26,5 +26,44 @@
     "spawn_kind": "temporary_no_database_spawn",
     "movement": "native follow and native evade return",
     "aiworld_recovery_verified": false
+  },
+  "aiworld_return_test": {
+    "status": "first_cycle_reported_working_by_user",
+    "confirmation_text": "ok vypadá to funkční",
+    "confirmation_context": "reply to autonomous follow-stop return instructions",
+    "tested_code_revision": "dadf171790b4d528d2e8b6294e23ee11efee0b3b",
+    "spawn_id": 900725,
+    "entry": 1186,
+    "profile": "single-return",
+    "expected_movement": "native follow displacement; autonomous AIWorld return after follow stop",
+    "reported_cycles_minimum": 1,
+    "elapsed_seconds_reported": null,
+    "numeric_runtime_guid_before_after_received": false,
+    "sixty_second_limit_independently_verified": false,
+    "ten_cycles_verified": false,
+    "playerless_displaced_return_verified": false,
+    "return_series_plan": {
+      "status": "prepared_recording_started",
+      "required_cycles": 10,
+      "order": ["minus_x", "plus_x", "minus_y", "plus_y", "plus_x", "minus_x", "plus_y", "minus_y", "minus_x", "plus_x"],
+      "per_cycle_limit_seconds": 60,
+      "arrival_radius_yards": 14,
+      "recording_session": "runtime/lab/recordings/aiworld-20261009T105419Z-88dca030",
+      "recording_started_at_utc": "2026-10-09T10:54:19.733+00:00",
+      "recording_duration_seconds": 1800,
+      "recording_interval_seconds": 2,
+      "initial_readback_fresh_samples": 32,
+      "manual_stop_time_and_runtime_guid_required": true
+    },
+    "current_telemetry_followup": {
+      "evidence_scope": "current state only; no timed return history",
+      "map_id": 725,
+      "home": {"x": 266.667, "y": 800, "z": 0},
+      "home_distance_yards": 12,
+      "living_status": "READY",
+      "move_end": "ARRIVED",
+      "needs_zero": true,
+      "groups_absent": true
+    }
   }
 }

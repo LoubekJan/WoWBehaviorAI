@@ -462,11 +462,19 @@ ověřený mapový balík a bootstrap.
 
 ### 6. Samotný návrat jednoho predátora
 
+- [x] Zaznamenat první kvalitativní potvrzení autonomního návratu: „ok vypadá to funkční“. Telemetrie při následné kontrole ukazuje 12 yardů od původního domova a stav READY; čas a GUID před/po nejsou doložené.
 - [x] Založit jednoho obyčejného predátora: medvěd 900725 / entry 1186, bez skupiny, hladu a hrozeb.
 - [ ] Pro test měnit pouze aktuální polohu, například na vzdálenost 40 yardů; zachovat původní spawn i runtime home.
 - [x] Stanovit první experiment: produkční living návrat po `follow stop`, limit 60 s a domácí oblast predátora do 14 yardů; viz [podrobný postup](../tools/realm_lab/SINGLE_RETURN.md).
 - [ ] Zaznamenat deset fyzických návratů z různých směrů do původní domácí oblasti a následnou další činnost.
 - [ ] Zopakovat ověření bez přihlášeného hráče.
+
+Další série používá pořadí **−X, +X, −Y, +Y, +X, −X, +Y, −Y, −X, +X**
+a [čtyři body](../data/realm_lab/aiworldlab/test-points.json). Recorder
+ukládá telemetrii po 2 sekundách; čas od `follow stop` a GUID před/po
+se zaznamenávají zvlášť. Série proběhne bez restartu a respawnu. Změny
+záznamu se pushnou po dokončení série, protože lab CI/CD zastavuje
+recorder a restartuje worldserver.
 
 **Hotovo, když:** všechny požadované návraty jsou skutečně dokončené
 ve stejné životní instanci a ve stanoveném limitu. Přijetí pohybové akce,
