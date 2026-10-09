@@ -30,6 +30,7 @@
 #include "CombatManager.h"
 #include "Config.h"
 #include "Creature.h"
+#include "DBCStores.h"
 #include "GameTime.h"
 #include "IoContext.h"
 #include "Log.h"
@@ -51,6 +52,7 @@
 #include "Reconciliation/CreatureSpawnZoneFilter.h"
 #include "Reconciliation/SpawnReconciliationPlan.h"
 #include "Scheduler/PlanningWorkBudget.h"
+#include "StringConvert.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -59,10 +61,79 @@
 #include <optional>
 #include <string>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 namespace
 {
+    template <typename T>
+    std::vector<T> ParseScopeIds(std::string const& text, char const* key, bool allowEmpty = false)
+    {
+        std::vector<T> values;
+        if (text.empty() && allowEmpty)
+            return values;
+        size_t start = 0;
+        do
+        {
+            size_t end = text.find(',', start);
+            std::string token = text.substr(start, end == std::string::npos ? end : end - start);
+            size_t first = token.find_first_not_of(" \t");
+            size_t last = token.find_last_not_of(" \t");
+            if (first == std::string::npos)
+                throw std::runtime_error(std::string(key) + " contains an empty id");
+            auto value = StringTo<T>(token.substr(first, last - first + 1));
+            if (!value || !*value)
+                throw std::runtime_error(std::string(key) + " contains an invalid id");
+            values.push_back(*value);
+            if (end == std::string::npos)
+                break;
+            start = end + 1;
+        } while (start <= text.size());
+        return values;
+    }
+
+    SimulationScope ReadSimulationScope()
+    {
+        SimulationScope scope;
+        auto mapId = StringTo<uint32>(sConfigMgr->GetStringDefault("AIWorld.ScopeMapId", "0"));
+        if (!mapId || !sMapStore.LookupEntry(*mapId))
+            throw std::runtime_error("AIWorld.ScopeMapId must name an installed DBC map");
+        scope.MapId = *mapId;
+        scope.ZoneIds = ParseScopeIds<uint32>(sConfigMgr->GetStringDefault("AIWorld.ScopeZoneIds", "12"), "AIWorld.ScopeZoneIds");
+        scope.SpawnIds = ParseScopeIds<uint64>(sConfigMgr->GetStringDefault("AIWorld.ScopeSpawnIds", ""), "AIWorld.ScopeSpawnIds", true);
+        if (sConfigMgr->GetBoolDefault("AIWorld.ScopeBoundsEnabled", false))
+        {
+            auto readBound = [](char const* key)
+            {
+                auto value = StringTo<float>(sConfigMgr->GetStringDefault(key, "0"));
+                if (!value || !std::isfinite(*value))
+                    throw std::runtime_error(std::string(key) + " must be finite");
+                return *value;
+            };
+            scope.Bounds = SimulationBounds{readBound("AIWorld.ScopeMinX"), readBound("AIWorld.ScopeMaxX"),
+                readBound("AIWorld.ScopeMinY"), readBound("AIWorld.ScopeMaxY")};
+        }
+        if (!scope.Valid())
+            throw std::runtime_error("AIWorld simulation scope contains duplicate ids or invalid bounds");
+        for (uint32 zone : scope.ZoneIds)
+        {
+            AreaTableEntry const* entry = sAreaTableStore.LookupEntry(zone);
+            if (!entry || entry->ContinentID != scope.MapId || entry->ParentAreaID)
+                throw std::runtime_error("AIWorld.ScopeZoneIds must name root zones of ScopeMapId");
+        }
+        return scope;
+    }
+
+    // Static startup census only: never loads a grid or tests a live actor's
+    // current position. An actor that later escapes remains owned/observable.
+    bool SpawnInSimulationScope(SimulationScope const& scope, uint64 spawnId)
+    {
+        CreatureData const* data = sObjectMgr->GetCreatureData(spawnId);
+        return data && scope.ContainsActor(data->mapId, spawnId) &&
+            scope.ContainsPosition(data->mapId, data->spawnPoint.GetPositionX(),
+                data->spawnPoint.GetPositionY(), data->spawnPoint.GetPositionZ());
+    }
+
     uint64 CurrentTimeMs()
     {
         return uint64(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -293,6 +364,18 @@ AIWorldMgr* AIWorldMgr::instance()
 
 void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 {
+    // Also needed when AI is disabled: the scoped always-active loader is
+    // initialized immediately after this method by worldserver startup.
+    _simulationScope = ReadSimulationScope();
+    _restrictAgentsToSimulationScope = sConfigMgr->GetBoolDefault("AIWorld.ScopeRestrictAgents", false);
+    if (_restrictAgentsToSimulationScope && _simulationScope.SpawnIds.empty())
+        throw std::runtime_error("AIWorld.ScopeRestrictAgents requires explicit ScopeSpawnIds");
+    _remoteInferenceEnabled = sConfigMgr->GetBoolDefault("AIWorld.RemoteInferenceEnabled", true);
+    _livingNeedEvolutionEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingNeedEvolutionEnabled", true);
+    _groupCoarseSimulationEnabled = sConfigMgr->GetBoolDefault("AIWorld.GroupCoarseSimulationEnabled", true);
+    TC_LOG_INFO("ai.world", "AI simulation scope: map={} zones={} bounded={} selectedSpawns={} restricted={} remoteInference={} livingNeedEvolution={} groupCoarseSimulation={}",
+        _simulationScope.MapId, _simulationScope.ZoneIds.size(), bool(_simulationScope.Bounds), _simulationScope.SpawnIds.size(),
+        _restrictAgentsToSimulationScope, _remoteInferenceEnabled, _livingNeedEvolutionEnabled, _groupCoarseSimulationEnabled);
     _enabled = sConfigMgr->GetBoolDefault("AIWorld.Enable", false);
     if (!_enabled)
     {
@@ -733,8 +816,8 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         if (recoveryId && _recoveryAdviceAgents.size() < 32) _recoveryAdviceAgents.insert(recoveryId);
         if (recoveryIds.peek() == ',') recoveryIds.ignore();
     }
-    TC_LOG_INFO("ai.world", "AI living roles enabled={} extensions={} scope=Elwynn controlled permanent NPCs",
-        _livingRolesEnabled, _livingRoleExtensionsEnabled);
+    TC_LOG_INFO("ai.world", "AI living roles enabled={} extensions={} scopeMap={} controlled permanent NPCs",
+        _livingRolesEnabled, _livingRoleExtensionsEnabled, _simulationScope.MapId);
     TC_LOG_INFO("ai.world", "AI recovery enabled={} allLivingRoles={} selectedAgents={} admissionMs=2000 maxInFlight=2",
         _recoveryAdviceEnabled, _recoveryAdviceAllAgents, _recoveryAdviceAgents.size());
     bool wolfGroupRoamEnabled = sConfigMgr->GetBoolDefault("AIWorld.WolfGroupRoamEnabled", false);
@@ -1410,6 +1493,21 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // spawn-specific below - every agent this produces is Abstract with an
     // empty RuntimeGuid regardless of what it was before shutdown.
     _persistence.LoadAgents(_registry);
+    if (_restrictAgentsToSimulationScope)
+    {
+        uint32 excluded = 0;
+        for (AgentId id : _registry.GetAgents())
+        {
+            AgentRecord const* record = _registry.Find(id);
+            if (record && !InSimulationMembership(record->MapId, record->SpawnId))
+            {
+                _registry.Remove(id);
+                ++excluded;
+            }
+        }
+        TC_LOG_INFO("ai.world", "AI simulation membership: retained={} excludedFromRuntime={} (persistent rows unchanged)",
+            _registry.GetAgents().size(), excluded);
+    }
 
     // AI WorldFactionId catalog: one world DB read, before
     // RunSpawnReconciliation() below can need it - see _worldFactionCatalog's
@@ -1965,8 +2063,12 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // value snapshots. Elwynn's zoneId is 12 in the current V1 scope.
     if (_telemetryExporter)
     {
-        _telemetrySpawnIds = FetchCreatureSpawnIdsForZone(12);
-        TC_LOG_INFO("ai.world", "AI World telemetry scoped to {} Elwynn spawn ids", _telemetrySpawnIds.size());
+        _telemetrySpawnIds.clear();
+        for (uint32 zone : _simulationScope.ZoneIds)
+            for (uint64 spawnId : FetchCreatureSpawnIdsForZone(zone))
+                if (SpawnInSimulationScope(_simulationScope, spawnId))
+                    _telemetrySpawnIds.insert(spawnId);
+        TC_LOG_INFO("ai.world", "AI World telemetry scoped to {} spawn ids on map {}", _telemetrySpawnIds.size(), _simulationScope.MapId);
     }
 
     // Last step: only from here on can PublishWorldEvent() actually enqueue
@@ -3355,7 +3457,7 @@ std::vector<CoalitionCandidate> AIWorldMgr::CollectCoalitionCandidates() const
     for (AgentId id : _registry.GetAgents())
     {
         AgentRecord const* record = _registry.Find(id);
-        if (!record || record->WorldState != AgentWorldState::Materialized)
+        if (!record || !InSimulationMembership(record->MapId, record->SpawnId) || record->WorldState != AgentWorldState::Materialized)
             continue;
 
         // Milestone 2.12F4A: ControlMode gate (performance/early-rejection
@@ -6074,7 +6176,9 @@ void AIWorldMgr::RunSpawnReconciliation(uint32 zoneId)
     std::vector<CreatureSpawnIdentity> census;
     census.reserve(fullCensus.size());
     for (CreatureSpawnIdentity const& identity : fullCensus)
-        if (zoneSpawnIds.find(identity.SpawnId) != zoneSpawnIds.end())
+        if (zoneSpawnIds.find(identity.SpawnId) != zoneSpawnIds.end() &&
+            (!_restrictAgentsToSimulationScope || (_simulationScope.ContainsMapZone(identity.MapId, zoneId) &&
+                SpawnInSimulationScope(_simulationScope, identity.SpawnId))))
             census.push_back(identity);
 
     // Milestone 2.12F4B P2 fix (STATIC review): a SpawnId absent from the
@@ -6298,7 +6402,9 @@ void AIWorldMgr::RunZoneControlActivation(uint32 zoneId)
     uint32 notYetReconciled = 0;
     for (CreatureSpawnIdentity const& identity : fullCensus)
     {
-        if (zoneSpawnIds.find(identity.SpawnId) == zoneSpawnIds.end())
+        if (zoneSpawnIds.find(identity.SpawnId) == zoneSpawnIds.end() ||
+            (_restrictAgentsToSimulationScope && (!_simulationScope.ContainsMapZone(identity.MapId, zoneId) ||
+                !SpawnInSimulationScope(_simulationScope, identity.SpawnId))))
             continue;
 
         // Runtime participation/scope boundary fix: TryResolve(), not
@@ -7260,7 +7366,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     }
 
     AgentRecord* record = _registry.Find(proposal.Member);
-    if (!record)
+    if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
         return;
 
     // Milestone 2.12F4A: ControlMode gate (performance/early-rejection -
@@ -7455,6 +7561,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     record->GroupCoordinationGoalState = coordinationGoal;
 
     ActionValidationContext moveContext;
+    moveContext.Scope = _simulationScope;
     moveContext.Materialized = true;
     moveContext.Alive = true;
     moveContext.ControlMode = record->ControlMode;
@@ -7536,7 +7643,7 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
         return;
     }
 
-    if (record->ControlMode != AgentControlMode::AIWorldControlled)
+    if (!InSimulationMembership(record->MapId, record->SpawnId) || record->ControlMode != AgentControlMode::AIWorldControlled)
     {
         logDispatchRejected("CONTROL_MODE");
         return;
@@ -7839,6 +7946,7 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
     record->GroupCoordinationGoalState = coordinationGoal;
 
     ActionValidationContext moveContext;
+    moveContext.Scope = _simulationScope;
     moveContext.Materialized = true;
     moveContext.Alive = true;
     moveContext.ControlMode = record->ControlMode;
@@ -8108,6 +8216,7 @@ void AIWorldMgr::DispatchHuntAttack(AgentId member, GroupId sourceGroup)
         target->GetGUID().ToString(), target->GetEntry(), sourceGroup.Value);
 
     ActionValidationContext attackContext;
+    attackContext.Scope = _simulationScope;
     attackContext.Materialized = true;
     attackContext.Alive = true;
     attackContext.ControlMode = record->ControlMode;
@@ -8701,6 +8810,11 @@ void AIWorldMgr::Update(uint32 diff)
     if (updateNowMs >= _agentUpdatesRefreshAtMs)
     {
         auto ids = _registry.GetAgents();
+        std::erase_if(ids, [&](AgentId id)
+        {
+            AgentRecord const* record = _registry.Find(id);
+            return !record || !InSimulationMembership(record->MapId, record->SpawnId);
+        });
         _perceptionUpdates.Sync(ids, updateNowMs, _nearbyPerceptionIntervalMs, 0x50455243);
         _needsUpdates.Sync(ids, updateNowMs, _needsUpdateIntervalMs, 0x4e454544);
         _planningWork.SyncMembership(ids);
@@ -8736,7 +8850,7 @@ void AIWorldMgr::Update(uint32 diff)
     _updateTiming.NeedsLateMs = std::max(_updateTiming.NeedsLateMs, _needsUpdates.OldestLateMs(updateNowMs));
 
     _healthTimer += diff;
-    if (_healthTimer >= _healthIntervalMs)
+    if (_remoteInferenceEnabled && _aiClient && _healthTimer >= _healthIntervalMs)
     {
         _healthTimer = 0;
         _aiClient->SubmitHealthCheck();
@@ -8769,9 +8883,11 @@ void AIWorldMgr::Update(uint32 diff)
     // next tick, never a second queue of our own.
     AIResponse response;
     uint32 drainedResponses = 0;
-    while (drainedResponses < _aiResponseDrainMaxPerTick && _aiClient->TryPopResponse(response))
+    while (_aiClient && drainedResponses < _aiResponseDrainMaxPerTick && _aiClient->TryPopResponse(response))
     {
         ++drainedResponses;
+        if (!_remoteInferenceEnabled)
+            continue;
 
         if (response.Type == AIRequestType::Recovery)
         {
@@ -8807,7 +8923,7 @@ void AIWorldMgr::Update(uint32 diff)
             continue; // AIClient already logged the failure/timeout
 
         AgentRecord* record = _registry.Find(response.Agent);
-        if (!record)
+        if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
         {
             TC_LOG_DEBUG("ai.world", "AI decision id={} agent={} is no longer registered, discarding",
                 response.RequestId, response.Agent.Value);
@@ -8866,7 +8982,7 @@ void AIWorldMgr::Update(uint32 diff)
         {
             _telemetryTimer = 0;
             if (!_telemetryExporter->Busy())
-                CaptureTelemetry(sMapMgr->FindBaseNonInstanceMap(0));
+                CaptureTelemetry(sMapMgr->FindBaseNonInstanceMap(GetSimulationScope().MapId));
         }
     }
     double telemetryMs = elapsedSince(telemetryStart);
@@ -8905,6 +9021,8 @@ void AIWorldMgr::Update(uint32 diff)
 // with) the deterministic path for whichever ActionType it takes over.
 void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, AIResponse const& response)
 {
+    if (!_remoteInferenceEnabled || !InSimulationMembership(record.MapId, record.SpawnId))
+        return;
     DecisionIntent const& intent = response.Decision->Intent;
 
     if (intent.Type == DecisionIntentType::None)
@@ -9038,6 +9156,7 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
         id.Value, ToString(request.SourceGoal), request.GoalStartedAtMs, request.FleeFromGuid.ToString());
 
     ActionValidationContext validationContext;
+    validationContext.Scope = GetSimulationScope();
     validationContext.Materialized = true;
     validationContext.Alive = creature->IsAlive();
     validationContext.ControlMode = record.ControlMode;
@@ -9105,7 +9224,7 @@ void AIWorldMgr::ValidateDecisionIntent(AgentId id, AgentRecord const& record, A
 std::optional<AIRequest> AIWorldMgr::ProcessAgent(AgentId id)
 {
     AgentRecord* record = _registry.Find(id);
-    if (!record)
+    if (!_remoteInferenceEnabled || !_aiClient || !record || !InSimulationMembership(record->MapId, record->SpawnId))
         return std::nullopt;
 
     Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
@@ -9216,6 +9335,8 @@ AIRequest AIWorldMgr::CaptureAgentContext(AgentId id, AgentRecord& record, Creat
 // scheduling state - see RunDecisionScheduler().
 std::vector<DecisionSubmitResult> AIWorldMgr::SubmitDecisionContexts(std::vector<AIRequest> requests)
 {
+    if (!_remoteInferenceEnabled || !_aiClient || requests.empty())
+        return {};
     return _aiClient->SubmitDecisions(std::move(requests));
 }
 
@@ -9299,7 +9420,7 @@ void AIWorldMgr::RunDecisionScheduler()
     for (AgentId id : _registry.GetAgents())
     {
         AgentRecord* record = _registry.Find(id);
-        if (!record)
+        if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
             continue;
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
@@ -9369,7 +9490,7 @@ void AIWorldMgr::RunDecisionScheduler()
         // an ObserveOnly agent is never scheduled for a remote /decision
         // call, which could never lead anywhere but a request
         // ActionSystem would reject anyway.
-        if (record->ControlMode == AgentControlMode::AIWorldControlled)
+        if (_remoteInferenceEnabled && _aiClient && record->ControlMode == AgentControlMode::AIWorldControlled)
             candidates.push_back({ id, cadenceClass });
     }
 
@@ -9424,7 +9545,20 @@ void AIWorldMgr::RunDecisionScheduler()
     // materialized right now, see AgentGroupRecord.h for why that pausing
     // was itself a symptom of the aggregate-replaces-members model this
     // rename was meant to remove.
-    std::vector<GroupId> groupCandidates = _groupRegistry.GetGroups();
+    std::vector<GroupId> groupCandidates;
+    if (_groupCoarseSimulationEnabled)
+        groupCandidates = _groupRegistry.GetGroups();
+    if (_restrictAgentsToSimulationScope)
+        std::erase_if(groupCandidates, [&](GroupId id)
+        {
+            AgentGroupRecord const* group = _groupRegistry.Find(id);
+            return !group || group->Members.empty() || std::any_of(group->Members.begin(), group->Members.end(),
+                [&](AgentGroupMembership const& membership)
+                {
+                    AgentRecord const* member = _registry.Find(membership.Member);
+                    return !member || !InSimulationMembership(member->MapId, member->SpawnId);
+                });
+        });
     for (GroupId groupId : groupCandidates)
     {
         SimulationScheduleState& scheduleState = _groupSimulationSchedule[groupId.Value];
@@ -9599,6 +9733,8 @@ void AIWorldMgr::RunDecisionScheduler()
 // fails closed (returns nullopt); none of them are "best effort".
 std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record, Creature& creature, MemoryRecord const& sourceMemory, uint64 nowMs)
 {
+    if (!InSimulationMembership(record.MapId, record.SpawnId))
+        return std::nullopt;
     if (sourceMemory.Owner != record.Id)
         return std::nullopt;
     if (sourceMemory.Type != ObservationType::WorldEvent)
@@ -9892,7 +10028,8 @@ std::optional<AIRequest> AIWorldMgr::BuildDynamicTaskRequest(AgentRecord& record
 // comment in AIWorldMgr.h.
 bool AIWorldMgr::TrySubmitDynamicTask(AgentRecord& record, Creature& creature, MemoryRecord const& sourceMemory)
 {
-    if (!_dynamicTaskEnabled)
+    if (!_dynamicTaskEnabled || !_remoteInferenceEnabled || !_aiClient ||
+        !InSimulationMembership(record.MapId, record.SpawnId))
         return false;
 
     if (_pendingDynamicTasks.contains(record.Id.Value))
@@ -9969,7 +10106,8 @@ void AIWorldMgr::HandleDynamicTaskResponse(AIResponse const& response)
         return;
 
     AgentRecord* record = _registry.Find(response.Agent);
-    if (!record || record->WorldState != AgentWorldState::Materialized || record->ControlMode != AgentControlMode::AIWorldControlled)
+    if (!_remoteInferenceEnabled || !record || !InSimulationMembership(record->MapId, record->SpawnId) ||
+        record->WorldState != AgentWorldState::Materialized || record->ControlMode != AgentControlMode::AIWorldControlled)
     {
         TC_LOG_DEBUG("ai.world", "DYNAMIC_TASK_DISCARDED reason=AGENT_NOT_ELIGIBLE request={} agent={}",
             response.RequestId, response.Agent.Value);
@@ -11131,8 +11269,10 @@ uint64 AIWorldMgr::GetCurrentTimeMs() const
 // production path this ever calls into.
 void AIWorldMgr::TryRunDynamicTaskRuntimeProbe()
 {
+    if (!_remoteInferenceEnabled || !_aiClient)
+        return;
     AgentRecord* record = _registry.Find(_testDynamicTaskAgentId);
-    if (!record)
+    if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
     {
         TC_LOG_ERROR("ai.world", "AIWorld.TestDynamicTaskAgentId={} no longer resolves to a registered agent, disabling this test hook",
             _testDynamicTaskAgentId.Value);
@@ -11258,7 +11398,7 @@ void AIWorldMgr::PublishDynamicQuestKillEvent(DynamicQuestKillEvent event)
 // extra harmless registry lookup, never a crash or a mutation.
 bool AIWorldMgr::OwnsSpawn(uint32 mapId, uint64 spawnId) const
 {
-    if (!_enabled)
+    if (!_enabled || !InSimulationMembership(mapId, spawnId))
         return false;
 
     // Milestone 2.12D P2 fix (STATIC review): every AgentRecord now names
@@ -11290,13 +11430,15 @@ bool AIWorldMgr::OwnsSpawn(uint32 mapId, uint64 spawnId) const
 // only adds the witnessed-event -> Observation step below the debug log.
 void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
 {
-    if (event.Actor.SpawnId)
+    if (_restrictAgentsToSimulationScope && event.Location.MapId != GetSimulationScope().MapId)
+        return;
+    if (event.Actor.SpawnId && InSimulationMembership(event.Location.MapId, event.Actor.SpawnId))
     {
         if (AgentRecord* agent = FindLiveAgentBySpawn(_registry, event.Location.MapId, event.Actor.SpawnId))
             event.Actor.Agent = agent->Id;
     }
 
-    if (event.Target.SpawnId)
+    if (event.Target.SpawnId && InSimulationMembership(event.Location.MapId, event.Target.SpawnId))
     {
         if (AgentRecord* agent = FindLiveAgentBySpawn(_registry, event.Location.MapId, event.Target.SpawnId))
             event.Target.Agent = agent->Id;
@@ -11323,7 +11465,7 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
     for (AgentId id : _registry.GetAgents())
     {
         AgentRecord* record = _registry.Find(id);
-        if (!record)
+        if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
             continue;
 
         if (record->MapId != event.Location.MapId)
@@ -11378,7 +11520,8 @@ void AIWorldMgr::ProcessWorldEvent(WorldEvent& event)
     // the normal Sight loop above, same as any other WorldEventType.
     if (IsDynamicQuestOutcomeEvent(event.Type) && event.Target.Agent && !issuerObservedBySight)
     {
-        if (_registry.Find(event.Target.Agent))
+        if (AgentRecord const* issuer = _registry.Find(event.Target.Agent);
+            issuer && InSimulationMembership(issuer->MapId, issuer->SpawnId))
         {
             if (std::optional<Observation> observation = _perception.ObserveDirectedEvent(event.Target.Agent, event))
                 ProcessObservation(*observation);
@@ -11406,7 +11549,7 @@ void AIWorldMgr::ScanNearbyEntities()
         _updateTiming.PerceptionLateMs = std::max(_updateTiming.PerceptionLateMs, update->LateMs);
         AgentId id = update->Agent;
         AgentRecord* record = _registry.Find(id);
-        if (!record)
+        if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
             continue;
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
@@ -11446,7 +11589,7 @@ void AIWorldMgr::ScanNearbyEntities()
             // creature is itself a registered agent, that enrichment
             // happens here, the same way ProcessWorldEvent() enriches
             // Actor/Target for a WorldEvent.
-            if (observation->Target.SpawnId)
+            if (observation->Target.SpawnId && InSimulationMembership(observation->Location.MapId, observation->Target.SpawnId))
             {
                 if (AgentRecord* seenAgent = FindLiveAgentBySpawn(_registry, observation->Location.MapId, observation->Target.SpawnId))
                     observation->Target.Agent = seenAgent->Id;
@@ -11479,7 +11622,8 @@ void AIWorldMgr::UpdateNeeds()
     for (AgentId id : due)
     {
         AgentRecord const* record = _registry.Find(id);
-        bool eligible = record && _livingRolesEnabled && !IsLivingWolf(*record) &&
+        bool eligible = record && InSimulationMembership(record->MapId, record->SpawnId) &&
+            _livingRolesEnabled && !IsLivingWolf(*record) &&
             record->ControlMode == AgentControlMode::AIWorldControlled &&
             !record->GroupCoordinationGoalState;
         if (eligible && record->LivingRole.CurrentPhase == LivingRoleState::Phase::Idle &&
@@ -11510,7 +11654,7 @@ void AIWorldMgr::UpdateNeeds()
         _updateTiming.NeedsLateMs = std::max(_updateTiming.NeedsLateMs, update->LateMs);
         uint32 elapsedMs = update->ElapsedMs;
         AgentRecord* record = _registry.Find(id);
-        if (!record)
+        if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
         {
             _planningWork.Cancel(id);
             continue;
@@ -11614,8 +11758,13 @@ void AIWorldMgr::UpdateNeeds()
         if (IsLivingWolf(*record))
             rates.HungerPerSecond = WolfBehaviorPolicy::HungerPerSecond;
         else if (record->Type != AgentType::Unclassified && LivingRolePolicy::InScope(_livingRolesEnabled,
-            record->ControlMode, creature->GetMapId(), creature->GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId)))
+            record->ControlMode, creature->GetMapId(), creature->GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId),
+                GetSimulationScope()))
             rates.HungerPerSecond = WolfBehaviorPolicy::HungerPerSecond;
+        // Freeze accumulated needs after the living wolf/role override. Live
+        // health and danger still update through the ordinary context.
+        if (!_livingNeedEvolutionEnabled)
+            rates.HungerPerSecond = rates.FatiguePerSecond = rates.ResourcePressurePerSecond = 0.0f;
         _needsSystem.Update(record->Needs, context, elapsedMs, rates);
 
         TC_LOG_DEBUG("ai.world",
@@ -11859,6 +12008,7 @@ void AIWorldMgr::UpdateNeeds()
             probeRequest.FleeFromGuid = capturedFleeSourceGuid;
 
             ActionValidationContext probeContext;
+            probeContext.Scope = GetSimulationScope();
             probeContext.Materialized = record->WorldState == AgentWorldState::Materialized;
             probeContext.Alive = context.Alive;
             probeContext.ControlMode = record->ControlMode;
@@ -12120,6 +12270,7 @@ void AIWorldMgr::UpdateNeeds()
                         routineDestination.X, routineDestination.Y, routineDestination.Z);
 
                     ActionValidationContext moveContext;
+                    moveContext.Scope = GetSimulationScope();
                     moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
                     moveContext.Alive = context.Alive;
                     moveContext.ControlMode = record->ControlMode;
@@ -12267,6 +12418,7 @@ void AIWorldMgr::UpdateNeeds()
                         activityDestination.X, activityDestination.Y, activityDestination.Z);
 
                     ActionValidationContext activityValidationContext;
+                    activityValidationContext.Scope = GetSimulationScope();
                     activityValidationContext.Materialized = activityContext.Materialized;
                     activityValidationContext.Alive = activityContext.Alive;
                     activityValidationContext.ControlMode = record->ControlMode;
@@ -12368,7 +12520,7 @@ void AIWorldMgr::UpdateNeeds()
                                     // so this site does not need to.
                                     bool produce = _livingRoleExtensionsEnabled &&
                                         LivingRolePolicy::InScope(_livingRolesEnabled, record->ControlMode, creature->GetMapId(),
-                                            creature->GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId)) &&
+                                            creature->GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId), GetSimulationScope()) &&
                                         LivingRolePolicy::Resolve(record->Type, creature->GetEntry(), false) == LivingRolePolicy::Role::Worker;
                                     uint32 entry = creature->GetEntry();
                                     MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId, produce, entry](AgentEconomyState& economy)
@@ -12480,6 +12632,7 @@ void AIWorldMgr::UpdateNeeds()
                 record->Id.Value, ToString(request.Type), ToString(request.SourceGoal), request.FleeFromGuid.ToString());
 
             ActionValidationContext validationContext;
+            validationContext.Scope = GetSimulationScope();
             validationContext.Materialized = record->WorldState == AgentWorldState::Materialized;
             validationContext.Alive = context.Alive;
             validationContext.ControlMode = record->ControlMode;
@@ -12542,6 +12695,7 @@ void AIWorldMgr::UpdateNeeds()
                     destination.X, destination.Y, destination.Z);
 
                 ActionValidationContext moveContext;
+                moveContext.Scope = GetSimulationScope();
                 moveContext.Materialized = record->WorldState == AgentWorldState::Materialized;
                 moveContext.Alive = context.Alive;
                 moveContext.ControlMode = record->ControlMode;
@@ -12599,6 +12753,8 @@ void AIWorldMgr::UpdateNeeds()
 // an unsynchronized boundary, not a bug.
 void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
 {
+    if (!InSimulationMembership(event.MapId, event.SpawnId))
+        return;
     if (event.MovementType != POINT_MOTION_TYPE || event.MovementId != ActionExecutor::MovePointId)
     {
         TC_LOG_DEBUG("ai.world", "AI action engine event map={} spawn={} discarded: not an AIWorld MOVE_TO (movementType={} movementId={})",
@@ -12846,6 +13002,8 @@ void AIWorldMgr::MutateEconomyAndPersist(AgentRecord& record, std::function<void
 // check only avoids building a request that Validate() would reject anyway.
 void AIWorldMgr::TryEat(AgentRecord& record, Creature& creature, PendingEatContinuation const& pending, uint64 nowMs)
 {
+    if (!InSimulationMembership(record.MapId, record.SpawnId))
+        return;
     ActionRequest eatRequest;
     eatRequest.Actor = record.Id;
     eatRequest.Type = ActionType::Eat;
@@ -12857,6 +13015,7 @@ void AIWorldMgr::TryEat(AgentRecord& record, Creature& creature, PendingEatConti
         record.Id.Value, ToString(eatRequest.Type), ToString(eatRequest.SourceGoal));
 
     ActionValidationContext eatContext;
+    eatContext.Scope = GetSimulationScope();
     eatContext.Materialized = record.WorldState == AgentWorldState::Materialized;
     eatContext.Alive = creature.IsAlive();
     eatContext.ControlMode = record.ControlMode;
@@ -12922,6 +13081,9 @@ void AIWorldMgr::TryEat(AgentRecord& record, Creature& creature, PendingEatConti
 // deduplicated, TTL'd memory record; nothing here acts on it yet.
 void AIWorldMgr::ProcessObservation(Observation const& observation)
 {
+    AgentRecord const* observer = _registry.Find(observation.Observer);
+    if (!observer || !InSimulationMembership(observer->MapId, observer->SpawnId))
+        return;
     char const* sourceEventType = observation.SourceEventType ? ToString(*observation.SourceEventType) : "NONE";
 
     TC_LOG_DEBUG("ai.world",

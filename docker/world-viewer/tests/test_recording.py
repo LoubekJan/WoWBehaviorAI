@@ -134,6 +134,33 @@ class RecordingTests(unittest.TestCase):
         self.assertTrue((directory / "behavior-report.md").exists())
         self.assertEqual(report, behavior.analyze(directory))
 
+    def test_lab_scope_is_preserved_in_all_metadata_and_the_offline_report(self) -> None:
+        from test_scope import LAB_SCOPE
+        self.args.analyze = True
+        live = state()
+        live['scope'] = copy.deepcopy(LAB_SCOPE)
+        live['agents'][0]['position'].update(map_id=725, x=266.667, y=800, z=0)
+        changed = copy.deepcopy(live)
+        changed['scope']['map_id'] = 0
+        pending = [live, changed]
+        def fetch(*_):
+            response = pending.pop(0)
+            if not pending:
+                self.stop.set()
+            return response
+        with patch.object(record, 'fetch_state', side_effect=fetch):
+            _, result, rows = self.run_recording()
+        self.assertEqual(result['scope'], LAB_SCOPE)
+        self.assertEqual(result['counts'], {'fresh': 1, 'error': 1})
+        self.assertTrue(all(row['scope'] == LAB_SCOPE for row in rows if row['kind'] == 'session'))
+        samples = [row for row in rows if row['kind'] == 'sample']
+        self.assertEqual(samples[0]['state'], live)
+        self.assertEqual(samples[1]['error'], {'type': 'ValueError'})
+        directory = next(Path(self.temp.name).iterdir())
+        report = json.loads((directory / 'behavior-report.json').read_text(encoding='utf-8'))
+        self.assertEqual(report['simulation_scope'], LAB_SCOPE)
+        self.assertEqual(report, behavior.analyze(directory))
+
     def test_early_report_keeps_recording_until_its_normal_end(self) -> None:
         self.args.analyze = True
         self.args.checkpoint_minutes = 0.01 / 60

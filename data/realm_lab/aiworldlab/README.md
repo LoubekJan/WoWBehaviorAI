@@ -154,7 +154,9 @@ indikátor mmap neprokazuje konkrétní dlaždici ani úplnou cestu. Hlášení
 chybějících vlastních vmaps je zde očekávané při nulovém počtu modelů.
 Uživatel potvrdil funkční vstup na mapu a chůzi. [Hráčský záznam](in-game-validation.json)
 zachovává jeho potvrzení; číselný výpis GPS a ověření všech čtyřech bodů
-ještě chybí. Další krok je fyzický test dočasného medvěda 1186 přes
+ještě chybí. Uživatel potvrdil fyzický test dočasného medvěda 1186 přes
 `.npc follow`, `.npc follow stop` a `.npc evade`, podle
 [postupu v TODO](../../../doc/RealmLab.md#první-fyzický-test-jednoho-npc).
-Fyzický pohyb NPC a AIWorld recovery zůstávají neověřené. AI je vypnutá.
+Potvrzen je nejméně jeden cyklus následování a nativního návratu. AIWorld
+recovery čeká na samostatný test; mapový generátorový manifest nadále
+popisuje stav při původní extrakci. Aktivace AI se řídí lab profilem.

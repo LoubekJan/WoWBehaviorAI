@@ -63,6 +63,31 @@ def deferred(npc=None):
 
 
 class BehaviorTests(unittest.TestCase):
+    def test_lab_recording_detects_return_stall_and_an_escape_without_elwynn_agents(self):
+        from test_scope import LAB_SCOPE
+        npc = stranded()
+        npc['position'].update(map_id=725, x=266.667, y=800, z=0)
+        rows = samples(npc=npc)
+        evaluator = behavior.Evaluator({**METADATA, 'scope': LAB_SCOPE}, POLICY)
+        for row in rows:
+            row['state']['scope'] = copy.deepcopy(LAB_SCOPE)
+            evaluator.observe(row)
+        self.assertIn('return', [finding['check'] for finding in evaluator.finish(summary(rows))['findings']])
+        rows = samples(npc=npc)
+        for row in rows[1:]:
+            row['state']['agents'][0]['position']['x'] = 400
+            row['state']['agents'][0]['living_role']['status'] = 'OUTSIDE_SCOPE'
+        evaluator = behavior.Evaluator({**METADATA, 'scope': LAB_SCOPE}, POLICY)
+        for row in rows: evaluator.observe(row)
+        self.assertIn('outside', [finding['check'] for finding in evaluator.finish(summary(rows))['findings']])
+        # A scope/config mismatch cannot supply accepted observations.
+        evaluator = behavior.Evaluator({**METADATA, 'scope': LAB_SCOPE}, POLICY)
+        for row in samples():
+            row['state']['scope'] = {'map_id': 0, 'zone_ids': [12], 'bounds': None, 'name': 'Elwynn Forest'}
+            evaluator.observe(row)
+        self.assertEqual(evaluator.live_samples, 0)
+        self.assertEqual(evaluator.quality['scope_mismatch'], 25)
+
     def test_deferred_decision_at_home_is_a_failure_after_300_seconds(self):
         rows = samples(count=61, npc=deferred())
         report = evaluate(rows)

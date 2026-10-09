@@ -20,10 +20,20 @@ bool Movement::PhysicalSplineSource(Unit const& owner, G3D::Vector3& source)
 
 bool Movement::BuildElwynnHuntPath(Unit& owner, Unit& target, PathGenerator& path, PointsArray& points)
 {
+    return BuildSimulationHuntPath(owner, target, path, points, SimulationScope{});
+}
+
+bool Movement::BuildSimulationHuntPath(Unit& owner, Unit& target, PathGenerator& path, PointsArray& points,
+    SimulationScope const& scope)
+{
     points.clear();
-    if (owner.GetMapId() != 0 || owner.GetMap() != target.GetMap()) return false;
+    if (owner.GetMapId() != scope.MapId || owner.GetMap() != target.GetMap()) return false;
+    auto inScope = [&](float px, float py, float pz)
+    { return scope.Contains(owner.GetMapId(), owner.GetMap()->GetZoneId(owner.GetPhaseMask(), px, py, pz), px, py, pz); };
     G3D::Vector3 origin;
     if (!PhysicalSplineSource(owner, origin)) return false;
+    if (!inScope(origin.x, origin.y, origin.z) ||
+        !inScope(target.GetPositionX(), target.GetPositionY(), target.GetPositionZ())) return false;
     if (Creature* creature = owner.ToCreature(); creature && !target.isInAccessiblePlaceFor(creature)) return false;
     float const hitboxSum = owner.GetCombatReach() + target.GetCombatReach();
     bool const shorten = !owner.IsInDist(&target, owner.GetMeleeRange(&target));
@@ -35,7 +45,7 @@ bool Movement::BuildElwynnHuntPath(Unit& owner, Unit& target, PathGenerator& pat
     if (!PrepareCompleteChasePath(path, origin, G3D::Vector3(x, y, z),
         PositionToVector3(&target), CONTACT_DISTANCE + hitboxSum, shorten, points,
         [&](float px, float py, float pz)
-        { return owner.GetMap()->GetZoneId(owner.GetPhaseMask(), px, py, pz) == 12; },
+        { return inScope(px, py, pz); },
         [&](G3D::Vector3 const& a, G3D::Vector3 const& b)
         { return owner.GetMap()->isInLineOfSight(a.x, a.y, a.z + 0.5f, b.x, b.y, b.z + 0.5f,
             owner.GetPhaseMask(), LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing); })) return false;
@@ -62,13 +72,13 @@ bool Movement::BuildElwynnHuntPath(Unit& owner, Unit& target, PathGenerator& pat
         },
         [&](G3D::Vector3 const& a, G3D::Vector3 const& b)
         {
-            return LivingSurfaceCorridor::BodyClear({0,a.x,a.y,a.z},{0,b.x,b.y,b.z},
+            return LivingSurfaceCorridor::BodyClear({owner.GetMapId(),a.x,a.y,a.z},{owner.GetMapId(),b.x,b.y,b.z},
                 owner.GetBoundingRadius(),owner.GetCollisionHeight(),
                 [&](ActionPosition const& from, ActionPosition const& to)
                 { return owner.GetMap()->isInLineOfSight(from.X,from.Y,from.Z,to.X,to.Y,to.Z,
                     owner.GetPhaseMask(),LINEOFSIGHT_ALL_CHECKS,VMAP::ModelIgnoreFlags::Nothing); });
         },
         [&](G3D::Vector3 const& p)
-        { return owner.GetMap()->GetZoneId(owner.GetPhaseMask(),p.x,p.y,p.z) == 12; },
+        { return inScope(p.x,p.y,p.z); },
         [&](G3D::Vector3 const& p) { return path.RecoveryTile(p); });
 }

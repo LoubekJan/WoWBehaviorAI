@@ -22,6 +22,7 @@ x-lab-environment: &lab-environment
   LAB_REALM_LOCAL_ADDRESS: ${LAB_REALM_LOCAL_ADDRESS:?Set the LAN address}
   LAB_REALM_LOCAL_SUBNET_MASK: ${LAB_REALM_LOCAL_SUBNET_MASK:-255.255.255.0}
   LAB_WORLD_PORT: ${LAB_WORLD_PORT:-9086}
+  LAB_AI_PROFILE: ${LAB_AI_PROFILE:-disabled}
   WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
 
 services:
@@ -60,6 +61,7 @@ services:
       - build-data:/build:ro
       - ./deploy/worldserver.conf:/etc/trinitycore/worldserver.conf:ro
       - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./data/realm_lab:/workspace/data/realm_lab:ro
       - ./sql:/workspace/sql:ro
       - ./runtime/lab/data:/runtime/data:ro
       - ./runtime/lab/logs:/runtime/logs
@@ -94,6 +96,10 @@ services:
     restart: unless-stopped
     environment:
       WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
+    command: [python, /workspace/tools/realm_lab/run_scoped.py, uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000"]
+    volumes:
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./data/realm_lab:/workspace/data/realm_lab:ro
     ports:
       - "${LAB_VIEWER_PORT:-9091}:8000"
     healthcheck:
@@ -125,11 +131,14 @@ services:
     depends_on:
       world-viewer:
         condition: service_healthy
-    command: [python, -u, /record.py, --url, "http://world-viewer:8000/api/state", --output, /recordings, --hours, "${AIWORLD_RECORD_HOURS:-4}", --interval, "${AIWORLD_RECORD_INTERVAL:-5}", --label, "${AIWORLD_RECORD_LABEL:-realm-lab}", --build-label, "${AIWORLD_RECORD_BUILD_LABEL:-unknown}", --analyze, --minimum-minutes, "${AIWORLD_TEST_MINUTES:-60}"]
+    command: [python, /workspace/tools/realm_lab/run_scoped.py, python, -u, /record.py, --url, "http://world-viewer:8000/api/state", --output, /recordings, --hours, "${AIWORLD_RECORD_HOURS:-4}", --interval, "${AIWORLD_RECORD_INTERVAL:-5}", --label, "${AIWORLD_RECORD_LABEL:-realm-lab}", --build-label, "${AIWORLD_RECORD_BUILD_LABEL:-unknown}", --analyze, --minimum-minutes, "${AIWORLD_TEST_MINUTES:-60}"]
     volumes:
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./data/realm_lab:/workspace/data/realm_lab:ro
       - ./docker/world-viewer/app/record.py:/record.py:ro
       - ./docker/world-viewer/app/behavior.py:/behavior.py:ro
       - ./docker/world-viewer/app/recording_gate.py:/recording_gate.py:ro
+      - ./docker/world-viewer/app/scope.py:/scope.py:ro
       - ./runtime/lab/recordings:/recordings
 
 networks:

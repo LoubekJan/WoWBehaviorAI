@@ -11,6 +11,11 @@ import math
 from pathlib import Path
 import sys
 
+if __package__:
+    from .scope import contains_position, normalize_scope
+else:
+    from scope import contains_position, normalize_scope
+
 
 @dataclass(frozen=True)
 class Policy:
@@ -36,7 +41,7 @@ CHECKS = {
     "return_duration": "Dokončení návratu i při pohybu",
     "physical_stall": "Skutečné zaseknutí napříč změnami chování",
     "motion": "Pohybový úkol se skutečným posunem",
-    "outside": "Zachování řízení v Elwynnu",
+    "outside": "Zachování řízení v oblasti simulace",
     "stock_hunger": "Jídlo při hladu a dostupných zásobách",
     "empty_stock": "Obnovení prázdné zásoby jídla u pracovní rutiny",
     "predator_hunger": "Dlouhodobý hlad predátorů (upozornění)",
@@ -63,6 +68,7 @@ class Evaluator:
 
     def __init__(self, metadata: dict, policy: Policy | None = None):
         self.metadata = metadata
+        self.scope = normalize_scope(metadata.get("scope"))
         self.policy = policy or Policy()
         interval = metadata.get("interval_seconds", 5)
         if not finite(interval) or interval <= 0:
@@ -177,6 +183,15 @@ class Evaluator:
             self.quality["invalid_snapshot"] += 1
             self.break_continuity()
             return
+        if "scope" in state:
+            try:
+                scope_matches = normalize_scope(state["scope"]) == self.scope
+            except ValueError:
+                scope_matches = False
+            if not scope_matches:
+                self.quality["scope_mismatch"] += 1
+                self.break_continuity()
+                return
         capture = state.get("captured_at_ms")
         valid = (status == "fresh" and state.get("configured") is True and state.get("stale") is False
                  and state.get("version") in (2, 3, 4) and type(capture) is int and capture >= 0
@@ -218,7 +233,7 @@ class Evaluator:
             if not isinstance(needs, dict) or not isinstance(economy, dict):
                 self.quality["invalid_live_agent"] += 1
                 continue
-            if (role.get("role") not in RADII or role.get("status") not in SCOPED | {"OUTSIDE_ELWYNN"}):
+            if (role.get("role") not in RADII or role.get("status") not in SCOPED | {"OUTSIDE_ELWYNN", "OUTSIDE_SCOPE"}):
                 continue
             if (any(not finite(pos.get(k)) for k in ("x", "y", "z")) or type(pos.get("map_id")) is not int
                     or type(agent.get("spawn_id")) is not int or type(agent.get("in_combat")) is not bool
@@ -265,11 +280,12 @@ class Evaluator:
                     metrics[field + ("_increase" if delta > 0 else "_decrease")] += abs(delta)
                 for phase in ("HUNTING", "FEEDING", "DEFENDING"):
                     metrics[phase.lower() + "_starts"] += role["phase"] == phase and old_role["phase"] != phase
-            in_scope = role["status"] in SCOPED and pos["map_id"] == 0
+            in_scope = role["status"] in SCOPED and contains_position(self.scope, pos)
             if in_scope:
                 self.inside.add(aid)
                 self.observed["outside"].add(aid)
-            outside = aid in self.inside and role["status"] == "OUTSIDE_ELWYNN"
+            outside = aid in self.inside and (role["status"] in {"OUTSIDE_ELWYNN", "OUTSIDE_SCOPE"}
+                                               or not contains_position(self.scope, pos))
             self.episode("outside", agent, row, outside)
             calm = in_scope and not agent["in_combat"] and not move["blocked"] and not move["evading"]
             purpose = role["movement_purpose"]
@@ -428,6 +444,7 @@ class Evaluator:
         status = "FAIL" if failed else "PASS" if complete else "INCONCLUSIVE"
         return {"report_version": 1, "status": status, "exit_code": {"PASS": 0, "FAIL": 3, "INCONCLUSIVE": 2}[status],
                 "session_id": self.metadata.get("session_id"), "label": self.metadata.get("label"),
+                "simulation_scope": self.scope,
                 "build_label": self.metadata.get("build_label", "unknown"), "policy": asdict(self.policy),
                 "quality": {"status": "PASS" if sufficient else "INCONCLUSIVE", "samples": self.samples,
                             "counts": dict(self.counts), "continuous_fresh_seconds": round(self.fresh_seconds, 3),
@@ -447,6 +464,8 @@ def write_report(report: dict, output: Path):
         return str(value or "—").replace("|", "/").replace("\n", " ").replace("\r", " ")
     lines = ["# Automatický test chování AIWorld", "", f"Výsledek: **{report['status']}**", "",
              f"Session: `{clean(report['session_id'])}`; sestavení: `{clean(report['build_label'])}`.", "",
+             f"Oblast: {clean(report['simulation_scope']['name'])}; mapa {report['simulation_scope']['map_id']}; "
+             f"zóny {', '.join(map(str, report['simulation_scope']['zone_ids']))}.", "",
              report["interpretation"], "", "| Kontrola | Výsledek | Sledovaná NPC | Problémová NPC |",
              "| --- | --- | ---: | ---: |"]
     for check in report["checks"]:

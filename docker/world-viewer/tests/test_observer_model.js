@@ -36,3 +36,22 @@ test("background and old telemetry stay usable without fabricated behavior", () 
   assert(!model.alert(background));
   assert(!model.matches(background, { live: true }));
 });
+
+test("lab map uses its configured rectangle and preserves escaped agent diagnostics", () => {
+  const scope = { map_id: 725, bounds: { min_x: 166.667, max_x: 366.667, min_y: 700, max_y: 900 } };
+  const bounds = model.viewport(scope);
+  const center = model.project({ x: 266.667, y: 800 }, bounds, 800, 600);
+  assert.deepEqual(center, { x: 400, y: 300 });
+  const northWest = model.project({ x: 366.667, y: 900 }, bounds, 800, 600);
+  const southEast = model.project({ x: 166.667, y: 700 }, bounds, 800, 600);
+  assert(northWest.x > 0 && northWest.x < center.x && northWest.y > 0 && northWest.y < center.y);
+  assert(southEast.x > center.x && southEast.x < 800 && southEast.y > center.y && southEast.y < 600);
+  const escaped = { ...base, position: { source: "live", map_id: 725, x: 400, y: 800 } };
+  assert(model.matches(escaped, {}, scope));
+  assert(!model.matches(base, {}, scope));
+  assert(!model.matches(escaped, {}));
+});
+
+test("legacy Elwynn bounds remain the default viewport", () => {
+  assert.deepEqual(model.viewport(), { north: -8100, south: -10250, west: 900, east: -1750 });
+});

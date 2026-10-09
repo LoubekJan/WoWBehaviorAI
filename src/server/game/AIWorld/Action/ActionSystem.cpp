@@ -113,7 +113,8 @@ ActionValidationResult ActionSystem::Validate(ActionRequest const& request, Acti
 
     if ((request.SourceGoal == GoalType::LocalActivity || request.SourceGoal == GoalType::PredatorHunt ||
         request.SourceGoal == GoalType::SeekSafety || request.SourceGoal == GoalType::InvestigateDanger) &&
-        (!context.LivingRoleAllowed || context.MapId != 0 || context.LivingRoleZoneId != 12 ||
+        (!context.LivingRoleAllowed || !context.Scope.Contains(context.MapId, context.LivingRoleZoneId,
+            context.X, context.Y, context.Z) ||
             !LivingRolePolicy::KnownRole(context.LivingRole)))
         return { false, ActionRejectReason::GoalMismatch };
 
@@ -197,6 +198,21 @@ ActionValidationResult ActionSystem::ValidateMoveTo(ActionRequest const& request
 
     if (!std::isfinite(request.Destination->X) || !std::isfinite(request.Destination->Y) || !std::isfinite(request.Destination->Z))
         return { false, ActionRejectReason::DestinationNotFinite };
+
+    // Living proposals share the configured spatial boundary, including the
+    // independently approved recovery anchor. Generic routine/group goals
+    // retain their existing map and range rules.
+    bool livingGoal = request.SourceGoal == GoalType::LocalActivity || request.SourceGoal == GoalType::PredatorHunt ||
+        request.SourceGoal == GoalType::SeekSafety || request.SourceGoal == GoalType::InvestigateDanger;
+    if (livingGoal && (!context.Scope.ContainsPosition(request.Destination->MapId,
+        request.Destination->X, request.Destination->Y, request.Destination->Z) ||
+        (request.Recovery && !context.Scope.ContainsPosition(request.Recovery->Home.MapId,
+            request.Recovery->Home.X, request.Recovery->Home.Y, request.Recovery->Home.Z)) ||
+        (request.Recovery && request.Recovery->QueryDestination &&
+            !context.Scope.ContainsPosition(request.Recovery->QueryDestination->MapId,
+                request.Recovery->QueryDestination->X, request.Recovery->QueryDestination->Y,
+                request.Recovery->QueryDestination->Z))))
+        return { false, ActionRejectReason::GoalMismatch };
 
     if (request.SourceGoal == GoalType::SeekSafety || request.SourceGoal == GoalType::InvestigateDanger)
     {

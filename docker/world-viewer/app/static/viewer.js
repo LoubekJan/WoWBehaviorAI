@@ -9,8 +9,9 @@ const FACTIONS = {
   3: "RIVERPAW_GNOLLS", 4: "ELWYNN_KOBOLDS", 5: "ELWYNN_MURLOCS", 6: "ELWYNN_WOLVES",
 };
 function factionLabel(value) { return FACTIONS[value] || String(value); }
-const BOUNDS = { north: -8100, south: -10250, west: 900, east: -1750 };
-const WORLD_CENTER = { x: -(BOUNDS.west + BOUNDS.east) / 2, y: -(BOUNDS.north + BOUNDS.south) / 2 };
+const DEFAULT_SCOPE = { map_id: 0, zone_ids: [12], bounds: null, name: "Elwynn Forest" };
+let scope = DEFAULT_SCOPE;
+let BOUNDS = ObserverModel.viewport(scope);
 const landmarks = [
   { name: "STORMWIND", x: -8900, y: 620 },
   { name: "NORTHSHIRE", x: -8900, y: -200 },
@@ -32,16 +33,22 @@ let dragged = false;
 let requestPending = false;
 let lastSuccess = 0;
 
-function scale() {
-  return Math.min(cssWidth / (BOUNDS.west - BOUNDS.east), cssHeight / (BOUNDS.north - BOUNDS.south)) * 0.92 * zoom;
+function project(position) {
+  return ObserverModel.project(position, BOUNDS, cssWidth, cssHeight, zoom, panX, panY);
 }
 
-function project(position) {
-  const s = scale();
-  return {
-    x: cssWidth / 2 + (-position.y - WORLD_CENTER.x) * s + panX,
-    y: cssHeight / 2 + (-position.x - WORLD_CENTER.y) * s + panY,
-  };
+function applyScope(value) {
+  const next = value || DEFAULT_SCOPE;
+  if (JSON.stringify(next) !== JSON.stringify(scope)) {
+    zoom = 1; panX = 0; panY = 0;
+  }
+  scope = next;
+  BOUNDS = ObserverModel.viewport(scope);
+  document.title = `AI World Observer · ${scope.name}`;
+  $("scope-brand").textContent = `${scope.name.toLocaleUpperCase("cs")} · READ ONLY`;
+  $("scope-name").textContent = scope.name;
+  $("scope-map").textContent = `MAP ID ${scope.map_id} · ZONE ${scope.zone_ids.join(", ")}`;
+  $("map-section").setAttribute("aria-label", `Souřadnicová mapa ${scope.name}`);
 }
 
 function resizeCanvas() {
@@ -58,12 +65,13 @@ function resizeCanvas() {
 function drawGrid() {
   ctx.lineWidth = 1;
   ctx.strokeStyle = "#e0ebd115";
-  for (let x = -10250; x <= -8100; x += 250) {
+  const step = scope.bounds ? Math.max(1, Math.min(BOUNDS.north - BOUNDS.south, BOUNDS.west - BOUNDS.east) / 8) : 250;
+  for (let x = BOUNDS.south; x <= BOUNDS.north; x += step) {
     const a = project({ x, y: BOUNDS.west });
     const b = project({ x, y: BOUNDS.east });
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
-  for (let y = -1750; y <= 900; y += 250) {
+  for (let y = BOUNDS.east; y <= BOUNDS.west; y += step) {
     const a = project({ x: BOUNDS.north, y });
     const b = project({ x: BOUNDS.south, y });
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
@@ -75,6 +83,7 @@ function drawGrid() {
 }
 
 function drawLandmarks() {
+  if (scope.map_id !== 0) return;
   for (const place of landmarks) {
     const p = project(place);
     if (p.x < -100 || p.x > cssWidth + 100 || p.y < -30 || p.y > cssHeight + 30) continue;
@@ -155,7 +164,7 @@ function filterAgents() {
   const filters = { query: $("search").value.trim().toLocaleLowerCase("cs") };
   for (const key of ["type", "faction", "role", "phase", "group"]) filters[key] = $(`${key}-filter`).value;
   for (const key of ["live", "combat", "goal", "hunger", "alert", "blocked"]) filters[key] = $(`${key}-filter`).checked;
-  visible = snapshot.agents.filter(agent => ObserverModel.matches(agent, filters));
+  visible = snapshot.agents.filter(agent => ObserverModel.matches(agent, filters, scope));
   $("visible-count").textContent = `${visible.length.toLocaleString("cs-CZ")} zobrazeno`;
   render();
 }
@@ -294,6 +303,7 @@ async function poll() {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     snapshot = await response.json();
+    applyScope(snapshot.scope);
     lastSuccess = performance.now();
     $("total-count").textContent = snapshot.agents.length.toLocaleString("cs-CZ");
     const live = snapshot.agents.filter(agent => agent.position.source === "live").length;

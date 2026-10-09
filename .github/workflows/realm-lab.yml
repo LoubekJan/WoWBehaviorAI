@@ -148,4 +148,4 @@ jobs:
           bash docker/scripts/deploy-lab.sh "$TESTED_SHA"
       - name: Report acceptance boundary
         run: |
-          echo 'Realm lab infrastructure passed. Custom map, scope generalization and NPC return acceptance remain separate gates.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Lab build, tests and service health passed. Physical map and NPC return acceptance are recorded separately in data/realm_lab/aiworldlab and doc/RealmLab.md.' >> "$GITHUB_STEP_SUMMARY"

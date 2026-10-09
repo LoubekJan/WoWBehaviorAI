@@ -4,6 +4,7 @@
 #define TRINITY_ELWYNNHUNTPATH_H
 
 #include "MoveSplineInitArgs.h"
+#include "Simulation/SimulationScope.h"
 
 class Unit;
 class PathGenerator;
@@ -18,5 +19,7 @@ namespace Movement
     // too. Dry walking routes are grounded after shortening, including every
     // executed half-yard control, so an interrupted hunt retains support.
     bool BuildElwynnHuntPath(Unit& owner, Unit& target, PathGenerator& path, PointsArray& points);
+    bool BuildSimulationHuntPath(Unit& owner, Unit& target, PathGenerator& path, PointsArray& points,
+        SimulationScope const& scope);
 }
 #endif

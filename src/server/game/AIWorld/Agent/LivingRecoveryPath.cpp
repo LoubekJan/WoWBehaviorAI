@@ -1,6 +1,7 @@
 /* This file is part of the TrinityCore Project. See AUTHORS file for Copyright information.
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "LivingRecoveryPath.h"
+#include "AIWorldMgr.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Creature.h"
 #include "ElwynnHuntPath.h"
@@ -15,8 +16,23 @@ namespace LivingRecoveryPath
 {
     namespace
     {
+        bool InScope(Creature const& creature, ActionPosition const& point)
+        {
+            auto const& scope = sAIWorldMgr->GetSimulationScope();
+            return point.MapId == creature.GetMapId() && scope.ContainsPosition(point.MapId, point.X, point.Y, point.Z) &&
+                scope.ContainsMapZone(point.MapId,
+                    creature.GetMap()->GetZoneId(creature.GetPhaseMask(), point.X, point.Y, point.Z));
+        }
+
+        bool ActorInScope(Creature const& creature)
+        {
+            return sAIWorldMgr->GetSimulationScope().ContainsActor(creature.GetMapId(), creature.GetSpawnId()) &&
+                InScope(creature, {creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()});
+        }
+
         std::optional<float> TerrainHeight(Creature const& creature, ActionPosition const& point, float lift = 0.3f)
         {
+            if (!InScope(creature, point)) return std::nullopt;
             // Query just above the expected feet, not GetMapHeight's two-yard
             // lift: that lift can select a nearby ledge or the floor above.
             float hover = creature.GetHoverOffset();
@@ -44,7 +60,7 @@ namespace LivingRecoveryPath
     std::optional<ActionPosition> GroundHomeTarget(Creature& creature, ActionPosition const& home,
         ActionPosition const& target)
     {
-        if (home.MapId != creature.GetMapId()) return std::nullopt;
+        if (!ActorInScope(creature) || !InScope(creature, home) || !InScope(creature, target)) return std::nullopt;
         return LivingReturnPolicy::GroundHomeTarget(home, target,
             [&](ActionPosition const& p) -> std::optional<float>
             { return TerrainHeight(creature, p, LivingReturnPolicy::SamePosition(p, home) ? 0.3f : 0.8f); },
@@ -56,6 +72,11 @@ namespace LivingRecoveryPath
     LivingSurfaceCorridor::Status GroundLocalForageTarget(Creature& creature, ActionPosition const& from,
         ActionPosition const& target, LivingForageGroundSearch& search)
     {
+        if (!ActorInScope(creature) || !InScope(creature, from) || !InScope(creature, target))
+        {
+            search.Resolved.reset();
+            return search.State = LivingSurfaceCorridor::Status::Rejected;
+        }
         return search.Advance(from, target,
             [&](ActionPosition const& p)
             { return TerrainHeight(creature, p, LivingReturnPolicy::SamePosition(p, from) ? 0.3f : 0.8f); },
@@ -71,7 +92,7 @@ namespace LivingRecoveryPath
         // Follow the first corridor corner instead of repeatedly proposing a
         // straight step through the same cave wall. This only proposes a leg;
         // Build revalidates the complete executed leg before it can start.
-        if (creature.GetMapId() != 0 || target.MapId != 0 || home.MapId != 0 ||
+        if (!ActorInScope(creature) || !InScope(creature, target) || !InScope(creature, home) ||
             !LivingReturnPolicy::Finite(target) || !LivingReturnPolicy::Finite(home) ||
             !std::isfinite(radius) || radius <= 0 || creature.GetExactDist2d(target.X, target.Y) > 256) return fail("INVALID_REQUEST");
         PathGenerator path(&creature);
@@ -88,13 +109,13 @@ namespace LivingRecoveryPath
                 PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH))) return fail("NO_COMPLETE_PATH");
         auto points = path.GetPath();
         if (points.size() < 2 || creature.GetExactDist(points.front().x, points.front().y, points.front().z) > 1.5f ||
-            LivingReturnPolicy::Distance(target, {0, points.back().x, points.back().y, points.back().z}) > 1.5f) return fail("ENDPOINT_MISMATCH");
+            LivingReturnPolicy::Distance(target, {target.MapId, points.back().x, points.back().y, points.back().z}) > 1.5f) return fail("ENDPOINT_MISMATCH");
         points.front() = {creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
         if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
-            { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
+            { return InScope(creature, {target.MapId, x, y, z}) &&
                 std::hypot(x-home.X, y-home.Y) <= radius; })) return fail("PATH_BOUNDS");
         std::vector<ActionPosition> route;
-        for (auto const& p : points) route.push_back({0, p.x, p.y, p.z});
+        for (auto const& p : points) route.push_back({target.MapId, p.x, p.y, p.z});
         auto legs = LivingReturnPolicy::Corridor(route);
         for (auto const& leg : legs)
             if (LivingReturnPolicy::UsefulStep(route.front(), leg)) return leg;
@@ -114,7 +135,7 @@ namespace LivingRecoveryPath
         if (diagnostics) { diagnostics->Deferred = false; diagnostics->HomePath = report; }
         auto publish = [&] { if (diagnostics) diagnostics->HomePath = report; };
         if (cursor.Done) return {};
-        if (!Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 || creature.GetMapId() != 0 ||
+        if (!ActorInScope(creature) || !InScope(creature, from) || !InScope(creature, home) ||
             !std::isfinite(limit) || limit <= 0 || !std::isfinite(arrivalRadius) || arrivalRadius < 0 ||
             !std::isfinite(clearance) || clearance < 0 || clearance > 30 ||
             (danger && (!Finite(*danger) || danger->MapId != from.MapId)))
@@ -153,14 +174,14 @@ namespace LivingRecoveryPath
             if (!calculated || !Movement::CompleteNavmeshPath(path.GetPathType()))
             { reject(HomePathFailure::NoPath); continue; }
             auto points = path.GetPath();
-            if (points.size() < 2 || Distance(from, {0, points.front().x, points.front().y, points.front().z}) > 1.5f ||
+            if (points.size() < 2 || Distance(from, {from.MapId, points.front().x, points.front().y, points.front().z}) > 1.5f ||
                 std::hypot(points.back().x-home.X, points.back().y-home.Y) > arrivalRadius ||
-                !HomeEndpointMatches(home, arrivalRadius, {0, points.back().x, points.back().y, points.back().z},
-                    GroundHomeTarget(creature, home, {0, points.back().x, points.back().y, points.back().z})))
+                !HomeEndpointMatches(home, arrivalRadius, {from.MapId, points.back().x, points.back().y, points.back().z},
+                    GroundHomeTarget(creature, home, {from.MapId, points.back().x, points.back().y, points.back().z})))
             { reject(HomePathFailure::Endpoint); continue; }
             points.front() = {from.X, from.Y, from.Z};
             if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
-                { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
+                { return InScope(creature, {from.MapId, x, y, z}) &&
                     std::hypot(x-home.X, y-home.Y) <= limit; }))
             { reject(HomePathFailure::Bounds); continue; }
             bool safe = true;
@@ -169,7 +190,7 @@ namespace LivingRecoveryPath
             {
                 if (danger && !LivingRolePolicy::AvoidsDanger(route.back().X, route.back().Y,
                     point.x, point.y, danger->X, danger->Y, clearance)) { safe = false; break; }
-                route.push_back({0, point.x, point.y, point.z});
+                route.push_back({from.MapId, point.x, point.y, point.z});
             }
             if (!safe) { reject(HomePathFailure::Danger); continue; }
             auto corridor = Corridor(route);
@@ -205,7 +226,7 @@ namespace LivingRecoveryPath
                         danger->X, danger->Y, clearance)) && ClearSurfaceBody(creature, a, b);
                 },
                 [&](ActionPosition const& p)
-                { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
+                { return InScope(creature, p) &&
                     std::hypot(p.X-home.X, p.Y-home.Y) <= limit; }, 8,
                 [&](ActionPosition const& p) { return surfaceTiles.RecoveryTile({p.X, p.Y, p.Z}); });
             report.SurfaceFailure = cursor.Surface.Failure;
@@ -245,7 +266,7 @@ namespace LivingRecoveryPath
         auto const* danger = cursor.Danger ? &*cursor.Danger : nullptr;
         // A graph never repeats the cheap query stages, and cannot use tile
         // eligibility obtained at another actor origin or geometric request.
-        if (!cursor.HasContext || !Finite(from) || !Finite(home) || from.MapId != 0 || home.MapId != 0 ||
+        if (!cursor.HasContext || !ActorInScope(creature) || !InScope(creature, from) || !InScope(creature, home) ||
             creature.GetMapId() != from.MapId || !creature.CanWalk() ||
             !SamePosition(from, {creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()}) ||
             !cursor.CandidatesExhausted(HomeTargets(home, cursor.ArrivalRadius).size()) ||
@@ -264,7 +285,7 @@ namespace LivingRecoveryPath
                 { return (!danger || LivingRolePolicy::AvoidsDanger(a.X, a.Y, b.X, b.Y,
                     danger->X, danger->Y, cursor.Clearance)) && ClearSurfaceBody(creature, a, b); },
                 [&](ActionPosition const& p)
-                { return creature.GetMap()->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
+                { return InScope(creature, p) &&
                     std::hypot(p.X-home.X, p.Y-home.Y) <= cursor.Limit; },
                 [&](ActionPosition const& p)
                 { return HomeEndpointMatches(home, cursor.ArrivalRadius, p, GroundHomeTarget(creature, home, p)); },
@@ -288,7 +309,7 @@ namespace LivingRecoveryPath
 
     bool InSwimmableWater(Creature const& creature, ActionPosition const& point)
     {
-        if (!creature.CanEnterWater() || point.MapId != creature.GetMapId()) return false;
+        if (!creature.CanEnterWater() || !InScope(creature, point)) return false;
         auto liquid = creature.GetMap()->GetLiquidStatus(creature.GetPhaseMask(), point.X, point.Y, point.Z,
             {}, nullptr, creature.GetCollisionHeight());
         // WATER_WALK is the engine's classification for a point within 0.1 yd
@@ -298,11 +319,13 @@ namespace LivingRecoveryPath
 
     std::optional<ActionPosition> RejoinPosition(Creature& creature, NavigationDiagnostics* diagnostics)
     {
+        if (!ActorInScope(creature)) return std::nullopt;
         PathGenerator query(&creature);
         query.AllowSteepSlopes();
         G3D::Vector3 point;
         if (!query.FindRecoveryPosition(point, nullptr, diagnostics)) return std::nullopt;
-        return ActionPosition{creature.GetMapId(), point.x, point.y, point.z};
+        ActionPosition candidate{creature.GetMapId(), point.x, point.y, point.z};
+        return InScope(creature, candidate) ? std::optional<ActionPosition>(candidate) : std::nullopt;
     }
 
     std::vector<ActionPosition> RejoinPositions(Creature& creature, NavigationDiagnostics* diagnostics,
@@ -315,6 +338,8 @@ namespace LivingRecoveryPath
         { cursor = {}; cursor.HasContext = true; cursor.From = from; }
         if (deferred) *deferred = false;
         auto publish = [&] { if (diagnostics) *diagnostics = cursor.Navigation; };
+        if (!ActorInScope(creature))
+        { cursor.Candidates.clear(); cursor.Done = true; publish(); return {}; }
         // A resumed continuation has more recent connector diagnostics. Do
         // not overwrite them with the final probe merely to reuse candidates.
         if (cursor.Done) return cursor.Candidates;
@@ -339,7 +364,7 @@ namespace LivingRecoveryPath
             if (query.FindRecoveryPosition(point, cursor.NextProbe ? &probe : nullptr, &cursor.Navigation))
             {
                 ActionPosition candidate{creature.GetMapId(), point.x, point.y, point.z};
-                if (std::none_of(cursor.Candidates.begin(), cursor.Candidates.end(), [&](auto const& p)
+                if (InScope(creature, candidate) && std::none_of(cursor.Candidates.begin(), cursor.Candidates.end(), [&](auto const& p)
                     { return LivingReturnPolicy::Distance(p, candidate) < 1; })) cursor.Candidates.push_back(candidate);
             }
         }
@@ -366,10 +391,11 @@ namespace LivingRecoveryPath
             return false;
         };
         if (!sourceReady) return reject("INVALID_MOVEMENT_SOURCE");
-        if (from.MapId != 0 || creature.GetZoneId() != 12 || creature.IsInCombat() || creature.IsInEvadeMode() ||
+        if (!ActorInScope(creature) || !InScope(creature, from) || !InScope(creature, to) ||
+            !InScope(creature, request.Destination) || creature.IsInCombat() || creature.IsInEvadeMode() ||
             creature.IsPet() || creature.IsCharmed() || !creature.GetTransGUID().IsEmpty() ||
             !creature.IsAlive() || !UsefulStep(from, to) || !UsefulStep(from, request.Destination) || Distance(from, to) > 30.0f ||
-            !Finite(request.Home) || request.Home.MapId != from.MapId ||
+            !InScope(creature, request.Home) ||
             !std::isfinite(request.HomeRadius) || request.HomeRadius <= 0.0f ||
             !std::isfinite(request.DangerRadius) || request.DangerRadius < 0.0f || request.DangerRadius > 30.0f ||
             (request.Danger && (!Finite(*request.Danger) || request.Danger->MapId != from.MapId))) return reject("INVALID_REQUEST");
@@ -406,7 +432,7 @@ namespace LivingRecoveryPath
                 [&](ActionPosition const& p)
                 { return TerrainHeight(creature, p, SamePosition(p, from) ? 0.3f : 0.8f); }, clearSegment,
                 [&](ActionPosition const& p)
-                { return map->GetZoneId(creature.GetPhaseMask(), p.X, p.Y, p.Z) == 12 &&
+                { return InScope(creature, p) &&
                     std::hypot(p.X-request.Home.X, p.Y-request.Home.Y) <= request.HomeRadius; }, 12,
                 [&](ActionPosition const& p) { return path.RecoveryTile({p.X, p.Y, p.Z}); });
             nav.Detail = surface.Failure;
@@ -467,7 +493,7 @@ namespace LivingRecoveryPath
                         { return ClearSurfaceBody(creature, {from.MapId, a.x, a.y, a.z},
                             {from.MapId, b.x, b.y, b.z}); },
                         [&](G3D::Vector3 const& p)
-                        { return map->GetZoneId(creature.GetPhaseMask(), p.x, p.y, p.z) == 12 &&
+                        { return InScope(creature, {from.MapId, p.x, p.y, p.z}) &&
                             std::hypot(p.x-request.Home.X, p.y-request.Home.Y) <= request.HomeRadius; },
                         [&](G3D::Vector3 const& p) { return path.RecoveryTile(p); }, &groundFailure);
                     nav.Detail = groundFailure;
@@ -494,7 +520,7 @@ namespace LivingRecoveryPath
         points.front() = G3D::Vector3(from.X, from.Y, from.Z);
         if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
             {
-                bool zone = map->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12;
+                bool zone = InScope(creature, {from.MapId, x, y, z});
                 bool radius = std::hypot(x - request.Home.X, y - request.Home.Y) <= request.HomeRadius;
                 if (!zone || !radius)
                 {

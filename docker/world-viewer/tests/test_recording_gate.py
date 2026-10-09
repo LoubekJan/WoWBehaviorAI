@@ -20,6 +20,21 @@ def snapshot(capture=1000):
 
 
 class TelemetryGateTests(unittest.TestCase):
+    def test_lab_requires_two_fresh_in_bounds_owned_roles_in_the_same_scope(self):
+        scope = {"map_id": 725, "zone_ids": [4988], "name": "AI World Lab",
+                 "bounds": {"min_x": 166.667, "max_x": 366.667, "min_y": 700, "max_y": 900}}
+        frame = snapshot(1100)
+        frame['scope'] = scope
+        frame['agents'][0]['position'].update(map_id=725, x=266.667, y=800, z=0)
+        self.assertTrue(gate.has_live_roles(frame))
+        frame['agents'][0]['position']['x'] = 400
+        self.assertFalse(gate.has_live_roles(frame))
+        frame['agents'][0]['position']['x'] = 266.667
+        first = snapshot(1000)
+        second = {**frame, 'captured_at_ms': 1200}
+        result, count = self.wait([first, frame, second], after=0)
+        self.assertEqual((count, result['status']), (3, 'ready'))
+
     def test_new_recovery_protocol_can_start_postdeploy_recording(self):
         frames = [snapshot(1000), snapshot(1100)]
         for frame in frames:

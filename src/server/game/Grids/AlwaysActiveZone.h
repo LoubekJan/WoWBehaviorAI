@@ -2,6 +2,7 @@
 #define TRINITY_ALWAYS_ACTIVE_ZONE_H
 
 #include "GridDefines.h"
+#include <cmath>
 #include <vector>
 
 // Conservative coverage of a zone census: include empty interior grids and a
@@ -24,15 +25,24 @@ public:
         return true;
     }
 
-    std::vector<GridCoord> GetGrids() const
+    bool AddBounds(float minX, float maxX, float minY, float maxY)
+    {
+        if (!std::isfinite(minX) || !std::isfinite(maxX) || !std::isfinite(minY) || !std::isfinite(maxY) ||
+            minX >= maxX || minY >= maxY || !Trinity::IsValidMapCoord(minX, minY) ||
+            !Trinity::IsValidMapCoord(maxX, maxY))
+            return false;
+        return AddSpawn(minX, minY) && AddSpawn(maxX, maxY);
+    }
+
+    std::vector<GridCoord> GetGrids(uint32 padding = 1) const
     {
         if (!_hasSpawns)
             return {};
         GridCoord low = _low, high = _high;
-        low.dec_x(1);
-        low.dec_y(1);
-        high.inc_x(1);
-        high.inc_y(1);
+        low.dec_x(padding);
+        low.dec_y(padding);
+        high.inc_x(padding);
+        high.inc_y(padding);
         std::vector<GridCoord> grids;
         for (uint32 x = low.x_coord; x <= high.x_coord; ++x)
             for (uint32 y = low.y_coord; y <= high.y_coord; ++y)

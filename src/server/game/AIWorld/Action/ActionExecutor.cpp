@@ -16,6 +16,7 @@
  */
 
 #include "ActionExecutor.h"
+#include "AIWorldMgr.h"
 #include "Agent/LivingRecoveryPath.h"
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/LivingHuntPolicy.h"
@@ -297,7 +298,7 @@ ActionResult ActionExecutor::ExecuteAttack(ActionRequest const& request, Creatur
     if (request.SourceGoal == GoalType::PredatorHunt)
         if (auto* chase = dynamic_cast<ChaseMovementGenerator*>(
             actor.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE)))
-            chase->RequireCompleteElwynnPath();
+            chase->RequireCompleteSimulationPath(sAIWorldMgr->GetSimulationScope());
 
     result.Status = ActionExecutionStatus::Started;
     result.Reason = ActionExecutionReason::None;

@@ -23,6 +23,7 @@
 #include "MovementGenerator.h"
 #include "Optional.h"
 #include "Position.h"
+#include "Simulation/SimulationScope.h"
 #include "Timer.h"
 
 class PathGenerator;
@@ -44,7 +45,8 @@ class ChaseMovementGenerator : public MovementGenerator, public AbstractFollower
 
         void UnitSpeedChanged() override { _lastTargetPosition.reset(); }
         ChaseSpeedBoost const& GetSpeedBoost() const { return _speedBoost; }
-        void RequireCompleteElwynnPath() { _elwynnCompletePath = true; _lastTargetPosition.reset(); }
+        void RequireCompleteSimulationPath(SimulationScope const& scope) { _completePathScope = scope; _lastTargetPosition.reset(); }
+        void RequireCompleteElwynnPath() { RequireCompleteSimulationPath(SimulationScope{}); }
 
     private:
         static constexpr uint32 RANGE_CHECK_INTERVAL = 100; // time (ms) until we attempt to recalculate
@@ -59,7 +61,7 @@ class ChaseMovementGenerator : public MovementGenerator, public AbstractFollower
         TimeTracker _rangeCheckTimer;
         bool _movingTowards = true;
         bool _mutualChase = true;
-        bool _elwynnCompletePath = false;
+        Optional<SimulationScope> _completePathScope;
 };
 
 #endif

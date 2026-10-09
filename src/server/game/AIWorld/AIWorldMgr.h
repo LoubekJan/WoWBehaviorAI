@@ -22,6 +22,7 @@
 #include "Action/ActionEngineEventBus.h"
 #include "Action/ActionExecutor.h"
 #include "Action/ActionSystem.h"
+#include "Simulation/SimulationScope.h"
 #include "Action/PendingEatContinuation.h"
 #include "Agent/AgentGroupCoordinationProfile.h"
 #include "Agent/AgentGroupIntentProjector.h"
@@ -150,6 +151,11 @@ class TC_GAME_API AIWorldMgr
         void Shutdown();
 
         bool IsEnabled() const { return _enabled; }
+        SimulationScope const& GetSimulationScope() const { return _simulationScope; }
+        bool InSimulationMembership(uint32 mapId, uint64 spawnId) const
+        {
+            return !_restrictAgentsToSimulationScope || _simulationScope.ContainsActor(mapId, spawnId);
+        }
 
         // Safe to call from ANY thread that can observe a game-world fact
         // (a map/combat worker, not just the world thread). Does nothing
@@ -3124,6 +3130,11 @@ class TC_GAME_API AIWorldMgr
         void ReconcileGroupCoordinationForMember(AgentId memberId);
 
         bool _enabled = false;
+        SimulationScope _simulationScope;
+        bool _restrictAgentsToSimulationScope = false;
+        bool _remoteInferenceEnabled = true;
+        bool _livingNeedEvolutionEnabled = true;
+        bool _groupCoarseSimulationEnabled = true;
 
         // Milestone 2.10A/2.10B: how often RunDecisionScheduler() itself
         // runs - not every tick (GetAgents() allocates, so this avoids

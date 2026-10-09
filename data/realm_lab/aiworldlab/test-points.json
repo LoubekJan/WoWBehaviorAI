@@ -10,7 +10,7 @@
     "navigation": "verified_navmesh_only_8_of_8_paths",
     "in_game_gps": "pending_numeric_report",
     "physical_player_movement": "confirmed_by_user_at_entry",
-    "physical_npc_movement": "pending"
+    "physical_npc_movement": "native_follow_and_evade_confirmed_by_user_minimum_one_cycle"
   },
   "tile": {
     "adt_x": 30,

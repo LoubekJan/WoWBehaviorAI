@@ -16,6 +16,11 @@ import subprocess
 import sys
 from typing import Mapping
 
+try:
+    from . import single_return
+except ImportError:  # Direct script invocation inside the lab container.
+    import single_return
+
 
 class SetupError(ValueError):
     pass
@@ -68,6 +73,7 @@ class Settings:
     auth_port: int
     auth_user: str
     auth_password: str
+    ai_profile: str = "disabled"
 
     @classmethod
     def load(cls, env: Mapping[str, str]) -> Settings:
@@ -82,6 +88,11 @@ class Settings:
         port = number(env, "LAB_WORLD_PORT", "9086", 1, 65535)
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
+        profile = value(env, "LAB_AI_PROFILE", "disabled")
+        if profile not in ("disabled", "single-return"):
+            raise SetupError("LAB_AI_PROFILE must be disabled or single-return")
+        if profile == "single-return" and env.get("LAB_REALM_ID", "2") != "2":
+            raise SetupError("The reviewed single-return profile belongs to realm 2")
         return cls(
             number(env, "LAB_REALM_ID", "2", 2, 255), name,
             address(env, "LAB_REALM_ADDRESS"), address(env, "LAB_REALM_LOCAL_ADDRESS"),
@@ -91,13 +102,14 @@ class Settings:
             number(env, "TC_AUTH_DB_PORT", "3306", 1, 65535),
             credential(env, "TC_AUTH_DB_USER", username=True),
             credential(env, "TC_AUTH_DB_PASSWORD"),
+            profile,
         )
 
 
-def config_overrides(settings: Settings) -> dict[str, str]:
+def config_overrides(settings: Settings, scope: single_return.Scope | None = None) -> dict[str, str]:
     auth = f"{settings.auth_host};{settings.auth_port};{settings.auth_user};{settings.auth_password};auth"
     local = f"lab-mysql;3306;{settings.db_user};{settings.db_password}"
-    return {
+    result = {
         "RealmID": str(settings.realm_id),
         "WorldServerPort": "8085",  # External host port is advertised in realmlist.
         "LoginDatabaseInfo": f'"{auth}"',
@@ -118,12 +130,52 @@ def config_overrides(settings: Settings) -> dict[str, str]:
         "AIWorld.WolfGroupAutoFormation": "0",
         "AIWorld.DefiasGroupAutoFormation": "0",
         "AIWorld.RecoveryAdviceEnabled": "0",
+        "AIWorld.RecoveryAdviceAllAgents": "0",
+        "AIWorld.RecoveryAdviceAgents": '""',
+        "AIWorld.LivingRoleExtensionsEnabled": "0",
+        "AIWorld.CoalitionMaintenance": "0",
+        "AIWorld.GroupCoordination": "0",
+        "AIWorld.WolfGroupRegroupEnabled": "0",
+        "AIWorld.WolfGroupRoamEnabled": "0",
+        "AIWorld.WolfGroupHuntEnabled": "0",
+        "AIWorld.DefiasGroupRegroupEnabled": "0",
+        "AIWorld.DefiasGroupRoamEnabled": "0",
+        "AIWorld.DefiasGroupHuntEnabled": "0",
+        "AIWorld.DynamicTaskEnable": "0",
+        "AIWorld.TestSpawnId": "0",
+        "AIWorld.TestMapId": "0",
+        "AIWorld.ScopeMapId": "0",
+        "AIWorld.ScopeZoneIds": '"12"',
+        "AIWorld.ScopeBoundsEnabled": "0",
+        "AIWorld.ScopeMinX": "0", "AIWorld.ScopeMaxX": "0",
+        "AIWorld.ScopeMinY": "0", "AIWorld.ScopeMaxY": "0",
+        "AIWorld.ScopeSpawnIds": '""',
+        "AIWorld.ScopeRestrictAgents": "0",
+        "AIWorld.ScopeAlwaysActive": "0",
+        "AIWorld.RemoteInferenceEnabled": "0",
+        "AIWorld.LivingNeedEvolutionEnabled": "0",
+        "AIWorld.GroupCoarseSimulationEnabled": "0",
         "SOAP.Enabled": "0",
     }
+    for key in ("TestGroupMemberAgentId1", "TestGroupMemberAgentId2", "TestGroupMemberAgentId3",
+                "TestDissolveGroupId", "TestDissolveOnActiveRegroupGroupId", "TestPreemptOnActiveRoamAgentId",
+                "TestLeaveOnActiveRoamAgentId", "TestDissolveOnActiveRoamGroupId", "TestObserveActiveHuntAgentId",
+                "AdoptGroupId", "AdoptGroupProfileId", "TestGroupPolicy", "TestCoalitionMaintenance",
+                "TestGroupIntent", "TestGroupIntentProjector", "TestHuntIntent", "TestHuntActionValidation",
+                "TestHuntArrivalOwnership", "TestControlMode", "TestFoodTargetEnabled", "TestDynamicTaskAgentId",
+                "TestDynamicQuestKillCreditLoss"):
+        result[f"AIWorld.{key}"] = "0"
+    if settings.ai_profile == "single-return":
+        scope = scope or single_return.Scope.load()
+        result.update(scope.config())
+        result.update({"AIWorld.Enable": "1", "AIWorld.LivingRolesEnabled": "1",
+                       "AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryHost": "world-viewer",
+                       "AIWorld.TelemetryPort": "8000"})
+    return result
 
 
-def render_config(template: str, settings: Settings) -> str:
-    overrides = config_overrides(settings)
+def render_config(template: str, settings: Settings, scope: single_return.Scope | None = None) -> str:
+    overrides = config_overrides(settings, scope)
     seen: set[str] = set()
     lines: list[str] = []
     for line in template.splitlines():
@@ -168,6 +220,50 @@ def mysql(settings: Settings, sql: str, *, admin: bool = False) -> str:
         # mysql diagnostics can echo SQL containing passwords; suppress them.
         raise SetupError("Shared auth SQL failed; check connectivity, grants and realm ID/name conflicts")
     return result.stdout.strip()
+
+
+def lab_mysql(settings: Settings, sql: str) -> str:
+    """One fixed endpoint: this connection has no shared-auth privileges."""
+    env = dict(os.environ)
+    env["MYSQL_PWD"] = settings.db_password
+    result = subprocess.run(
+        ["mysql", "--batch", "--raw", "--skip-column-names", "--default-character-set=utf8mb4",
+         "--host=lab-mysql", "--port=3306", f"--user={settings.db_user}", "world"],
+        input="SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES';\n" + sql,
+        env=env, text=True, encoding="utf-8", capture_output=True, check=False,
+    )
+    if result.returncode:
+        raise SetupError("Private lab SQL failed; check schema, connectivity and dedicated world/characters grants")
+    return result.stdout.strip()
+
+
+def lab_snapshot(settings: Settings, scope: single_return.Scope) -> list[dict]:
+    return single_return.parse_snapshot(lab_mysql(settings, single_return.snapshot_sql(scope)))
+
+
+def single_preflight(data: Path, settings: Settings, *, control: int | None,
+                     metadata: Path = single_return.METADATA, bootstrap: bool = False) -> single_return.Scope:
+    scope = single_return.verify_data(data, metadata)
+    single_return.validate_snapshot(lab_snapshot(settings, scope), scope, control=control, bootstrap=bootstrap)
+    return scope
+
+
+def bootstrap_single(data: Path, settings: Settings, metadata: Path = single_return.METADATA) -> None:
+    if settings.ai_profile != "disabled":
+        raise SetupError("Bootstrap requires LAB_AI_PROFILE=disabled and the lab worldserver stopped")
+    scope = single_preflight(data, settings, control=None, metadata=metadata, bootstrap=True)
+    lab_mysql(settings, single_return.bootstrap_sql(scope))
+    single_return.validate_snapshot(lab_snapshot(settings, scope), scope, control=0)
+    print(f"Lab NPC {single_return.SPAWN_ID} prepared in Observe mode; AI remains disabled.")
+
+
+def activate_single(data: Path, settings: Settings, metadata: Path = single_return.METADATA) -> None:
+    if settings.ai_profile != "disabled":
+        raise SetupError("Activation requires LAB_AI_PROFILE=disabled and the lab worldserver stopped")
+    scope = single_preflight(data, settings, control=None, metadata=metadata)
+    lab_mysql(settings, single_return.activation_sql(scope))
+    single_return.validate_snapshot(lab_snapshot(settings, scope), scope, control=1)
+    print(f"Only lab NPC {single_return.SPAWN_ID} activated; set LAB_AI_PROFILE=single-return for the next startup.")
 
 
 def auth_user_sql(settings: Settings) -> str:
@@ -232,11 +328,17 @@ def main() -> None:
     sub.add_parser("register-realm")
     check = sub.add_parser("preflight")
     check.add_argument("data", type=Path)
+    for command in ("bootstrap-single", "activate-single", "preflight-single"):
+        sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
         settings = Settings.load(os.environ)
         if args.command == "run-world":
-            rendered = render_config(args.template.read_text(encoding="utf-8"), settings)
+            scope = None
+            if settings.ai_profile == "single-return":
+                value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
+                scope = single_preflight(Path("/runtime/data"), settings, control=1)
+            rendered = render_config(args.template.read_text(encoding="utf-8"), settings, scope)
             dest = Path("/tmp/lab-worldserver.conf")
             fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             os.chmod(dest, 0o600)
@@ -256,7 +358,14 @@ def main() -> None:
             print(f"Realm {settings.realm_id} registration verified on port {settings.port}.")
         elif args.command == "preflight":
             preflight(args.data, settings)
-    except (SetupError, OSError) as exc:
+        elif args.command == "bootstrap-single":
+            bootstrap_single(args.data, settings)
+        elif args.command == "activate-single":
+            activate_single(args.data, settings)
+        elif args.command == "preflight-single":
+            single_preflight(args.data, settings, control=1 if settings.ai_profile == "single-return" else 0)
+            print("Reviewed lab bundle, native confirmation and one-NPC database scope verified.")
+    except (SetupError, single_return.ProfileError, OSError) as exc:
         print(f"Lab setup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
 

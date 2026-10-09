@@ -24,7 +24,7 @@
 #include "ObjectMgr.h"
 #include <algorithm>
 
-void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
+void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
 {
     uint64 nowMs = GetCurrentTimeMs();
     std::vector<AgentTelemetrySnapshot> snapshots;
@@ -33,7 +33,10 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
     for (AgentId id : ids)
     {
         AgentRecord const* record = _registry.Find(id);
-        if (!record || record->MapId != 0 || record->ControlMode != AgentControlMode::AIWorldControlled ||
+        // Population membership is static. Keep live points outside the scope
+        // bounds so an escaped agent remains visible as a diagnostic.
+        if (!record || !GetSimulationScope().ContainsActor(record->MapId, record->SpawnId) ||
+            record->ControlMode != AgentControlMode::AIWorldControlled ||
             _telemetrySpawnIds.find(record->SpawnId) == _telemetrySpawnIds.end())
             continue;
 
@@ -108,7 +111,7 @@ void AIWorldMgr::CaptureTelemetry(Map* elwynnMap)
 
         // GetCreatureBySpawnId only checks already-loaded map state. This
         // capture never loads a grid to satisfy the viewer.
-        if (Creature* creature = elwynnMap ? elwynnMap->GetCreatureBySpawnId(record->SpawnId) : nullptr)
+        if (Creature* creature = scopeMap ? scopeMap->GetCreatureBySpawnId(record->SpawnId) : nullptr)
         {
             AgentSnapshot live;
             live.Agent = id;

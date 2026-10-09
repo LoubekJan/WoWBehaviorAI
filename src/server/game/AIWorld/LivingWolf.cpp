@@ -29,7 +29,8 @@
 
 bool AIWorldMgr::IsLivingWolf(AgentRecord const& record) const
 {
-    return _livingWolvesEnabled && record.ControlMode == AgentControlMode::AIWorldControlled &&
+    return _livingWolvesEnabled && InSimulationMembership(record.MapId, record.SpawnId) &&
+        record.ControlMode == AgentControlMode::AIWorldControlled &&
         record.RuntimeGuid.IsCreature() && record.RuntimeGuid.GetEntry() == _wolfLooseFormationProfile.CreatureEntry &&
         record.WorldFaction == _wolfLooseFormationProfile.RequiredWorldFaction;
 }
@@ -73,7 +74,8 @@ Unit* AIWorldMgr::FindLivingWolfPackThreat(AgentRecord const& record, Creature& 
     for (AgentGroupMembership const& membership : pack->Members)
     {
         AgentRecord const* member = _registry.Find(membership.Member);
-        if (!member || member->WorldState != AgentWorldState::Materialized || member->MapId != creature.GetMapId())
+        if (!member || !InSimulationMembership(member->MapId, member->SpawnId) ||
+            member->WorldState != AgentWorldState::Materialized || member->MapId != creature.GetMapId())
             continue;
         Creature* ally = ObjectAccessor::GetCreature(creature, member->RuntimeGuid);
         if (!ally)
@@ -142,6 +144,8 @@ void AIWorldMgr::StopLivingWolfAction(AgentRecord& record, Creature& creature)
 // owns roaming and hunting; this arbitrates survival, nearby pack defense and meals.
 void AIWorldMgr::UpdateLivingWolf(AgentRecord& record, Creature& creature, uint64 nowMs)
 {
+    if (!InSimulationMembership(record.MapId, record.SpawnId))
+        return;
     Unit* threat = creature.GetThreatManager().GetCurrentVictim();
     if (threat && (!threat->IsAlive() || !creature.IsValidAttackTarget(threat)))
         threat = nullptr;
@@ -245,6 +249,7 @@ void AIWorldMgr::UpdateLivingWolf(AgentRecord& record, Creature& creature, uint6
     }
 
     ActionValidationContext context;
+    context.Scope = GetSimulationScope();
     context.Materialized = record.WorldState == AgentWorldState::Materialized;
     context.Alive = creature.IsAlive();
     context.ControlMode = record.ControlMode;

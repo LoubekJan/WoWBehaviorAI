@@ -298,6 +298,22 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertTrue(state["stale"])
         self.assertIsNone(state["captured_at_ms"])
         self.assertEqual(state["agents"], [])
+        self.assertEqual(state["scope"], {"map_id": 0, "zone_ids": [12], "bounds": None, "name": "Elwynn Forest"})
+
+    def test_lab_scope_is_api_configuration_and_escaped_points_are_preserved(self) -> None:
+        from test_scope import LAB_SCOPE
+        env = {"WORLD_VIEWER_SCOPE_MAP_ID": "725", "WORLD_VIEWER_SCOPE_ZONE_IDS": "4988",
+               "WORLD_VIEWER_SCOPE_NAME": "AI World Lab", "WORLD_VIEWER_SCOPE_BOUNDS": json.dumps(LAB_SCOPE['bounds'])}
+        with patch.dict('os.environ', env), TestClient(create_app("test-secret")) as client:
+            npc = agent()
+            npc['position'].update(map_id=725, x=400, y=800, z=0)
+            payload = batch([npc])
+            self.assertEqual(client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+            state = client.get('/api/state').json()
+            self.assertEqual(state['scope'], LAB_SCOPE)
+            self.assertEqual(state['agents'][0]['position'], npc['position'])
+            payload['scope'] = LAB_SCOPE
+            self.assertEqual(client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 422)
 
     def test_post_requires_correct_bearer_token(self) -> None:
         for headers in ({}, {"Authorization": "Basic test-secret"}, {"Authorization": "Bearer wrong"}):

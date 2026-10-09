@@ -42,13 +42,20 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     advice.Admission.Record(LivingAdviceAdmissionEvent::Entered, nowMs);
     if (advice.Status == "PLANNING_DEFERRED") advice.Status = "IDLE";
     char const* gate = nullptr;
-    if (!_recoveryAdviceEnabled) gate = "DISABLED";
+    if (!_recoveryAdviceEnabled || !_remoteInferenceEnabled) gate = "DISABLED";
     else if (!HasRecoveryAdvice(record.Id)) gate = "FEATURE_SCOPE";
     else if (!_aiClient) gate = "NO_CLIENT";
     else if (!creature.IsAlive()) gate = "DEAD";
     else if (creature.IsInCombat()) gate = "IN_COMBAT";
     else if (creature.IsInEvadeMode()) gate = "EVADING";
-    else if (creature.GetMapId() != 0 || creature.GetZoneId() != 12) gate = "OUTSIDE_ELWYNN";
+    else if (!GetSimulationScope().Contains(creature.GetMapId(), creature.GetZoneId(),
+        creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()) ||
+        !GetSimulationScope().ContainsActor(creature.GetMapId(), creature.GetSpawnId()))
+    {
+        auto const& scope = GetSimulationScope();
+        gate = scope.MapId == 0 && scope.ZoneIds == std::vector<uint32>{12} && !scope.Bounds ?
+            "OUTSIDE_ELWYNN" : "OUTSIDE_SCOPE";
+    }
     else if (record.ControlMode != AgentControlMode::AIWorldControlled) gate = "CONTROL_MODE";
     else if (record.RuntimeGuid != creature.GetGUID()) gate = "RUNTIME_GUID_MISMATCH";
     if (gate)
@@ -150,6 +157,8 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         std::vector<Creature*> prey;
         for (auto* target : nearby)
             if (target->IsAlive() && _agentTypeCatalog.Resolve(target->GetEntry()) == AgentType::Prey &&
+                GetSimulationScope().Contains(target->GetMapId(), target->GetZoneId(),
+                    target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()) &&
                 creature.IsValidAttackTarget(target)) prey.push_back(target);
         std::sort(prey.begin(), prey.end(), [&](auto* a, auto* b)
             { return creature.GetExactDist2d(a) < creature.GetExactDist2d(b); });

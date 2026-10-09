@@ -26,6 +26,7 @@
 #include "Goal/GoalType.h"
 #include "Goal/RoutineActivityType.h"
 #include "ObjectGuid.h"
+#include "Simulation/SimulationScope.h"
 #include <optional>
 
 // Milestone 2.8A/2.8B/2.8D: the world-thread facts ActionSystem::Validate()
@@ -74,6 +75,7 @@ struct ActionValidationContext
     float X = 0.0f;
     float Y = 0.0f;
     float Z = 0.0f;
+    SimulationScope Scope;
 
     // Milestone 2.8D P2 fix: whether the actor's MOTION_SLOT_ACTIVE
     // already has a movement generator running (GetCurrentMovementGenerator

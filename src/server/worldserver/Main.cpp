@@ -25,6 +25,7 @@
 #include "Configuration/Config.h"
 #include "DatabaseEnv.h"
 #include "DatabaseLoader.h"
+#include "DBCStores.h"
 #include "DeadlineTimer.h"
 #include "GitRevision.h"
 #include "InstanceSaveMgr.h"
@@ -325,7 +326,20 @@ int main(int argc, char** argv)
     sAIWorldMgr->Initialize(*ioContext);
 
     // Load after AIWorld initialization, before the first world tick/login.
-    if (sConfigMgr->GetBoolDefault("AIWorld.ElwynnAlwaysActive", true))
+    if (sConfigMgr->GetBoolDefault("AIWorld.ScopeAlwaysActive", false))
+    {
+        auto const& scope = sAIWorldMgr->GetSimulationScope();
+        MapEntry const* mapEntry = sMapStore.LookupEntry(scope.MapId);
+        if (!scope.Valid() || !scope.Bounds || !mapEntry || mapEntry->Instanceable())
+            TC_LOG_ERROR("maps", "AIWorld.ScopeAlwaysActive refused: valid bounded non-instance simulation scope required");
+        else
+        {
+            auto const& bounds = *scope.Bounds;
+            sMapMgr->CreateBaseMap(scope.MapId)->LoadAlwaysActiveBounds(
+                bounds.MinX, bounds.MaxX, bounds.MinY, bounds.MaxY);
+        }
+    }
+    else if (sConfigMgr->GetBoolDefault("AIWorld.ElwynnAlwaysActive", true))
         sMapMgr->CreateBaseMap(0)->LoadAlwaysActiveZone(12);
 
     std::shared_ptr<void> mapManagementHandle(nullptr, [](void*)

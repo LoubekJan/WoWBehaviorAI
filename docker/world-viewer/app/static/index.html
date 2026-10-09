@@ -11,13 +11,13 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-icon">✦</span><div><strong>AI WORLD OBSERVER</strong><small>ELWYNN FOREST · READ ONLY</small></div></div>
+    <div class="brand"><span class="brand-icon">✦</span><div><strong>AI WORLD OBSERVER</strong><small id="scope-brand">ELWYNN FOREST · READ ONLY</small></div></div>
     <div class="connection"><span id="status-dot" class="status-dot waiting"></span><span id="status-text">Čekám na telemetrii</span><span id="updated-text" class="updated"></span></div>
   </header>
 
   <main class="layout">
     <aside class="filters panel">
-      <div class="panel-heading"><span class="eyebrow">POHLED NA SVĚT</span><h1>Elwynn Forest</h1><p>Každý bod představuje jeden AgentId. Poloha je převzatá z posledního snímku worldserveru.</p></div>
+      <div class="panel-heading"><span class="eyebrow">POHLED NA SVĚT</span><h1 id="scope-name">Elwynn Forest</h1><p>Každý bod představuje jeden AgentId. Poloha je převzatá z posledního snímku worldserveru.</p></div>
       <div class="counts">
         <div><strong id="total-count">0</strong><span>agentů</span></div>
         <div><strong id="live-count">0</strong><span>live</span></div>
@@ -43,8 +43,8 @@
       <p class="hint">Kruh kolem bodu: nebezpečí. U vybraného NPC: plná čára k cíli, přerušovaná k místu přesunu nebo společníkovi.</p>
     </aside>
 
-    <section class="map-section panel" aria-label="Souřadnicová mapa Elwynn Forest">
-      <div class="map-toolbar"><div><span class="eyebrow">MAP ID 0 · ZONE 12</span><h2>Souřadnicová mapa</h2></div><div class="map-actions"><span id="visible-count">0 zobrazeno</span><button id="reset-view" type="button" title="Obnovit přiblížení">↺ Obnovit pohled</button></div></div>
+    <section id="map-section" class="map-section panel" aria-label="Souřadnicová mapa Elwynn Forest">
+      <div class="map-toolbar"><div><span id="scope-map" class="eyebrow">MAP ID 0 · ZONE 12</span><h2>Souřadnicová mapa</h2></div><div class="map-actions"><span id="visible-count">0 zobrazeno</span><button id="reset-view" type="button" title="Obnovit přiblížení">↺ Obnovit pohled</button></div></div>
       <div class="map-frame"><canvas id="map" aria-label="Mapa agentů"></canvas><div id="map-empty" class="map-empty">Čekám na první snímek worldserveru…</div><div class="map-caption">Schématický podklad · body používají skutečné souřadnice X/Y · kolečko pro přiblížení, tažením posun</div></div>
       <div class="map-footer"><span id="capture-time">Bez snímku</span><span>Zdroj polohy je uveden v detailu NPC</span></div>
     </section>

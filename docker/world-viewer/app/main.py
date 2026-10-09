@@ -1,4 +1,4 @@
-"""In-memory telemetry receiver and public, read-only Elwynn viewer."""
+"""In-memory telemetry receiver and public, read-only scoped viewer."""
 from __future__ import annotations
 
 import json
@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from .telemetry import MAX_REQUEST_BYTES, STALE_AFTER_MS, TelemetryBatch
 from .memory import MemoryPages
+from .scope import scope_from_environment
 
 APP_DIR = Path(__file__).parent
 
@@ -30,6 +31,7 @@ def create_app(telemetry_token: str | None = None) -> FastAPI:
     app.state.received_monotonic = None
     app.state.agent_ids = set()
     app.state.memory_pages = MemoryPages()
+    app.state.scope = scope_from_environment()
 
     @app.get("/health")
     def health() -> dict:
@@ -105,6 +107,7 @@ def create_app(telemetry_token: str | None = None) -> FastAPI:
         received_monotonic: float | None = app.state.received_monotonic
         age_ms = max(0, int((time.monotonic() - received_monotonic) * 1000)) if received_monotonic is not None else None
         return {
+            "scope": app.state.scope,
             "version": snapshot.version if snapshot is not None else 4,
             "configured": bool(app.state.telemetry_token),
             "captured_at_ms": snapshot.captured_at_ms if snapshot is not None else None,

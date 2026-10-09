@@ -23,11 +23,12 @@
 #include "Faction/WorldFactionId.h"
 #include "Reconciliation/SpawnParticipationMode.h"
 #include "Scheduler/StableAgentHash.h"
+#include "Simulation/SimulationScope.h"
 #include <algorithm>
 #include <cmath>
 #include <vector>
 
-// Role policy for the permanent Elwynn population. No engine or database access.
+// Role policy for the permanent simulation population. No engine or database access.
 namespace LivingRolePolicy
 {
     enum class Role : uint8 { None, Predator, Prey, Guard, Combatant, Civilian, Worker, Traveler, Service };
@@ -52,9 +53,10 @@ namespace LivingRolePolicy
         }
     }
 
-    inline bool InScope(bool enabled, AgentControlMode control, uint32 map, uint32 zone, SpawnParticipationMode participation)
+    inline bool InScope(bool enabled, AgentControlMode control, uint32 map, uint32 zone,
+        SpawnParticipationMode participation, SimulationScope const& scope = SimulationScope{})
     {
-        return enabled && control == AgentControlMode::AIWorldControlled && map == 0 && zone == 12 &&
+        return enabled && control == AgentControlMode::AIWorldControlled && scope.ContainsMapZone(map, zone) &&
             (participation == SpawnParticipationMode::FullAgent || participation == SpawnParticipationMode::LightweightBackground);
     }
 

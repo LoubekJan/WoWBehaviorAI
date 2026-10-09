@@ -358,6 +358,8 @@ class TC_GAME_API Map : public GridRefManager<NGridType>
         void LoadAllCells();
         // Startup-only: preload and continuously simulate a zone's spawn footprint.
         void LoadAlwaysActiveZone(uint32 zoneId);
+        // Explicit startup scope: cover the supplied bounds without zone padding.
+        bool LoadAlwaysActiveBounds(float minX, float maxX, float minY, float maxY);
         bool UnloadGrid(NGridType& ngrid, bool pForce);
         void GridMarkNoUnload(uint32 x, uint32 y);
         void GridUnmarkNoUnload(uint32 x, uint32 y);

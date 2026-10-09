@@ -191,9 +191,9 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
                 _path = std::make_unique<PathGenerator>(owner);
 
             Movement::PointsArray huntPoints;
-            if (_elwynnCompletePath)
+            if (_completePathScope)
             {
-                if (!Movement::BuildElwynnHuntPath(*owner, *target, *_path, huntPoints))
+                if (!Movement::BuildSimulationHuntPath(*owner, *target, *_path, huntPoints, *_completePathScope))
                 {
                     if (cOwner) cOwner->SetCannotReachTarget(true);
                     owner->StopMoving();
@@ -256,8 +256,8 @@ bool ChaseMovementGenerator::Update(Unit* owner, uint32 diff)
             AddFlag(MOVEMENTGENERATOR_FLAG_INFORM_ENABLED);
 
             Movement::MoveSplineInit init(owner);
-            init.MovebyPath(_elwynnCompletePath ? huntPoints : _path->GetPath());
-            if (_elwynnCompletePath && !owner->IsFlying()) init.SetLinear();
+            init.MovebyPath(_completePathScope ? huntPoints : _path->GetPath());
+            if (_completePathScope && !owner->IsFlying()) init.SetLinear();
             init.SetWalk(walk);
             if (!walk && !owner->HasUnitMovementFlag(MOVEMENTFLAG_FLYING | MOVEMENTFLAG_SWIMMING) &&
                 _speedBoost.GetMultiplier() > 1.0f)

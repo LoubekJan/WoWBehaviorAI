@@ -11,20 +11,23 @@ import time
 
 if __package__:
     from .record import classify, fetch_state, positive_number
+    from .scope import contains_position, normalize_scope
 else:
     from record import classify, fetch_state, positive_number
+    from scope import contains_position, normalize_scope
 
 
 def has_live_roles(state: dict) -> bool:
     if (classify(state) != "fresh" or state["version"] not in (2, 3, 4)
             or state["age_ms"] > 5000):
         return False
+    scope = normalize_scope(state.get("scope"))
     for agent in state["agents"]:
         position = agent.get("position") or {}
         role = agent.get("living_role") or {}
         if (isinstance(position, dict) and isinstance(role, dict)
                 and agent.get("control_mode") == "AI_WORLD_CONTROLLED" and agent.get("alive") is True
-                and position.get("source") == "live" and position.get("map_id") == 0
+                and position.get("source") == "live" and contains_position(scope, position)
                 and role.get("enabled") is True and not agent.get("living_wolf")
                 and role.get("status") in {"READY", "ACTIVE", "CURATED_ROUTINE", "GROUP_ACTIVITY"}):
             return True
@@ -34,15 +37,18 @@ def has_live_roles(state: dict) -> bool:
 def wait_for_telemetry(url: str, after_ms: int, timeout: float) -> dict:
     deadline = time.monotonic() + timeout
     previous_capture = None
+    previous_scope = None
     last = "waiting"
     while time.monotonic() < deadline:
         try:
             state = fetch_state(url, min(3.0, max(0.001, deadline - time.monotonic())))
             if has_live_roles(state) and state["captured_at_ms"] >= after_ms:
                 capture = state["captured_at_ms"]
-                if previous_capture is not None and capture > previous_capture:
+                scope = normalize_scope(state.get("scope"))
+                if previous_capture is not None and capture > previous_capture and scope == previous_scope:
                     return {"status": "ready", "captured_at_ms": capture, "agents": len(state["agents"])}
                 previous_capture = capture
+                previous_scope = scope
                 last = "waiting_for_advancing_capture"
             else:
                 previous_capture = None

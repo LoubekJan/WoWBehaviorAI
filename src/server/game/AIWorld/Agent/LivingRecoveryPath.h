@@ -11,6 +11,8 @@ class Creature;
 
 namespace LivingRecoveryPath
 {
+    // Engine queries use the manager's configured simulation scope for actors,
+    // fixed homes, endpoints and every sampled/intermediate route position.
     std::optional<ActionPosition> GroundHomeTarget(Creature& creature, ActionPosition const& home,
         ActionPosition const& target);
     LivingSurfaceCorridor::Status GroundLocalForageTarget(Creature& creature, ActionPosition const& from,

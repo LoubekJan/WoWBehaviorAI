@@ -20,8 +20,10 @@ import uuid
 
 if __package__:
     from .behavior import Evaluator, Policy, write_report
+    from .scope import normalize_scope, scope_from_environment
 else:
     from behavior import Evaluator, Policy, write_report
+    from scope import normalize_scope, scope_from_environment
 
 
 FORMAT_VERSION = 1
@@ -73,6 +75,8 @@ def fetch_state(url: str, timeout: float) -> dict:
         if field not in state or (state[field] is not None and
                                   (type(state[field]) is not int or state[field] < 0)):
             raise ValueError(f"Observer state has invalid {field}")
+    if "scope" in state:
+        normalize_scope(state["scope"])
     return state
 
 
@@ -141,6 +145,7 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
         "interval_seconds": args.interval, "planned_hours": args.hours,
         "max_part_mib": args.max_part_mib,
         "build_label": getattr(args, "build_label", "unknown"),
+        "scope": scope_from_environment(),
     }, max(1, int(args.max_part_mib * 1024 * 1024)))
     evaluator = (Evaluator(recording.metadata, Policy(minimum_seconds=getattr(args, "minimum_minutes", 60) * 60))
                  if getattr(args, "analyze", False) else None)
@@ -175,6 +180,15 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
             request_started = time.monotonic()
             try:
                 state = fetch_state(args.url, min(args.timeout, max(0.001, deadline - request_started)))
+                if "scope" in state:
+                    received_scope = normalize_scope(state["scope"])
+                    if received_scope != recording.metadata["scope"]:
+                        if samples == 1 and not recording.parts:
+                            recording.metadata["scope"] = received_scope
+                            if evaluator:
+                                evaluator.scope = received_scope
+                        else:
+                            raise ValueError("Observer scope changed during recording")
                 status = classify(state)
                 sample.update(status=status, state=state)
                 max_agents = max(max_agents, len(state["agents"]))

@@ -49,11 +49,15 @@ grep -Fq "${expected_revision:0:12}" <<< "$version"
 from pathlib import Path
 from tools.realm_lab.manage import Settings, render_config
 import os
-config = Path("/tmp/lab-worldserver.conf").read_text()
+settings = Settings.load(os.environ)
+config = Path("/tmp/lab-worldserver.conf").read_text(encoding="utf-8")
+template = Path("/etc/trinitycore/worldserver.conf").read_text(encoding="utf-8")
+assert config == render_config(template, settings)
 assert "Updates.EnableDatabases = 6" in config
-assert "AIWorld.Enable = 0" in config
-assert f"RealmID = {Settings.load(os.environ).realm_id}\n" in config
-print("Lab realm ID, shared-auth migration exclusion and phase-0 AI gate verified.")
+expected_enable = "1" if settings.ai_profile == "single-return" else "0"
+assert f"AIWorld.Enable = {expected_enable}\n" in config
+assert f"RealmID = {settings.realm_id}\n" in config
+print("Lab realm ID, shared-auth migration exclusion and rendered AI profile verified:", settings.ai_profile)
 '
 "${lab_compose[@]}" ps
-echo "Infrastructure deployed. Custom map and AI behavior acceptance are pending."
+echo "Lab deployed. Physical movement and return acceptance remain separate from service health."

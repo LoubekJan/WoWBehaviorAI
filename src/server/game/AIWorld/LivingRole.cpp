@@ -49,6 +49,27 @@ namespace
     using Role = LivingRolePolicy::Role;
     using Activity = LivingRolePolicy::Activity;
 
+    bool InSimulationScope(Unit const& unit)
+    {
+        return sAIWorldMgr->GetSimulationScope().Contains(unit.GetMapId(), unit.GetZoneId(),
+            unit.GetPositionX(), unit.GetPositionY(), unit.GetPositionZ());
+    }
+
+    bool InSimulationScope(Creature const& creature, float x, float y, float z)
+    {
+        auto const& scope = sAIWorldMgr->GetSimulationScope();
+        return scope.ContainsPosition(creature.GetMapId(), x, y, z) &&
+            scope.ContainsMapZone(creature.GetMapId(), creature.GetMap()->GetZoneId(creature.GetPhaseMask(), x, y, z));
+    }
+
+    char const* OutsideScopeStatus(bool prey = false)
+    {
+        auto const& scope = sAIWorldMgr->GetSimulationScope();
+        bool legacy = scope.MapId == 0 && scope.ZoneIds == std::vector<uint32>{12} && !scope.Bounds;
+        return prey ? (legacy ? "PREY_OUTSIDE_ELWYNN" : "PREY_OUTSIDE_SCOPE") :
+            (legacy ? "OUTSIDE_ELWYNN" : "OUTSIDE_SCOPE");
+    }
+
     bool IsService(Creature const& creature)
     {
         return creature.IsVendor() || creature.IsTrainer() || creature.IsTaxi() || creature.IsBanker() ||
@@ -138,7 +159,7 @@ namespace
             destination.Z = *ground;
         }
         if (diagnostics) diagnostics->ResolvedZ = destination.Z;
-        if (map->GetZoneId(creature.GetPhaseMask(), destination.X, destination.Y, destination.Z) != 12)
+        if (!InSimulationScope(creature, destination.X, destination.Y, destination.Z))
             return reject("RETURN_OUTSIDE_ZONE", LivingReturnPolicy::Zone);
         if (diagnostics)
         {
@@ -172,7 +193,7 @@ namespace
             !creature.IsWithinLOS(destination.X, destination.Y, destination.Z))
             return reject("RETURN_LOS_BLOCKED", LivingReturnPolicy::Los);
         if (!Movement::PathWithinBounds(path.GetPath(), [&](float x, float y, float z)
-            { return map->GetZoneId(creature.GetPhaseMask(), x, y, z) == 12 &&
+            { return InSimulationScope(creature, x, y, z) &&
                 (!homeBound || homeBound->GetExactDist2d(x, y) <= homeRadius); }))
             return reject("RETURN_PATH_BOUNDS", LivingReturnPolicy::Bounds);
         auto const& end = path.GetPath().back();
@@ -428,8 +449,8 @@ namespace
 
 bool AIWorldMgr::CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creature const& prey) const
 {
-    if (!_enabled || !_livingRolesEnabled || &hunter == &prey || hunter.GetMapId() != 0 ||
-        hunter.GetZoneId() != 12 || prey.GetZoneId() != 12 || !hunter.IsInMap(&prey) ||
+    if (!_enabled || !_livingRolesEnabled || &hunter == &prey || !InSimulationScope(hunter) ||
+        !InSimulationScope(prey) || !GetSimulationScope().ContainsActor(hunter.GetMapId(), hunter.GetSpawnId()) || !hunter.IsInMap(&prey) ||
         !hunter.IsAlive() || !prey.IsAlive() || hunter.IsPet() || prey.IsPet() ||
         !hunter.GetCharmerOrOwnerGUID().IsEmpty() || !prey.GetCharmerOrOwnerGUID().IsEmpty() ||
         hunter.IsControlledByPlayer() || prey.IsControlledByPlayer() || IsService(prey) || prey.IsQuestGiver())
@@ -437,7 +458,7 @@ bool AIWorldMgr::CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creatu
     AgentRecord const* record = _registry.FindBySpawn(hunter.GetMapId(), hunter.GetSpawnId());
     if (!record || record->WorldState != AgentWorldState::Materialized || record->RuntimeGuid != hunter.GetGUID() ||
         IsLivingWolf(*record) || !LivingRolePolicy::InScope(true, record->ControlMode, hunter.GetMapId(),
-            hunter.GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId)))
+            hunter.GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId), GetSimulationScope()))
         return false;
     // Use the raw native lookup, never GetReactionTo/IsFriendlyTo here: those
     // call this bridge and would recurse. Both sides must actually be neutral.
@@ -542,9 +563,10 @@ AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& c
     else if (IsLivingWolf(*record)) info.Status = "WOLF_PACK_CYCLE";
     else if (!_livingRolesEnabled) info.Status = "DISABLED";
     else if (record->ControlMode != AgentControlMode::AIWorldControlled) info.Status = "OBSERVE_ONLY";
-    else if (creature.GetMapId() != 0 || creature.GetZoneId() != 12) info.Status = "OUTSIDE_ELWYNN";
+    else if (!InSimulationScope(creature) || !GetSimulationScope().ContainsActor(creature.GetMapId(), creature.GetSpawnId()))
+        info.Status = OutsideScopeStatus();
     else if (!LivingRolePolicy::InScope(true, record->ControlMode, creature.GetMapId(), creature.GetZoneId(),
-        _spawnParticipationCatalog.Resolve(record->SpawnId))) info.Status = "PARTICIPATION_EXCLUDED";
+        _spawnParticipationCatalog.Resolve(record->SpawnId), GetSimulationScope())) info.Status = "PARTICIPATION_EXCLUDED";
     else if (role == Role::None) info.Status = "UNCLASSIFIED";
     else if (creature.IsPet() || creature.IsCharmed()) info.Status = "PET_OR_CHARMED";
     else if (!creature.IsAlive()) info.Status = "ACTOR_DEAD";
@@ -612,12 +634,13 @@ void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
 }
 
 // World thread, at the existing needs cadence. This owns only controlled,
-// classified permanent Elwynn NPCs; the proven wolf pack retains its own cycle.
+// classified permanent simulation NPCs; the proven wolf pack retains its own cycle.
 bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint64 nowMs)
 {
     auto& state = record.LivingRole;
     bool scoped = LivingRolePolicy::InScope(_livingRolesEnabled, record.ControlMode, creature.GetMapId(),
-        creature.GetZoneId(), _spawnParticipationCatalog.Resolve(record.SpawnId));
+        creature.GetZoneId(), _spawnParticipationCatalog.Resolve(record.SpawnId), GetSimulationScope()) &&
+        InSimulationScope(creature) && GetSimulationScope().ContainsActor(creature.GetMapId(), creature.GetSpawnId());
     bool service = IsService(creature);
     Role role = LivingRolePolicy::Resolve(record.Type, creature.GetEntry(), service);
     if (!scoped || role == Role::None || IsLivingWolf(record) || creature.IsPet() ||
@@ -792,7 +815,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     auto validThreat = [&](Unit* unit)
     {
         return unit && unit->IsAlive() && creature.IsValidAttackTarget(unit) &&
-            unit->GetZoneId() == 12 && creature.IsWithinDistInMap(unit, 30.0f) && creature.IsWithinLOSInMap(unit);
+            InSimulationScope(*unit) && creature.IsWithinDistInMap(unit, 30.0f) && creature.IsWithinLOSInMap(unit);
     };
     if (!validThreat(threat))
         threat = nullptr;
@@ -802,7 +825,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         for (auto const& combat : creature.GetCombatManager().GetPvECombatRefs())
         {
             Unit* other = combat.second->GetOther(&creature);
-            bool mayFlee = !LivingRolePolicy::Fighter(role) && other && other->IsAlive() && other->GetZoneId() == 12 &&
+            bool mayFlee = !LivingRolePolicy::Fighter(role) && other && other->IsAlive() && InSimulationScope(*other) &&
                 creature.IsWithinDistInMap(other, 30.0f) && creature.IsWithinLOSInMap(other);
             if ((validThreat(other) || mayFlee) && (!threat || other->GetGUID() < threat->GetGUID()))
                 threat = other;
@@ -812,7 +835,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     bool extensions = _livingRoleExtensionsEnabled;
     auto visibleDanger = [&](Unit* unit)
     {
-        return unit && unit != &creature && unit->IsAlive() && unit->GetZoneId() == 12 &&
+        return unit && unit != &creature && unit->IsAlive() && InSimulationScope(*unit) &&
             creature.IsWithinDistInMap(unit, 30.0f) && creature.CanSeeOrDetect(unit) && creature.IsWithinLOSInMap(unit);
     };
     auto eligibleMember = [&](Creature* npc) -> AgentRecord const*
@@ -821,8 +844,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             return nullptr;
         AgentRecord const* member = _registry.FindBySpawn(npc->GetMapId(), npc->GetSpawnId());
         return member && member->WorldState == AgentWorldState::Materialized && member->RuntimeGuid == npc->GetGUID() &&
+            InSimulationScope(*npc) && GetSimulationScope().ContainsActor(npc->GetMapId(), npc->GetSpawnId()) &&
             LivingRolePolicy::InScope(true, member->ControlMode, npc->GetMapId(), npc->GetZoneId(),
-                _spawnParticipationCatalog.Resolve(member->SpawnId)) ? member : nullptr;
+                _spawnParticipationCatalog.Resolve(member->SpawnId), GetSimulationScope()) ? member : nullptr;
     };
 
     // Reuse a small local grid query only when due, never the entire registry.
@@ -868,7 +892,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         loadNearby();
         for (Creature* ally : nearby)
         {
-            if (ally == &creature || !ally->IsAlive() || ally->GetZoneId() != 12 ||
+            if (ally == &creature || !ally->IsAlive() || !InSimulationScope(*ally) ||
                 !creature.CanSeeOrDetect(ally) || !creature.IsWithinLOSInMap(ally))
                 continue;
             AgentRecord const* member = eligibleMember(ally);
@@ -1016,6 +1040,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             request.Recovery = approvedRecovery;
         }
         ActionValidationContext context;
+        context.Scope = GetSimulationScope();
         context.ControlMode = record.ControlMode;
         context.Materialized = record.WorldState == AgentWorldState::Materialized;
         context.Alive = creature.IsAlive();
@@ -1048,7 +1073,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 request.AmbientActivity == Activity::Talk ? 6.0f : 30.0f);
             context.TargetInLineOfSight = creature.IsWithinLOSInMap(target);
             context.TargetIsRolePrey = target->GetTypeId() == TYPEID_UNIT &&
-                _agentTypeCatalog.Resolve(target->GetEntry()) == AgentType::Prey && target->GetZoneId() == 12;
+                _agentTypeCatalog.Resolve(target->GetEntry()) == AgentType::Prey && InSimulationScope(*target);
             if (AgentRecord const* partner = eligibleMember(target->ToCreature()))
                 context.TargetIsSocialPartner = !target->IsInCombat() && target->IsStopped() &&
                     !LivingRolePolicy::Wildlife(LivingRolePolicy::Resolve(partner->Type, target->GetEntry(), false)) &&
@@ -1334,7 +1359,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         };
         char const* stopReason = nullptr;
         if (!prey) stopReason = "PREY_GONE";
-        else if (prey->GetZoneId() != 12) stopReason = "PREY_OUTSIDE_ELWYNN";
+        else if (!InSimulationScope(*prey)) stopReason = OutsideScopeStatus(true);
         else if (!creature.IsWithinDistInMap(prey, 30.0f)) stopReason = "PREY_OUT_OF_RANGE";
         else if (!creature.IsWithinLOSInMap(prey)) stopReason = "PREY_LOST_LOS";
         else if (creature.GetDistance(state.Destination.X, state.Destination.Y, state.Destination.Z) > LivingHuntPolicy::LeashDistance)
@@ -1781,7 +1806,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             if (state.Refuge.Active(nowMs)) continue;
             if (_agentTypeCatalog.Resolve(candidate->GetEntry()) != AgentType::Prey || !candidate->IsAlive() ||
                 candidate->IsPet() || !candidate->GetCharmerOrOwnerGUID().IsEmpty() || candidate->IsControlledByPlayer() ||
-                IsService(*candidate) || candidate->IsQuestGiver() || candidate->GetZoneId() != 12)
+                IsService(*candidate) || candidate->IsQuestGiver() || !InSimulationScope(*candidate))
                 continue;
             ++state.NearbyPrey;
             ++state.Forage.NearbyPrey;
@@ -1820,7 +1845,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             if (!work) return deferPlanning();
             PathGenerator path(&creature);
             Movement::PointsArray huntPath;
-            if (Movement::BuildElwynnHuntPath(creature, *candidate, path, huntPath))
+            if (Movement::BuildSimulationHuntPath(creature, *candidate, path, huntPath, GetSimulationScope()))
             {
                 ++state.Forage.ReachablePrey;
                 ActionRequest hunt;

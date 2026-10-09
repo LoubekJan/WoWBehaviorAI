@@ -372,7 +372,8 @@ proto musí proběhnout na vybaveném hostu.
 - [ ] Uložit číselný výpis `.gps` se správným MapID/AreaID a výškou podlahy.
 - [x] Samostatně ověřit navmesh: všech pět kontrolních bodů a osm úplných tras v obou směrech; zopakovat nad nasazenými daty.
 - [ ] Ve hře pomocí `.gps` a `.mmap` potvrdit polohu, podlahu a navigaci kolem kontrolních bodů.
-- [ ] Ověřit běžný fyzický pohyb jednoho NPC mezi těmito body bez zapnutých living rolí.
+- [x] Ověřit první fyzický pohyb jednoho NPC a nativní návrat bez living rolí; uživatel potvrdil nejméně jeden cyklus.
+- [ ] Zaznamenat ověření nativního pohybu ze všech čtyř směrů.
 
 Po nasazení shodných dat se v herním chatu GM postavy na lab realmu
 použije `.go xyz 266.667 800 2 725` (pořadí X, Y, Z, MapID). Před `.gps`
@@ -411,9 +412,30 @@ Dočasný spawn se nezapisuje do DB. `follow stop` pouze odstraní
 následování; návrat spouští `evade` a používá původní runtime home.
 Tento test ověřuje nativní pohyb a návrat serveru. HomeMovementGenerator
 může použít přímou náhradní trasu; úspěch proto sám o sobě nepotvrdí
-AIWorld recovery ani striktní použití navmeshe při návratu.
+AIWorld recovery ani striktní použití navmeshe při návratu. Uživatel
+potvrdil „ano vše fungovalo“; zaznamenán je nejméně jeden úspěšný cyklus.
 
 ### 5. Přenos potřebných částí AI do labu
+
+Připravený profil `single-return` používá mapu 725, root oblast 4988 a
+region 200 × 200 yardů z `test-points.json`. Přebírá jediný persistentní
+spawn **900725 / Elder Black Bear 1186** s domovem `(266.667, 800, 0)`.
+Bootstrap nejprve nastaví Observe mode, aktivace vyžaduje samostatný
+ověřený krok. Staré záznamy Elwynnu zůstávají v lab DB; nejsou členy
+aktivního runtime. Výchozí `LAB_AI_PROFILE=disabled` zůstává bezpečným
+startovním stavem.
+
+`SimulationScope` je společná definice mapy, root zón, hranic a členství.
+Living, striktní návratové cesty, chase a telemetrie ji používají bez
+přepisování individuálního home. Rozsah gridů se načítá bez paddingu,
+aby jedna dlaždice nevyžadovala okolní ADT. Observer a recorder odvozují
+stejné hranice z verzovaných souřadnic a uchovávají i pozorování NPC,
+které později opustí region.
+
+První profil zapíná living a telemetrii, ale vypíná všechny vzdálené
+AI požadavky, skupiny, růst hladu/únavy a vývoj zdrojové potřeby,
+modelové rady a automatické Elwynn piloty. Běh bez hráče a fyzické
+návraty se musí ověřit po nasazení; samotná kompilace je nepotvrzuje.
 
 - [ ] Zavést jednu společnou definici mapy, povolených oblastí a hranic simulace.
 - [ ] Nahradit rozptýlené předpoklady map 0 / zone 12 v living, lovu, návratu, perception, validátorech a chase. Zahrnout `LivingRolePolicy`, `LivingRole.cpp`, `LivingWolf.cpp`, `LivingRecoveryPath.cpp`, `ActionSystem` a `ElwynnHuntPath`.

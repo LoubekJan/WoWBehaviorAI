@@ -31,8 +31,20 @@ const ObserverModel = (() => {
       Boolean(role && ((role.awareness && role.awareness !== "QUIET") || role.danger_remaining_ms > 0 || role.alarm_remaining_ms > 0));
   }
   function blocked(agent) { return Boolean(agent.movement?.blocked || agent.movement?.cannot_reach_target); }
-  function matches(agent, f) {
-    return agent.position.map_id === 0 &&
+  function viewport(scope) {
+    if (!scope?.bounds) return { north: -8100, south: -10250, west: 900, east: -1750 };
+    return { north: scope.bounds.max_x, south: scope.bounds.min_x,
+      west: scope.bounds.max_y, east: scope.bounds.min_y };
+  }
+  function project(position, bounds, width, height, zoom = 1, panX = 0, panY = 0) {
+    const scale = Math.min(width / (bounds.west - bounds.east), height / (bounds.north - bounds.south)) * 0.92 * zoom;
+    return { x: width / 2 + ((bounds.west + bounds.east) / 2 - position.y) * scale + panX,
+      y: height / 2 + ((bounds.north + bounds.south) / 2 - position.x) * scale + panY };
+  }
+  function matches(agent, f, scope = { map_id: 0 }) {
+    // Keep escaped points on this map visible; bounds govern simulation and
+    // viewport size, not whether the observer retains the diagnostic.
+    return agent.position.map_id === scope.map_id &&
       (!f.query || `${agent.name || ""} ${agent.agent_id} ${agent.spawn_id}`.toLocaleLowerCase("cs").includes(f.query)) &&
       (!f.type || agent.type === f.type) && (!f.faction || String(agent.world_faction) === f.faction) &&
       (!f.role || (agent.living_wolf ? "WOLF_PACK" : agent.living_role?.role) === f.role) &&
@@ -41,6 +53,6 @@ const ObserverModel = (() => {
       (!f.goal || Boolean(goal(agent))) && (!f.hunger || agent.needs.hunger > 0.7) &&
       (!f.alert || alert(agent)) && (!f.blocked || blocked(agent));
   }
-  return { goal, phase, groupIds, alert, blocked, matches, phaseColors };
+  return { goal, phase, groupIds, alert, blocked, matches, viewport, project, phaseColors };
 })();
 if (typeof module !== "undefined") module.exports = ObserverModel;

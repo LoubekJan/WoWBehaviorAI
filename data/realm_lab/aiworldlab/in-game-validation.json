@@ -14,7 +14,10 @@
     "all_four_return_points_checked": "pending"
   },
   "npc_test": {
-    "status": "prepared_not_executed",
+    "status": "confirmed_by_user",
+    "confirmation_text": "ano vše fungovalo",
+    "minimum_confirmed_follow_return_cycles": 1,
+    "all_four_directions_checked": "pending_user_detail",
     "entry": 1186,
     "name": "Elder Black Bear",
     "template_verified_in_lab_database": true,

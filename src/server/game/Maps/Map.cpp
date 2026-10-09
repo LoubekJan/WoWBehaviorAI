@@ -303,6 +303,42 @@ void Map::LoadAlwaysActiveZone(uint32 zoneId)
         grids.back().x_coord, grids.back().y_coord, _alwaysActiveGrids.size());
 }
 
+bool Map::LoadAlwaysActiveBounds(float minX, float maxX, float minY, float maxY)
+{
+    AlwaysActiveZoneCoverage coverage;
+    if (Instanceable() || !coverage.AddBounds(minX, maxX, minY, maxY))
+    {
+        TC_LOG_ERROR("maps", "Always-active bounds refused on map {}: invalid map or bounds", GetId());
+        return false;
+    }
+
+    std::vector<GridCoord> grids = coverage.GetGrids(0);
+    // Validate the complete footprint before activating anything. Custom maps
+    // may have only one terrain tile; no implicit neighboring grids are loaded.
+    for (GridCoord const& coord : grids)
+        if (!ExistMap(GetId(), (MAX_NUMBER_OF_GRIDS - 1) - coord.x_coord,
+            (MAX_NUMBER_OF_GRIDS - 1) - coord.y_coord))
+        {
+            TC_LOG_ERROR("maps", "Always-active bounds refused on map {}: missing terrain grid {}, {}",
+                GetId(), coord.x_coord, coord.y_coord);
+            return false;
+        }
+
+    for (GridCoord const& coord : grids)
+    {
+        if (std::find(_alwaysActiveGrids.begin(), _alwaysActiveGrids.end(), coord) != _alwaysActiveGrids.end())
+            continue;
+        GridMarkNoUnload(coord.x_coord, coord.y_coord);
+        NGridType* grid = getNGrid(coord.x_coord, coord.y_coord);
+        grid->SetGridState(GRID_STATE_ACTIVE);
+        ResetGridExpiry(*grid, 0.1f);
+        _alwaysActiveGrids.push_back(coord);
+    }
+    TC_LOG_INFO("maps", "Always-active bounds on map {}: X [{}, {}], Y [{}, {}], {} persistent grids without padding",
+        GetId(), minX, maxX, minY, maxY, grids.size());
+    return true;
+}
+
 void Map::InitStateMachine()
 {
     si_GridStates[GRID_STATE_INVALID] = new InvalidState;

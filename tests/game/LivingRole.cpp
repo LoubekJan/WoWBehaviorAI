@@ -124,6 +124,103 @@ TEST_CASE("Living roles only cover controlled permanent Elwynn agents", "[AIWorl
     REQUIRE(!InScope(true, AgentControlMode::AIWorldControlled, 0, 12, SpawnParticipationMode(255)));
 }
 
+TEST_CASE("Configured living policy admits the lab root zone and preserves the Elwynn default", "[AIWorld][LivingRole][SimulationScope]")
+{
+    using namespace LivingRolePolicy;
+    SimulationScope lab;
+    lab.MapId = 725;
+    lab.ZoneIds = {4988};
+    lab.Bounds = SimulationBounds{166.667f, 366.667f, 700.0f, 900.0f};
+    REQUIRE(InScope(true, AgentControlMode::AIWorldControlled, 725, 4988, SpawnParticipationMode::FullAgent, lab));
+    REQUIRE(InScope(true, AgentControlMode::AIWorldControlled, 725, 4988, SpawnParticipationMode::LightweightBackground, lab));
+    REQUIRE_FALSE(InScope(true, AgentControlMode::AIWorldControlled, 0, 4988, SpawnParticipationMode::FullAgent, lab));
+    REQUIRE_FALSE(InScope(true, AgentControlMode::AIWorldControlled, 725, 12, SpawnParticipationMode::FullAgent, lab));
+    REQUIRE_FALSE(InScope(true, AgentControlMode::ObserveOnly, 725, 4988, SpawnParticipationMode::FullAgent, lab));
+    REQUIRE_FALSE(InScope(true, AgentControlMode::AIWorldControlled, 725, 4988, SpawnParticipationMode::Excluded, lab));
+    REQUIRE_FALSE(InScope(true, AgentControlMode::AIWorldControlled, 725, 4988, SpawnParticipationMode::FullAgent));
+    REQUIRE(InScope(true, AgentControlMode::AIWorldControlled, 0, 12, SpawnParticipationMode::FullAgent));
+}
+
+TEST_CASE("Lab living actions require their configured map root zone and actor rectangle", "[AIWorld][LivingRole][SimulationScope]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::Ambient;
+    request.SourceGoal = GoalType::LocalActivity;
+    request.AmbientActivity = LivingRolePolicy::Activity::Look;
+    ActionValidationContext context;
+    context.Scope.MapId = context.MapId = 725;
+    context.Scope.ZoneIds = {4988};
+    context.Scope.Bounds = SimulationBounds{166.667f, 366.667f, 700.0f, 900.0f};
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = true;
+    context.LivingRoleZoneId = 4988;
+    context.X = 266.667f; context.Y = 800.0f;
+    context.LivingRole = LivingRolePolicy::Role::Predator;
+    context.ExpectedAmbientActivity = request.AmbientActivity;
+    context.ActiveGoalType = request.SourceGoal;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    SECTION("wrong map") { context.MapId = 0; }
+    SECTION("wrong root zone") { context.LivingRoleZoneId = 12; }
+    SECTION("actor beyond X") { context.X = 367.0f; }
+    SECTION("actor beyond Y") { context.Y = 699.0f; }
+    SECTION("nonfinite actor") { context.Z = std::numeric_limits<float>::quiet_NaN(); }
+    SECTION("default scope rejects lab") { context.Scope = SimulationScope{}; }
+    REQUIRE(actions.Validate(request, context).Reason == ActionRejectReason::GoalMismatch);
+}
+
+TEST_CASE("Approved lab recovery cannot authorize geometry outside its rectangle", "[AIWorld][LivingRole][Return][SimulationScope]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::MoveTo;
+    request.SourceGoal = GoalType::LocalActivity;
+    request.Destination = ActionPosition{725, 360.0f, 800.0f, 0.0f};
+    request.Recovery = RecoveryMovement{*request.Destination, {725, 266.667f, 800.0f, 0.0f}, 100.0f, std::nullopt, false};
+    ActionValidationContext context;
+    context.Scope.MapId = context.MapId = 725;
+    context.Scope.ZoneIds = {4988};
+    context.Scope.Bounds = SimulationBounds{166.667f, 366.667f, 700.0f, 900.0f};
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = context.LivingRoleAllowed = true;
+    context.LivingRoleZoneId = 4988;
+    context.X = 350.0f; context.Y = 800.0f;
+    context.LivingRole = LivingRolePolicy::Role::Predator;
+    context.ActiveGoalType = request.SourceGoal;
+    context.ApprovedRecovery = request.Recovery;
+    REQUIRE(actions.Validate(request, context).Allowed);
+    SECTION("approved endpoint beyond scope")
+    {
+        request.Destination->X = request.Recovery->Destination.X = 370.0f;
+    }
+    SECTION("approved home beyond scope") { request.Recovery->Home.Y = 699.0f; }
+    SECTION("approved home on another map") { request.Recovery->Home.MapId = 0; }
+    SECTION("approved navigation query beyond scope")
+    {
+        request.Recovery->QueryDestination = ActionPosition{725, 370.0f, 800.0f, 0.0f};
+    }
+    context.ApprovedRecovery = request.Recovery;
+    REQUIRE(actions.Validate(request, context).Reason == ActionRejectReason::GoalMismatch);
+}
+
+TEST_CASE("Simulation rectangle does not change generic routine movement", "[AIWorld][LivingRole][SimulationScope]")
+{
+    ActionSystem actions;
+    ActionRequest request;
+    request.Type = ActionType::MoveTo;
+    request.SourceGoal = GoalType::GoHome;
+    request.Destination = ActionPosition{725, 390.0f, 800.0f, 0.0f};
+    ActionValidationContext context;
+    context.Scope.MapId = context.MapId = 725;
+    context.Scope.ZoneIds = {4988};
+    context.Scope.Bounds = SimulationBounds{166.667f, 366.667f, 700.0f, 900.0f};
+    context.ControlMode = AgentControlMode::AIWorldControlled;
+    context.Materialized = context.Alive = true;
+    context.X = 350.0f; context.Y = 800.0f;
+    context.ActiveGoalType = request.SourceGoal;
+    REQUIRE(actions.Validate(request, context).Allowed);
+}
+
 TEST_CASE("Living roles retain distinct ecology professions and service posts", "[AIWorld][LivingRole]")
 {
     using namespace LivingRolePolicy;

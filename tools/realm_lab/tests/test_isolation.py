@@ -42,6 +42,16 @@ class RealmIsolationTests(unittest.TestCase):
             else:
                 self.assertNotIn("shared-auth", service.get("networks", []))
 
+    def test_lab_observer_and_recorder_derive_scope_from_readonly_metadata(self):
+        lab = document("compose.lab.yml")
+        self.assertEqual(lab["services"]["worldserver"]["environment"]["LAB_AI_PROFILE"], "${LAB_AI_PROFILE:-disabled}")
+        for service in ("worldserver", "world-viewer", "aiworld-recorder"):
+            mounts = lab["services"][service]["volumes"]
+            self.assertIn("./data/realm_lab:/workspace/data/realm_lab:ro", mounts)
+        for service in ("world-viewer", "aiworld-recorder"):
+            self.assertIn("/workspace/tools/realm_lab/run_scoped.py", lab["services"][service]["command"])
+        self.assertIn("./docker/world-viewer/app/scope.py:/scope.py:ro", lab["services"]["aiworld-recorder"]["volumes"])
+
     def test_ci_volumes_do_not_overlap_runtime_and_need_no_auth_network(self):
         lab = document("compose.lab.yml")
         ci = document("compose.lab.ci.yml")
