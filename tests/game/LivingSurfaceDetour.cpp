@@ -150,7 +150,8 @@ TEST_CASE("Recovery navigation narrow graph refinement retains edge limits and r
     {
         FinishDetour(search, from, home, 3, flatDetour, blocked, boxDetour, homeBand(home,3));
         CHECK(search.Spacing == NarrowGridStep);
-        CHECK(search.EdgeAttempts == 16);
+        CHECK(search.EdgeAttempts == 24);
+        CHECK(search.RotatedGrid);
         CHECK(search.Nodes.size() == 1);
         CHECK(std::string(search.Failure) == "SURFACE_DETOUR_EXHAUSTED");
     }
@@ -162,16 +163,130 @@ TEST_CASE("Recovery navigation narrow graph refinement retains edge limits and r
         CHECK(search.EdgeAttempts == 9);
         CHECK(std::string(search.Failure) == "SURFACE_DETOUR_EDGE_LIMIT");
     }
+    SECTION("edge limit shared with interleaved headings")
+    {
+        search.EdgeLimit = 17;
+        FinishDetour(search, from, home, 3, flatDetour, blocked, boxDetour, homeBand(home,3));
+        CHECK(search.RotatedGrid);
+        CHECK(search.EdgeAttempts == 17);
+        CHECK(std::string(search.Failure) == "SURFACE_DETOUR_EDGE_LIMIT");
+    }
     SECTION("cliff around the origin")
     {
         auto cliff = [](ActionPosition const& p) -> std::optional<float>
         { return std::hypot(p.X,p.Y) < 0.6f ? 0.0f : -3.0f; };
         FinishDetour(search, from, home, 3, cliff, clearDetour, boxDetour, homeBand(home,3));
         CHECK(search.Spacing == NarrowGridStep);
-        CHECK(search.EdgeAttempts == 16);
+        CHECK(search.EdgeAttempts == 24);
     }
     REQUIRE(search.State == Status::Rejected);
     CHECK(search.Route.empty());
+}
+
+TEST_CASE("Recovery navigation refines an exhausted multi-node pocket without discarding checked work", "[AIWorld][RecoveryNavigation][SurfaceDetour]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{0,0,0,0}, home{0,15,1.25f,0};
+    // Three coarse nodes can be reached, but the supported exit turns between
+    // their neighbours. The old origin-only refinement stopped at 3/22.
+    auto supported = [](ActionPosition const& p)
+    {
+        return (p.X >= -0.1f && p.X <= 5.1f && std::abs(p.Y) <= 0.1f) ||
+            (std::abs(p.X-5) <= 0.1f && p.Y >= -0.1f && p.Y <= 1.35f) ||
+            (p.X >= 4.9f && p.X <= 16 && std::abs(p.Y-1.25f) <= 0.1f);
+    };
+    auto floor = [&](ActionPosition const& p) -> std::optional<float>
+    { return supported(p) ? std::optional<float>(0.0f) : std::nullopt; };
+    Search search;
+    SECTION("complete supported route") {}
+    SECTION("shared edge budget") { search.EdgeLimit = 23; }
+    SECTION("shared node budget") { search.NodeLimit = 4; }
+    unsigned calls = 0;
+    do
+    {
+        REQUIRE(Advance(search,from,home,2,96,floor,clearDetour,supported,homeBand(home,2)) == Status::Pending);
+        REQUIRE(++calls < 100);
+    } while (!search.Open.empty() || search.EdgeActive || search.NextDirection != 8);
+    REQUIRE(search.Nodes.size() == 3);
+    REQUIRE(search.EdgeAttempts == 22);
+    REQUIRE(search.Spacing == GridStep);
+    auto checked = search.Nodes;
+    REQUIRE(Advance(search,from,home,2,96,floor,clearDetour,supported,homeBand(home,2),0) == Status::Pending);
+    CHECK(search.Spacing == GridStep); // yielding performs no refinement work
+    REQUIRE(Advance(search,from,home,2,96,floor,clearDetour,supported,homeBand(home,2),1) == Status::Pending);
+    REQUIRE(search.Spacing == NarrowGridStep);
+    CHECK(search.EdgeAttempts == 23);
+    REQUIRE(search.Nodes.size() == checked.size());
+    for (unsigned i = 0; i < checked.size(); ++i)
+    {
+        CHECK(Same(search.Nodes[i].Position,checked[i].Position));
+        CHECK(search.Nodes[i].Parent == checked[i].Parent);
+        CHECK(search.Nodes[i].Cost == checked[i].Cost);
+        CHECK(search.Index.at(Key(checked[i].X*2,checked[i].Y*2)) == i);
+    }
+    FinishDetour(search,from,home,2,floor,clearDetour,supported,homeBand(home,2));
+    CHECK_FALSE(search.RotatedGrid);
+    if (search.EdgeLimit == 23)
+    {
+        CHECK(std::string(search.Failure) == "SURFACE_DETOUR_EDGE_LIMIT");
+        CHECK(search.EdgeAttempts == 23);
+    }
+    else if (search.NodeLimit == 4)
+    {
+        CHECK(std::string(search.Failure) == "SURFACE_DETOUR_NODE_LIMIT");
+        CHECK(search.Nodes.size() == 4);
+    }
+    else
+    {
+        REQUIRE(search.State == Status::Complete);
+        REQUIRE_FALSE(search.Route.empty());
+        auto previous = from;
+        for (auto const& endpoint : search.Route)
+        {
+            REQUIRE(std::hypot(endpoint.X-previous.X,endpoint.Y-previous.Y,endpoint.Z-previous.Z) > 1);
+            LivingSurfaceCorridor::Search execution;
+            REQUIRE(LivingSurfaceCorridor::Advance(execution,previous,endpoint,
+                floor,clearDetour,supported,12) == Status::Complete);
+            previous = endpoint;
+        }
+        CHECK(homeBand(home,2)(previous));
+    }
+}
+
+TEST_CASE("Recovery navigation checks interleaved headings for an isolated supported endpoint", "[AIWorld][RecoveryNavigation][SurfaceDetour]")
+{
+    using namespace LivingSurfaceDetour;
+    constexpr float cosine = 0.923879533f, sine = 0.382683432f;
+    ActionPosition from{0,0,0,0}, home{0,15*cosine,15*sine,3};
+    auto supported = [&](ActionPosition const& p)
+    {
+        float along = p.X*cosine+p.Y*sine, across = p.Y*cosine-p.X*sine;
+        return along >= -0.1f && along <= 16 && std::abs(across) <= 0.1f;
+    };
+    auto ramp = [&](ActionPosition const& p) -> std::optional<float>
+    { if (!supported(p)) return std::nullopt; return 0.2f*(p.X*cosine+p.Y*sine); };
+    auto goal = [&](ActionPosition const& p)
+    {
+        auto floor = ramp(p);
+        return floor && std::hypot(p.X-home.X,p.Y-home.Y) <= 2 && std::abs(p.Z-*floor) < 0.01f;
+    };
+    Search search;
+    FinishDetour(search,from,home,2,ramp,clearDetour,supported,goal);
+    REQUIRE(search.State == Status::Complete);
+    REQUIRE(search.RotatedGrid);
+    CHECK(search.Spacing == NarrowGridStep);
+    CHECK(search.EdgeAttempts > 16);
+    REQUIRE_FALSE(search.Route.empty());
+    auto previous = from;
+    for (auto const& endpoint : search.Route)
+    {
+        REQUIRE(std::hypot(endpoint.X-previous.X,endpoint.Y-previous.Y,endpoint.Z-previous.Z) > 1);
+        LivingSurfaceCorridor::Search execution;
+        REQUIRE(LivingSurfaceCorridor::Advance(execution,previous,endpoint,
+            ramp,clearDetour,supported,12) == Status::Complete);
+        previous = endpoint;
+    }
+    CHECK(goal(previous));
 }
 
 TEST_CASE("Recovery navigation surface detour yields without callbacks and resumes its pending edge", "[AIWorld][RecoveryNavigation][SurfaceDetour]")

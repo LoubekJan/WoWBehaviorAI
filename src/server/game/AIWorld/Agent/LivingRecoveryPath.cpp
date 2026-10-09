@@ -54,12 +54,14 @@ namespace LivingRecoveryPath
             });
     }
     LivingSurfaceCorridor::Status GroundLocalForageTarget(Creature& creature, ActionPosition const& from,
-        ActionPosition const& target, LivingForageGroundSearch& search)
+        ActionPosition const& target, LivingForageGroundSearch& search, bool retainSupportedPrefix)
     {
         return search.Advance(from, target,
             [&](ActionPosition const& p)
             { return TerrainHeight(creature, p, LivingReturnPolicy::SamePosition(p, from) ? 0.3f : 0.8f); },
-            [&](ActionPosition const& a, ActionPosition const& b) { return ClearGroundSegment(creature, a, b); });
+            [&](ActionPosition const& a, ActionPosition const& b)
+            { return retainSupportedPrefix ? ClearSurfaceBody(creature, a, b) : ClearGroundSegment(creature, a, b); },
+            retainSupportedPrefix);
     }
 
     std::optional<ActionPosition> Toward(Creature& creature, ActionPosition const& target,
@@ -464,8 +466,12 @@ namespace LivingRecoveryPath
                         { return TerrainHeight(creature, {from.MapId, p.x, p.y, p.z},
                             p.x == origin.x && p.y == origin.y && p.z == origin.z ? 0.3f : 0.8f); },
                         [&](G3D::Vector3 const& a, G3D::Vector3 const& b)
-                        { return ClearSurfaceBody(creature, {from.MapId, a.x, a.y, a.z},
-                            {from.MapId, b.x, b.y, b.z}); },
+                        {
+                            if (ClearSurfaceBody(creature, {from.MapId, a.x, a.y, a.z},
+                                {from.MapId, b.x, b.y, b.z})) return true;
+                            nav.RejectedX = b.x; nav.RejectedY = b.y; nav.RejectedZ = b.z;
+                            return false;
+                        },
                         [&](G3D::Vector3 const& p)
                         { return map->GetZoneId(creature.GetPhaseMask(), p.x, p.y, p.z) == 12 &&
                             std::hypot(p.x-request.Home.X, p.y-request.Home.Y) <= request.HomeRadius; },

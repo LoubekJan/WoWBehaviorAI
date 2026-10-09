@@ -35,9 +35,13 @@ namespace LivingSurfaceCorridor
         if (!Finite(a) || !Finite(b) || !std::isfinite(radius) || !std::isfinite(height) ||
             radius < 0 || height < 0) return false;
         height = std::max(0.5f, height);
-        float length = std::hypot(b.X-a.X, b.Y-a.Y);
-        float sideX = length > 0.001f ? -(b.Y-a.Y)/length : 1.0f;
-        float sideY = length > 0.001f ? (b.X-a.X)/length : 0.0f;
+        // Even a short nonzero edge has a real direction. Normalize in double
+        // precision so finite float endpoints and subnormal displacements do
+        // not overflow or lose that direction before the body sweep.
+        double deltaX = double(b.X)-a.X, deltaY = double(b.Y)-a.Y;
+        double length = std::hypot(deltaX, deltaY);
+        float sideX = length > 0 ? float(-deltaY/length) : 1.0f;
+        float sideY = length > 0 ? float(deltaX/length) : 0.0f;
         for (float offset : {-radius, 0.0f, radius})
         {
             ActionPosition left = a, right = b;

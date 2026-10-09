@@ -25,7 +25,7 @@ namespace LivingSurfaceDetour
         int X = 0, Y = 0;
         float Cost = 0, Remaining = 0;
         unsigned Parent = NoNode, HeapPosition = NoNode;
-        bool Closed = false;
+        bool Closed = false, PositionFixed = false;
     };
 
     struct Search
@@ -40,7 +40,7 @@ namespace LivingSurfaceDetour
         unsigned NodeLimit = MaxNodes, EdgeLimit = MaxEdges;
         unsigned StartedNodeLimit = 0, StartedEdgeLimit = 0;
         unsigned EdgeAttempts = 0, Expanded = 0;
-        bool Started = false;
+        bool Started = false, RotatedGrid = false;
         std::vector<Node> Nodes;
         std::vector<unsigned> Open;
         std::unordered_map<std::uint64_t, unsigned> Index;
@@ -112,6 +112,39 @@ namespace LivingSurfaceDetour
         return result;
     }
 
+    // Exhausting coarse neighbours does not prove that a supported passage
+    // between them is sealed. Halve the lattice once, keeping every physical
+    // node, checked parent edge and spent budget. The old coordinates become
+    // even coordinates in the refined graph; only new edges need validation.
+    inline bool Refine(Search& search)
+    {
+        if (search.Spacing == GridStep)
+        {
+            search.Spacing = NarrowGridStep;
+            search.Index.clear();
+            for (unsigned i = 0; i < search.Nodes.size(); ++i)
+            {
+                auto& node = search.Nodes[i];
+                node.X *= 2; node.Y *= 2; node.Closed = false;
+                search.Index.emplace(Key(node.X,node.Y), i);
+                Queue(search, i);
+            }
+            return true;
+        }
+        // Both axis-aligned spacings share the same eight headings. An
+        // isolated origin gets one interleaved set of headings, still above
+        // the executor's one-yard minimum. Rotate only while no other node
+        // exists, so no checked coordinates or parent edges are invalidated.
+        if (search.Nodes.size() == 1 && !search.RotatedGrid)
+        {
+            search.RotatedGrid = true;
+            search.Nodes.front().Closed = false;
+            Queue(search, 0);
+            return true;
+        }
+        return false;
+    }
+
     // Incremental A* over supported short edges, not a series of speculative
     // moves. It can temporarily head away from home but publishes nothing
     // until an entire route reaches the caller's physically supported goal.
@@ -167,19 +200,12 @@ namespace LivingSurfaceDetour
             {
                 if (search.Open.empty())
                 {
-                    // A supported ledge may turn before the first coarse
-                    // endpoint. Retry that isolated origin once at a shorter
-                    // spacing; never skip collision/support checks or spend a
-                    // fresh edge/node budget. Every resulting leg stays above
-                    // the recovery executor's one-yard useful-step threshold.
-                    if (search.Nodes.size() != 1 || search.Spacing != GridStep)
+                    if (!Refine(search))
                         return reject("SURFACE_DETOUR_EXHAUSTED");
-                    search.Spacing = NarrowGridStep;
-                    search.Nodes.front().Closed = false;
-                    Queue(search, 0);
                 }
                 search.Current = Pop(search); search.NextDirection = 0;
-                auto& current = search.Nodes[search.Current]; current.Closed = true; ++search.Expanded;
+                auto& current = search.Nodes[search.Current];
+                current.Closed = true; current.PositionFixed = true; ++search.Expanded;
                 if (current.Remaining == 0 && isGoal(current.Position))
                 {
                     for (unsigned node = search.Current; search.Nodes[node].Parent != NoNode; node = search.Nodes[node].Parent)
@@ -199,7 +225,15 @@ namespace LivingSurfaceDetour
                 auto direction = directions[search.NextDirection++];
                 auto const& current = search.Nodes[search.Current];
                 int x = current.X+direction[0], y = current.Y+direction[1];
-                ActionPosition target{from.MapId, from.X+x*search.Spacing, from.Y+y*search.Spacing, current.Position.Z};
+                float offsetX = x*search.Spacing, offsetY = y*search.Spacing;
+                if (search.RotatedGrid)
+                {
+                    constexpr float cosine = 0.923879533f, sine = 0.382683432f; // 22.5 degrees
+                    float rotatedX = offsetX*cosine-offsetY*sine;
+                    offsetY = offsetX*sine+offsetY*cosine;
+                    offsetX = rotatedX;
+                }
+                ActionPosition target{from.MapId, from.X+offsetX, from.Y+offsetY, current.Position.Z};
                 if (std::hypot(target.X-from.X, target.Y-from.Y) > MaxRouteLength ||
                     std::hypot(target.X-home.X, target.Y-home.Y) > limit) continue;
                 auto existing = search.Index.find(Key(x,y));
@@ -228,10 +262,13 @@ namespace LivingSurfaceDetour
         if (search.Edge.Length > 6.0f)
         { search.LastEdgeFailure = "SURFACE_DETOUR_EDGE_RANGE"; return search.State; }
         // Do not merge an edge into a previously discovered different floor.
-        // Nodes already expanded are immutable, including their checked Z.
+        // A reopened node may already parent checked edges. Keep its physical
+        // position fixed even when refinement finds a cheaper way to it.
         if (cost > MaxRouteLength || (search.EdgeExisting != NoNode &&
             (cost >= search.Nodes[search.EdgeExisting].Cost ||
-             std::abs(endpoint.Z-search.Nodes[search.EdgeExisting].Position.Z) > 1.0f))) return search.State;
+             std::abs(endpoint.Z-search.Nodes[search.EdgeExisting].Position.Z) > 1.0f ||
+             (search.Nodes[search.EdgeExisting].PositionFixed &&
+              !Same(endpoint,search.Nodes[search.EdgeExisting].Position))))) return search.State;
         unsigned index = search.EdgeExisting;
         if (index == NoNode)
         {

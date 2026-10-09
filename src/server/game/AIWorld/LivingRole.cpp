@@ -1921,7 +1921,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                         // Retain the same candidate while its expected-floor
                         // walk yields. Each permit covers at most eight samples.
                         auto status = LivingRecoveryPath::GroundLocalForageTarget(creature, here,
-                            state.ForageWaypoint, state.Planning.ForageGround);
+                            state.ForageWaypoint, state.Planning.ForageGround, attempt >= 3);
                         work.Finish();
                         if (status == LivingSurfaceCorridor::Status::Pending) return deferPlanning();
                         if (status == LivingSurfaceCorridor::Status::Rejected)

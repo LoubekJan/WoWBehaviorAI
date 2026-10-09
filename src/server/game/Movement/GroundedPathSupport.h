@@ -85,16 +85,25 @@ namespace Movement
             // A vertical off-mesh link is not an ordinary walking edge.
             if (horizontal < 0.001f && std::abs(b.z-a.z) > 0.75f)
                 return reject("GROUND_PATH_VERTICAL");
-            samples[i] = horizontal > 0 ? std::size_t(std::ceil(horizontal/GroundedPathStep)) : 1;
+            // Repeated mesh vertices have no swept body or new XY floor.
+            // Keeping them as samples would reintroduce a zero-length source
+            // check with an arbitrary axis; real vertical links were rejected
+            // above, and the source/next moving segment retain all their checks.
+            samples[i] = horizontal > 0 ? std::size_t(std::ceil(horizontal/GroundedPathStep)) : 0;
             if (samples[i] > GroundedPathSampleLimit-count) return reject("GROUND_PATH_LIMIT");
             count += samples[i];
         }
+        if (count < 2) return reject("GROUND_PATH_LIMIT");
 
         if (!hasTile(origin) || !contains(origin)) return reject("GROUND_PATH_BOUNDS");
         auto support = heightAt(origin);
         if (!support || !std::isfinite(*support) || std::abs(*support-origin.z) > 1.0f)
             return reject("GROUND_PATH_START_HEIGHT");
-        if (!clearBody(origin,origin)) return reject("GROUND_PATH_OBSTACLE");
+        // The first sampled segment checks the body's source and destination
+        // in its actual travel direction, including both vertical clearances.
+        // A separate zero-length sweep has no direction: BodyClear chooses an
+        // arbitrary lateral axis that can cut into a supported uphill floor
+        // even when the incoming and outgoing sweeps are both unobstructed.
         Points grounded;
         grounded.reserve(count);
         grounded.push_back(origin); // no source projection or relocation

@@ -254,6 +254,92 @@ TEST_CASE("Recovery navigation grounded hunts retain body clearance for walls an
     CHECK(output.empty());
 }
 
+TEST_CASE("Recovery navigation can leave a supported slope endpoint in either checked direction", "[AIWorld][Movement][HuntPath][GroundedPath]")
+{
+    GroundPoints raw{{0,0,0},{4,0,2}}, output;
+    std::size_t expectedSamples = 9;
+    SECTION("ordinary path") { }
+    SECTION("repeated mesh vertices")
+    { raw = {{0,0,0},{0,0,0},{2,0,1},{2,0,1},{4,0,2},{4,0,2}}; }
+    SECTION("nearby mesh vertex retains its real travel direction")
+    { raw = {{0,0,0},{0.0005f,0,0.00025f},{4,0,2}}; expectedSamples = 10; }
+    auto floor = [](GroundPoint const& p) -> std::optional<float> { return 0.5f*p.x; };
+    auto clearBody = [](GroundPoint const& a, GroundPoint const& b)
+    {
+        return LivingSurfaceCorridor::BodyClear({0,a.x,a.y,a.z},{0,b.x,b.y,b.z},1,2,
+            [](ActionPosition const& from, ActionPosition const& to)
+            {
+                // On this linear floor, a ray is clear exactly when neither
+                // endpoint lies underground. The whole ray then stays clear.
+                return from.Z >= 0.5f*from.X && to.Z >= 0.5f*to.X;
+            });
+    };
+    // A zero-length sweep selects fixed X lateral tracks. Its uphill track
+    // keeps the centre's Z and lies inside the floor, despite a clear slope.
+    CHECK_FALSE(clearBody(raw.front(), raw.front()));
+    REQUIRE(clearBody(raw.front(), raw.back()));
+    REQUIRE(Movement::PrepareGroundedPath(raw,raw.front(),output,floor,clearBody,inGroundBounds,installedGround));
+    REQUIRE(output.size() == expectedSamples);
+    auto reached = output.back();
+    CHECK(reached.x == 4);
+    CHECK(reached.z == 2);
+    GroundPoints reverse{reached,raw.front()}, returned;
+    CHECK_FALSE(clearBody(reached,reached));
+    REQUIRE(Movement::PrepareGroundedPath(reverse,reached,returned,floor,clearBody,inGroundBounds,installedGround));
+    REQUIRE(returned.size() == 9);
+    CHECK(returned.front().x == reached.x);
+    CHECK(returned.front().z == reached.z); // Never relocate or project the source.
+    CHECK(returned.back().x == 0);
+    CHECK(returned.back().z == 0);
+}
+
+TEST_CASE("Recovery body sweeps preserve finite direction for subnormal displacements", "[AIWorld][Movement][HuntPath][GroundedPath]")
+{
+    ActionPosition from{0,0,0,0};
+    float tiny = std::numeric_limits<float>::denorm_min();
+    ActionPosition to{0,tiny,tiny,0};
+    unsigned rays = 0;
+    REQUIRE(LivingSurfaceCorridor::BodyClear(from,to,1,2,
+        [&](ActionPosition const& a, ActionPosition const& b)
+        {
+            ++rays;
+            CHECK(LivingSurfaceCorridor::Finite(a));
+            CHECK(LivingSurfaceCorridor::Finite(b));
+            // The diagonal edge's lateral direction remains normalized even
+            // when a float hypot would round its length to one subnormal unit.
+            CHECK((std::hypot(a.X,a.Y) == Approx(0.0f).margin(0.00001f) ||
+                std::hypot(a.X,a.Y) == Approx(1.0f).margin(0.00001f)));
+            return true;
+        }));
+    CHECK(rays == 15);
+}
+
+TEST_CASE("Recovery navigation first movement segment still rejects obstructed source bodies", "[AIWorld][Movement][HuntPath][GroundedPath]")
+{
+    GroundPoints raw{{0,0,0},{4,0,0}}, output;
+    bool side = false;
+    SECTION("source side wall") { side = true; }
+    SECTION("source overhead obstacle") { side = false; }
+    unsigned bodyCalls = 0;
+    auto clearBody = [&](GroundPoint const& a, GroundPoint const& b)
+    {
+        ++bodyCalls;
+        CHECK(a.x == 0);
+        CHECK(b.x == 0.5f); // The actual first half-yard sweep includes its source.
+        return LivingSurfaceCorridor::BodyClear({0,a.x,a.y,a.z},{0,b.x,b.y,b.z},0.5f,2,
+            [&](ActionPosition const& from, ActionPosition const& to)
+            {
+                if (side) return !(from.X == 0 && from.Y > 0.4f);
+                return !(from.X == 0 && to.X == 0 && from.Z < 1.3f && to.Z > 1.3f);
+            });
+    };
+    char const* reason = "NONE";
+    CHECK_FALSE(Movement::PrepareGroundedPath(raw,raw.front(),output,flatGround,clearBody,inGroundBounds,installedGround,&reason));
+    CHECK(std::string(reason) == "GROUND_PATH_OBSTACLE");
+    CHECK(bodyCalls == 1);
+    CHECK(output.empty());
+}
+
 TEST_CASE("Recovery navigation grounded hunt work and physical lengths remain bounded", "[AIWorld][Movement][HuntPath][GroundedPath]")
 {
     GroundPoint actual{0,0,0};
@@ -273,8 +359,8 @@ TEST_CASE("Recovery navigation grounded hunt work and physical lengths remain bo
         CHECK(output.size() == 128);
         CHECK(heights == 128);
         CHECK(tiles == 128);
-        CHECK(body == 128);
-        CHECK(rays == 1920);
+        CHECK(body == 127);
+        CHECK(rays == 1905);
     }
     SECTION("sample limit before callbacks")
     {
@@ -294,7 +380,7 @@ TEST_CASE("Recovery navigation grounded hunt work and physical lengths remain bo
         auto slope = [](GroundPoint const& p) -> std::optional<float> { return 1.0f*p.x; };
         CHECK_FALSE(Movement::PrepareGroundedPath(raw,actual,output,slope,clearBody,inGroundBounds,tile));
     }
-    CHECK(heights <= 128); CHECK(tiles <= 128); CHECK(body <= 128); CHECK(rays <= 1920);
+    CHECK(heights <= 128); CHECK(tiles <= 128); CHECK(body <= 127); CHECK(rays <= 1905);
 }
 
 TEST_CASE("Recovery navigation grounded hunt preserves graph corners and rejects malformed source geometry", "[AIWorld][Movement][HuntPath][GroundedPath]")
@@ -320,6 +406,15 @@ TEST_CASE("Recovery navigation grounded hunt preserves graph corners and rejects
         raw[1].z = std::numeric_limits<float>::quiet_NaN();
         CHECK_FALSE(Movement::PrepareGroundedPath(raw,actual,output,flatGround,clearGroundBody,inGroundBounds,installedGround));
         CHECK(output.empty());
+    }
+    SECTION("only repeated vertices do not produce a movement route")
+    {
+        raw = {actual,actual,actual};
+        unsigned calls = 0;
+        auto height = [&](GroundPoint const&) -> std::optional<float> { ++calls; return 0.0f; };
+        CHECK_FALSE(Movement::PrepareGroundedPath(raw,actual,output,height,clearGroundBody,inGroundBounds,installedGround));
+        CHECK(output.empty());
+        CHECK(calls == 0);
     }
 }
 
