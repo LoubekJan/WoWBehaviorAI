@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-09T11:28:26.869809+00:00",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "profile": "hunt-cycle",
+  "code_revision": "d7319c53871b33b54ff8b642ce682f3fae8dc950",
+  "source_revision": "v2",
+  "flags": {
+    "RealmID": "2",
+    "AIWorld.Enable": "1",
+    "AIWorld.ScopeMapId": "725",
+    "AIWorld.ScopeZoneIds": "\"4988\"",
+    "AIWorld.ScopeSpawnIds": "\"900725,900726,900727,900728,900729,900730\"",
+    "AIWorld.ScopeRestrictAgents": "1",
+    "AIWorld.ScopeAlwaysActive": "1",
+    "AIWorld.RemoteInferenceEnabled": "0",
+    "AIWorld.LivingNeedEvolutionEnabled": "1",
+    "AIWorld.GroupCoarseSimulationEnabled": "0",
+    "AIWorld.TelemetryEnabled": "1",
+    "AIWorld.TestSpawnId": "0",
+    "AIWorld.LivingRolesEnabled": "1",
+    "AIWorld.LivingRoleExtensionsEnabled": "0",
+    "AIWorld.NeedsHungerRatePerSecond": "0.003",
+    "AIWorld.NeedsFatigueRatePerSecond": "0",
+    "AIWorld.NeedsResourcePressureRatePerSecond": "0",
+    "AIWorld.RecoveryAdviceEnabled": "0"
+  },
+  "scope": {
+    "map_id": 725,
+    "zone_ids": [
+      4988
+    ],
+    "bounds": {
+      "min_x": 166.667,
+      "max_x": 366.667,
+      "min_y": 700.0,
+      "max_y": 900.0
+    },
+    "name": "AI World Lab"
+  },
+  "captured_at_ms": 1791545306391,
+  "agents": [
+    {
+      "spawn_id": 900725,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "home": {
+        "x": 266.667,
+        "y": 800.0,
+        "z": 0.0,
+        "map_id": 725
+      },
+      "position": {
+        "x": 270.7712,
+        "y": 788.7237,
+        "z": 0.0,
+        "map_id": 725,
+        "source": "live"
+      },
+      "health": 296,
+      "max_health": 296,
+      "alive": true,
+      "needs": {
+        "health_pressure": 0.0,
+        "hunger": 0.2261401,
+        "fatigue": 0.0,
+        "safety_pressure": 0.0,
+        "resource_pressure": 0.0
+      }
+    },
+    {
+      "spawn_id": 900726,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "home": {
+        "x": 326.667,
+        "y": 800.0,
+        "z": 0.0,
+        "map_id": 725
+      },
+      "position": {
+        "x": 330.7712,
+        "y": 788.7237,
+        "z": 0.0,
+        "map_id": 725,
+        "source": "live"
+      },
+      "health": 296,
+      "max_health": 296,
+      "alive": true,
+      "needs": {
+        "health_pressure": 0.0,
+        "hunger": 0.2256631,
+        "fatigue": 0.0,
+        "safety_pressure": 0.0,
+        "resource_pressure": 0.0
+      }
+    },
+    {
+      "spawn_id": 900727,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "home": {
+        "x": 291.667,
+        "y": 800.0,
+        "z": 0.0,
+        "map_id": 725
+      },
+      "position": {
+        "x": 286.1857,
+        "y": 797.5596,
+        "z": 0.0,
+        "map_id": 725,
+        "source": "live"
+      },
+      "health": 1,
+      "max_health": 1,
+      "alive": true,
+      "needs": {
+        "health_pressure": 0.0,
+        "hunger": 0.0,
+        "fatigue": 0.0,
+        "safety_pressure": 0.0,
+        "resource_pressure": 0.0
+      }
+    },
+    {
+      "spawn_id": 900728,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "home": {
+        "x": 256.667,
+        "y": 826.0,
+        "z": 0.0,
+        "map_id": 725
+      },
+      "position": {
+        "x": 253.8502,
+        "y": 831.2977,
+        "z": 0.0,
+        "map_id": 725,
+        "source": "live"
+      },
+      "health": 1,
+      "max_health": 1,
+      "alive": true,
+      "needs": {
+        "health_pressure": 0.0,
+        "hunger": 0.042,
+        "fatigue": 0.0,
+        "safety_pressure": 0.0,
+        "resource_pressure": 0.0
+      }
+    },
+    {
+      "spawn_id": 900729,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "home": {
+        "x": 351.667,
+        "y": 800.0,
+        "z": 0.0,
+        "map_id": 725
+      },
+      "position": {
+        "x": 348.8502,
+        "y": 805.2977,
+        "z": 0.0,
+        "map_id": 725,
+        "source": "live"
+      },
+      "health": 1,
+      "max_health": 1,
+      "alive": true,
+      "needs": {
+        "health_pressure": 0.0,
+        "hunger": 0.006,
+        "fatigue": 0.0,
+        "safety_pressure": 0.0,
+        "resource_pressure": 0.0
+      }
+    },
+    {
+      "spawn_id": 900730,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "home": {
+        "x": 336.667,
+        "y": 774.0,
+        "z": 0.0,
+        "map_id": 725
+      },
+      "position": {
+        "x": 333.8502,
+        "y": 779.2977,
+        "z": 0.0,
+        "map_id": 725,
+        "source": "live"
+      },
+      "health": 1,
+      "max_health": 1,
+      "alive": true,
+      "needs": {
+        "health_pressure": 0.0,
+        "hunger": 0.003,
+        "fatigue": 0.0,
+        "safety_pressure": 0.0,
+        "resource_pressure": 0.0
+      }
+    }
+  ],
+  "summary": {
+    "controlled_predators": 2,
+    "controlled_prey": 4,
+    "all_six_initially_alive": true,
+    "exact_population_database_preflight": true,
+    "lab_services_healthy": 4,
+    "primary_services_unchanged": true,
+    "cpp_tests_passed": 478,
+    "realm_contract_tests_passed": 68,
+    "autonomous_full_cycle_verified": false
+  },
+  "ci_run_url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/37922981447",
+  "backup_directory": "runtime/lab/db-backups/hunt-activation-20261009T112648Z",
+  "validation_scope": "activation and initial live population; full hunt/feed/return evaluated separately"
+}

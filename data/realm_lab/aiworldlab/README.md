@@ -172,9 +172,11 @@ v limitu 60 sekund do domácí oblasti o poloměru 14 yardů. Deset fyzických
 cyklů a jejich opakování bez hráče zatím nejsou ověřené. Nové potvrzení
 prvního návratu je v [hráčském záznamu](in-game-validation.json).
 
-Navazující profil **`hunt-cycle`** používá dva medvědy a čtyři jeleny,
+Aktivní profil **`hunt-cycle`** používá dva medvědy a čtyři jeleny,
 spawny 900725–900730. [Definice populace](hunt-population.json) určuje
 jejich role a pevné domovy. Hlad roste přirozeně; lov, krmení a návraty
 probíhají automaticky. Modelové požadavky a skupiny zůstávají vypnuté.
 [Podrobný postup](../../../tools/realm_lab/HUNT_POPULATION.md) uvádí
-nasazení, záznam a ověření celého cyklu.
+nasazení, záznam a ověření celého cyklu. [Záznam aktivace](hunt-activation.json)
+potvrzuje šest řízených živých NPC a zdravé lab služby na revizi
+`d7319c5387`; dokončené cykly se vyhodnocují samostatně ze záznamu.

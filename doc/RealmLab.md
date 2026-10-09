@@ -495,6 +495,13 @@ ověřené oblasti. Nový bootstrap a aktivační kontrola povolují pouze tuto
 populaci. Hlad roste přirozeně `0.003/s`, první lov nastane přibližně po
 čtyřech minutách; modely a skupiny zůstávají vypnuté.
 
+Populace byla aktivovaná 9. 10. 2026 na revizi `d7319c5387`.
+[Záznam aktivace](../data/realm_lab/aiworldlab/hunt-activation.json)
+potvrzuje všech šest živých NPC s jejich rolemi a pevnými domovy,
+čtyři zdravé lab služby a nezměněný běh původního worldserveru i authserveru.
+CI prošlo 68 realm kontraktů, 112 Observer testů, 74 AI testů a 478 C++ testů.
+Záznam aktivace sám neprokazuje dokončený lov ani fyzický návrat.
+
 [Postup nasazení a pozorování](../tools/realm_lab/HUNT_POPULATION.md)
 popisuje automatický cyklus a jeho důkazy. Útěk kořisti v labu nyní
 kontroluje mapu 725, root oblast 4988 a celý koridor uvnitř hranic;
@@ -502,7 +509,8 @@ nepoužívá pevnou zónu 12. Kořist se po smrti obnovuje, každý spawn má
 prodlevu respawnu 120 sekund. Obnovení predátora přeruší jeho pozorovaný
 cyklus. Terén ani klientský patch se kvůli populaci nemění.
 
-- [ ] Přidat jednu kořist a zaznamenat deset cyklů lov → potrava → fyzický návrat → další činnost.
+- [x] Nasadit dva predátory a čtyři kořisti s pevnými domovy a přirozeným hladem na mapu 725.
+- [ ] Zaznamenat deset automatických cyklů lov → potrava → fyzický návrat → další činnost; odlišit lov dokončený už v domácí oblasti.
 - [ ] Po průchodu tohoto scénáře rozšířit populaci na deset NPC a ověřit plánovací rozpočet i návraty.
 - [ ] Teprve po průchodu roviny přidat mírný svah a zopakovat stejné scénáře.
 - [ ] Samostatně přidat jednu překážku s průchodem a zopakovat stejné scénáře.
