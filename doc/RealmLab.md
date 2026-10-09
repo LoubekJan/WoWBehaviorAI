@@ -356,7 +356,7 @@ Původní DBC záznamy a jejich řetězce byly zachované; přibyly pouze MapID
 jsou zdravé, data ostatních map se při tomto nasazení neměnila. Soukromý
 balík `runtime/lab/map-source-artifacts/aiworldlab-725-flat-textured-v2-server.zip`
 má 866 216 bajtů a SHA-256
-`6e193c2e5fe9867b034c73dbd99f48bb7e5b16e0ec9bb483f4188948201669dd6`;
+`6e193c2e5fe9867b034c73dbd99f48bb7e5b16e0ec9b483f4188948201669dd6`;
 SHA a CRC byly ověřené lokálně i na hostu.
 
 **Hotovo, když:** klient a server používají dohledatelně shodný obsah a
