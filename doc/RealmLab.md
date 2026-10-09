@@ -1,8 +1,10 @@
 # Samostatný realm pro vlastní testovací mapu
 
-Stav přípravy: 8. října 2026. Větev `AI-World-lab` vychází z
+Stav přípravy: 9. října 2026. Větev `AI-World-lab` vychází z
 `ai-world` na revizi `c08fec3f2a`. Připravené soubory oddělují provoz a
-CI/CD; vlastní mapa a přenos AI mimo Elwynn jsou další etapa.
+CI/CD; vlastní rovná mapa, klientský patch a shodná serverová data jsou
+nasazené. Samostatná kontrola navmesh prošla; GPS, fyzický pohyb a přenos
+AI mimo Elwynn ještě čekají na ověření.
 
 ## Rozdělení společných a samostatných částí
 
@@ -51,8 +53,8 @@ realm `-1` má globální oprávnění i na novém realmu.
 | Secrets | `.env` | `deploy/lab/.env` |
 
 RealmID označuje server v seznamu realmů. **MapID označuje mapu uvnitř
-světa a je jiné číslo.** ID nové mapy zatím není zvolené; před jeho
-přidělením je nutné zkontrolovat `Map.dbc` a možnosti extraktorů.
+světa a je jiné číslo.** Nová mapa má MapID **725**, oblast AreaID **4988**
+a exploration bit **3618**, vybrané podle skutečně načtených klientských DBC.
 
 Používat `make -f Makefile.lab ...`. Běžný `make build/start/reset-db`
 nadále míří na původní stack; v lab checkoutu se pro provoz nepoužívá.
@@ -92,8 +94,9 @@ počítače. Provozní záznam je na hostu v `runtime/lab/receipts/deployed.json
 Jednorázový import TDB a založení auth účtu z následujícího návodu se na
 tomto připraveném hostu neopakují. Aktuální provozní stav se ověřuje
 pomocí `docker compose --env-file deploy/lab/.env -f compose.lab.yml ps`
-a posledního běhu `Realm Lab CI/CD`. Vlastní mapa a AI mimo Elwynn
-nadále čekají na samostatnou implementaci.
+a posledního běhu `Realm Lab CI/CD`. Zdroj vlastní mapy a klientský patch
+jsou hotové; aktuální serverový mapový balík je nasazený. AI mimo Elwynn
+zůstává vypnutá, dokud neprojde hráčská kontrola a skutečný pohyb NPC.
 
 ## První zprovoznění na Linux hostu
 
@@ -207,7 +210,8 @@ a později mapový acceptance test.
 
 V první fázi poběží samostatný server s kompatibilním základním světem.
 **AI, automatické načtení Elwynnu, export Elwynn telemetrie a modelové
-požadavky jsou vypnuté. Vlastní mapa ještě není součástí této přípravy.**
+požadavky zůstávají vypnuté. Nasazení vlastní mapy vyžaduje dokončit
+samostatný mapový balík a jeho kontroly popsané níže.**
 
 ### 5. Samostatné CI/CD
 
@@ -242,9 +246,12 @@ před změnami persistentních schémat.
 
 ## TODO — vlastní mapa a ověřené návraty
 
-Plán z 9. října 2026. Infrastruktura labu a automatické CI/CD jsou hotové;
-níže uvedené mapové a AI etapy zatím nejsou dokončené. První cíl je jeden
-mob na vlastní rovné mapě, který se opakovaně fyzicky vrátí domů.
+Stav z 9. října 2026. Infrastruktura labu a automatické CI/CD jsou hotové;
+mapový projekt je znovu otevřený a texturovaný, klientský patch i serverový
+balík jsou instalované. Extrakce a generování mmap uspěly, samostatná
+kontrola navmesh i její opakování nad nasazenými daty prošly **8/8 tras**.
+GPS a fyzický pohyb hráče/NPC ještě nejsou ověřené.
+První cíl je jeden mob na vlastní rovné mapě, který se opakovaně fyzicky vrátí domů.
 
 Etapy postupují v tomto pořadí. Společný rozsah AI v kódu lze připravovat
 souběžně s mapovým projektem, ale jeho aktivace počká na ověřenou navigaci.
@@ -253,7 +260,7 @@ Etapa se označí za dokončenou až po splnění její podmínky a uložení d�
 ### 1. Projekt mapy a lab klient
 
 - [x] Připravit samostatnou kopii klienta WoW 3.3.5a pro lab.
-- [ ] Založit Noggit RED projekt a ověřit, že umí vytvořit a znovu otevřít novou mapu.
+- [x] Založit Noggit RED projekt a ověřit, že umí vytvořit a znovu otevřít novou mapu.
 - [x] Podle skutečných klientských DBC vybrat volné MapID a AreaID.
 - [x] Zvolit MapID nejvýše 999; místní mmap generátor čte ID z prvních tří znaků názvu souboru. RealmID 2 je nezávislé číslo.
 - [x] Určit verzované vstupy projektu a umístění velkých mapových zdrojů v LFS nebo privátním artefaktovém úložišti. Celý klient, runtime data a secrets nepatří do Gitu.
@@ -263,42 +270,94 @@ enUS. Noggit Studio 3.1446+ `[40bc7ed9]` vytvořil projekt
 `runtime/lab/map-project` a mapu **725 / AIWorldLab / AI World Lab**.
 Typ mapy v tomto editoru je **None** (`InstanceType=0`), expanze WotLK (2).
 Podle skutečně načtených MPQ byla vybrána oblast **4988**, exploration bit
-**3618**. Mapu editor již načetl; po dodatečném doplnění `AreaTable.dbc`
-ještě zbývá nové otevření projektu a vizuální kontrola.
+**3618**. Po doplnění `AreaTable.dbc` se projekt i mapa úspěšně znovu
+otevřely. Uživatel nanesl texturu na celou dlaždici, uložil ji a editor
+před balením a extrakcí zavřel.
 
 V Gitu je [manifest projektu](../data/realm_lab/aiworldlab/project-manifest.json)
 a [postup práce se zdroji](../data/realm_lab/aiworldlab/README.md).
 Binární zdroje jsou v soukromém lokálním artefaktu
-`runtime/lab/map-source-artifacts/aiworldlab-725-area4988-flat-untextured-v1.zip`.
+`runtime/lab/map-source-artifacts/aiworldlab-725-area4988-flat-textured-v2.zip`
+(SHA-256 `b8913b91306a1b363e116867eb997234dda42b36c4b878e24ccc3fd20fe4a099`).
 Obsah balíku je omezený na vlastní mapu, její projekt a potřebné DBC;
-pracovní kopie Azerothu do něj nevstupuje. Před nasazením další verze
-zajistit také kopii artefaktu na lab hostu.
+pracovní kopie Azerothu do něj nevstupuje. Stejný artefakt a ověřený
+klientský podklad jsou připravené také na lab hostu pro extrakci verze v2.
 
 **Hotovo, když:** editor otevře uložený projekt a zvolená ID nekolidují
 s klientskými daty. Práce v editoru není zatím ověřená pro bezobslužnou automatizaci.
 
 ### 2. Minimální rovný terén
 
-- [ ] Vytvořit jednu terénní dlaždici s rovnou testovací plochou přibližně 200 × 200 yardů a existující texturou.
-- [ ] Označit domov a několik kontrolních bodů uvnitř dlaždice, mimo její hrany.
-- [ ] Zachovat jeden povrch; první verze nemá vodu, svahy, budovy ani překážky.
+- [x] Vytvořit jednu terénní dlaždici s rovnou testovací plochou přibližně 200 × 200 yardů a existující texturou.
+- [x] Zapsat souřadnice navrženého domova a několika kontrolních bodů uvnitř dlaždice, mimo její hrany.
+- [x] Zachovat jeden povrch; první verze nemá vodu, svahy, budovy ani překážky.
 - [x] Připravit WDT/ADT a potřebné změny `Map.dbc` a `AreaTable.dbc`; názvy adresáře a mapy musí souhlasit.
 
 Vytvořená dlaždice **(30, 31)** má 256 částí terénu a konstantní výšku 0.
 Neobsahuje vodu, díry ani objekty. Oblast 4988 je doplněná do DBC i všech
-256 částí ADT. Zatím má **nulový počet texturových vrstev**; další ruční
-krok je nanést jednu existující texturu a zaznamenat vnitřní kontrolní body.
+256 částí ADT. Každá má právě jednu vrstvu
+`tileset/emeralddream/dreamrock02.blp`. Kontrola všech 37 120 výškových
+hodnot potvrzuje rovinu v Z 0. [Kontrolní body](../data/realm_lab/aiworldlab/test-points.json)
+jsou odvozené z ADT a serverové konverze os; jejich skutečné GPS ověření
+ještě neproběhlo. Navržený domov je `(266.667, 800, 0)`, návratové body
+leží 40 yardů v obou směrech X/Y a testovací region má 200 × 200 yardů.
+Tyto souřadnice zatím nejsou založeným domovem AI agenta.
 
 **Hotovo, když:** mapa jde znovu otevřít, její rovina je vizuálně ověřená
 a souřadnice kontrolních bodů jsou zaznamenané.
 
 ### 3. Shodný klientský a serverový balík
 
-- [ ] Z mapového projektu sestavit klientský patch pro lab klienta.
-- [ ] Ze stejné verze obsahu získat `dbc`/`maps` pomocí `mapextractor`, potom `vmaps` pomocí `vmap4extractor` a `vmap4assembler`.
-- [ ] V čistém pracovním adresáři vygenerovat `mmaps` nové mapy, včetně debug geometrie pro kontrolu navigace.
-- [ ] Zapsat hashe vstupů a výstupů, revizi extraktorů, MapID/AreaID a verzi klientského patche do manifestu.
-- [ ] Nasadit balík pouze do `runtime/lab/data` a restartovat lab.
+- [x] Z mapového projektu sestavit klientský patch pro lab klienta.
+- [x] Ze stejné verze obsahu získat `dbc`/`maps` pomocí `mapextractor`, potom `vmaps` pomocí `vmap4extractor` a `vmap4assembler`.
+- [x] V čistém pracovním adresáři vygenerovat `mmaps` nové mapy, včetně debug geometrie pro kontrolu navigace.
+- [x] Zapsat hashe vstupů a výstupů, základní revizi extraktorů a hashe jejich aplikovaných změn, MapID/AreaID a verzi klientského patche do manifestu.
+- [x] Nasadit balík pouze do `runtime/lab/data` a restartovat lab.
+
+Klientský patch `patch-4.MPQ` má 823 658 bajtů a SHA-256
+`d974f5919762708acc57e83a70baa6d68a09966e978a45832e4924546baa8b14`.
+Stejný soubor je v `runtime/lab/client-patches`, instalovaný v
+`C:\WoWModding\Client-Lab\Data` a ve zdroji extrakce na hostu
+`runtime/lab/client-source/map725-v2`. Mapové a vmap nástroje nad tímto
+ověřeným podkladem uspěly. [Serverový manifest](../data/realm_lab/aiworldlab/server-manifest.json)
+zachycuje všechny výstupy, binárky nástrojů, compiler 11.4.0 a základní
+revizi `93ff169538e5eb189b76651217b992876a617524` s aplikovanými změnami
+mmap generátoru. Tyto změny jsou doložené hashi deseti zdrojových souborů;
+nejde o tvrzení, že všechny nástroje vznikly z nezměněného commitu.
+
+Rovina je správně extrahovaná jako konstantní podlaha Z 0 s příznakem
+`MAP_HEIGHT_NO_HEIGHT`. Původní mmap generátor takový terén vynechával.
+Explicitní opt-in `--includeFlatTerrain true` nyní umožňuje jeho zahrnutí;
+výchozí hodnota zůstává false. Opravené meze BV stromu odpovídají skutečné
+detailní geometrii a regrese prošla CTest testem `mmaps.flat_terrain`.
+V čistém pracovním adresáři vznikla pouze dlaždice nové mapy:
+
+```bash
+mmaps_generator 725 --tile 30,31 --includeFlatTerrain true --threads 1 --debugOutput true --silent
+```
+
+Výstupy zahrnují `maps/7253130.map` (68 bajtů), `mmaps/725.mmap`
+(28 bajtů), `mmaps/7253130.mmtile` (100 732 bajtů) a pět debug souborů.
+Detour kontrola promítla všech pět bodů a našla osm úplných tras
+domov ↔ čtyři návratové body. Každá vrátila `DT_SUCCESS` a tři polygony;
+stejná kontrola prošla nad nasazenými daty. Důkaz má rozsah **navmesh**,
+nikoli fyzický pohyb.
+
+Vlastní soubory `vmaps/725*` jsou **očekávaně nepřítomné**: mapa nemá
+M2/WMO ani jiné modelové spawny a úspěšný assembler pro ni nevytvoří strom.
+Nevytvářejí se náhradní prázdné vmaps. Podlaha a oblast pocházejí z `maps`;
+modelové překážky pro LOS zde nejsou. Po přidání objektů je potřeba
+vytvořit skutečné vmaps a znovu vygenerovat navigaci.
+
+Nasazených šest souborů tvoří tři DBC, jednu mapu a dva mmap soubory.
+Původní DBC záznamy a jejich řetězce byly zachované; přibyly pouze MapID
+725, AreaID 4988 a Light ID 2539. Záloha je v
+`runtime/lab/data-backups/map725-v2-20261009`. Všechny čtyři lab služby
+jsou zdravé, data ostatních map se při tomto nasazení neměnila. Soukromý
+balík `runtime/lab/map-source-artifacts/aiworldlab-725-flat-textured-v2-server.zip`
+má 866 216 bajtů a SHA-256
+`6e193c2e5fe9867b034c73dbd99f48bb7e5b16e0ec9bb483f4188948201669dd6`;
+SHA a CRC byly ověřené lokálně i na hostu.
 
 **Hotovo, když:** klient a server používají dohledatelně shodný obsah a
 všechny mapové výstupy pocházejí z aktuálních vstupů. Pouhé opakované
@@ -310,8 +369,19 @@ proto musí proběhnout na vybaveném hostu.
 
 - [ ] Přihlásit hráče na lab, vstoupit na kontrolní bod a ověřit správné MapID/AreaID.
 - [ ] Ověřit stabilní výšku podlahy, bez propadání a chybějících mapových souborů.
-- [ ] Pomocí `.gps`, `.mmap` a debug geometrie prověřit trasy mezi několika kontrolními body v obou směrech.
+- [x] Samostatně ověřit navmesh: všech pět kontrolních bodů a osm úplných tras v obou směrech; zopakovat nad nasazenými daty.
+- [ ] Ve hře pomocí `.gps` a `.mmap` potvrdit polohu, podlahu a navigaci kolem kontrolních bodů.
 - [ ] Ověřit běžný fyzický pohyb jednoho NPC mezi těmito body bez zapnutých living rolí.
+
+Po nasazení shodných dat se v herním chatu GM postavy na lab realmu
+použije `.go xyz 266.667 800 2 725` (pořadí X, Y, Z, MapID). Před `.gps`
+zrušit vybraný cíl a počkat na dosednutí. Očekává se Map 725, Zone/Area
+4988 a stabilní podlaha přibližně Z 0. Stejnou kontrolu a chůzi kolem bodu
+zopakovat na všech čtyřech návratových bodech. Indikátor mmap v `.gps`
+potvrzuje pouze navmesh mapy; neprokazuje konkrétní dlaždici ani úplnou
+cestu. Pro tuto mapu může hlásit nepřítomné vmaps: to odpovídá nulovému
+počtu modelových spawnů, nikoli selhání jejich assembleru. GPS, přítomnost
+souborů a navmesh kontrola nenahrazují záznam skutečného pohybu NPC.
 
 **Hotovo, když:** funguje navigace i skutečný pohyb v obou směrech.
 Selhání této etapy se nejprve řeší v mapových datech nebo základním pohybu.
@@ -377,5 +447,5 @@ MySQL službě; místně jsou přeskočené, protože zde není Docker Engine.
 - [TrinityCore realmlist: samostatný záznam a shoda ID s RealmID](https://trinitycore.atlassian.net/wiki/spaces/tc/pages/2130016/).
 - Lokální `DatabaseLoader.h`: masky AUTH=1, CHARACTER=2, WORLD=4;
   proto lab používá `Updates.EnableDatabases = 6`.
-- [Noggit RED, editor pro 3.3.5](https://gitlab.com/serayn/noggit-red).
+- [Noggit RED, upstream editoru pro 3.3.5](https://gitlab.com/prophecy-rp/noggit-red).
 - [Generování a prohlížení vlastní navigace v TrinityCore 3.3.5](https://github.com/stoneharry/mmaps-for-custom-maps).

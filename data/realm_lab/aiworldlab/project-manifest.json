@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
-  "stage": "flat_untextured_area_ready",
+  "stage": "server_bundle_installed_navmesh_verified",
+  "recorded_on": "2026-10-09",
+  "source_revision": "v2",
   "map_id": 725,
   "area_id": 4988,
   "area_bit": 3618,
@@ -14,20 +16,33 @@
   },
   "editor": {
     "version": "Noggit Studio 3.1446+ [40bc7ed9]",
-    "exe_sha256": "81c40cac2c2ea5f1b9b23064e8702116dbfed31d2ea39457d622bad346a80592"
+    "exe_sha256": "81c40cac2c2ea5f1b9b23064e8702116dbfed31d2ea39457d622bad346a80592",
+    "project_reopened_after_area_preparation": true,
+    "texture_saved_across_all_cells": true,
+    "closed_before_packaging": true
   },
   "client": {
     "version": "3.3.5a",
     "build": 12340,
     "locale": "enUS",
     "map_dbc_sha256": "261bd7c2c9dbdba1f2966ca21106673ed722c2e3681d227f1eed261b6ce870d5",
-    "area_dbc_sha256": "eb4bcfa77b03aed853c4783ac260a4259970effaad5b8a74d868783b4dbdc44e"
+    "area_dbc_sha256": "eb4bcfa77b03aed853c4783ac260a4259970effaad5b8a74d868783b4dbdc44e",
+    "patch": {
+      "name": "patch-4.MPQ",
+      "bytes": 823658,
+      "sha256": "d974f5919762708acc57e83a70baa6d68a09966e978a45832e4924546baa8b14",
+      "files": 6,
+      "artifact": "runtime/lab/client-patches/patch-4.MPQ",
+      "installed_path": "C:/WoWModding/Client-Lab/Data/patch-4.MPQ",
+      "status": "installed_local_and_extractor_source"
+    }
   },
   "terrain": {
     "cells": 256,
     "height_min": 0,
     "height_max": 0,
-    "texture_layers": 0,
+    "texture_layers": 1,
+    "texture": "tileset/emeralddream/dreamrock02.blp",
     "water": false,
     "holes": false,
     "objects": false
@@ -35,9 +50,9 @@
   "storage": {
     "kind": "private_local_artifact",
     "directory": "runtime/lab/map-source-artifacts",
-    "artifact": "aiworldlab-725-area4988-flat-untextured-v1.zip",
-    "bytes": 70952,
-    "sha256": "d5d63f47a85760baf4900a196284356b45122c0ab1a24929b7b1b56d741b4ab4"
+    "artifact": "aiworldlab-725-area4988-flat-textured-v2.zip",
+    "bytes": 71167,
+    "sha256": "b8913b91306a1b363e116867eb997234dda42b36c4b878e24ccc3fd20fe4a099"
   },
   "files": [
     {
@@ -67,19 +82,70 @@
     },
     {
       "path": "world/maps/aiworldlab/aiworldlab.wdl",
-      "bytes": 17566,
-      "sha256": "f509b1ce43d77f61ef3648bd071ff1a245d075ec0a0739bac0fa491d59889b46"
+      "bytes": 17598,
+      "sha256": "ae95ef296a35ad06079b15d681131bc7b7a951556a908e99d9cb2ca394fa5e0a"
     },
     {
       "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
-      "bytes": 314516,
-      "sha256": "1d9c68613eb704ec9225dbfba6afb130d7f51f853c8e2c08e32c1b6466ed213f"
+      "bytes": 318649,
+      "sha256": "969e50b220b7028f900efa461e9b18e070cd51720373aef27306d60fc988b485"
     }
   ],
+  "test_points": "data/realm_lab/aiworldlab/test-points.json",
+  "server_manifest": "data/realm_lab/aiworldlab/server-manifest.json",
+  "server_bundle_storage": {
+    "kind": "private_artifact_local_and_lab_host",
+    "artifact": "runtime/lab/map-source-artifacts/aiworldlab-725-flat-textured-v2-server.zip",
+    "bytes": 866216,
+    "sha256": "6e193c2e5fe9867b034c73dbd99f48bb7e5b16e0ec9b483f4188948201669dd6",
+    "sha_and_crc_verified": true
+  },
+  "server_extraction": {
+    "source": "/home/voslik/WoWBehaviorAI-lab/runtime/lab/client-source/map725-v2",
+    "source_verified": true,
+    "completed": [
+      "mapextractor_dbc_maps",
+      "vmap4extractor",
+      "vmap4assembler",
+      "mmaps_generator_with_flat_terrain_opt_in"
+    ],
+    "mmaps": {
+      "status": "generated_and_navmesh_verified",
+      "resolved_issues": [
+        "Explicit opt-in includes constant-height terrain encoded as MAP_HEIGHT_NO_HEIGHT",
+        "BV tree vertical bounds cover the actual detail mesh geometry"
+      ],
+      "option": "--includeFlatTerrain true",
+      "default_include_flat_terrain": false,
+      "target_map_id": 725,
+      "clean_output_required": true,
+      "clean_output_used": true,
+      "mmap_bytes": 28,
+      "mmtile_bytes": 100732,
+      "debug_files": 5,
+      "regression_test": "mmaps.flat_terrain passed"
+    },
+    "custom_vmaps": {
+      "status": "expected_absent",
+      "objects": 0,
+      "reason": "No model spawns; successful assembler emits no tree for this empty placement map"
+    },
+    "final_output_hashes": "recorded_in_server_manifest",
+    "extractor_base_revision": "93ff169538e5eb189b76651217b992876a617524",
+    "mmap_generator_worktree_overlay": true,
+    "applied_source_hashes": "server-manifest.json:mmap_generator_source_files",
+    "compiler_version": "11.4.0"
+  },
+  "validation": {
+    "map_geometry": "verified_from_wdt_adt",
+    "navigation": "verified_navmesh_only_8_of_8_paths",
+    "in_game_gps": "pending",
+    "physical_player_movement": "pending",
+    "physical_npc_movement": "pending"
+  },
+  "server_map_deployment": "installed_and_healthy",
   "remaining": [
-    "reopen after area DBC update",
-    "paint one existing texture",
-    "record interior home and test positions",
-    "build matching client/server data"
+    "verify in-game GPS, stable floor and physical player walking",
+    "verify physical NPC movement without living roles before enabling AI"
   ]
 }
