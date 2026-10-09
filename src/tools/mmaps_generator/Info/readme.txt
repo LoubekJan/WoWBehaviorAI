@@ -24,6 +24,12 @@ R"(Generator command line args
 
                                     false: include liquid data (default)
 
+--includeFlatTerrain [true|false]   Include constant-height ground encoded without
+                                    vertex height arrays (MAP_HEIGHT_NO_HEIGHT).
+                                    Use for deliberately flat custom terrain.
+
+                                    false: retain legacy omission (default)
+
 --skipContinents    [true|false]    continents are maps 0 (Eastern Kingdoms),
                                     1 (Kalimdor), 530 (Outlands), 571 (Northrend)
 

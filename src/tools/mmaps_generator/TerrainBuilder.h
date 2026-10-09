@@ -77,7 +77,7 @@ namespace MMAP
     class TerrainBuilder
     {
         public:
-            TerrainBuilder(bool skipLiquid);
+            TerrainBuilder(bool skipLiquid, bool includeFlatTerrain = false);
             ~TerrainBuilder();
 
             TerrainBuilder(TerrainBuilder const& tb) = delete;
@@ -104,6 +104,9 @@ namespace MMAP
 
             /// Controls whether liquids are loaded
             bool m_skipLiquid;
+
+            /// Opt-in ground mesh for height maps encoded as a constant floor.
+            bool m_includeFlatTerrain;
 
             /// Get the vector coordinate for a specific position
             void getHeightCoord(int index, Grid grid, float xOffset, float yOffset, float* coord, float* v);

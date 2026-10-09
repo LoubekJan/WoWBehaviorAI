@@ -10,7 +10,8 @@
 
 CollectSourceFiles(
   ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE_SOURCES)
+  PRIVATE_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
 add_executable(mmaps_generator ${PRIVATE_SOURCES})
 
@@ -42,4 +43,17 @@ if(UNIX)
   install(TARGETS mmaps_generator DESTINATION bin)
 elseif(WIN32)
   install(TARGETS mmaps_generator DESTINATION "${CMAKE_INSTALL_PREFIX}")
+endif()
+
+if(BUILD_TESTING)
+  add_executable(mmaps_flat_terrain_test
+    tests/FlatTerrain.cpp
+    TerrainBuilder.cpp)
+  target_link_libraries(mmaps_flat_terrain_test PRIVATE
+    trinity-core-interface common Recast Detour)
+  target_include_directories(mmaps_flat_terrain_test PRIVATE ${PUBLIC_INCLUDES})
+  set_target_properties(mmaps_flat_terrain_test PROPERTIES
+    COMPILE_WARNING_AS_ERROR ${WITH_WARNINGS_AS_ERRORS}
+    FOLDER "tests")
+  add_test(NAME mmaps.flat_terrain COMMAND mmaps_flat_terrain_test)
 endif()

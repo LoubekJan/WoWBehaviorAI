@@ -149,6 +149,7 @@ namespace MMAP
             MapBuilder(Optional<float> maxWalkableAngle,
                 Optional<float> maxWalkableAngleNotSteep,
                 bool skipLiquid,
+                bool includeFlatTerrain,
                 bool skipContinents,
                 bool skipJunkMaps,
                 bool skipBattlegrounds,
@@ -202,6 +203,7 @@ namespace MMAP
             bool m_skipJunkMaps;
             bool m_skipBattlegrounds;
             bool m_skipLiquid;
+            bool m_includeFlatTerrain;
 
             Optional<float> m_maxWalkableAngle;
             Optional<float> m_maxWalkableAngleNotSteep;

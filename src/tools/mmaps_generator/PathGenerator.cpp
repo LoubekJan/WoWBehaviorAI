@@ -91,6 +91,7 @@ bool handleArgs(int argc, char** argv,
                Optional<float>& maxAngle,
                Optional<float>& maxAngleNotSteep,
                bool &skipLiquid,
+               bool &includeFlatTerrain,
                bool &skipContinents,
                bool &skipJunkMaps,
                bool &skipBattlegrounds,
@@ -162,6 +163,20 @@ bool handleArgs(int argc, char** argv,
             if (tileX < 0 || tileY < 0)
             {
                 printf("invalid tile coords.\n");
+                return false;
+            }
+        }
+        else if (strcmp(argv[i], "--includeFlatTerrain") == 0)
+        {
+            if (++i >= argc)
+                return false;
+            if (strcmp(argv[i], "true") == 0)
+                includeFlatTerrain = true;
+            else if (strcmp(argv[i], "false") == 0)
+                includeFlatTerrain = false;
+            else
+            {
+                printf("invalid option for '--includeFlatTerrain': expected true or false\n");
                 return false;
             }
         }
@@ -320,6 +335,7 @@ int main(int argc, char** argv)
     int tileX = -1, tileY = -1;
     Optional<float> maxAngle, maxAngleNotSteep;
     bool skipLiquid = false,
+         includeFlatTerrain = false,
          skipContinents = false,
          skipJunkMaps = true,
          skipBattlegrounds = false,
@@ -331,7 +347,7 @@ int main(int argc, char** argv)
 
     bool validParam = handleArgs(argc, argv, mapnum,
                                  tileX, tileY, maxAngle, maxAngleNotSteep,
-                                 skipLiquid, skipContinents, skipJunkMaps, skipBattlegrounds,
+                                 skipLiquid, includeFlatTerrain, skipContinents, skipJunkMaps, skipBattlegrounds,
                                  debugOutput, silent, bigBaseUnit, offMeshInputPath, file, threads);
 
     if (!validParam)
@@ -356,7 +372,7 @@ int main(int argc, char** argv)
     if (_liquidTypes.empty())
         return silent ? -5 : finish("Failed to load LiquidType.dbc", -5);
 
-    MapBuilder builder(maxAngle, maxAngleNotSteep, skipLiquid, skipContinents, skipJunkMaps,
+    MapBuilder builder(maxAngle, maxAngleNotSteep, skipLiquid, includeFlatTerrain, skipContinents, skipJunkMaps,
                        skipBattlegrounds, debugOutput, bigBaseUnit, mapnum, offMeshInputPath, threads);
 
     uint32 start = getMSTime();

@@ -24,6 +24,7 @@
 #include "StringFormat.h"
 #include "VMapFactory.h"
 #include "VMapManager2.h"
+#include <cmath>
 #include <map>
 
 // ******************************************
@@ -84,8 +85,10 @@ uint32 GetLiquidFlags(uint32 liquidId);
 namespace MMAP
 {
     uint32 const MAP_VERSION_MAGIC = 10;
+    uint32 const MAP_HEIGHT_MAGIC = 0x5447484D; // MHGT
 
-    TerrainBuilder::TerrainBuilder(bool skipLiquid) : m_skipLiquid (skipLiquid){ }
+    TerrainBuilder::TerrainBuilder(bool skipLiquid, bool includeFlatTerrain) :
+        m_skipLiquid(skipLiquid), m_includeFlatTerrain(includeFlatTerrain) { }
     TerrainBuilder::~TerrainBuilder() { }
 
     /**************************************************************************/
@@ -158,7 +161,13 @@ namespace MMAP
         bool haveLiquid = false;
         if (fread(&hheader, sizeof(map_heightHeader), 1, mapFile) == 1)
         {
-            haveTerrain = !(hheader.flags & MAP_HEIGHT_NO_HEIGHT);
+            // MAP_HEIGHT_NO_HEIGHT stores the floor in gridHeight. Its old
+            // omission remains the default for legacy/ocean extraction.
+            bool const includeFlat = m_includeFlatTerrain &&
+                (hheader.flags & MAP_HEIGHT_NO_HEIGHT) &&
+                hheader.fourcc == MAP_HEIGHT_MAGIC &&
+                std::isfinite(hheader.gridHeight) && std::isfinite(hheader.gridMaxHeight);
+            haveTerrain = !(hheader.flags & MAP_HEIGHT_NO_HEIGHT) || includeFlat;
             haveLiquid = fheader.liquidMapOffset && !m_skipLiquid;
         }
 
@@ -186,7 +195,12 @@ namespace MMAP
             float V9[V9_SIZE_SQ], V8[V8_SIZE_SQ];
             int expected = V9_SIZE_SQ + V8_SIZE_SQ;
 
-            if (hheader.flags & MAP_HEIGHT_AS_INT8)
+            if (hheader.flags & MAP_HEIGHT_NO_HEIGHT)
+            {
+                std::fill_n(V9, V9_SIZE_SQ, hheader.gridHeight);
+                std::fill_n(V8, V8_SIZE_SQ, hheader.gridHeight);
+            }
+            else if (hheader.flags & MAP_HEIGHT_AS_INT8)
             {
                 uint8 v9[V9_SIZE_SQ];
                 uint8 v8[V8_SIZE_SQ];

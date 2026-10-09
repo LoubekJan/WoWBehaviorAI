@@ -87,10 +87,12 @@ include(cmake/showoptions.cmake)
 # add dependencies
 add_subdirectory(dep)
 
+# Enable testing before source subdirectories register their tool tests.
+include(CTest)
+
 # add core sources
 add_subdirectory(src)
 
-include(CTest)
 if(BUILD_TESTING)
   list(APPEND CMAKE_MODULE_PATH
     "${Catch2_SOURCE_DIR}/contrib")

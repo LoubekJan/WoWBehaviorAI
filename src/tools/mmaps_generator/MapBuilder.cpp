@@ -16,6 +16,7 @@
  */
 
 #include "MapBuilder.h"
+#include "DetailMeshBounds.h"
 #include "IntermediateValues.h"
 #include "MapDefines.h"
 #include "MapTree.h"
@@ -39,7 +40,7 @@ namespace MMAP
         m_workerThread(&TileBuilder::WorkerThread, this),
         m_rcContext(nullptr)
     {
-        m_terrainBuilder = new TerrainBuilder(skipLiquid);
+        m_terrainBuilder = new TerrainBuilder(skipLiquid, mapBuilder->m_includeFlatTerrain);
         m_rcContext = new rcContext(false);
     }
 
@@ -58,6 +59,7 @@ namespace MMAP
     }
 
     MapBuilder::MapBuilder(Optional<float> maxWalkableAngle, Optional<float> maxWalkableAngleNotSteep, bool skipLiquid,
+        bool includeFlatTerrain,
         bool skipContinents, bool skipJunkMaps, bool skipBattlegrounds,
         bool debugOutput, bool bigBaseUnit, int mapid, char const* offMeshFilePath, unsigned int threads) :
         m_terrainBuilder     (nullptr),
@@ -68,6 +70,7 @@ namespace MMAP
         m_skipJunkMaps       (skipJunkMaps),
         m_skipBattlegrounds  (skipBattlegrounds),
         m_skipLiquid         (skipLiquid),
+        m_includeFlatTerrain (includeFlatTerrain),
         m_maxWalkableAngle   (maxWalkableAngle),
         m_maxWalkableAngleNotSteep (maxWalkableAngleNotSteep),
         m_bigBaseUnit        (bigBaseUnit),
@@ -77,7 +80,7 @@ namespace MMAP
         m_rcContext          (nullptr),
         _cancelationToken    (false)
     {
-        m_terrainBuilder = new TerrainBuilder(skipLiquid);
+        m_terrainBuilder = new TerrainBuilder(skipLiquid, includeFlatTerrain);
 
         m_rcContext = new rcContext(false);
 
@@ -823,6 +826,7 @@ namespace MMAP
         params.ch = config.ch;
         params.tileLayer = 0;
         params.buildBvTree = true;
+        IncludeDetailMeshHeightBounds(params, m_mapBuilder->m_includeFlatTerrain);
 
         // will hold final navmesh
         unsigned char* navData = nullptr;
