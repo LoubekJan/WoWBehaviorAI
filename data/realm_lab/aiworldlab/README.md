@@ -1,5 +1,11 @@
 # AI World Lab — mapový projekt
 
+Aktuální navazující etapa používá uživatelův vlastní členitý terén
+[v3 a profil hunt-terrain-100](terrain-v3/README.md). Níže je zachovaná
+referenční rovná verze v2 a její původní extrakce. [Hodinový záznam
+100 NPC na v2](hunt-100-hour-verification.json) prošel; výsledky v2
+nejsou fyzickým potvrzením nové geometrie v3.
+
 První vlastní mapa: MapID **725**, AreaID **4988**, exploration bit **3618**.
 Interní adresář `AIWorldLab`, název `AI World Lab`, `InstanceType=0`
 (Noggit zobrazuje `None`), expanze WotLK (2). Aktivní je jedna dlaždice

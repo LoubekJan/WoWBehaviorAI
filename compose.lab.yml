@@ -96,6 +96,7 @@ services:
     restart: unless-stopped
     environment:
       WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
+      LAB_AI_PROFILE: ${LAB_AI_PROFILE:-disabled}
     command: [python, /workspace/tools/realm_lab/run_scoped.py, uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000"]
     volumes:
       - ./tools/realm_lab:/workspace/tools/realm_lab:ro
@@ -131,6 +132,8 @@ services:
     depends_on:
       world-viewer:
         condition: service_healthy
+    environment:
+      LAB_AI_PROFILE: ${LAB_AI_PROFILE:-disabled}
     command: [python, /workspace/tools/realm_lab/run_scoped.py, python, -u, /record.py, --url, "http://world-viewer:8000/api/state", --output, /recordings, --hours, "${AIWORLD_RECORD_HOURS:-4}", --interval, "${AIWORLD_RECORD_INTERVAL:-5}", --label, "${AIWORLD_RECORD_LABEL:-realm-lab}", --build-label, "${AIWORLD_RECORD_BUILD_LABEL:-unknown}", --analyze, --minimum-minutes, "${AIWORLD_TEST_MINUTES:-60}"]
     volumes:
       - ./tools/realm_lab:/workspace/tools/realm_lab:ro

@@ -512,9 +512,9 @@ cyklus. Terén ani klientský patch se kvůli populaci nemění.
 - [x] Nasadit dva predátory a čtyři kořisti s pevnými domovy a přirozeným hladem na mapu 725.
 - [x] Vyhodnotit hodinový záznam šestice: oba predátoři 15 krmení a 15 naměřených návratů; 29 návratů má zachycenou fázi RETURN_HOME. Domovy a scope beze změny, bez zaseknutí.
 - [x] Podle výslovného požadavku nasadit 100 NPC (20 lovců / 80 kořistí) a zachovat původních šest domovů.
-- [ ] Vyhodnotit souvislý záznam stovky, zátěž během lovů a opakované návraty všech dvaceti lovců.
-- [ ] Teprve po průchodu roviny přidat mírný svah a zopakovat stejné scénáře.
-- [ ] Samostatně přidat jednu překážku s průchodem a zopakovat stejné scénáře.
+- [x] Vyhodnotit hodinový záznam stovky na rovině: 299 dokončených krmení, 182 fyzických návratů, dalších 117 krmení v domácím okruhu, bez nedokončených návratů.
+- [x] Podle volby uživatele připravit jeho vlastní terén v3 včetně dvou WMO staveb; ověřit výšky všech 100 domovů a 88 úplných navigačních tras.
+- [ ] Vyhodnotit samostatný hodinový záznam stovky na uživatelově terénu v3, včetně lovů, útěku kořisti a návratů poblíž staveb.
 - [ ] Další typy terénu, skupiny a modelové rady přidávat až podle výsledků předchozích etap.
 
 **Hotovo, když:** každé rozšíření má samostatný průkazný záznam a nezhorší
@@ -538,6 +538,19 @@ V prvních pěti 30sekundových oknech se obsloužilo přibližně 3000 aktualiz
 potřeb i vnímání na okno, maximální zpoždění bylo 6 ms a plánování nebylo
 odkládané. Jeden Docker vzorek ukázal 6,72 % CPU a 1,269 GiB paměti labu;
 jde o počáteční měření, nikoli hodinové přijetí chování či výkonu.
+
+[Hodinové ověření stovky na rovině](../data/realm_lab/aiworldlab/hunt-100-hour-verification.json)
+zachovává revizi `c4047cae06`, 1800 čerstvých vzorků a hash surového záznamu.
+Všech 20 lovců zůstalo živých, všech 100 domovů bylo stabilních a dokončená
+krmení neměla přerušený návrat. Toto měření je referencí v2.
+
+Další etapa používá původní uložený projekt uživatele, profil
+`hunt-terrain-100` a [samostatné důkazy v3](../data/realm_lab/aiworldlab/terrain-v3/README.md).
+Převýšení je 35,233 yardu a nejstrmější část má 47,499°. Jsou přítomné
+dvě WMO kolizní stavby a dva dekorativní M2 modely. Počet, identity,
+role a X/Y všech NPC se zachovávají; u 93 domovů se mění pouze výška.
+Připravený klientský/serverový balík a navmesh samy nepotvrzují fyzické
+chování na této nové geometrii; v3 potřebuje vlastní záznam.
 
 ### Postup při prvním selhání
 

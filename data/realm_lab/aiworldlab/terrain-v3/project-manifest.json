@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "stage": "geometry_and_navigation_verified",
+  "recorded_on": "2026-10-09",
+  "source_revision": "v3",
+  "map_id": 725,
+  "area_id": 4988,
+  "area_bit": 3618,
+  "directory": "AIWorldLab",
+  "name": "AI World Lab",
+  "instance_type": 0,
+  "expansion": 2,
+  "tile": {
+    "x": 30,
+    "y": 31
+  },
+  "editor": {
+    "version": "Noggit Studio 3.1446+ [40bc7ed9]",
+    "exe_sha256": "81c40cac2c2ea5f1b9b23064e8702116dbfed31d2ea39457d622bad346a80592",
+    "closed_before_packaging": true
+  },
+  "client": {
+    "version": "3.3.5a",
+    "build": 12340,
+    "locale": "enUS",
+    "patch": {
+      "path": "runtime/lab/client-patches/map725-v3/patch-4.MPQ",
+      "bytes": 824047,
+      "sha256": "54489fd569abcff4ebae99c91a028e1a90af17badaa146d44c8aec67e4b050ef"
+    },
+    "baseline_map_dbc_sha256": "261bd7c2c9dbdba1f2966ca21106673ed722c2e3681d227f1eed261b6ce870d5",
+    "baseline_area_dbc_sha256": "eb4bcfa77b03aed853c4783ac260a4259970effaad5b8a74d868783b4dbdc44e"
+  },
+  "terrain": {
+    "cells": 256,
+    "height_min": -1.2439320087432861,
+    "height_max": 33.988616943359375,
+    "maximum_slope_degrees": 47.49875923386839,
+    "water": false,
+    "holes": false,
+    "objects": true
+  },
+  "storage": {
+    "kind": "private_local_artifact",
+    "artifact": "runtime/lab/map-source-artifacts/aiworldlab-725-user-terrain-v3.zip",
+    "bytes": 125542,
+    "sha256": "a6f68d829e9d70d018c42b04f1ec8747cb60b4f663146d056d3ec814addb96a3"
+  },
+  "files": [
+    {
+      "path": "AI World Lab.noggitproj",
+      "bytes": 374,
+      "sha256": "b0510bf75c6e361702a0ccd432a6a827241ac51ee1d2f48e3e6384f7066645db"
+    },
+    {
+      "path": "DBFilesClient/Map.dbc",
+      "bytes": 43874,
+      "sha256": "540311f9f536c392929c533e17e7eb8111e25df852bc60ae5bdd35d6978babbc"
+    },
+    {
+      "path": "DBFilesClient/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "DBFilesClient/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdt",
+      "bytes": 32828,
+      "sha256": "f1d2bbcbbef0168c93f39e87700f83192e2edbb77cecd60208e58ec1c05a1c5d"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdl",
+      "bytes": 17598,
+      "sha256": "9034b59ba8d9b91f08618c4a04e5b8998d273b009249f3bd47da9043559e04ef"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "bytes": 319038,
+      "sha256": "bc33d70c3bd92ad5a87cfcaac7a59b7ffe29340b4846e8b90a7c9953344ce1cb"
+    }
+  ],
+  "test_points": "data/realm_lab/aiworldlab/terrain-v3/test-points.json",
+  "server_manifest": "data/realm_lab/aiworldlab/terrain-v3/server-manifest.json",
+  "server_bundle_storage": {
+    "artifact": "runtime/lab/map-source-artifacts/aiworldlab-725-user-terrain-v3-server.zip",
+    "bytes": 152403,
+    "sha256": "783283819c3b4870c50981b5bb47e70194b2d664229ea150335c416f5e83f860",
+    "sha_and_crc_verified": true
+  },
+  "server_extraction": {
+    "source": "/home/voslik/WoWBehaviorAI-lab/runtime/lab/client-source/map725-v3",
+    "source_verified": true,
+    "completed": [
+      "mapextractor_dbc_maps",
+      "vmap4extractor",
+      "vmap4assembler",
+      "mmaps_generator"
+    ],
+    "clean_output_used": true,
+    "mmap_bytes": 28,
+    "mmtile_bytes": 132332,
+    "custom_vmaps": {
+      "status": "verified_present",
+      "objects": 2,
+      "source_placements": 4,
+      "models": [
+        "vmaps/Prisonlonghouse_Redridge.wmo.vmo"
+      ],
+      "noncolliding_source_m2_placements": 2
+    },
+    "tool_build": "server-manifest.json:tool_build",
+    "final_output_hashes": "server-manifest.json:files"
+  },
+  "validation": {
+    "map_geometry": "verified_from_saved_user_adt",
+    "server_floor": "all_100_extracted_map_heights_match_adt_within_0.000452_yards",
+    "navigation": "104_projections_and_88_directed_complete_paths",
+    "in_game_gps": "pending_v3",
+    "physical_player_movement": "pending_v3",
+    "physical_npc_movement": "pending_v3",
+    "autonomous_hunt_and_return": "pending_v3"
+  },
+  "server_map_deployment": "staged_and_verified",
+  "remaining": [
+    "install matching bundle and height migration",
+    "physical v3 hunt/return acceptance"
+  ],
+  "geometry": {
+    "model_placements": 4,
+    "vmap_instances": 2,
+    "m2_placements": 2,
+    "wmo_placements": 2,
+    "decorative_m2_without_collision": [
+      "WORLD\\AZEROTH\\ELWYNN\\BUILDINGS\\BLACKSMITH\\BLACKSMITH.M2"
+    ]
+  },
+  "physical_movement_verified": false,
+  "activation": "data/realm_lab/aiworldlab/terrain-v3/activation.json (created only after deployment)"
+}

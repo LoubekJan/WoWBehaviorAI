@@ -17,9 +17,9 @@ import sys
 from typing import Mapping
 
 try:
-    from . import hunt_population, single_return
+    from . import hunt_population, single_return, terrain_profile
 except ImportError:  # Direct script invocation inside the lab container.
-    import hunt_population, single_return
+    import hunt_population, single_return, terrain_profile
 
 
 class SetupError(ValueError):
@@ -89,8 +89,8 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100"):
-            raise SetupError("LAB_AI_PROFILE must be disabled, single-return, hunt-cycle or hunt-100")
+        if profile not in ("disabled", "single-return", *hunt_population.PROFILES):
+            raise SetupError("LAB_AI_PROFILE must be disabled, single-return, hunt-cycle, hunt-100 or hunt-terrain-100")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
         return cls(
@@ -171,7 +171,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         result.update({"AIWorld.Enable": "1", "AIWorld.LivingRolesEnabled": "1",
                        "AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryHost": "world-viewer",
                        "AIWorld.TelemetryPort": "8000"})
-    elif settings.ai_profile in ("hunt-cycle", "hunt-100"):
+    elif settings.ai_profile in hunt_population.PROFILES:
         population = scope if isinstance(scope, hunt_population.Population) else hunt_population.Population.load(profile=settings.ai_profile)
         if population.profile != settings.ai_profile:
             raise SetupError("Population does not match the selected lab profile")
@@ -309,6 +309,19 @@ def activate_hunt(data: Path, settings: Settings, metadata: Path = single_return
     print(f"Only the {len(population.actors)} reviewed lab actors activated; select LAB_AI_PROFILE={population.profile} for startup.")
 
 
+def migrate_terrain(data: Path, settings: Settings, metadata: Path = terrain_profile.METADATA) -> None:
+    if settings.ai_profile != "disabled":
+        raise SetupError("Terrain migration requires LAB_AI_PROFILE=disabled and the lab worldserver stopped")
+    population = terrain_profile.verify_data(data, metadata)
+    rows = single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population)))
+    previous = terrain_profile.validate_transition_snapshot(rows, population)
+    lab_mysql(settings, terrain_profile.transition_sql(population))
+    rows = single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population)))
+    hunt_population.validate_snapshot(rows, population, control=0)
+    print(f"Offline terrain transition from {previous}: 100 identities and XY preserved; only spawn/home ground Z updated.")
+    print("Navigation certified; native/physical v3 acceptance remains pending until measured on this terrain.")
+
+
 def auth_user_sql(settings: Settings) -> str:
     account = f"{sql_literal(settings.auth_user)}@'%'"
     return f"""CREATE USER {account} IDENTIFIED BY {sql_literal(settings.auth_password)};
@@ -372,7 +385,8 @@ def main() -> None:
     check = sub.add_parser("preflight")
     check.add_argument("data", type=Path)
     for command in ("bootstrap-single", "activate-single", "preflight-single", "bootstrap-hunt", "activate-hunt", "preflight-hunt",
-                    "bootstrap-hunt-100", "activate-hunt-100", "preflight-hunt-100"):
+                    "bootstrap-hunt-100", "activate-hunt-100", "preflight-hunt-100",
+                    "migrate-hunt-terrain-100", "activate-hunt-terrain-100", "preflight-hunt-terrain-100"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -382,7 +396,7 @@ def main() -> None:
             if settings.ai_profile == "single-return":
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = single_preflight(Path("/runtime/data"), settings, control=1)
-            elif settings.ai_profile in ("hunt-cycle", "hunt-100"):
+            elif settings.ai_profile in hunt_population.PROFILES:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = population_preflight(Path("/runtime/data"), settings, control=1, profile=settings.ai_profile)
             rendered = render_config(args.template.read_text(encoding="utf-8"), settings, scope)
@@ -420,6 +434,15 @@ def main() -> None:
             profile = "hunt-100" if args.command.endswith("-100") else "hunt-cycle"
             population_preflight(args.data, settings, control=1 if settings.ai_profile == profile else 0, profile=profile)
             print(f"Reviewed lab bundle and exact {profile} population verified.")
+        elif args.command == "migrate-hunt-terrain-100":
+            migrate_terrain(args.data, settings)
+        elif args.command == "activate-hunt-terrain-100":
+            activate_hunt(args.data, settings, profile=terrain_profile.PROFILE)
+            print("Experimental v3 navigation gate passed; physical movement acceptance remains pending.")
+        elif args.command == "preflight-hunt-terrain-100":
+            population_preflight(args.data, settings, control=1 if settings.ai_profile == terrain_profile.PROFILE else 0,
+                                 profile=terrain_profile.PROFILE)
+            print("Terrain bundle, full VMAP model closure and exact 100-actor homes verified; physical v3 acceptance remains pending.")
     except (SetupError, single_return.ProfileError, OSError) as exc:
         print(f"Lab setup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

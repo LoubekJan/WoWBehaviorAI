@@ -26,6 +26,7 @@ EXPECTED_IDS = frozenset(range(900725, 900731))
 PROFILES = {
     "hunt-cycle": ("hunt-population.json", 6, 2, 4),
     "hunt-100": ("hunt-population-100.json", 100, 20, 80),
+    "hunt-terrain-100": ("hunt-population-terrain-100.json", 100, 20, 80),
 }
 # Non-attackable, immune to NPC attacks, and non-selectable templates cannot
 # demonstrate a physical hunt/kill/feed cycle.
@@ -76,6 +77,12 @@ class Population:
     @classmethod
     def load(cls, metadata: Path = METADATA, *, profile: str = "hunt-cycle") -> Population:
         require(isinstance(profile, str) and profile in PROFILES, "Unknown reviewed population profile")
+        if profile == "hunt-terrain-100":
+            try:
+                from . import terrain_profile
+            except ImportError:
+                import terrain_profile
+            return terrain_profile.load_population(terrain_profile.METADATA if metadata == METADATA else metadata)
         filename, actor_count, predator_count, prey_count = PROFILES[profile]
         scope = base.Scope.load(metadata)
         document = base.load_json(metadata / filename)
@@ -149,6 +156,12 @@ class Population:
 
 
 def verify_data(data: Path, metadata: Path = METADATA, *, profile: str = "hunt-cycle") -> Population:
+    if profile == "hunt-terrain-100":
+        try:
+            from . import terrain_profile
+        except ImportError:
+            import terrain_profile
+        return terrain_profile.verify_data(data, terrain_profile.METADATA if metadata == METADATA else metadata)
     scope = base.verify_data(data, metadata)
     population = Population.load(metadata, profile=profile)
     require(population.scope == scope, "Population geometry differs from verified map")

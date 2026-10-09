@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "v3",
+  "coordinate_system": "WoW server X/Y/Z in yards",
+  "validation": "Measured user-authored v3 terrain; navigation and physical movement are evaluated for this revision separately from flat v2",
+  "validation_status": {
+    "map_geometry": "verified_from_saved_user_adt",
+    "navigation": "verified_104_projections_88_directed_paths",
+    "in_game_gps": "pending_v3",
+    "physical_player_movement": "pending_v3",
+    "physical_npc_movement": "pending_v3"
+  },
+  "tile": {
+    "adt_x": 30,
+    "adt_y": 31,
+    "server_grid_x": 31,
+    "server_grid_y": 30
+  },
+  "bounds": {
+    "x_min": 0,
+    "x_max": 533.333333,
+    "y_min": 533.333333,
+    "y_max": 1066.666667
+  },
+  "test_region": {
+    "x_min": 166.667,
+    "x_max": 366.667,
+    "y_min": 700,
+    "y_max": 900
+  },
+  "home": {
+    "x": 266.667,
+    "y": 800,
+    "floor_z": 8.859885391,
+    "player_entry_z": 10.859885391
+  },
+  "return_points": [
+    {
+      "name": "minus_x",
+      "x": 226.667,
+      "y": 800,
+      "floor_z": 11.801295838,
+      "player_entry_z": 13.801295838
+    },
+    {
+      "name": "plus_x",
+      "x": 306.667,
+      "y": 800,
+      "floor_z": 9.617494067,
+      "player_entry_z": 11.617494067
+    },
+    {
+      "name": "minus_y",
+      "x": 266.667,
+      "y": 760,
+      "floor_z": 28.80645202,
+      "player_entry_z": 30.80645202
+    },
+    {
+      "name": "plus_y",
+      "x": 266.667,
+      "y": 840,
+      "floor_z": 9.039329578,
+      "player_entry_z": 11.039329578
+    }
+  ],
+  "coordinate_evidence": [
+    "src/tools/map_extractor/System.cpp: ADT x,y -> map filename mapid,y,x",
+    "src/server/game/Maps/Map.cpp: gx=int(32-X/GRID_SIZE), gy=int(32-Y/GRID_SIZE)",
+    "ADT MCNK(0,0): raw position values 533.333984 and 1066.666992, height 0"
+  ],
+  "gps_scope_note": "The mmap indicator reports a loaded map navmesh, not presence of a specific tile or a complete route",
+  "custom_vmaps_note": "Two Prisonlonghouse_Redridge WMO collision instances; both Blacksmith M2 placements have no extracted collision mesh in the verified client"
+}

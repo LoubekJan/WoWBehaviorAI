@@ -7,15 +7,21 @@ import sys
 
 try:
     from .single_return import ProfileError, Scope
+    from . import terrain_profile
 except ImportError:
     from single_return import ProfileError, Scope
+    import terrain_profile
 
 
 def main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit("run_scoped.py requires a command")
     try:
-        os.environ.update(Scope.load().observer_environment())
+        profile = os.environ.get("LAB_AI_PROFILE", "disabled")
+        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE):
+            raise ProfileError("Unknown reviewed observer lab profile")
+        scope = terrain_profile.load_scope() if profile == terrain_profile.PROFILE else Scope.load()
+        os.environ.update(scope.observer_environment())
     except ProfileError as exc:
         raise SystemExit(f"Lab observer scope failed: {exc}") from exc
     os.execvp(sys.argv[1], sys.argv[1:])

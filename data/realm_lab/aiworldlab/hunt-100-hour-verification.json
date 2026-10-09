@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "status": "PASS for this sampled flat-map scenario",
+  "session_id": "20261009T150719Z-67bc5098",
+  "code_revision": "c4047cae06d84cad863fb93fa943aaa58d4d16ba",
+  "map_id": 725,
+  "population": {
+    "predators": 20,
+    "prey": 80
+  },
+  "start_utc": "2026-10-09T15:07:19.301+00:00",
+  "last_sample_utc": "2026-10-09T16:07:17.301+00:00",
+  "samples": 1800,
+  "counts": {
+    "exact_population_snapshots": 1800,
+    "prey_death_transitions": 300,
+    "prey_respawn_transitions": 291,
+    "feeding_entries": 300,
+    "meals_with_hunger_drop": 299,
+    "physical_home_arrivals": 182,
+    "explicit_RETURN_HOME_arrivals": 106,
+    "arrivals_with_phase_between_samples": 76,
+    "meals_already_within_home_radius": 117,
+    "meals_interrupted_before_home_arrival": 0
+  },
+  "integrity": {
+    "all_100_homes_seen": true,
+    "all_100_record_homes_stable": true,
+    "all_20_predators_alive_at_every_sample": true
+  },
+  "source_binding": {
+    "metadata_sha256": "11c3a1080bdce2689da60af723ce1d79576f6bdd68b86729b07b251069d4f011",
+    "analyzer_sha256": "a458a8538247b792a33370284e5c17ecf7966ff5d350584122285cb762097cba",
+    "recording_parts_before": {
+      "part-0001.jsonl.gz": {
+        "bytes": 21561658,
+        "sha256": "a8f4fa0f86715fee7c75439e723c532d526557a6560e9c3266d50ce0bfc65a1a"
+      }
+    },
+    "recording_parts_after": {
+      "part-0001.jsonl.gz": {
+        "bytes": 21561658,
+        "sha256": "a8f4fa0f86715fee7c75439e723c532d526557a6560e9c3266d50ce0bfc65a1a"
+      }
+    },
+    "recording_bytes_unchanged_during_audit": true,
+    "all_gzip_members_closed_and_crc_validated": true
+  },
+  "metadata_canonical_sha256_verified_on_server": "ca8dff43ecb68d51505617ad62dd34c1b9708c23db43907ad24a6d6db2d60954",
+  "meals_per_predator": {
+    "900725": 15,
+    "900726": 15,
+    "900731": 15,
+    "900732": 15,
+    "900733": 15,
+    "900734": 15,
+    "900735": 15,
+    "900736": 15,
+    "900737": 15,
+    "900738": 15,
+    "900739": 15,
+    "900740": 15,
+    "900741": 14,
+    "900742": 15,
+    "900743": 15,
+    "900744": 15,
+    "900745": 15,
+    "900746": 15,
+    "900747": 15,
+    "900748": 15
+  },
+  "all_completed_meals_settled": true,
+  "unfinished_feeding_at_recording_end": [
+    900741
+  ],
+  "fed_to_physical_home_seconds": {
+    "min": 28.0,
+    "max": 40.003
+  },
+  "anomalies": {},
+  "terminal_hunt_errors": {},
+  "quality": {
+    "sample_rows": 1800,
+    "unique_fresh_snapshots": 1800,
+    "live_prey_role_initialization_gap": 11,
+    "maximum_capture_gap_ms": 3000
+  },
+  "prey_dead_at_recording_end": 9,
+  "performance": {
+    "recorded_at_utc": "2026-10-09T16:20:01.290778+00:00",
+    "scope": "all available 30-second update windows since current server startup, including the recording and subsequent live run",
+    "window_count": 147,
+    "ranges": {
+      "worldDiffMaxMs": {
+        "min": 2.0,
+        "max": 27.0,
+        "latest": 2.0
+      },
+      "totalMaxMs": {
+        "min": 0.94,
+        "max": 2.93,
+        "latest": 1.46
+      },
+      "needsMaxMs": {
+        "min": 0.46,
+        "max": 1.56,
+        "latest": 0.64
+      },
+      "perceptionMaxMs": {
+        "min": 0.11,
+        "max": 0.73,
+        "latest": 0.21
+      },
+      "telemetryMaxMs": {
+        "min": 0.92,
+        "max": 2.92,
+        "latest": 1.4
+      },
+      "needsAgents": {
+        "min": 3000.0,
+        "max": 3001.0,
+        "latest": 3000.0
+      },
+      "perceptionAgents": {
+        "min": 3000.0,
+        "max": 3001.0,
+        "latest": 3000.0
+      },
+      "needsLateMaxMs": {
+        "min": 1.0,
+        "max": 20.0,
+        "latest": 1.0
+      },
+      "perceptionLateMaxMs": {
+        "min": 1.0,
+        "max": 20.0,
+        "latest": 1.0
+      },
+      "planningDeferred": {
+        "min": 0.0,
+        "max": 0.0,
+        "latest": 0.0
+      }
+    },
+    "planning_deferred_total": 0.0,
+    "last_windows": [
+      "AIWORLD_UPDATE windowMs=30000 ticks=28451 worldDiffMaxMs=2 totalMaxMs=1.67 needsMaxMs=0.66 perceptionMaxMs=0.22 telemetryMaxMs=1.64 otherMaxMs=0.27 needsAgents=3001 perceptionAgents=3000 needsLateMaxMs=1 perceptionLateMaxMs=1 planningStarted=50 planningDeferred=0 planningTotalMs=3.15 planningMaxMs=0.22",
+      "AIWORLD_UPDATE windowMs=30000 ticks=28394 worldDiffMaxMs=2 totalMaxMs=1.65 needsMaxMs=1.15 perceptionMaxMs=0.25 telemetryMaxMs=1.63 otherMaxMs=0.27 needsAgents=3000 perceptionAgents=3000 needsLateMaxMs=1 perceptionLateMaxMs=1 planningStarted=55 planningDeferred=0 planningTotalMs=3.92 planningMaxMs=0.26",
+      "AIWORLD_UPDATE windowMs=30000 ticks=28429 worldDiffMaxMs=2 totalMaxMs=1.46 needsMaxMs=0.64 perceptionMaxMs=0.21 telemetryMaxMs=1.40 otherMaxMs=0.32 needsAgents=3000 perceptionAgents=3000 needsLateMaxMs=1 perceptionLateMaxMs=1 planningStarted=56 planningDeferred=0 planningTotalMs=4.19 planningMaxMs=0.33"
+    ],
+    "container_stats": [
+      "aitc-lab-worldserver-1|6.37%|1.26GiB / 62.64GiB"
+    ]
+  },
+  "notes": [
+    "19 predators completed 15 meals; 900741 completed 14 and had just begun another feeding in the final sample.",
+    "106 physical returns include a moving RETURN_HOME sample; 76 are supported by sampled XY displacement and home arrival while the short movement phase was missed.",
+    "Only 189 meal sequences include sampled HUNTING immediately before FEEDING. All 299 include feeding of reviewed dead prey and an actual hunger decrease.",
+    "11 prey role initialization gaps after respawn were brief; authoritative PREY identity, control and home remained valid.",
+    "Performance windows span current server startup through the subsequent live check, including the full recording. Docker CPU/RAM samples are current measurements, not a recorded hourly maximum."
+  ],
+  "limitations": [
+    "Observer v4 exports spawn/agent IDs but no runtime GUID or life incarnation; continuity applies only to observed snapshots.",
+    "No player count, kill credit or teleport/test-hook audit in v4: this cannot alone prove playerless operation or the killer.",
+    "home is the stored agent home; home_distance uses the runtime creature home. Exact runtime home equality needs a separate diagnostic.",
+    "Physical arrival means sampled XY displacement >1 yard after an observed FEEDING/FED hunger drop, from >14 to <=14 yards before the next hunt/meal. Absence of external teleport is not provable from these fields.",
+    "Duplicate captures are ignored; stale/missing/non-v4 frames, changed homes, invalid predator or a >10-second capture gap interrupts pending cycle evidence.",
+    "Dead/respawning prey may have living_role:null; their authoritative PREY identity remains checked. A live prey initialization gap is reported separately.",
+    "An unfinished final gzip member may be read only with --allow-open-last; its missing footer cannot provide final CRC completeness.",
+    "Metadata SHA256 and before/after recording fingerprints bind stable files; changed/open recording files remain preliminary evidence."
+  ],
+  "evidence": [
+    "hour-review.json",
+    "independent-hour-review.json",
+    "hour-integrity/behavior-report.json",
+    "hour-performance.json"
+  ],
+  "source_revision": "v2",
+  "scenario": "Flat map 725, exact100 metadata, 20 autonomous predators and80 prey",
+  "scope_note": "Completed flat-v2 recording; it does not verify the new user-authored terrain-v3"
+}
