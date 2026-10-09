@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "stage": "geometry_and_navigation_verified",
+  "stage": "installed_and_live_population_verified",
   "recorded_on": "2026-10-09",
   "source_revision": "v3",
   "map_id": 725,
@@ -26,7 +26,9 @@
     "patch": {
       "path": "runtime/lab/client-patches/map725-v3/patch-4.MPQ",
       "bytes": 824047,
-      "sha256": "54489fd569abcff4ebae99c91a028e1a90af17badaa146d44c8aec67e4b050ef"
+      "sha256": "54489fd569abcff4ebae99c91a028e1a90af17badaa146d44c8aec67e4b050ef",
+      "installed_path": "C:/WoWModding/Client-Lab/Data/patch-4.MPQ",
+      "installed_sha256": "54489fd569abcff4ebae99c91a028e1a90af17badaa146d44c8aec67e4b050ef"
     },
     "baseline_map_dbc_sha256": "261bd7c2c9dbdba1f2966ca21106673ed722c2e3681d227f1eed261b6ce870d5",
     "baseline_area_dbc_sha256": "eb4bcfa77b03aed853c4783ac260a4259970effaad5b8a74d868783b4dbdc44e"
@@ -124,9 +126,8 @@
     "physical_npc_movement": "pending_v3",
     "autonomous_hunt_and_return": "pending_v3"
   },
-  "server_map_deployment": "staged_and_verified",
+  "server_map_deployment": "installed_and_healthy",
   "remaining": [
-    "install matching bundle and height migration",
     "physical v3 hunt/return acceptance"
   ],
   "geometry": {
@@ -139,5 +140,5 @@
     ]
   },
   "physical_movement_verified": false,
-  "activation": "data/realm_lab/aiworldlab/terrain-v3/activation.json (created only after deployment)"
+  "activation": "data/realm_lab/aiworldlab/terrain-v3/activation.json"
 }

@@ -23,9 +23,17 @@ navmesh; fyzický lov a návraty na v3 se přijímají až ze samostatného záz
 - [Serverová data, kolizní závislosti a navigační důkaz](server-manifest.json).
 - [Populace s novými výškami](hunt-population-terrain-100.json).
 - [Vstup hráče a návratové body](test-points.json).
+- [Záznam nasazení a živé stovky](activation.json).
 - Soukromý zdroj: `runtime/lab/map-source-artifacts/aiworldlab-725-user-terrain-v3.zip`.
 - Soukromý serverový balík: `runtime/lab/map-source-artifacts/aiworldlab-725-user-terrain-v3-server.zip`.
 - Klientský patch: `runtime/lab/client-patches/map725-v3/patch-4.MPQ`.
+
+V3 byla nasazená 9. 10. 2026 po úspěšném CI na revizi `7db5a1feaa`.
+V prvním čerstvém vzorku bylo všech 100 NPC živých a řízených, domovy
+odpovídaly nové geometrii a všechny čtyři služby byly zdravé. Původní
+realm i authserver zachovaly stejné kontejnery a časy spuštění. CI prošlo
+115 realm testů včetně skutečného MySQL, 112 Observer, 74 AI a 478 C++ testů.
+Klientský patch je instalovaný v `C:\WoWModding\Client-Lab\Data\patch-4.MPQ`.
 
 Migrace vyžaduje `LAB_AI_PROFILE=disabled`, skutečně zastavený lab
 worldserver a soukromou SQL/datovou zálohu. Před zápisem ověřuje celou

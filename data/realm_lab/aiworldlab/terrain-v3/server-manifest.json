@@ -9001,10 +9001,16 @@
     "errors": []
   },
   "deployment": {
-    "status": "staged_and_verified",
+    "status": "installed_and_healthy",
     "target": "runtime/lab/data",
     "realm_id": 2,
-    "physical_movement_verified": false
+    "physical_movement_verified": false,
+    "installed_utc": "2026-10-09T18:03:06.675828+00:00",
+    "worldserver_revision": "7db5a1feaa7cb3af6b5ca62a96d4122a7a71cd50",
+    "backup": "runtime/lab/validation/terrain-v3/before",
+    "lab_services_healthy": 4,
+    "primary_services_unchanged": true,
+    "initial_live_population_verified": 100
   },
   "source_bindings": {
     "adt_sha256": "bc33d70c3bd92ad5a87cfcaac7a59b7ffe29340b4846e8b90a7c9953344ce1cb",

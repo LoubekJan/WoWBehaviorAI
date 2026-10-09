@@ -514,6 +514,7 @@ cyklus. Terén ani klientský patch se kvůli populaci nemění.
 - [x] Podle výslovného požadavku nasadit 100 NPC (20 lovců / 80 kořistí) a zachovat původních šest domovů.
 - [x] Vyhodnotit hodinový záznam stovky na rovině: 299 dokončených krmení, 182 fyzických návratů, dalších 117 krmení v domácím okruhu, bez nedokončených návratů.
 - [x] Podle volby uživatele připravit jeho vlastní terén v3 včetně dvou WMO staveb; ověřit výšky všech 100 domovů a 88 úplných navigačních tras.
+- [x] Nasadit shodný klientský/serverový balík v3 a výšky domovů; živý Observer potvrzuje přesně 100 řízených NPC.
 - [ ] Vyhodnotit samostatný hodinový záznam stovky na uživatelově terénu v3, včetně lovů, útěku kořisti a návratů poblíž staveb.
 - [ ] Další typy terénu, skupiny a modelové rady přidávat až podle výsledků předchozích etap.
 
@@ -551,6 +552,13 @@ dvě WMO kolizní stavby a dva dekorativní M2 modely. Počet, identity,
 role a X/Y všech NPC se zachovávají; u 93 domovů se mění pouze výška.
 Připravený klientský/serverový balík a navmesh samy nepotvrzují fyzické
 chování na této nové geometrii; v3 potřebuje vlastní záznam.
+
+[Aktivace v3](../data/realm_lab/aiworldlab/terrain-v3/activation.json)
+potvrzuje první čerstvý vzorek se 100 živými NPC, jejich nové domovy,
+čtyři zdravé služby a zachovaný běh původního realmu i authserveru.
+Před migrací byly zazálohované dotčené databázové řádky, serverová data,
+lab konfigurace i klientský patch. CI na revizi `7db5a1feaa` prošlo
+115 realm testů včetně MySQL, 112 Observer, 74 AI a 478 C++ testů.
 
 ### Postup při prvním selhání
 

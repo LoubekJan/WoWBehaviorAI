@@ -1,0 +1,1365 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-09T18:03:06.675828+00:00",
+  "profile": "hunt-terrain-100",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "v3",
+  "code_revision": "7db5a1feaa7cb3af6b5ca62a96d4122a7a71cd50",
+  "scope": {
+    "map_id": 725,
+    "zone_ids": [
+      4988
+    ],
+    "bounds": {
+      "min_x": 166.667,
+      "max_x": 366.667,
+      "min_y": 700.0,
+      "max_y": 900.0
+    },
+    "name": "AI World Lab"
+  },
+  "flags": {
+    "RealmID": "2",
+    "AIWorld.Enable": "1",
+    "AIWorld.ScopeMapId": "725",
+    "AIWorld.ScopeZoneIds": "\"4988\"",
+    "AIWorld.ScopeSpawnIds": "\"900725,900726,900727,900728,900729,900730,900731,900732,900733,900734,900735,900736,900737,900738,900739,900740,900741,900742,900743,900744,900745,900746,900747,900748,900749,900750,900751,900752,900753,900754,900755,900756,900757,900758,900759,900760,900761,900762,900763,900764,900765,900766,900767,900768,900769,900770,900771,900772,900773,900774,900775,900776,900777,900778,900779,900780,900781,900782,900783,900784,900785,900786,900787,900788,900789,900790,900791,900792,900793,900794,900795,900796,900797,900798,900799,900800,900801,900802,900803,900804,900805,900806,900807,900808,900809,900810,900811,900812,900813,900814,900815,900816,900817,900818,900819,900820,900821,900822,900823,900824\"",
+    "AIWorld.ScopeRestrictAgents": "1",
+    "AIWorld.ScopeAlwaysActive": "1",
+    "AIWorld.RemoteInferenceEnabled": "0",
+    "AIWorld.LivingNeedEvolutionEnabled": "1",
+    "AIWorld.GroupCoarseSimulationEnabled": "0",
+    "AIWorld.TelemetryEnabled": "1",
+    "AIWorld.TestSpawnId": "0",
+    "AIWorld.LivingRolesEnabled": "1",
+    "AIWorld.LivingRoleExtensionsEnabled": "0",
+    "AIWorld.NeedsHungerRatePerSecond": "0.003",
+    "AIWorld.RecoveryAdviceEnabled": "0"
+  },
+  "captured_at_ms": 1791568986432,
+  "metadata_canonical_sha256": "ee2870d546c63ffdbf4e528b2200322bb54fc9de7c4b4bc50dd60d849fb1cefb",
+  "agents": [
+    {
+      "spawn_id": 900725,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 800.0,
+        "z": 8.859885,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900726,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 326.667,
+        "y": 800.0,
+        "z": 16.79153,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900727,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 291.667,
+        "y": 800.0,
+        "z": 1.820563,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900728,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 256.667,
+        "y": 826.0,
+        "z": 10.95139,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900729,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 351.667,
+        "y": 800.0,
+        "z": 5.419819,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900730,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 336.667,
+        "y": 774.0,
+        "z": 11.76669,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900731,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 728.0,
+        "z": 11.39275,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900732,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 728.0,
+        "z": 7.698758,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900733,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 728.0,
+        "z": 9.987805,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900734,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 728.0,
+        "z": 13.80098,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900735,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 728.0,
+        "z": 7.42457,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900736,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 764.0,
+        "z": 11.61979,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900737,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 764.0,
+        "z": 20.97716,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900738,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 764.0,
+        "z": 14.83413,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900739,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 764.0,
+        "z": 8.411285,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900740,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 836.0,
+        "z": 4.721845,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900741,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 836.0,
+        "z": 9.352271,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900742,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 836.0,
+        "z": 5.236445,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900743,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 836.0,
+        "z": 2.966682,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900744,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 872.0,
+        "z": 0.0,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900745,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 872.0,
+        "z": 0.07972759,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900746,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 872.0,
+        "z": 0.03815323,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900747,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 872.0,
+        "z": 0.0,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900748,
+      "entry": 1186,
+      "type": "PREDATOR",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 872.0,
+        "z": 0.0,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900749,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 710.0,
+        "z": 16.02646,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900750,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 710.0,
+        "z": 16.93769,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900751,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 710.0,
+        "z": 12.75958,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900752,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 710.0,
+        "z": 10.67108,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900753,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 710.0,
+        "z": 11.19238,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900754,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 710.0,
+        "z": 9.595477,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900755,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 710.0,
+        "z": 13.61132,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900756,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 710.0,
+        "z": 18.83735,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900757,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 710.0,
+        "z": 10.86366,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900758,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 728.0,
+        "z": 12.64346,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900759,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 728.0,
+        "z": 6.031094,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900760,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 728.0,
+        "z": 11.81002,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900761,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 728.0,
+        "z": 11.51153,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900762,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 728.0,
+        "z": 9.916603,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900763,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 746.0,
+        "z": 7.583102,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900764,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 746.0,
+        "z": 6.874273,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900765,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 746.0,
+        "z": 5.926284,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900766,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 746.0,
+        "z": 10.40157,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900767,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 746.0,
+        "z": 21.60908,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900768,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 746.0,
+        "z": 22.28012,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900769,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 746.0,
+        "z": 15.17661,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900770,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 746.0,
+        "z": 12.95294,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900771,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 746.0,
+        "z": 9.863269,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900772,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 764.0,
+        "z": 6.614289,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900773,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 764.0,
+        "z": 14.62351,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900774,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 764.0,
+        "z": 32.69341,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900775,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 764.0,
+        "z": 28.69138,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900776,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 764.0,
+        "z": 17.73536,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900777,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 764.0,
+        "z": 13.93768,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900778,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 782.0,
+        "z": 8.168276,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900779,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 782.0,
+        "z": 13.39939,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900780,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 782.0,
+        "z": 17.97155,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900781,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 782.0,
+        "z": 20.47044,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900782,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 782.0,
+        "z": 24.62258,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900783,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 782.0,
+        "z": 18.99606,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900784,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 782.0,
+        "z": 8.413116,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900785,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 782.0,
+        "z": 11.70784,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900786,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 782.0,
+        "z": 17.31339,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900787,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 800.0,
+        "z": 6.856861,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900788,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 800.0,
+        "z": 10.17982,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900789,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 800.0,
+        "z": 11.54977,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900790,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 800.0,
+        "z": 12.08367,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900791,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 800.0,
+        "z": 13.56451,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900792,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 800.0,
+        "z": 0.3877506,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900793,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 800.0,
+        "z": 7.259441,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900794,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 800.0,
+        "z": 17.84374,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900795,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 800.0,
+        "z": 11.45107,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900796,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 818.0,
+        "z": 4.747476,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900797,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 818.0,
+        "z": 6.767691,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900798,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 818.0,
+        "z": 8.656862,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900799,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 818.0,
+        "z": 9.133604,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900800,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 818.0,
+        "z": 10.97918,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900801,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 818.0,
+        "z": 7.349761,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900802,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 818.0,
+        "z": 7.499607,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900803,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 818.0,
+        "z": 12.11114,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900804,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 818.0,
+        "z": 7.951238,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900805,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 836.0,
+        "z": 2.31643,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900806,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 836.0,
+        "z": 7.252966,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900807,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 836.0,
+        "z": 10.78923,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900808,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 836.0,
+        "z": 10.09006,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900809,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 836.0,
+        "z": 7.240627,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900810,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 836.0,
+        "z": 4.992068,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900811,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 854.0,
+        "z": 0.1290875,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900812,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 194.667,
+        "y": 854.0,
+        "z": 1.207439,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900813,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 854.0,
+        "z": 2.824836,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900814,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 230.667,
+        "y": 854.0,
+        "z": 3.805891,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900815,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 854.0,
+        "z": 4.698282,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900816,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 266.667,
+        "y": 854.0,
+        "z": 4.196515,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900817,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 302.667,
+        "y": 854.0,
+        "z": 1.232001,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900818,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 854.0,
+        "z": 1.324936,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900819,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 338.667,
+        "y": 854.0,
+        "z": 0.8917808,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900820,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 176.667,
+        "y": 872.0,
+        "z": 0.0,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900821,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 212.667,
+        "y": 872.0,
+        "z": 0.0,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900822,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 248.667,
+        "y": 872.0,
+        "z": 0.1538824,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900823,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 284.667,
+        "y": 872.0,
+        "z": 0.000432195,
+        "map_id": 725
+      }
+    },
+    {
+      "spawn_id": 900824,
+      "entry": 883,
+      "type": "PREY",
+      "control_mode": "AI_WORLD_CONTROLLED",
+      "alive": true,
+      "home": {
+        "x": 320.667,
+        "y": 872.0,
+        "z": 0.0,
+        "map_id": 725
+      }
+    }
+  ],
+  "summary": {
+    "controlled_predators": 20,
+    "controlled_prey": 80,
+    "alive_predators": 20,
+    "alive_prey": 80,
+    "all_100_reviewed_homes_preserved": true,
+    "exact_population_database_preflight": true,
+    "lab_services_healthy": 4,
+    "primary_services_unchanged": true,
+    "realm_contract_tests_passed": 115,
+    "observer_tests_passed": 112,
+    "ai_protocol_tests_passed": 74,
+    "cpp_tests_passed": 478,
+    "native_player_confirmation_v3": "pending",
+    "completed_hunt_return_acceptance_v3": "pending"
+  },
+  "validation_scope": "Exact live activation on v3; completed hunts and returns require a separate recording.",
+  "ci_run_url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/37969819472",
+  "client_patch_sha256": "54489fd569abcff4ebae99c91a028e1a90af17badaa146d44c8aec67e4b050ef",
+  "backup_directory": "runtime/lab/validation/terrain-v3/before"
+}
