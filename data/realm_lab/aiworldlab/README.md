@@ -1,133 +1,133 @@
-# AI World Lab â€” mapovĂ˝ projekt
+# AI World Lab — mapový projekt
 
-PrvnĂ­ vlastnĂ­ mapa: MapID **725**, AreaID **4988**, exploration bit **3618**.
-InternĂ­ adresĂˇĹ™ `AIWorldLab`, nĂˇzev `AI World Lab`, `InstanceType=0`
-(Noggit zobrazuje `None`), expanze WotLK (2). AktivnĂ­ je jedna dlaĹľdice
-`(30, 31)`. AktuĂˇlnĂ­ terĂ©n je rovnĂ˝ v Z 0. VĹˇech 256 ÄŤĂˇstĂ­ ADT mĂˇ oblast
+První vlastní mapa: MapID **725**, AreaID **4988**, exploration bit **3618**.
+Interní adresář `AIWorldLab`, název `AI World Lab`, `InstanceType=0`
+(Noggit zobrazuje `None`), expanze WotLK (2). Aktivní je jedna dlaždice
+`(30, 31)`. Aktuální terén je rovný v Z 0. Všech 256 částí ADT má oblast
 4988 a jednu vrstvu `tileset/emeralddream/dreamrock02.blp`.
 
-## UmĂ­stÄ›nĂ­ a verze
+## Umístění a verze
 
-- Klient: `C:\WoWModding\Client-Lab` â€” 3.3.5a build 12340, enUS.
-- Editor: `C:\WoWModding\RelWithDebInfo\noggit.exe` â€” Noggit Studio
+- Klient: `C:\WoWModding\Client-Lab` — 3.3.5a build 12340, enUS.
+- Editor: `C:\WoWModding\RelWithDebInfo\noggit.exe` — Noggit Studio
   3.1446+ `[40bc7ed9]`; jeho SHA-256 je v manifestu.
-- PracovnĂ­ projekt: `C:\WoWBehaviorAI\runtime\lab\map-project`.
-- KlientskĂ˝ zĂˇklad DBC: `runtime/lab/client-baseline/dbc`.
-- SoukromĂ© binĂˇrnĂ­ artefakty: `runtime/lab/map-source-artifacts`.
+- Pracovní projekt: `C:\WoWBehaviorAI\runtime\lab\map-project`.
+- Klientský základ DBC: `runtime/lab/client-baseline/dbc`.
+- Soukromé binární artefakty: `runtime/lab/map-source-artifacts`.
 
-V Gitu zĹŻstĂˇvĂˇ manifest s hashi a nĂˇstroj pro doplnÄ›nĂ­ oblasti. SamotnĂ˝
-klient, plnĂ© DBC a binĂˇrnĂ­ zdroje mapy se uklĂˇdajĂ­ soukromÄ›. PrvnĂ­ lokĂˇlnĂ­
-ZIP obsahuje jen soubory uvedenĂ© v `project-manifest.json`; jeho CRC i
-seznam poloĹľek byly ovÄ›Ĺ™enĂ©. AktuĂˇlnĂ­ zdrojovĂˇ verze je
-`aiworldlab-725-area4988-flat-textured-v2.zip` (71 167 bajtĹŻ, SHA-256
+V Gitu zůstává manifest s hashi a nástroj pro doplnění oblasti. Samotný
+klient, plné DBC a binární zdroje mapy se ukládají soukromě. První lokální
+ZIP obsahuje jen soubory uvedené v `project-manifest.json`; jeho CRC i
+seznam položek byly ověřené. Aktuální zdrojová verze je
+`aiworldlab-725-area4988-flat-textured-v2.zip` (71 167 bajtů, SHA-256
 `b8913b91306a1b363e116867eb997234dda42b36c4b878e24ccc3fd20fe4a099`).
-HistorickĂˇ netexturovanĂˇ v1 nenĂ­ vstupem aktuĂˇlnĂ­ extrakce.
+Historická netexturovaná v1 není vstupem aktuální extrakce.
 
-KlientskĂ˝ patch `patch-4.MPQ` je sestavenĂ˝ a instalovanĂ˝ do
-`C:\WoWModding\Client-Lab\Data`. Obsahuje pouze Ĺˇest mapovĂ˝ch/DBC souborĹŻ;
-projekt `.noggitproj` do klientskĂ©ho patche nevstupuje. Patch mĂˇ 823 658
-bajtĹŻ a SHA-256
+Klientský patch `patch-4.MPQ` je sestavený a instalovaný do
+`C:\WoWModding\Client-Lab\Data`. Obsahuje pouze šest mapových/DBC souborů;
+projekt `.noggitproj` do klientského patche nevstupuje. Patch má 823 658
+bajtů a SHA-256
 `d974f5919762708acc57e83a70baa6d68a09966e978a45832e4924546baa8b14`.
-StejnĂˇ verze je v `runtime/lab/client-patches` i ve zdroji extrakce
+Stejná verze je v `runtime/lab/client-patches` i ve zdroji extrakce
 `/home/voslik/WoWBehaviorAI-lab/runtime/lab/client-source/map725-v2`.
 
-ZĂˇkladnĂ­ DBC pochĂˇzejĂ­ z `Data/enUS/patch-enUS-3.MPQ`; provÄ›Ĺ™enĂ© byly
-vĹˇechny archivy naÄŤtenĂ© editorem vÄŤetnÄ› vlastnĂ­ho `patch-W.MPQ`.
-PĹŻvodnĂ­ `Map.dbc` mĂˇ 135 zĂˇznamĹŻ, `AreaTable.dbc` 2307. UloĹľenĂ˝ projekt
-pĹ™idĂˇvĂˇ mapu 725, oblast 4988 a svÄ›tlo 2539; pĹŻvodnĂ­ zĂˇznamy a jejich
-Ĺ™etÄ›zce zĹŻstĂˇvajĂ­ zachovanĂ©.
+Základní DBC pocházejí z `Data/enUS/patch-enUS-3.MPQ`; prověřené byly
+všechny archivy načtené editorem včetně vlastního `patch-W.MPQ`.
+Původní `Map.dbc` má 135 záznamů, `AreaTable.dbc` 2307. Uložený projekt
+přidává mapu 725, oblast 4988 a světlo 2539; původní záznamy a jejich
+řetězce zůstávají zachované.
 
-## DoplnÄ›nĂ­ oblasti
+## Doplnění oblasti
 
-PĹ™ed zĂˇpisem uloĹľit prĂˇci a zavĹ™Ă­t Noggit. Z koĹ™ene repozitĂˇĹ™e:
+Před zápisem uložit práci a zavřít Noggit. Z kořene repozitáře:
 
 ```powershell
 python tools/realm_lab/prepare_map_area.py --prepare
 ```
 
-NĂˇstroj ovÄ›Ĺ™Ă­ mapu, kolize s klientskĂ˝m zĂˇkladem a jednu aktivnĂ­ dlaĹľdici.
-PĹ™idĂˇ venkovnĂ­ neutrĂˇlnĂ­ oblast 4988 a pĹ™iĹ™adĂ­ ji vĹˇem 256 ÄŤĂˇstem ADT.
-PĹ™ed zmÄ›nou uchovĂˇ pĹŻvodnĂ­ soubory pod `runtime/lab/map-project-backups`.
-VĂ˝sledek zapĂ­Ĺˇe do `runtime/lab/map-area-receipt.json`. DalĹˇĂ­ ovÄ›Ĺ™enĂ­
-bez zĂˇpisu:
+Nástroj ověří mapu, kolize s klientským základem a jednu aktivní dlaždici.
+Přidá venkovní neutrální oblast 4988 a přiřadí ji všem 256 částem ADT.
+Před změnou uchová původní soubory pod `runtime/lab/map-project-backups`.
+Výsledek zapíše do `runtime/lab/map-area-receipt.json`. Další ověření
+bez zápisu:
 
 ```powershell
 python tools/realm_lab/prepare_map_area.py
 ```
 
-OvÄ›Ĺ™ovacĂ­ reĹľim odmĂ­tne neĂşplnĂ© pĹ™iĹ™azenĂ­. PĹ™ipravenĂ© soubory se pĹ™i
-opakovanĂ©m bÄ›hu nemÄ›nĂ­. Na Windows nĂˇstroj odmĂ­tne zĂˇpis pĹ™i bÄ›ĹľĂ­cĂ­m
+Ověřovací režim odmítne neúplné přiřazení. Připravené soubory se při
+opakovaném běhu nemění. Na Windows nástroj odmítne zápis při běžícím
 procesu `noggit`.
 
-## DokonÄŤenĂ© mapovĂ© vstupy
+## Dokončené mapové vstupy
 
-Projekt a mapa se po doplnÄ›nĂ­ oblasti ĂşspÄ›ĹˇnÄ› znovu otevĹ™ely. UĹľivatel
-natĹ™el celou dlaĹľdici a uloĹľil ji; editor byl pĹ™ed balenĂ­m zavĹ™enĂ˝.
-Kontrola WDT/ADT potvrzuje jednu dlaĹľdici, 256 ÄŤĂˇstĂ­ s oblastĂ­ 4988 a
-jednou texturou, 37 120 vĂ˝ĹˇkovĂ˝ch hodnot Z 0, ĹľĂˇdnou vodu, dĂ­ry ani
-objekty. [KontrolnĂ­ body](test-points.json) uvĂˇdÄ›jĂ­ navrĹľenĂ˝ domov,
-nĂˇvratovĂ© body Â±40 yardĹŻ a vnitĹ™nĂ­ testovacĂ­ region 200 Ă— 200 yardĹŻ.
-Jde o souĹ™adnice odvozenĂ© z geometrie; GPS a pohyb jeĹˇtÄ› nejsou ovÄ›Ĺ™enĂ©.
+Projekt a mapa se po doplnění oblasti úspěšně znovu otevřely. Uživatel
+natřel celou dlaždici a uložil ji; editor byl před balením zavřený.
+Kontrola WDT/ADT potvrzuje jednu dlaždici, 256 částí s oblastí 4988 a
+jednou texturou, 37 120 výškových hodnot Z 0, žádnou vodu, díry ani
+objekty. [Kontrolní body](test-points.json) uvádějí navržený domov,
+návratové body ±40 yardů a vnitřní testovací region 200 × 200 yardů.
+Jde o souřadnice odvozené z geometrie; GPS a pohyb ještě nejsou ověřené.
 
-## DokonÄŤenĂ˝ serverovĂ˝ balĂ­k a navmesh
+## Dokončený serverový balík a navmesh
 
-Extrakce `dbc`/`maps`, `vmap4extractor` a `vmap4assembler` nad ovÄ›Ĺ™enĂ˝m
-klientskĂ˝m podkladem v2 na lab hostu uspÄ›ly. PĹŻvodnĂ­ mmap generĂˇtor
-vynechĂˇval konstantnĂ­ podlahu uloĹľenou s `MAP_HEIGHT_NO_HEIGHT`. NynĂ­ je
-doplnÄ›nĂ˝ explicitnĂ­ opt-in `--includeFlatTerrain true`; vĂ˝chozĂ­ hodnota
-zĹŻstĂˇvĂˇ false. OpravenĂ© meze BV stromu odpovĂ­dajĂ­ skuteÄŤnĂ© detailnĂ­
-geometrii. Test `mmaps.flat_terrain` zahrnuje plochĂ˝ terĂ©n i regresi
-prostorovĂ©ho hledĂˇnĂ­ polygonĹŻ a proĹˇel.
+Extrakce `dbc`/`maps`, `vmap4extractor` a `vmap4assembler` nad ověřeným
+klientským podkladem v2 na lab hostu uspěly. Původní mmap generátor
+vynechával konstantní podlahu uloženou s `MAP_HEIGHT_NO_HEIGHT`. Nyní je
+doplněný explicitní opt-in `--includeFlatTerrain true`; výchozí hodnota
+zůstává false. Opravené meze BV stromu odpovídají skutečné detailní
+geometrii. Test `mmaps.flat_terrain` zahrnuje plochý terén i regresi
+prostorového hledání polygonů a prošel.
 
-V ÄŤistĂ©m pracovnĂ­m adresĂˇĹ™i byla vygenerovanĂˇ pouze dlaĹľdice mapy 725:
+V čistém pracovním adresáři byla vygenerovaná pouze dlaždice mapy 725:
 
 ```bash
 mmaps_generator 725 --tile 30,31 --includeFlatTerrain true --threads 1 --debugOutput true --silent
 ```
 
-`725.mmap` mĂˇ 28 bajtĹŻ, `7253130.mmtile` 100 732 bajtĹŻ. Vzniklo takĂ©
-pÄ›t debug souborĹŻ. SamostatnĂˇ Detour kontrola promĂ­tla vĹˇech pÄ›t bodĹŻ a
-ovÄ›Ĺ™ila **8/8 ĂşplnĂ˝ch tras** domov â†” ÄŤtyĹ™i nĂˇvratovĂ© body. KaĹľdĂˇ mÄ›la
-tĹ™i polygony a `DT_SUCCESS`; opakovĂˇnĂ­ nad nasazenĂ˝mi daty takĂ© proĹˇlo.
-Tento dĹŻkaz ovÄ›Ĺ™uje navmesh, nikoli hrĂˇÄŤskĂ˝ ÄŤi NPC pohyb.
+`725.mmap` má 28 bajtů, `7253130.mmtile` 100 732 bajtů. Vzniklo také
+pět debug souborů. Samostatná Detour kontrola promítla všech pět bodů a
+ověřila **8/8 úplných tras** domov ↔ čtyři návratové body. Každá měla
+tři polygony a `DT_SUCCESS`; opakování nad nasazenými daty také prošlo.
+Tento důkaz ověřuje navmesh, nikoli hráčský či NPC pohyb.
 
-[ServerovĂ˝ manifest](server-manifest.json) zaznamenĂˇvĂˇ hashe Ĺˇesti
-serverovĂ˝ch souborĹŻ i debug vĂ˝stupĹŻ, nĂˇstrojovĂ˝ch binĂˇrek a aplikovanĂ˝ch
-zdrojovĂ˝ch zmÄ›n. Extraktory vychĂˇzejĂ­ z
-`93ff169538e5eb189b76651217b992876a617524`; mmap generĂˇtor mĂˇ pracovnĂ­
-overlay doloĹľenĂ˝ hashi deseti souborĹŻ. Compiler je 11.4.0. ZĂˇkladnĂ­ Git
-revize sama nepopisuje tyto zmÄ›ny. ZaznamenanĂ˝ hash vstupnĂ­ho manifestu
-oznaÄŤuje jeho stav pĹ™i extrakci; nĂˇslednĂ© stavovĂ© aktualizace tohoto
-projektovĂ©ho manifestu jej mohou zmÄ›nit.
+[Serverový manifest](server-manifest.json) zaznamenává hashe šesti
+serverových souborů i debug výstupů, nástrojových binárek a aplikovaných
+zdrojových změn. Extraktory vycházejí z
+`93ff169538e5eb189b76651217b992876a617524`; mmap generátor má pracovní
+overlay doložený hashi deseti souborů. Compiler je 11.4.0. Základní Git
+revize sama nepopisuje tyto změny. Zaznamenaný hash vstupního manifestu
+označuje jeho stav při extrakci; následné stavové aktualizace tohoto
+projektového manifestu jej mohou změnit.
 
-VlastnĂ­ vmaps jsou oÄŤekĂˇvanÄ› nepĹ™Ă­tomnĂ©. NulovĂ˝ poÄŤet MDDF/MODF/WDT
-modelovĂ˝ch spawnĹŻ znamenĂˇ, Ĺľe ĂşspÄ›ĹˇnĂ˝ assembler pro mapu 725 nevytvoĹ™Ă­
-strom. NepĹ™idĂˇvajĂ­ se faleĹˇnĂ© prĂˇzdnĂ© vmaps. Povrch a AreaID jsou v
-`maps`; modelovĂ© pĹ™ekĂˇĹľky pro LOS mapa nemĂˇ. Po pĹ™idĂˇnĂ­ modelĹŻ musĂ­
-vzniknout skuteÄŤnĂ© vmaps i novĂˇ navigace.
+Vlastní vmaps jsou očekávaně nepřítomné. Nulový počet MDDF/MODF/WDT
+modelových spawnů znamená, že úspěšný assembler pro mapu 725 nevytvoří
+strom. Nepřidávají se falešné prázdné vmaps. Povrch a AreaID jsou v
+`maps`; modelové překážky pro LOS mapa nemá. Po přidání modelů musí
+vzniknout skutečné vmaps i nová navigace.
 
-Ĺ est souborĹŻ (tĹ™i DBC, `.map`, `.mmap` a `.mmtile`) je instalovanĂ˝ch do
-`runtime/lab/data`; zĂˇloha je v `runtime/lab/data-backups/map725-v2-20261009`.
-VĹˇechny ÄŤtyĹ™i lab sluĹľby jsou zdravĂ©. OstatnĂ­ mapovĂˇ data se pĹ™i nasazenĂ­
-nemÄ›nila. SoukromĂ˝ balĂ­k
+Šest souborů (tři DBC, `.map`, `.mmap` a `.mmtile`) je instalovaných do
+`runtime/lab/data`; záloha je v `runtime/lab/data-backups/map725-v2-20261009`.
+Všechny čtyři lab služby jsou zdravé. Ostatní mapová data se při nasazení
+neměnila. Soukromý balík
 `runtime/lab/map-source-artifacts/aiworldlab-725-flat-textured-v2-server.zip`
-mĂˇ 866 216 bajtĹŻ, SHA-256
+má 866 216 bajtů, SHA-256
 `6e193c2e5fe9867b034c73dbd99f48bb7e5b16e0ec9b483f4188948201669dd6`;
-lokĂˇlnĂ­ i hostitelskĂ© SHA/CRC ovÄ›Ĺ™enĂ­ proĹˇlo.
+lokální i hostitelské SHA/CRC ověření prošlo.
 
-### OpakovĂˇnĂ­ samostatnĂ˝ch kontrol
+### Opakování samostatných kontrol
 
-V nakonfigurovanĂ©m CMake buildu s `TOOLS=1` a `BUILD_TESTING=ON`:
+V nakonfigurovaném CMake buildu s `TOOLS=1` a `BUILD_TESTING=ON`:
 
 ```bash
 cmake --build "$mmap_build_dir" --target mmaps_flat_terrain_test
 ctest --test-dir "$mmap_build_dir" -R '^mmaps[.]flat_terrain$' --output-on-failure --no-tests=error
 ```
 
-`mmap_build_dir` je koĹ™en tohoto buildu. SamostatnĂ˝ verifikĂˇtor se v
-build kontejneru zkompiluje proti **Detour z tohoto repozitĂˇĹ™e** a jeho
-64bitovĂ˝m polygonovĂ˝m referencĂ­m, pĹ™i mountu zdrojĹŻ do `/workspace`
-a odpovĂ­dajĂ­cĂ­m buildu v `/build`:
+`mmap_build_dir` je kořen tohoto buildu. Samostatný verifikátor se v
+build kontejneru zkompiluje proti **Detour z tohoto repozitáře** a jeho
+64bitovým polygonovým referencím, při mountu zdrojů do `/workspace`
+a odpovídajícím buildu v `/build`:
 
 ```bash
 g++ -std=c++20 -O2 -DDT_POLYREF64 \
@@ -140,17 +140,17 @@ g++ -std=c++20 -O2 -DDT_POLYREF64 \
 /workspace/runtime/lab/validation/verify_navmesh /workspace/runtime/lab/data
 ```
 
-VĂ˝stupnĂ­ adresĂˇĹ™ `runtime/lab/validation` musĂ­ existovat. Exit 0 a
-`complete_paths=8` jsou dĹŻkazem tÄ›chto navmesh tras; cizĂ­ Detour knihovna
-ÄŤi samotnĂˇ existence `.mmtile` je nenahrazujĂ­.
+Výstupní adresář `runtime/lab/validation` musí existovat. Exit 0 a
+`complete_paths=8` jsou důkazem těchto navmesh tras; cizí Detour knihovna
+či samotná existence `.mmtile` je nenahrazují.
 
-## DalĹˇĂ­ krok â€” GPS a fyzickĂ˝ pohyb
+## Další krok — GPS a fyzický pohyb
 
-NĂˇsleduje hrĂˇÄŤskĂˇ kontrola na labu: `.go xyz 266.667 800 2 725`, zruĹˇit
-cĂ­l, poÄŤkat na dosednutĂ­ a pouĹľĂ­t `.gps`. OÄŤekĂˇvĂˇ se Map 725, Zone/Area
-4988 a stabilnĂ­ podlaha Z 0. Zopakovat GPS a chĹŻzi ve vĹˇech ÄŤtyĹ™ech
-nĂˇvratovĂ˝ch bodech. `.gps` ovÄ›Ĺ™uje navmesh jen na Ăşrovni mapy; samotnĂ˝
-indikĂˇtor mmap neprokazuje konkrĂ©tnĂ­ dlaĹľdici ani Ăşplnou cestu. HlĂˇĹˇenĂ­
-chybÄ›jĂ­cĂ­ch vlastnĂ­ch vmaps je zde oÄŤekĂˇvanĂ© pĹ™i nulovĂ©m poÄŤtu modelĹŻ.
-GPS, chĹŻze hrĂˇÄŤe a fyzickĂ˝ pohyb NPC jeĹˇtÄ› nejsou ovÄ›Ĺ™enĂ©. Teprve potom
-ovÄ›Ĺ™it fyzickĂ˝ pohyb jednoho NPC bez living rolĂ­. AI zĹŻstĂˇvĂˇ vypnutĂˇ.
+Následuje hráčská kontrola na labu: `.go xyz 266.667 800 2 725`, zrušit
+cíl, počkat na dosednutí a použít `.gps`. Očekává se Map 725, Zone/Area
+4988 a stabilní podlaha Z 0. Zopakovat GPS a chůzi ve všech čtyřech
+návratových bodech. `.gps` ověřuje navmesh jen na úrovni mapy; samotný
+indikátor mmap neprokazuje konkrétní dlaždici ani úplnou cestu. Hlášení
+chybějících vlastních vmaps je zde očekávané při nulovém počtu modelů.
+GPS, chůze hráče a fyzický pohyb NPC ještě nejsou ověřené. Teprve potom
+ověřit fyzický pohyb jednoho NPC bez living rolí. AI zůstává vypnutá.
