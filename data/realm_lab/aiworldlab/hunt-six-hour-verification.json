@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "session_id": "20261009T113400Z-2beb5471",
+  "code_revision": "6d53eb1c041db81311e4489d2a64f478a1483e42",
+  "recording_start_utc": "2026-10-09T11:34:00.051+00:00",
+  "recording_end_utc": "2026-10-09T12:34:00.051+00:00",
+  "last_sample_utc": "2026-10-09T12:33:58.051+00:00",
+  "samples": 1800,
+  "fresh_samples": 1800,
+  "continuous_fresh_seconds": 3598,
+  "maximum_capture_gap_ms": 2005,
+  "status": "sampled_predator_feeding_and_repeated_physical_returns_verified",
+  "map_id": 725,
+  "predators": [
+    {
+      "spawn_id": 900725,
+      "meals_with_actual_hunger_drop": 15,
+      "post_meal_physical_home_arrivals": 15,
+      "arrivals_with_sampled_RETURN_HOME": 14,
+      "arrivals_with_phase_between_samples": 1,
+      "fed_to_home_seconds": {
+        "min": 32,
+        "max": 38
+      },
+      "strict_hunt_feed_return_sequences": 9,
+      "strict_sequences_with_subsequent_activity": 8
+    },
+    {
+      "spawn_id": 900726,
+      "meals_with_actual_hunger_drop": 15,
+      "post_meal_physical_home_arrivals": 15,
+      "arrivals_with_sampled_RETURN_HOME": 15,
+      "arrivals_with_phase_between_samples": 0,
+      "fed_to_home_seconds": {
+        "min": 32,
+        "max": 40
+      },
+      "strict_hunt_feed_return_sequences": 10,
+      "strict_sequences_with_subsequent_activity": 10
+    }
+  ],
+  "summary": {
+    "meals": 30,
+    "paired_post_meal_home_arrivals": 30,
+    "explicit_RETURN_HOME_physical_arrivals": 29,
+    "terminal_hunt_or_feeding_errors": 0,
+    "predator_deaths_observed": 0,
+    "changed_record_homes": 0,
+    "out_of_bounds_samples": 0,
+    "missing_agent_samples": 0,
+    "prey_deaths_observed": 30,
+    "prey_respawns_observed": 28,
+    "prey_dead_at_last_sample": 2,
+    "observed_respawn_seconds": {
+      "min": 120,
+      "max": 126
+    },
+    "maximum_return_recovery_stall_ms": 0,
+    "maximum_return_recovery_failures": 0
+  },
+  "findings": [
+    "Every meal was followed by its own first home arrival within 14 yards before the next hunt or meal, with measured XY movement and a fixed record home.",
+    "One return crossed 17.63009 to 12 yards with 5.725 yards sampled movement, but its short RETURN_HOME phase was between two-second samples.",
+    "Two HUNTING phases were between samples; FEEDING and actual hunger reduction were captured for all 30 meals.",
+    "One deer had living_role:null for one sample immediately after respawn, with identity and AI control intact; PREY state resumed in the next sample.",
+    "The final strict return reached home in the last sample, so its subsequent ambient activity is outside this recording."
+  ],
+  "integrity": {
+    "gzip_crc_and_footer_validation": "passed",
+    "source_and_download_hashes_equal": true,
+    "recording_part_sha256": "f7cb8e92a8fdcb536823545c5e2cec936688ee95f447dd14a0b59d8294479a70",
+    "original_behavior_policy_minimum_seconds": 900,
+    "original_behavior_report_status": "PASS",
+    "replayed_original_behavior_report_status": "PASS",
+    "replayed_integrity_errors": []
+  },
+  "evidence": {
+    "private_recording_directory": "runtime/lab/recordings/aiworld-20261009T113400Z-2beb5471",
+    "local_review_directory": "runtime/lab-validation",
+    "raw_recording_in_git": false
+  },
+  "limits": [
+    "Sampled evidence on the current flat map; this does not test slopes, obstacles, larger populations, groups or model advice.",
+    "Observer v4 does not export runtime GUID, life incarnation, player count or kill credit. It cannot by itself prove a playerless run, uninterrupted runtime incarnation or absence of external intervention.",
+    "home is the stored agent home; home_distance uses the runtime creature home. Exact runtime home equality is a separate diagnostic.",
+    "A replay requiring 3600 seconds of continuous fresh sample coverage is inconclusive because a 3600-second run at two-second sampling contains 3598 seconds between first and last sample; the deployed 900-second policy passes."
+  ]
+}

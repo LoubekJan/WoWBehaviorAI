@@ -89,8 +89,8 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", "hunt-cycle"):
-            raise SetupError("LAB_AI_PROFILE must be disabled, single-return or hunt-cycle")
+        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100"):
+            raise SetupError("LAB_AI_PROFILE must be disabled, single-return, hunt-cycle or hunt-100")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
         return cls(
@@ -171,8 +171,10 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         result.update({"AIWorld.Enable": "1", "AIWorld.LivingRolesEnabled": "1",
                        "AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryHost": "world-viewer",
                        "AIWorld.TelemetryPort": "8000"})
-    elif settings.ai_profile == "hunt-cycle":
-        population = scope if isinstance(scope, hunt_population.Population) else hunt_population.Population.load()
+    elif settings.ai_profile in ("hunt-cycle", "hunt-100"):
+        population = scope if isinstance(scope, hunt_population.Population) else hunt_population.Population.load(profile=settings.ai_profile)
+        if population.profile != settings.ai_profile:
+            raise SetupError("Population does not match the selected lab profile")
         result.update(population.config())
         result.update({"AIWorld.Enable": "1", "AIWorld.LivingRolesEnabled": "1",
                        "AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryHost": "world-viewer",
@@ -276,31 +278,35 @@ def activate_single(data: Path, settings: Settings, metadata: Path = single_retu
 
 
 def population_preflight(data: Path, settings: Settings, *, control: int | None,
-                         metadata: Path = single_return.METADATA, bootstrap: bool = False) -> hunt_population.Population:
-    population = hunt_population.verify_data(data, metadata)
+                         metadata: Path = single_return.METADATA, bootstrap: bool = False,
+                         profile: str = "hunt-cycle") -> hunt_population.Population:
+    population = hunt_population.verify_data(data, metadata, profile=profile)
     rows = single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population)))
     hunt_population.validate_snapshot(rows, population, control=control, bootstrap=bootstrap)
     return population
 
 
-def bootstrap_hunt(data: Path, settings: Settings, metadata: Path = single_return.METADATA) -> None:
+def bootstrap_hunt(data: Path, settings: Settings, metadata: Path = single_return.METADATA,
+                   *, profile: str = "hunt-cycle") -> None:
     if settings.ai_profile != "disabled":
         raise SetupError("Population bootstrap requires LAB_AI_PROFILE=disabled and the lab worldserver stopped")
-    population = population_preflight(data, settings, control=None, metadata=metadata, bootstrap=True)
+    population = population_preflight(data, settings, control=None, metadata=metadata, bootstrap=True, profile=profile)
     lab_mysql(settings, hunt_population.bootstrap_sql(population))
     hunt_population.validate_snapshot(single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population))),
                                       population, control=0)
-    print("Two lab predators and four prey prepared in Observe mode; existing homes preserved.")
+    predators = sum(actor.role == "predator" for actor in population.actors)
+    print(f"Lab population prepared in Observe mode: {predators} predators, {len(population.actors) - predators} prey; existing homes preserved.")
 
 
-def activate_hunt(data: Path, settings: Settings, metadata: Path = single_return.METADATA) -> None:
+def activate_hunt(data: Path, settings: Settings, metadata: Path = single_return.METADATA,
+                  *, profile: str = "hunt-cycle") -> None:
     if settings.ai_profile != "disabled":
         raise SetupError("Population activation requires LAB_AI_PROFILE=disabled and the lab worldserver stopped")
-    population = population_preflight(data, settings, control=None, metadata=metadata)
+    population = population_preflight(data, settings, control=None, metadata=metadata, profile=profile)
     lab_mysql(settings, hunt_population.activation_sql(population))
     hunt_population.validate_snapshot(single_return.parse_snapshot(lab_mysql(settings, hunt_population.snapshot_sql(population))),
                                       population, control=1)
-    print("Only the six reviewed lab actors activated; select LAB_AI_PROFILE=hunt-cycle for startup.")
+    print(f"Only the {len(population.actors)} reviewed lab actors activated; select LAB_AI_PROFILE={population.profile} for startup.")
 
 
 def auth_user_sql(settings: Settings) -> str:
@@ -365,7 +371,8 @@ def main() -> None:
     sub.add_parser("register-realm")
     check = sub.add_parser("preflight")
     check.add_argument("data", type=Path)
-    for command in ("bootstrap-single", "activate-single", "preflight-single", "bootstrap-hunt", "activate-hunt", "preflight-hunt"):
+    for command in ("bootstrap-single", "activate-single", "preflight-single", "bootstrap-hunt", "activate-hunt", "preflight-hunt",
+                    "bootstrap-hunt-100", "activate-hunt-100", "preflight-hunt-100"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -375,9 +382,9 @@ def main() -> None:
             if settings.ai_profile == "single-return":
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = single_preflight(Path("/runtime/data"), settings, control=1)
-            elif settings.ai_profile == "hunt-cycle":
+            elif settings.ai_profile in ("hunt-cycle", "hunt-100"):
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
-                scope = population_preflight(Path("/runtime/data"), settings, control=1)
+                scope = population_preflight(Path("/runtime/data"), settings, control=1, profile=settings.ai_profile)
             rendered = render_config(args.template.read_text(encoding="utf-8"), settings, scope)
             dest = Path("/tmp/lab-worldserver.conf")
             fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -405,13 +412,14 @@ def main() -> None:
         elif args.command == "preflight-single":
             single_preflight(args.data, settings, control=1 if settings.ai_profile == "single-return" else 0)
             print("Reviewed lab bundle, native confirmation and one-NPC database scope verified.")
-        elif args.command == "bootstrap-hunt":
-            bootstrap_hunt(args.data, settings)
-        elif args.command == "activate-hunt":
-            activate_hunt(args.data, settings)
-        elif args.command == "preflight-hunt":
-            population_preflight(args.data, settings, control=1 if settings.ai_profile == "hunt-cycle" else 0)
-            print("Reviewed lab bundle and exact two-predator/four-prey population verified.")
+        elif args.command in ("bootstrap-hunt", "bootstrap-hunt-100"):
+            bootstrap_hunt(args.data, settings, profile="hunt-100" if args.command.endswith("-100") else "hunt-cycle")
+        elif args.command in ("activate-hunt", "activate-hunt-100"):
+            activate_hunt(args.data, settings, profile="hunt-100" if args.command.endswith("-100") else "hunt-cycle")
+        elif args.command in ("preflight-hunt", "preflight-hunt-100"):
+            profile = "hunt-100" if args.command.endswith("-100") else "hunt-cycle"
+            population_preflight(args.data, settings, control=1 if settings.ai_profile == profile else 0, profile=profile)
+            print(f"Reviewed lab bundle and exact {profile} population verified.")
     except (SetupError, single_return.ProfileError, OSError) as exc:
         print(f"Lab setup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

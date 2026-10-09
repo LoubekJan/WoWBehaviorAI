@@ -54,7 +54,7 @@ config = Path("/tmp/lab-worldserver.conf").read_text(encoding="utf-8")
 template = Path("/etc/trinitycore/worldserver.conf").read_text(encoding="utf-8")
 assert config == render_config(template, settings)
 assert "Updates.EnableDatabases = 6" in config
-expected_enable = "1" if settings.ai_profile in ("single-return", "hunt-cycle") else "0"
+expected_enable = "1" if settings.ai_profile in ("single-return", "hunt-cycle", "hunt-100") else "0"
 assert f"AIWorld.Enable = {expected_enable}\n" in config
 assert f"RealmID = {settings.realm_id}\n" in config
 print("Lab realm ID, shared-auth migration exclusion and rendered AI profile verified:", settings.ai_profile)

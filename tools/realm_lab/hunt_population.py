@@ -21,6 +21,12 @@ require = base.require
 ROLE_TYPES = {"predator": 6, "prey": 7}
 ROLE_ENTRIES = {"predator": 1186, "prey": 883}
 EXPECTED_IDS = frozenset(range(900725, 900731))
+# Profiles are reviewed independently; growing the population never changes the
+# six-actor regression profile or makes an arbitrary metadata count acceptable.
+PROFILES = {
+    "hunt-cycle": ("hunt-population.json", 6, 2, 4),
+    "hunt-100": ("hunt-population-100.json", 100, 20, 80),
+}
 # Non-attackable, immune to NPC attacks, and non-selectable templates cannot
 # demonstrate a physical hunt/kill/feed cycle.
 FORBIDDEN_TEMPLATE_FLAGS = 0x2 | 0x200 | 0x02000000
@@ -48,24 +54,40 @@ class Actor:
         return ROLE_TYPES[self.role]
 
 
+# This baseline is deliberate code, rather than another mutable JSON input.
+# A new large-population manifest cannot redefine the already deployed actors.
+ORIGINAL_ACTORS = (
+    Actor(900725, 1186, "predator", "aiworld_lab_single_return", 266.667, 800, 0, 0),
+    Actor(900726, 1186, "predator", "aiworld_lab_hunt_900726", 326.667, 800, 0, 0),
+    Actor(900727, 883, "prey", "aiworld_lab_hunt_900727", 291.667, 800, 0, 0),
+    Actor(900728, 883, "prey", "aiworld_lab_hunt_900728", 256.667, 826, 0, 0),
+    Actor(900729, 883, "prey", "aiworld_lab_hunt_900729", 351.667, 800, 0, 0),
+    Actor(900730, 883, "prey", "aiworld_lab_hunt_900730", 336.667, 774, 0, 0),
+)
+
+
 @dataclass(frozen=True)
 class Population:
     scope: base.Scope
     actors: tuple[Actor, ...]
     respawn_seconds: int
+    profile: str = "hunt-cycle"
 
     @classmethod
-    def load(cls, metadata: Path = METADATA) -> Population:
+    def load(cls, metadata: Path = METADATA, *, profile: str = "hunt-cycle") -> Population:
+        require(isinstance(profile, str) and profile in PROFILES, "Unknown reviewed population profile")
+        filename, actor_count, predator_count, prey_count = PROFILES[profile]
         scope = base.Scope.load(metadata)
-        document = base.load_json(metadata / "hunt-population.json")
+        document = base.load_json(metadata / filename)
         points = base.load_json(metadata / "test-points.json")
-        require(document.get("profile") == "hunt-cycle" and
+        require(document.get("schema_version") == 1 and document.get("profile") == profile and
                 (document.get("map_id"), document.get("area_id")) == (scope.map_id, scope.area_id) and
                 document.get("source_revision") == points.get("source_revision"),
                 "Population profile/map/source proof mismatch")
         respawn = integer(document.get("respawn_seconds"), 30, 3600, "respawn interval")
         rows = document.get("agents")
-        require(isinstance(rows, list) and len(rows) == 6, "Reviewed hunt population requires six actors")
+        require(isinstance(rows, list) and len(rows) == actor_count,
+                f"Reviewed {profile} population requires {actor_count} actors")
         actors = []
         for row in rows:
             require(isinstance(row, dict), "Invalid population actor")
@@ -90,14 +112,24 @@ class Population:
                 actors.append(Actor(spawn, row["entry"], role, label, x, y, z, orientation))
             except (KeyError, TypeError) as exc:
                 raise ProfileError("Incomplete population actor metadata") from exc
-        require({actor.spawn_id for actor in actors} == EXPECTED_IDS and
-                sum(actor.role == "predator" for actor in actors) == 2 and
-                sum(actor.role == "prey" for actor in actors) == 4,
-                "Population must contain the six reviewed IDs, two predators and four prey")
+        require({actor.spawn_id for actor in actors} == frozenset(range(900725, 900725 + actor_count)) and
+                sum(actor.role == "predator" for actor in actors) == predator_count and
+                sum(actor.role == "prey" for actor in actors) == prey_count,
+                f"Population must contain the reviewed {actor_count} IDs, {predator_count} predators and {prey_count} prey")
+        if profile == "hunt-100":
+            originals = {actor.spawn_id: actor for actor in actors if actor.spawn_id in EXPECTED_IDS}
+            require(originals == {actor.spawn_id: actor for actor in ORIGINAL_ACTORS},
+                    "Expanded population must preserve all six original identities, roles and homes")
         require(all(math.hypot(a.x - b.x, a.y - b.y) >= 5
                     for index, a in enumerate(actors) for b in actors[index + 1:]),
                 "Population homes must be at least five yards apart")
-        return cls(scope, tuple(sorted(actors, key=lambda actor: actor.spawn_id)), respawn)
+        if profile == "hunt-100":
+            # Wildlife initially scans within 25 yards; a dense profile must
+            # supply nearby prey without enlarging the verified map or scan.
+            require(all(sum(b.role == "prey" and math.hypot(a.x - b.x, a.y - b.y) <= 25
+                            for b in actors) >= 2 for a in actors if a.role == "predator"),
+                    "Expanded predators require two prey homes within the native 25-yard scan")
+        return cls(scope, tuple(sorted(actors, key=lambda actor: actor.spawn_id)), respawn, profile)
 
     @property
     def spawn_ids(self) -> str:
@@ -116,9 +148,9 @@ class Population:
         return self.scope.observer_environment()
 
 
-def verify_data(data: Path, metadata: Path = METADATA) -> Population:
+def verify_data(data: Path, metadata: Path = METADATA, *, profile: str = "hunt-cycle") -> Population:
     scope = base.verify_data(data, metadata)
-    population = Population.load(metadata)
+    population = Population.load(metadata, profile=profile)
     require(population.scope == scope, "Population geometry differs from verified map")
     return population
 
@@ -240,7 +272,11 @@ COMMIT;""")
 
 
 def activation_sql(population: Population) -> str:
-    """All six become controlled together only when every live binding is valid."""
+    """The reviewed actors become controlled together only with valid bindings.
+
+    Bootstrap and activation are offline operations: the world is stopped and
+    no other lab deployment or writer may run between preflight and read-back.
+    """
     scope, ids = population.scope, population.spawn_ids
     bindings = []
     for actor in population.actors:

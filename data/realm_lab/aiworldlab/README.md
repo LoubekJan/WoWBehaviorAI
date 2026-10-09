@@ -180,3 +180,9 @@ probíhají automaticky. Modelové požadavky a skupiny zůstávají vypnuté.
 nasazení, záznam a ověření celého cyklu. [Záznam aktivace](hunt-activation.json)
 potvrzuje šest řízených živých NPC a zdravé lab služby na revizi
 `d7319c5387`; dokončené cykly se vyhodnocují samostatně ze záznamu.
+
+Pro následné rozšíření na 100 NPC slouží samostatný profil `hunt-100`
+a [jeho definice](hunt-population-100.json): 20 predátorů a 80 kořistí,
+spawny 900725–900824. Původní šestice si zachovává domovy a identity.
+Aktivace vyžaduje samostatný bootstrap při zastaveném lab worldserveru;
+průběh a výkonnost se vyhodnocují zvlášť.

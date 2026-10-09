@@ -510,14 +510,23 @@ prodlevu respawnu 120 sekund. Obnovení predátora přeruší jeho pozorovaný
 cyklus. Terén ani klientský patch se kvůli populaci nemění.
 
 - [x] Nasadit dva predátory a čtyři kořisti s pevnými domovy a přirozeným hladem na mapu 725.
-- [ ] Zaznamenat deset automatických cyklů lov → potrava → fyzický návrat → další činnost; odlišit lov dokončený už v domácí oblasti.
-- [ ] Po průchodu tohoto scénáře rozšířit populaci na deset NPC a ověřit plánovací rozpočet i návraty.
+- [x] Vyhodnotit hodinový záznam šestice: oba predátoři 15 krmení a 15 naměřených návratů; 29 návratů má zachycenou fázi RETURN_HOME. Domovy a scope beze změny, bez zaseknutí.
+- [ ] Podle výslovného požadavku rozšířit rovnou na 100 NPC (20 lovců / 80 kořistí), zachovat původních šest domovů a ověřit skutečnou zátěž i návraty všech lovců.
 - [ ] Teprve po průchodu roviny přidat mírný svah a zopakovat stejné scénáře.
 - [ ] Samostatně přidat jednu překážku s průchodem a zopakovat stejné scénáře.
 - [ ] Další typy terénu, skupiny a modelové rady přidávat až podle výsledků předchozích etap.
 
 **Hotovo, když:** každé rozšíření má samostatný průkazný záznam a nezhorší
 již ověřené návraty.
+
+Pro rozšíření na stovku je připravený oddělený profil `hunt-100` a
+[definice všech 100 spawnů](../data/realm_lab/aiworldlab/hunt-population-100.json).
+Postup bootstrapu, aktivace a měření je v
+[populačním návodu](../tools/realm_lab/HUNT_POPULATION.md#populace-100-npc).
+Původní `hunt-cycle` zůstává definicí šestice, takže její historická měření
+nejsou vydávána za ověření stovky.
+[Hodinové ověření šestice](../data/realm_lab/aiworldlab/hunt-six-hour-verification.json)
+zachovává revizi, počty a hash soukromého surového záznamu.
 
 ### Postup při prvním selhání
 

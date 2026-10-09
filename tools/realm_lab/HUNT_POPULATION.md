@@ -126,3 +126,43 @@ počet online hráčů. Výpadek, smrt, restart nebo nezjištěný respawn proto
 důkaz souvislého cyklu. Test bez hráče potřebuje navíc záznam nulového počtu
 hráčů v době probíhajícího cyklu. Samotné odhlášení po již dokončeném návratu
 tento scénář neověřuje.
+
+## Populace 100 NPC
+
+Profil `LAB_AI_PROFILE=hunt-100` používá **20 medvědů a 80 jelenů**,
+spawny `900725–900824`. Definice je v
+`data/realm_lab/aiworldlab/hunt-population-100.json`. Původních šest NPC
+si ponechává svoje identity, role a domovy. Další domovy jsou rozložené
+ve stejném obdélníku mapy 725; každý lovec má kořist v lokálním dosahu.
+Terén, klientský patch, skupiny a modelové požadavky se tím nemění.
+
+Rozšíření vyžaduje zastavený lab worldserver a předchozí soukromou SQL
+zálohu dotčených spawnů, agentů a výchozích účastí/typů. V `.env` nastav
+`LAB_AI_PROFILE=disabled` a použij:
+
+```sh
+docker compose --env-file deploy/lab/.env -f compose.lab.yml stop worldserver
+docker compose --env-file deploy/lab/.env -f compose.lab.yml run --rm --no-deps -T --interactive=false tc-dev \
+  python3 /workspace/tools/realm_lab/manage.py bootstrap-hunt-100 /workspace/runtime/lab/data
+docker compose --env-file deploy/lab/.env -f compose.lab.yml run --rm --no-deps -T --interactive=false tc-dev \
+  python3 /workspace/tools/realm_lab/manage.py preflight-hunt-100 /workspace/runtime/lab/data
+docker compose --env-file deploy/lab/.env -f compose.lab.yml run --rm --no-deps -T --interactive=false tc-dev \
+  python3 /workspace/tools/realm_lab/manage.py activate-hunt-100 /workspace/runtime/lab/data
+```
+
+Po ověřené aktivaci nastav `LAB_AI_PROFILE=hunt-100` a spusť lab
+worldserver a world-viewer. Start a CI/CD znovu kontrolují přesně všech
+100 řádků. Pouhé přepnutí zpět na šestici nestačí: menší profil odmítne
+další spawny na mapě. Vypnutí simulace používá `disabled`; návrat k
+menší databázové populaci je samostatná obnova ze zálohy při zastaveném labu.
+
+Po startu musí být v čerstvém Observer vzorku přesně 100 očekávaných ID,
+20 živých řízených predátorů a 80 agentů kořisti. Kořist může později umírat
+a čekat na obnovu. Kontroluj stálé domovy, hranice, dostupnost kořisti,
+krmení i skutečné návraty. Hodinový záznam spusť stejným příkazem výše
+s labelem `map725-hunt-100` a aktuální Git revizí.
+
+Plánovací rozpočty zůstávají stejné. Měř skutečnou zátěž kontejneru a
+30sekundové řádky `AIWORLD_UPDATE` v `runtime/lab/logs/Server.log`:
+počty obsloužených agentů, délku aktualizace a zpoždění potřeb/vnímání.
+Sto agentů nemá předem potvrzený výkon pouze tím, že je server zdravý.
