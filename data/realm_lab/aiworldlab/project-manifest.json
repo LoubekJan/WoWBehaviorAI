@@ -146,7 +146,8 @@
   "server_map_deployment": "installed_and_healthy",
   "remaining": [
     "record numeric in-game GPS and verify all four return points",
-    "verify AIWorld movement after the separate scope and bootstrap stage"
+    "verify ten physically displaced AIWorld return cycles and repeat without a player"
   ],
-  "in_game_validation": "data/realm_lab/aiworldlab/in-game-validation.json"
+  "in_game_validation": "data/realm_lab/aiworldlab/in-game-validation.json",
+  "scope_activation": "data/realm_lab/aiworldlab/scope-activation.json"
 }

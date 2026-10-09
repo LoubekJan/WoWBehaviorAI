@@ -95,8 +95,9 @@ Jednorázový import TDB a založení auth účtu z následujícího návodu se 
 tomto připraveném hostu neopakují. Aktuální provozní stav se ověřuje
 pomocí `docker compose --env-file deploy/lab/.env -f compose.lab.yml ps`
 a posledního běhu `Realm Lab CI/CD`. Zdroj vlastní mapy a klientský patch
-jsou hotové; aktuální serverový mapový balík je nasazený. AI mimo Elwynn
-zůstává vypnutá, dokud neprojde hráčská kontrola a skutečný pohyb NPC.
+jsou hotové; aktuální serverový mapový balík je nasazený. Po potvrzení
+nativního pohybu je aktivní profil `single-return` pro jednoho lab medvěda.
+LLM a skupiny jsou vypnuté; deset fyzických AI návratů čeká na další test.
 
 ## První zprovoznění na Linux hostu
 
@@ -250,8 +251,10 @@ Stav z 9. října 2026. Infrastruktura labu a automatické CI/CD jsou hotové;
 mapový projekt je znovu otevřený a texturovaný, klientský patch i serverový
 balík jsou instalované. Extrakce a generování mmap uspěly, samostatná
 kontrola navmesh i její opakování nad nasazenými daty prošly **8/8 tras**.
-Uživatel potvrdil funkční vstup na mapu a chůzi. Číselný výpis GPS,
-všechny čtyři kontrolní body a fyzický pohyb NPC ještě čekají na ověření.
+Uživatel potvrdil funkční vstup na mapu, chůzi a první nativní follow/evade
+cyklus medvěda. Profil pro jednoho AI predátora je aktivní a krátký běh
+bez hráče je zaznamenaný. Číselný výpis GPS, všechny čtyři kontrolní body
+a deset fyzických AI návratů ještě čekají na ověření.
 První cíl je jeden mob na vlastní rovné mapě, který se opakovaně fyzicky vrátí domů.
 
 Etapy postupují v tomto pořadí. Společný rozsah AI v kódu lze připravovat
@@ -393,7 +396,8 @@ Selhání této etapy se nejprve řeší v mapových datech nebo základním poh
 [Záznam hráčského potvrzení](../data/realm_lab/aiworldlab/in-game-validation.json)
 uvádí odpověď uživatele a hranici dosud ověřeného výsledku. Pro další test
 byla v lab databázi ověřena šablona **1186 / Elder Black Bear**, bez
-`AIName` a `ScriptName`. AIWorld a living role zůstávají vypnuté.
+`AIName` a `ScriptName`. Při tomto původním nativním testu byly AIWorld
+a living role vypnuté.
 
 1. Na labu zadat `.gm on` a `.go xyz 266.667 800 2 725`; nechat postavu
    dosednout na podlahu. `.mmap loc` má ukázat `7253130.mmtile`.
@@ -437,13 +441,20 @@ AI požadavky, skupiny, růst hladu/únavy a vývoj zdrojové potřeby,
 modelové rady a automatické Elwynn piloty. Běh bez hráče a fyzické
 návraty se musí ověřit po nasazení; samotná kompilace je nepotvrzuje.
 
-- [ ] Zavést jednu společnou definici mapy, povolených oblastí a hranic simulace.
-- [ ] Nahradit rozptýlené předpoklady map 0 / zone 12 v living, lovu, návratu, perception, validátorech a chase. Zahrnout `LivingRolePolicy`, `LivingRole.cpp`, `LivingWolf.cpp`, `LivingRecoveryPath.cpp`, `ActionSystem` a `ElwynnHuntPath`.
-- [ ] Napojit načítání a aktualizaci gridů na nový rozsah a ověřit běh území bez přihlášeného hráče.
-- [ ] Připravit explicitní lab bootstrap: nové spawny, role, účast v simulaci, control mode a domovy. Auditovat a oddělit historické Elwynn piloty/skupiny vytvořené migracemi.
-- [ ] Upravit telemetrii, Observer, hranice zobrazení, recorder a vyhodnocení pro novou mapu. Ověřit, že snapshoty obsahují pouze lab populaci.
-- [ ] Přidat ověřovaný aktivační profil do `tools/realm_lab/manage.py`; současný generátor AI/living/telemetrii přepisuje na nulu. Neupravovat ručně vygenerovaný conf.
-- [ ] Při prvním zapnutí ponechat LLM/modelové požadavky vypnuté.
+- [x] Zavést jednu společnou definici mapy, povolených oblastí a hranic simulace.
+- [x] Nahradit rozptýlené předpoklady map 0 / zone 12 v living, lovu, návratu, perception, validátorech a chase. Zahrnout `LivingRolePolicy`, `LivingRole.cpp`, `LivingWolf.cpp`, `LivingRecoveryPath.cpp`, `ActionSystem` a `ElwynnHuntPath`.
+- [x] Napojit načítání a aktualizaci gridů na nový rozsah a ověřit krátký běh území bez přihlášeného hráče.
+- [x] Provést explicitní lab bootstrap: spawn 900725, Predator, FullAgent, kontrolované řízení a pevný domov. Historický pilot 80683 v soukromém labu převeden na Observe; runtime obsahuje pouze lab agenta.
+- [x] Upravit telemetrii, Observer, hranice zobrazení, recorder a vyhodnocení pro novou mapu. Snapshoty obsahují jediného lab agenta.
+- [x] Přidat ověřovaný aktivační profil do `tools/realm_lab/manage.py`; `disabled` zůstává výchozí a `single-return` je v labu aktivní.
+- [x] Při prvním zapnutí ponechat LLM/modelové požadavky vypnuté.
+
+[Záznam aktivace](../data/realm_lab/aiworldlab/scope-activation.json) obsahuje
+20 čerstvých snapshotů za 40 sekund bez hráče, se shodným domovem,
+nulovými potřebami a žádnou skupinou. Living role přešla mezi činnostmi
+LOOK a REST; krátký záznam neobsahuje odvedení ani přijatý návratový test.
+476 C++ testů a samostatné smluvní CI prošly, všechny čtyři lab služby
+jsou zdravé. Původní realm a authserver zachovaly container ID i čas startu.
 
 **Hotovo, když:** jeden lab agent má správnou identitu, roli, domov a
 telemetrii a aktualizuje se i bez hráče. Aktivace musí navazovat na
@@ -451,9 +462,9 @@ ověřený mapový balík a bootstrap.
 
 ### 6. Samotný návrat jednoho predátora
 
-- [ ] Založit jednoho obyčejného predátora, například medvěda, bez skupiny, hladu a hrozeb.
+- [x] Založit jednoho obyčejného predátora: medvěd 900725 / entry 1186, bez skupiny, hladu a hrozeb.
 - [ ] Pro test měnit pouze aktuální polohu, například na vzdálenost 40 yardů; zachovat původní spawn i runtime home.
-- [ ] Použít současný produkční návratový systém a před testem stanovit časový limit dokončení.
+- [x] Stanovit první experiment: produkční living návrat po `follow stop`, limit 60 s a domácí oblast predátora do 14 yardů; viz [podrobný postup](../tools/realm_lab/SINGLE_RETURN.md).
 - [ ] Zaznamenat deset fyzických návratů z různých směrů do původní domácí oblasti a následnou další činnost.
 - [ ] Zopakovat ověření bez přihlášeného hráče.
 

@@ -43,9 +43,31 @@ docker compose --env-file deploy/lab/.env -f compose.lab.yml up -d worldserver w
 
 Every startup rechecks the live bundle and exact controlled row before executing
 worldserver. The observer and recorder derive map, area and bounds from the same
-versioned test points. Use `.gm on` for the physical test, select the persistent
-bear, use native `.npc follow`, then `.npc follow stop` and observe its autonomous
-living-role return to the original home. Native `.npc evade` would exercise a
-different return path, so it is not the AIWorld acceptance step. Record the same
-spawn GUID, initial/final positions and telemetry throughout. For rollback, stop
-the lab worldserver, restore `LAB_AI_PROFILE=disabled`, and start it again.
+versioned test points.
+
+For the first physical return, use a 60-second acceptance limit measured from
+`follow stop`. This is an experiment limit; production retries have no fixed
+whole-episode timeout.
+
+1. Use `.gm on`, select the persistent bear and verify `.npc info` reports spawn
+   `900725`. `.aiworld group status` should show `PREDATOR`, `AIWorldControlled`
+   and an enabled living role. `.aiworld group navigation` prints the immutable
+   runtime home and probes the route without moving the NPC.
+2. Use `.npc follow` and walk about 40 yards from the original home. Stop the
+   player and wait until the bear catches up and stops; `.movegens` should show
+   FOLLOW. Follow and stop preserve the original runtime home.
+3. Use `.npc follow stop` and start the timer. Observe the autonomous living
+   return, without another movement command. `.aiworld group status` should
+   report `RETURN_HOME` / `MOVING` / `MOVE_TO`; `.movegens` shows POINT while
+   AIWorld movement runs. Planning may initially wait about 15 seconds.
+4. Require the same runtime GUID and fixed home, physical movement and final
+   `homeDistance <= 14` yards, followed by another living activity. Predator
+   home arrival is a region, so exact arrival at the central coordinate is not
+   required. If 60 seconds elapse, capture status, navigation and positions as
+   a failed experiment; do not repair it with evade, teleport or respawn.
+
+Native `.npc evade` exercises the previously confirmed native return. It does
+not establish AIWorld return acceptance. Record initial/final positions and
+telemetry throughout, then repeat ten cycles across four directions. The
+playerless repetition is a separate gate. For rollback, stop the lab
+worldserver, restore `LAB_AI_PROFILE=disabled`, and start it again.

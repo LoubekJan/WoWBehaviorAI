@@ -160,3 +160,12 @@ ještě chybí. Uživatel potvrdil fyzický test dočasného medvěda 1186 přes
 Potvrzen je nejméně jeden cyklus následování a nativního návratu. AIWorld
 recovery čeká na samostatný test; mapový generátorový manifest nadále
 popisuje stav při původní extrakci. Aktivace AI se řídí lab profilem.
+
+Profil `single-return` je aktivní pro persistentního medvěda **900725**.
+[Záznam aktivace](scope-activation.json) potvrzuje krátký běh bez hráče,
+jediného kontrolovaného predátora na mapě 725, pevný domov, nulové
+potřeby a nepřítomnost skupiny. Modelové požadavky jsou vypnuté.
+[Další herní test](../../../tools/realm_lab/SINGLE_RETURN.md) odvede
+medvěda 40 yardů přes follow a pozoruje autonomní návrat po follow stop,
+v limitu 60 sekund do domácí oblasti o poloměru 14 yardů. Deset fyzických
+cyklů a jejich opakování bez hráče zatím nejsou ověřené.
