@@ -81,7 +81,7 @@ namespace
             size_t last = token.find_last_not_of(" \t");
             if (first == std::string::npos)
                 throw std::runtime_error(std::string(key) + " contains an empty id");
-            auto value = StringTo<T>(token.substr(first, last - first + 1));
+            auto value = Trinity::StringTo<T>(token.substr(first, last - first + 1));
             if (!value || !*value)
                 throw std::runtime_error(std::string(key) + " contains an invalid id");
             values.push_back(*value);
@@ -95,7 +95,7 @@ namespace
     SimulationScope ReadSimulationScope()
     {
         SimulationScope scope;
-        auto mapId = StringTo<uint32>(sConfigMgr->GetStringDefault("AIWorld.ScopeMapId", "0"));
+        auto mapId = Trinity::StringTo<uint32>(sConfigMgr->GetStringDefault("AIWorld.ScopeMapId", "0"));
         if (!mapId || !sMapStore.LookupEntry(*mapId))
             throw std::runtime_error("AIWorld.ScopeMapId must name an installed DBC map");
         scope.MapId = *mapId;
@@ -105,7 +105,7 @@ namespace
         {
             auto readBound = [](char const* key)
             {
-                auto value = StringTo<float>(sConfigMgr->GetStringDefault(key, "0"));
+                auto value = Trinity::StringTo<float>(sConfigMgr->GetStringDefault(key, "0"));
                 if (!value || !std::isfinite(*value))
                     throw std::runtime_error(std::string(key) + " must be finite");
                 return *value;

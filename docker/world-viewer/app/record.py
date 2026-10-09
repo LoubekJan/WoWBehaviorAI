@@ -230,7 +230,7 @@ def record(args: argparse.Namespace, stop: threading.Event) -> int:
     finally:
         # Close gzip even when disk/write errors prevent a final summary.
         final = {**summary(), "status": "finished", "stop_reason": reason,
-                 "usable": counts["fresh"] > 0}
+                 "usable": counts["fresh"] > 0, "scope": recording.metadata["scope"]}
         try:
             recording.write(final)
         finally:

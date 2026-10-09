@@ -160,6 +160,16 @@ class RecordingTests(unittest.TestCase):
         report = json.loads((directory / 'behavior-report.json').read_text(encoding='utf-8'))
         self.assertEqual(report['simulation_scope'], LAB_SCOPE)
         self.assertEqual(report, behavior.analyze(directory))
+        part = directory / result['parts'][0]
+        with gzip.open(part, 'rt', encoding='utf-8') as stream:
+            content = [json.loads(line) for line in stream]
+        content[0]['scope']['map_id'] = 0
+        with gzip.open(part, 'wt', encoding='utf-8') as stream:
+            for row in content:
+                stream.write(json.dumps(row) + '\n')
+        invalid = behavior.analyze(directory)
+        self.assertEqual(invalid['status'], 'INCONCLUSIVE')
+        self.assertTrue(invalid['quality']['integrity_errors'])
 
     def test_early_report_keeps_recording_until_its_normal_end(self) -> None:
         self.args.analyze = True

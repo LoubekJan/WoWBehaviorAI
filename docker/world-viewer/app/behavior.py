@@ -541,7 +541,8 @@ def analyze(directory: Path, policy: Policy | None = None) -> dict:
             with gzip.open(directory / name, "rt", encoding="utf-8") as stream:
                 header = strict_json(stream.readline(64 * 1024 * 1024 + 1))
                 if (header.get("kind") != "session" or header.get("session_id") != summary["session_id"]
-                        or header.get("part") != index or header.get("format_version") != 1):
+                        or header.get("part") != index or header.get("format_version") != 1
+                        or normalize_scope(header.get("scope")) != evaluator.scope):
                     raise ValueError("part header mismatch")
                 while True:
                     line = stream.readline(64 * 1024 * 1024 + 1)
@@ -563,7 +564,7 @@ def analyze(directory: Path, policy: Policy | None = None) -> dict:
             evaluator.break_continuity()
             break
     if (footer is None or any(footer.get(key) != summary.get(key) for key in
-                             ("samples", "counts", "status", "stop_reason", "elapsed_seconds"))):
+                             ("samples", "counts", "status", "stop_reason", "elapsed_seconds", "scope"))):
         errors.append("missing_or_mismatched_final_summary")
     return evaluator.finish(summary, integrity_errors=errors)
 

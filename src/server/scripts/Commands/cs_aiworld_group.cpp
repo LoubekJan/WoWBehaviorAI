@@ -163,15 +163,21 @@ public:
     { return ProbeNavigation(handler, std::nullopt); }
 
     static bool HandleAIWorldNavigationFromCommand(ChatHandler* handler, float x, float y, float z)
-    { return ProbeNavigation(handler, ActionPosition{0, x, y, z}); }
+    {
+        Creature const* target = handler->getSelectedCreature();
+        return ProbeNavigation(handler, ActionPosition{target ? target->GetMapId() : sAIWorldMgr->GetSimulationScope().MapId,
+            x, y, z});
+    }
 
     static bool ProbeNavigation(ChatHandler* handler, std::optional<ActionPosition> source)
     {
         if (!ResolveTargetAgent(handler)) return false;
         Creature* target = handler->getSelectedCreature();
+        auto const& scope = sAIWorldMgr->GetSimulationScope();
         auto role = sAIWorldMgr->DescribeLivingRole(*target);
-        if (!role || target->GetMapId() != 0 || target->GetZoneId() != 12)
-        { handler->SendSysMessage("AIWorld navigation: select an AIWorld creature in Elwynn."); return false; }
+        if (!role || !scope.Contains(target->GetMapId(), target->GetZoneId(),
+            target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()))
+        { handler->SendSysMessage("AIWorld navigation: select an AIWorld creature inside the configured simulation scope."); return false; }
         auto emit = [&](std::string const& line)
         {
             handler->SendSysMessage(line);
@@ -184,6 +190,14 @@ public:
         if (!LivingReturnPolicy::Finite(here) || std::hypot(here.X-home.X, here.Y-home.Y) > 256 ||
             std::abs(here.Z-home.Z) > 100)
         { handler->SendSysMessage("AIWorld navigation: source must be finite and within 256 yards / 100 height of home."); return false; }
+        auto inScope = [&](ActionPosition const& point)
+        {
+            return point.MapId == target->GetMapId() && scope.ContainsPosition(point.MapId, point.X, point.Y, point.Z) &&
+                scope.ContainsMapZone(point.MapId,
+                    target->GetMap()->GetZoneId(target->GetPhaseMask(), point.X, point.Y, point.Z));
+        };
+        if (!inScope(here) || !inScope(home))
+        { handler->SendSysMessage("AIWorld navigation: source and home must be inside the configured simulation scope."); return false; }
         emit(source ? "Recorded-position probe; NPC is not moved. Uses currently loaded geometry." : "Live-position probe; NPC is not moved.");
         emit(Trinity::StringFormat("AIWorld navigation: spawn={} xyz=({:.3f},{:.3f},{:.3f}) home=({:.3f},{:.3f},{:.3f})",
             target->GetSpawnId(), here.X, here.Y, here.Z, home.X, home.Y, home.Z));
