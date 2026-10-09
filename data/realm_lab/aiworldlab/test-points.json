@@ -4,23 +4,67 @@
   "area_id": 4988,
   "source_revision": "v2",
   "coordinate_system": "WoW server X/Y/Z in yards",
-  "validation": "derived from ADT and repository coordinate conversion; five points and eight complete navmesh routes verified; in-game GPS pending",
+  "validation": "derived from geometry; five points and eight complete navmesh routes verified; player entry and walking confirmed by user; numeric GPS and walking at all four points pending",
   "validation_status": {
     "map_geometry": "verified_from_wdt_adt",
     "navigation": "verified_navmesh_only_8_of_8_paths",
-    "in_game_gps": "pending",
-    "physical_player_movement": "pending",
+    "in_game_gps": "pending_numeric_report",
+    "physical_player_movement": "confirmed_by_user_at_entry",
     "physical_npc_movement": "pending"
   },
-  "tile": {"adt_x": 30, "adt_y": 31, "server_grid_x": 31, "server_grid_y": 30},
-  "bounds": {"x_min": 0, "x_max": 533.333333, "y_min": 533.333333, "y_max": 1066.666667},
-  "test_region": {"x_min": 166.667, "x_max": 366.667, "y_min": 700, "y_max": 900},
-  "home": {"x": 266.667, "y": 800, "floor_z": 0, "player_entry_z": 2},
+  "tile": {
+    "adt_x": 30,
+    "adt_y": 31,
+    "server_grid_x": 31,
+    "server_grid_y": 30
+  },
+  "bounds": {
+    "x_min": 0,
+    "x_max": 533.333333,
+    "y_min": 533.333333,
+    "y_max": 1066.666667
+  },
+  "test_region": {
+    "x_min": 166.667,
+    "x_max": 366.667,
+    "y_min": 700,
+    "y_max": 900
+  },
+  "home": {
+    "x": 266.667,
+    "y": 800,
+    "floor_z": 0,
+    "player_entry_z": 2
+  },
   "return_points": [
-    {"name": "minus_x", "x": 226.667, "y": 800, "floor_z": 0, "player_entry_z": 2},
-    {"name": "plus_x", "x": 306.667, "y": 800, "floor_z": 0, "player_entry_z": 2},
-    {"name": "minus_y", "x": 266.667, "y": 760, "floor_z": 0, "player_entry_z": 2},
-    {"name": "plus_y", "x": 266.667, "y": 840, "floor_z": 0, "player_entry_z": 2}
+    {
+      "name": "minus_x",
+      "x": 226.667,
+      "y": 800,
+      "floor_z": 0,
+      "player_entry_z": 2
+    },
+    {
+      "name": "plus_x",
+      "x": 306.667,
+      "y": 800,
+      "floor_z": 0,
+      "player_entry_z": 2
+    },
+    {
+      "name": "minus_y",
+      "x": 266.667,
+      "y": 760,
+      "floor_z": 0,
+      "player_entry_z": 2
+    },
+    {
+      "name": "plus_y",
+      "x": 266.667,
+      "y": 840,
+      "floor_z": 0,
+      "player_entry_z": 2
+    }
   ],
   "coordinate_evidence": [
     "src/tools/map_extractor/System.cpp: ADT x,y -> map filename mapid,y,x",
@@ -45,5 +89,6 @@
     "physical_movement_verified": false
   },
   "custom_vmaps_note": "Expected absent: no model spawns; ground and area come from maps and there are no model LOS obstacles",
-  "planned_npc_check": "One NPC moves between the recorded points in both directions with living roles disabled"
+  "planned_npc_check": "One NPC moves between the recorded points in both directions with living roles disabled",
+  "player_confirmation": "data/realm_lab/aiworldlab/in-game-validation.json"
 }

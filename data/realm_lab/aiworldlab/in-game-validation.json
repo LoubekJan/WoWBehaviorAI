@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "recorded_on": "2026-10-09",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "v2",
+  "deployed_code_revision": "626789e4daf973c1109eaf85c98bdb57119bd92f",
+  "player_confirmation": {
+    "source": "user reply after map-entry and walking instructions",
+    "text": "ano funguje to",
+    "map_entry_and_walking": "confirmed_by_user",
+    "numeric_gps_output_received": false,
+    "all_four_return_points_checked": "pending"
+  },
+  "npc_test": {
+    "status": "prepared_not_executed",
+    "entry": 1186,
+    "name": "Elder Black Bear",
+    "template_verified_in_lab_database": true,
+    "ai_name": "",
+    "script_name": "",
+    "spawn_kind": "temporary_no_database_spawn",
+    "movement": "native follow and native evade return",
+    "aiworld_recovery_verified": false
+  }
+}

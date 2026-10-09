@@ -152,5 +152,9 @@ cíl, počkat na dosednutí a použít `.gps`. Očekává se Map 725, Zone/Area
 návratových bodech. `.gps` ověřuje navmesh jen na úrovni mapy; samotný
 indikátor mmap neprokazuje konkrétní dlaždici ani úplnou cestu. Hlášení
 chybějících vlastních vmaps je zde očekávané při nulovém počtu modelů.
-GPS, chůze hráče a fyzický pohyb NPC ještě nejsou ověřené. Teprve potom
-ověřit fyzický pohyb jednoho NPC bez living rolí. AI zůstává vypnutá.
+Uživatel potvrdil funkční vstup na mapu a chůzi. [Hráčský záznam](in-game-validation.json)
+zachovává jeho potvrzení; číselný výpis GPS a ověření všech čtyřech bodů
+ještě chybí. Další krok je fyzický test dočasného medvěda 1186 přes
+`.npc follow`, `.npc follow stop` a `.npc evade`, podle
+[postupu v TODO](../../../doc/RealmLab.md#první-fyzický-test-jednoho-npc).
+Fyzický pohyb NPC a AIWorld recovery zůstávají neověřené. AI je vypnutá.

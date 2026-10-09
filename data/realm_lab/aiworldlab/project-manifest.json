@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "stage": "server_bundle_installed_navmesh_verified",
+  "stage": "player_entry_confirmed_npc_test_pending",
   "recorded_on": "2026-10-09",
   "source_revision": "v2",
   "map_id": 725,
@@ -139,13 +139,15 @@
   "validation": {
     "map_geometry": "verified_from_wdt_adt",
     "navigation": "verified_navmesh_only_8_of_8_paths",
-    "in_game_gps": "pending",
-    "physical_player_movement": "pending",
+    "in_game_gps": "pending_numeric_report",
+    "physical_player_movement": "confirmed_by_user_at_entry",
     "physical_npc_movement": "pending"
   },
   "server_map_deployment": "installed_and_healthy",
   "remaining": [
-    "verify in-game GPS, stable floor and physical player walking",
-    "verify physical NPC movement without living roles before enabling AI"
-  ]
+    "record numeric in-game GPS and verify all four return points",
+    "verify physical native NPC follow and evade return",
+    "verify AIWorld movement after the separate scope and bootstrap stage"
+  ],
+  "in_game_validation": "data/realm_lab/aiworldlab/in-game-validation.json"
 }

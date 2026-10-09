@@ -250,7 +250,8 @@ Stav z 9. října 2026. Infrastruktura labu a automatické CI/CD jsou hotové;
 mapový projekt je znovu otevřený a texturovaný, klientský patch i serverový
 balík jsou instalované. Extrakce a generování mmap uspěly, samostatná
 kontrola navmesh i její opakování nad nasazenými daty prošly **8/8 tras**.
-GPS a fyzický pohyb hráče/NPC ještě nejsou ověřené.
+Uživatel potvrdil funkční vstup na mapu a chůzi. Číselný výpis GPS,
+všechny čtyři kontrolní body a fyzický pohyb NPC ještě čekají na ověření.
 První cíl je jeden mob na vlastní rovné mapě, který se opakovaně fyzicky vrátí domů.
 
 Etapy postupují v tomto pořadí. Společný rozsah AI v kódu lze připravovat
@@ -367,8 +368,8 @@ proto musí proběhnout na vybaveném hostu.
 
 ### 4. Mapa a navigace bez AIWorld
 
-- [ ] Přihlásit hráče na lab, vstoupit na kontrolní bod a ověřit správné MapID/AreaID.
-- [ ] Ověřit stabilní výšku podlahy, bez propadání a chybějících mapových souborů.
+- [x] Přihlásit hráče na lab a ověřit vstup a chůzi; potvrzeno uživatelem.
+- [ ] Uložit číselný výpis `.gps` se správným MapID/AreaID a výškou podlahy.
 - [x] Samostatně ověřit navmesh: všech pět kontrolních bodů a osm úplných tras v obou směrech; zopakovat nad nasazenými daty.
 - [ ] Ve hře pomocí `.gps` a `.mmap` potvrdit polohu, podlahu a navigaci kolem kontrolních bodů.
 - [ ] Ověřit běžný fyzický pohyb jednoho NPC mezi těmito body bez zapnutých living rolí.
@@ -385,6 +386,32 @@ souborů a navmesh kontrola nenahrazují záznam skutečného pohybu NPC.
 
 **Hotovo, když:** funguje navigace i skutečný pohyb v obou směrech.
 Selhání této etapy se nejprve řeší v mapových datech nebo základním pohybu.
+
+#### První fyzický test jednoho NPC
+
+[Záznam hráčského potvrzení](../data/realm_lab/aiworldlab/in-game-validation.json)
+uvádí odpověď uživatele a hranici dosud ověřeného výsledku. Pro další test
+byla v lab databázi ověřena šablona **1186 / Elder Black Bear**, bez
+`AIName` a `ScriptName`. AIWorld a living role zůstávají vypnuté.
+
+1. Na labu zadat `.gm on` a `.go xyz 266.667 800 2 725`; nechat postavu
+   dosednout na podlahu. `.mmap loc` má ukázat `7253130.mmtile`.
+2. Zadat `.npc add temp noloot 1186`. Vybrat medvěda a zaznamenat
+   `.npc info` a `.gps`: jeho GUID a původní souřadnice.
+3. Zadat `.npc follow` a hráčem ujít přibližně 40 yardů směrem k
+   `(306.667, 800)`. Sledovat souvislý fyzický pohyb medvěda.
+4. S medvědem stále vybraným zadat `.npc follow stop` a `.npc evade`.
+   Sledovat návrat na původní místo; `.gps` a `.npc info` porovnat s
+   počátečním záznamem. GUID má zůstat stejný.
+5. Vrátit hráče do středu a stejný test zopakovat směrem k ostatním
+   třem návratovým bodům. Po dokončení lze vybraný dočasný spawn
+   odstranit přes `.npc delete`.
+
+Dočasný spawn se nezapisuje do DB. `follow stop` pouze odstraní
+následování; návrat spouští `evade` a používá původní runtime home.
+Tento test ověřuje nativní pohyb a návrat serveru. HomeMovementGenerator
+může použít přímou náhradní trasu; úspěch proto sám o sobě nepotvrdí
+AIWorld recovery ani striktní použití navmeshe při návratu.
 
 ### 5. Přenos potřebných částí AI do labu
 
