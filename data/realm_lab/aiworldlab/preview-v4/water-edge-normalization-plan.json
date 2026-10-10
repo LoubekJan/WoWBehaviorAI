@@ -1,0 +1,348 @@
+{
+  "purpose": "Normalize source-unwritten cropped row/column128 liquid vertices to native invalid-water sentinel; source-authored vertices unchanged.",
+  "source": "runtime/lab/map-project-preview-v4",
+  "data": "runtime/lab-validation/map-preview-v4/data",
+  "replacement": -500.0,
+  "files": [
+    {
+      "path": "maps/7253130.map",
+      "bytes": 4044,
+      "before_sha256": "ef9bd02dd1affc18130ff32a85eb2bf2b60591bd6cd11798beb07cd2569171ca",
+      "after_sha256": "978e145348ebba1202cb8051e4fab0a487fd839f020862622f001691f1168774",
+      "patches": [
+        {
+          "byte_offset": 3764,
+          "row": 128,
+          "column": 59,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3768,
+          "row": 128,
+          "column": 60,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3772,
+          "row": 128,
+          "column": 61,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3776,
+          "row": 128,
+          "column": 62,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3780,
+          "row": 128,
+          "column": 63,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3784,
+          "row": 128,
+          "column": 64,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3788,
+          "row": 128,
+          "column": 65,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3792,
+          "row": 128,
+          "column": 66,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3796,
+          "row": 128,
+          "column": 67,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3800,
+          "row": 128,
+          "column": 68,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3804,
+          "row": 128,
+          "column": 69,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3808,
+          "row": 128,
+          "column": 70,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3812,
+          "row": 128,
+          "column": 71,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3816,
+          "row": 128,
+          "column": 72,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3820,
+          "row": 128,
+          "column": 73,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3824,
+          "row": 128,
+          "column": 74,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3828,
+          "row": 128,
+          "column": 75,
+          "before": 93.66224670410156,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3832,
+          "row": 128,
+          "column": 76,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3836,
+          "row": 128,
+          "column": 77,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3840,
+          "row": 128,
+          "column": 78,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3844,
+          "row": 128,
+          "column": 79,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3848,
+          "row": 128,
+          "column": 80,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3852,
+          "row": 128,
+          "column": 81,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3856,
+          "row": 128,
+          "column": 82,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3860,
+          "row": 128,
+          "column": 83,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3864,
+          "row": 128,
+          "column": 84,
+          "before": 76.73309326171875,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3868,
+          "row": 128,
+          "column": 85,
+          "before": 76.73309326171875,
+          "after": -500.0
+        }
+      ]
+    },
+    {
+      "path": "maps/7253230.map",
+      "bytes": 198748,
+      "before_sha256": "f1174158742241df24324fa8d79a99b5be7e6343fda05d39b2343ff0aaad5cb9",
+      "after_sha256": "793fae5d3d7d302bc2dbf2efab179223230f05c5f3e1d7e4a00973362db06bf8",
+      "patches": [
+        {
+          "byte_offset": 198232,
+          "row": 128,
+          "column": 0,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 198236,
+          "row": 128,
+          "column": 1,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 198240,
+          "row": 128,
+          "column": 2,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 198244,
+          "row": 128,
+          "column": 3,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 198248,
+          "row": 128,
+          "column": 4,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 198252,
+          "row": 128,
+          "column": 5,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 198256,
+          "row": 128,
+          "column": 6,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 198260,
+          "row": 128,
+          "column": 7,
+          "before": -4.1219024658203125,
+          "after": -500.0
+        }
+      ]
+    },
+    {
+      "path": "maps/7253131.map",
+      "bytes": 10656,
+      "before_sha256": "8070f75566e3813b98abe14246386966f4a7318be3d5cf01a1d4022c86493b38",
+      "after_sha256": "39a33e83ec1d24870549ec637a38a91b36b02ad3977c69599247cfe07502b5bc",
+      "patches": [
+        {
+          "byte_offset": 1364,
+          "row": 110,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 1880,
+          "row": 111,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 2396,
+          "row": 112,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 2912,
+          "row": 113,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3428,
+          "row": 114,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 3944,
+          "row": 115,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 4460,
+          "row": 116,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 4976,
+          "row": 117,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 5492,
+          "row": 118,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        },
+        {
+          "byte_offset": 6008,
+          "row": 119,
+          "column": 128,
+          "before": 0.0,
+          "after": -500.0
+        }
+      ]
+    }
+  ],
+  "patched_slots": 45
+}

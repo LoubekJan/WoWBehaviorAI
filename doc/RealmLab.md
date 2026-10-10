@@ -560,6 +560,70 @@ Před migrací byly zazálohované dotčené databázové řádky, serverová da
 lab konfigurace i klientský patch. CI na revizi `7db5a1feaa` prošlo
 115 realm testů včetně MySQL, 112 Observer, 74 AI a 478 C++ testů.
 
+### Procházkový náhled rozšířeného světa v4
+
+Dne 10. 10. 2026 byl z uloženého uživatelova projektu připravený a nasazený
+samostatný [náhled v4](../data/realm_lab/aiworldlab/preview-v4/project-manifest.json).
+Obsahuje čtyři propojené ADT `(30,31)`, `(31,31)`, `(30,32)`, `(31,32)`:
+přibližně **1 066,7 × 1 066,7 herních jednotek**, serverové X −533,333 až
+533,333 a Y 0 až 1 066,667. Výšky terénu jsou −71,086 až 204,775.
+V aktuálním návrhu je voda, bez M2/WMO a děr. WDT, WDL a čtyři ADT souhlasí.
+
+Původní projekt včetně jeho samostatných úprav Azerothu zůstal nezměněný.
+Do balíku vstupuje pouze AIWorldLab a tři potřebné DBC. V odvozené kopii
+`runtime/lab/map-project-preview-v4` dostalo všech 1 024 terénních částí
+AreaID 4988 místo nezadané nuly. Klientský builder má explicitní
+`--all-tiles`, který vyžaduje přesnou shodu ADT s WDT; původní výchozí
+balík jediné dlaždice zůstává bajtově shodný.
+
+```powershell
+python tools/realm_lab/build_map_patch.py --all-tiles --project runtime/lab/map-project-preview-v4 --output runtime/lab/client-patches/map725-v4/patch-4.MPQ
+```
+
+Klientský patch má 2 039 085 bajtů, SHA-256
+`09cc78ef83a78a45168219eecd798e94b5b4f3c617acc7d2a2d8d375e2ece5be`
+a je instalovaný v `C:\WoWModding\Client-Lab\Data\patch-4.MPQ`.
+[Serverový manifest](../data/realm_lab/aiworldlab/preview-v4/server-manifest.json)
+zaznamenává skutečné nástroje a dvanáct instalovaných souborů: tři DBC,
+čtyři `.map`, čtyři `.mmtile` a společné `.mmap`.
+Staré mapové VMAP v3 byly po záloze odstraněné; v4 bez modelů žádné
+vlastní VMAP nemá. Sdílené modelové kolize ostatních map se neměnily.
+
+Kontrola odhalila 45 zdrojem nezapsaných okrajových hodnot vody, které
+extraktor převzal z předchozích dlaždic. Tyto hodnoty vytvářely dva falešné
+vodní navigační polygony kolem výšky 93,74 nad rovinou Z 0.
+[Přesný plán normalizace](../data/realm_lab/aiworldlab/preview-v4/water-edge-normalization-plan.json)
+váže opravu na původní hashe a byte offsety: pouze tyto hodnoty dostaly
+neplatný vodní sentinel −500, všechny autorské hodnoty zůstaly zachované.
+Potom byly všechny čtyři navigační dlaždice vygenerované znovu v čistém
+výstupu, se zahrnutím vody. [Nezávislá kontrola](../data/realm_lab/aiworldlab/preview-v4/data-verification.json)
+prošla pro 132 100 terénních vrcholů, 1 024 výškových sond, 36 486 známých
+vodních hodnot a všechny čtyři navigační soubory. Falešné vodní polygony
+na původní rovině zmizely. Kontrola neprokazuje globální průchodnost ani
+chování NPC na novém světě.
+
+Prohlídka používá `LAB_AI_PROFILE=disabled`. Původní stovka je po úplné
+SQL záloze dočasně potlačená pomocí `spawnMask=0` a `control_mode=0`;
+identity, domovy a souřadnice zůstaly zachované. Původní v3 profily a jejich
+důkazy patří k předchozímu terénu. Jejich další aktivace vyžaduje obnovení
+celého v3 balíku a flagů, nebo samostatné ověření populace na nové mapě.
+Observer při vypnuté telemetrii neposkytuje živý obraz rozšířeného světa;
+velikost se posuzuje ve WoW klientu.
+
+[Počáteční záznam nasazení](../data/realm_lab/aiworldlab/preview-v4/activation.json)
+ověřil čtyři zdravé lab služby, přesnou potlačenou stovku a zachované
+kontejnery i časy spuštění původního realmu a authserveru. Zálohy jsou
+na hostu v `runtime/lab/validation/map-preview-v4/before`; předchozí
+klientský patch také v `runtime/lab/client-patches/map725-v4/backups`.
+Ve hře se přihlásit na **AI World Lab** a použít:
+
+```text
+.go xyz 266.667 800 2 725
+```
+
+Vstup je na suché podlaze Z 0 v oblasti 4988. Fyzickou prohlídku potvrdí
+až hráč; náhled neslouží jako nový hodinový test lovu a návratů.
+
 ### Postup při prvním selhání
 
 Při selhání etapu zastavit, uložit přesný scénář, revizi kódu, hashe dat a

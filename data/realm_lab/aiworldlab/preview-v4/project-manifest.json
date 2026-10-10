@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v4",
+  "source_project": "runtime/lab/map-project",
+  "source_unchanged": true,
+  "staging_project": "runtime/lab/map-project-preview-v4",
+  "excluded_maps": [
+    "Azeroth"
+  ],
+  "tiles": [
+    [
+      30,
+      31
+    ],
+    [
+      30,
+      32
+    ],
+    [
+      31,
+      31
+    ],
+    [
+      31,
+      32
+    ]
+  ],
+  "area_binding": [
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "27b8a835bf18091cdfd3d19f7277c95abdaf01a4e7761f72b8ad058dcf62568b",
+      "packaged_sha256": "6b82ac7ad000ee06a5d99d978ad647599d3adf64a0b7783d91833c089a650daa"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "ca9c78ed1e1956b8990e31db94fef67e030d43046a336383ca347d1efe216e47",
+      "packaged_sha256": "50a002d5bfad23c3b8071ddd05fed7223c593bbd8ec7303ff9fa13f5626953aa"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "73fb5105083c1f5c98801480919d7402719d85f5adfa82f1c54c9bdc344fcd58",
+      "packaged_sha256": "59e9d9b2e00d062c74fa223c51ad83be46eb07c92dbcf9dc20c6529fa7057cd2"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "9eaccb1df13bd0dcf3fddc3971c8dad71cbcaf45be9b46b1504fa1133411c8ee",
+      "packaged_sha256": "a585e7eae3bb2184debc45e6bf88772026ede94bf80d8b28dce2559467656c82"
+    }
+  ],
+  "archives": [
+    {
+      "kind": "source",
+      "path": "runtime/lab/map-source-artifacts/aiworldlab-725-preview-v4-source.zip",
+      "bytes": 359038,
+      "sha256": "3c765c84c620c063ca96b7cbf8b1311dec039b0e59b593b6d449e2b9fe7ad9cf"
+    },
+    {
+      "kind": "bound-source",
+      "path": "runtime/lab/map-source-artifacts/aiworldlab-725-preview-v4-bound-source.zip",
+      "bytes": 359056,
+      "sha256": "674bdb51e02c6e0225ae3f3736d2e52d867cbb31b7b992cefd58bda7b5b32d1b"
+    }
+  ],
+  "files": [
+    {
+      "path": "DBFilesClient/Map.dbc",
+      "bytes": 43922,
+      "source_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "packaged_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "DBFilesClient/AreaTable.dbc",
+      "bytes": 367119,
+      "source_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "packaged_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "DBFilesClient/Light.dbc",
+      "bytes": 42981,
+      "source_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "packaged_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdt",
+      "bytes": 32828,
+      "source_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba",
+      "packaged_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdl",
+      "bytes": 21108,
+      "source_sha256": "f11a175b4290c4e11ac948db1700290a5e63319a6fb881867d7524c367138c0b",
+      "packaged_sha256": "f11a175b4290c4e11ac948db1700290a5e63319a6fb881867d7524c367138c0b"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "bytes": 324141,
+      "source_sha256": "27b8a835bf18091cdfd3d19f7277c95abdaf01a4e7761f72b8ad058dcf62568b",
+      "packaged_sha256": "6b82ac7ad000ee06a5d99d978ad647599d3adf64a0b7783d91833c089a650daa"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "bytes": 435544,
+      "source_sha256": "ca9c78ed1e1956b8990e31db94fef67e030d43046a336383ca347d1efe216e47",
+      "packaged_sha256": "50a002d5bfad23c3b8071ddd05fed7223c593bbd8ec7303ff9fa13f5626953aa"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "bytes": 334750,
+      "source_sha256": "73fb5105083c1f5c98801480919d7402719d85f5adfa82f1c54c9bdc344fcd58",
+      "packaged_sha256": "59e9d9b2e00d062c74fa223c51ad83be46eb07c92dbcf9dc20c6529fa7057cd2"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "bytes": 435647,
+      "source_sha256": "9eaccb1df13bd0dcf3fddc3971c8dad71cbcaf45be9b46b1504fa1133411c8ee",
+      "packaged_sha256": "a585e7eae3bb2184debc45e6bf88772026ede94bf80d8b28dce2559467656c82"
+    }
+  ],
+  "recorded_utc": "2026-10-10T13:13:26.833847+00:00",
+  "world_bounds": {
+    "min_x": -533.3333129882812,
+    "max_x": 533.3333129882812,
+    "min_y": 0.0,
+    "max_y": 1066.6666259765625
+  },
+  "source_files_rechecked_unchanged": 15,
+  "client_patch": {
+    "map_id": 725,
+    "area_id": 4988,
+    "format_version": 0,
+    "output": "runtime/lab/client-patches/map725-v4/patch-4.MPQ",
+    "created": false,
+    "bytes": 2039085,
+    "sha256": "09cc78ef83a78a45168219eecd798e94b5b4f3c617acc7d2a2d8d375e2ece5be",
+    "files": [
+      {
+        "path": "DBFilesClient\\Map.dbc",
+        "bytes": 43922,
+        "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+      },
+      {
+        "path": "DBFilesClient\\AreaTable.dbc",
+        "bytes": 367119,
+        "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+      },
+      {
+        "path": "DBFilesClient\\Light.dbc",
+        "bytes": 42981,
+        "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab.wdt",
+        "bytes": 32828,
+        "sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab.wdl",
+        "bytes": 21108,
+        "sha256": "f11a175b4290c4e11ac948db1700290a5e63319a6fb881867d7524c367138c0b"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_30_31.adt",
+        "bytes": 324141,
+        "sha256": "6b82ac7ad000ee06a5d99d978ad647599d3adf64a0b7783d91833c089a650daa"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_31_31.adt",
+        "bytes": 334750,
+        "sha256": "59e9d9b2e00d062c74fa223c51ad83be46eb07c92dbcf9dc20c6529fa7057cd2"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_30_32.adt",
+        "bytes": 435544,
+        "sha256": "50a002d5bfad23c3b8071ddd05fed7223c593bbd8ec7303ff9fa13f5626953aa"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_31_32.adt",
+        "bytes": 435647,
+        "sha256": "a585e7eae3bb2184debc45e6bf88772026ede94bf80d8b28dce2559467656c82"
+      }
+    ],
+    "tiles": [
+      {
+        "x": 30,
+        "y": 31
+      },
+      {
+        "x": 31,
+        "y": 31
+      },
+      {
+        "x": 30,
+        "y": 32
+      },
+      {
+        "x": 31,
+        "y": 32
+      }
+    ]
+  }
+}

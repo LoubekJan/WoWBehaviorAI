@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "source_revision": "preview-v4",
+  "client_patch_sha256": "09cc78ef83a78a45168219eecd798e94b5b4f3c617acc7d2a2d8d375e2ece5be",
+  "tool_build": {
+    "mapextractor": {
+      "path": "/build/bin/RelWithDebInfo/bin/mapextractor",
+      "bytes": 8776224,
+      "sha256": "b0b50826b2e80c42216cbb0ff2e120ddc5631d7f19f66f221fd6796cf889456e"
+    },
+    "vmap4extractor": {
+      "path": "/build/bin/RelWithDebInfo/bin/vmap4extractor",
+      "bytes": 17266664,
+      "sha256": "f26f48b2a7d20de65e1f0fd84beb480f6312deadd0b34fb30612d1a0ab96ec5d"
+    },
+    "vmap4assembler": {
+      "path": "/build/bin/RelWithDebInfo/bin/vmap4assembler",
+      "bytes": 20419752,
+      "sha256": "235593779295e02773bf14f508a38eff8b8331bf1c20b172d2d98339be6ab5df"
+    },
+    "mmaps_generator": {
+      "path": "/build/bin/RelWithDebInfo/bin/mmaps_generator",
+      "bytes": 31558440,
+      "sha256": "ceeff11468dd48e49c208b63a3af6a2731ba8681748f638ee70ae9df904c0c24"
+    }
+  },
+  "commands": [
+    [
+      "/build/bin/RelWithDebInfo/bin/mapextractor",
+      "-i",
+      "/workspace/runtime/lab/client-source/map725-v4",
+      "-o",
+      "/workspace/runtime/lab/extractions/map725-v4",
+      "-e",
+      "3",
+      "-f",
+      "0"
+    ],
+    [
+      "/build/bin/RelWithDebInfo/bin/vmap4extractor",
+      "-d",
+      "/workspace/runtime/lab/client-source/map725-v4"
+    ],
+    [
+      "/build/bin/RelWithDebInfo/bin/vmap4assembler",
+      "Buildings",
+      "vmaps"
+    ],
+    [
+      "/build/bin/RelWithDebInfo/bin/mmaps_generator",
+      "725",
+      "--includeFlatTerrain",
+      "true",
+      "--skipLiquid",
+      "false",
+      "--threads",
+      "1",
+      "--debugOutput",
+      "true",
+      "--silent"
+    ],
+    [
+      "python3",
+      "/workspace/runtime/lab/validation/map-preview-v4/generate_final_navigation_v3.py"
+    ]
+  ],
+  "step_seconds": {
+    "maps": 22.03,
+    "vmap-extract": 42.18,
+    "vmap-assemble": 8.68,
+    "navigation": 6.86
+  },
+  "files": [
+    {
+      "path": "dbc/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "dbc/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "dbc/Map.dbc",
+      "bytes": 43922,
+      "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "maps/7253130.map",
+      "bytes": 4044,
+      "sha256": "978e145348ebba1202cb8051e4fab0a487fd839f020862622f001691f1168774"
+    },
+    {
+      "path": "maps/7253131.map",
+      "bytes": 10656,
+      "sha256": "39a33e83ec1d24870549ec637a38a91b36b02ad3977c69599247cfe07502b5bc"
+    },
+    {
+      "path": "maps/7253230.map",
+      "bytes": 198748,
+      "sha256": "793fae5d3d7d302bc2dbf2efab179223230f05c5f3e1d7e4a00973362db06bf8"
+    },
+    {
+      "path": "maps/7253231.map",
+      "bytes": 132184,
+      "sha256": "b882af40bf3cad8891f03044d10383842e3bc28adf74e81ab3d19ad55a148bf5"
+    },
+    {
+      "path": "mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "mmaps/7253130.mmtile",
+      "bytes": 102364,
+      "sha256": "121593136591b0815d697549537da1ab28c47c77120d7898c2bdaf35a9aace93"
+    },
+    {
+      "path": "mmaps/7253131.mmtile",
+      "bytes": 102364,
+      "sha256": "e4a5123a0c0131a03d0fef1e87e86e9c1c97adbc5f4ec8d00e50b50fc59e170a"
+    },
+    {
+      "path": "mmaps/7253230.mmtile",
+      "bytes": 177324,
+      "sha256": "32b10e1393df34b64f97ac297a2c7c38003a56616baea640f3bf5b28b75f32a8"
+    },
+    {
+      "path": "mmaps/7253231.mmtile",
+      "bytes": 337196,
+      "sha256": "a7fdf831acd937ef3f2f2dca0dc04b6e611326f6d297061d5cd2358d474ee84a"
+    }
+  ],
+  "custom_vmaps": {
+    "status": "expected_absent",
+    "source_m2_placements": 0,
+    "source_wmo_placements": 0
+  },
+  "raw_extraction_receipt_sha256": "f6e3553c080c86b7c5d401d134bf69056f2ac9b876e07861efc9aa19bf6d9e4f",
+  "native_liquid_edge_normalization": {
+    "slots": 45,
+    "replacement": -500.0,
+    "authored_values_unchanged": true,
+    "private_plan_sha256": "c18c1cfbab5f752f7f2a72d2d066dd60a0b1bdeb585857d176c9a8802656620d",
+    "private_plan_path": "runtime/lab-validation/map-preview-v4/water-edge-normalization-plan.json",
+    "published_plan_path": "data/realm_lab/aiworldlab/preview-v4/water-edge-normalization-plan.json",
+    "published_plan_sha256": "c05e53f7f56811333356fe1f466b693b30beb5862bb55f84a049c7e6c9cb3144",
+    "published_copy_note": "Only filesystem paths were made repository-relative; normalization offsets, byte guards and source proofs are unchanged."
+  },
+  "final_navigation_command": [
+    "/build/bin/RelWithDebInfo/bin/mmaps_generator",
+    "725",
+    "--includeFlatTerrain",
+    "true",
+    "--skipLiquid",
+    "false",
+    "--threads",
+    "1",
+    "--debugOutput",
+    "true",
+    "--silent"
+  ],
+  "source_checkout_revision": "7fc9459a56dea74ba57b5485f504270a3349309f",
+  "server_archive": {
+    "path": "runtime/lab/map-source-artifacts/aiworldlab-725-preview-v4-server-final.zip",
+    "sha256": "f6e22885e21376bbdae13064b2d3f4bc4b50197ce9f95eaaaf1ea44e290c0897",
+    "bytes": 452045
+  }
+}

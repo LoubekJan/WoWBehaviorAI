@@ -1,0 +1,374 @@
+{
+  "status": "pass",
+  "source": "runtime/lab/map-project-preview-v4",
+  "data": "runtime/lab-validation/map-preview-v4/data-fixed",
+  "normalized_edges_required": true,
+  "navigation_checked": true,
+  "maps": [
+    {
+      "tile": [
+        30,
+        31
+      ],
+      "file": "7253130.map",
+      "bytes": 4044,
+      "sha256": "978e145348ebba1202cb8051e4fab0a487fd839f020862622f001691f1168774",
+      "source_sha256": "6b82ac7ad000ee06a5d99d978ad647599d3adf64a0b7783d91833c089a650daa",
+      "area_id": 4988,
+      "height_flags": 1,
+      "height_min": 0.0,
+      "height_max": 0.0,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 0.0,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0,
+      "liquid": {
+        "flags": 0,
+        "offset_x": 15,
+        "offset_y": 122,
+        "width": 114,
+        "height": 7,
+        "types": {
+          "0": 243,
+          "1": 13
+        },
+        "constant_level": -500.0,
+        "source_instances": 13,
+        "visible_squares": 190,
+        "compared_vertices": 771,
+        "unsupported_edge_vertices": 27,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": -500.0,
+        "unsupported_edge_max": -500.0,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -500.0,
+        "cropped_array_max": -4.1219024658203125,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    },
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "file": "7253230.map",
+      "bytes": 198748,
+      "sha256": "793fae5d3d7d302bc2dbf2efab179223230f05c5f3e1d7e4a00973362db06bf8",
+      "source_sha256": "50a002d5bfad23c3b8071ddd05fed7223c593bbd8ec7303ff9fa13f5626953aa",
+      "area_id": 4988,
+      "height_flags": 0,
+      "height_min": -71.08556365966797,
+      "height_max": 0.0,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 8.940696716308594e-07,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0006623840332551367,
+      "liquid": {
+        "flags": 1,
+        "offset_x": 0,
+        "offset_y": 0,
+        "width": 129,
+        "height": 129,
+        "types": {
+          "1": 256
+        },
+        "constant_level": -500.0,
+        "source_instances": 256,
+        "visible_squares": 16314,
+        "compared_vertices": 16633,
+        "unsupported_edge_vertices": 8,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": -500.0,
+        "unsupported_edge_max": -500.0,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -500.0,
+        "cropped_array_max": -0.304779052734375,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    },
+    {
+      "tile": [
+        31,
+        31
+      ],
+      "file": "7253131.map",
+      "bytes": 10656,
+      "sha256": "39a33e83ec1d24870549ec637a38a91b36b02ad3977c69599247cfe07502b5bc",
+      "source_sha256": "59e9d9b2e00d062c74fa223c51ad83be46eb07c92dbcf9dc20c6529fa7057cd2",
+      "area_id": 4988,
+      "height_flags": 1,
+      "height_min": 0.0,
+      "height_max": 0.0,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 0.0,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0,
+      "liquid": {
+        "flags": 0,
+        "offset_x": 0,
+        "offset_y": 110,
+        "width": 129,
+        "height": 19,
+        "types": {
+          "0": 221,
+          "1": 35
+        },
+        "constant_level": -500.0,
+        "source_instances": 35,
+        "visible_squares": 1709,
+        "compared_vertices": 2441,
+        "unsupported_edge_vertices": 10,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": -500.0,
+        "unsupported_edge_max": -500.0,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -500.0,
+        "cropped_array_max": 0.0,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "file": "7253231.map",
+      "bytes": 132184,
+      "sha256": "b882af40bf3cad8891f03044d10383842e3bc28adf74e81ab3d19ad55a148bf5",
+      "source_sha256": "a585e7eae3bb2184debc45e6bf88772026ede94bf80d8b28dce2559467656c82",
+      "area_id": 4988,
+      "height_flags": 0,
+      "height_min": -15.40540599822998,
+      "height_max": 204.7751922607422,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 1.9073486328125e-06,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0009939575195119232,
+      "liquid": {
+        "flags": 3,
+        "offset_x": 0,
+        "offset_y": 0,
+        "width": 129,
+        "height": 129,
+        "types": {
+          "1": 256
+        },
+        "constant_level": -4.1219024658203125,
+        "source_instances": 256,
+        "visible_squares": 16384,
+        "compared_vertices": 16641,
+        "unsupported_edge_vertices": 0,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": null,
+        "unsupported_edge_max": null,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -4.1219024658203125,
+        "cropped_array_max": -4.1219024658203125,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    }
+  ],
+  "mmtiles": [
+    {
+      "tile": [
+        30,
+        31
+      ],
+      "file": "7253130.mmtile",
+      "bytes": 102364,
+      "payload_bytes": 102344,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        1,
+        1
+      ],
+      "bmin": [
+        533.3333129882812,
+        0.0,
+        0.0
+      ],
+      "bmax": [
+        1066.6666259765625,
+        0.5333331823348999,
+        533.3333129882812
+      ],
+      "poly_count": 625,
+      "vertex_count": 677,
+      "detail_vertex_count": 0,
+      "detail_triangle_count": 1251,
+      "link_count": 2601,
+      "bv_node_count": 1250,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 625
+      },
+      "polygon_flags": {
+        "1": 625
+      },
+      "checked_finite_floats": 2041,
+      "sha256": "121593136591b0815d697549537da1ab28c47c77120d7898c2bdaf35a9aace93"
+    },
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "file": "7253230.mmtile",
+      "bytes": 177324,
+      "payload_bytes": 177304,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        1,
+        0
+      ],
+      "bmin": [
+        533.3333129882812,
+        -9.664741516113281,
+        -533.3333129882812
+      ],
+      "bmax": [
+        1066.6666259765625,
+        0.46858882904052734,
+        0.0
+      ],
+      "poly_count": 1056,
+      "vertex_count": 1079,
+      "detail_vertex_count": 498,
+      "detail_triangle_count": 2642,
+      "link_count": 4216,
+      "bv_node_count": 2112,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 634,
+        "9": 422
+      },
+      "polygon_flags": {
+        "1": 634,
+        "4": 422
+      },
+      "checked_finite_floats": 4741,
+      "sha256": "32b10e1393df34b64f97ac297a2c7c38003a56616baea640f3bf5b28b75f32a8"
+    },
+    {
+      "tile": [
+        31,
+        31
+      ],
+      "file": "7253131.mmtile",
+      "bytes": 102364,
+      "payload_bytes": 102344,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        0,
+        1
+      ],
+      "bmin": [
+        0.0,
+        -4.1219024658203125,
+        0.0
+      ],
+      "bmax": [
+        533.3333129882812,
+        0.41142964363098145,
+        533.3333129882812
+      ],
+      "poly_count": 625,
+      "vertex_count": 677,
+      "detail_vertex_count": 0,
+      "detail_triangle_count": 1251,
+      "link_count": 2601,
+      "bv_node_count": 1250,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 625
+      },
+      "polygon_flags": {
+        "1": 625
+      },
+      "checked_finite_floats": 2041,
+      "sha256": "e4a5123a0c0131a03d0fef1e87e86e9c1c97adbc5f4ec8d00e50b50fc59e170a"
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "file": "7253231.mmtile",
+      "bytes": 337196,
+      "payload_bytes": 337176,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        0,
+        0
+      ],
+      "bmin": [
+        0.0,
+        -8.43565559387207,
+        -533.3333129882812
+      ],
+      "bmax": [
+        533.3333129882812,
+        204.89761352539062,
+        0.0
+      ],
+      "poly_count": 1768,
+      "vertex_count": 2480,
+      "detail_vertex_count": 2912,
+      "detail_triangle_count": 7061,
+      "link_count": 6860,
+      "bv_node_count": 3536,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 1647,
+        "9": 121
+      },
+      "polygon_flags": {
+        "1": 1647,
+        "4": 121
+      },
+      "checked_finite_floats": 16186,
+      "sha256": "a7fdf831acd937ef3f2f2dca0dc04b6e611326f6d297061d5cd2358d474ee84a"
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "Structural integrity and terrain/liquid preservation only; no global route connectivity assertion.",
+    "7253130: 27 cropped row/column128 vertices outside visible water are unwritten by this source; verified normalized to -500 invalid-water sentinel; excluded from authored-source equality.",
+    "7253230: 8 cropped row/column128 vertices outside visible water are unwritten by this source; verified normalized to -500 invalid-water sentinel; excluded from authored-source equality.",
+    "7253131: 10 cropped row/column128 vertices outside visible water are unwritten by this source; verified normalized to -500 invalid-water sentinel; excluded from authored-source equality."
+  ],
+  "mmap_parameters": {
+    "origin": [
+      0.0,
+      1.1754943508222875e-38,
+      -533.3333129882812
+    ],
+    "tile_width": 533.3333129882812,
+    "tile_height": 533.3333129882812,
+    "max_tiles": 4,
+    "max_polys_signed": -2147483648,
+    "max_polys_bits": 2147483648,
+    "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+  },
+  "entry": {
+    "x": 266.667,
+    "y": 800.0,
+    "ground_z": 0.0,
+    "teleport_z": 2,
+    "map_id": 725,
+    "dry": true,
+    "area_id": 4988
+  }
+}

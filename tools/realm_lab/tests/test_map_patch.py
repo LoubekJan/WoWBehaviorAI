@@ -1,4 +1,5 @@
 from io import BytesIO
+import hashlib
 from pathlib import Path
 import struct
 import sys
@@ -13,7 +14,7 @@ except ImportError:
     from mpyq import MPQArchive
 
 from tools.realm_lab.build_map_patch import (
-    FILE_FLAGS, HASH_COUNT, WHITELIST, build_archive, build_patch, validate_project,
+    FILE_FLAGS, HASH_COUNT, WHITELIST, build_archive, build_patch, tile_whitelist, validate_project,
 )
 
 
@@ -46,6 +47,27 @@ def fixture():
               dbc(15, light_row), chunk(b"MAIN", main),
               chunk(b"MVER", struct.pack("<I", 18)), bytes(terrain)]
     return {internal: data for (_, internal), data in zip(WHITELIST, values)}
+
+
+FOUR_TILES = ((30, 31), (31, 31), (30, 32), (31, 32))
+
+
+def multi_fixture(tiles=FOUR_TILES):
+    files = fixture()
+    main = bytearray(64 * 64 * 8)
+    for x, y in tiles:
+        struct.pack_into("<I", main, (y * 64 + x) * 8, 1)
+    files[WHITELIST[3][1]] = chunk(b"MAIN", main)
+    terrain = files.pop(WHITELIST[5][1])
+    files.update({internal: terrain for _, internal in tile_whitelist(tiles)[5:]})
+    return files
+
+
+def write_project(project, files, whitelist=WHITELIST):
+    for relative, internal in whitelist:
+        source = project / relative
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(files[internal])
 
 
 class MapPatchTests(unittest.TestCase):
@@ -85,6 +107,9 @@ class MapPatchTests(unittest.TestCase):
     def test_archive_is_deterministic_and_rejects_extra_input(self):
         files = fixture()
         self.assertEqual(build_archive(files), build_archive(files))
+        # Recorded from the reviewed six-file builder before multi-tile support.
+        self.assertEqual(hashlib.sha256(build_archive(files)).hexdigest(),
+                         "38484f823fdace22a1d8738b465a17c2da726afeb2edced27381fd91ff81a667")
         with self.assertRaisesRegex(ValueError, "exactly the six"):
             build_archive({**files, "uid.ini": b"secret"})
 
@@ -131,6 +156,99 @@ class MapPatchTests(unittest.TestCase):
             MPQArchive(BytesIO(archive[:16]))
         with self.assertRaises(struct.error):
             MPQArchive(BytesIO(archive[:-1]))
+
+    def test_explicit_four_tile_patch_roundtrips_all_tiles_and_omits_foreign_map(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[3]) as directory:
+            project = Path(directory) / "project"
+            output = Path(directory) / "patch-4.MPQ"
+            files = multi_fixture()
+            write_project(project, files, tile_whitelist(FOUR_TILES))
+            unrelated = project / "world/maps/azeroth/azeroth_31_49.adt"
+            unrelated.parent.mkdir(parents=True)
+            unrelated.write_bytes(b"must not be included")
+            result = build_patch(project, output, all_tiles=True)
+            self.assertEqual(result["tiles"], [{"x": x, "y": y} for x, y in FOUR_TILES])
+            self.assertEqual(len(result["files"]), 9)
+            archive = MPQArchive(BytesIO(output.read_bytes()))
+            self.assertEqual({name.decode("ascii") for name in archive.files}, set(files) | {"(listfile)"})
+            self.assertEqual(len(archive.hash_table), 32)
+            self.assertEqual(len(archive.block_table), 10)
+            for name, data in files.items():
+                self.assertEqual(archive.read_file(name), data)
+            self.assertIsNone(archive.read_file(r"World\Maps\Azeroth\Azeroth_31_49.adt"))
+            previous = output.stat().st_mtime_ns
+            self.assertFalse(build_patch(project, output, all_tiles=True)["created"])
+            self.assertEqual(output.stat().st_mtime_ns, previous)
+            with self.assertRaisesRegex(ValueError, "Expected only WDT tile"):
+                build_patch(project, Path(directory) / "default.MPQ")
+
+    def test_missing_and_extra_adts_are_rejected_without_creating_patch(self):
+        for missing in (True, False):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory(
+                    dir=Path(__file__).resolve().parents[3]) as directory:
+                project = Path(directory) / "project"
+                output = Path(directory) / "patch-4.MPQ"
+                files = multi_fixture()
+                whitelist = tile_whitelist(FOUR_TILES)
+                write_project(project, files, whitelist)
+                if missing:
+                    (project / whitelist[-1][0]).unlink()
+                else:
+                    (project / "world/maps/aiworldlab/aiworldlab_32_32.adt").write_bytes(
+                        files[whitelist[-1][1]])
+                with self.assertRaisesRegex(ValueError, "ADT files must match WDT terrain tiles exactly"):
+                    build_patch(project, output, all_tiles=True)
+                self.assertFalse(output.exists())
+
+    def test_every_multitile_adt_must_have_the_reviewed_area_and_complete_cells(self):
+        files = multi_fixture()
+        validate_project(files, tiles=FOUR_TILES)
+        for _, name in tile_whitelist(FOUR_TILES)[5:]:
+            wrong = bytearray(files[name])
+            struct.pack_into("<I", wrong, 8 + 52, 0)
+            with self.subTest(file=name), self.assertRaisesRegex(ValueError, "AreaID 4988"):
+                validate_project({**files, name: bytes(wrong)}, tiles=FOUR_TILES)
+            with self.subTest(file=name), self.assertRaises(ValueError):
+                validate_project({**files, name: files[name][:-1]}, tiles=FOUR_TILES)
+
+    def test_large_archive_hash_table_keeps_empty_slots_and_valid_probe_chains(self):
+        tiles = tuple((x, y) for y in range(31, 34) for x in range(30, 36))
+        files = multi_fixture(tiles)
+        archive = MPQArchive(BytesIO(build_archive(files, tile_whitelist(tiles))))
+        hash_count = len(archive.hash_table)
+        self.assertGreaterEqual(hash_count, 2 * len(archive.block_table))
+        self.assertEqual(hash_count & (hash_count - 1), 0)
+        for raw_name in archive.files:
+            name = raw_name.decode("ascii")
+            slot = archive._hash(name, "TABLE_OFFSET") & (hash_count - 1)
+            wanted = (archive._hash(name, "HASH_A"), archive._hash(name, "HASH_B"))
+            for _ in range(hash_count):
+                entry = archive.hash_table[slot]
+                self.assertNotEqual(entry.block_table_index, 0xFFFFFFFF, name)
+                if (entry.hash_a, entry.hash_b) == wanted:
+                    break
+                slot = (slot + 1) & (hash_count - 1)
+            else:
+                self.fail(f"Missing multi-tile hash-chain entry: {name}")
+            if name != "(listfile)":
+                self.assertEqual(archive.read_file(name), files[name])
+
+    def test_empty_wdt_and_duplicate_archive_names_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "nonempty unique"):
+            tile_whitelist(())
+        with self.assertRaisesRegex(ValueError, "nonempty unique"):
+            tile_whitelist(((30, 31), (30, 31)))
+        with self.assertRaisesRegex(ValueError, "unique"):
+            build_archive(fixture(), WHITELIST + (WHITELIST[-1],))
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[3]) as directory:
+            project = Path(directory) / "project"
+            output = Path(directory) / "patch-4.MPQ"
+            files = fixture()
+            files[WHITELIST[3][1]] = chunk(b"MAIN", bytes(64 * 64 * 8))
+            write_project(project, files)
+            with self.assertRaisesRegex(ValueError, "nonempty unique"):
+                build_patch(project, output, all_tiles=True)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "captured_utc": "2026-10-10T13:13:26.833847+00:00",
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v4",
+  "status": "deployed_healthy",
+  "scope": "walking_preview_only",
+  "client_patch_sha256": "09cc78ef83a78a45168219eecd798e94b5b4f3c617acc7d2a2d8d375e2ece5be",
+  "installed_files": [
+    {
+      "path": "dbc/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "dbc/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "dbc/Map.dbc",
+      "bytes": 43922,
+      "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "maps/7253130.map",
+      "bytes": 4044,
+      "sha256": "978e145348ebba1202cb8051e4fab0a487fd839f020862622f001691f1168774"
+    },
+    {
+      "path": "maps/7253131.map",
+      "bytes": 10656,
+      "sha256": "39a33e83ec1d24870549ec637a38a91b36b02ad3977c69599247cfe07502b5bc"
+    },
+    {
+      "path": "maps/7253230.map",
+      "bytes": 198748,
+      "sha256": "793fae5d3d7d302bc2dbf2efab179223230f05c5f3e1d7e4a00973362db06bf8"
+    },
+    {
+      "path": "maps/7253231.map",
+      "bytes": 132184,
+      "sha256": "b882af40bf3cad8891f03044d10383842e3bc28adf74e81ab3d19ad55a148bf5"
+    },
+    {
+      "path": "mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "mmaps/7253130.mmtile",
+      "bytes": 102364,
+      "sha256": "121593136591b0815d697549537da1ab28c47c77120d7898c2bdaf35a9aace93"
+    },
+    {
+      "path": "mmaps/7253131.mmtile",
+      "bytes": 102364,
+      "sha256": "e4a5123a0c0131a03d0fef1e87e86e9c1c97adbc5f4ec8d00e50b50fc59e170a"
+    },
+    {
+      "path": "mmaps/7253230.mmtile",
+      "bytes": 177324,
+      "sha256": "32b10e1393df34b64f97ac297a2c7c38003a56616baea640f3bf5b28b75f32a8"
+    },
+    {
+      "path": "mmaps/7253231.mmtile",
+      "bytes": 337196,
+      "sha256": "a7fdf831acd937ef3f2f2dca0dc04b6e611326f6d297061d5cd2358d474ee84a"
+    }
+  ],
+  "services": [
+    {
+      "service": "lab-mysql",
+      "id": "7dfdc89039866c635403a97f4db49afab8ed314f3b60f8625c9484b16d135d18",
+      "started": "2026-10-10T13:12:06.532300673Z",
+      "health": "healthy"
+    },
+    {
+      "service": "ai-server",
+      "id": "0e6d8419836c9d72f2ea71453b49ce87a09aa19af8e9c1d51ba792358fa54ff0",
+      "started": "2026-10-10T13:12:06.529928717Z",
+      "health": "healthy"
+    },
+    {
+      "service": "world-viewer",
+      "id": "1d2360313cac0f50057bcdfdefd7cc53b9714156f4a3aa590e12eb1090f56e69",
+      "started": "2026-10-10T13:12:06.531521942Z",
+      "health": "healthy"
+    },
+    {
+      "service": "worldserver",
+      "id": "e093491a3fd15b669c6d0c30286c933f96668543b104578fcceabc5a5402262d",
+      "started": "2026-10-10T13:12:17.227464291Z",
+      "health": "healthy"
+    }
+  ],
+  "config": {
+    "profile": "disabled",
+    "rendered_config_verified": true,
+    "population": [
+      {
+        "spawns": 100,
+        "suppressed": 100
+      },
+      {
+        "agents": 100,
+        "observe": 100
+      }
+    ]
+  },
+  "worldserver_version": "TrinityCore rev. 7fc9459a56de 2026-10-09 20:04:37 +0200 (AI-World-lab branch) (Linux, x86_64, RelWithDebInfo, Static)",
+  "original_realm_and_auth_unchanged": [
+    {
+      "id": "70cab5405c6a498f02ef66adc50080fe0f8759aca548becb7c0e96cb7b5c2844",
+      "name": "/wowbehaviorai-mysql-1",
+      "started": "2026-10-10T11:08:19.591421344Z"
+    },
+    {
+      "id": "1b495cbb6fbab031bb3fc86160d108c4f7e9e6e5b78b5a59a35452c463a0096f",
+      "name": "/wowbehaviorai-world-viewer-1",
+      "started": "2026-10-10T11:08:19.573459889Z"
+    },
+    {
+      "id": "3fdebd931a1dd4a0668762c01d8bf9adcaace9b945d7dd14114593f9477898ba",
+      "name": "/wowbehaviorai-worldserver-1",
+      "started": "2026-10-10T11:08:23.424377092Z"
+    },
+    {
+      "id": "118a43db02a628f4184a6c8e79f9a4cd048779f684ca11739c1ab9e590e30b8d",
+      "name": "/wowbehaviorai-authserver-1",
+      "started": "2026-10-10T11:08:23.430380723Z"
+    },
+    {
+      "id": "9e8d48d4025ebb0de896426b80444efb2d58ada694b4be6acae90f7be814c125",
+      "name": "/wowbehaviorai-ai-server-1",
+      "started": "2026-10-10T11:08:19.580186457Z"
+    },
+    {
+      "id": "b6fc6bec3596670a32a5e12a9302f2986a1efb80e324b4de7b89cba67e20076e",
+      "name": "/wowbehaviorai-account-web-1",
+      "started": "2026-10-10T11:08:19.572706643Z"
+    }
+  ],
+  "physical_player_walk_verified": false,
+  "npc_behavior_verified_on_this_revision": false,
+  "player_entry": {
+    "map": 725,
+    "x": 266.667,
+    "y": 800,
+    "z": 2,
+    "ground_z": 0
+  },
+  "bounds": {
+    "min_x": -533.3333129882812,
+    "max_x": 533.3333129882812,
+    "min_y": 0,
+    "max_y": 1066.6666259765625
+  },
+  "recorded_phase": "initial_data_deployment_before_branch_ci",
+  "installed_client_path": "C:/WoWModding/Client-Lab/Data/patch-4.MPQ",
+  "population_suppression": {
+    "population_count": 100,
+    "spawn_mask": 0,
+    "control_mode": 0,
+    "unchanged": "All snapshot fields except spawn_mask and control",
+    "sql_receipt": {
+      "changed_agents": 100,
+      "changed_spawns": 100,
+      "committed": true,
+      "expected_population": 100,
+      "guard_after": 1,
+      "guard_before": 1,
+      "kind": "mutation_receipt"
+    },
+    "before_snapshot": "runtime/lab/validation/map-preview-v4/before/population-snapshot-before.json",
+    "rollback": "Offline only with LAB_AI_PROFILE=disabled: restore the complete backed-up v3 client/server bundle and verified original spawn identities with spawnMask=1/control_mode=0; then run strict v3 preflight and activation before selecting hunt-terrain-100 and restarting the lab. Never activate the v3 population against preview-v4 terrain."
+  }
+}
