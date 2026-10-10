@@ -624,6 +624,59 @@ Ve hře se přihlásit na **AI World Lab** a použít:
 Vstup je na suché podlaze Z 0 v oblasti 4988. Fyzickou prohlídku potvrdí
 až hráč; náhled neslouží jako nový hodinový test lovu a návratů.
 
+### Procházkový náhled s budovami a lávkami v5
+
+Další uložený uživatelův návrh z 10. 10. 2026 je zachycený v
+[manifestu v5](../data/realm_lab/aiworldlab/preview-v5/project-manifest.json).
+Čtyři ADT a rozměr **1 066,7 × 1 066,7 herních jednotek** zůstávají stejné.
+Všechny terénní vrcholy jsou shodné s v4. Návrh nově obsahuje **14 budov
+a tři lávky**: 20 záznamů WMO představuje 14 jedinečných instancí,
+protože šest záznamů opakuje objekty přes hranice ADT. Tři M2 jsou
+`ElwynnFootbridge`. Přibyly textury cest a polí; voda má 560 instancí
+MH2O a terén nemá díry. Výškové spoje sousedních dlaždic souhlasí.
+
+Všech 15 souborů autorského projektu zůstalo beze změny, včetně Azerothu.
+Do odvozené kopie `runtime/lab/map-project-preview-v5` vstupuje pouze
+AIWorldLab; změnou v ADT je pouze doplnění AreaID 4988 místo nuly.
+Tři DBC, WDT a WDL jsou stejné jako v4. Přímé odkazy používají původní
+WoW modely a textury, projekt neobsahuje vlastní přepsané assety.
+
+Klientský patch `runtime/lab/client-patches/map725-v5/patch-4.MPQ` má
+2 831 708 bajtů a SHA-256
+`d9115f33755b43e81288fc4971d519a250ad9f7c3bbf3be54b8c3a363d469bb2`.
+Nezávislé načtení přes `mpyq` porovnalo všech devět obsahových souborů
+s odvozenými zdroji a přesný seznam archivu; Azeroth v něm není.
+
+Z totožného patche byly znovu sestavené serverové mapy, kolize budov
+VMAP a všechny čtyři navigační dlaždice včetně vody.
+[Serverový manifest](../data/realm_lab/aiworldlab/preview-v5/server-manifest.json)
+obsahuje 40 souborů, včetně stromu, čtyř kolizních dlaždic a 23 modelů.
+Nativní kolize mají 135 jedinečných objektů včetně vybavení uvnitř budov.
+[Nezávislé ověření](../data/realm_lab/aiworldlab/preview-v5/data-verification.json)
+prošlo pro terén, oblasti, autorské vodní hodnoty a mapové, navigační i
+kolizní soubory. Nový plán normalizoval pouze 45 aktuálním zdrojem nezapsaných
+vodních okrajových vzorků; všechny autorské hodnoty zůstaly zachované.
+
+Tři lávky `ElwynnFootbridge.M2` mají v původním klientském modelu nulový
+počet kolizních vrcholů a trojúhelníků, jak dokládá
+[audit modelu](../data/realm_lab/aiworldlab/preview-v5/m2-collision-audit.json).
+Nativní extraktor je proto z VMAP vynechá a AI nemá cestu po jejich povrchu.
+Funkční přechody vyžadují model s kolizí; prohlídka zachovává uživatelův návrh.
+
+[Počáteční záznam nasazení](../data/realm_lab/aiworldlab/preview-v5/activation.json)
+ověřil všech 40 instalovaných souborů, čtyři zdravé lab služby a stejných
+šest původních kontejnerů s nezměněnými časy spuštění. Klientský patch je
+instalovaný v `C:\WoWModding\Client-Lab\Data\patch-4.MPQ`.
+Serverová záloha v4 je v `runtime/lab/validation/map-preview-v5/before/installed-data`,
+klientská v `runtime/lab/client-patches/map725-v5/backups/patch-4-v4.MPQ`.
+Všech 7 538 původních sdílených kolizních modelů zůstalo hashově shodných.
+Prohlídka zachovává `LAB_AI_PROFILE=disabled` a původní stovku potlačených NPC;
+v tomto nasazení se populace neměnila.
+
+Vstup `.go xyz 266.667 800 2 725` je na suché rovině Z 0, mimo kolizní
+hranice budov a nad ověřeným ground navigačním polygonem. Fyzickou prohlídku,
+globální průchodnost a chování NPC na v5 tyto kontroly nepotvrzují.
+
 ### Postup při prvním selhání
 
 Při selhání etapu zastavit, uložit přesný scénář, revizi kódu, hashe dat a

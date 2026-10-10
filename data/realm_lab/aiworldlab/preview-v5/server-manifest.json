@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v5",
+  "tiles": [
+    [
+      30,
+      31
+    ],
+    [
+      30,
+      32
+    ],
+    [
+      31,
+      31
+    ],
+    [
+      31,
+      32
+    ]
+  ],
+  "client_patch_sha256": "d9115f33755b43e81288fc4971d519a250ad9f7c3bbf3be54b8c3a363d469bb2",
+  "source_receipt_sha256": "687ae165d3e538a40135f10b3935cfbf0dd240a33c8b0376210715fa8b2119d3",
+  "tool_build": {
+    "mapextractor": {
+      "path": "/build/bin/RelWithDebInfo/bin/mapextractor",
+      "bytes": 8776224,
+      "sha256": "a9bea30b7a745bb8f70dfc3fb46227602600570585100acf206b675723608819"
+    },
+    "vmap4extractor": {
+      "path": "/build/bin/RelWithDebInfo/bin/vmap4extractor",
+      "bytes": 17266664,
+      "sha256": "b650a5650a2b22cb4956129f0816c21068b3a3fca5d2051d1815211fc4816836"
+    },
+    "vmap4assembler": {
+      "path": "/build/bin/RelWithDebInfo/bin/vmap4assembler",
+      "bytes": 20419752,
+      "sha256": "d94b53a5e6c1789fd0de5acc91eabe11eb066b730d907d39bd65a9651bb04feb"
+    },
+    "mmaps_generator": {
+      "path": "/build/bin/RelWithDebInfo/bin/mmaps_generator",
+      "bytes": 31558440,
+      "sha256": "4f7f4e3a17806cc1d51ea057ec01209d74b424cc74b5db1af02910f19946ea4b"
+    }
+  },
+  "commands": [
+    [
+      "/build/bin/RelWithDebInfo/bin/mapextractor",
+      "-i",
+      "/workspace/runtime/lab/client-source/map725-v5",
+      "-o",
+      "/workspace/runtime/lab/extractions/map725-v5",
+      "-e",
+      "3",
+      "-f",
+      "0"
+    ],
+    [
+      "/build/bin/RelWithDebInfo/bin/vmap4extractor",
+      "-d",
+      "/workspace/runtime/lab/client-source/map725-v5"
+    ],
+    [
+      "/build/bin/RelWithDebInfo/bin/vmap4assembler",
+      "Buildings",
+      "vmaps"
+    ],
+    [
+      "/build/bin/RelWithDebInfo/bin/mmaps_generator",
+      "725",
+      "--includeFlatTerrain",
+      "true",
+      "--skipLiquid",
+      "false",
+      "--threads",
+      "1",
+      "--debugOutput",
+      "true",
+      "--silent"
+    ],
+    [
+      "python3",
+      "/workspace/runtime/lab/validation/map-preview-v5/generate_final_navigation.py",
+      "--normalization-plan-sha256",
+      "278ff138c1232929f37930c2281c50a89c3038e7e92fffc107e6d0f111477531"
+    ]
+  ],
+  "step_seconds": {
+    "maps": 22.09,
+    "vmap-extract": 41.72,
+    "vmap-assemble": 8.77,
+    "navigation": 7.91
+  },
+  "files": [
+    {
+      "path": "dbc/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "dbc/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "dbc/Map.dbc",
+      "bytes": 43922,
+      "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "maps/7253130.map",
+      "bytes": 4044,
+      "sha256": "072f21d49050d36d2dd4689e3c2591616b2147999a75717e94f7736c0b6a21ec"
+    },
+    {
+      "path": "maps/7253131.map",
+      "bytes": 10656,
+      "sha256": "9011b028013db7aeb41c35eab5d7771303f8c1a273e48345d8935834b91f706d"
+    },
+    {
+      "path": "maps/7253230.map",
+      "bytes": 198748,
+      "sha256": "35d8179d64eb78e46c06e952d6c9dff692c7045213df61f67ecb562f12be7f06"
+    },
+    {
+      "path": "maps/7253231.map",
+      "bytes": 132184,
+      "sha256": "b882af40bf3cad8891f03044d10383842e3bc28adf74e81ab3d19ad55a148bf5"
+    },
+    {
+      "path": "mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "mmaps/7253130.mmtile",
+      "bytes": 162928,
+      "sha256": "edaf1aed77decccfe3637f9fec1edb9c238408c4c3ca4f1c509a941537415514"
+    },
+    {
+      "path": "mmaps/7253131.mmtile",
+      "bytes": 134784,
+      "sha256": "822ab27730356ac4a0503e93fcea2b74bac69123e43e6275b813a3b7104f8498"
+    },
+    {
+      "path": "mmaps/7253230.mmtile",
+      "bytes": 221316,
+      "sha256": "0482ecd1f23af672c74717276ab7cfde6a2e2232660db032b1732c17e94bba3a"
+    },
+    {
+      "path": "mmaps/7253231.mmtile",
+      "bytes": 443360,
+      "sha256": "0186bf8470a00d5a9059913f01604084d7131227b93f8c4377a2e64a61a62506"
+    },
+    {
+      "path": "vmaps/725.vmtree",
+      "bytes": 2761,
+      "sha256": "14f64f3c5f12b25a2dd4f7dcc7ef8a1c5f71f3a60f6fe4070288d6317ea6ff97"
+    },
+    {
+      "path": "vmaps/725_30_31.vmtile",
+      "bytes": 3683,
+      "sha256": "b6cf7eea5ff6bf6aa1b82d7f29eaf6cad133d4da734ae9c9a047ba901995a59d"
+    },
+    {
+      "path": "vmaps/725_30_32.vmtile",
+      "bytes": 7079,
+      "sha256": "60458375ff2c00d3f329fc14c546161f6b054b0f13720c2fa3d3844f82b8ff84"
+    },
+    {
+      "path": "vmaps/725_31_31.vmtile",
+      "bytes": 1757,
+      "sha256": "8991de6aa832f34a9d53b7c5492279da4853a9b730e2b24e96c1160a90542f97"
+    },
+    {
+      "path": "vmaps/725_31_32.vmtile",
+      "bytes": 1130,
+      "sha256": "a79f46e0dc04019689b7938f6bb6e8d17a4153ac55b08286e27b06957d223115"
+    },
+    {
+      "path": "vmaps/Barrel01.m2.vmo",
+      "bytes": 848,
+      "sha256": "a87248d5b927d895d547fd3fc4da6697bdd1f8feddfb530d972285fa5bdd769b"
+    },
+    {
+      "path": "vmaps/Beerkeg01.m2.vmo",
+      "bytes": 4000,
+      "sha256": "1cb8a8f569202aafb5ef0e5c0e1d8f34ebea68fd22b98951c733a99daced1333"
+    },
+    {
+      "path": "vmaps/Beerkeg02.m2.vmo",
+      "bytes": 2516,
+      "sha256": "1bbc5489ff593608c4c18f467a18fce4a007971ef48d5fdc2ba4a902a18916d9"
+    },
+    {
+      "path": "vmaps/Deadminecargonethangshort.m2.vmo",
+      "bytes": 984,
+      "sha256": "3740d34c7a7a55323860c3b1264b3aa2d2c9ca0aa1aac765a96ec72cae31df3f"
+    },
+    {
+      "path": "vmaps/Duskwood_Human_Farm.wmo.vmo",
+      "bytes": 41732,
+      "sha256": "b21af387b92bc553ad26b83afb40f74aaa5e53f5ace4ad37c3cd48020e3e087d"
+    },
+    {
+      "path": "vmaps/Farmtest.wmo.vmo",
+      "bytes": 41412,
+      "sha256": "4eb208735de7f5c01af522787e047648009e8706c5cd81bdf5b910d21d010c05"
+    },
+    {
+      "path": "vmaps/Firewoodpile01.m2.vmo",
+      "bytes": 600,
+      "sha256": "1d0082e06e860f3b8605fc9f5d2916071552a096a6b947b84a01f5de9395f61e"
+    },
+    {
+      "path": "vmaps/Generalbookstackshort01.m2.vmo",
+      "bytes": 600,
+      "sha256": "866127852b479f7f38e246bc617e45f7d987a9c392ed109684b9cd0130720041"
+    },
+    {
+      "path": "vmaps/Generalbookstacktall01.m2.vmo",
+      "bytes": 816,
+      "sha256": "3be7adc6ab73d872d13db4b88e07d9837be95f3e439a8a8c97821accbe913355"
+    },
+    {
+      "path": "vmaps/Generalcandelabra01.m2.vmo",
+      "bytes": 600,
+      "sha256": "df4cf4c9e5017e9ddaacd5ae1ba9b5ec5bef410b1e96598fdcfa53354ff99336"
+    },
+    {
+      "path": "vmaps/Generalhanginglantern01.m2.vmo",
+      "bytes": 1736,
+      "sha256": "d0602e2f78e767149073deb52da4fd70571952179d342bc55544c27b514e81f6"
+    },
+    {
+      "path": "vmaps/Generalhanginglanternlong.m2.vmo",
+      "bytes": 600,
+      "sha256": "e82cba794d7aaa29d7d4215a56e0d67b4607384489b07e66f6b5fdd2e1c083c2"
+    },
+    {
+      "path": "vmaps/Goldshireinn.wmo.vmo",
+      "bytes": 245544,
+      "sha256": "8199eac584cba1411bdc31c2d422bed1e9759904f9bcc057a1418d9ab013a5c6"
+    },
+    {
+      "path": "vmaps/Human_Barracks.wmo.vmo",
+      "bytes": 426484,
+      "sha256": "f9e23d8f968146dab5cfd6d6264cb6278d6bd4b776dd4b45081da4ff030c5d96"
+    },
+    {
+      "path": "vmaps/Innchandelier.m2.vmo",
+      "bytes": 2664,
+      "sha256": "728e7b1558bcef7619500cf18e5b089ad1cff954515681fb3d1d5421d70f5a14"
+    },
+    {
+      "path": "vmaps/Jar02.m2.vmo",
+      "bytes": 1260,
+      "sha256": "355cfab595760ca1e18b12228f2dc6bddd86cb97fe92f0b8432eda9251362316"
+    },
+    {
+      "path": "vmaps/Jar03.m2.vmo",
+      "bytes": 804,
+      "sha256": "19e5fcc28c30ccbe2e0b8cd6379108aff7ce4b532da51a7ea5e52b7a30b92e29"
+    },
+    {
+      "path": "vmaps/Moonbrook_Human_Farm.wmo.vmo",
+      "bytes": 61408,
+      "sha256": "4c4dc92421ec04b7d9d393707996d49cb9d94a059515b95ae9ea02746c4f411d"
+    },
+    {
+      "path": "vmaps/Redridge_Human_Farm.wmo.vmo",
+      "bytes": 41764,
+      "sha256": "20aa3597cca57509c8050dba12a7da0d9f71d70a3890b9c63f9134c7df2610f5"
+    },
+    {
+      "path": "vmaps/Rugrack01.m2.vmo",
+      "bytes": 600,
+      "sha256": "f99b2a8ef871d8f0bdbc7b88f408f3269a7296af127c915529e45a5e8cb914d3"
+    },
+    {
+      "path": "vmaps/Stormwindcrate01.m2.vmo",
+      "bytes": 600,
+      "sha256": "036a2ba7875e3920ace0044ed175f69f396af99fc9f74cad7e252757c1a3f777"
+    },
+    {
+      "path": "vmaps/Townhall_Nowall.wmo.vmo",
+      "bytes": 181528,
+      "sha256": "9b42ec57861a083e6f81907bd2d36902c93fdddcaf1964fb0e4db5e030b9740d"
+    },
+    {
+      "path": "vmaps/Westfall_Human_Farmb.wmo.vmo",
+      "bytes": 41296,
+      "sha256": "a7867b3154f140c2d1b80bf71105460fc2583c868ef52f47b7d1c172a7160fc0"
+    }
+  ],
+  "custom_vmaps": {
+    "status": "present",
+    "tree_objects": 135,
+    "tile_files": [
+      "vmaps/725_30_31.vmtile",
+      "vmaps/725_30_32.vmtile",
+      "vmaps/725_31_31.vmtile",
+      "vmaps/725_31_32.vmtile"
+    ],
+    "models": [
+      "vmaps/Barrel01.m2.vmo",
+      "vmaps/Beerkeg01.m2.vmo",
+      "vmaps/Beerkeg02.m2.vmo",
+      "vmaps/Deadminecargonethangshort.m2.vmo",
+      "vmaps/Duskwood_Human_Farm.wmo.vmo",
+      "vmaps/Farmtest.wmo.vmo",
+      "vmaps/Firewoodpile01.m2.vmo",
+      "vmaps/Generalbookstackshort01.m2.vmo",
+      "vmaps/Generalbookstacktall01.m2.vmo",
+      "vmaps/Generalcandelabra01.m2.vmo",
+      "vmaps/Generalhanginglantern01.m2.vmo",
+      "vmaps/Generalhanginglanternlong.m2.vmo",
+      "vmaps/Goldshireinn.wmo.vmo",
+      "vmaps/Human_Barracks.wmo.vmo",
+      "vmaps/Innchandelier.m2.vmo",
+      "vmaps/Jar02.m2.vmo",
+      "vmaps/Jar03.m2.vmo",
+      "vmaps/Moonbrook_Human_Farm.wmo.vmo",
+      "vmaps/Redridge_Human_Farm.wmo.vmo",
+      "vmaps/Rugrack01.m2.vmo",
+      "vmaps/Stormwindcrate01.m2.vmo",
+      "vmaps/Townhall_Nowall.wmo.vmo",
+      "vmaps/Westfall_Human_Farmb.wmo.vmo"
+    ],
+    "unique_placements": 135
+  },
+  "raw_extraction_receipt_sha256": "60431c31c094d28d61191ccb4028b93e55b57bfc58e64b31335ca3b16c4ca1a6",
+  "native_liquid_edge_normalization": {
+    "slots": 45,
+    "replacement": -500.0,
+    "authored_values_unchanged": true,
+    "verification_requirement": "Independent source-MH2O comparison must pass before deployment.",
+    "private_plan_sha256": "278ff138c1232929f37930c2281c50a89c3038e7e92fffc107e6d0f111477531",
+    "private_plan_path": "runtime/lab-validation/map-preview-v5/water-edge-normalization-plan.json",
+    "published_plan_path": "data/realm_lab/aiworldlab/preview-v5/water-edge-normalization-plan.json",
+    "published_plan_sha256": "dacb1ef550caa8d3ef125fcb6524e7a67b48b89f06a748950640dd7376064f84",
+    "published_copy_note": "Only filesystem paths were made repository-relative; byte guards, offsets and source proofs are unchanged."
+  },
+  "final_navigation_command": [
+    "/build/bin/RelWithDebInfo/bin/mmaps_generator",
+    "725",
+    "--includeFlatTerrain",
+    "true",
+    "--skipLiquid",
+    "false",
+    "--threads",
+    "1",
+    "--debugOutput",
+    "true",
+    "--silent"
+  ],
+  "source_checkout_revision": "41f7bf7c99becd9068f90df623c1cb4d165d8431",
+  "server_archive": {
+    "path": "runtime/lab/validation/map-preview-v5/server-final-data.zip",
+    "bytes": 996501,
+    "sha256": "6b930442b627841ea342ace5093ae96015e8959b481248e20980dc218697b411"
+  },
+  "independent_extracted_DBC_match": "PASS: all three native DBCs equal staged client source bytes."
+}

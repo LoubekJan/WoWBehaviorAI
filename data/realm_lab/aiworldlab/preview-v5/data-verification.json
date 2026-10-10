@@ -1,0 +1,5287 @@
+{
+  "status": "pass",
+  "source_revision": "preview-v5",
+  "source": "runtime/lab/map-project-preview-v5",
+  "data": "runtime/lab-validation/map-preview-v5/data-fixed",
+  "normalized_edges_required": true,
+  "navigation_checked": true,
+  "maps": [
+    {
+      "tile": [
+        30,
+        31
+      ],
+      "file": "7253130.map",
+      "bytes": 4044,
+      "sha256": "072f21d49050d36d2dd4689e3c2591616b2147999a75717e94f7736c0b6a21ec",
+      "source_sha256": "3239cf2a34b68622f1df19a15dc829b059517ada0fe695c94b36090b675129e7",
+      "area_id": 4988,
+      "height_flags": 1,
+      "height_min": 0.0,
+      "height_max": 0.0,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 0.0,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0,
+      "source_hole_cells": 0,
+      "source_models": 9,
+      "liquid": {
+        "present": true,
+        "flags": 0,
+        "offset_x": 15,
+        "offset_y": 122,
+        "width": 114,
+        "height": 7,
+        "types": {
+          "0": 243,
+          "1": 13
+        },
+        "constant_level": -500.0,
+        "source_instances": 13,
+        "visible_squares": 190,
+        "compared_vertices": 771,
+        "unsupported_edge_vertices": 27,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": -500.0,
+        "unsupported_edge_max": -500.0,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -500.0,
+        "cropped_array_max": -4.1219024658203125,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    },
+    {
+      "tile": [
+        31,
+        31
+      ],
+      "file": "7253131.map",
+      "bytes": 10656,
+      "sha256": "9011b028013db7aeb41c35eab5d7771303f8c1a273e48345d8935834b91f706d",
+      "source_sha256": "ab6b6d0869d1c86820294056b70379ffb2b445d3a215aa20326d270e5dc7fb6c",
+      "area_id": 4988,
+      "height_flags": 1,
+      "height_min": 0.0,
+      "height_max": 0.0,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 0.0,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0,
+      "source_hole_cells": 0,
+      "source_models": 4,
+      "liquid": {
+        "present": true,
+        "flags": 0,
+        "offset_x": 0,
+        "offset_y": 110,
+        "width": 129,
+        "height": 19,
+        "types": {
+          "0": 221,
+          "1": 35
+        },
+        "constant_level": -500.0,
+        "source_instances": 35,
+        "visible_squares": 1709,
+        "compared_vertices": 2441,
+        "unsupported_edge_vertices": 10,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": -500.0,
+        "unsupported_edge_max": -500.0,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -500.0,
+        "cropped_array_max": -4.1219024658203125,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    },
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "file": "7253230.map",
+      "bytes": 198748,
+      "sha256": "35d8179d64eb78e46c06e952d6c9dff692c7045213df61f67ecb562f12be7f06",
+      "source_sha256": "dcd15f0ab1054d50a00353cf00285ff563068fb432438d86a549a7a5c84dbd09",
+      "area_id": 4988,
+      "height_flags": 0,
+      "height_min": -71.08556365966797,
+      "height_max": 0.0,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 8.940696716308594e-07,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0006623840332551367,
+      "source_hole_cells": 0,
+      "source_models": 7,
+      "liquid": {
+        "present": true,
+        "flags": 1,
+        "offset_x": 0,
+        "offset_y": 0,
+        "width": 129,
+        "height": 129,
+        "types": {
+          "1": 256
+        },
+        "constant_level": -500.0,
+        "source_instances": 256,
+        "visible_squares": 16314,
+        "compared_vertices": 16633,
+        "unsupported_edge_vertices": 8,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": -500.0,
+        "unsupported_edge_max": -500.0,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -500.0,
+        "cropped_array_max": -4.1219024658203125,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "file": "7253231.map",
+      "bytes": 132184,
+      "sha256": "b882af40bf3cad8891f03044d10383842e3bc28adf74e81ab3d19ad55a148bf5",
+      "source_sha256": "54b99bc459fc37363c07b105fffff05dda64404001c89ba904f1ec7fa711ede5",
+      "area_id": 4988,
+      "height_flags": 0,
+      "height_min": -15.40540599822998,
+      "height_max": 204.7751922607422,
+      "compared_terrain_vertices": 33025,
+      "max_terrain_vertex_delta": 1.9073486328125e-06,
+      "interior_height_spotchecks": 256,
+      "max_interior_height_delta": 0.0009939575195119232,
+      "source_hole_cells": 0,
+      "source_models": 3,
+      "liquid": {
+        "present": true,
+        "flags": 3,
+        "offset_x": 0,
+        "offset_y": 0,
+        "width": 129,
+        "height": 129,
+        "types": {
+          "1": 256
+        },
+        "constant_level": -4.1219024658203125,
+        "source_instances": 256,
+        "visible_squares": 16384,
+        "compared_vertices": 16641,
+        "unsupported_edge_vertices": 0,
+        "unsupported_edge_outside_visible_water": true,
+        "unsupported_edge_min": null,
+        "unsupported_edge_max": null,
+        "max_vertex_delta": 0.0,
+        "cropped_array_min": -4.1219024658203125,
+        "cropped_array_max": -4.1219024658203125,
+        "visible_vertex_min": -4.1219024658203125,
+        "visible_vertex_max": -4.1219024658203125
+      }
+    }
+  ],
+  "mmtiles": [
+    {
+      "tile": [
+        30,
+        31
+      ],
+      "file": "7253130.mmtile",
+      "bytes": 162928,
+      "payload_bytes": 162908,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        1,
+        1
+      ],
+      "bmin": [
+        533.3333129882812,
+        -12.583439826965332,
+        0.0
+      ],
+      "bmax": [
+        1066.6666259765625,
+        60.7875862121582,
+        533.3333129882812
+      ],
+      "poly_count": 974,
+      "vertex_count": 1293,
+      "detail_vertex_count": 167,
+      "detail_triangle_count": 2044,
+      "link_count": 3943,
+      "bv_node_count": 1948,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 974
+      },
+      "polygon_flags": {
+        "1": 974
+      },
+      "checked_finite_floats": 4390,
+      "sha256": "edaf1aed77decccfe3637f9fec1edb9c238408c4c3ca4f1c509a941537415514"
+    },
+    {
+      "tile": [
+        31,
+        31
+      ],
+      "file": "7253131.mmtile",
+      "bytes": 134784,
+      "payload_bytes": 134764,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        0,
+        1
+      ],
+      "bmin": [
+        0.0,
+        -12.583439826965332,
+        0.0
+      ],
+      "bmax": [
+        533.3333129882812,
+        60.7875862121582,
+        533.3333129882812
+      ],
+      "poly_count": 804,
+      "vertex_count": 1029,
+      "detail_vertex_count": 83,
+      "detail_triangle_count": 1678,
+      "link_count": 3344,
+      "bv_node_count": 1608,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 804
+      },
+      "polygon_flags": {
+        "1": 804
+      },
+      "checked_finite_floats": 3346,
+      "sha256": "822ab27730356ac4a0503e93fcea2b74bac69123e43e6275b813a3b7104f8498"
+    },
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "file": "7253230.mmtile",
+      "bytes": 221316,
+      "payload_bytes": 221296,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        1,
+        0
+      ],
+      "bmin": [
+        533.3333129882812,
+        -12.583439826965332,
+        -533.3333129882812
+      ],
+      "bmax": [
+        1066.6666259765625,
+        47.92444610595703,
+        0.0
+      ],
+      "poly_count": 1298,
+      "vertex_count": 1533,
+      "detail_vertex_count": 685,
+      "detail_triangle_count": 3311,
+      "link_count": 5168,
+      "bv_node_count": 2596,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 875,
+        "9": 423
+      },
+      "polygon_flags": {
+        "1": 875,
+        "4": 423
+      },
+      "checked_finite_floats": 6664,
+      "sha256": "0482ecd1f23af672c74717276ab7cfde6a2e2232660db032b1732c17e94bba3a"
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "file": "7253231.mmtile",
+      "bytes": 443360,
+      "payload_bytes": 443340,
+      "uses_liquids": true,
+      "dt_version": 7,
+      "mmap_version": 15,
+      "tile_coordinates": [
+        0,
+        0
+      ],
+      "bmin": [
+        0.0,
+        -12.583439826965332,
+        -533.3333129882812
+      ],
+      "bmax": [
+        533.3333129882812,
+        205.01649475097656,
+        0.0
+      ],
+      "poly_count": 2361,
+      "vertex_count": 3634,
+      "detail_vertex_count": 3177,
+      "detail_triangle_count": 8546,
+      "link_count": 9243,
+      "bv_node_count": 4722,
+      "offmesh_connection_count": 0,
+      "polygon_areas": {
+        "11": 2230,
+        "9": 131
+      },
+      "polygon_flags": {
+        "1": 2230,
+        "4": 131
+      },
+      "checked_finite_floats": 20443,
+      "sha256": "0186bf8470a00d5a9059913f01604084d7131227b93f8c4377a2e64a61a62506"
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "Structural integrity and authored terrain/liquid preservation; no global route connectivity or physical player walk assertion.",
+    "VMAP bounds and referenced collision geometry are checked structurally; BIH traversal/raycasts are not executed.",
+    "Liquid conversion supports the native first MH2O instance per cell and basic LiquidType1-4; unsupported source layouts fail closed.",
+    "NAV polygon vertices/detail arrays are checked structurally; composed terrain/model/water surface equality is not claimed.",
+    "7253130: 27 source-unwritten crop edge samples normalized to -500.",
+    "7253131: 10 source-unwritten crop edge samples normalized to -500.",
+    "7253230: 8 source-unwritten crop edge samples normalized to -500.",
+    "3 authored M2 bridge placements have no bounding collision mesh in the actual client asset and are deliberately absent from native VMAP/navigation; walking over these bridges is unverified and server AI cannot route on their decks."
+  ],
+  "map_id": 725,
+  "area_id": 4988,
+  "tiles": [
+    [
+      30,
+      31
+    ],
+    [
+      31,
+      31
+    ],
+    [
+      30,
+      32
+    ],
+    [
+      31,
+      32
+    ]
+  ],
+  "world_bounds": {
+    "min_x": -533.3333129882812,
+    "max_x": 533.3333129882812,
+    "min_y": 0.0,
+    "max_y": 1066.6666259765625
+  },
+  "source_receipt_sha256": "687ae165d3e538a40135f10b3935cfbf0dd240a33c8b0376210715fa8b2119d3",
+  "mmap_parameters": {
+    "origin": [
+      0.0,
+      1.1754943508222875e-38,
+      -533.3333129882812
+    ],
+    "tile_width": 533.3333129882812,
+    "tile_height": 533.3333129882812,
+    "max_tiles": 4,
+    "max_polys_signed": -2147483648,
+    "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+  },
+  "m2_collision_audit": {
+    "sha256": "983e2cb26b733c702611d6584c74ebb9307a5781384eb0ea99f4332c049f91b4",
+    "assets": [
+      {
+        "name": "WORLD\\AZEROTH\\ELWYNN\\BUILDINGS\\BRIDGES\\ELWYNNFOOTBRIDGE.M2",
+        "archive": "common-2.MPQ",
+        "bytes": 36176,
+        "sha256": "149c9f5f178618c5af044f1e78965c06696cda9c06e166765c52242f2940e92b",
+        "magic": "MD20",
+        "version": 264,
+        "nBoundingTriangles": 0,
+        "ofsBoundingTriangles": 0,
+        "nBoundingVertices": 0,
+        "ofsBoundingVertices": 0,
+        "nBoundingNormals": 0,
+        "ofsBoundingNormals": 0,
+        "native_vmap_extractor_omits": true,
+        "collision_mesh_present": false
+      }
+    ]
+  },
+  "vmap": {
+    "present": true,
+    "tree": {
+      "file": "725.vmtree",
+      "bytes": 2761,
+      "sha256": "14f64f3c5f12b25a2dd4f7dcc7ef8a1c5f71f3a60f6fe4070288d6317ea6ff97",
+      "bounds": [
+        16666.646484375,
+        16209.12890625,
+        -12.611218452453613,
+        17480.986328125,
+        16824.501953125,
+        60.815364837646484
+      ],
+      "node_words": 543,
+      "objects": 135
+    },
+    "tiles": [
+      {
+        "file": "725_30_31.vmtile",
+        "tile": [
+          30,
+          31
+        ],
+        "bytes": 3683,
+        "sha256": "b6cf7eea5ff6bf6aa1b82d7f29eaf6cad133d4da734ae9c9a047ba901995a59d",
+        "spawn_records": 43
+      },
+      {
+        "file": "725_30_32.vmtile",
+        "tile": [
+          30,
+          32
+        ],
+        "bytes": 7079,
+        "sha256": "60458375ff2c00d3f329fc14c546161f6b054b0f13720c2fa3d3844f82b8ff84",
+        "spawn_records": 83
+      },
+      {
+        "file": "725_31_31.vmtile",
+        "tile": [
+          31,
+          31
+        ],
+        "bytes": 1757,
+        "sha256": "8991de6aa832f34a9d53b7c5492279da4853a9b730e2b24e96c1160a90542f97",
+        "spawn_records": 20
+      },
+      {
+        "file": "725_31_32.vmtile",
+        "tile": [
+          31,
+          32
+        ],
+        "bytes": 1130,
+        "sha256": "a79f46e0dc04019689b7938f6bb6e8d17a4153ac55b08286e27b06957d223115",
+        "spawn_records": 13
+      }
+    ],
+    "models": [
+      {
+        "file": "Barrel01.m2.vmo",
+        "bytes": 848,
+        "sha256": "a87248d5b927d895d547fd3fc4da6697bdd1f8feddfb530d972285fa5bdd769b",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 12,
+            "triangles": 20,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Beerkeg01.m2.vmo",
+        "bytes": 4000,
+        "sha256": "1cb8a8f569202aafb5ef0e5c0e1d8f34ebea68fd22b98951c733a99daced1333",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 58,
+            "triangles": 112,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Beerkeg02.m2.vmo",
+        "bytes": 2516,
+        "sha256": "1bbc5489ff593608c4c18f467a18fce4a007971ef48d5fdc2ba4a902a18916d9",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 36,
+            "triangles": 68,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Deadminecargonethangshort.m2.vmo",
+        "bytes": 984,
+        "sha256": "3740d34c7a7a55323860c3b1264b3aa2d2c9ca0aa1aac765a96ec72cae31df3f",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 14,
+            "triangles": 24,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Duskwood_Human_Farm.wmo.vmo",
+        "bytes": 41732,
+        "sha256": "b21af387b92bc553ad26b83afb40f74aaa5e53f5ace4ad37c3cd48020e3e087d",
+        "root_wmo_id": 132,
+        "groups": [
+          {
+            "id": 729,
+            "flags": 2057,
+            "vertices": 599,
+            "triangles": 404,
+            "liquid": null
+          },
+          {
+            "id": 730,
+            "flags": 10245,
+            "vertices": 721,
+            "triangles": 442,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Farmtest.wmo.vmo",
+        "bytes": 41412,
+        "sha256": "4eb208735de7f5c01af522787e047648009e8706c5cd81bdf5b910d21d010c05",
+        "root_wmo_id": 1102,
+        "groups": [
+          {
+            "id": 793,
+            "flags": 2057,
+            "vertices": 577,
+            "triangles": 392,
+            "liquid": null
+          },
+          {
+            "id": 794,
+            "flags": 10245,
+            "vertices": 745,
+            "triangles": 440,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Firewoodpile01.m2.vmo",
+        "bytes": 600,
+        "sha256": "1d0082e06e860f3b8605fc9f5d2916071552a096a6b947b84a01f5de9395f61e",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 8,
+            "triangles": 12,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Generalbookstackshort01.m2.vmo",
+        "bytes": 600,
+        "sha256": "866127852b479f7f38e246bc617e45f7d987a9c392ed109684b9cd0130720041",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 8,
+            "triangles": 12,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Generalbookstacktall01.m2.vmo",
+        "bytes": 816,
+        "sha256": "3be7adc6ab73d872d13db4b88e07d9837be95f3e439a8a8c97821accbe913355",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 14,
+            "triangles": 18,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Generalcandelabra01.m2.vmo",
+        "bytes": 600,
+        "sha256": "df4cf4c9e5017e9ddaacd5ae1ba9b5ec5bef410b1e96598fdcfa53354ff99336",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 8,
+            "triangles": 12,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Generalhanginglantern01.m2.vmo",
+        "bytes": 1736,
+        "sha256": "d0602e2f78e767149073deb52da4fd70571952179d342bc55544c27b514e81f6",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 24,
+            "triangles": 44,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Generalhanginglanternlong.m2.vmo",
+        "bytes": 600,
+        "sha256": "e82cba794d7aaa29d7d4215a56e0d67b4607384489b07e66f6b5fdd2e1c083c2",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 8,
+            "triangles": 12,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Goldshireinn.wmo.vmo",
+        "bytes": 245544,
+        "sha256": "8199eac584cba1411bdc31c2d422bed1e9759904f9bcc057a1418d9ab013a5c6",
+        "root_wmo_id": 53,
+        "groups": [
+          {
+            "id": 893,
+            "flags": 8197,
+            "vertices": 19,
+            "triangles": 10,
+            "liquid": null
+          },
+          {
+            "id": 894,
+            "flags": 10245,
+            "vertices": 85,
+            "triangles": 57,
+            "liquid": null
+          },
+          {
+            "id": 895,
+            "flags": 10245,
+            "vertices": 334,
+            "triangles": 200,
+            "liquid": null
+          },
+          {
+            "id": 896,
+            "flags": 10757,
+            "vertices": 1407,
+            "triangles": 948,
+            "liquid": null
+          },
+          {
+            "id": 897,
+            "flags": 2569,
+            "vertices": 2596,
+            "triangles": 1816,
+            "liquid": null
+          },
+          {
+            "id": 898,
+            "flags": 10245,
+            "vertices": 1413,
+            "triangles": 1002,
+            "liquid": null
+          },
+          {
+            "id": 899,
+            "flags": 10245,
+            "vertices": 415,
+            "triangles": 280,
+            "liquid": null
+          },
+          {
+            "id": 900,
+            "flags": 10245,
+            "vertices": 135,
+            "triangles": 90,
+            "liquid": null
+          },
+          {
+            "id": 901,
+            "flags": 10245,
+            "vertices": 310,
+            "triangles": 218,
+            "liquid": null
+          },
+          {
+            "id": 902,
+            "flags": 10245,
+            "vertices": 227,
+            "triangles": 154,
+            "liquid": null
+          },
+          {
+            "id": 903,
+            "flags": 10245,
+            "vertices": 348,
+            "triangles": 256,
+            "liquid": null
+          },
+          {
+            "id": 904,
+            "flags": 9,
+            "vertices": 132,
+            "triangles": 83,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Human_Barracks.wmo.vmo",
+        "bytes": 426484,
+        "sha256": "f9e23d8f968146dab5cfd6d6264cb6278d6bd4b776dd4b45081da4ff030c5d96",
+        "root_wmo_id": 139,
+        "groups": [
+          {
+            "id": 931,
+            "flags": 10757,
+            "vertices": 290,
+            "triangles": 220,
+            "liquid": null
+          },
+          {
+            "id": 932,
+            "flags": 10757,
+            "vertices": 1204,
+            "triangles": 930,
+            "liquid": null
+          },
+          {
+            "id": 933,
+            "flags": 10757,
+            "vertices": 121,
+            "triangles": 94,
+            "liquid": null
+          },
+          {
+            "id": 934,
+            "flags": 10757,
+            "vertices": 154,
+            "triangles": 118,
+            "liquid": null
+          },
+          {
+            "id": 935,
+            "flags": 10757,
+            "vertices": 74,
+            "triangles": 50,
+            "liquid": null
+          },
+          {
+            "id": 936,
+            "flags": 10757,
+            "vertices": 200,
+            "triangles": 163,
+            "liquid": null
+          },
+          {
+            "id": 937,
+            "flags": 10757,
+            "vertices": 979,
+            "triangles": 681,
+            "liquid": null
+          },
+          {
+            "id": 938,
+            "flags": 10757,
+            "vertices": 681,
+            "triangles": 459,
+            "liquid": null
+          },
+          {
+            "id": 939,
+            "flags": 2569,
+            "vertices": 2110,
+            "triangles": 1440,
+            "liquid": null
+          },
+          {
+            "id": 940,
+            "flags": 10245,
+            "vertices": 121,
+            "triangles": 94,
+            "liquid": null
+          },
+          {
+            "id": 941,
+            "flags": 10757,
+            "vertices": 158,
+            "triangles": 121,
+            "liquid": null
+          },
+          {
+            "id": 942,
+            "flags": 10245,
+            "vertices": 368,
+            "triangles": 273,
+            "liquid": null
+          },
+          {
+            "id": 943,
+            "flags": 10245,
+            "vertices": 979,
+            "triangles": 681,
+            "liquid": null
+          },
+          {
+            "id": 944,
+            "flags": 10245,
+            "vertices": 276,
+            "triangles": 241,
+            "liquid": null
+          },
+          {
+            "id": 945,
+            "flags": 10245,
+            "vertices": 74,
+            "triangles": 50,
+            "liquid": null
+          },
+          {
+            "id": 946,
+            "flags": 10245,
+            "vertices": 154,
+            "triangles": 118,
+            "liquid": null
+          },
+          {
+            "id": 947,
+            "flags": 10245,
+            "vertices": 121,
+            "triangles": 94,
+            "liquid": null
+          },
+          {
+            "id": 948,
+            "flags": 10245,
+            "vertices": 200,
+            "triangles": 163,
+            "liquid": null
+          },
+          {
+            "id": 949,
+            "flags": 10245,
+            "vertices": 121,
+            "triangles": 94,
+            "liquid": null
+          },
+          {
+            "id": 950,
+            "flags": 10245,
+            "vertices": 158,
+            "triangles": 121,
+            "liquid": null
+          },
+          {
+            "id": 951,
+            "flags": 10245,
+            "vertices": 681,
+            "triangles": 459,
+            "liquid": null
+          },
+          {
+            "id": 952,
+            "flags": 10757,
+            "vertices": 276,
+            "triangles": 241,
+            "liquid": null
+          },
+          {
+            "id": 953,
+            "flags": 10245,
+            "vertices": 335,
+            "triangles": 228,
+            "liquid": null
+          },
+          {
+            "id": 954,
+            "flags": 8709,
+            "vertices": 331,
+            "triangles": 196,
+            "liquid": null
+          },
+          {
+            "id": 955,
+            "flags": 10245,
+            "vertices": 1060,
+            "triangles": 847,
+            "liquid": null
+          },
+          {
+            "id": 956,
+            "flags": 10245,
+            "vertices": 438,
+            "triangles": 309,
+            "liquid": null
+          },
+          {
+            "id": 957,
+            "flags": 10245,
+            "vertices": 368,
+            "triangles": 273,
+            "liquid": null
+          },
+          {
+            "id": 958,
+            "flags": 10245,
+            "vertices": 340,
+            "triangles": 249,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Innchandelier.m2.vmo",
+        "bytes": 2664,
+        "sha256": "728e7b1558bcef7619500cf18e5b089ad1cff954515681fb3d1d5421d70f5a14",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 38,
+            "triangles": 72,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Jar02.m2.vmo",
+        "bytes": 1260,
+        "sha256": "355cfab595760ca1e18b12228f2dc6bddd86cb97fe92f0b8432eda9251362316",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 19,
+            "triangles": 30,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Jar03.m2.vmo",
+        "bytes": 804,
+        "sha256": "19e5fcc28c30ccbe2e0b8cd6379108aff7ce4b532da51a7ea5e52b7a30b92e29",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 13,
+            "triangles": 18,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Moonbrook_Human_Farm.wmo.vmo",
+        "bytes": 61408,
+        "sha256": "4c4dc92421ec04b7d9d393707996d49cb9d94a059515b95ae9ea02746c4f411d",
+        "root_wmo_id": 175,
+        "groups": [
+          {
+            "id": 1887,
+            "flags": 9,
+            "vertices": 911,
+            "triangles": 923,
+            "liquid": null
+          },
+          {
+            "id": 1888,
+            "flags": 10245,
+            "vertices": 743,
+            "triangles": 438,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Redridge_Human_Farm.wmo.vmo",
+        "bytes": 41764,
+        "sha256": "20aa3597cca57509c8050dba12a7da0d9f71d70a3890b9c63f9134c7df2610f5",
+        "root_wmo_id": 143,
+        "groups": [
+          {
+            "id": 2305,
+            "flags": 2057,
+            "vertices": 580,
+            "triangles": 392,
+            "liquid": null
+          },
+          {
+            "id": 2306,
+            "flags": 10245,
+            "vertices": 755,
+            "triangles": 450,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Rugrack01.m2.vmo",
+        "bytes": 600,
+        "sha256": "f99b2a8ef871d8f0bdbc7b88f408f3269a7296af127c915529e45a5e8cb914d3",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 8,
+            "triangles": 12,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Stormwindcrate01.m2.vmo",
+        "bytes": 600,
+        "sha256": "036a2ba7875e3920ace0044ed175f69f396af99fc9f74cad7e252757c1a3f777",
+        "root_wmo_id": 0,
+        "groups": [
+          {
+            "id": 0,
+            "flags": 0,
+            "vertices": 8,
+            "triangles": 12,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Townhall_Nowall.wmo.vmo",
+        "bytes": 181528,
+        "sha256": "9b42ec57861a083e6f81907bd2d36902c93fdddcaf1964fb0e4db5e030b9740d",
+        "root_wmo_id": 116,
+        "groups": [
+          {
+            "id": 3022,
+            "flags": 10757,
+            "vertices": 1805,
+            "triangles": 1081,
+            "liquid": null
+          },
+          {
+            "id": 3023,
+            "flags": 10757,
+            "vertices": 1139,
+            "triangles": 670,
+            "liquid": null
+          },
+          {
+            "id": 3024,
+            "flags": 8709,
+            "vertices": 22,
+            "triangles": 18,
+            "liquid": null
+          },
+          {
+            "id": 3025,
+            "flags": 10757,
+            "vertices": 361,
+            "triangles": 240,
+            "liquid": null
+          },
+          {
+            "id": 3026,
+            "flags": 9,
+            "vertices": 2518,
+            "triangles": 1599,
+            "liquid": null
+          }
+        ]
+      },
+      {
+        "file": "Westfall_Human_Farmb.wmo.vmo",
+        "bytes": 41296,
+        "sha256": "a7867b3154f140c2d1b80bf71105460fc2583c868ef52f47b7d1c172a7160fc0",
+        "root_wmo_id": 2613,
+        "groups": [
+          {
+            "id": 14530,
+            "flags": 10245,
+            "vertices": 743,
+            "triangles": 438,
+            "liquid": null
+          },
+          {
+            "id": 14531,
+            "flags": 2057,
+            "vertices": 577,
+            "triangles": 392,
+            "liquid": null
+          }
+        ]
+      }
+    ],
+    "spawns": [
+      {
+        "id": 698248,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Moonbrook_Human_Farm.wmo",
+        "internal_position": [
+          17022.375,
+          16221.72265625,
+          -2.9999685287475586
+        ],
+        "server_position": {
+          "x": 44.291015625,
+          "y": 844.943359375,
+          "z": -2.9999685287475586
+        },
+        "rotation": [
+          0.0,
+          27.575246810913086,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 31.3984375,
+          "max_x": 57.08984375,
+          "min_y": 832.201171875,
+          "max_y": 857.537109375,
+          "min_z": -3.1707818508148193,
+          "max_z": 14.112944602966309
+        }
+      },
+      {
+        "id": 698249,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Moonbrook_Human_Farm.wmo",
+        "internal_position": [
+          17054.638671875,
+          16224.6376953125,
+          -3.1128287315368652
+        ],
+        "server_position": {
+          "x": 12.02734375,
+          "y": 842.0283203125,
+          "z": -3.1128287315368652
+        },
+        "rotation": [
+          0.0,
+          -22.457225799560547,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -0.5234375,
+          "max_x": 24.404296875,
+          "min_y": 829.7822265625,
+          "max_y": 854.251953125,
+          "min_z": -3.283642053604126,
+          "max_z": 14.000083923339844
+        }
+      },
+      {
+        "id": 698250,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Redridge_Human_Farm.wmo",
+        "internal_position": [
+          16678.51171875,
+          16456.353515625,
+          -3.0119636058807373
+        ],
+        "server_position": {
+          "x": 388.154296875,
+          "y": 610.3125,
+          "z": -3.0119636058807373
+        },
+        "rotation": [
+          0.0,
+          66.42298889160156,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 375.884765625,
+          "max_x": 400.01953125,
+          "min_y": 597.966796875,
+          "max_y": 622.544921875,
+          "min_z": -3.0397427082061768,
+          "max_z": 13.892483711242676
+        }
+      },
+      {
+        "id": 698251,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16680.615234375,
+          16450.8671875,
+          5.739524841308594
+        ],
+        "server_position": {
+          "x": 386.05078125,
+          "y": 615.798828125,
+          "z": 5.739524841308594
+        },
+        "rotation": [
+          0.0,
+          156.42298889160156,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 385.64453125,
+          "max_x": 386.474609375,
+          "min_y": 615.439453125,
+          "max_y": 616.203125,
+          "min_z": 5.739400863647461,
+          "max_z": 6.574153423309326
+        }
+      },
+      {
+        "id": 698252,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16681.310546875,
+          16451.564453125,
+          5.739524841308594
+        ],
+        "server_position": {
+          "x": 385.35546875,
+          "y": 615.1015625,
+          "z": 5.739524841308594
+        },
+        "rotation": [
+          0.0,
+          156.42298889160156,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 384.94921875,
+          "max_x": 385.779296875,
+          "min_y": 614.7421875,
+          "max_y": 615.505859375,
+          "min_z": 5.739400863647461,
+          "max_z": 6.574153423309326
+        }
+      },
+      {
+        "id": 698253,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16682.30859375,
+          16455.6328125,
+          5.739524841308594
+        ],
+        "server_position": {
+          "x": 384.357421875,
+          "y": 611.033203125,
+          "z": 5.739524841308594
+        },
+        "rotation": [
+          0.0,
+          156.42298889160156,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": 383.8828125,
+          "max_x": 384.8515625,
+          "min_y": 610.611328125,
+          "max_y": 611.505859375,
+          "min_z": 5.7393798828125,
+          "max_z": 6.71604061126709
+        }
+      },
+      {
+        "id": 698254,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16681.75,
+          16454.294921875,
+          5.739524841308594
+        ],
+        "server_position": {
+          "x": 384.916015625,
+          "y": 612.37109375,
+          "z": 5.739524841308594
+        },
+        "rotation": [
+          0.0,
+          156.42298889160156,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 384.509765625,
+          "max_x": 385.33984375,
+          "min_y": 612.01171875,
+          "max_y": 612.775390625,
+          "min_z": 5.739400863647461,
+          "max_z": 6.574153423309326
+        }
+      },
+      {
+        "id": 698255,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Redridge_Human_Farm.wmo",
+        "internal_position": [
+          16714.7421875,
+          16463.5859375,
+          -3.602330446243286
+        ],
+        "server_position": {
+          "x": 351.923828125,
+          "y": 603.080078125,
+          "z": -3.602330446243286
+        },
+        "rotation": [
+          0.0,
+          -77.07542419433594,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 341.126953125,
+          "max_x": 362.978515625,
+          "min_y": 592.0,
+          "max_y": 614.490234375,
+          "min_z": -3.6301095485687256,
+          "max_z": 13.302117347717285
+        }
+      },
+      {
+        "id": 698256,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16709.7890625,
+          16466.744140625,
+          5.149158477783203
+        ],
+        "server_position": {
+          "x": 356.876953125,
+          "y": 599.921875,
+          "z": 5.149158477783203
+        },
+        "rotation": [
+          0.0,
+          12.924580574035645,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 356.484375,
+          "max_x": 357.28125,
+          "min_y": 599.4921875,
+          "max_y": 600.3046875,
+          "min_z": 5.14903450012207,
+          "max_z": 5.9837870597839355
+        }
+      },
+      {
+        "id": 698257,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16709.64453125,
+          16465.76953125,
+          5.149158477783203
+        ],
+        "server_position": {
+          "x": 357.021484375,
+          "y": 600.896484375,
+          "z": 5.149158477783203
+        },
+        "rotation": [
+          0.0,
+          12.924580574035645,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 356.62890625,
+          "max_x": 357.42578125,
+          "min_y": 600.466796875,
+          "max_y": 601.279296875,
+          "min_z": 5.14903450012207,
+          "max_z": 5.9837870597839355
+        }
+      },
+      {
+        "id": 698258,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16711.259765625,
+          16461.90625,
+          5.149158477783203
+        ],
+        "server_position": {
+          "x": 355.40625,
+          "y": 604.759765625,
+          "z": 5.149158477783203
+        },
+        "rotation": [
+          0.0,
+          12.924580574035645,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": 354.947265625,
+          "max_x": 355.87890625,
+          "min_y": 604.2578125,
+          "max_y": 605.208984375,
+          "min_z": 5.149013519287109,
+          "max_z": 6.125674247741699
+        }
+      },
+      {
+        "id": 698259,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16710.9140625,
+          16463.314453125,
+          5.149158477783203
+        ],
+        "server_position": {
+          "x": 355.751953125,
+          "y": 603.3515625,
+          "z": 5.149158477783203
+        },
+        "rotation": [
+          0.0,
+          12.924580574035645,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 355.359375,
+          "max_x": 356.15625,
+          "min_y": 602.921875,
+          "max_y": 603.734375,
+          "min_z": 5.14903450012207,
+          "max_z": 5.9837870597839355
+        }
+      },
+      {
+        "id": 698260,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Townhall_Nowall.wmo",
+        "internal_position": [
+          17032.275390625,
+          16497.744140625,
+          1.367340087890625
+        ],
+        "server_position": {
+          "x": 34.390625,
+          "y": 568.921875,
+          "z": 1.367340087890625
+        },
+        "rotation": [
+          0.0,
+          -54.29820251464844,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 25.255859375,
+          "max_x": 104.287109375,
+          "min_y": 502.279296875,
+          "max_y": 581.162109375,
+          "min_z": -0.11239302158355713,
+          "max_z": 60.815364837646484
+        }
+      },
+      {
+        "id": 698261,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Innchandelier.m2",
+        "internal_position": [
+          17007.470703125,
+          16541.486328125,
+          9.533512115478516
+        ],
+        "server_position": {
+          "x": 59.1953125,
+          "y": 525.1796875,
+          "z": 9.533512115478516
+        },
+        "rotation": [
+          0.0,
+          35.70180130004883,
+          -0.0
+        ],
+        "scale": 0.9345794320106506,
+        "server_bounds": {
+          "min_x": 57.70703125,
+          "max_x": 60.623046875,
+          "min_y": 523.76953125,
+          "max_y": 526.564453125,
+          "min_z": 7.241109848022461,
+          "max_z": 9.531195640563965
+        }
+      },
+      {
+        "id": 698262,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Innchandelier.m2",
+        "internal_position": [
+          17000.447265625,
+          16536.439453125,
+          9.533512115478516
+        ],
+        "server_position": {
+          "x": 66.21875,
+          "y": 530.2265625,
+          "z": 9.533512115478516
+        },
+        "rotation": [
+          0.0,
+          35.70180130004883,
+          -0.0
+        ],
+        "scale": 0.9345794320106506,
+        "server_bounds": {
+          "min_x": 64.73046875,
+          "max_x": 67.646484375,
+          "min_y": 528.81640625,
+          "max_y": 531.611328125,
+          "min_z": 7.241109848022461,
+          "max_z": 9.531195640563965
+        }
+      },
+      {
+        "id": 698263,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Innchandelier.m2",
+        "internal_position": [
+          16993.935546875,
+          16531.7578125,
+          9.533512115478516
+        ],
+        "server_position": {
+          "x": 72.73046875,
+          "y": 534.908203125,
+          "z": 9.533512115478516
+        },
+        "rotation": [
+          0.0,
+          35.70180130004883,
+          -0.0
+        ],
+        "scale": 0.9345794320106506,
+        "server_bounds": {
+          "min_x": 71.2421875,
+          "max_x": 74.158203125,
+          "min_y": 533.498046875,
+          "max_y": 536.29296875,
+          "min_z": 7.241109848022461,
+          "max_z": 9.531195640563965
+        }
+      },
+      {
+        "id": 698264,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Innchandelier.m2",
+        "internal_position": [
+          16986.388671875,
+          16526.3359375,
+          9.533512115478516
+        ],
+        "server_position": {
+          "x": 80.27734375,
+          "y": 540.330078125,
+          "z": 9.533512115478516
+        },
+        "rotation": [
+          0.0,
+          35.70180130004883,
+          -0.0
+        ],
+        "scale": 0.9345794320106506,
+        "server_bounds": {
+          "min_x": 78.7890625,
+          "max_x": 81.705078125,
+          "min_y": 538.919921875,
+          "max_y": 541.71484375,
+          "min_z": 7.241109848022461,
+          "max_z": 9.531195640563965
+        }
+      },
+      {
+        "id": 698265,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglantern01.m2",
+        "internal_position": [
+          17000.21484375,
+          16519.591796875,
+          8.115972518920898
+        ],
+        "server_position": {
+          "x": 66.451171875,
+          "y": 547.07421875,
+          "z": 8.115972518920898
+        },
+        "rotation": [
+          0.0,
+          35.70180130004883,
+          -0.0
+        ],
+        "scale": 1.659999966621399,
+        "server_bounds": {
+          "min_x": 65.626953125,
+          "max_x": 67.275390625,
+          "min_y": 546.25,
+          "max_y": 547.8984375,
+          "min_z": 8.115972518920898,
+          "max_z": 11.60516357421875
+        }
+      },
+      {
+        "id": 698266,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglantern01.m2",
+        "internal_position": [
+          17011.361328125,
+          16524.291015625,
+          8.764993667602539
+        ],
+        "server_position": {
+          "x": 55.3046875,
+          "y": 542.375,
+          "z": 8.764993667602539
+        },
+        "rotation": [
+          0.0,
+          35.70180130004883,
+          -0.0
+        ],
+        "scale": 1.659999966621399,
+        "server_bounds": {
+          "min_x": 54.48046875,
+          "max_x": 56.12890625,
+          "min_y": 541.55078125,
+          "max_y": 543.19921875,
+          "min_z": 8.764993667602539,
+          "max_z": 12.25418472290039
+        }
+      },
+      {
+        "id": 698267,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Farmtest.wmo",
+        "internal_position": [
+          17003.38671875,
+          16445.478515625,
+          -3.479287624359131
+        ],
+        "server_position": {
+          "x": 63.279296875,
+          "y": 621.1875,
+          "z": -3.479287624359131
+        },
+        "rotation": [
+          0.0,
+          -170.1910400390625,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 52.572265625,
+          "max_x": 74.302734375,
+          "min_y": 610.533203125,
+          "max_y": 631.56640625,
+          "min_z": -3.5070667266845703,
+          "max_z": 24.005414962768555
+        }
+      },
+      {
+        "id": 698268,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17006.810546875,
+          16450.25390625,
+          5.272201061248779
+        ],
+        "server_position": {
+          "x": 59.85546875,
+          "y": 616.412109375,
+          "z": 5.272201061248779
+        },
+        "rotation": [
+          0.0,
+          -80.1910400390625,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 59.421875,
+          "max_x": 60.2421875,
+          "min_y": 616.015625,
+          "max_y": 616.798828125,
+          "min_z": 5.2720770835876465,
+          "max_z": 6.106829643249512
+        }
+      },
+      {
+        "id": 698269,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17005.84375,
+          16450.44921875,
+          5.272201061248779
+        ],
+        "server_position": {
+          "x": 60.822265625,
+          "y": 616.216796875,
+          "z": 5.272201061248779
+        },
+        "rotation": [
+          0.0,
+          -80.1910400390625,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 60.388671875,
+          "max_x": 61.208984375,
+          "min_y": 615.8203125,
+          "max_y": 616.603515625,
+          "min_z": 5.2720770835876465,
+          "max_z": 6.106829643249512
+        }
+      },
+      {
+        "id": 698270,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17001.8984375,
+          16449.046875,
+          5.272201061248779
+        ],
+        "server_position": {
+          "x": 64.767578125,
+          "y": 617.619140625,
+          "z": 5.272201061248779
+        },
+        "rotation": [
+          0.0,
+          -80.1910400390625,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": 64.259765625,
+          "max_x": 65.220703125,
+          "min_y": 617.15625,
+          "max_y": 618.072265625,
+          "min_z": 5.2720561027526855,
+          "max_z": 6.248716831207275
+        }
+      },
+      {
+        "id": 698271,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17003.32421875,
+          16449.314453125,
+          5.272201061248779
+        ],
+        "server_position": {
+          "x": 63.341796875,
+          "y": 617.3515625,
+          "z": 5.272201061248779
+        },
+        "rotation": [
+          0.0,
+          -80.1910400390625,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 62.908203125,
+          "max_x": 63.728515625,
+          "min_y": 616.955078125,
+          "max_y": 617.73828125,
+          "min_z": 5.2720770835876465,
+          "max_z": 6.106829643249512
+        }
+      },
+      {
+        "id": 698272,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Firewoodpile01.m2",
+        "internal_position": [
+          17002.8515625,
+          16438.8671875,
+          0.5659723281860352
+        ],
+        "server_position": {
+          "x": 63.814453125,
+          "y": 627.798828125,
+          "z": 0.5659723281860352
+        },
+        "rotation": [
+          0.0,
+          -65.19103240966797,
+          -0.0
+        ],
+        "scale": 0.8427338600158691,
+        "server_bounds": {
+          "min_x": 63.306640625,
+          "max_x": 64.626953125,
+          "min_y": 627.224609375,
+          "max_y": 628.771484375,
+          "min_z": 0.5659723281860352,
+          "max_z": 1.3130085468292236
+        }
+      },
+      {
+        "id": 698273,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Firewoodpile01.m2",
+        "internal_position": [
+          17003.7421875,
+          16438.947265625,
+          0.5659723281860352
+        ],
+        "server_position": {
+          "x": 62.923828125,
+          "y": 627.71875,
+          "z": 0.5659723281860352
+        },
+        "rotation": [
+          0.0,
+          8.808953285217285,
+          -0.0
+        ],
+        "scale": 0.8414724469184875,
+        "server_bounds": {
+          "min_x": 61.953125,
+          "max_x": 63.458984375,
+          "min_y": 627.197265625,
+          "max_y": 628.484375,
+          "min_z": 0.5659723281860352,
+          "max_z": 1.3118904829025269
+        }
+      },
+      {
+        "id": 698274,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Farmtest.wmo",
+        "internal_position": [
+          17035.2421875,
+          16447.533203125,
+          -3.352189064025879
+        ],
+        "server_position": {
+          "x": 31.423828125,
+          "y": 619.1328125,
+          "z": -3.352189064025879
+        },
+        "rotation": [
+          0.0,
+          -174.5870361328125,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 21.294921875,
+          "max_x": 41.845703125,
+          "min_y": 609.09375,
+          "max_y": 628.873046875,
+          "min_z": -3.3799681663513184,
+          "max_z": 24.13251495361328
+        }
+      },
+      {
+        "id": 698275,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17039.021484375,
+          16452.03125,
+          5.399299621582031
+        ],
+        "server_position": {
+          "x": 27.64453125,
+          "y": 614.634765625,
+          "z": 5.399299621582031
+        },
+        "rotation": [
+          0.0,
+          -84.58704376220703,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 27.205078125,
+          "max_x": 28.03515625,
+          "min_y": 614.251953125,
+          "max_y": 615.01171875,
+          "min_z": 5.399175643920898,
+          "max_z": 6.233928203582764
+        }
+      },
+      {
+        "id": 698276,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17038.07421875,
+          16452.302734375,
+          5.399299621582031
+        ],
+        "server_position": {
+          "x": 28.591796875,
+          "y": 614.36328125,
+          "z": 5.399299621582031
+        },
+        "rotation": [
+          0.0,
+          -84.58704376220703,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 28.15234375,
+          "max_x": 28.982421875,
+          "min_y": 613.98046875,
+          "max_y": 614.740234375,
+          "min_z": 5.399175643920898,
+          "max_z": 6.233928203582764
+        }
+      },
+      {
+        "id": 698277,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17034.033203125,
+          16451.205078125,
+          5.399299621582031
+        ],
+        "server_position": {
+          "x": 32.6328125,
+          "y": 615.4609375,
+          "z": 5.399299621582031
+        },
+        "rotation": [
+          0.0,
+          -84.58704376220703,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": 32.119140625,
+          "max_x": 33.08984375,
+          "min_y": 615.013671875,
+          "max_y": 615.900390625,
+          "min_z": 5.3991546630859375,
+          "max_z": 6.375815391540527
+        }
+      },
+      {
+        "id": 698278,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17035.474609375,
+          16451.36328125,
+          5.399299621582031
+        ],
+        "server_position": {
+          "x": 31.19140625,
+          "y": 615.302734375,
+          "z": 5.399299621582031
+        },
+        "rotation": [
+          0.0,
+          -84.58704376220703,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 30.751953125,
+          "max_x": 31.58203125,
+          "min_y": 614.919921875,
+          "max_y": 615.6796875,
+          "min_z": 5.399175643920898,
+          "max_z": 6.233928203582764
+        }
+      },
+      {
+        "id": 698279,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Firewoodpile01.m2",
+        "internal_position": [
+          17034.201171875,
+          16440.982421875,
+          0.6930708885192871
+        ],
+        "server_position": {
+          "x": 32.46484375,
+          "y": 625.68359375,
+          "z": 0.6930708885192871
+        },
+        "rotation": [
+          0.0,
+          -69.5870361328125,
+          -0.0
+        ],
+        "scale": 0.8427338600158691,
+        "server_bounds": {
+          "min_x": 31.94921875,
+          "max_x": 33.271484375,
+          "min_y": 625.115234375,
+          "max_y": 626.6640625,
+          "min_z": 0.6930708885192871,
+          "max_z": 1.4401071071624756
+        }
+      },
+      {
+        "id": 698280,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Firewoodpile01.m2",
+        "internal_position": [
+          17035.095703125,
+          16440.994140625,
+          0.6930708885192871
+        ],
+        "server_position": {
+          "x": 31.5703125,
+          "y": 625.671875,
+          "z": 0.6930708885192871
+        },
+        "rotation": [
+          0.0,
+          4.412948131561279,
+          -0.0
+        ],
+        "scale": 0.8414724469184875,
+        "server_bounds": {
+          "min_x": 30.611328125,
+          "max_x": 32.087890625,
+          "min_y": 625.15234375,
+          "max_y": 626.4140625,
+          "min_z": 0.6930708885192871,
+          "max_z": 1.4389890432357788
+        }
+      },
+      {
+        "id": 698281,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Farmtest.wmo",
+        "internal_position": [
+          17067.16796875,
+          16445.216796875,
+          -2.991497039794922
+        ],
+        "server_position": {
+          "x": -0.501953125,
+          "y": 621.44921875,
+          "z": -2.991497039794922
+        },
+        "rotation": [
+          0.0,
+          -161.35157775878906,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -12.181640625,
+          "max_x": 11.533203125,
+          "min_y": 609.748046875,
+          "max_y": 632.92578125,
+          "min_z": -3.0192761421203613,
+          "max_z": 24.493206024169922
+        }
+      },
+      {
+        "id": 698282,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17069.81640625,
+          16450.4609375,
+          5.759991645812988
+        ],
+        "server_position": {
+          "x": -3.150390625,
+          "y": 616.205078125,
+          "z": 5.759991645812988
+        },
+        "rotation": [
+          0.0,
+          -71.35157012939453,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -3.568359375,
+          "max_x": -2.77734375,
+          "min_y": 615.7890625,
+          "max_y": 616.60546875,
+          "min_z": 5.7598676681518555,
+          "max_z": 6.594620227813721
+        }
+      },
+      {
+        "id": 698283,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17068.83203125,
+          16450.5078125,
+          5.759991645812988
+        ],
+        "server_position": {
+          "x": -2.166015625,
+          "y": 616.158203125,
+          "z": 5.759991645812988
+        },
+        "rotation": [
+          0.0,
+          -71.35157012939453,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -2.583984375,
+          "max_x": -1.79296875,
+          "min_y": 615.7421875,
+          "max_y": 616.55859375,
+          "min_z": 5.7598676681518555,
+          "max_z": 6.594620227813721
+        }
+      },
+      {
+        "id": 698284,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17065.150390625,
+          16448.513671875,
+          5.759991645812988
+        ],
+        "server_position": {
+          "x": 1.515625,
+          "y": 618.15234375,
+          "z": 5.759991645812988
+        },
+        "rotation": [
+          0.0,
+          -71.35157012939453,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": 1.02734375,
+          "max_x": 1.951171875,
+          "min_y": 617.6640625,
+          "max_y": 618.62109375,
+          "min_z": 5.7598466873168945,
+          "max_z": 6.736507415771484
+        }
+      },
+      {
+        "id": 698285,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17066.517578125,
+          16448.998046875,
+          5.759991645812988
+        ],
+        "server_position": {
+          "x": 0.1484375,
+          "y": 617.66796875,
+          "z": 5.759991645812988
+        },
+        "rotation": [
+          0.0,
+          -71.35157012939453,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -0.26953125,
+          "max_x": 0.521484375,
+          "min_y": 617.251953125,
+          "max_y": 618.068359375,
+          "min_z": 5.7598676681518555,
+          "max_z": 6.594620227813721
+        }
+      },
+      {
+        "id": 698286,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Firewoodpile01.m2",
+        "internal_position": [
+          17067.65625,
+          16438.6015625,
+          1.0537629127502441
+        ],
+        "server_position": {
+          "x": -0.990234375,
+          "y": 628.064453125,
+          "z": 1.0537629127502441
+        },
+        "rotation": [
+          0.0,
+          -56.351566314697266,
+          -0.0
+        ],
+        "scale": 0.8427338600158691,
+        "server_bounds": {
+          "min_x": -1.47265625,
+          "max_x": -0.177734375,
+          "min_y": 627.48828125,
+          "max_y": 629.00390625,
+          "min_z": 1.0537629127502441,
+          "max_z": 1.8007991313934326
+        }
+      },
+      {
+        "id": 698287,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Firewoodpile01.m2",
+        "internal_position": [
+          17068.5234375,
+          16438.818359375,
+          1.0537629127502441
+        ],
+        "server_position": {
+          "x": -1.857421875,
+          "y": 627.84765625,
+          "z": 1.0537629127502441
+        },
+        "rotation": [
+          0.0,
+          17.648418426513672,
+          -0.0
+        ],
+        "scale": 0.8414724469184875,
+        "server_bounds": {
+          "min_x": -2.837890625,
+          "max_x": -1.296875,
+          "min_y": 627.330078125,
+          "max_y": 628.646484375,
+          "min_z": 1.0537629127502441,
+          "max_z": 1.7996810674667358
+        }
+      },
+      {
+        "id": 698288,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Human_Barracks.wmo",
+        "internal_position": [
+          17079.28515625,
+          16538.865234375,
+          3.485548973083496
+        ],
+        "server_position": {
+          "x": -12.619140625,
+          "y": 527.80078125,
+          "z": 3.485548973083496
+        },
+        "rotation": [
+          0.0,
+          -110.13982391357422,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -66.697265625,
+          "max_x": 20.982421875,
+          "min_y": 452.724609375,
+          "max_y": 546.953125,
+          "min_z": -12.611218452453613,
+          "max_z": 47.95222473144531
+        }
+      },
+      {
+        "id": 698289,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglanternlong.m2",
+        "internal_position": [
+          17103.54296875,
+          16543.34375,
+          13.269744873046875
+        ],
+        "server_position": {
+          "x": -36.876953125,
+          "y": 523.322265625,
+          "z": 13.269744873046875
+        },
+        "rotation": [
+          -1.7075468576877029e-06,
+          69.86016845703125,
+          -1.7075468576877029e-06
+        ],
+        "scale": 1.4143998622894287,
+        "server_bounds": {
+          "min_x": -37.546875,
+          "max_x": -36.181640625,
+          "min_y": 522.634765625,
+          "max_y": 524.001953125,
+          "min_z": 8.23490047454834,
+          "max_z": 13.295326232910156
+        }
+      },
+      {
+        "id": 698290,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglanternlong.m2",
+        "internal_position": [
+          17063.6796875,
+          16558.056640625,
+          13.246712684631348
+        ],
+        "server_position": {
+          "x": 2.986328125,
+          "y": 508.609375,
+          "z": 13.246712684631348
+        },
+        "rotation": [
+          -1.7075470850613783e-06,
+          69.86017608642578,
+          -1.7075470850613783e-06
+        ],
+        "scale": 1.4143999814987183,
+        "server_bounds": {
+          "min_x": 2.31640625,
+          "max_x": 3.681640625,
+          "min_y": 507.921875,
+          "max_y": 509.2890625,
+          "min_z": 8.211868286132812,
+          "max_z": 13.272294044494629
+        }
+      },
+      {
+        "id": 698291,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Goldshireinn.wmo",
+        "internal_position": [
+          17103.587890625,
+          16460.169921875,
+          0.0
+        ],
+        "server_position": {
+          "x": -36.921875,
+          "y": 606.49609375,
+          "z": 0.0
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -73.3515625,
+          "max_x": -8.177734375,
+          "min_y": 581.47265625,
+          "max_y": 646.291015625,
+          "min_z": -6.761812686920166,
+          "max_z": 23.276613235473633
+        }
+      },
+      {
+        "id": 698292,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Stormwindcrate01.m2",
+        "internal_position": [
+          17114.39453125,
+          16445.333984375,
+          -6.7270684242248535
+        ],
+        "server_position": {
+          "x": -47.728515625,
+          "y": 621.33203125,
+          "z": -6.7270684242248535
+        },
+        "rotation": [
+          0.0,
+          39.52287673950195,
+          -0.0
+        ],
+        "scale": 0.8928571939468384,
+        "server_bounds": {
+          "min_x": -48.529296875,
+          "max_x": -46.927734375,
+          "min_y": 620.525390625,
+          "max_y": 622.138671875,
+          "min_z": -6.7270684242248535,
+          "max_z": -5.617273807525635
+        }
+      },
+      {
+        "id": 698293,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Stormwindcrate01.m2",
+        "internal_position": [
+          17114.98046875,
+          16445.78515625,
+          -5.624070167541504
+        ],
+        "server_position": {
+          "x": -48.314453125,
+          "y": 620.880859375,
+          "z": -5.624070167541504
+        },
+        "rotation": [
+          0.0,
+          24.522865295410156,
+          -0.0
+        ],
+        "scale": 0.8928571343421936,
+        "server_bounds": {
+          "min_x": -49.060546875,
+          "max_x": -47.568359375,
+          "min_y": 620.115234375,
+          "max_y": 621.646484375,
+          "min_z": -5.624070167541504,
+          "max_z": -4.514275550842285
+        }
+      },
+      {
+        "id": 698294,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Stormwindcrate01.m2",
+        "internal_position": [
+          17115.333984375,
+          16446.318359375,
+          -6.7270684242248535
+        ],
+        "server_position": {
+          "x": -48.66796875,
+          "y": 620.34765625,
+          "z": -6.7270684242248535
+        },
+        "rotation": [
+          0.0,
+          50.02287292480469,
+          -0.0
+        ],
+        "scale": 0.8928571939468384,
+        "server_bounds": {
+          "min_x": -49.474609375,
+          "max_x": -47.861328125,
+          "min_y": 619.546875,
+          "max_y": 621.1484375,
+          "min_z": -6.7270684242248535,
+          "max_z": -5.617273807525635
+        }
+      },
+      {
+        "id": 698295,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Stormwindcrate01.m2",
+        "internal_position": [
+          17110.724609375,
+          16441.533203125,
+          -6.7270684242248535
+        ],
+        "server_position": {
+          "x": -44.05859375,
+          "y": 625.1328125,
+          "z": -6.7270684242248535
+        },
+        "rotation": [
+          0.0,
+          -126.47711944580078,
+          -0.0
+        ],
+        "scale": 0.8928571939468384,
+        "server_bounds": {
+          "min_x": -44.861328125,
+          "max_x": -43.255859375,
+          "min_y": 624.33984375,
+          "max_y": 625.92578125,
+          "min_z": -6.7270684242248535,
+          "max_z": -5.617273807525635
+        }
+      },
+      {
+        "id": 698296,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Stormwindcrate01.m2",
+        "internal_position": [
+          17110.265625,
+          16440.953125,
+          -5.624070167541504
+        ],
+        "server_position": {
+          "x": -43.599609375,
+          "y": 625.712890625,
+          "z": -5.624070167541504
+        },
+        "rotation": [
+          0.0,
+          -141.4771270751953,
+          -0.0
+        ],
+        "scale": 0.8928571343421936,
+        "server_bounds": {
+          "min_x": -44.3984375,
+          "max_x": -42.80078125,
+          "min_y": 624.908203125,
+          "max_y": 626.517578125,
+          "min_z": -5.624070167541504,
+          "max_z": -4.514275550842285
+        }
+      },
+      {
+        "id": 698297,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Stormwindcrate01.m2",
+        "internal_position": [
+          17110.05078125,
+          16440.349609375,
+          -6.7270684242248535
+        ],
+        "server_position": {
+          "x": -43.384765625,
+          "y": 626.31640625,
+          "z": -6.7270684242248535
+        },
+        "rotation": [
+          0.0,
+          -115.97712707519531,
+          -0.0
+        ],
+        "scale": 0.8928571343421936,
+        "server_bounds": {
+          "min_x": -44.15625,
+          "max_x": -42.61328125,
+          "min_y": 625.5625,
+          "max_y": 627.0703125,
+          "min_z": -6.7270684242248535,
+          "max_z": -5.617273807525635
+        }
+      },
+      {
+        "id": 698298,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Stormwindcrate01.m2",
+        "internal_position": [
+          17121.43359375,
+          16432.59765625,
+          -6.7270684242248535
+        ],
+        "server_position": {
+          "x": -54.767578125,
+          "y": 634.068359375,
+          "z": -6.7270684242248535
+        },
+        "rotation": [
+          0.0,
+          -141.4771270751953,
+          -0.0
+        ],
+        "scale": 0.8928571343421936,
+        "server_bounds": {
+          "min_x": -55.56640625,
+          "max_x": -53.96875,
+          "min_y": 633.263671875,
+          "max_y": 634.873046875,
+          "min_z": -6.7270684242248535,
+          "max_z": -5.617273807525635
+        }
+      },
+      {
+        "id": 698299,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17126.068359375,
+          16448.26953125,
+          -5.676460266113281
+        ],
+        "server_position": {
+          "x": -59.40234375,
+          "y": 618.396484375,
+          "z": -5.676460266113281
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -60.3828125,
+          "max_x": -58.43359375,
+          "min_y": 617.439453125,
+          "max_y": 619.390625,
+          "min_z": -5.692130088806152,
+          "max_z": -4.179025650024414
+        }
+      },
+      {
+        "id": 698300,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17126.6015625,
+          16447.5078125,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -59.935546875,
+          "y": 619.158203125,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -61.068359375,
+          "max_x": -58.998046875,
+          "min_y": 618.025390625,
+          "max_y": 620.09375,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698301,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17123.556640625,
+          16450.736328125,
+          -3.58378267288208
+        ],
+        "server_position": {
+          "x": -56.890625,
+          "y": 615.9296875,
+          "z": -3.58378267288208
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -57.87109375,
+          "max_x": -55.921875,
+          "min_y": 614.97265625,
+          "max_y": 616.923828125,
+          "min_z": -3.599452495574951,
+          "max_z": -2.086348056793213
+        }
+      },
+      {
+        "id": 698302,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17124.181640625,
+          16450.123046875,
+          -4.636392593383789
+        ],
+        "server_position": {
+          "x": -57.515625,
+          "y": 616.54296875,
+          "z": -4.636392593383789
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -58.49609375,
+          "max_x": -56.546875,
+          "min_y": 615.5859375,
+          "max_y": 617.537109375,
+          "min_z": -4.65206241607666,
+          "max_z": -3.138957977294922
+        }
+      },
+      {
+        "id": 698303,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17125.443359375,
+          16448.8828125,
+          -4.636392593383789
+        ],
+        "server_position": {
+          "x": -58.77734375,
+          "y": 617.783203125,
+          "z": -4.636392593383789
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -59.7578125,
+          "max_x": -57.80859375,
+          "min_y": 616.826171875,
+          "max_y": 618.77734375,
+          "min_z": -4.65206241607666,
+          "max_z": -3.138957977294922
+        }
+      },
+      {
+        "id": 698304,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17124.8203125,
+          16449.49609375,
+          -3.58378267288208
+        ],
+        "server_position": {
+          "x": -58.154296875,
+          "y": 617.169921875,
+          "z": -3.58378267288208
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -59.134765625,
+          "max_x": -57.185546875,
+          "min_y": 616.212890625,
+          "max_y": 618.1640625,
+          "min_z": -3.599452495574951,
+          "max_z": -2.086348056793213
+        }
+      },
+      {
+        "id": 698305,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17122.830078125,
+          16451.2109375,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -56.1640625,
+          "y": 615.455078125,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -57.296875,
+          "max_x": -55.2265625,
+          "min_y": 614.322265625,
+          "max_y": 616.390625,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698306,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17119.3515625,
+          16431.2890625,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -52.685546875,
+          "y": 635.376953125,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -53.818359375,
+          "max_x": -51.75,
+          "min_y": 634.439453125,
+          "max_y": 636.509765625,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698307,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17118.888671875,
+          16430.57421875,
+          -5.676460266113281
+        ],
+        "server_position": {
+          "x": -52.22265625,
+          "y": 636.091796875,
+          "z": -5.676460266113281
+        },
+        "rotation": [
+          0.0,
+          135.52288818359375,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -53.1796875,
+          "max_x": -51.228515625,
+          "min_y": 635.123046875,
+          "max_y": 637.072265625,
+          "min_z": -5.692130088806152,
+          "max_z": -4.179025650024414
+        }
+      },
+      {
+        "id": 698308,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17118.126953125,
+          16430.041015625,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -51.4609375,
+          "y": 636.625,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -52.59375,
+          "max_x": -50.525390625,
+          "min_y": 635.6875,
+          "max_y": 637.7578125,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698309,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17122.52734375,
+          16431.400390625,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -55.861328125,
+          "y": 635.265625,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          45.52287292480469,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -56.798828125,
+          "max_x": -54.728515625,
+          "min_y": 634.330078125,
+          "max_y": 636.3984375,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698310,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17123.060546875,
+          16430.638671875,
+          -5.676460266113281
+        ],
+        "server_position": {
+          "x": -56.39453125,
+          "y": 636.02734375,
+          "z": -5.676460266113281
+        },
+        "rotation": [
+          0.0,
+          45.522884368896484,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -57.36328125,
+          "max_x": -55.4140625,
+          "min_y": 635.033203125,
+          "max_y": 636.984375,
+          "min_z": -5.692130088806152,
+          "max_z": -4.179025650024414
+        }
+      },
+      {
+        "id": 698311,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17123.7734375,
+          16430.177734375,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -57.107421875,
+          "y": 636.48828125,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          45.52287292480469,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -58.044921875,
+          "max_x": -55.974609375,
+          "min_y": 635.552734375,
+          "max_y": 637.62109375,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698312,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17116.01953125,
+          16447.30859375,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -49.353515625,
+          "y": 619.357421875,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          71.02288818359375,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -49.794921875,
+          "max_x": -48.857421875,
+          "min_y": 618.861328125,
+          "max_y": 619.8359375,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698313,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17116.994140625,
+          16447.103515625,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -50.328125,
+          "y": 619.5625,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          71.02288818359375,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -50.76953125,
+          "max_x": -49.83203125,
+          "min_y": 619.06640625,
+          "max_y": 620.041015625,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698314,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17109.064453125,
+          16438.31640625,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -42.3984375,
+          "y": 628.349609375,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -94.97711181640625,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -42.919921875,
+          "max_x": -41.931640625,
+          "min_y": 627.90234375,
+          "max_y": 628.80078125,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698315,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17109.625,
+          16439.22265625,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -42.958984375,
+          "y": 627.443359375,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -94.97711181640625,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -43.48046875,
+          "max_x": -42.4921875,
+          "min_y": 626.99609375,
+          "max_y": 627.89453125,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698316,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17108.62890625,
+          16439.185546875,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -41.962890625,
+          "y": 627.48046875,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -94.97711181640625,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -42.484375,
+          "max_x": -41.49609375,
+          "min_y": 627.033203125,
+          "max_y": 627.931640625,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698317,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17127.02734375,
+          16434.140625,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -60.361328125,
+          "y": 632.525390625,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -110.47710418701172,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -60.853515625,
+          "max_x": -59.923828125,
+          "min_y": 632.044921875,
+          "max_y": 633.0234375,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698318,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17127.99609375,
+          16433.91015625,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -61.330078125,
+          "y": 632.755859375,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -110.47710418701172,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -61.822265625,
+          "max_x": -60.892578125,
+          "min_y": 632.275390625,
+          "max_y": 633.25390625,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698319,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17127.21484375,
+          16433.1875,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -60.548828125,
+          "y": 633.478515625,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -110.47710418701172,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -61.041015625,
+          "max_x": -60.111328125,
+          "min_y": 632.998046875,
+          "max_y": 633.9765625,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698320,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17117.46875,
+          16456.15625,
+          1.601838231086731
+        ],
+        "server_position": {
+          "x": -50.802734375,
+          "y": 610.509765625,
+          "z": 1.601838231086731
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 0.7982119917869568,
+        "server_bounds": {
+          "min_x": -51.58984375,
+          "max_x": -50.154296875,
+          "min_y": 609.859375,
+          "max_y": 611.294921875,
+          "min_z": 1.60112726688385,
+          "max_z": 2.6382789611816406
+        }
+      },
+      {
+        "id": 698321,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17118.30859375,
+          16457.01171875,
+          1.601838231086731
+        ],
+        "server_position": {
+          "x": -51.642578125,
+          "y": 609.654296875,
+          "z": 1.601838231086731
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 0.7982119917869568,
+        "server_bounds": {
+          "min_x": -52.4296875,
+          "max_x": -50.994140625,
+          "min_y": 609.00390625,
+          "max_y": 610.439453125,
+          "min_z": 1.60112726688385,
+          "max_z": 2.6382789611816406
+        }
+      },
+      {
+        "id": 698322,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17119.802734375,
+          16455.25,
+          3.7356491088867188
+        ],
+        "server_position": {
+          "x": -53.13671875,
+          "y": 611.416015625,
+          "z": 3.7356491088867188
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -54.123046875,
+          "max_x": -52.322265625,
+          "min_y": 610.6015625,
+          "max_y": 612.400390625,
+          "min_z": 3.7347583770751953,
+          "max_z": 5.034102439880371
+        }
+      },
+      {
+        "id": 698323,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17116.404296875,
+          16451.787109375,
+          3.7356491088867188
+        ],
+        "server_position": {
+          "x": -49.73828125,
+          "y": 614.87890625,
+          "z": 3.7356491088867188
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -50.724609375,
+          "max_x": -48.923828125,
+          "min_y": 614.064453125,
+          "max_y": 615.86328125,
+          "min_z": 3.7347583770751953,
+          "max_z": 5.034102439880371
+        }
+      },
+      {
+        "id": 698324,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17122.93359375,
+          16451.34765625,
+          -4.636392593383789
+        ],
+        "server_position": {
+          "x": -56.267578125,
+          "y": 615.318359375,
+          "z": -4.636392593383789
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -57.248046875,
+          "max_x": -55.298828125,
+          "min_y": 614.361328125,
+          "max_y": 616.3125,
+          "min_z": -4.65206241607666,
+          "max_z": -3.138957977294922
+        }
+      },
+      {
+        "id": 698325,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar02.m2",
+        "internal_position": [
+          17110.8515625,
+          16462.77734375,
+          4.774656772613525
+        ],
+        "server_position": {
+          "x": -44.185546875,
+          "y": 603.888671875,
+          "z": 4.774656772613525
+        },
+        "rotation": [
+          0.0,
+          -8.977117538452148,
+          -0.0
+        ],
+        "scale": 1.099999189376831,
+        "server_bounds": {
+          "min_x": -44.4453125,
+          "max_x": -43.923828125,
+          "min_y": 603.61328125,
+          "max_y": 604.1640625,
+          "min_z": 4.774656772613525,
+          "max_z": 5.324790954589844
+        }
+      },
+      {
+        "id": 698326,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar03.m2",
+        "internal_position": [
+          17111.34375,
+          16462.30078125,
+          4.773066997528076
+        ],
+        "server_position": {
+          "x": -44.677734375,
+          "y": 604.365234375,
+          "z": 4.773066997528076
+        },
+        "rotation": [
+          0.0,
+          -8.97712516784668,
+          -0.0
+        ],
+        "scale": 1.5588992834091187,
+        "server_bounds": {
+          "min_x": -45.06640625,
+          "max_x": -44.287109375,
+          "min_y": 603.951171875,
+          "max_y": 604.77734375,
+          "min_z": 4.773066997528076,
+          "max_z": 5.607110500335693
+        }
+      },
+      {
+        "id": 698327,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar02.m2",
+        "internal_position": [
+          17108.595703125,
+          16464.9921875,
+          4.774656772613525
+        ],
+        "server_position": {
+          "x": -41.9296875,
+          "y": 601.673828125,
+          "z": 4.774656772613525
+        },
+        "rotation": [
+          0.0,
+          -8.977117538452148,
+          -0.0
+        ],
+        "scale": 1.099999189376831,
+        "server_bounds": {
+          "min_x": -42.189453125,
+          "max_x": -41.66796875,
+          "min_y": 601.3984375,
+          "max_y": 601.94921875,
+          "min_z": 4.774656772613525,
+          "max_z": 5.324790954589844
+        }
+      },
+      {
+        "id": 698328,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar03.m2",
+        "internal_position": [
+          17108.2890625,
+          16465.58984375,
+          4.773066997528076
+        ],
+        "server_position": {
+          "x": -41.623046875,
+          "y": 601.076171875,
+          "z": 4.773066997528076
+        },
+        "rotation": [
+          0.0,
+          -8.97712230682373,
+          -0.0
+        ],
+        "scale": 1.053096890449524,
+        "server_bounds": {
+          "min_x": -41.884765625,
+          "max_x": -41.359375,
+          "min_y": 600.796875,
+          "max_y": 601.35546875,
+          "min_z": 4.773066997528076,
+          "max_z": 5.336495399475098
+        }
+      },
+      {
+        "id": 698329,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglantern01.m2",
+        "internal_position": [
+          17112.15625,
+          16457.107421875,
+          12.588645935058594
+        ],
+        "server_position": {
+          "x": -45.490234375,
+          "y": 609.55859375,
+          "z": 12.588645935058594
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.3763999938964844,
+        "server_bounds": {
+          "min_x": -46.18359375,
+          "max_x": -44.796875,
+          "min_y": 608.865234375,
+          "max_y": 610.251953125,
+          "min_z": 12.588645935058594,
+          "max_z": 15.481731414794922
+        }
+      },
+      {
+        "id": 698330,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalbookstackshort01.m2",
+        "internal_position": [
+          17109.6484375,
+          16463.98046875,
+          4.774682998657227
+        ],
+        "server_position": {
+          "x": -42.982421875,
+          "y": 602.685546875,
+          "z": 4.774682998657227
+        },
+        "rotation": [
+          0.0,
+          -86.47713470458984,
+          -0.0
+        ],
+        "scale": 0.7806400656700134,
+        "server_bounds": {
+          "min_x": -43.236328125,
+          "max_x": -42.791015625,
+          "min_y": 602.2890625,
+          "max_y": 602.873046875,
+          "min_z": 4.774682998657227,
+          "max_z": 5.04049015045166
+        }
+      },
+      {
+        "id": 698331,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglantern01.m2",
+        "internal_position": [
+          17090.283203125,
+          16459.71875,
+          12.561245918273926
+        ],
+        "server_position": {
+          "x": -23.6171875,
+          "y": 606.947265625,
+          "z": 12.561245918273926
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.3763999938964844,
+        "server_bounds": {
+          "min_x": -24.310546875,
+          "max_x": -22.923828125,
+          "min_y": 606.25390625,
+          "max_y": 607.640625,
+          "min_z": 12.561245918273926,
+          "max_z": 15.454331398010254
+        }
+      },
+      {
+        "id": 698332,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalbookstackshort01.m2",
+        "internal_position": [
+          17106.109375,
+          16467.455078125,
+          4.774682998657227
+        ],
+        "server_position": {
+          "x": -39.443359375,
+          "y": 599.2109375,
+          "z": 4.774682998657227
+        },
+        "rotation": [
+          0.0,
+          27.522855758666992,
+          -0.0
+        ],
+        "scale": 0.7806400060653687,
+        "server_bounds": {
+          "min_x": -39.677734375,
+          "max_x": -38.990234375,
+          "min_y": 598.912109375,
+          "max_y": 599.537109375,
+          "min_z": 4.774682998657227,
+          "max_z": 5.04049015045166
+        }
+      },
+      {
+        "id": 698333,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglantern01.m2",
+        "internal_position": [
+          17100.80078125,
+          16466.92578125,
+          12.401249885559082
+        ],
+        "server_position": {
+          "x": -34.134765625,
+          "y": 599.740234375,
+          "z": 12.401249885559082
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.3763999938964844,
+        "server_bounds": {
+          "min_x": -34.828125,
+          "max_x": -33.44140625,
+          "min_y": 599.046875,
+          "max_y": 600.43359375,
+          "min_z": 12.401249885559082,
+          "max_z": 15.29433536529541
+        }
+      },
+      {
+        "id": 698334,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Rugrack01.m2",
+        "internal_position": [
+          17091.421875,
+          16467.498046875,
+          0.4094187319278717
+        ],
+        "server_position": {
+          "x": -24.755859375,
+          "y": 599.16796875,
+          "z": 0.4094187319278717
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -25.7734375,
+          "max_x": -23.685546875,
+          "min_y": 598.1015625,
+          "max_y": 600.185546875,
+          "min_z": 0.4094187319278717,
+          "max_z": 2.1845216751098633
+        }
+      },
+      {
+        "id": 698335,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17116.78125,
+          16448.05078125,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -50.115234375,
+          "y": 618.615234375,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          71.02288818359375,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -50.556640625,
+          "max_x": -49.619140625,
+          "min_y": 618.119140625,
+          "max_y": 619.09375,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698336,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17126.458984375,
+          16446.064453125,
+          -6.767024517059326
+        ],
+        "server_position": {
+          "x": -59.79296875,
+          "y": 620.6015625,
+          "z": -6.767024517059326
+        },
+        "rotation": [
+          0.0,
+          -110.47710418701172,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -60.28515625,
+          "max_x": -59.35546875,
+          "min_y": 620.12109375,
+          "max_y": 621.099609375,
+          "min_z": -6.767171859741211,
+          "max_z": -5.773816108703613
+        }
+      },
+      {
+        "id": 698337,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalcandelabra01.m2",
+        "internal_position": [
+          17114.966796875,
+          16452.53515625,
+          1.6006131172180176
+        ],
+        "server_position": {
+          "x": -48.30078125,
+          "y": 614.130859375,
+          "z": 1.6006131172180176
+        },
+        "rotation": [
+          0.0,
+          -27.477123260498047,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -48.60546875,
+          "max_x": -47.99609375,
+          "min_y": 613.76171875,
+          "max_y": 614.509765625,
+          "min_z": 1.6006131172180176,
+          "max_z": 2.8959739208221436
+        }
+      },
+      {
+        "id": 698338,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalbookstacktall01.m2",
+        "internal_position": [
+          17106.734375,
+          16467.083984375,
+          4.777682781219482
+        ],
+        "server_position": {
+          "x": -40.068359375,
+          "y": 599.58203125,
+          "z": 4.777682781219482
+        },
+        "rotation": [
+          0.0,
+          114.52286529541016,
+          -0.0
+        ],
+        "scale": 0.7751937508583069,
+        "server_bounds": {
+          "min_x": -40.3984375,
+          "max_x": -39.6640625,
+          "min_y": 599.365234375,
+          "max_y": 600.078125,
+          "min_z": 4.777682781219482,
+          "max_z": 5.3547258377075195
+        }
+      },
+      {
+        "id": 698339,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglantern01.m2",
+        "internal_position": [
+          17124.15234375,
+          16445.85546875,
+          12.520337104797363
+        ],
+        "server_position": {
+          "x": -57.486328125,
+          "y": 620.810546875,
+          "z": 12.520337104797363
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.3763999938964844,
+        "server_bounds": {
+          "min_x": -58.1796875,
+          "max_x": -56.79296875,
+          "min_y": 620.1171875,
+          "max_y": 621.50390625,
+          "min_z": 12.520337104797363,
+          "max_z": 15.413422584533691
+        }
+      },
+      {
+        "id": 698340,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalbookstackshort01.m2",
+        "internal_position": [
+          17110.380859375,
+          16463.26171875,
+          4.774682998657227
+        ],
+        "server_position": {
+          "x": -43.71484375,
+          "y": 603.404296875,
+          "z": 4.774682998657227
+        },
+        "rotation": [
+          0.0,
+          -4.477137088775635,
+          -0.0
+        ],
+        "scale": 0.7806403040885925,
+        "server_bounds": {
+          "min_x": -43.91015625,
+          "max_x": -43.3203125,
+          "min_y": 603.130859375,
+          "max_y": 603.5859375,
+          "min_z": 4.774682998657227,
+          "max_z": 5.04049015045166
+        }
+      },
+      {
+        "id": 698341,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17125.337890625,
+          16448.748046875,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -58.671875,
+          "y": 617.91796875,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -59.8046875,
+          "max_x": -57.734375,
+          "min_y": 616.78515625,
+          "max_y": 618.853515625,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698342,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17121.583984375,
+          16452.435546875,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -54.91796875,
+          "y": 614.23046875,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -56.05078125,
+          "max_x": -53.98046875,
+          "min_y": 613.09765625,
+          "max_y": 615.166015625,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698343,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17123.564453125,
+          16450.728515625,
+          -5.676460266113281
+        ],
+        "server_position": {
+          "x": -56.8984375,
+          "y": 615.9375,
+          "z": -5.676460266113281
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -57.87890625,
+          "max_x": -55.9296875,
+          "min_y": 614.98046875,
+          "max_y": 616.931640625,
+          "min_z": -5.692130088806152,
+          "max_z": -4.179025650024414
+        }
+      },
+      {
+        "id": 698344,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17122.296875,
+          16451.97265625,
+          -5.676460266113281
+        ],
+        "server_position": {
+          "x": -55.630859375,
+          "y": 614.693359375,
+          "z": -5.676460266113281
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -56.611328125,
+          "max_x": -54.662109375,
+          "min_y": 613.736328125,
+          "max_y": 615.6875,
+          "min_z": -5.692130088806152,
+          "max_z": -4.179025650024414
+        }
+      },
+      {
+        "id": 698345,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar02.m2",
+        "internal_position": [
+          17114.490234375,
+          16449.86328125,
+          3.705824136734009
+        ],
+        "server_position": {
+          "x": -47.82421875,
+          "y": 616.802734375,
+          "z": 3.705824136734009
+        },
+        "rotation": [
+          0.0,
+          -81.47711181640625,
+          -0.0
+        ],
+        "scale": 1.099999189376831,
+        "server_bounds": {
+          "min_x": -48.099609375,
+          "max_x": -47.546875,
+          "min_y": 616.541015625,
+          "max_y": 617.060546875,
+          "min_z": 3.705824136734009,
+          "max_z": 4.255958557128906
+        }
+      },
+      {
+        "id": 698346,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Deadminecargonethangshort.m2",
+        "internal_position": [
+          17127.876953125,
+          16446.92578125,
+          -0.03203074261546135
+        ],
+        "server_position": {
+          "x": -61.2109375,
+          "y": 619.740234375,
+          "z": -0.03203074261546135
+        },
+        "rotation": [
+          4.423020072863437e-06,
+          5.522887229919434,
+          1.6098471178338514e-06
+        ],
+        "scale": 0.5985170006752014,
+        "server_bounds": {
+          "min_x": -62.107421875,
+          "max_x": -60.388671875,
+          "min_y": 618.794921875,
+          "max_y": 620.673828125,
+          "min_z": 2.1439411640167236,
+          "max_z": 5.184555530548096
+        }
+      },
+      {
+        "id": 698347,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalbookstacktall01.m2",
+        "internal_position": [
+          17109.068359375,
+          16464.79296875,
+          4.777682781219482
+        ],
+        "server_position": {
+          "x": -42.40234375,
+          "y": 601.873046875,
+          "z": 4.777682781219482
+        },
+        "rotation": [
+          0.0,
+          -171.4771270751953,
+          -0.0
+        ],
+        "scale": 0.7751936912536621,
+        "server_bounds": {
+          "min_x": -42.830078125,
+          "max_x": -42.197265625,
+          "min_y": 601.6328125,
+          "max_y": 602.349609375,
+          "min_z": 4.777682781219482,
+          "max_z": 5.3547258377075195
+        }
+      },
+      {
+        "id": 698348,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg02.m2",
+        "internal_position": [
+          17124.8046875,
+          16449.509765625,
+          -5.676460266113281
+        ],
+        "server_position": {
+          "x": -58.138671875,
+          "y": 617.15625,
+          "z": -5.676460266113281
+        },
+        "rotation": [
+          0.0,
+          -134.4770965576172,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -59.119140625,
+          "max_x": -57.169921875,
+          "min_y": 616.19921875,
+          "max_y": 618.150390625,
+          "min_z": -5.692130088806152,
+          "max_z": -4.179025650024414
+        }
+      },
+      {
+        "id": 698349,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17124.091796875,
+          16449.970703125,
+          -6.745506286621094
+        ],
+        "server_position": {
+          "x": -57.42578125,
+          "y": 616.6953125,
+          "z": -6.745506286621094
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.149999976158142,
+        "server_bounds": {
+          "min_x": -58.55859375,
+          "max_x": -56.48828125,
+          "min_y": 615.5625,
+          "max_y": 617.630859375,
+          "min_z": -6.746530532836914,
+          "max_z": -5.252285003662109
+        }
+      },
+      {
+        "id": 698350,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17118.58984375,
+          16438.76171875,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -51.923828125,
+          "y": 627.904296875,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -110.47710418701172,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -52.416015625,
+          "max_x": -51.486328125,
+          "min_y": 627.423828125,
+          "max_y": 628.40234375,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698351,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Beerkeg01.m2",
+        "internal_position": [
+          17118.708984375,
+          16454.134765625,
+          3.7356491088867188
+        ],
+        "server_position": {
+          "x": -52.04296875,
+          "y": 612.53125,
+          "z": 3.7356491088867188
+        },
+        "rotation": [
+          0.0,
+          135.5228729248047,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -53.029296875,
+          "max_x": -51.228515625,
+          "min_y": 611.716796875,
+          "max_y": 613.515625,
+          "min_z": 3.7347583770751953,
+          "max_z": 5.034102439880371
+        }
+      },
+      {
+        "id": 698352,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalhanginglantern01.m2",
+        "internal_position": [
+          17103.80078125,
+          16446.44921875,
+          12.45681095123291
+        ],
+        "server_position": {
+          "x": -37.134765625,
+          "y": 620.216796875,
+          "z": 12.45681095123291
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.3763999938964844,
+        "server_bounds": {
+          "min_x": -37.828125,
+          "max_x": -36.44140625,
+          "min_y": 619.5234375,
+          "max_y": 620.91015625,
+          "min_z": 12.45681095123291,
+          "max_z": 15.349896430969238
+        }
+      },
+      {
+        "id": 698353,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17118.927734375,
+          16443.154296875,
+          -6.767024517059326
+        ],
+        "server_position": {
+          "x": -52.26171875,
+          "y": 623.51171875,
+          "z": -6.767024517059326
+        },
+        "rotation": [
+          0.0,
+          -110.47710418701172,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -52.75390625,
+          "max_x": -51.82421875,
+          "min_y": 623.03125,
+          "max_y": 624.009765625,
+          "min_z": -6.767171859741211,
+          "max_z": -5.773816108703613
+        }
+      },
+      {
+        "id": 698354,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Generalcandelabra01.m2",
+        "internal_position": [
+          17117.02734375,
+          16455.412109375,
+          1.5874336957931519
+        ],
+        "server_position": {
+          "x": -50.361328125,
+          "y": 611.25390625,
+          "z": 1.5874336957931519
+        },
+        "rotation": [
+          0.0,
+          11.522883415222168,
+          -0.0
+        ],
+        "scale": 0.9999998807907104,
+        "server_bounds": {
+          "min_x": -50.59765625,
+          "max_x": -50.130859375,
+          "min_y": 610.896484375,
+          "max_y": 611.619140625,
+          "min_z": 1.5874336957931519,
+          "max_z": 2.8827943801879883
+        }
+      },
+      {
+        "id": 698355,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar03.m2",
+        "internal_position": [
+          17115.078125,
+          16449.931640625,
+          3.7042346000671387
+        ],
+        "server_position": {
+          "x": -48.412109375,
+          "y": 616.734375,
+          "z": 3.7042346000671387
+        },
+        "rotation": [
+          0.0,
+          -81.47711944580078,
+          -0.0
+        ],
+        "scale": 1.053096890449524,
+        "server_bounds": {
+          "min_x": -48.69140625,
+          "max_x": -48.1328125,
+          "min_y": 616.470703125,
+          "max_y": 616.99609375,
+          "min_z": 3.7042346000671387,
+          "max_z": 4.26766300201416
+        }
+      },
+      {
+        "id": 698356,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar03.m2",
+        "internal_position": [
+          17115.26171875,
+          16450.748046875,
+          3.7042346000671387
+        ],
+        "server_position": {
+          "x": -48.595703125,
+          "y": 615.91796875,
+          "z": 3.7042346000671387
+        },
+        "rotation": [
+          0.0,
+          -81.47711181640625,
+          -0.0
+        ],
+        "scale": 1.55889892578125,
+        "server_bounds": {
+          "min_x": -49.009765625,
+          "max_x": -48.181640625,
+          "min_y": 615.52734375,
+          "max_y": 616.3046875,
+          "min_z": 3.7042346000671387,
+          "max_z": 4.538277626037598
+        }
+      },
+      {
+        "id": 698357,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Jar03.m2",
+        "internal_position": [
+          17107.564453125,
+          16466.009765625,
+          4.773066997528076
+        ],
+        "server_position": {
+          "x": -40.8984375,
+          "y": 600.65625,
+          "z": 4.773066997528076
+        },
+        "rotation": [
+          0.0,
+          -8.97712516784668,
+          -0.0
+        ],
+        "scale": 1.5588992834091187,
+        "server_bounds": {
+          "min_x": -41.287109375,
+          "max_x": -40.5078125,
+          "min_y": 600.2421875,
+          "max_y": 601.068359375,
+          "min_z": 4.773066997528076,
+          "max_z": 5.607110500335693
+        }
+      },
+      {
+        "id": 698358,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Deadminecargonethangshort.m2",
+        "internal_position": [
+          17129.361328125,
+          16445.470703125,
+          -1.2757534980773926
+        ],
+        "server_position": {
+          "x": -62.6953125,
+          "y": 621.1953125,
+          "z": -1.2757534980773926
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 0.706250011920929,
+        "server_bounds": {
+          "min_x": -63.740234375,
+          "max_x": -61.59375,
+          "min_y": 620.150390625,
+          "max_y": 622.306640625,
+          "min_z": 1.2918932437896729,
+          "max_z": 4.879817485809326
+        }
+      },
+      {
+        "id": 698359,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Innchandelier.m2",
+        "internal_position": [
+          17098.671875,
+          16455.1640625,
+          6.658336162567139
+        ],
+        "server_position": {
+          "x": -32.005859375,
+          "y": 611.501953125,
+          "z": 6.658336162567139
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -33.515625,
+          "max_x": -30.439453125,
+          "min_y": 609.962890625,
+          "max_y": 613.0546875,
+          "min_z": 4.205465793609619,
+          "max_z": 6.655857086181641
+        }
+      },
+      {
+        "id": 698360,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Innchandelier.m2",
+        "internal_position": [
+          17089.091796875,
+          16458.736328125,
+          6.603975772857666
+        ],
+        "server_position": {
+          "x": -22.42578125,
+          "y": 607.9296875,
+          "z": 6.603975772857666
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -23.935546875,
+          "max_x": -20.859375,
+          "min_y": 606.390625,
+          "max_y": 609.482421875,
+          "min_z": 4.1511054039001465,
+          "max_z": 6.601496696472168
+        }
+      },
+      {
+        "id": 698361,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17112.69140625,
+          16451.91015625,
+          0.4277009069919586
+        ],
+        "server_position": {
+          "x": -46.025390625,
+          "y": 614.755859375,
+          "z": 0.4277009069919586
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 0.83416748046875,
+        "server_bounds": {
+          "min_x": -46.44140625,
+          "max_x": -45.64453125,
+          "min_y": 614.37109375,
+          "max_y": 615.171875,
+          "min_z": 0.4275779724121094,
+          "max_z": 1.2562028169631958
+        }
+      },
+      {
+        "id": 698362,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17120.587890625,
+          16431.96875,
+          -6.7244439125061035
+        ],
+        "server_position": {
+          "x": -53.921875,
+          "y": 634.697265625,
+          "z": -6.7244439125061035
+        },
+        "rotation": [
+          0.0,
+          -134.4771270751953,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -54.419921875,
+          "max_x": -53.46484375,
+          "min_y": 634.236328125,
+          "max_y": 635.197265625,
+          "min_z": -6.724591255187988,
+          "max_z": -5.731235504150391
+        }
+      },
+      {
+        "id": 698363,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Westfall_Human_Farmb.wmo",
+        "internal_position": [
+          16907.9140625,
+          16800.7578125,
+          -3.0762109756469727
+        ],
+        "server_position": {
+          "x": 158.751953125,
+          "y": 265.908203125,
+          "z": -3.0762109756469727
+        },
+        "rotation": [
+          0.0,
+          50.815250396728516,
+          -0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 145.556640625,
+          "max_x": 171.52734375,
+          "min_y": 252.861328125,
+          "max_y": 278.955078125,
+          "min_z": -3.103990077972412,
+          "max_z": 24.408493041992188
+        }
+      },
+      {
+        "id": 698364,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16908.462890625,
+          16794.908203125,
+          5.6752777099609375
+        ],
+        "server_position": {
+          "x": 158.203125,
+          "y": 271.7578125,
+          "z": 5.6752777099609375
+        },
+        "rotation": [
+          0.0,
+          140.8152618408203,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 157.806640625,
+          "max_x": 158.62890625,
+          "min_y": 271.38671875,
+          "max_y": 272.166015625,
+          "min_z": 5.675153732299805,
+          "max_z": 6.50990629196167
+        }
+      },
+      {
+        "id": 698365,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16909.3203125,
+          16795.392578125,
+          5.6752777099609375
+        ],
+        "server_position": {
+          "x": 157.345703125,
+          "y": 271.2734375,
+          "z": 5.6752777099609375
+        },
+        "rotation": [
+          0.0,
+          140.8152618408203,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 156.94921875,
+          "max_x": 157.771484375,
+          "min_y": 270.90234375,
+          "max_y": 271.681640625,
+          "min_z": 5.675153732299805,
+          "max_z": 6.50990629196167
+        }
+      },
+      {
+        "id": 698366,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16911.376953125,
+          16799.041015625,
+          5.6752777099609375
+        ],
+        "server_position": {
+          "x": 155.2890625,
+          "y": 267.625,
+          "z": 5.6752777099609375
+        },
+        "rotation": [
+          0.0,
+          140.8152618408203,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": 154.82421875,
+          "max_x": 155.787109375,
+          "min_y": 267.19140625,
+          "max_y": 268.103515625,
+          "min_z": 5.675132751464844,
+          "max_z": 6.651793479919434
+        }
+      },
+      {
+        "id": 698367,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16910.478515625,
+          16797.904296875,
+          5.6752777099609375
+        ],
+        "server_position": {
+          "x": 156.1875,
+          "y": 268.76171875,
+          "z": 5.6752777099609375
+        },
+        "rotation": [
+          0.0,
+          140.8152618408203,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 155.791015625,
+          "max_x": 156.61328125,
+          "min_y": 268.390625,
+          "max_y": 269.169921875,
+          "min_z": 5.675153732299805,
+          "max_z": 6.50990629196167
+        }
+      },
+      {
+        "id": 698368,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Westfall_Human_Farmb.wmo",
+        "internal_position": [
+          16941.01953125,
+          16811.625,
+          -3.164992332458496
+        ],
+        "server_position": {
+          "x": 125.646484375,
+          "y": 255.041015625,
+          "z": -3.164992332458496
+        },
+        "rotation": [
+          0.0,
+          -45.49755096435547,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": 112.58984375,
+          "max_x": 138.748046875,
+          "min_y": 242.1640625,
+          "max_y": 268.333984375,
+          "min_z": -3.1927714347839355,
+          "max_z": 24.31970977783203
+        }
+      },
+      {
+        "id": 698369,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16935.14453125,
+          16811.72265625,
+          5.586496353149414
+        ],
+        "server_position": {
+          "x": 131.521484375,
+          "y": 254.943359375,
+          "z": 5.586496353149414
+        },
+        "rotation": [
+          0.0,
+          44.50245666503906,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 131.134765625,
+          "max_x": 131.94140625,
+          "min_y": 254.525390625,
+          "max_y": 255.328125,
+          "min_z": 5.586372375488281,
+          "max_z": 6.4211249351501465
+        }
+      },
+      {
+        "id": 698370,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16935.533203125,
+          16810.81640625,
+          5.586496353149414
+        ],
+        "server_position": {
+          "x": 131.1328125,
+          "y": 255.849609375,
+          "z": 5.586496353149414
+        },
+        "rotation": [
+          0.0,
+          44.50245666503906,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 130.74609375,
+          "max_x": 131.552734375,
+          "min_y": 255.431640625,
+          "max_y": 256.234375,
+          "min_z": 5.586372375488281,
+          "max_z": 6.4211249351501465
+        }
+      },
+      {
+        "id": 698371,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16938.93359375,
+          16808.37109375,
+          5.586496353149414
+        ],
+        "server_position": {
+          "x": 127.732421875,
+          "y": 258.294921875,
+          "z": 5.586496353149414
+        },
+        "rotation": [
+          0.0,
+          44.50245666503906,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": 127.279296875,
+          "max_x": 128.224609375,
+          "min_y": 257.806640625,
+          "max_y": 258.74609375,
+          "min_z": 5.58635139465332,
+          "max_z": 6.56301212310791
+        }
+      },
+      {
+        "id": 698372,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          16937.900390625,
+          16809.390625,
+          5.586496353149414
+        ],
+        "server_position": {
+          "x": 128.765625,
+          "y": 257.275390625,
+          "z": 5.586496353149414
+        },
+        "rotation": [
+          0.0,
+          44.50245666503906,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": 128.37890625,
+          "max_x": 129.185546875,
+          "min_y": 256.857421875,
+          "max_y": 257.66015625,
+          "min_z": 5.586372375488281,
+          "max_z": 6.4211249351501465
+        }
+      },
+      {
+        "id": 698373,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Duskwood_Human_Farm.wmo",
+        "internal_position": [
+          17469.853515625,
+          16592.123046875,
+          -2.9547042846679688
+        ],
+        "server_position": {
+          "x": -403.1875,
+          "y": 474.54296875,
+          "z": -2.9547042846679688
+        },
+        "rotation": [
+          0.0,
+          -74.35716247558594,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -414.3203125,
+          "max_x": -391.8125,
+          "min_y": 463.1640625,
+          "max_y": 486.265625,
+          "min_z": -2.982483386993408,
+          "max_z": 13.949743270874023
+        }
+      },
+      {
+        "id": 698374,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17464.755859375,
+          16595.04296875,
+          5.796784400939941
+        ],
+        "server_position": {
+          "x": -398.08984375,
+          "y": 471.623046875,
+          "z": 5.796784400939941
+        },
+        "rotation": [
+          0.0,
+          15.642845153808594,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -398.486328125,
+          "max_x": -397.6796875,
+          "min_y": 471.19921875,
+          "max_y": 472.001953125,
+          "min_z": 5.796660423278809,
+          "max_z": 6.631412982940674
+        }
+      },
+      {
+        "id": 698375,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17464.658203125,
+          16594.0625,
+          5.796784400939941
+        ],
+        "server_position": {
+          "x": -397.9921875,
+          "y": 472.603515625,
+          "z": 5.796784400939941
+        },
+        "rotation": [
+          0.0,
+          15.642845153808594,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -398.388671875,
+          "max_x": -397.58203125,
+          "min_y": 472.1796875,
+          "max_y": 472.982421875,
+          "min_z": 5.796660423278809,
+          "max_z": 6.631412982940674
+        }
+      },
+      {
+        "id": 698376,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17466.455078125,
+          16590.28125,
+          5.796784400939941
+        ],
+        "server_position": {
+          "x": -399.7890625,
+          "y": 476.384765625,
+          "z": 5.796784400939941
+        },
+        "rotation": [
+          0.0,
+          15.642845153808594,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": -400.25390625,
+          "max_x": -399.30859375,
+          "min_y": 475.888671875,
+          "max_y": 476.828125,
+          "min_z": 5.796639442443848,
+          "max_z": 6.7733001708984375
+        }
+      },
+      {
+        "id": 698377,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17466.04296875,
+          16591.671875,
+          5.796784400939941
+        ],
+        "server_position": {
+          "x": -399.376953125,
+          "y": 474.994140625,
+          "z": 5.796784400939941
+        },
+        "rotation": [
+          0.0,
+          15.642845153808594,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -399.7734375,
+          "max_x": -398.966796875,
+          "min_y": 474.5703125,
+          "max_y": 475.373046875,
+          "min_z": 5.796660423278809,
+          "max_z": 6.631412982940674
+        }
+      },
+      {
+        "id": 698378,
+        "flags": 4,
+        "adt_id": 0,
+        "name": "Duskwood_Human_Farm.wmo",
+        "internal_position": [
+          17454.9140625,
+          16566.21484375,
+          -3.349043130874634
+        ],
+        "server_position": {
+          "x": -388.248046875,
+          "y": 500.451171875,
+          "z": -3.349043130874634
+        },
+        "rotation": [
+          0.0,
+          -155.0052947998047,
+          0.0
+        ],
+        "scale": 1.0,
+        "server_bounds": {
+          "min_x": -400.45703125,
+          "max_x": -375.662109375,
+          "min_y": 488.169921875,
+          "max_y": 512.548828125,
+          "min_z": -3.3768222332000732,
+          "max_z": 13.555404663085938
+        }
+      },
+      {
+        "id": 698379,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17456.966796875,
+          16571.71875,
+          5.4024457931518555
+        ],
+        "server_position": {
+          "x": -390.30078125,
+          "y": 494.947265625,
+          "z": 5.4024457931518555
+        },
+        "rotation": [
+          0.0,
+          -65.00528717041016,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -390.69921875,
+          "max_x": -389.943359375,
+          "min_y": 494.521484375,
+          "max_y": 495.3515625,
+          "min_z": 5.402321815490723,
+          "max_z": 6.237074375152588
+        }
+      },
+      {
+        "id": 698380,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17455.984375,
+          16571.65625,
+          5.4024457931518555
+        ],
+        "server_position": {
+          "x": -389.318359375,
+          "y": 495.009765625,
+          "z": 5.4024457931518555
+        },
+        "rotation": [
+          0.0,
+          -65.00528717041016,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -389.716796875,
+          "max_x": -388.9609375,
+          "min_y": 494.583984375,
+          "max_y": 495.4140625,
+          "min_z": 5.402321815490723,
+          "max_z": 6.237074375152588
+        }
+      },
+      {
+        "id": 698381,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17452.544921875,
+          16569.267578125,
+          5.4024457931518555
+        ],
+        "server_position": {
+          "x": -385.87890625,
+          "y": 497.3984375,
+          "z": 5.4024457931518555
+        },
+        "rotation": [
+          0.0,
+          -65.00528717041016,
+          -0.0
+        ],
+        "scale": 0.9831932783126831,
+        "server_bounds": {
+          "min_x": -386.345703125,
+          "max_x": -385.4609375,
+          "min_y": 496.900390625,
+          "max_y": 497.87109375,
+          "min_z": 5.402300834655762,
+          "max_z": 6.378961563110352
+        }
+      },
+      {
+        "id": 698382,
+        "flags": 5,
+        "adt_id": 0,
+        "name": "Barrel01.m2",
+        "internal_position": [
+          17453.849609375,
+          16569.900390625,
+          5.4024457931518555
+        ],
+        "server_position": {
+          "x": -387.18359375,
+          "y": 496.765625,
+          "z": 5.4024457931518555
+        },
+        "rotation": [
+          0.0,
+          -65.00528717041016,
+          -0.0
+        ],
+        "scale": 0.8403361439704895,
+        "server_bounds": {
+          "min_x": -387.58203125,
+          "max_x": -386.826171875,
+          "min_y": 496.33984375,
+          "max_y": 497.169921875,
+          "min_z": 5.402321815490723,
+          "max_z": 6.237074375152588
+        }
+      }
+    ],
+    "unique_collision_spawns": 135,
+    "source_noncollision_m2_placements": [
+      {
+        "tile": [
+          30,
+          32
+        ],
+        "name": "WORLD\\AZEROTH\\ELWYNN\\BUILDINGS\\BRIDGES\\ELWYNNFOOTBRIDGE.M2",
+        "unique_id": 21,
+        "reason": "Client M2 bounding triangle/vertex counts are proven zero; native extractor deliberately omits this asset.",
+        "server_position": {
+          "x": -250.685546875,
+          "y": 704.7783203125,
+          "z": -3.7879300117492676
+        }
+      },
+      {
+        "tile": [
+          30,
+          32
+        ],
+        "name": "WORLD\\AZEROTH\\ELWYNN\\BUILDINGS\\BRIDGES\\ELWYNNFOOTBRIDGE.M2",
+        "unique_id": 19,
+        "reason": "Client M2 bounding triangle/vertex counts are proven zero; native extractor deliberately omits this asset.",
+        "server_position": {
+          "x": -185.982421875,
+          "y": 866.6923828125,
+          "z": -4.202657699584961
+        }
+      },
+      {
+        "tile": [
+          30,
+          32
+        ],
+        "name": "WORLD\\AZEROTH\\ELWYNN\\BUILDINGS\\BRIDGES\\ELWYNNFOOTBRIDGE.M2",
+        "unique_id": 18,
+        "reason": "Client M2 bounding triangle/vertex counts are proven zero; native extractor deliberately omits this asset.",
+        "server_position": {
+          "x": -212.41796875,
+          "y": 579.57421875,
+          "z": -3.8918871879577637
+        }
+      }
+    ]
+  },
+  "entry": {
+    "x": 266.667,
+    "y": 800.0,
+    "ground_z": 0.0,
+    "teleport_z": 2.0,
+    "map_id": 725,
+    "area_id": 4988,
+    "dry": true,
+    "tile": [
+      30,
+      31
+    ],
+    "slope_degrees": 0.0,
+    "outside_collision_bounds_margin": 5,
+    "nav_ground_projection": {
+      "polygon": 595,
+      "nav_z": 0.21655654907226562,
+      "ground_delta": 0.21655654907226562,
+      "flags": 1,
+      "area": 11
+    },
+    "physical_player_walk_verified": false
+  },
+  "ok": true,
+  "private_verification_sha256": "2194b7d474a8df6dbce8bda9130a941d117f0c1caf96d25c4e8845ccb6509d86"
+}
