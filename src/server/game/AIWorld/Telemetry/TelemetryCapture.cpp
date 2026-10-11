@@ -19,13 +19,96 @@
 #include "Agent/LivingForagePolicy.h"
 #include "Creature.h"
 #include "Map.h"
+#include "MapManager.h"
 #include "MoveSpline.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include <algorithm>
 
+void AIWorldMgr::UpdateTelemetry(uint32 diff)
+{
+    if (!_telemetryExporter || (!_enabled && !_telemetryNativeCreaturesEnabled))
+        return;
+    _telemetryTimer += diff;
+    if (_telemetryTimer >= 1000)
+    {
+        _telemetryTimer = 0;
+        if (!_telemetryExporter->Busy())
+            CaptureTelemetry(sMapMgr->FindBaseNonInstanceMap(GetSimulationScope().MapId));
+    }
+}
+
+void AIWorldMgr::CaptureNativeTelemetry(Map* scopeMap)
+{
+    std::vector<AgentTelemetrySnapshot> snapshots;
+    snapshots.reserve(_telemetrySpawnIds.size());
+    for (uint64 spawnId : GetSimulationScope().SpawnIds)
+    {
+        if (!_telemetrySpawnIds.count(spawnId))
+            continue;
+        CreatureData const* spawn = sObjectMgr->GetCreatureData(spawnId);
+        if (!spawn)
+            continue;
+        AgentTelemetrySnapshot item;
+        item.Agent = AgentId{spawnId};
+        item.SpawnId = spawnId;
+        item.Entry = spawn->id;
+        item.NativeCreature = true;
+        if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(item.Entry))
+            item.Name = creatureTemplate->Name;
+        item.Type = _agentTypeCatalog.Resolve(item.Entry);
+        item.WorldFaction = _worldFactionCatalog.Resolve(item.Entry);
+        uint32 reputationFactionId;
+        if (_worldFactionReputationCatalog.TryResolve(item.WorldFaction, reputationFactionId))
+            item.ReputationFactionId = reputationFactionId;
+        item.MapId = spawn->mapId;
+        item.SpawnX = spawn->spawnPoint.GetPositionX();
+        item.SpawnY = spawn->spawnPoint.GetPositionY();
+        item.SpawnZ = spawn->spawnPoint.GetPositionZ();
+        item.Home = ActionPosition{item.MapId, item.SpawnX, item.SpawnY, item.SpawnZ};
+        // Lookup only: capture never loads a grid, changes movement or creates
+        // an agent. Unloaded/respawning NPCs keep a labelled spawn fallback.
+        if (Creature* creature = scopeMap ? scopeMap->GetCreatureBySpawnId(spawnId) : nullptr)
+        {
+            AgentSnapshot live;
+            live.Agent = item.Agent; live.SpawnId = spawnId; live.Entry = creature->GetEntry();
+            live.MapId = creature->GetMapId();
+            live.X = creature->GetPositionX(); live.Y = creature->GetPositionY(); live.Z = creature->GetPositionZ();
+            live.Orientation = creature->GetOrientation();
+            live.Health = creature->GetHealth(); live.MaxHealth = creature->GetMaxHealth();
+            live.Alive = creature->IsAlive(); live.InCombat = creature->IsInCombat();
+            item.Live = live;
+            item.WorldState = AgentWorldState::Materialized;
+            item.Tier = SimulationTier::Active;
+            item.FactionTemplateId = creature->GetFaction();
+            MovementTelemetry movement;
+            movement.Moving = !creature->IsStopped();
+            movement.Blocked = creature->HasUnitState(UNIT_STATE_NOT_MOVE) || creature->IsMovementPreventedByCasting();
+            movement.CannotReachTarget = creature->CanNotReachTarget();
+            movement.Evading = creature->IsInEvadeMode();
+            movement.RunSpeed = creature->GetSpeed(MOVE_RUN);
+            movement.MoveSpeed = movement.Moving ? creature->movespline->Velocity() : 0.0f;
+            movement.HomeDistance = creature->GetExactDist2d(&creature->GetHomePosition());
+            item.Movement = movement;
+            if (Unit* victim = creature->GetVictim())
+                if (Creature* target = victim->ToCreature())
+                    item.Target = TargetTelemetry{target->GetSpawnId(), target->GetEntry(), target->GetName(),
+                        {target->GetMapId(), target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()}};
+        }
+        snapshots.push_back(std::move(item));
+    }
+    // Native observer IDs have no persistent AI memory identity.
+    _telemetryExporter->TakeMemoryRequest();
+    _telemetryExporter->Submit(std::move(snapshots), GetCurrentTimeMs());
+}
+
 void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
 {
+    if (_telemetryNativeCreaturesEnabled)
+    {
+        CaptureNativeTelemetry(scopeMap);
+        return;
+    }
     uint64 nowMs = GetCurrentTimeMs();
     std::vector<AgentTelemetrySnapshot> snapshots;
     std::vector<AgentId> ids = _registry.GetAgents();

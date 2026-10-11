@@ -179,6 +179,9 @@ struct AgentTelemetrySnapshot
     std::string Name;
     AgentType Type = AgentType::Unclassified;
     AgentControlMode ControlMode = AgentControlMode::ObserveOnly;
+    // Native observations use the persistent SpawnId as the viewer identity;
+    // they are not AgentRegistry records and have no AI needs/economy/memory.
+    bool NativeCreature = false;
     WorldFactionId WorldFaction;
     std::optional<uint32> ReputationFactionId, FactionTemplateId;
     AgentWorldState WorldState = AgentWorldState::Abstract;

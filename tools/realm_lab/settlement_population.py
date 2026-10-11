@@ -34,6 +34,9 @@ FACTION_COUNTS = {"stormwind": 44, "defias": 16, "gnolls": 6,
                   "murlocs": 6, "kobolds": 8, "wildlife": 20}
 BOUNDS = {"min_x": -533.3333129882812, "max_x": 533.3333129882812,
           "min_y": 0.0, "max_y": 1066.6666259765625}
+# Exact outer tile edges would also activate their adjacent missing grids.
+ACTIVE_BOUNDS = {key: value + (1 if key.startswith("min_") else -1)
+                 for key, value in BOUNDS.items()}
 TEMPLATE_FIELDS = "entry ai_name script_name regenerate_health vehicle npcflag unit_flags unit_flags2 faction minlevel maxlevel flags_extra".split()
 SMART_FIELDS = ("entryorguid source_type id link event_type event_phase_mask event_chance event_flags "
                 "event_param1 event_param2 event_param3 event_param4 event_param5 action_type "
@@ -236,6 +239,23 @@ class Population:
     @property
     def spawn_ids(self) -> str:
         return ",".join(str(actor.spawn_id) for actor in self.actors)
+
+    def config(self) -> dict[str, str]:
+        require(all(ACTIVE_BOUNDS["min_x"] <= actor.x <= ACTIVE_BOUNDS["max_x"] and
+                    ACTIVE_BOUNDS["min_y"] <= actor.y <= ACTIVE_BOUNDS["max_y"] for actor in self.actors),
+                "Settlement actors must stay inside the active four-grid scope")
+        return {
+            "AIWorld.ScopeMapId": "725",
+            "AIWorld.ScopeZoneIds": '"4988"',
+            "AIWorld.ScopeBoundsEnabled": "1",
+            "AIWorld.ScopeMinX": str(ACTIVE_BOUNDS["min_x"]),
+            "AIWorld.ScopeMaxX": str(ACTIVE_BOUNDS["max_x"]),
+            "AIWorld.ScopeMinY": str(ACTIVE_BOUNDS["min_y"]),
+            "AIWorld.ScopeMaxY": str(ACTIVE_BOUNDS["max_y"]),
+            "AIWorld.ScopeSpawnIds": f'"{self.spawn_ids}"',
+            "AIWorld.ScopeRestrictAgents": "1",
+            "AIWorld.ScopeAlwaysActive": "1",
+        }
 
     def observer_environment(self) -> dict[str, str]:
         return {"WORLD_VIEWER_SCOPE_MAP_ID": "725", "WORLD_VIEWER_SCOPE_ZONE_IDS": "4988",

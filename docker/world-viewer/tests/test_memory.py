@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.memory import MAX_PENDING
 from app.telemetry import MEMORY_PAGE_SIZE, MAX_REQUEST_BYTES
-from test_world_viewer import v2_batch
+from test_world_viewer import v2_batch, native_batch
 
 
 def memory_fixture():
@@ -18,6 +18,42 @@ def memory_fixture():
 
 
 class MemoryApiTests(unittest.TestCase):
+    def test_native_memory_is_unsupported_and_never_queued(self):
+        payload = native_batch()
+        self.assertEqual(self.post(payload).status_code, 200)
+        for agent_id in (901000, 901093):
+            for query in ('', '?refresh=true', '?offset=25&anchor=50'):
+                response = self.client.get(f'/api/agents/{agent_id}/memory{query}')
+                self.assertEqual(response.json(), {'status': 'unsupported'})
+        self.assertFalse(self.client.app.state.memory_pages.pending)
+        self.assertFalse(self.client.app.state.memory_pages.cached)
+        self.assertNotIn('x-observer-memory-request', self.post(payload).headers)
+
+    def test_native_snapshot_prunes_old_ai_requests_and_cache_for_same_id(self):
+        page = self.requested_page()
+        self.post({**self.payload, 'memory_page': page})
+        self.assertTrue(self.client.app.state.memory_pages.cached)
+        self.client.get('/api/agents/80543/memory')
+        payload = native_batch()
+        for actor, agent_id in zip(payload['agents'], (80542, 80543)):
+            actor.update(agent_id=agent_id, spawn_id=agent_id)
+        response = self.post(payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertFalse(self.client.app.state.memory_pages.cached)
+        self.assertFalse(self.client.app.state.memory_pages.pending)
+        self.assertNotIn('x-observer-memory-request', response.headers)
+        self.assertEqual(self.client.get('/api/agents/80542/memory').json(), {'status': 'unsupported'})
+
+    def test_native_memory_page_is_rejected_without_replacing_snapshot(self):
+        payload = native_batch()
+        self.post(payload)
+        page = memory_fixture()['memory_page']
+        page.update(agent_id=901000)
+        response = self.post({**payload, 'memory_page': page})
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(self.client.get('/api/state').json()['agents'][0]['agent_id'], 901000)
+        self.assertFalse(self.client.app.state.memory_pages.cached)
+
     def setUp(self):
         self.client = TestClient(create_app("test-secret"))
         self.headers = {"Authorization": "Bearer test-secret"}

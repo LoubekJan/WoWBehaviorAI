@@ -53,6 +53,10 @@ def v2_batch() -> dict:
     return json.loads((Path(__file__).parent / "fixtures" / "telemetry_v2.json").read_text(encoding="utf-8"))
 
 
+def native_batch() -> dict:
+    return json.loads((Path(__file__).parent / "fixtures" / "telemetry_v4_native.json").read_text(encoding="utf-8"))
+
+
 def navigation_diagnostics() -> dict:
     return {'mesh': True, 'start_tile': True, 'end_tile': True,
             'filter': 3, 'start_flags': 2, 'end_flags': 1,
@@ -71,6 +75,54 @@ def return_recovery() -> dict:
 
 
 class WorldViewerApiTests(unittest.TestCase):
+    def test_native_loaded_and_spawn_only_observations_roundtrip_without_ai_state(self):
+        payload = native_batch()
+        response = self.client.post('/internal/telemetry', headers=self.headers, json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        observed = self.client.get('/api/state').json()['agents']
+        self.assertEqual([a['native_creature'] for a in observed], [True, True])
+        self.assertEqual(observed[0]['position'], payload['agents'][0]['position'])
+        self.assertTrue(observed[0]['alive'])
+        self.assertEqual(observed[1]['position']['source'], 'spawn')
+        for current in observed:
+            self.assertIsNone(current['needs'])
+            self.assertIsNone(current['economy'])
+            self.assertIsNone(current['living_role'])
+        for key in ('health', 'max_health', 'alive', 'in_combat', 'movement', 'faction_template_id'):
+            self.assertIsNone(observed[1][key])
+
+    def test_full_native_population_and_legacy_default_provenance(self):
+        payload = native_batch()
+        prototype = payload['agents'][0]
+        payload['agents'] = [{**prototype, 'agent_id': 901000 + i, 'spawn_id': 901000 + i} for i in range(100)]
+        response = self.client.post('/internal/telemetry', headers=self.headers, json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), {'accepted': 100})
+        self.assertTrue(all(a['native_creature'] for a in self.client.get('/api/state').json()['agents']))
+        self.client.post('/internal/telemetry', headers=self.headers, json=batch())
+        self.assertFalse(self.client.get('/api/state').json()['agents'][0]['native_creature'])
+        missing_needs = agent()
+        missing_needs.pop('needs')
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=batch([missing_needs])).status_code, 422)
+
+    def test_native_provenance_rejects_ai_state_and_invented_unloaded_observations(self):
+        payload = native_batch()
+        self.client.post('/internal/telemetry', headers=self.headers, json=payload)
+        changes = [('control_mode', 'AI_WORLD_CONTROLLED'), ('native_creature', 1),
+                   ('native_creature', 'true'), ('needs', agent()['needs']),
+                   ('economy', {'money': '0', 'food': 0, 'resource': 0}), ('living_wolf', True)]
+        for field, value in changes:
+            with self.subTest(field=field, value=value):
+                invalid = copy.deepcopy(payload)
+                invalid['agents'][0][field] = value
+                self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=invalid).status_code, 422)
+        for field in ('health', 'max_health', 'alive', 'in_combat', 'movement', 'faction_template_id'):
+            with self.subTest(unloaded_field=field):
+                invalid = copy.deepcopy(payload)
+                invalid['agents'][1][field] = payload['agents'][0][field]
+                self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=invalid).status_code, 422)
+        self.assertIsNone(self.client.get('/api/state').json()['agents'][1]['alive'])
+
     def test_admission_evidence_roundtrips_without_becoming_model_requests(self):
         payload = v2_batch()
         payload['version'] = 4
@@ -354,6 +406,8 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(state["version"], 2)
         # v2 omitted this later optional field; all original values survive.
         expected = copy.deepcopy(payload["agents"])
+        for observed in expected:
+            observed['native_creature'] = False
         expected[0]["living_role"]["return_recovery"] = None
         expected[0]["living_role"]["advice"] = None
         expected[0]["living_role"]["forage"] = None

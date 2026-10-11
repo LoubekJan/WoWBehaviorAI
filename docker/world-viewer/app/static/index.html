@@ -60,13 +60,13 @@
         <div id="memory-list" class="memory-list"></div>
         <div class="memory-nav"><button id="memory-prev" type="button" disabled>← Předchozí</button><button id="memory-next" type="button" disabled>Další →</button></div>
       </details>
-      <div class="detail-section"><div class="section-title">POTŘEBY</div><div id="needs"></div></div>
-      <div class="detail-section"><div class="section-title">ROZHODOVÁNÍ</div><dl class="facts"><div><dt>Cíl</dt><dd id="detail-goal"></dd></div><div><dt>Utility</dt><dd id="detail-utility"></dd></div><div><dt>Akce</dt><dd id="detail-action"></dd></div><div><dt>Rutina</dt><dd id="detail-routine"></dd></div></dl></div>
+      <div id="needs-section" class="detail-section"><div class="section-title">POTŘEBY</div><div id="needs"></div></div>
+      <div id="decision-section" class="detail-section"><div class="section-title">ROZHODOVÁNÍ</div><dl class="facts"><div><dt>Cíl</dt><dd id="detail-goal"></dd></div><div><dt>Utility</dt><dd id="detail-utility"></dd></div><div><dt>Akce</dt><dd id="detail-action"></dd></div><div><dt>Rutina</dt><dd id="detail-routine"></dd></div></dl></div>
       <p id="detail-availability" class="hint"></p>
-      <details class="detail-section" open><summary>Živá činnost a vnímání</summary><dl id="role-facts" class="facts"></dl></details>
-      <details class="detail-section" open><summary>Lov a pomoc spojencům</summary><dl id="hunt-facts" class="facts"></dl></details>
+      <details id="role-section" class="detail-section" open><summary>Živá činnost a vnímání</summary><dl id="role-facts" class="facts"></dl></details>
+      <details id="hunt-section" class="detail-section" open><summary>Lov a pomoc spojencům</summary><dl id="hunt-facts" class="facts"></dl></details>
       <details class="detail-section"><summary>Pohyb a cíl</summary><dl id="movement-facts" class="facts"></dl></details>
-      <details class="detail-section" open><summary>Zásoby a rutina</summary><dl id="economy-facts" class="facts"></dl></details>
+      <details id="economy-section" class="detail-section" open><summary>Zásoby a rutina</summary><dl id="economy-facts" class="facts"></dl></details>
       <details class="detail-section"><summary>Skupiny, koordinace a frakce</summary><dl id="coordination-facts" class="facts"></dl><div id="group-cards"></div></details>
     </div></aside>
   </main>

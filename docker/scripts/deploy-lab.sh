@@ -81,8 +81,35 @@ assert config == render_config(template, settings)
 assert "Updates.EnableDatabases = 6" in config
 expected_enable = "1" if settings.ai_profile in ("single-return", "hunt-cycle", "hunt-100", "hunt-terrain-100") else "0"
 assert f"AIWorld.Enable = {expected_enable}\n" in config
+if settings.ai_profile == "settlement-v8":
+    assert "AIWorld.TelemetryEnabled = 1\n" in config
+    assert "AIWorld.TelemetryNativeCreaturesEnabled = 1\n" in config
 assert f"RealmID = {settings.realm_id}\n" in config
 print("Lab realm ID, shared-auth migration exclusion and rendered AI profile verified:", settings.ai_profile)
 '
+if [ "$lab_profile" = settlement-v8 ]; then
+  "${lab_compose[@]}" exec -T --interactive=false worldserver python3 -c '
+import json, time, urllib.request
+expected = set(range(901000, 901100))
+previous = None
+for attempt in range(30):
+    with urllib.request.urlopen("http://world-viewer:8000/api/state", timeout=5) as response:
+        state = json.load(response)
+    actors = state["agents"]
+    if not state["stale"] and {a["spawn_id"] for a in actors} == expected:
+        assert len(actors) == 100
+        assert all(a["native_creature"] and a["control_mode"] == "OBSERVE_ONLY" and
+                   a["position"]["map_id"] == 725 and a["needs"] is None and
+                   a["economy"] is None and a["living_role"] is None for a in actors)
+        captured = state["captured_at_ms"]
+        if previous is not None and captured > previous:
+            print("Native NPC telemetry verified: 100 selected spawns, two fresh snapshots, AI management disabled")
+            break
+        previous = captured
+    time.sleep(1)
+else:
+    raise RuntimeError("Native NPC telemetry did not produce two fresh complete snapshots")
+'
+fi
 "${lab_compose[@]}" ps
 echo "Lab deployed. Physical movement and return acceptance remain separate from service health."

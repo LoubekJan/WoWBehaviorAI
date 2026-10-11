@@ -40,3 +40,35 @@ test("a late fetch cannot replace memory of a newly selected NPC", async () => {
     global.document = originalDocument; global.fetch = originalFetch;
   }
 });
+
+test("native selection never fetches memory and cancels an earlier AI request for the same ID", async () => {
+  const elements = new Map();
+  const originalDocument = global.document, originalFetch = global.fetch;
+  global.document = { getElementById(id) {
+    if (!elements.has(id)) elements.set(id, { addEventListener() {}, replaceChildren() {}, disabled: false, textContent: "" });
+    return elements.get(id);
+  } };
+  const requests = [];
+  global.fetch = (url) => new Promise(resolve => requests.push({ url, resolve }));
+  try {
+    const panel = new ObserverMemoryPanel();
+    const rendered = [];
+    panel.render = page => rendered.push(page.agent_id);
+    panel.select({ agent_id: 901000, native_creature: true }, 4);
+    assert.equal(requests.length, 0);
+    assert.equal(elements.get("memory-refresh").disabled, true);
+    assert.match(elements.get("memory-status").textContent, /nemá dlouhodobou AI paměť/);
+    panel.load(25, 50, true);
+    assert.equal(requests.length, 0);
+    panel.select({ agent_id: 901000, native_creature: false }, 4);
+    assert.equal(requests.length, 1);
+    panel.select({ agent_id: 901000, native_creature: true }, 4);
+    requests[0].resolve({ ok: true, json: async () => ({ status: "ready", agent_id: 901000 }) });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(rendered, []);
+    assert.equal(requests.length, 1);
+    panel.select(null, 4);
+  } finally {
+    global.document = originalDocument; global.fetch = originalFetch;
+  }
+});

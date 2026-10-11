@@ -357,6 +357,7 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         WriteString(out, ToString(item.Type));
         out << ",\"control_mode\":";
         WriteString(out, ToString(item.ControlMode));
+        WriteJsonField(out, "native_creature", item.NativeCreature);
         out << ",\"world_faction\":" << item.WorldFaction.Value
             << ",\"world_state\":";
         WriteString(out, item.Live ? "MATERIALIZED" : "ABSTRACT");
@@ -377,17 +378,23 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         if (item.Live) out << (item.Live->Alive ? "true" : "false"); else out << "null";
         out << ",\"in_combat\":";
         if (item.Live) out << (item.Live->InCombat ? "true" : "false"); else out << "null";
-        out << ",\"needs\":{\"health_pressure\":";
-        WriteFloat(out, item.Needs.HealthPressure);
-        out << ",\"hunger\":";
-        WriteFloat(out, item.Needs.Hunger);
-        out << ",\"fatigue\":";
-        WriteFloat(out, item.Needs.Fatigue);
-        out << ",\"safety_pressure\":";
-        WriteFloat(out, item.Needs.SafetyPressure);
-        out << ",\"resource_pressure\":";
-        WriteFloat(out, item.Needs.ResourcePressure);
-        out << "},\"goal\":";
+        if (item.NativeCreature)
+            out << ",\"needs\":null";
+        else
+        {
+            out << ",\"needs\":{\"health_pressure\":";
+            WriteFloat(out, item.Needs.HealthPressure);
+            out << ",\"hunger\":";
+            WriteFloat(out, item.Needs.Hunger);
+            out << ",\"fatigue\":";
+            WriteFloat(out, item.Needs.Fatigue);
+            out << ",\"safety_pressure\":";
+            WriteFloat(out, item.Needs.SafetyPressure);
+            out << ",\"resource_pressure\":";
+            WriteFloat(out, item.Needs.ResourcePressure);
+            out << '}';
+        }
+        out << ",\"goal\":";
         if (item.Goal) WriteString(out, ToString(*item.Goal)); else out << "null";
         out << ",\"goal_utility\":";
         if (item.GoalUtility) WriteFloat(out, *item.GoalUtility); else out << "null";
@@ -397,11 +404,16 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         if (item.Action) WriteString(out, ToString(*item.Action)); else out << "null";
         out << ",\"group_id\":";
         if (item.GroupId) out << *item.GroupId; else out << "null";
-        out << ",\"economy\":{\"money\":";
-        // Decimal string preserves uint64 copper exactly in JavaScript.
-        WriteString(out, std::to_string(item.Economy.Money));
-        WriteJsonField(out, "food", item.Economy.Food); WriteJsonField(out, "resource", item.Economy.Resource);
-        out << '}';
+        if (item.NativeCreature)
+            out << ",\"economy\":null";
+        else
+        {
+            out << ",\"economy\":{\"money\":";
+            // Decimal string preserves uint64 copper exactly in JavaScript.
+            WriteString(out, std::to_string(item.Economy.Money));
+            WriteJsonField(out, "food", item.Economy.Food); WriteJsonField(out, "resource", item.Economy.Resource);
+            out << '}';
+        }
         WriteJsonField(out, "home", item.Home); WriteJsonField(out, "work", item.Work);
         WriteJsonField(out, "reputation_faction_id", item.ReputationFactionId);
         WriteJsonField(out, "faction_template_id", item.Live ? item.FactionTemplateId : std::nullopt);

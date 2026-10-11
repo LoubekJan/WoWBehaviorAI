@@ -195,6 +195,23 @@ function facts(id, rows) {
 function showDiagnostics(agent) {
   const role = agent.living_role, movement = agent.movement;
   const recovery = role?.return_recovery;
+  if (agent.native_creature) {
+    text("detail-availability", agent.position.source === "live" ?
+      "Běžné NPC · skutečný stav Creature; AI potřeby, ekonomika a paměť nejsou dostupné." :
+      "Běžné NPC není načtené; zobrazena je spawn pozice. Zdraví, boj a pohyb nejsou dostupné.");
+    for (const id of ["role-facts", "hunt-facts", "economy-facts", "group-cards"]) $(id).replaceChildren();
+    facts("movement-facts", [
+      ["Pohybuje se", yes(movement?.moving)], ["Pohyb blokován", yes(movement?.blocked)],
+      ["Nedosažitelný cíl", yes(movement?.cannot_reach_target)], ["Evade", yes(movement?.evading)],
+      ["Rychlost běh / pohyb", movement ? `${fixed(movement.run_speed)} / ${fixed(movement.move_speed)} yd/s` : null],
+      ["Vzdálenost od domova", movement ? `${fixed(movement.home_distance)} yd` : null],
+      ["Domov", pointText(agent.home)], ["Cíl Creature", agent.target ? `${agent.target.name} · ${agent.target.spawn_id}` : null],
+      ["Místo přesunu", pointText(agent.destination)],
+    ]);
+    facts("coordination-facts", [["Reputační Faction.dbc ID", agent.reputation_faction_id],
+      ["Aktuální FactionTemplate ID", agent.faction_template_id]]);
+    return;
+  }
   text("detail-availability", agent.position.source !== "live" ? "Background: živá činnost a pohyb nejsou dostupné. Zásoby a členství jsou stavem registru." :
     snapshot.version < 2 ? "Starší telemetrie: pro nové údaje aktualizujte worldserver." : !role ? "Činnost není navázaná na aktuální Creature." : "");
   facts("role-facts", [
@@ -263,7 +280,10 @@ function showDetail() {
   $("detail-empty").hidden = Boolean(agent);
   $("detail-content").hidden = !agent;
   if (!agent) return;
-  text("detail-type", agent.type);
+  const aiSupported = ObserverModel.aiDetailsSupported(agent);
+  for (const id of ["memory-section", "needs-section", "decision-section", "role-section", "hunt-section", "economy-section"])
+    $(id).hidden = !aiSupported;
+  text("detail-type", agent.native_creature ? `${agent.type} · běžné NPC` : agent.type);
   text("detail-name", agent.name || `Agent ${agent.agent_id}`);
   text("detail-source", agent.position.source === "live" ? "● Live Creature position" : agent.position.source === "spawn" ? "○ Background · spawn position (non-live)" : "○ Background · last known position (non-live)");
   text("detail-id", agent.agent_id);
@@ -271,8 +291,8 @@ function showDetail() {
   text("detail-entry", agent.entry);
   text("detail-faction", factionLabel(agent.world_faction));
   text("detail-control", agent.control_mode);
-  text("detail-state", agent.world_state);
-  text("detail-tier", agent.simulation_tier);
+  text("detail-state", agent.native_creature ? null : agent.world_state);
+  text("detail-tier", agent.native_creature ? null : agent.simulation_tier);
   text("detail-group", ObserverModel.groupIds(agent).join(", "));
   text("detail-health", agent.health === null || agent.health === undefined ? "Zdraví —" : `Zdraví ${agent.health} / ${agent.max_health ?? "—"}`);
   text("detail-combat", agent.in_combat === null || agent.in_combat === undefined ? "Boj —" : agent.in_combat ? "⚔ V boji" : "Mimo boj");
@@ -286,7 +306,7 @@ function showDetail() {
     ["HealthPressure", "health_pressure"], ["Hunger", "hunger"], ["Fatigue", "fatigue"],
     ["SafetyPressure", "safety_pressure"], ["ResourcePressure", "resource_pressure"],
   ];
-  $("needs").replaceChildren(...labels.map(([label, key]) => {
+  $("needs").replaceChildren(...(aiSupported ? labels : []).map(([label, key]) => {
     const row = document.createElement("div"); row.className = `need-row ${agent.needs[key] > 0.7 ? "high" : ""}`;
     const name = document.createElement("span"); name.textContent = label;
     const track = document.createElement("div"); track.className = "need-track";

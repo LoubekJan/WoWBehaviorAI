@@ -124,6 +124,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.EnableSpawnReconciliation": "0",
         "AIWorld.EnableZoneControlActivation": "0",
         "AIWorld.TelemetryEnabled": "0",
+        "AIWorld.TelemetryNativeCreaturesEnabled": "0",
         "AIWorld.LivingWolvesEnabled": "0",
         "AIWorld.LivingRolesEnabled": "0",
         "AIWorld.LocalRecoverySpawnId": "0",
@@ -182,6 +183,16 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
                        "AIWorld.NeedsHungerRatePerSecond": "0.003",
                        "AIWorld.NeedsFatigueRatePerSecond": "0",
                        "AIWorld.NeedsResourcePressureRatePerSecond": "0"})
+    elif settings.ai_profile == settlement_population.PROFILE:
+        if scope is not None and not isinstance(scope, settlement_population.Population):
+            raise SetupError("Population does not match the selected lab profile")
+        population = scope or settlement_population.Population.load()
+        if population.profile != settings.ai_profile:
+            raise SetupError("Population does not match the selected lab profile")
+        result.update(population.config())
+        result.update({"AIWorld.TelemetryEnabled": "1",
+                       "AIWorld.TelemetryNativeCreaturesEnabled": "1",
+                       "AIWorld.TelemetryHost": "world-viewer", "AIWorld.TelemetryPort": "8000"})
     return result
 
 
@@ -424,6 +435,7 @@ def main() -> None:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = population_preflight(Path("/runtime/data"), settings, control=1, profile=settings.ai_profile)
             elif settings.ai_profile == settlement_population.PROFILE:
+                value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = settlement_preflight(Path("/runtime/data"), settings)
             rendered = render_config(args.template.read_text(encoding="utf-8"), settings, scope)
             dest = Path("/tmp/lab-worldserver.conf")

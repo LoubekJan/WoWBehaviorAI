@@ -1,5 +1,6 @@
 """Deployment guards for the static authored-map NPC population."""
 import copy
+from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
@@ -112,6 +113,7 @@ class SettlementPopulationTests(unittest.TestCase):
         self.assertEqual(len(population.geometry_files), 61)
         self.assertEqual({actor.entry for actor in population.actors},
                          {row["entry"] for row in population.templates})
+        population.config()  # Every published actor must fit the four loaded grids.
 
     def test_complete_native_closure_and_reserved_counts(self):
         self.assertEqual(settlement.verify_data(self.data, self.metadata), self.population)
@@ -290,13 +292,39 @@ class SettlementPopulationTests(unittest.TestCase):
                 settlement.ensure_world_offline()
             connect.assert_not_called()
 
-    def test_settlement_profile_keeps_all_ai_and_telemetry_off(self):
+    def test_settlement_profile_observes_exact_native_population_with_ai_off(self):
         settings = manage.Settings.load({**environment(), "LAB_AI_PROFILE": settlement.PROFILE})
         config = manage.config_overrides(settings, self.population)
-        for key in ("Enable", "TelemetryEnabled", "LivingRolesEnabled", "LivingNeedEvolutionEnabled",
-                    "ScopeAlwaysActive", "EnableSpawnReconciliation", "EnableZoneControlActivation"):
+        for key in ("Enable", "LivingRolesEnabled", "LivingNeedEvolutionEnabled", "LivingWolvesEnabled",
+                    "EnableSpawnReconciliation", "EnableZoneControlActivation", "RemoteInferenceEnabled",
+                    "GroupCoordination", "GroupCoarseSimulationEnabled", "CoalitionMaintenance",
+                    "WolfGroupAutoFormation", "DefiasGroupAutoFormation", "LivingRoleExtensionsEnabled",
+                    "DynamicTaskEnable", "RecoveryAdviceEnabled"):
             self.assertEqual(config[f"AIWorld.{key}"], "0")
+        for key in ("TelemetryEnabled", "TelemetryNativeCreaturesEnabled", "ScopeRestrictAgents",
+                    "ScopeAlwaysActive", "ScopeBoundsEnabled"):
+            self.assertEqual(config[f"AIWorld.{key}"], "1")
+        self.assertEqual(config["AIWorld.TelemetryHost"], "world-viewer")
+        self.assertEqual(config["AIWorld.TelemetryPort"], "8000")
+        self.assertEqual(config["AIWorld.ScopeMapId"], "725")
+        self.assertEqual(config["AIWorld.ScopeZoneIds"], '"4988"')
+        self.assertEqual([int(value) for value in config["AIWorld.ScopeSpawnIds"].strip('"').split(",")],
+                         list(range(901000, 901100)))
+        for field, key in (("min_x", "MinX"), ("max_x", "MaxX"), ("min_y", "MinY"), ("max_y", "MaxY")):
+            offset = 1 if field.startswith("min_") else -1
+            self.assertEqual(float(config[f"AIWorld.Scope{key}"]), settlement.BOUNDS[field] + offset)
+        self.assertTrue(all(float(config["AIWorld.ScopeMinX"]) <= actor.x <= float(config["AIWorld.ScopeMaxX"]) and
+                            float(config["AIWorld.ScopeMinY"]) <= actor.y <= float(config["AIWorld.ScopeMaxY"])
+                            for actor in self.population.actors))
         self.assertEqual(config["Updates.EnableDatabases"], "6")
+        defaults = manage.config_overrides(manage.Settings.load(environment()))
+        self.assertEqual(defaults["AIWorld.TelemetryNativeCreaturesEnabled"], "0")
+        rendered = manage.render_config((ROOT / "deploy/worldserver.conf").read_text(encoding="utf-8"),
+                                        settings, self.population)
+        self.assertIn("AIWorld.Enable = 0\n", rendered)
+        self.assertIn("AIWorld.TelemetryEnabled = 1\n", rendered)
+        self.assertIn("AIWorld.TelemetryNativeCreaturesEnabled = 1\n", rendered)
+        self.assertIn('AIWorld.ScopeSpawnIds = "' + self.population.spawn_ids + '"\n', rendered)
         with self.assertRaises(manage.SetupError):
             manage.Settings.load({**environment(), "LAB_AI_PROFILE": settlement.PROFILE, "LAB_REALM_ID": "3"})
         with patch.dict(run_scoped.os.environ, {"LAB_AI_PROFILE": settlement.PROFILE}), \
@@ -313,11 +341,18 @@ class SettlementPopulationTests(unittest.TestCase):
              patch.object(manage, "lab_mysql") as private_sql, self.assertRaises(settlement.ProfileError):
             manage.bootstrap_settlement(self.data, settings, self.metadata)
         private_sql.assert_not_called()
+
         with patch.object(settlement, "ensure_world_offline"), \
              patch.object(settlement, "verify_data", side_effect=settlement.ProfileError("hash")), \
              patch.object(manage, "lab_mysql") as private_sql, self.assertRaises(settlement.ProfileError):
             manage.bootstrap_settlement(self.data, settings, self.metadata)
         private_sql.assert_not_called()
+
+    def test_active_scope_rejects_an_actor_at_the_adjacent_missing_grid_edge(self):
+        edge_actor = replace(self.population.actors[0], x=settlement.BOUNDS["max_x"] - 0.5)
+        population = replace(self.population, actors=(edge_actor, *self.population.actors[1:]))
+        with self.assertRaisesRegex(settlement.ProfileError, "active four-grid scope"):
+            population.config()
 
     def test_bootstrap_checks_offline_three_times_and_reads_back_exact_population(self):
         settings = manage.Settings.load(environment())
@@ -333,7 +368,8 @@ class SettlementPopulationTests(unittest.TestCase):
             shared_auth.assert_not_called()
 
     def test_startup_geometry_failure_prevents_database_and_world_execution(self):
-        with patch.dict(manage.os.environ, {**environment(), "LAB_AI_PROFILE": settlement.PROFILE}), \
+        with patch.dict(manage.os.environ, {**environment(), "LAB_AI_PROFILE": settlement.PROFILE,
+                                          "WORLD_VIEWER_TELEMETRY_TOKEN": "test-token"}), \
              patch.object(manage.sys, "argv", ["manage.py", "run-world", "unused", "worldserver"]), \
              patch.object(settlement, "verify_data", side_effect=settlement.ProfileError("hash mismatch")), \
              patch.object(manage, "lab_mysql") as private_sql, \
@@ -342,6 +378,21 @@ class SettlementPopulationTests(unittest.TestCase):
                 manage.main()
             self.assertEqual(raised.exception.code, 2)
             private_sql.assert_not_called()
+            execute.assert_not_called()
+
+    def test_startup_without_telemetry_token_fails_before_preflight_or_database(self):
+        with patch.dict(manage.os.environ, {**environment(), "LAB_AI_PROFILE": settlement.PROFILE}, clear=True), \
+             patch.object(manage.sys, "argv", ["manage.py", "run-world", "unused", "worldserver"]), \
+             patch.object(manage, "settlement_preflight") as preflight, \
+             patch.object(manage, "lab_mysql") as private_sql, \
+             patch.object(manage, "mysql") as shared_auth_sql, \
+             patch.object(manage.os, "execv") as execute:
+            with self.assertRaises(SystemExit) as raised:
+                manage.main()
+            self.assertEqual(raised.exception.code, 2)
+            preflight.assert_not_called()
+            private_sql.assert_not_called()
+            shared_auth_sql.assert_not_called()
             execute.assert_not_called()
 
 

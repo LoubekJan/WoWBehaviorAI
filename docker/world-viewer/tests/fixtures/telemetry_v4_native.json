@@ -1,0 +1,50 @@
+{
+  "version": 4,
+  "captured_at_ms": 1800000000000,
+  "agents": [
+    {
+      "agent_id": 901000,
+      "spawn_id": 901000,
+      "native_creature": true,
+      "entry": 68,
+      "name": "Stormwind City Guard",
+      "type": "GUARD",
+      "control_mode": "OBSERVE_ONLY",
+      "world_faction": 1,
+      "reputation_faction_id": 72,
+      "faction_template_id": 11,
+      "world_state": "MATERIALIZED",
+      "simulation_tier": "NEARBY",
+      "position": {"x": 80.0, "y": 580.0, "z": 0.15, "map_id": 725, "source": "live"},
+      "health": 100,
+      "max_health": 100,
+      "alive": true,
+      "in_combat": false,
+      "needs": null,
+      "economy": null,
+      "home": {"x": 80.0, "y": 580.0, "z": 0.15, "map_id": 725},
+      "movement": {"moving": false, "blocked": false, "cannot_reach_target": false, "evading": false, "run_speed": 7.0, "move_speed": 2.5, "home_distance": 0.0}
+    },
+    {
+      "agent_id": 901093,
+      "spawn_id": 901093,
+      "native_creature": true,
+      "entry": 40,
+      "name": "Kobold Miner",
+      "type": "MINER",
+      "control_mode": "OBSERVE_ONLY",
+      "world_faction": 4,
+      "world_state": "ABSTRACT",
+      "simulation_tier": "BACKGROUND",
+      "position": {"x": -393.79, "y": 316.15, "z": 3.41, "map_id": 725, "source": "spawn"},
+      "health": null,
+      "max_health": null,
+      "alive": null,
+      "in_combat": null,
+      "needs": null,
+      "economy": null,
+      "movement": null,
+      "faction_template_id": null
+    }
+  ]
+}

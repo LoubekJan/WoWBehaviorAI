@@ -34,6 +34,7 @@ class ObserverMemoryPanel {
   constructor() {
     this.agentId = null;
     this.version = 0;
+    this.nativeCreature = false;
     this.generation = 0;
     this.offset = 0;
     this.anchor = 0;
@@ -52,9 +53,11 @@ class ObserverMemoryPanel {
 
   select(agent, version) {
     const id = agent?.agent_id ?? null;
-    if (id === this.agentId && version === this.version) return;
+    const nativeCreature = agent?.native_creature === true;
+    if (id === this.agentId && version === this.version && nativeCreature === this.nativeCreature) return;
     this.agentId = id;
     this.version = version;
+    this.nativeCreature = nativeCreature;
     this.load(0, 0);
   }
 
@@ -67,8 +70,12 @@ class ObserverMemoryPanel {
     this.anchor = anchor;
     this.list.replaceChildren();
     this.previous.disabled = this.next.disabled = true;
-    this.refresh.disabled = this.agentId == null || this.version < 3;
+    this.refresh.disabled = this.agentId == null || this.version < 3 || this.nativeCreature;
     if (this.agentId == null) { this.status.textContent = ""; return; }
+    if (this.nativeCreature) {
+      this.status.textContent = "Běžné NPC nemá dlouhodobou AI paměť.";
+      return;
+    }
     if (this.version < 3) {
       this.status.textContent = "Pro zobrazení paměti aktualizujte worldserver.";
       return;

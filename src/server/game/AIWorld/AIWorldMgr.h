@@ -381,7 +381,9 @@ class TC_GAME_API AIWorldMgr
         void ProcessObservation(Observation const& observation);
         void ScanNearbyEntities();
         void UpdateNeeds();
-        void CaptureTelemetry(Map* elwynnMap);
+        void CaptureTelemetry(Map* scopeMap);
+        void CaptureNativeTelemetry(Map* scopeMap);
+        void UpdateTelemetry(uint32 diff);
         // Reuse command diagnostics without a linear FindBySpawn per exported agent.
         LivingRoleDebugInfo DescribeLivingRole(Creature const& creature, AgentRecord const& record) const;
         void ProcessActionEngineEvent(ActionEngineEvent const& event);
@@ -4079,6 +4081,7 @@ class TC_GAME_API AIWorldMgr
         // early. Setting _enabled = false just stops new submissions.
         std::unique_ptr<AIClient> _aiClient;
         std::unique_ptr<TelemetryExporter> _telemetryExporter;
+        bool _telemetryNativeCreaturesEnabled = false;
         uint32 _telemetryTimer = 0;
         std::unordered_set<uint64> _telemetrySpawnIds;
 

@@ -377,6 +377,44 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
         _simulationScope.MapId, _simulationScope.ZoneIds.size(), bool(_simulationScope.Bounds), _simulationScope.SpawnIds.size(),
         _restrictAgentsToSimulationScope, _remoteInferenceEnabled, _livingNeedEvolutionEnabled, _groupCoarseSimulationEnabled);
     _enabled = sConfigMgr->GetBoolDefault("AIWorld.Enable", false);
+    _telemetryNativeCreaturesEnabled = sConfigMgr->GetBoolDefault("AIWorld.TelemetryNativeCreaturesEnabled", false);
+    bool const telemetryEnabled = sConfigMgr->GetBoolDefault("AIWorld.TelemetryEnabled", false);
+    if (_telemetryNativeCreaturesEnabled)
+    {
+        MapEntry const* mapEntry = sMapStore.LookupEntry(_simulationScope.MapId);
+        if (_enabled || !telemetryEnabled || !_simulationScope.Bounds || _simulationScope.SpawnIds.empty() ||
+            !mapEntry || mapEntry->Instanceable())
+            throw std::runtime_error("Native telemetry requires AIWorld.Enable=0, TelemetryEnabled=1 and a bounded non-instance scope with explicit SpawnIds");
+        std::unordered_set<uint64> zoneSpawns;
+        for (uint32 zone : _simulationScope.ZoneIds)
+        {
+            auto ids = FetchCreatureSpawnIdsForZone(zone);
+            zoneSpawns.insert(ids.begin(), ids.end());
+        }
+        for (uint64 spawnId : _simulationScope.SpawnIds)
+        {
+            if (!SpawnInSimulationScope(_simulationScope, spawnId) || !zoneSpawns.count(spawnId))
+                throw std::runtime_error("Native telemetry spawn is missing or outside the configured map/zone/bounds");
+            _telemetrySpawnIds.insert(spawnId);
+        }
+        // Classification reads only. No agent registry, participation policy,
+        // persistence, inference client or AI ownership is initialized here.
+        _worldFactionCatalog.Load();
+        _agentTypeCatalog.Load();
+        _worldFactionReputationCatalog.Load();
+        TC_LOG_INFO("ai.world", "Native creature telemetry scoped to {} spawn ids on map {}", _telemetrySpawnIds.size(), _simulationScope.MapId);
+    }
+    // The observer is independent of AI ownership. A missing token fails closed.
+    if (telemetryEnabled && (_enabled || _telemetryNativeCreaturesEnabled))
+    {
+        char const* token = std::getenv("WORLD_VIEWER_TELEMETRY_TOKEN");
+        if (token && *token)
+            _telemetryExporter = std::make_unique<TelemetryExporter>(ioContext,
+                sConfigMgr->GetStringDefault("AIWorld.TelemetryHost", "world-viewer"),
+                sConfigMgr->GetStringDefault("AIWorld.TelemetryPort", "8000"), token);
+        else
+            TC_LOG_WARN("ai.world", "AIWorld.TelemetryEnabled requires WORLD_VIEWER_TELEMETRY_TOKEN; telemetry disabled");
+    }
     if (!_enabled)
     {
         TC_LOG_INFO("ai.world", "AIWorld disabled (AIWorld.Enable = 0)");
@@ -1472,20 +1510,6 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight,
         dynamicTaskSlots, _recoveryAdviceEnabled ? 2 : 0);
-
-    // Opt-in observer. The token is supplied through the process environment
-    // so it never has to be written to the worldserver configuration file.
-    // A missing token fails closed even if the feature flag was enabled.
-    if (sConfigMgr->GetBoolDefault("AIWorld.TelemetryEnabled", false))
-    {
-        char const* token = std::getenv("WORLD_VIEWER_TELEMETRY_TOKEN");
-        if (token && *token)
-            _telemetryExporter = std::make_unique<TelemetryExporter>(ioContext,
-                sConfigMgr->GetStringDefault("AIWorld.TelemetryHost", "world-viewer"),
-                sConfigMgr->GetStringDefault("AIWorld.TelemetryPort", "8000"), token);
-        else
-            TC_LOG_WARN("ai.world", "AIWorld.TelemetryEnabled requires WORLD_VIEWER_TELEMETRY_TOKEN; telemetry disabled");
-    }
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
 
@@ -8650,7 +8674,10 @@ void AIWorldMgr::ReconcileGroupCoordinationForMember(AgentId memberId)
 void AIWorldMgr::Update(uint32 diff)
 {
     if (!_enabled)
+    {
+        UpdateTelemetry(diff);
         return;
+    }
 
     auto const updateStart = std::chrono::steady_clock::now();
     auto elapsedSince = [](auto start)
@@ -8975,16 +9002,7 @@ void AIWorldMgr::Update(uint32 diff)
     }
 
     auto telemetryStart = std::chrono::steady_clock::now();
-    if (_telemetryExporter)
-    {
-        _telemetryTimer += diff;
-        if (_telemetryTimer >= 1000)
-        {
-            _telemetryTimer = 0;
-            if (!_telemetryExporter->Busy())
-                CaptureTelemetry(sMapMgr->FindBaseNonInstanceMap(GetSimulationScope().MapId));
-        }
-    }
+    UpdateTelemetry(diff);
     double telemetryMs = elapsedSince(telemetryStart);
     double totalMs = elapsedSince(updateStart);
     _updateTiming.MaxTelemetryMs = std::max(_updateTiming.MaxTelemetryMs, telemetryMs);
@@ -13126,6 +13144,8 @@ void AIWorldMgr::Shutdown()
     // idempotent either way.
     _acceptEvents.store(false, std::memory_order_release);
 
+    _telemetryNativeCreaturesEnabled = false;
+    _telemetryTimer = 0;
     if (!_enabled)
         return;
 

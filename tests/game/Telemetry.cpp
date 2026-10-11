@@ -12,6 +12,32 @@
 #include "Memory/LongTermMemory.h"
 #include <limits>
 
+TEST_CASE("Native observer distinguishes live data from spawn fallback without AI state", "[AIWorld][Telemetry]")
+{
+    AgentTelemetrySnapshot native;
+    native.Agent = AgentId{901000}; native.SpawnId = 901000;
+    native.NativeCreature = true;
+    native.MapId = 725; native.SpawnX = 10; native.SpawnY = 20; native.SpawnZ = 30;
+    auto json = SerializeAgentTelemetry({native}, 1000);
+    CHECK(json.find("\"agent_id\":901000,\"spawn_id\":901000") != std::string::npos);
+    CHECK(json.find("\"control_mode\":\"OBSERVE_ONLY\"") != std::string::npos);
+    CHECK(json.find("\"native_creature\":true") != std::string::npos);
+    CHECK(json.find("\"source\":\"spawn\"") != std::string::npos);
+    CHECK(json.find("\"health\":null") != std::string::npos);
+    CHECK(json.find("\"needs\":null") != std::string::npos);
+    CHECK(json.find("\"economy\":null") != std::string::npos);
+    CHECK(json.find("\"memory_page\":null") != std::string::npos);
+    native.Live.emplace(); native.Live->X = 11; native.Live->Y = 21; native.Live->Z = 31;
+    native.Live->Health = 42; native.Live->MaxHealth = 84; native.Live->Alive = true;
+    native.Movement.emplace(); native.Movement->Evading = true;
+    json = SerializeAgentTelemetry({native}, 2000);
+    CHECK(json.find("\"source\":\"live\"") != std::string::npos);
+    CHECK(json.find("\"x\":11") != std::string::npos);
+    CHECK(json.find("\"health\":42") != std::string::npos);
+    CHECK(json.find("\"evading\":true") != std::string::npos);
+    CHECK(json.find("\"needs\":null") != std::string::npos);
+}
+
 TEST_CASE("Observer exports owned living state and exact stockpiles", "[AIWorld][Telemetry]")
 {
     AgentTelemetrySnapshot agent;

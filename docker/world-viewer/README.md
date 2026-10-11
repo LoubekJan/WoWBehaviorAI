@@ -302,3 +302,20 @@ node --test docker/world-viewer/tests/test_observer_model.js docker/world-viewer
 ```
 
 The C++ test target includes `tests/game/Telemetry.cpp` (`[Telemetry]` tag).
+
+### Native creature observations
+
+Version 4 also supports `native_creature: true` for ordinary creatures exported
+without an AI agent. The field defaults to `false` for existing telemetry.
+Native observations retain `OBSERVE_ONLY`; their observer ID is a spawn ID in
+the exclusive native-only lab export. Classification, position, actual health,
+combat and movement remain observable, while AI needs, economy, living roles
+and long-term memory are unavailable. The detail panel labels these as
+`běžné NPC` and hides unsupported AI sections.
+
+An unloaded creature uses `position.source: "spawn"` and null live observations.
+The viewer displays `NOT_LOADED` instead of claiming that an unloaded creature
+is dead. Observation does not load a world grid. Memory requests for native
+creatures return `unsupported`, never enter the request queue, and native memory
+pages are rejected. See `tests/fixtures/telemetry_v4_native.json` for loaded and
+unloaded examples.

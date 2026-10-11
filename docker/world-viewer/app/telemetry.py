@@ -266,6 +266,7 @@ class Target(ProtocolModel):
 class Agent(ProtocolModel):
     agent_id: int = Field(ge=0)
     spawn_id: int = Field(ge=0)
+    native_creature: bool = Field(default=False, strict=True)
     entry: int | None = Field(default=None, ge=0)
     name: str | None = Field(default=None, max_length=200)
     type: str = Field(max_length=80)
@@ -280,7 +281,7 @@ class Agent(ProtocolModel):
     max_health: int | None = Field(default=None, ge=0)
     alive: bool | None = None
     in_combat: bool | None = None
-    needs: Needs
+    needs: Needs | None = None
     goal: str | None = Field(default=None, max_length=120)
     goal_utility: float | None = None
     action: str | None = Field(default=None, max_length=120)
@@ -307,6 +308,17 @@ class Agent(ProtocolModel):
 
     @model_validator(mode="after")
     def current_observations_require_live_position(self):
+        if self.native_creature:
+            if self.control_mode != "OBSERVE_ONLY":
+                raise ValueError("Native creatures must remain observation-only")
+            if self.needs is not None or self.economy is not None or self.living_role is not None or self.living_wolf:
+                raise ValueError("Native creatures do not have AI needs, economy or living-role state")
+            if self.position.source != "live" and any(value is not None for value in (
+                self.health, self.max_health, self.alive, self.in_combat,
+            )):
+                raise ValueError("Unloaded native creatures do not have live observations")
+        elif self.needs is None:
+            raise ValueError("AI agents require needs")
         if self.position.source != "live" and any((
             self.living_role, self.movement, self.target, self.destination, self.living_wolf,
             self.meal_target_spawn_id is not None,
@@ -362,3 +374,11 @@ class TelemetryBatch(ProtocolModel):
     captured_at_ms: int = Field(ge=0)
     agents: list[Agent] = Field(max_length=MAX_AGENTS)
     memory_page: MemoryPage | None = None
+
+    @model_validator(mode="after")
+    def native_creatures_do_not_supply_ai_memory(self):
+        if self.memory_page is not None and any(
+            agent.native_creature and agent.agent_id == self.memory_page.agent_id for agent in self.agents
+        ):
+            raise ValueError("Native creatures cannot supply AI memory pages")
+        return self

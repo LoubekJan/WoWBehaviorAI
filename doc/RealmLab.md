@@ -914,7 +914,17 @@ maximálním dosahem aggra 45 jednotek při `Rate.Creature.Aggro=1`.
 
 První osazení má `MovementType=0`, `wander_distance=0`, běžnou nativní
 AI a respawn 300 sekund. NPC stojí na místě; při boji mohou pronásledovat
-nepřítele a vracet se. `AIWorld.Enable=0` a telemetrie zůstávají vypnuté.
+nepřítele a vracet se. `AIWorld.Enable=0` zachovává jejich nativní AI.
+
+Observer pro `settlement-v8` používá `AIWorld.TelemetryEnabled=1` a
+`AIWorld.TelemetryNativeCreaturesEnabled=1`. Sleduje pouze GUID 901000–901099
+na mapě 725, v oblasti 4988 a v hranicích všech čtyř dlaždic v8; tento
+rozsah zůstává aktivní i bez hráče. Server jej načítá s odsazením jedné herní jednotky
+od vnějších hranic, aby nezahrnul sousední chybějící dlaždice; všech 100 NPC
+leží uvnitř. Viewer nadále zobrazuje plné hranice mapy. Export do `world-viewer:8000` vyžaduje
+`WORLD_VIEWER_TELEMETRY_TOKEN` už při startu. Living role, hlad, řízení skupin,
+reconciliation a vzdálené modelové inference zůstávají vypnuté; pozorování
+samo nepřidává chování frakcí.
 Role označují plánované využití a rozmístění; automatické rybaření, těžba,
 hlad, převoz karavany ani dobývání zatím nejsou implementované. Prvním
 herním ověřením po osazení je viditelnost NPC, správné podlahy a návrat

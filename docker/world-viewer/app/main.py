@@ -30,6 +30,7 @@ def create_app(telemetry_token: str | None = None) -> FastAPI:
     app.state.received_at_ms = None
     app.state.received_monotonic = None
     app.state.agent_ids = set()
+    app.state.memory_agent_ids = set()
     app.state.memory_pages = MemoryPages()
     app.state.scope = scope_from_environment()
 
@@ -74,11 +75,12 @@ def create_app(telemetry_token: str | None = None) -> FastAPI:
         app.state.received_at_ms = int(time.time() * 1000)
         app.state.received_monotonic = time.monotonic()
         app.state.agent_ids = set(agent_ids)
+        app.state.memory_agent_ids = {agent.agent_id for agent in snapshot.agents if not agent.native_creature}
         if snapshot.version < 3:
             app.state.memory_pages = MemoryPages()
         else:
             pages = app.state.memory_pages
-            pages.prune(app.state.received_monotonic, app.state.agent_ids)
+            pages.prune(app.state.received_monotonic, app.state.memory_agent_ids)
             pages.accept(snapshot.memory_page, app.state.received_monotonic, snapshot.captured_at_ms)
             if header := pages.next_header():
                 response.headers["X-Observer-Memory-Request"] = header
@@ -92,13 +94,13 @@ def create_app(telemetry_token: str | None = None) -> FastAPI:
         response.headers["Cache-Control"] = "no-store"
         if agent_id not in app.state.agent_ids:
             raise HTTPException(status_code=404, detail="Agent is not in the current Observer snapshot")
-        if app.state.snapshot.version < 3:
+        if agent_id not in app.state.memory_agent_ids or app.state.snapshot.version < 3:
             return {"status": "unsupported"}
         now = time.monotonic()
         if now - app.state.received_monotonic >= STALE_AFTER_MS / 1000:
             return {"status": "offline"}
         pages = app.state.memory_pages
-        pages.prune(now, app.state.agent_ids)
+        pages.prune(now, app.state.memory_agent_ids)
         return pages.read(agent_id, offset, anchor, refresh, now)
 
     @app.get("/api/state")

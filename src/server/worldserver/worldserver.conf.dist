@@ -3402,8 +3402,8 @@ PreventRenameCharacterOnCustomization = 0
 #
 #    AIWorld.Enable
 #        Description: Enable the AIWorld subsystem (read-only agent snapshotting, and later,
-#                     inference integration). When disabled, no AIWorld code runs at all and
-#                     behavior is identical to vanilla TrinityCore.
+#                     inference integration). Native creature telemetry can run independently
+#                     while AI management is disabled; CreatureAI remains the owner.
 #        Default:     0 - (Disabled)
 #                     1 - (Enabled)
 
@@ -3431,6 +3431,10 @@ AIWorld.GroupCoarseSimulationEnabled = 1
 # worldserver and world-viewer environments. Capture runs once per second;
 # network I/O runs on the shared asynchronous io_context. No grid is loaded.
 AIWorld.TelemetryEnabled = 1
+# Observe native creatures without loading agents or taking ownership. Requires
+# AIWorld.Enable=0, TelemetryEnabled=1 and a bounded non-instance scope with
+# explicit ScopeSpawnIds. ScopeAlwaysActive independently controls grid loading.
+AIWorld.TelemetryNativeCreaturesEnabled = 0
 AIWorld.TelemetryHost = world-viewer
 AIWorld.TelemetryPort = 8000
 
