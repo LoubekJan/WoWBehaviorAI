@@ -18,6 +18,9 @@
 *.sh     text eol=lf
 *.diff   whitespace=-trailing-space eol=lf
 
+# Hash-bound NPC deployment records must retain identical bytes on Windows/Linux.
+data/realm_lab/aiworldlab/preview-v8/settlement-*.json text eol=lf
+
 # Standard to msysgit
 *.doc    diff=astextplain
 *.DOC    diff=astextplain

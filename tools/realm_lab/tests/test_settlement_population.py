@@ -99,6 +99,20 @@ class SettlementPopulationTests(unittest.TestCase):
     def save(self, doc):
         (self.metadata / settlement.MANIFEST).write_text(json.dumps(doc), encoding="utf-8")
 
+    def test_checked_in_population_loads_with_its_actual_native_position_proof(self):
+        # Deployment reads these repository bytes, not the generated fixtures.
+        # In particular, Git newline normalization must not invalidate the
+        # manifest's raw-file SHA256 binding to the published position proof.
+        document = json.loads((settlement.METADATA / settlement.MANIFEST).read_text(encoding="utf-8"))
+        proof_bytes = (settlement.METADATA / settlement.POSITION_PROOF).read_bytes()
+        self.assertEqual(hashlib.sha256(proof_bytes).hexdigest(), document["placement_proof_sha256"])
+        population = settlement.Population.load()
+        self.assertEqual({actor.spawn_id for actor in population.actors}, settlement.SPAWN_IDS)
+        self.assertEqual(len(population.actors), 100)
+        self.assertEqual(len(population.geometry_files), 61)
+        self.assertEqual({actor.entry for actor in population.actors},
+                         {row["entry"] for row in population.templates})
+
     def test_complete_native_closure_and_reserved_counts(self):
         self.assertEqual(settlement.verify_data(self.data, self.metadata), self.population)
         self.assertEqual({a.spawn_id for a in self.population.actors}, settlement.SPAWN_IDS)

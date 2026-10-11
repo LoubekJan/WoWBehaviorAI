@@ -3008,7 +3008,7 @@
     }
   ],
   "placement_proof": "settlement-position-verification.json",
-  "placement_proof_sha256": "bcd0c8d3b7dd7fb814ea4d1e1af22306c0de7746f0c5fa87d5d5e6db69b1ca9f",
+  "placement_proof_sha256": "bd940387800b0d710196fbef114847edbe221e682c36e3b3948d55767a511071",
   "native_movement": {
     "MovementType": 0,
     "wander_distance": 0,

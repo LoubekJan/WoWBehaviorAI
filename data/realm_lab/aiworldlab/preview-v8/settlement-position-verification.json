@@ -46,8 +46,10 @@
     },
     {
       "path": "data/realm_lab/aiworldlab/preview-v8/npc-layout-proposal.json",
-      "sha256": "7573f78920fe4c10581c67530d252af13700621af1d59d8aff4638c9a9699ed3",
-      "bytes": 12068
+      "sha256": "db49579e2a98b472bb7f7d1ad4dfa093e5f8b554fa87b2a096e9f3eebb7a7935",
+      "bytes": 11689,
+      "private_source_snapshot_sha256": "7573f78920fe4c10581c67530d252af13700621af1d59d8aff4638c9a9699ed3",
+      "private_source_snapshot_bytes": 12068
     }
   ],
   "minimum_actor_spacing_units": 5.227687696231953,
