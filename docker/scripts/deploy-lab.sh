@@ -23,15 +23,23 @@ fi
 make -f Makefile.lab dbc-factions
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
+# Retain the lab-only address while Docker DNS still advertises its container.
+# A stopped container can return SERVFAIL rather than NXDOMAIN for its name.
+lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
+if [ "$lab_profile" = settlement-v8 ]; then
+  world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
+  test -n "$world_id"
+  world_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "aitc-lab_default").IPAddress}}' "$world_id")"
+  test -n "$world_ip"
+fi
 # Stop only the lab world before replacing its installed binaries.
 "${lab_compose[@]}" stop worldserver
-lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
 if [ "$lab_profile" = settlement-v8 ]; then
   # The native NPC population is installed only with the world container stopped.
   world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
   test -n "$world_id"
   test "$(docker inspect --format '{{.State.Running}}' "$world_id")" = false
-  "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev \
+  "${lab_compose[@]}" run --rm --no-deps -T --interactive=false -e LAB_SETTLEMENT_WORLD_IP="$world_ip" tc-dev \
     python3 tools/realm_lab/manage.py bootstrap-settlement-v8 /workspace/runtime/lab/data
 fi
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh

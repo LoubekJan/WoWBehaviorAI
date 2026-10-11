@@ -246,19 +246,35 @@ class SettlementPopulationTests(unittest.TestCase):
 
     def test_offline_guard_fails_open_listener_and_unknown_network_state(self):
         connection = type("Connection", (), {"close": lambda self: None})()
-        with patch.object(settlement.socket, "create_connection", return_value=connection), \
+        with patch.dict(settlement.os.environ, {}, clear=True), \
+             patch.object(settlement.socket, "create_connection", return_value=connection), \
              self.assertRaisesRegex(settlement.ProfileError, "accepting connections"):
             settlement.ensure_world_offline()
         for error in (ConnectionRefusedError(), socket.gaierror(socket.EAI_NONAME, "No such host")):
-            with patch.object(settlement.socket, "create_connection", side_effect=error) as connect:
+            with patch.dict(settlement.os.environ, {}, clear=True), \
+                 patch.object(settlement.socket, "create_connection", side_effect=error) as connect:
                 settlement.ensure_world_offline()
                 connect.assert_called_once_with(("aitc-lab-worldserver-1", 8085), timeout=3)
         for error in (TimeoutError(), socket.gaierror(socket.EAI_AGAIN, "Temporary DNS failure"), socket.gaierror()):
-            with patch.object(settlement.socket, "create_connection", side_effect=error), \
+            with patch.dict(settlement.os.environ, {}, clear=True), \
+                 patch.object(settlement.socket, "create_connection", side_effect=error), \
                  self.assertRaisesRegex(settlement.ProfileError, "Cannot confirm"):
                 settlement.ensure_world_offline()
         with self.assertRaises(settlement.ProfileError):
             settlement.ensure_world_offline("original-worldserver")
+
+    def test_offline_guard_uses_captured_private_ip_without_dns(self):
+        with patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_IP": "172.18.0.2"}, clear=True), \
+             patch.object(settlement.socket, "create_connection", side_effect=ConnectionRefusedError()) as connect:
+            settlement.ensure_world_offline()
+            connect.assert_called_once_with(("172.18.0.2", 8085), timeout=3)
+        for address in ("8.8.8.8", "127.0.0.1", "169.254.1.2", "0.0.0.0", "::1", "172.18.0.2/16", ""):
+            with self.subTest(address=address), \
+                 patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_IP": address}, clear=True), \
+                 patch.object(settlement.socket, "create_connection") as connect, \
+                 self.assertRaisesRegex(settlement.ProfileError, "private IPv4"):
+                settlement.ensure_world_offline()
+            connect.assert_not_called()
 
     def test_settlement_profile_keeps_all_ai_and_telemetry_off(self):
         settings = manage.Settings.load({**environment(), "LAB_AI_PROFILE": settlement.PROFILE})

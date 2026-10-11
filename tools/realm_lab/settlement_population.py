@@ -10,8 +10,10 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import hashlib
+import ipaddress
 import json
 import math
+import os
 from pathlib import Path, PurePosixPath
 import re
 import socket
@@ -259,8 +261,20 @@ def verify_data(data: Path, metadata: Path = METADATA) -> Population:
 
 def ensure_world_offline(host: str = OFFLINE_WORLD_HOST) -> None:
     require(host == OFFLINE_WORLD_HOST, "Settlement offline guard must target the private lab worldserver")
+    # Docker may remove a stopped container from DNS. Deployment captures its
+    # private network IP before stopping it, under the same host deployment lock.
+    endpoint = host
+    override = os.environ.get("LAB_SETTLEMENT_WORLD_IP")
+    if override is not None:
+        try:
+            address = ipaddress.IPv4Address(override)
+        except ipaddress.AddressValueError as exc:
+            raise ProfileError("Settlement world IP must be a private IPv4 address") from exc
+        require(address.is_private and not address.is_loopback and not address.is_link_local and
+                not address.is_unspecified, "Settlement world IP must be a private IPv4 address")
+        endpoint = str(address)
     try:
-        connection = socket.create_connection((host, 8085), timeout=3)
+        connection = socket.create_connection((endpoint, 8085), timeout=3)
     except ConnectionRefusedError:
         return
     except socket.gaierror as exc:
