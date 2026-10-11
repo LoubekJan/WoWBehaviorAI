@@ -132,6 +132,9 @@ jobs:
           test -d "$lab_checkout/.git"
           git config --global --add safe.directory "$lab_checkout"
           cd "$lab_checkout"
+          mkdir -p runtime/lab
+          exec 9>runtime/lab/deploy.lock
+          flock -x 9
           test "$(git branch --show-current)" = AI-World-lab
           # Close recording before changing its bind-mounted Python files.
           if test -f deploy/lab/.env; then

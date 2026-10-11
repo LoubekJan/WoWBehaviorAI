@@ -1,0 +1,3032 @@
+{
+  "schema_version": 1,
+  "profile": "settlement-v8",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v8",
+  "status": "versioned_placement_ready",
+  "respawn_seconds": 300,
+  "bounds": {
+    "min_x": -533.3333129882812,
+    "max_x": 533.3333129882812,
+    "min_y": 0.0,
+    "max_y": 1066.6666259765625
+  },
+  "geometry_files": [
+    {
+      "path": "dbc/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "dbc/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "dbc/Map.dbc",
+      "bytes": 43922,
+      "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "maps/7253130.map",
+      "bytes": 136144,
+      "sha256": "4bbb5f60de676ce3f03dbf15b07cfb17369b1a0aad6b7eb38416056313f3322f"
+    },
+    {
+      "path": "maps/7253131.map",
+      "bytes": 142756,
+      "sha256": "f77c30855a6870307ec6e4af7b47ff5f487206c8ce04496d42fa65c3e42865eb"
+    },
+    {
+      "path": "maps/7253230.map",
+      "bytes": 199516,
+      "sha256": "22081fd67ab1506114610bc635ae4d3978013e401763022747d288f7d2d39172"
+    },
+    {
+      "path": "maps/7253231.map",
+      "bytes": 172164,
+      "sha256": "549c381a2f0f215346b06af5e9eb05201f038caeff4727c2d3b6e0b86b9f0a73"
+    },
+    {
+      "path": "mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "mmaps/7253130.mmtile",
+      "bytes": 212700,
+      "sha256": "512a86fb6e5b5df4a69e1187ccc7a68916b82352fc6b54c6d5859dc6b1b3f6b1"
+    },
+    {
+      "path": "mmaps/7253131.mmtile",
+      "bytes": 143024,
+      "sha256": "4cec41414980ba65e5440f4957db63c5091ed531a91518f8b48e61e33aab4bd3"
+    },
+    {
+      "path": "mmaps/7253230.mmtile",
+      "bytes": 239812,
+      "sha256": "d7715e200461de32442937eff865c60dc6da6ce4bdbfffa8dc69ec70feb23b62"
+    },
+    {
+      "path": "mmaps/7253231.mmtile",
+      "bytes": 507252,
+      "sha256": "535cceace6af01373488c2421451737de80ff744982281f65ddbfd2370c5ff5b"
+    },
+    {
+      "path": "vmaps/725.vmtree",
+      "bytes": 4301,
+      "sha256": "d91111bdab6b35675d75a2cee92b83174ae17f664453a52d93fa009cad8e7cf4"
+    },
+    {
+      "path": "vmaps/725_30_31.vmtile",
+      "bytes": 4453,
+      "sha256": "00390f085cdeada028e79759110268d9939450c095ebec40d4623d2ec0e6b7b1"
+    },
+    {
+      "path": "vmaps/725_30_32.vmtile",
+      "bytes": 7770,
+      "sha256": "1a1997c9d1af76a4de4f348b3ddac6227461f66c8a51d5f0de4498de5b8dc5a7"
+    },
+    {
+      "path": "vmaps/725_31_31.vmtile",
+      "bytes": 1757,
+      "sha256": "e804a58f27ed3c94e8d6ce1d26da1046a0e2d26990bb68f71a2227d3ce26a235"
+    },
+    {
+      "path": "vmaps/725_31_32.vmtile",
+      "bytes": 5852,
+      "sha256": "35829fdb8d6828446155cdfe7d479b15a827c90f7c84587eebf53364fbeecc08"
+    },
+    {
+      "path": "vmaps/Barrel01.m2.vmo",
+      "bytes": 848,
+      "sha256": "a87248d5b927d895d547fd3fc4da6697bdd1f8feddfb530d972285fa5bdd769b"
+    },
+    {
+      "path": "vmaps/Beerkeg01.m2.vmo",
+      "bytes": 4000,
+      "sha256": "1cb8a8f569202aafb5ef0e5c0e1d8f34ebea68fd22b98951c733a99daced1333"
+    },
+    {
+      "path": "vmaps/Beerkeg02.m2.vmo",
+      "bytes": 2516,
+      "sha256": "1bbc5489ff593608c4c18f467a18fce4a007971ef48d5fdc2ba4a902a18916d9"
+    },
+    {
+      "path": "vmaps/Cavekoboldbucket.m2.vmo",
+      "bytes": 960,
+      "sha256": "894764fa93b1f5a71851599e5417d6d8e1476fd741ea8cdf0e2712967dbe2bad"
+    },
+    {
+      "path": "vmaps/Cavekoboldminemachine.m2.vmo",
+      "bytes": 1680,
+      "sha256": "55c0962adc89184f5bae3303736776a4ffbdec1f04d33c1ec32b2eb4aafa4789"
+    },
+    {
+      "path": "vmaps/Caveminecar01.m2.vmo",
+      "bytes": 1688,
+      "sha256": "a20da8cdbb7f25da775093d2382c45995e6db2d06dcb386f791754f4152bbff5"
+    },
+    {
+      "path": "vmaps/Caveminecarwrecked01.m2.vmo",
+      "bytes": 1464,
+      "sha256": "18a0689f2b61a69a0dcceac1e3b46379f381a6839dc6eaa925a0acff1ddfb792"
+    },
+    {
+      "path": "vmaps/Caveminecarwrecked02.m2.vmo",
+      "bytes": 3512,
+      "sha256": "37807f22fc6db0cc4dfe288d9034457c2414ada847c569ec21172677d3458a64"
+    },
+    {
+      "path": "vmaps/Caveminewheelbarrow01.m2.vmo",
+      "bytes": 2276,
+      "sha256": "ec15b2b9651fd535882929eef1b2784f1e8a952190cde8e696b418855c6b1d0e"
+    },
+    {
+      "path": "vmaps/Deadminecargonethangshort.m2.vmo",
+      "bytes": 984,
+      "sha256": "3740d34c7a7a55323860c3b1264b3aa2d2c9ca0aa1aac765a96ec72cae31df3f"
+    },
+    {
+      "path": "vmaps/Duskwood_Human_Farm.wmo.vmo",
+      "bytes": 41732,
+      "sha256": "b21af387b92bc553ad26b83afb40f74aaa5e53f5ace4ad37c3cd48020e3e087d"
+    },
+    {
+      "path": "vmaps/Farmtest.wmo.vmo",
+      "bytes": 41412,
+      "sha256": "4eb208735de7f5c01af522787e047648009e8706c5cd81bdf5b910d21d010c05"
+    },
+    {
+      "path": "vmaps/Firewoodpile01.m2.vmo",
+      "bytes": 600,
+      "sha256": "1d0082e06e860f3b8605fc9f5d2916071552a096a6b947b84a01f5de9395f61e"
+    },
+    {
+      "path": "vmaps/Generalbookstackshort01.m2.vmo",
+      "bytes": 600,
+      "sha256": "866127852b479f7f38e246bc617e45f7d987a9c392ed109684b9cd0130720041"
+    },
+    {
+      "path": "vmaps/Generalbookstacktall01.m2.vmo",
+      "bytes": 816,
+      "sha256": "3be7adc6ab73d872d13db4b88e07d9837be95f3e439a8a8c97821accbe913355"
+    },
+    {
+      "path": "vmaps/Generalcandelabra01.m2.vmo",
+      "bytes": 600,
+      "sha256": "df4cf4c9e5017e9ddaacd5ae1ba9b5ec5bef410b1e96598fdcfa53354ff99336"
+    },
+    {
+      "path": "vmaps/Generalhanginglantern01.m2.vmo",
+      "bytes": 1736,
+      "sha256": "d0602e2f78e767149073deb52da4fd70571952179d342bc55544c27b514e81f6"
+    },
+    {
+      "path": "vmaps/Generalhanginglanternlong.m2.vmo",
+      "bytes": 600,
+      "sha256": "e82cba794d7aaa29d7d4215a56e0d67b4607384489b07e66f6b5fdd2e1c083c2"
+    },
+    {
+      "path": "vmaps/Generallantern02.m2.vmo",
+      "bytes": 960,
+      "sha256": "356090725baa31e8a7ba4709c8c6882dd07c5fd9df1861b6f56a5c6dce408ce3"
+    },
+    {
+      "path": "vmaps/Generallantern03.m2.vmo",
+      "bytes": 960,
+      "sha256": "c335ef7107b3c68edc99ee009b1abc10d739971885957a287b0094ac686ac80a"
+    },
+    {
+      "path": "vmaps/Gnolltent02.m2.vmo",
+      "bytes": 712,
+      "sha256": "592368c469b7210056d2c60c5dbc051d10c09bc3d16c0877e92793f50ca3d8f5"
+    },
+    {
+      "path": "vmaps/Gnolltent03.m2.vmo",
+      "bytes": 644,
+      "sha256": "dc653be840a7c0a71bc4adda4ba6b661bdda16c55eb11e5c31c9f60e4285b099"
+    },
+    {
+      "path": "vmaps/Goldshireinn.wmo.vmo",
+      "bytes": 245544,
+      "sha256": "8199eac584cba1411bdc31c2d422bed1e9759904f9bcc057a1418d9ab013a5c6"
+    },
+    {
+      "path": "vmaps/Human_Barracks.wmo.vmo",
+      "bytes": 426484,
+      "sha256": "f9e23d8f968146dab5cfd6d6264cb6278d6bd4b776dd4b45081da4ff030c5d96"
+    },
+    {
+      "path": "vmaps/Humantentlarge.m2.vmo",
+      "bytes": 9672,
+      "sha256": "c02b58e5f2fe047b8b1e1605af5700ad6fa101b4109c4da01d56c85d9936fd8e"
+    },
+    {
+      "path": "vmaps/Humantentmedium.m2.vmo",
+      "bytes": 5952,
+      "sha256": "bfff8a093b2505c47032176993401341f2df1ed1824e6fe90b3a4b029df7d1d0"
+    },
+    {
+      "path": "vmaps/Innchandelier.m2.vmo",
+      "bytes": 2664,
+      "sha256": "728e7b1558bcef7619500cf18e5b089ad1cff954515681fb3d1d5421d70f5a14"
+    },
+    {
+      "path": "vmaps/Jar02.m2.vmo",
+      "bytes": 1260,
+      "sha256": "355cfab595760ca1e18b12228f2dc6bddd86cb97fe92f0b8432eda9251362316"
+    },
+    {
+      "path": "vmaps/Jar03.m2.vmo",
+      "bytes": 804,
+      "sha256": "19e5fcc28c30ccbe2e0b8cd6379108aff7ce4b532da51a7ea5e52b7a30b92e29"
+    },
+    {
+      "path": "vmaps/Md_Spidermine_Nokobolds.wmo.vmo",
+      "bytes": 249376,
+      "sha256": "5812613eb81e45659ab49360f2c373e8b0df520c626271360f3b1c277e4cc6ad"
+    },
+    {
+      "path": "vmaps/Minepump01.m2.vmo",
+      "bytes": 1280,
+      "sha256": "29a74c466ebf98d3f5114b54bf688a0265c0344dcbfbe25bd30194e2c75b05eb"
+    },
+    {
+      "path": "vmaps/Moonbrook_Human_Farm.wmo.vmo",
+      "bytes": 61408,
+      "sha256": "4c4dc92421ec04b7d9d393707996d49cb9d94a059515b95ae9ea02746c4f411d"
+    },
+    {
+      "path": "vmaps/Redridge_Human_Farm.wmo.vmo",
+      "bytes": 41764,
+      "sha256": "20aa3597cca57509c8050dba12a7da0d9f71d70a3890b9c63f9134c7df2610f5"
+    },
+    {
+      "path": "vmaps/Rugrack01.m2.vmo",
+      "bytes": 600,
+      "sha256": "f99b2a8ef871d8f0bdbc7b88f408f3269a7296af127c915529e45a5e8cb914d3"
+    },
+    {
+      "path": "vmaps/Stormwindcrate01.m2.vmo",
+      "bytes": 600,
+      "sha256": "036a2ba7875e3920ace0044ed175f69f396af99fc9f74cad7e252757c1a3f777"
+    },
+    {
+      "path": "vmaps/Stranglechasmbridge.m2.vmo",
+      "bytes": 5484,
+      "sha256": "00de06494a844f2f3b9785ce1a5ae422089b1b527db2baf7d472f887ee6181e8"
+    },
+    {
+      "path": "vmaps/Townhall_Nowall.wmo.vmo",
+      "bytes": 181528,
+      "sha256": "9b42ec57861a083e6f81907bd2d36902c93fdddcaf1964fb0e4db5e030b9740d"
+    },
+    {
+      "path": "vmaps/Waterhut01.m2.vmo",
+      "bytes": 1732,
+      "sha256": "fe13e7158b0f4caa4323ea3c03681747992fb127f6abecf6830046dde629d4ff"
+    },
+    {
+      "path": "vmaps/Waterhut02.m2.vmo",
+      "bytes": 2408,
+      "sha256": "f11d4057018c62fc9d8a4919e0f427715db852ae5b48741cdda0417124251517"
+    },
+    {
+      "path": "vmaps/Well.m2.vmo",
+      "bytes": 1612,
+      "sha256": "fbf07ad29d3f693a1141134262e085e2055eb6e0b73e7456725e100cdec82560"
+    },
+    {
+      "path": "vmaps/Westfall_Human_Farmb.wmo.vmo",
+      "bytes": 41296,
+      "sha256": "a7867b3154f140c2d1b80bf71105460fc2583c868ef52f47b7d1c172a7160fc0"
+    },
+    {
+      "path": "vmaps/Westfallbarrel01.m2.vmo",
+      "bytes": 1232,
+      "sha256": "e794806d689c6fcefd421bb28d09279119ea8e76e2841aefa281b1906b448bfb"
+    },
+    {
+      "path": "vmaps/Westfallcrate.m2.vmo",
+      "bytes": 1156,
+      "sha256": "a56299efa3483cdf2db1754b5fb1b300f1ae646b900d98644f2c46ec579f0ddf"
+    },
+    {
+      "path": "vmaps/Westfallskeleton.m2.vmo",
+      "bytes": 712,
+      "sha256": "aa11ceb8327ad6ed3866fcc5c52ad6a4c50f286bc661b6e73b77ab03c9e11fd5"
+    }
+  ],
+  "legacy_snapshot_sha256": "0be5506fab194ae331799a06ef34976df38a9537a3a1d3502c1a797703db033b",
+  "templates": [
+    {
+      "entry": 40,
+      "ai_name": "SmartAI",
+      "faction": 2306,
+      "npcflag": 0,
+      "maxlevel": 7,
+      "minlevel": 6,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 54,
+      "ai_name": "",
+      "faction": 12,
+      "npcflag": 4224,
+      "maxlevel": 10,
+      "minlevel": 10,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 512,
+      "regenerate_health": 1,
+      "flags_extra": 66,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 66,
+      "ai_name": "",
+      "faction": 12,
+      "npcflag": 128,
+      "maxlevel": 10,
+      "minlevel": 10,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 512,
+      "regenerate_health": 1,
+      "flags_extra": 66,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 74,
+      "ai_name": "",
+      "faction": 12,
+      "npcflag": 4224,
+      "maxlevel": 10,
+      "minlevel": 10,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 512,
+      "regenerate_health": 1,
+      "flags_extra": 66,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 94,
+      "ai_name": "SmartAI",
+      "faction": 2301,
+      "npcflag": 0,
+      "maxlevel": 6,
+      "minlevel": 5,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 97,
+      "ai_name": "SmartAI",
+      "faction": 2304,
+      "npcflag": 0,
+      "maxlevel": 9,
+      "minlevel": 8,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 116,
+      "ai_name": "SmartAI",
+      "faction": 2301,
+      "npcflag": 0,
+      "maxlevel": 9,
+      "minlevel": 8,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 151,
+      "ai_name": "",
+      "faction": 12,
+      "npcflag": 384,
+      "maxlevel": 10,
+      "minlevel": 10,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 512,
+      "regenerate_health": 1,
+      "flags_extra": 66,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 257,
+      "ai_name": "SmartAI",
+      "faction": 2305,
+      "npcflag": 0,
+      "maxlevel": 3,
+      "minlevel": 3,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 2,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 285,
+      "ai_name": "",
+      "faction": 2303,
+      "npcflag": 0,
+      "maxlevel": 7,
+      "minlevel": 6,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 32768,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 295,
+      "ai_name": "SmartAI",
+      "faction": 12,
+      "npcflag": 66179,
+      "maxlevel": 30,
+      "minlevel": 30,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 512,
+      "regenerate_health": 1,
+      "flags_extra": 66,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 448,
+      "ai_name": "SmartAI",
+      "faction": 2304,
+      "npcflag": 0,
+      "maxlevel": 11,
+      "minlevel": 11,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 64,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 478,
+      "ai_name": "SmartAI",
+      "faction": 2304,
+      "npcflag": 0,
+      "maxlevel": 10,
+      "minlevel": 9,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 514,
+      "ai_name": "",
+      "faction": 12,
+      "npcflag": 83,
+      "maxlevel": 24,
+      "minlevel": 24,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 512,
+      "regenerate_health": 1,
+      "flags_extra": 66,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 732,
+      "ai_name": "SmartAI",
+      "faction": 2303,
+      "npcflag": 0,
+      "maxlevel": 10,
+      "minlevel": 9,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 32768,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 883,
+      "ai_name": "",
+      "faction": 31,
+      "npcflag": 0,
+      "maxlevel": 5,
+      "minlevel": 5,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 66,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 1186,
+      "ai_name": "",
+      "faction": 44,
+      "npcflag": 0,
+      "maxlevel": 12,
+      "minlevel": 11,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 0,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 1423,
+      "ai_name": "",
+      "faction": 11,
+      "npcflag": 1,
+      "maxlevel": 25,
+      "minlevel": 22,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 32768,
+      "regenerate_health": 1,
+      "flags_extra": 32832,
+      "unit_flags2": 2048
+    },
+    {
+      "entry": 11328,
+      "ai_name": "",
+      "faction": 12,
+      "npcflag": 0,
+      "maxlevel": 7,
+      "minlevel": 6,
+      "vehicle": 0,
+      "script_name": "",
+      "unit_flags": 0,
+      "regenerate_health": 1,
+      "flags_extra": 2,
+      "unit_flags2": 2048
+    }
+  ],
+  "smart_scripts": [
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 0,
+      "comment": "Kobold Miner - On Aggro - Say Line 0 (Phase 1)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 4,
+      "action_type": 1,
+      "entryorguid": 40,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 30,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 1,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 1,
+      "link": 0,
+      "comment": "Kobold Miner - In Combat - Cast 'Pierce Armor'",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 0,
+      "action_type": 11,
+      "entryorguid": 40,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 2,
+      "event_chance": 100,
+      "event_param1": 4000,
+      "event_param2": 14000,
+      "event_param3": 22000,
+      "event_param4": 28000,
+      "event_param5": 0,
+      "action_param1": 6016,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 0,
+      "comment": "Defias Cutpurse - In Combat - Cast 'Backstab' (Phase 1)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 0,
+      "action_type": 11,
+      "entryorguid": 94,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 2,
+      "event_chance": 100,
+      "event_param1": 1100,
+      "event_param2": 1100,
+      "event_param3": 2400,
+      "event_param4": 7900,
+      "event_param5": 0,
+      "action_param1": 53,
+      "action_param2": 2,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 0,
+      "comment": "Riverpaw Runt - On Aggro - Say Line 0 (No Repeat)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 4,
+      "action_type": 1,
+      "entryorguid": 97,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 30,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 1,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 1,
+      "link": 0,
+      "comment": "Riverpaw Runt - Between 0-15% Health - Flee For Assist (No Repeat)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 2,
+      "action_type": 25,
+      "entryorguid": 97,
+      "event_flags": 1,
+      "source_type": 0,
+      "target_type": 0,
+      "event_chance": 100,
+      "event_param1": 0,
+      "event_param2": 15,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 1,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 0,
+      "comment": "Defias Bandit - On Aggro - Say Line 0 (No Repeat)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 4,
+      "action_type": 1,
+      "entryorguid": 116,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 25,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 1,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 1,
+      "link": 0,
+      "comment": "Defias Bandit - In Combat - Cast 'Snap Kick' (No Repeat)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 0,
+      "action_type": 11,
+      "entryorguid": 116,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 2,
+      "event_chance": 65,
+      "event_param1": 4000,
+      "event_param2": 4000,
+      "event_param3": 5000,
+      "event_param4": 9000,
+      "event_param5": 0,
+      "action_param1": 8646,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 0,
+      "comment": "Kobold Worker - On Aggro - Say Line 0",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 4,
+      "action_type": 1,
+      "entryorguid": 257,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 30,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 1,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 1,
+      "comment": "Innkeeper Farley - On Gossip Option 0 Selected - Close Gossip",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 62,
+      "action_type": 72,
+      "entryorguid": 295,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 100,
+      "event_param1": 1291,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 1,
+      "link": 0,
+      "comment": "Innkeeper Farley - On Gossip Option 0 Selected - Invoker Cast 'Trick or Treat'",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 61,
+      "action_type": 85,
+      "entryorguid": 295,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 100,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 24751,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 2,
+      "link": 0,
+      "comment": "Innkeeper Farley - OOC LOS - Say Line 0",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 10,
+      "action_type": 1,
+      "entryorguid": 295,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 100,
+      "event_param1": 1,
+      "event_param2": 20,
+      "event_param3": 40000,
+      "event_param4": 40000,
+      "event_param5": 1,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 3,
+      "link": 0,
+      "comment": "Innkeeper Farley - Out of Combat - Say Line 1",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 1,
+      "action_type": 1,
+      "entryorguid": 295,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 1,
+      "event_chance": 100,
+      "event_param1": 1000,
+      "event_param2": 15000,
+      "event_param3": 150000,
+      "event_param4": 180000,
+      "event_param5": 0,
+      "action_param1": 1,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 1,
+      "comment": "Hogger - On Aggro - Cast 'Rushing Charge'",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 4,
+      "action_type": 11,
+      "entryorguid": 448,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 100,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 6268,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 1,
+      "link": 0,
+      "comment": "Hogger - On Aggro - Say Line 0",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 61,
+      "action_type": 1,
+      "entryorguid": 448,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 1,
+      "event_chance": 100,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 2,
+      "link": 0,
+      "comment": "Hogger - In Combat - Cast 'Head Butt'",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 0,
+      "action_type": 11,
+      "entryorguid": 448,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 2,
+      "event_chance": 100,
+      "event_param1": 1300,
+      "event_param2": 3700,
+      "event_param3": 20000,
+      "event_param4": 25000,
+      "event_param5": 0,
+      "action_param1": 6730,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 3,
+      "link": 0,
+      "comment": "Hogger - In Combat - Cast 'Pierce Armor'",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 0,
+      "action_type": 11,
+      "entryorguid": 448,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 2,
+      "event_chance": 100,
+      "event_param1": 4800,
+      "event_param2": 6000,
+      "event_param3": 30000,
+      "event_param4": 30000,
+      "event_param5": 0,
+      "action_param1": 6016,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 0,
+      "comment": "Riverpaw Outrunner - On Aggro - Say Line 0 (No Repeat)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 4,
+      "action_type": 1,
+      "entryorguid": 478,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 7,
+      "event_chance": 30,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 0,
+      "action_param2": 0,
+      "action_param3": 1,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 1,
+      "link": 0,
+      "comment": "Riverpaw Outrunner - On Reset - Cast 'Thrash'",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 25,
+      "action_type": 11,
+      "entryorguid": 478,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 1,
+      "event_chance": 100,
+      "event_param1": 0,
+      "event_param2": 0,
+      "event_param3": 0,
+      "event_param4": 0,
+      "event_param5": 0,
+      "action_param1": 8876,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    },
+    {
+      "kind": "smart_script",
+      "id": 0,
+      "link": 0,
+      "comment": "Murloc Lurker - On Behind Target - Cast 'Backstab' (No Repeat)",
+      "target_o": 0.0,
+      "target_x": 0.0,
+      "target_y": 0.0,
+      "target_z": 0.0,
+      "event_type": 0,
+      "action_type": 11,
+      "entryorguid": 732,
+      "event_flags": 0,
+      "source_type": 0,
+      "target_type": 2,
+      "event_chance": 100,
+      "event_param1": 3900,
+      "event_param2": 6900,
+      "event_param3": 6000,
+      "event_param4": 9000,
+      "event_param5": 0,
+      "action_param1": 7159,
+      "action_param2": 0,
+      "action_param3": 0,
+      "action_param4": 0,
+      "action_param5": 0,
+      "action_param6": 0,
+      "target_param1": 0,
+      "target_param2": 0,
+      "target_param3": 0,
+      "target_param4": 0,
+      "event_phase_mask": 0
+    }
+  ],
+  "template_addons": [
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 40,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 54,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 66,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 74,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 94,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 97,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 116,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 151,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 257,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 285,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 295,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 448,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 478,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 514,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 732,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": null,
+      "emote": 0,
+      "entry": 883,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": "",
+      "emote": 0,
+      "entry": 1186,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 16,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": "5301",
+      "emote": 0,
+      "entry": 1423,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    },
+    {
+      "kind": "template_addon",
+      "auras": "",
+      "emote": 0,
+      "entry": 11328,
+      "mount": 0,
+      "path_id": 0,
+      "AnimTier": 0,
+      "PvPFlags": 17,
+      "VisFlags": 0,
+      "StandState": 0,
+      "SheathState": 1,
+      "MountCreatureID": 0,
+      "visibilityDistanceType": 0
+    }
+  ],
+  "actors": [
+    {
+      "spawn_id": 901000,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901000",
+      "home": {
+        "x": 78.84711682419382,
+        "y": 591.7054193209677,
+        "z": 0.15,
+        "o": 3.337942194439156
+      },
+      "position_evidence_actor_index": 1
+    },
+    {
+      "spawn_id": 901001,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901001",
+      "home": {
+        "x": 61.57348061512726,
+        "y": 607.7785116509801,
+        "z": 0.15,
+        "o": 3.7306412761378795
+      },
+      "position_evidence_actor_index": 2
+    },
+    {
+      "spawn_id": 901002,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901002",
+      "home": {
+        "x": 20.000000000000004,
+        "y": 640.0,
+        "z": 0.15,
+        "o": 4.71238898038469
+      },
+      "position_evidence_actor_index": 3
+    },
+    {
+      "spawn_id": 901003,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901003",
+      "home": {
+        "x": -2.961005941905384,
+        "y": 635.4327719506772,
+        "z": 0.15,
+        "o": 5.105088062083414
+      },
+      "position_evidence_actor_index": 4
+    },
+    {
+      "spawn_id": 901004,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901004",
+      "home": {
+        "x": -38.847116824193826,
+        "y": 568.2945806790323,
+        "z": 0.15,
+        "o": 0.1963495408493627
+      },
+      "position_evidence_actor_index": 5
+    },
+    {
+      "spawn_id": 901005,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901005",
+      "home": {
+        "x": -21.573480615127274,
+        "y": 552.2214883490199,
+        "z": 0.15,
+        "o": 0.5890486225480865
+      },
+      "position_evidence_actor_index": 6
+    },
+    {
+      "spawn_id": 901006,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901006",
+      "home": {
+        "x": 7.754130164317109,
+        "y": 550.4358549596388,
+        "z": 0.15,
+        "o": 1.1780972450961718
+      },
+      "position_evidence_actor_index": 7
+    },
+    {
+      "spawn_id": 901007,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901007",
+      "home": {
+        "x": 19.999999999999996,
+        "y": 556.0,
+        "z": 0.15,
+        "o": 1.5707963267948966
+      },
+      "position_evidence_actor_index": 8
+    },
+    {
+      "spawn_id": 901008,
+      "entry": 295,
+      "faction": "stormwind",
+      "role": "innkeeper",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901008",
+      "home": {
+        "x": 49.564145040361176,
+        "y": 592.2458698356829,
+        "z": 0.15,
+        "o": 3.5342917352885186
+      },
+      "position_evidence_actor_index": 9
+    },
+    {
+      "spawn_id": 901009,
+      "entry": 514,
+      "faction": "stormwind",
+      "role": "blacksmith",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901009",
+      "home": {
+        "x": 29.184402376762158,
+        "y": 602.1731087802709,
+        "z": 0.15,
+        "o": 4.319689898685966
+      },
+      "position_evidence_actor_index": 10
+    },
+    {
+      "spawn_id": 901010,
+      "entry": 54,
+      "faction": "stormwind",
+      "role": "weapons_vendor",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901010",
+      "home": {
+        "x": 10.815597623237846,
+        "y": 602.1731087802709,
+        "z": 0.15,
+        "o": 5.105088062083413
+      },
+      "position_evidence_actor_index": 11
+    },
+    {
+      "spawn_id": 901011,
+      "entry": 74,
+      "faction": "stormwind",
+      "role": "armor_vendor",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901011",
+      "home": {
+        "x": -2.17310878027088,
+        "y": 589.1844023767621,
+        "z": 0.15,
+        "o": 5.8904862254808625
+      },
+      "position_evidence_actor_index": 12
+    },
+    {
+      "spawn_id": 901012,
+      "entry": 66,
+      "faction": "stormwind",
+      "role": "trade_vendor",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901012",
+      "home": {
+        "x": -9.56414504036118,
+        "y": 567.7541301643171,
+        "z": 0.15,
+        "o": 0.39269908169872564
+      },
+      "position_evidence_actor_index": 13
+    },
+    {
+      "spawn_id": 901013,
+      "entry": 151,
+      "faction": "stormwind",
+      "role": "general_vendor",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901013",
+      "home": {
+        "x": 10.815597623237831,
+        "y": 557.8268912197291,
+        "z": 0.15,
+        "o": 1.1780972450961726
+      },
+      "position_evidence_actor_index": 14
+    },
+    {
+      "spawn_id": 901014,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "resident",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901014",
+      "home": {
+        "x": 23.121445152258055,
+        "y": 564.3074355135483,
+        "z": 0.15,
+        "o": 1.7671458676442584
+      },
+      "position_evidence_actor_index": 15
+    },
+    {
+      "spawn_id": 901015,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "resident",
+      "zone": "city",
+      "label": "aiworld_lab_settlement_v8_901015",
+      "home": {
+        "x": 43.53884672967753,
+        "y": 584.6821677283871,
+        "z": 0.15,
+        "o": 3.337942194439155
+      },
+      "position_evidence_actor_index": 16
+    },
+    {
+      "spawn_id": 901016,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageTop",
+      "label": "aiworld_lab_settlement_v8_901016",
+      "home": {
+        "x": 378.03635207966687,
+        "y": 626.4014701827371,
+        "z": 0.15,
+        "o": 4.319689898685967
+      },
+      "position_evidence_actor_index": 17
+    },
+    {
+      "spawn_id": 901017,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageTop",
+      "label": "aiworld_lab_settlement_v8_901017",
+      "home": {
+        "x": 358.68629150101526,
+        "y": 618.3137084989847,
+        "z": 0.15,
+        "o": 5.497787143782138
+      },
+      "position_evidence_actor_index": 18
+    },
+    {
+      "spawn_id": 901018,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageTop",
+      "label": "aiworld_lab_settlement_v8_901018",
+      "home": {
+        "x": 365.5554381358432,
+        "y": 600.3482431015797,
+        "z": 0.15,
+        "o": 0.981747704246809
+      },
+      "position_evidence_actor_index": 19
+    },
+    {
+      "spawn_id": 901019,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageTop",
+      "label": "aiworld_lab_settlement_v8_901019",
+      "home": {
+        "x": 381.31370849898474,
+        "y": 595.6862915010153,
+        "z": 0.15,
+        "o": 2.356194490192345
+      },
+      "position_evidence_actor_index": 20
+    },
+    {
+      "spawn_id": 901020,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageTop",
+      "label": "aiworld_lab_settlement_v8_901020",
+      "home": {
+        "x": 376.2428903045161,
+        "y": 638.3851289729034,
+        "z": 0.15,
+        "o": 4.516039439535328
+      },
+      "position_evidence_actor_index": 21
+    },
+    {
+      "spawn_id": 901021,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageTop",
+      "label": "aiworld_lab_settlement_v8_901021",
+      "home": {
+        "x": 363.7571096954839,
+        "y": 575.6148710270967,
+        "z": 0.15,
+        "o": 1.3744467859455345
+      },
+      "position_evidence_actor_index": 22
+    },
+    {
+      "spawn_id": 901022,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageLeft",
+      "label": "aiworld_lab_settlement_v8_901022",
+      "home": {
+        "x": 44.97056274847714,
+        "y": 859.9705627484772,
+        "z": 0.15,
+        "o": 3.926990816987242
+      },
+      "position_evidence_actor_index": 23
+    },
+    {
+      "spawn_id": 901023,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageLeft",
+      "label": "aiworld_lab_settlement_v8_901023",
+      "home": {
+        "x": 19.11087627168637,
+        "y": 856.3035137968408,
+        "z": 0.15,
+        "o": 5.301437602932774
+      },
+      "position_evidence_actor_index": 24
+    },
+    {
+      "spawn_id": 901024,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageLeft",
+      "label": "aiworld_lab_settlement_v8_901024",
+      "home": {
+        "x": 11.029437251522857,
+        "y": 826.0294372515228,
+        "z": 0.15,
+        "o": 0.785398163397449
+      },
+      "position_evidence_actor_index": 25
+    },
+    {
+      "spawn_id": 901025,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageLeft",
+      "label": "aiworld_lab_settlement_v8_901025",
+      "home": {
+        "x": 36.88912372831363,
+        "y": 829.6964862031592,
+        "z": 0.15,
+        "o": 2.1598449493429808
+      },
+      "position_evidence_actor_index": 26
+    },
+    {
+      "spawn_id": 901026,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageLeft",
+      "label": "aiworld_lab_settlement_v8_901026",
+      "home": {
+        "x": 40.245869835682875,
+        "y": 872.5641450403612,
+        "z": 0.15,
+        "o": 4.319689898685965
+      },
+      "position_evidence_actor_index": 27
+    },
+    {
+      "spawn_id": 901027,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageLeft",
+      "label": "aiworld_lab_settlement_v8_901027",
+      "home": {
+        "x": 15.75413016431711,
+        "y": 813.4358549596388,
+        "z": 0.15,
+        "o": 1.1780972450961718
+      },
+      "position_evidence_actor_index": 28
+    },
+    {
+      "spawn_id": 901028,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageRight",
+      "label": "aiworld_lab_settlement_v8_901028",
+      "home": {
+        "x": 151.18440237676216,
+        "y": 282.17310878027087,
+        "z": 0.15,
+        "o": 4.319689898685965
+      },
+      "position_evidence_actor_index": 29
+    },
+    {
+      "spawn_id": 901029,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageRight",
+      "label": "aiworld_lab_settlement_v8_901029",
+      "home": {
+        "x": 130.68629150101523,
+        "y": 271.31370849898474,
+        "z": 0.15,
+        "o": 5.497787143782139
+      },
+      "position_evidence_actor_index": 30
+    },
+    {
+      "spawn_id": 901030,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageRight",
+      "label": "aiworld_lab_settlement_v8_901030",
+      "home": {
+        "x": 128.66631440752954,
+        "y": 240.04472930473892,
+        "z": 0.15,
+        "o": 0.98174770424681
+      },
+      "position_evidence_actor_index": 31
+    },
+    {
+      "spawn_id": 901031,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageRight",
+      "label": "aiworld_lab_settlement_v8_901031",
+      "home": {
+        "x": 153.31370849898477,
+        "y": 248.68629150101523,
+        "z": 0.15,
+        "o": 2.356194490192345
+      },
+      "position_evidence_actor_index": 32
+    },
+    {
+      "spawn_id": 901032,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageRight",
+      "label": "aiworld_lab_settlement_v8_901032",
+      "home": {
+        "x": 129.75413016431713,
+        "y": 289.56414504036115,
+        "z": 0.15,
+        "o": 5.105088062083414
+      },
+      "position_evidence_actor_index": 33
+    },
+    {
+      "spawn_id": 901033,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageRight",
+      "label": "aiworld_lab_settlement_v8_901033",
+      "home": {
+        "x": 154.24586983568287,
+        "y": 230.43585495963882,
+        "z": 0.15,
+        "o": 1.9634954084936205
+      },
+      "position_evidence_actor_index": 34
+    },
+    {
+      "spawn_id": 901034,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageBottom",
+      "label": "aiworld_lab_settlement_v8_901034",
+      "home": {
+        "x": -372.4611532703225,
+        "y": 492.68216772838707,
+        "z": 0.15,
+        "o": 3.337942194439155
+      },
+      "position_evidence_actor_index": 35
+    },
+    {
+      "spawn_id": 901035,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageBottom",
+      "label": "aiworld_lab_settlement_v8_901035",
+      "home": {
+        "x": -407.31370849898474,
+        "y": 499.31370849898474,
+        "z": 0.15,
+        "o": 5.497787143782138
+      },
+      "position_evidence_actor_index": 36
+    },
+    {
+      "spawn_id": 901036,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageBottom",
+      "label": "aiworld_lab_settlement_v8_901036",
+      "home": {
+        "x": -418.17310878027087,
+        "y": 478.81559762323786,
+        "z": 0.15,
+        "o": 0.39269908169872375
+      },
+      "position_evidence_actor_index": 37
+    },
+    {
+      "spawn_id": 901037,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "worker",
+      "zone": "villageBottom",
+      "label": "aiworld_lab_settlement_v8_901037",
+      "home": {
+        "x": -384.68629150101526,
+        "y": 476.68629150101526,
+        "z": 0.15,
+        "o": 2.356194490192345
+      },
+      "position_evidence_actor_index": 38
+    },
+    {
+      "spawn_id": 901038,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageBottom",
+      "label": "aiworld_lab_settlement_v8_901038",
+      "home": {
+        "x": -396.0,
+        "y": 456.0,
+        "z": 0.14999998251654295,
+        "o": 1.5707963267948966
+      },
+      "position_evidence_actor_index": 39
+    },
+    {
+      "spawn_id": 901039,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "villageBottom",
+      "label": "aiworld_lab_settlement_v8_901039",
+      "home": {
+        "x": -396.0,
+        "y": 520.0,
+        "z": 0.15,
+        "o": 4.71238898038469
+      },
+      "position_evidence_actor_index": 40
+    },
+    {
+      "spawn_id": 901040,
+      "entry": 66,
+      "faction": "stormwind",
+      "role": "trader",
+      "zone": "caravan",
+      "label": "aiworld_lab_settlement_v8_901040",
+      "home": {
+        "x": 202.0,
+        "y": 603.0,
+        "z": 0.15,
+        "o": 0.0
+      },
+      "position_evidence_actor_index": 41
+    },
+    {
+      "spawn_id": 901041,
+      "entry": 11328,
+      "faction": "stormwind",
+      "role": "driver",
+      "zone": "caravan",
+      "label": "aiworld_lab_settlement_v8_901041",
+      "home": {
+        "x": 218.0,
+        "y": 603.0,
+        "z": 0.15,
+        "o": 3.141592653589793
+      },
+      "position_evidence_actor_index": 42
+    },
+    {
+      "spawn_id": 901042,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "caravan",
+      "label": "aiworld_lab_settlement_v8_901042",
+      "home": {
+        "x": 210.0,
+        "y": 594.0,
+        "z": 0.15,
+        "o": 1.5707963267948966
+      },
+      "position_evidence_actor_index": 43
+    },
+    {
+      "spawn_id": 901043,
+      "entry": 1423,
+      "faction": "stormwind",
+      "role": "guard",
+      "zone": "caravan",
+      "label": "aiworld_lab_settlement_v8_901043",
+      "home": {
+        "x": 210.0,
+        "y": 612.0,
+        "z": 0.15,
+        "o": 4.71238898038469
+      },
+      "position_evidence_actor_index": 44
+    },
+    {
+      "spawn_id": 901044,
+      "entry": 116,
+      "faction": "defias",
+      "role": "leader",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901044",
+      "home": {
+        "x": 75.57761092488713,
+        "y": 971.7542203638491,
+        "z": 0.15,
+        "o": 5.359316096801013
+      },
+      "position_evidence_actor_index": 45
+    },
+    {
+      "spawn_id": 901045,
+      "entry": 116,
+      "faction": "defias",
+      "role": "camp_guard",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901045",
+      "home": {
+        "x": 103.29399690022572,
+        "y": 967.9273860401981,
+        "z": 0.15,
+        "o": 3.073508990496523
+      },
+      "position_evidence_actor_index": 46
+    },
+    {
+      "spawn_id": 901046,
+      "entry": 116,
+      "faction": "defias",
+      "role": "camp_guard",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901046",
+      "home": {
+        "x": 63.17786406567263,
+        "y": 995.4422531218274,
+        "z": 0.15,
+        "o": 5.208965521160806
+      },
+      "position_evidence_actor_index": 47
+    },
+    {
+      "spawn_id": 901047,
+      "entry": 116,
+      "faction": "defias",
+      "role": "camp_guard",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901047",
+      "home": {
+        "x": 66.19741948710495,
+        "y": 946.6929939297219,
+        "z": 0.15,
+        "o": 1.127752327902875
+      },
+      "position_evidence_actor_index": 48
+    },
+    {
+      "spawn_id": 901048,
+      "entry": 94,
+      "faction": "defias",
+      "role": "supplier",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901048",
+      "home": {
+        "x": 84.51115344759029,
+        "y": 966.6506907442043,
+        "z": 0.15,
+        "o": 2.748893571891074
+      },
+      "position_evidence_actor_index": 49
+    },
+    {
+      "spawn_id": 901049,
+      "entry": 94,
+      "faction": "defias",
+      "role": "supplier",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901049",
+      "home": {
+        "x": 69.1201171875,
+        "y": 969.712158203125,
+        "z": 0.15,
+        "o": 0.0
+      },
+      "position_evidence_actor_index": 50
+    },
+    {
+      "spawn_id": 901050,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901050",
+      "home": {
+        "x": 98.533203125,
+        "y": 970.0869140625,
+        "z": 0.15,
+        "o": 3.1590921212371885
+      },
+      "position_evidence_actor_index": 51
+    },
+    {
+      "spawn_id": 901051,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901051",
+      "home": {
+        "x": 88.6432405736509,
+        "y": 984.8198500126128,
+        "z": 0.15,
+        "o": 4.060788922323077
+      },
+      "position_evidence_actor_index": 52
+    },
+    {
+      "spawn_id": 901052,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901052",
+      "home": {
+        "x": 84.12178421652916,
+        "y": 989.5895576540291,
+        "z": 0.15,
+        "o": 4.373717690373475
+      },
+      "position_evidence_actor_index": 53
+    },
+    {
+      "spawn_id": 901053,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901053",
+      "home": {
+        "x": 69.5846468236509,
+        "y": 987.5786390751128,
+        "z": 0.15,
+        "o": 5.111517034019426
+      },
+      "position_evidence_actor_index": 54
+    },
+    {
+      "spawn_id": 901054,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901054",
+      "home": {
+        "x": 56.51901717488713,
+        "y": 982.1666780736509,
+        "z": 0.15,
+        "o": 5.739422494876353
+      },
+      "position_evidence_actor_index": 55
+    },
+    {
+      "spawn_id": 901055,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901055",
+      "home": {
+        "x": 58.686744688134524,
+        "y": 971.2687759381346,
+        "z": 0.15,
+        "o": 6.198939552767504
+      },
+      "position_evidence_actor_index": 56
+    },
+    {
+      "spawn_id": 901056,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901056",
+      "home": {
+        "x": 63.1998811986509,
+        "y": 955.6020249873872,
+        "z": 0.15,
+        "o": 0.7921727556397572
+      },
+      "position_evidence_actor_index": 57
+    },
+    {
+      "spawn_id": 901057,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901057",
+      "home": {
+        "x": 73.51518249873095,
+        "y": 950.698684688769,
+        "z": 0.15,
+        "o": 1.3834214814813428
+      },
+      "position_evidence_actor_index": 58
+    },
+    {
+      "spawn_id": 901058,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901058",
+      "home": {
+        "x": 83.24305210534143,
+        "y": 954.9300856829444,
+        "z": 0.15,
+        "o": 1.963495408493621
+      },
+      "position_evidence_actor_index": 59
+    },
+    {
+      "spawn_id": 901059,
+      "entry": 116,
+      "faction": "defias",
+      "role": "raider",
+      "zone": "defias",
+      "label": "aiworld_lab_settlement_v8_901059",
+      "home": {
+        "x": 90.42363098434072,
+        "y": 960.8230344748114,
+        "z": 0.15,
+        "o": 2.5525440310417076
+      },
+      "position_evidence_actor_index": 60
+    },
+    {
+      "spawn_id": 901060,
+      "entry": 448,
+      "faction": "gnolls",
+      "role": "leader",
+      "zone": "gnolls",
+      "label": "aiworld_lab_settlement_v8_901060",
+      "home": {
+        "x": 463.99765625,
+        "y": 972.5791015625,
+        "z": 13.096685538770844,
+        "o": 0.0
+      },
+      "position_evidence_actor_index": 61
+    },
+    {
+      "spawn_id": 901061,
+      "entry": 478,
+      "faction": "gnolls",
+      "role": "hunter",
+      "zone": "gnolls",
+      "label": "aiworld_lab_settlement_v8_901061",
+      "home": {
+        "x": 462.60222494865087,
+        "y": 989.2163343876128,
+        "z": 14.991597032428016,
+        "o": 4.796067128239889
+      },
+      "position_evidence_actor_index": 62
+    },
+    {
+      "spawn_id": 901062,
+      "entry": 478,
+      "faction": "gnolls",
+      "role": "hunter",
+      "zone": "gnolls",
+      "label": "aiworld_lab_settlement_v8_901062",
+      "home": {
+        "x": 464.1568782276982,
+        "y": 953.1044405997743,
+        "z": 14.587375408257572,
+        "o": 1.5789719982705828
+      },
+      "position_evidence_actor_index": 63
+    },
+    {
+      "spawn_id": 901063,
+      "entry": 97,
+      "faction": "gnolls",
+      "role": "gatherer",
+      "zone": "gnolls",
+      "label": "aiworld_lab_settlement_v8_901063",
+      "home": {
+        "x": 479.99765625,
+        "y": 972.5791015625,
+        "z": 12.407100598877847,
+        "o": 3.141592653589793
+      },
+      "position_evidence_actor_index": 64
+    },
+    {
+      "spawn_id": 901064,
+      "entry": 97,
+      "faction": "gnolls",
+      "role": "gatherer",
+      "zone": "gnolls",
+      "label": "aiworld_lab_settlement_v8_901064",
+      "home": {
+        "x": 447.99765625,
+        "y": 972.5791015625,
+        "z": 15.633231815945,
+        "o": 0.0
+      },
+      "position_evidence_actor_index": 65
+    },
+    {
+      "spawn_id": 901065,
+      "entry": 97,
+      "faction": "gnolls",
+      "role": "camp_guard",
+      "zone": "gnolls",
+      "label": "aiworld_lab_settlement_v8_901065",
+      "home": {
+        "x": 471.810546875,
+        "y": 981.58203125,
+        "z": 13.971383025233973,
+        "o": 3.9976420440164193
+      },
+      "position_evidence_actor_index": 66
+    },
+    {
+      "spawn_id": 901066,
+      "entry": 285,
+      "faction": "murlocs",
+      "role": "fisher",
+      "zone": "murlocs",
+      "label": "aiworld_lab_settlement_v8_901066",
+      "home": {
+        "x": -407.7805875513491,
+        "y": 947.1586656123872,
+        "z": -2.775858205966627,
+        "o": 6.044855105219195
+      },
+      "position_evidence_actor_index": 67
+    },
+    {
+      "spawn_id": 901067,
+      "entry": 285,
+      "faction": "murlocs",
+      "role": "fisher",
+      "zone": "murlocs",
+      "label": "aiworld_lab_settlement_v8_901067",
+      "home": {
+        "x": -394.6041438526982,
+        "y": 946.9120577872743,
+        "z": -3.1763244830828157,
+        "o": 4.976216813385595
+      },
+      "position_evidence_actor_index": 68
+    },
+    {
+      "spawn_id": 901068,
+      "entry": 285,
+      "faction": "murlocs",
+      "role": "fisher",
+      "zone": "murlocs",
+      "label": "aiworld_lab_settlement_v8_901068",
+      "home": {
+        "x": -388.4668357822018,
+        "y": 946.1789451572018,
+        "z": -3.405102974340506,
+        "o": 3.572533366615672
+      },
+      "position_evidence_actor_index": 69
+    },
+    {
+      "spawn_id": 901069,
+      "entry": 285,
+      "faction": "murlocs",
+      "role": "fisher",
+      "zone": "murlocs",
+      "label": "aiworld_lab_settlement_v8_901069",
+      "home": {
+        "x": -382.7109375,
+        "y": 949.9599609375,
+        "z": -2.577826120936253,
+        "o": 3.6540187726642133
+      },
+      "position_evidence_actor_index": 70
+    },
+    {
+      "spawn_id": 901070,
+      "entry": 732,
+      "faction": "murlocs",
+      "role": "camp_guard",
+      "zone": "murlocs",
+      "label": "aiworld_lab_settlement_v8_901070",
+      "home": {
+        "x": -394.39126977161294,
+        "y": 980.3243936046775,
+        "z": -0.24784199814606592,
+        "o": 4.516039439535327
+      },
+      "position_evidence_actor_index": 71
+    },
+    {
+      "spawn_id": 901071,
+      "entry": 732,
+      "faction": "murlocs",
+      "role": "camp_guard",
+      "zone": "murlocs",
+      "label": "aiworld_lab_settlement_v8_901071",
+      "home": {
+        "x": -420.73540315022575,
+        "y": 973.0433170848017,
+        "z": -0.43206131594821173,
+        "o": 5.639350543864079
+      },
+      "position_evidence_actor_index": 72
+    },
+    {
+      "spawn_id": 901072,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildLeft",
+      "label": "aiworld_lab_settlement_v8_901072",
+      "home": {
+        "x": 256.31370849898474,
+        "y": 1031.3137084989849,
+        "z": 9.175631767827262,
+        "o": 3.9269908169872463
+      },
+      "position_evidence_actor_index": 73
+    },
+    {
+      "spawn_id": 901073,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildLeft",
+      "label": "aiworld_lab_settlement_v8_901073",
+      "home": {
+        "x": 233.68629150101523,
+        "y": 1031.3137084989849,
+        "z": 12.779566101515423,
+        "o": 5.497787143782134
+      },
+      "position_evidence_actor_index": 74
+    },
+    {
+      "spawn_id": 901074,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildLeft",
+      "label": "aiworld_lab_settlement_v8_901074",
+      "home": {
+        "x": 233.68629150101523,
+        "y": 1008.6862915010153,
+        "z": 11.083116056598815,
+        "o": 0.7853981633974471
+      },
+      "position_evidence_actor_index": 75
+    },
+    {
+      "spawn_id": 901075,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildLeft",
+      "label": "aiworld_lab_settlement_v8_901075",
+      "home": {
+        "x": 256.31370849898474,
+        "y": 1008.6862915010153,
+        "z": 8.971414330908694,
+        "o": 2.356194490192345
+      },
+      "position_evidence_actor_index": 76
+    },
+    {
+      "spawn_id": 901076,
+      "entry": 1186,
+      "faction": "wildlife",
+      "role": "predator",
+      "zone": "wildLeft",
+      "label": "aiworld_lab_settlement_v8_901076",
+      "home": {
+        "x": 249.68216772838707,
+        "y": 1043.5388467296775,
+        "z": 8.96635344242184,
+        "o": 4.516039439535327
+      },
+      "position_evidence_actor_index": 77
+    },
+    {
+      "spawn_id": 901077,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildTop",
+      "label": "aiworld_lab_settlement_v8_901077",
+      "home": {
+        "x": 471.97056274847716,
+        "y": 396.97056274847716,
+        "z": 8.593729148263302,
+        "o": 3.9269908169872414
+      },
+      "position_evidence_actor_index": 78
+    },
+    {
+      "spawn_id": 901078,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildTop",
+      "label": "aiworld_lab_settlement_v8_901078",
+      "home": {
+        "x": 438.02943725152284,
+        "y": 396.97056274847716,
+        "z": 5.267358601487541,
+        "o": 5.497787143782138
+      },
+      "position_evidence_actor_index": 79
+    },
+    {
+      "spawn_id": 901079,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildTop",
+      "label": "aiworld_lab_settlement_v8_901079",
+      "home": {
+        "x": 438.02943725152284,
+        "y": 363.02943725152284,
+        "z": 3.412829040538565,
+        "o": 0.7853981633974483
+      },
+      "position_evidence_actor_index": 80
+    },
+    {
+      "spawn_id": 901080,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildTop",
+      "label": "aiworld_lab_settlement_v8_901080",
+      "home": {
+        "x": 471.97056274847716,
+        "y": 363.02943725152284,
+        "z": 4.696966394349532,
+        "o": 2.356194490192345
+      },
+      "position_evidence_actor_index": 81
+    },
+    {
+      "spawn_id": 901081,
+      "entry": 1186,
+      "faction": "wildlife",
+      "role": "predator",
+      "zone": "wildTop",
+      "label": "aiworld_lab_settlement_v8_901081",
+      "home": {
+        "x": 455.0,
+        "y": 412.0,
+        "z": 6.324197279069708,
+        "o": 4.71238898038469
+      },
+      "position_evidence_actor_index": 82
+    },
+    {
+      "spawn_id": 901082,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildRight",
+      "label": "aiworld_lab_settlement_v8_901082",
+      "home": {
+        "x": -53.02943725152286,
+        "y": 176.97056274847714,
+        "z": 0.15,
+        "o": 3.926990816987241
+      },
+      "position_evidence_actor_index": 83
+    },
+    {
+      "spawn_id": 901083,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildRight",
+      "label": "aiworld_lab_settlement_v8_901083",
+      "home": {
+        "x": -86.97056274847714,
+        "y": 176.97056274847714,
+        "z": 0.15,
+        "o": 5.497787143782138
+      },
+      "position_evidence_actor_index": 84
+    },
+    {
+      "spawn_id": 901084,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildRight",
+      "label": "aiworld_lab_settlement_v8_901084",
+      "home": {
+        "x": -86.97056274847714,
+        "y": 143.02943725152286,
+        "z": 0.15,
+        "o": 0.7853981633974483
+      },
+      "position_evidence_actor_index": 85
+    },
+    {
+      "spawn_id": 901085,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildRight",
+      "label": "aiworld_lab_settlement_v8_901085",
+      "home": {
+        "x": -53.029437251522864,
+        "y": 143.02943725152286,
+        "z": 0.15,
+        "o": 2.356194490192345
+      },
+      "position_evidence_actor_index": 86
+    },
+    {
+      "spawn_id": 901086,
+      "entry": 1186,
+      "faction": "wildlife",
+      "role": "predator",
+      "zone": "wildRight",
+      "label": "aiworld_lab_settlement_v8_901086",
+      "home": {
+        "x": -70.0,
+        "y": 220.0,
+        "z": 0.15,
+        "o": 4.71238898038469
+      },
+      "position_evidence_actor_index": 87
+    },
+    {
+      "spawn_id": 901087,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildSouth",
+      "label": "aiworld_lab_settlement_v8_901087",
+      "home": {
+        "x": -248.68629150101523,
+        "y": 351.31370849898474,
+        "z": 0.15,
+        "o": 3.92699081698724
+      },
+      "position_evidence_actor_index": 88
+    },
+    {
+      "spawn_id": 901088,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildSouth",
+      "label": "aiworld_lab_settlement_v8_901088",
+      "home": {
+        "x": -271.31370849898474,
+        "y": 351.31370849898474,
+        "z": 0.22695242342031635,
+        "o": 5.497787143782138
+      },
+      "position_evidence_actor_index": 89
+    },
+    {
+      "spawn_id": 901089,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildSouth",
+      "label": "aiworld_lab_settlement_v8_901089",
+      "home": {
+        "x": -271.31370849898474,
+        "y": 328.68629150101526,
+        "z": 0.7621400134055095,
+        "o": 0.7853981633974483
+      },
+      "position_evidence_actor_index": 90
+    },
+    {
+      "spawn_id": 901090,
+      "entry": 883,
+      "faction": "wildlife",
+      "role": "prey",
+      "zone": "wildSouth",
+      "label": "aiworld_lab_settlement_v8_901090",
+      "home": {
+        "x": -248.68629150101523,
+        "y": 328.68629150101526,
+        "z": 0.15,
+        "o": 2.356194490192346
+      },
+      "position_evidence_actor_index": 91
+    },
+    {
+      "spawn_id": 901091,
+      "entry": 1186,
+      "faction": "wildlife",
+      "role": "predator",
+      "zone": "wildSouth",
+      "label": "aiworld_lab_settlement_v8_901091",
+      "home": {
+        "x": -260.0,
+        "y": 364.0,
+        "z": 0.15,
+        "o": 4.71238898038469
+      },
+      "position_evidence_actor_index": 92
+    },
+    {
+      "spawn_id": 901092,
+      "entry": 40,
+      "faction": "kobolds",
+      "role": "miner",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901092",
+      "home": {
+        "x": -393.78751069454785,
+        "y": 316.14631062604855,
+        "z": 3.41127448496061,
+        "o": 1.8530552369010385
+      },
+      "position_evidence_actor_index": 93
+    },
+    {
+      "spawn_id": 901093,
+      "entry": 40,
+      "faction": "kobolds",
+      "role": "miner",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901093",
+      "home": {
+        "x": -411.2883143765226,
+        "y": 291.8185888842281,
+        "z": 2.477664404120377,
+        "o": 1.4459896976551518
+      },
+      "position_evidence_actor_index": 94
+    },
+    {
+      "spawn_id": 901094,
+      "entry": 40,
+      "faction": "kobolds",
+      "role": "miner",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901094",
+      "home": {
+        "x": -399.2389691181197,
+        "y": 276.7974478480769,
+        "z": 6.455697265360601,
+        "o": 1.6332309800155893
+      },
+      "position_evidence_actor_index": 95
+    },
+    {
+      "spawn_id": 901095,
+      "entry": 40,
+      "faction": "kobolds",
+      "role": "miner",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901095",
+      "home": {
+        "x": -408.3622472084723,
+        "y": 272.8204952508079,
+        "z": 6.139651441557221,
+        "o": 1.5133817926418192
+      },
+      "position_evidence_actor_index": 96
+    },
+    {
+      "spawn_id": 901096,
+      "entry": 40,
+      "faction": "kobolds",
+      "role": "miner",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901096",
+      "home": {
+        "x": -424.9730352031409,
+        "y": 232.39811229724296,
+        "z": -0.580260689759886,
+        "o": 1.3946215794518217
+      },
+      "position_evidence_actor_index": 97
+    },
+    {
+      "spawn_id": 901097,
+      "entry": 40,
+      "faction": "kobolds",
+      "role": "entrance_guard",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901097",
+      "home": {
+        "x": -405,
+        "y": 401,
+        "z": 3.0990019207623263,
+        "o": 4.7348899601219365
+      },
+      "position_evidence_actor_index": 98
+    },
+    {
+      "spawn_id": 901098,
+      "entry": 257,
+      "faction": "kobolds",
+      "role": "forager",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901098",
+      "home": {
+        "x": -335.0,
+        "y": 365.0,
+        "z": 4.344324669189539,
+        "o": 3.343194768765213
+      },
+      "position_evidence_actor_index": 99
+    },
+    {
+      "spawn_id": 901099,
+      "entry": 257,
+      "faction": "kobolds",
+      "role": "forager",
+      "zone": "kobolds",
+      "label": "aiworld_lab_settlement_v8_901099",
+      "home": {
+        "x": -340.65685424949237,
+        "y": 359.34314575050763,
+        "z": 6.151841444247012,
+        "o": 3.2739964047263035
+      },
+      "position_evidence_actor_index": 100
+    }
+  ],
+  "placement_proof": "settlement-position-verification.json",
+  "placement_proof_sha256": "bcd0c8d3b7dd7fb814ea4d1e1af22306c0de7746f0c5fa87d5d5e6db69b1ca9f",
+  "native_movement": {
+    "MovementType": 0,
+    "wander_distance": 0,
+    "equipment_id": -1,
+    "normal_combat_chase_and_return": true
+  },
+  "aiworld_enabled": false,
+  "telemetry_enabled": false,
+  "activities_implemented": [
+    "native idle spawn",
+    "native combat reactions",
+    "existing template vendor/trainer/innkeeper interactions"
+  ],
+  "future_activities": [
+    "caravan transport",
+    "fishing and mining economy",
+    "hunger expeditions",
+    "territory occupation"
+  ],
+  "physical_player_or_npc_walk_verified": false
+}

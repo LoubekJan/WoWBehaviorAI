@@ -7,6 +7,10 @@ test "$(git branch --show-current)" = AI-World-lab
 test "$(git rev-parse HEAD)" = "$expected_revision"
 test -f deploy/lab/.env
 
+mkdir -p runtime/lab
+exec 9>runtime/lab/deploy.lock
+flock -x 9
+
 lab_compose=(docker compose --env-file deploy/lab/.env -f compose.lab.yml)
 "${lab_compose[@]}" config --quiet
 mkdir -p runtime/lab/logs runtime/lab/recordings
@@ -21,6 +25,15 @@ make -f Makefile.lab dbc-factions
 
 # Stop only the lab world before replacing its installed binaries.
 "${lab_compose[@]}" stop worldserver
+lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
+if [ "$lab_profile" = settlement-v8 ]; then
+  # The native NPC population is installed only with the world container stopped.
+  world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
+  test -n "$world_id"
+  test "$(docker inspect --format '{{.State.Running}}' "$world_id")" = false
+  "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev \
+    python3 tools/realm_lab/manage.py bootstrap-settlement-v8 /workspace/runtime/lab/data
+fi
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh
 "${lab_compose[@]}" up -d lab-mysql ai-server world-viewer worldserver
 
@@ -42,6 +55,10 @@ wait_healthy() {
 for service in lab-mysql ai-server world-viewer worldserver; do
   wait_healthy "$service"
 done
+if [ "$lab_profile" = settlement-v8 ]; then
+  "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
+    python3 tools/realm_lab/manage.py preflight-settlement-v8 /runtime/data
+fi
 
 version="$("${lab_compose[@]}" exec -T --interactive=false worldserver /build/bin/worldserver --version)"
 grep -Fq "${expected_revision:0:12}" <<< "$version"

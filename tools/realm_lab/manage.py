@@ -17,9 +17,9 @@ import sys
 from typing import Mapping
 
 try:
-    from . import hunt_population, single_return, terrain_profile
+    from . import hunt_population, settlement_population, single_return, terrain_profile
 except ImportError:  # Direct script invocation inside the lab container.
-    import hunt_population, single_return, terrain_profile
+    import hunt_population, settlement_population, single_return, terrain_profile
 
 
 class SetupError(ValueError):
@@ -89,8 +89,8 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", *hunt_population.PROFILES):
-            raise SetupError("LAB_AI_PROFILE must be disabled, single-return, hunt-cycle, hunt-100 or hunt-terrain-100")
+        if profile not in ("disabled", "single-return", settlement_population.PROFILE, *hunt_population.PROFILES):
+            raise SetupError("LAB_AI_PROFILE must be disabled, single-return, hunt-cycle, hunt-100, hunt-terrain-100 or settlement-v8")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
         return cls(
@@ -106,7 +106,7 @@ class Settings:
         )
 
 
-def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | None = None) -> dict[str, str]:
+def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | None = None) -> dict[str, str]:
     auth = f"{settings.auth_host};{settings.auth_port};{settings.auth_user};{settings.auth_password};auth"
     local = f"lab-mysql;3306;{settings.db_user};{settings.db_password}"
     result = {
@@ -185,7 +185,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
     return result
 
 
-def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | None = None) -> str:
+def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | None = None) -> str:
     overrides = config_overrides(settings, scope)
     seen: set[str] = set()
     lines: list[str] = []
@@ -322,6 +322,29 @@ def migrate_terrain(data: Path, settings: Settings, metadata: Path = terrain_pro
     print("Navigation certified; native/physical v3 acceptance remains pending until measured on this terrain.")
 
 
+def settlement_preflight(data: Path, settings: Settings, *, bootstrap: bool = False,
+                         metadata: Path = settlement_population.METADATA) -> settlement_population.Population:
+    population = settlement_population.verify_data(data, metadata)
+    rows = single_return.parse_snapshot(lab_mysql(settings, settlement_population.snapshot_sql(population)))
+    settlement_population.validate_snapshot(rows, population, bootstrap=bootstrap)
+    return population
+
+
+def bootstrap_settlement(data: Path, settings: Settings,
+                         metadata: Path = settlement_population.METADATA) -> None:
+    if settings.ai_profile not in ("disabled", settlement_population.PROFILE):
+        raise SetupError("Settlement bootstrap requires LAB_AI_PROFILE=disabled or settlement-v8 and the lab worldserver stopped")
+    # The host deployment also checks Docker state under the lab deployment lock.
+    settlement_population.ensure_world_offline()
+    population = settlement_preflight(data, settings, bootstrap=True, metadata=metadata)
+    settlement_population.ensure_world_offline()
+    lab_mysql(settings, settlement_population.bootstrap_sql(population))
+    settlement_population.ensure_world_offline()
+    rows = single_return.parse_snapshot(lab_mysql(settings, settlement_population.snapshot_sql(population)))
+    settlement_population.validate_snapshot(rows, population)
+    print("Exactly 100 native NPC spawns prepared on map 725; masked regression homes preserved and AI remains disabled.")
+
+
 def auth_user_sql(settings: Settings) -> str:
     account = f"{sql_literal(settings.auth_user)}@'%'"
     return f"""CREATE USER {account} IDENTIFIED BY {sql_literal(settings.auth_password)};
@@ -386,7 +409,8 @@ def main() -> None:
     check.add_argument("data", type=Path)
     for command in ("bootstrap-single", "activate-single", "preflight-single", "bootstrap-hunt", "activate-hunt", "preflight-hunt",
                     "bootstrap-hunt-100", "activate-hunt-100", "preflight-hunt-100",
-                    "migrate-hunt-terrain-100", "activate-hunt-terrain-100", "preflight-hunt-terrain-100"):
+                    "migrate-hunt-terrain-100", "activate-hunt-terrain-100", "preflight-hunt-terrain-100",
+                    "bootstrap-settlement-v8", "preflight-settlement-v8"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -399,6 +423,8 @@ def main() -> None:
             elif settings.ai_profile in hunt_population.PROFILES:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = population_preflight(Path("/runtime/data"), settings, control=1, profile=settings.ai_profile)
+            elif settings.ai_profile == settlement_population.PROFILE:
+                scope = settlement_preflight(Path("/runtime/data"), settings)
             rendered = render_config(args.template.read_text(encoding="utf-8"), settings, scope)
             dest = Path("/tmp/lab-worldserver.conf")
             fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -443,6 +469,11 @@ def main() -> None:
             population_preflight(args.data, settings, control=1 if settings.ai_profile == terrain_profile.PROFILE else 0,
                                  profile=terrain_profile.PROFILE)
             print("Terrain bundle, full VMAP model closure and exact 100-actor homes verified; physical v3 acceptance remains pending.")
+        elif args.command == "bootstrap-settlement-v8":
+            bootstrap_settlement(args.data, settings)
+        elif args.command == "preflight-settlement-v8":
+            settlement_preflight(args.data, settings)
+            print("Complete v8 geometry, exactly 100 native NPC spawns and masked regression identities verified.")
     except (SetupError, single_return.ProfileError, OSError) as exc:
         print(f"Lab setup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

@@ -887,6 +887,47 @@ označují cíle výprav, nikoli ověřené navigační trasy. První herní eta
 má ověřit jednotlivé cesty domů; teprve potom přidat hlad, přepravu
 zásob a nakonec obsazování vesnic. Celý návrh se nemá aktivovat najednou.
 
+### Osazení mapy v8 skutečnými NPC
+
+Profil `settlement-v8` používá
+[verzovanou populaci](../data/realm_lab/aiworldlab/preview-v8/settlement-population.json)
+se 100 novými spawny GUID 901000–901099. Počty odpovídají návrhu:
+44 Stormwind, 16 Defias, 6 gnollů, 6 murloků, 8 koboldů a 20 kusů zvěře.
+Původních 100 návratových testovacích actorů GUID 900725–900824 zůstává
+potlačených, jejich identity a domovy jsou porovnané s pevným snapshotem.
+
+[Ověření jednotlivých pozic](../data/realm_lab/aiworldlab/preview-v8/settlement-position-verification.json)
+pokrývá 95 suchých povrchových míst a pět podlah v dole. Nejmenší rozestup
+je 5,228 jednotek; povrchová místa mají nejvýše 14,916° sklon, dvoujednotkovou
+rezervu od známých kolizních obálek a místní ground navigaci. Podlahy horníků
+mají ověřenou výšku, prostor nad hlavou a místní spojení NAV polygonů
+ke strážci u vstupu `(-405; 401)`. Toto spojení nenahrazuje herní zkoušku
+průchodu ani nativně provedenou Detour trasu.
+
+Stráže ve městě chrání jednotlivé přístupy, vesnice mají čtyři pracovníky
+a dvě stráže. Město obsahuje hostinského, kováře, čtyři obchodníky a dva
+obyvatele; využívají existující šablony a jejich původní nabídky/služby.
+Murloci stojí na suchém břehu směrem k vodě, horníci na podlahách uvnitř
+dolu a dva venkovní koboldi mimo jeho kolizní obálku. Nejbližší dvojice
+Stormwind/nepřátelského NPC je od sebe 55,73 jednotek, tedy nad běžným
+maximálním dosahem aggra 45 jednotek při `Rate.Creature.Aggro=1`.
+
+První osazení má `MovementType=0`, `wander_distance=0`, běžnou nativní
+AI a respawn 300 sekund. NPC stojí na místě; při boji mohou pronásledovat
+nepřítele a vracet se. `AIWorld.Enable=0` a telemetrie zůstávají vypnuté.
+Role označují plánované využití a rozmístění; automatické rybaření, těžba,
+hlad, převoz karavany ani dobývání zatím nejsou implementované. Prvním
+herním ověřením po osazení je viditelnost NPC, správné podlahy a návrat
+jednotlivých nepřátel po vytažení z tábora.
+
+CI/CD drží `runtime/lab/deploy.lock`, zastaví pouze lab worldserver,
+ověří stav kontejneru a spustí `bootstrap-settlement-v8`. Bootstrap kontroluje
+všech 61 nativních souborů, přesnou pozici každého actoru a živé šablony,
+SmartAI a addony. Vkládá pouze chybějící vlastní spawny; cizí či změněné
+záznamy odmítne. Start i kontrola po nasazení vyžadují shodný readback
+všech 100 nových NPC a nezměněnou původní populaci. Šablony, sdílená auth
+databáze a postavy původního realmu se tímto krokem neupravují.
+
 ### Postup při prvním selhání
 
 Při selhání etapu zastavit, uložit přesný scénář, revizi kódu, hashe dat a
