@@ -1,0 +1,590 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v7",
+  "source_project": "runtime/lab/map-project",
+  "source_unchanged": true,
+  "source_files_rechecked_unchanged": 15,
+  "staging_project": "runtime/lab/map-project-preview-v7",
+  "excluded_maps": [
+    "azeroth"
+  ],
+  "tiles": [
+    [
+      30,
+      31
+    ],
+    [
+      31,
+      31
+    ],
+    [
+      30,
+      32
+    ],
+    [
+      31,
+      32
+    ]
+  ],
+  "world_bounds": {
+    "min_x": -533.3333129882812,
+    "max_x": 533.3333129882812,
+    "min_y": 0.0,
+    "max_y": 1066.6666259765625
+  },
+  "area_binding": [
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "9b58ca4af94135725dc3acb47bd656ea7792d5ca7b7b10019e0f00750be98428",
+      "packaged_sha256": "c786019128ee7429af6d2b48f4aab111fa5087bf974cf720e7e3a3464b2b4e22",
+      "changed_bytes": 512
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "cfa103986475f0b3c4b741cd6b2e0e8b4c585cf58cef82e3849823a7ebc94972",
+      "packaged_sha256": "872ec89ade393592ceeef6303b40651f9562e4b18c685dbbe422f81bb7f68974",
+      "changed_bytes": 512
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "cbe9c9e359b2f3882695d57a64edece46a26180bea99cf130d81dc251289f8d9",
+      "packaged_sha256": "bd88a1b2710f3cf910dff74974e0af4240865c342f18056f49613f0a6bb5b7ad",
+      "changed_bytes": 512
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "source_sha256": "52cdc4e850b04b89b7c6eef4a7041fa4458deb4ad54d81a368a7d1610f5bc1b2",
+      "packaged_sha256": "463819ba0852c1ad3dbc79a23b715d74eef4db8c968b0de469bd71ee41003e06",
+      "changed_bytes": 512
+    }
+  ],
+  "dbc_compatibility": [
+    {
+      "name": "Map.dbc",
+      "baseline_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "current_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "shared_rows_unchanged": true,
+      "shared_strings_unchanged": true,
+      "map_725_row_changes_allowed": true
+    },
+    {
+      "name": "AreaTable.dbc",
+      "baseline_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "current_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "shared_rows_unchanged": true,
+      "shared_strings_unchanged": true,
+      "map_725_row_changes_allowed": false
+    },
+    {
+      "name": "Light.dbc",
+      "baseline_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "current_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "shared_rows_unchanged": true,
+      "shared_strings_unchanged": true,
+      "map_725_row_changes_allowed": false
+    }
+  ],
+  "archives": [
+    {
+      "kind": "source",
+      "path": "runtime/lab/map-source-artifacts/aiworldlab-725-preview-v7-source.zip",
+      "bytes": 738046,
+      "sha256": "ae05e6d2baeaa90980a2fa1f1e366509d3b092cf2be03c56cfff70ba85745875"
+    },
+    {
+      "kind": "bound-source",
+      "path": "runtime/lab/map-source-artifacts/aiworldlab-725-preview-v7-bound-source.zip",
+      "bytes": 738140,
+      "sha256": "85bb0748cd55c70589f842a4a9c89304959416136599a0d639904bd84d1c01bc"
+    }
+  ],
+  "files": [
+    {
+      "path": "DBFilesClient/Map.dbc",
+      "bytes": 43922,
+      "source_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "packaged_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "DBFilesClient/AreaTable.dbc",
+      "bytes": 367119,
+      "source_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "packaged_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "DBFilesClient/Light.dbc",
+      "bytes": 42981,
+      "source_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "packaged_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdt",
+      "bytes": 32828,
+      "source_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba",
+      "packaged_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdl",
+      "bytes": 21108,
+      "source_sha256": "c8a93637e848473ce1d61d5b13ddb62743f92f72ccfd327eb2d1ad85fc2faf4f",
+      "packaged_sha256": "c8a93637e848473ce1d61d5b13ddb62743f92f72ccfd327eb2d1ad85fc2faf4f"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "bytes": 625464,
+      "source_sha256": "9b58ca4af94135725dc3acb47bd656ea7792d5ca7b7b10019e0f00750be98428",
+      "packaged_sha256": "c786019128ee7429af6d2b48f4aab111fa5087bf974cf720e7e3a3464b2b4e22"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "bytes": 528659,
+      "source_sha256": "cfa103986475f0b3c4b741cd6b2e0e8b4c585cf58cef82e3849823a7ebc94972",
+      "packaged_sha256": "872ec89ade393592ceeef6303b40651f9562e4b18c685dbbe422f81bb7f68974"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "bytes": 716054,
+      "source_sha256": "cbe9c9e359b2f3882695d57a64edece46a26180bea99cf130d81dc251289f8d9",
+      "packaged_sha256": "bd88a1b2710f3cf910dff74974e0af4240865c342f18056f49613f0a6bb5b7ad"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "bytes": 452810,
+      "source_sha256": "52cdc4e850b04b89b7c6eef4a7041fa4458deb4ad54d81a368a7d1610f5bc1b2",
+      "packaged_sha256": "463819ba0852c1ad3dbc79a23b715d74eef4db8c968b0de469bd71ee41003e06"
+    }
+  ],
+  "recorded_utc": "2026-10-11T12:15:12.367024+00:00",
+  "preparation_status": "Deployed walking preview; native data verified, matching client patch installed, four lab services healthy. Initial deployment evidence precedes branch CI.",
+  "world_dimensions": {
+    "width_x": 1066.6666259765625,
+    "width_y": 1066.6666259765625,
+    "units": "WoW server coordinate game units/yards"
+  },
+  "source_summary": {
+    "baseline_revision": "preview-v6",
+    "changed_map_files_against_v6": [
+      "world/maps/aiworldlab/aiworldlab.wdl",
+      "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "world/maps/aiworldlab/aiworldlab_31_32.adt"
+    ],
+    "terrain_vertices": 132100,
+    "terrain_height_min": -71.08556365966797,
+    "terrain_height_max": 204.7751922607422,
+    "terrain_vertices_changed_against_v6": 28642,
+    "max_terrain_height_change_against_v6": 23.851551055908203,
+    "terrain_delta_by_tile": [
+      {
+        "tile": [
+          30,
+          31
+        ],
+        "changed_terrain_vertices": 19922,
+        "max_terrain_height_change": 23.851551055908203
+      },
+      {
+        "tile": [
+          31,
+          31
+        ],
+        "changed_terrain_vertices": 8720,
+        "max_terrain_height_change": 10.662160873413086
+      },
+      {
+        "tile": [
+          30,
+          32
+        ],
+        "changed_terrain_vertices": 0,
+        "max_terrain_height_change": 0.0
+      },
+      {
+        "tile": [
+          31,
+          32
+        ],
+        "changed_terrain_vertices": 0,
+        "max_terrain_height_change": 0.0
+      }
+    ],
+    "all_mh2o_chunks_identical_to_v6": true,
+    "modern_liquid_instances": 560,
+    "hole_cells": 2,
+    "hole_blocks": 8,
+    "hole_squares": 32,
+    "changed_hole_masks": [
+      {
+        "tile": [
+          31,
+          32
+        ],
+        "chunk_x": 4,
+        "chunk_y": 12,
+        "before_mask": 0,
+        "after_mask": 60928,
+        "before_hex": "0x0000",
+        "after_hex": "0xee00",
+        "newly_opened_blocks": 6,
+        "newly_closed_blocks": 0
+      },
+      {
+        "tile": [
+          31,
+          32
+        ],
+        "chunk_x": 4,
+        "chunk_y": 13,
+        "before_mask": 0,
+        "after_mask": 12,
+        "before_hex": "0x0000",
+        "after_hex": "0x000c",
+        "newly_opened_blocks": 2,
+        "newly_closed_blocks": 0
+      }
+    ],
+    "model_placement_records": {
+      "wmo": 21,
+      "m2": 3
+    },
+    "unique_model_placements": {
+      "wmo": 15,
+      "m2": 3
+    },
+    "unique_model_total": 18,
+    "duplicate_placement_records": 6,
+    "seams": [
+      {
+        "tiles": [
+          [
+            30,
+            31
+          ],
+          [
+            31,
+            31
+          ]
+        ],
+        "axis": "y",
+        "max_delta": 1.1920928955078125e-07,
+        "vertices_gt_001": 0
+      },
+      {
+        "tiles": [
+          [
+            30,
+            31
+          ],
+          [
+            30,
+            32
+          ]
+        ],
+        "axis": "x",
+        "max_delta": 0.0,
+        "vertices_gt_001": 0
+      },
+      {
+        "tiles": [
+          [
+            31,
+            31
+          ],
+          [
+            31,
+            32
+          ]
+        ],
+        "axis": "x",
+        "max_delta": 0.0,
+        "vertices_gt_001": 0
+      },
+      {
+        "tiles": [
+          [
+            30,
+            32
+          ],
+          [
+            31,
+            32
+          ]
+        ],
+        "axis": "y",
+        "max_delta": 1.1175870895385742e-08,
+        "vertices_gt_001": 0
+      }
+    ],
+    "all_three_dbc_identical_to_v6": true,
+    "wdt_identical_to_v6": true,
+    "wdl_identical_to_v6": false,
+    "all_existing_model_placements_unchanged_against_v6": true,
+    "model_placements_added": [
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\DUNGEON\\MD_SPIDERMINE\\MD_SPIDERMINE_NOKOBOLDS.WMO",
+        "unique_id": 27,
+        "raw_position": [
+          16705.9765625,
+          1.0749695301055908,
+          17496.142578125
+        ],
+        "server_position": {
+          "x": -429.4765625,
+          "y": 360.689453125,
+          "z": 1.0749695301055908
+        },
+        "rotation": [
+          -6.463233470916748,
+          -108.56954193115234,
+          4.756840705871582
+        ],
+        "server_bounds": {
+          "min_x": -525.453125,
+          "max_x": -371.107421875,
+          "min_y": 209.43359375,
+          "max_y": 421.609375,
+          "min_z": -29.5670108795166,
+          "max_z": 33.57146453857422
+        },
+        "flags": 0,
+        "doodad_set": 0,
+        "name_set": 0,
+        "scale_field": 1024
+      }
+    ],
+    "direct_asset_references_added": [
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\DUNGEON\\MD_SPIDERMINE\\MD_SPIDERMINE_NOKOBOLDS.WMO",
+        "adt_references": [
+          [
+            31,
+            32
+          ]
+        ],
+        "local_override": false
+      }
+    ],
+    "direct_asset_references_removed": []
+  },
+  "assets": {
+    "direct_reference_count": 14,
+    "references": [
+      {
+        "kind": "m2",
+        "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+        "local_override": false
+      },
+      {
+        "kind": "texture",
+        "name": "tileset/elwynn/elwynncobblestonedock.blp",
+        "local_override": false
+      },
+      {
+        "kind": "texture",
+        "name": "tileset/elwynn/elwynncobblestonedockdirt.blp",
+        "local_override": false
+      },
+      {
+        "kind": "texture",
+        "name": "tileset/elwynn/elwynncrop92.blp",
+        "local_override": false
+      },
+      {
+        "kind": "texture",
+        "name": "tileset/elwynn/elwynngrassbase.blp",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\DUSKWOOD_HUMAN_FARM\\DUSKWOOD_HUMAN_FARM.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREINN\\GOLDSHIREINN.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\HUMAN_BARRACKS\\HUMAN_BARRACKS.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\HUMAN_FARM_TEST\\FARMTEST.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\MOONBROOK_HUMAN_FARM\\MOONBROOK_HUMAN_FARM.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\REDRIDGE_HUMAN_FARM\\REDRIDGE_HUMAN_FARM.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\TOWNHALL_NOWALL\\TOWNHALL_NOWALL.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\WESTFALL_HUMAN_FARM\\WESTFALL_HUMAN_FARMB.WMO",
+        "local_override": false
+      },
+      {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\DUNGEON\\MD_SPIDERMINE\\MD_SPIDERMINE_NOKOBOLDS.WMO",
+        "local_override": false
+      }
+    ],
+    "local_custom_asset_overrides": [],
+    "scope": "All direct ADT texture/M2/WMO references checked against authoring project. No custom overrides. Native extraction must independently confirm base-client assets and nested WMO dependencies."
+  },
+  "recommended_player_entry": {
+    "name": "old_entry",
+    "x": 266.667,
+    "y": 800,
+    "ground_z": 0.015391923194993266,
+    "triangle_slope_degrees": 1.366437422661556,
+    "square_row": 63,
+    "square_col": 63,
+    "triangle": 3,
+    "water_z": null,
+    "inside_wmo_bounds": [],
+    "near_m2_instances": [],
+    "z": 2.015391923194993,
+    "map_id": 725,
+    "verification_scope": "Dry low-slope source terrain, no WMO bounding overlap, 30*scale M2 distance heuristic; final native VMAP/nav projection must confirm collision clearance."
+  },
+  "private_evidence": [
+    {
+      "path": "runtime/lab-validation/map-preview-v7/source-inventory.json",
+      "sha256": "3c77c5855e40f4ebdf0e6c6e618117bf410c3833830ec6936eb6054d9632ad2d"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v7/source-receipt.json",
+      "sha256": "00f14b1b74c4b8e494fe8e179c9e75684f18bfdc694e17d1bd4da2d205037420"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v7/assets-audit.json",
+      "sha256": "572abb3f4c69d9eafa4db837c7f197ce6f6061caa3cb007a81f91aba0a795bcb"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v7/source-delta-v6.json",
+      "sha256": "1547582a0571fca5508239092dac36190dca523eb97b6c913b13121ab295f895"
+    }
+  ],
+  "client_patch": {
+    "map_id": 725,
+    "area_id": 4988,
+    "format_version": 0,
+    "output": "C:\\WoWBehaviorAI\\runtime\\lab\\client-patches\\map725-v7\\patch-4.MPQ",
+    "created": true,
+    "bytes": 2831990,
+    "sha256": "11227c6841eb45fd9950207fa620d0b1f0ad0d7b4533dc3b5cfad60c2182eea6",
+    "files": [
+      {
+        "path": "DBFilesClient\\Map.dbc",
+        "bytes": 43922,
+        "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+      },
+      {
+        "path": "DBFilesClient\\AreaTable.dbc",
+        "bytes": 367119,
+        "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+      },
+      {
+        "path": "DBFilesClient\\Light.dbc",
+        "bytes": 42981,
+        "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab.wdt",
+        "bytes": 32828,
+        "sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab.wdl",
+        "bytes": 21108,
+        "sha256": "c8a93637e848473ce1d61d5b13ddb62743f92f72ccfd327eb2d1ad85fc2faf4f"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_30_31.adt",
+        "bytes": 625464,
+        "sha256": "c786019128ee7429af6d2b48f4aab111fa5087bf974cf720e7e3a3464b2b4e22"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_31_31.adt",
+        "bytes": 528659,
+        "sha256": "872ec89ade393592ceeef6303b40651f9562e4b18c685dbbe422f81bb7f68974"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_30_32.adt",
+        "bytes": 716054,
+        "sha256": "bd88a1b2710f3cf910dff74974e0af4240865c342f18056f49613f0a6bb5b7ad"
+      },
+      {
+        "path": "World\\Maps\\AIWorldLab\\AIWorldLab_31_32.adt",
+        "bytes": 452810,
+        "sha256": "463819ba0852c1ad3dbc79a23b715d74eef4db8c968b0de469bd71ee41003e06"
+      }
+    ],
+    "tiles": [
+      {
+        "x": 30,
+        "y": 31
+      },
+      {
+        "x": 31,
+        "y": 31
+      },
+      {
+        "x": 30,
+        "y": 32
+      },
+      {
+        "x": 31,
+        "y": 32
+      }
+    ],
+    "independent_mpq_roundtrip": {
+      "status": "PASS",
+      "verified_content_files": 9,
+      "Azeroth_included": false
+    }
+  },
+  "native_verification": "data-verification.json",
+  "server_manifest": "server-manifest.json",
+  "deployment_record": "activation.json",
+  "bridge_collision_audit": "m2-collision-audit.json",
+  "bridge_nav_surface_probe": "bridge-nav-probe.json",
+  "mine_nav_surface_probe": "mine-nav-probe.json",
+  "mine_source_water_audit": "mine-source-water-audit.json"
+}

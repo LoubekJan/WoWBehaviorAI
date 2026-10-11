@@ -1,0 +1,393 @@
+{
+  "source_revision": "preview-v7",
+  "source_receipt_sha256": "00f14b1b74c4b8e494fe8e179c9e75684f18bfdc694e17d1bd4da2d205037420",
+  "holes": [
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 100,
+      "column": 34,
+      "x": -418.7499840259552,
+      "y": 389.58331847190857,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 100,
+      "column": 35,
+      "x": -418.7499840259552,
+      "y": 385.4166519641876,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 100,
+      "column": 36,
+      "x": -418.7499840259552,
+      "y": 381.2499854564667,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 100,
+      "column": 37,
+      "x": -418.7499840259552,
+      "y": 377.0833189487457,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 100,
+      "column": 38,
+      "x": -418.7499840259552,
+      "y": 372.9166524410248,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 100,
+      "column": 39,
+      "x": -418.7499840259552,
+      "y": 368.74998593330383,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 101,
+      "column": 34,
+      "x": -422.91665053367615,
+      "y": 389.58331847190857,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 101,
+      "column": 35,
+      "x": -422.91665053367615,
+      "y": 385.4166519641876,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 101,
+      "column": 36,
+      "x": -422.91665053367615,
+      "y": 381.2499854564667,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 101,
+      "column": 37,
+      "x": -422.91665053367615,
+      "y": 377.0833189487457,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 101,
+      "column": 38,
+      "x": -422.91665053367615,
+      "y": 372.9166524410248,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 101,
+      "column": 39,
+      "x": -422.91665053367615,
+      "y": 368.74998593330383,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 102,
+      "column": 34,
+      "x": -427.0833170413971,
+      "y": 389.58331847190857,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 102,
+      "column": 35,
+      "x": -427.0833170413971,
+      "y": 385.4166519641876,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 102,
+      "column": 36,
+      "x": -427.0833170413971,
+      "y": 381.2499854564667,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 102,
+      "column": 37,
+      "x": -427.0833170413971,
+      "y": 377.0833189487457,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 102,
+      "column": 38,
+      "x": -427.0833170413971,
+      "y": 372.9166524410248,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 102,
+      "column": 39,
+      "x": -427.0833170413971,
+      "y": 368.74998593330383,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 103,
+      "column": 34,
+      "x": -431.24998354911804,
+      "y": 389.58331847190857,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 103,
+      "column": 35,
+      "x": -431.24998354911804,
+      "y": 385.4166519641876,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 103,
+      "column": 36,
+      "x": -431.24998354911804,
+      "y": 381.2499854564667,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 103,
+      "column": 37,
+      "x": -431.24998354911804,
+      "y": 377.0833189487457,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 103,
+      "column": 38,
+      "x": -431.24998354911804,
+      "y": 372.9166524410248,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 103,
+      "column": 39,
+      "x": -431.24998354911804,
+      "y": 368.74998593330383,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 104,
+      "column": 36,
+      "x": -435.416650056839,
+      "y": 381.2499854564667,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 104,
+      "column": 37,
+      "x": -435.416650056839,
+      "y": 377.0833189487457,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 104,
+      "column": 38,
+      "x": -435.416650056839,
+      "y": 372.9166524410248,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 104,
+      "column": 39,
+      "x": -435.416650056839,
+      "y": 368.74998593330383,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 105,
+      "column": 36,
+      "x": -439.58331656455994,
+      "y": 381.2499854564667,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 105,
+      "column": 37,
+      "x": -439.58331656455994,
+      "y": 377.0833189487457,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 105,
+      "column": 38,
+      "x": -439.58331656455994,
+      "y": 372.9166524410248,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 105,
+      "column": 39,
+      "x": -439.58331656455994,
+      "y": 368.74998593330383,
+      "visible_liquid": true,
+      "water_vertex_height": -4.1219024658203125
+    }
+  ],
+  "hole_square_count": 32,
+  "hole_visible_water_squares": 32,
+  "ok": true
+}

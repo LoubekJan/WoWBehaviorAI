@@ -724,6 +724,70 @@ Vstup `.go xyz 266.667 800 2 725` je potvrzený na suché rovině Z 0
 mimo VMAP hranice a nad ground navigačním polygonem. Fyzickou prohlídku
 nového světa a chování NPC musí potvrdit samostatný test.
 
+### Procházkový náhled s dolem v7
+
+Uložená úprava z 11. 10. 2026 je zmrazená v
+[manifestu v7](../data/realm_lab/aiworldlab/preview-v7/project-manifest.json).
+Oproti v6 přibyl důl `MD_SpiderMine_NoKobolds.WMO`, instance ID 27
+v ADT `31_32`, a osm bloků otvoru v terénu, tedy 32 terénních čtverců.
+Masky MCNK jsou `0xee00` v buňce `(4, 12)` a `0x000c` v `(4, 13)`.
+Samotný otvor neposkytuje podlahu; průchod i podzemní povrchy vyžadují
+nově sestavené kolize a navigaci modelu dolu.
+
+Ve dvou severních ADT se změnilo 28 642 ze 132 100 terénních vrcholů;
+největší výšková změna je 23,85 jednotek. Voda MH2O, původních 14 budov
+WMO a tři mosty zůstaly shodné s v6. Nový stav má 15 jedinečných WMO
+a tři M2; 21 záznamů WMO zahrnuje šest opakování přes hranice dlaždic.
+Čtyři ADT nadále pokrývají **1 066,7 × 1 066,7 herních jednotek**.
+Výškové spoje souhlasí s odchylkou nejvýše `1,2 × 10⁻⁷`.
+
+Všech 15 autorských souborů zůstalo při zachycení beze změny.
+Odvozená kopie `runtime/lab/map-project-preview-v7` balí pouze AIWorldLab
+a doplňuje AreaID 4988 místo nuly; Azeroth je vyloučený. DBC a WDT
+zůstaly shodné s v6, WDL byl uložený znovu. Přímé odkazy používají
+klientské modely a textury, bez vlastních přepsaných assetů.
+
+Klientský patch je nainstalovaný v `C:\WoWModding\Client-Lab\Data\patch-4.MPQ`;
+má 2 831 990 bajtů a SHA-256
+`11227c6841eb45fd9950207fa620d0b1f0ad0d7b4533dc3b5cfad60c2182eea6`.
+Nezávislé načtení porovnalo všech devět obsahových souborů se stagingem.
+Z totožného patche jsou nově sestavené mapy, VMAP a všechny čtyři
+navigační dlaždice včetně vody.
+[Serverový manifest](../data/realm_lab/aiworldlab/preview-v7/server-manifest.json)
+obsahuje 55 souborů, 191 kolizních umístění a 38 modelů včetně vybavení dolu.
+[Nezávislé ověření](../data/realm_lab/aiworldlab/preview-v7/data-verification.json)
+prošlo pro terén, oblasti, autorskou vodu, otvory, kolize a navigaci.
+Všech 65 536 terénních čtverců bylo porovnáno s maskami otvorů;
+64 výškových dotazů uvnitř otvoru správně odmítlo terénní podlahu.
+Nový plán opravil pouze 45 zdrojem nezapsaných vodních okrajových vzorků;
+autorské hodnoty zůstaly zachované.
+
+[Omezená kontrola dolu](../data/realm_lab/aiworldlab/preview-v7/mine-nav-probe.json)
+ověřila 12 kolizních skupin, 7 062 vrcholů a 5 490 trojúhelníků.
+U 161 ze 400 vzorků podlahových trojúhelníků a u 17 ze 32 středů otvoru
+našla odpovídající ground navigaci. Původní autorská MH2O voda je pod
+všemi 32 středy otvoru na Z −4,1219, ale nalezené mírné podlahové povrchy
+v těchto středech jsou nad ní a žádný střed nemá odpovídající vodní nav polygon.
+Tyto místní vzorky nepotvrzují zaplavení ani úplnou suchost dolu,
+trasu od vchodu celým podzemím nebo skutečný runtime stav vody.
+[Aktuální kontrola mostů](../data/realm_lab/aiworldlab/preview-v7/bridge-nav-probe.json)
+potvrdila místní ground nav ve 4, 7 a 7 vzorcích; spojení břehů zůstává
+k samostatnému ověření.
+
+[Počáteční nasazení](../data/realm_lab/aiworldlab/preview-v7/activation.json)
+ověřilo všech 55 instalovaných souborů, čtyři zdravé lab služby a šest
+původních kontejnerů s nezměněnými časy spuštění. Všech 7 540 původních
+sdílených kolizních modelů zůstalo hashově shodných.
+Záloha v6 je v `runtime/lab/validation/map-preview-v7/before/installed-data`
+a klientská v `runtime/lab/client-patches/map725-v7/backups/patch-4-v6.MPQ`.
+Prohlídka zachovává `LAB_AI_PROFILE=disabled` a 100 potlačených NPC;
+SQL populace se v tomto nasazení neměnila.
+
+Vstup `.go xyz 266.667 800 2.02 725` je na suchém terénu Z 0,0154,
+se sklonem 1,37°, mimo rozšířené VMAP hranice a nad ověřeným ground
+navigačním polygonem. Fyzický průchod hráče a chování NPC na této revizi
+musí potvrdit samostatný test.
+
 ### Postup při prvním selhání
 
 Při selhání etapu zastavit, uložit přesný scénář, revizi kódu, hashe dat a
