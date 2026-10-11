@@ -1,0 +1,4281 @@
+{
+  "source_revision": "preview-v8",
+  "ok": true,
+  "status": "pass",
+  "errors": [],
+  "mines": [
+    {
+      "source_unique_id": 46,
+      "native_id": 698400,
+      "model_sha256": "5812613eb81e45659ab49360f2c373e8b0df520c626271360f3b1c277e4cc6ad",
+      "collision_groups": 12,
+      "collision_vertices": 7062,
+      "collision_triangles": 5490,
+      "server_position": {
+        "x": -403.873046875,
+        "y": 350.923828125,
+        "z": 7.616074562072754
+      },
+      "server_bounds": {
+        "min_x": -457.44921875,
+        "max_x": -357.435546875,
+        "min_y": 207.765625,
+        "max_y": 397.111328125,
+        "min_z": -4.955404281616211,
+        "max_z": 31.320072174072266
+      },
+      "upward_low_slope_triangles": 1042,
+      "centroid_samples_checked": 400,
+      "matching_ground_nav_centroids": 172
+    }
+  ],
+  "hole_samples": [
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 94,
+      "column": 38,
+      "x": -393.749999997539,
+      "y": 372.9166463226172,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": []
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 94,
+      "column": 39,
+      "x": -393.749999997539,
+      "y": 368.7499796559766,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": []
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 94,
+      "column": 40,
+      "x": -393.749999997539,
+      "y": 364.5833129893359,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 68,
+          "floor_z": 23.195365638808283,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 1002,
+            "nav_z": 23.47246386833525,
+            "ground_delta": 0.27709822952696683,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 94,
+      "column": 41,
+      "x": -393.749999997539,
+      "y": 360.4166463226953,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1716,
+          "triangle": 324,
+          "floor_z": 4.7497516768446415,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 976,
+            "nav_z": 4.961622072063431,
+            "ground_delta": 0.21187039521878948,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 68,
+          "floor_z": 21.249707450265962,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 984,
+            "nav_z": 21.603830695918827,
+            "ground_delta": 0.3541232456528647,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 95,
+      "column": 38,
+      "x": -397.9166666641797,
+      "y": 372.9166463226172,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": []
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 95,
+      "column": 39,
+      "x": -397.9166666641797,
+      "y": 368.7499796559766,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": []
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 95,
+      "column": 40,
+      "x": -397.9166666641797,
+      "y": 364.5833129893359,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 68,
+          "floor_z": 25.525255676103708,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 1002,
+            "nav_z": 25.80553608806137,
+            "ground_delta": 0.28028041195766207,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 95,
+      "column": 41,
+      "x": -397.9166666641797,
+      "y": 360.4166463226953,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1719,
+          "triangle": 22,
+          "floor_z": 5.218695765593865,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 976,
+            "nav_z": 5.410521025380742,
+            "ground_delta": 0.19182525978687703,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 68,
+          "floor_z": 23.579597487561383,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 984,
+            "nav_z": 23.802502018995284,
+            "ground_delta": 0.2229045314339011,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 96,
+      "column": 36,
+      "x": -402.08333333082027,
+      "y": 381.2499796558984,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 52,
+          "floor_z": 9.154900677144898,
+          "below_authored_water": false,
+          "ground_nav": null
+        },
+        {
+          "group": 1720,
+          "triangle": 144,
+          "floor_z": 17.773044448487944,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 96,
+      "column": 37,
+      "x": -402.08333333082027,
+      "y": 377.0833129892578,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 52,
+          "floor_z": 7.007830656457359,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 96,
+      "column": 38,
+      "x": -402.08333333082027,
+      "y": 372.9166463226172,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 129,
+          "floor_z": 9.032857882816653,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 96,
+      "column": 39,
+      "x": -402.08333333082027,
+      "y": 368.7499796559766,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 82,
+          "floor_z": 15.855498816869279,
+          "below_authored_water": false,
+          "ground_nav": null
+        },
+        {
+          "group": 1718,
+          "triangle": 139,
+          "floor_z": 8.525204000899095,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 993,
+            "nav_z": 8.394556259086585,
+            "ground_delta": -0.13064774181250982,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 67,
+          "floor_z": 26.37341967464258,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 96,
+      "column": 40,
+      "x": -402.08333333082027,
+      "y": 364.5833129893359,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 24,
+          "floor_z": 7.2466769711707695,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 990,
+            "nav_z": 7.444561883664085,
+            "ground_delta": 0.19788491249331575,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1718,
+          "triangle": 81,
+          "floor_z": 15.35987212466539,
+          "below_authored_water": false,
+          "ground_nav": null
+        },
+        {
+          "group": 1720,
+          "triangle": 67,
+          "floor_z": 27.46671247404569,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 1000,
+            "nav_z": 27.992525788204016,
+            "ground_delta": 0.5258133141583272,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 96,
+      "column": 41,
+      "x": -402.08333333082027,
+      "y": 360.4166463226953,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1719,
+          "triangle": 13,
+          "floor_z": 5.270043662245132,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 981,
+            "nav_z": 5.845743244007197,
+            "ground_delta": 0.5756995817620654,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 66,
+          "floor_z": 25.390847736265215,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 984,
+            "nav_z": 25.76726880641721,
+            "ground_delta": 0.376421070151995,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 97,
+      "column": 36,
+      "x": -406.2499999974609,
+      "y": 381.2499796558984,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 143,
+          "floor_z": 20.975590181376262,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 741,
+            "nav_z": 21.34536385068442,
+            "ground_delta": 0.36977366930815947,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 97,
+      "column": 37,
+      "x": -406.2499999974609,
+      "y": 377.0833129892578,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 113,
+          "floor_z": 8.54199530361768,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 748,
+            "nav_z": 8.61407467645259,
+            "ground_delta": 0.07207937283491006,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 154,
+          "floor_z": 21.59365186790377,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 97,
+      "column": 38,
+      "x": -406.2499999974609,
+      "y": 372.9166463226172,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 116,
+          "floor_z": 8.28161004581711,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 748,
+            "nav_z": 8.119724488145465,
+            "ground_delta": -0.16188555767164559,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 97,
+      "column": 39,
+      "x": -406.2499999974609,
+      "y": 368.7499796559766,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 115,
+          "floor_z": 7.819847935513178,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 748,
+            "nav_z": 7.625374299838333,
+            "ground_delta": -0.19447363567484555,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 78,
+          "floor_z": 26.71113208137826,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 741,
+            "nav_z": 26.97036832100187,
+            "ground_delta": 0.2592362396236112,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 97,
+      "column": 40,
+      "x": -406.2499999974609,
+      "y": 364.5833129893359,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 21,
+          "floor_z": 7.002480918676876,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 748,
+            "nav_z": 7.1310241115312,
+            "ground_delta": 0.12854319285432414,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 113,
+          "floor_z": 28.532030399196767,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 741,
+            "nav_z": 28.8453698111077,
+            "ground_delta": 0.31333941191093473,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 97,
+      "column": 41,
+      "x": -406.2499999974609,
+      "y": 360.4166463226953,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1719,
+          "triangle": 19,
+          "floor_z": 5.755254932406756,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 719,
+            "nav_z": 6.200680877588623,
+            "ground_delta": 0.4454259451818672,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 112,
+          "floor_z": 29.092744559385153,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 98,
+      "column": 36,
+      "x": -410.4166666641015,
+      "y": 381.2499796558984,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 31,
+          "floor_z": 8.046768187457253,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 750,
+            "nav_z": 8.137903636344014,
+            "ground_delta": 0.09113544888676017,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 98,
+      "column": 37,
+      "x": -410.4166666641015,
+      "y": 377.0833129892578,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 3,
+          "floor_z": 8.3419047198807,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 748,
+            "nav_z": 8.706765447255764,
+            "ground_delta": 0.3648607273750635,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 151,
+          "floor_z": 24.34914853373772,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 98,
+      "column": 38,
+      "x": -410.4166666641015,
+      "y": 372.9166463226172,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 1,
+          "floor_z": 8.115689423684122,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 748,
+            "nav_z": 8.212415258948639,
+            "ground_delta": 0.09672583526451639,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 98,
+      "column": 39,
+      "x": -410.4166666641015,
+      "y": 368.7499796559766,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 22,
+          "floor_z": 7.720947144086419,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 748,
+            "nav_z": 7.919194703431966,
+            "ground_delta": 0.19824755934554705,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 98,
+      "column": 40,
+      "x": -410.4166666641015,
+      "y": 364.5833129893359,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 17,
+          "floor_z": 7.038683437594515,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 749,
+            "nav_z": 7.238174028187292,
+            "ground_delta": 0.1994905905927773,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "group": 1720,
+          "triangle": 115,
+          "floor_z": 28.580016299866323,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 98,
+      "column": 41,
+      "x": -410.4166666641015,
+      "y": 360.4166463226953,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1719,
+          "triangle": 234,
+          "floor_z": 9.232568598741079,
+          "below_authored_water": false,
+          "ground_nav": null
+        },
+        {
+          "group": 1720,
+          "triangle": 114,
+          "floor_z": 30.37832993038121,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 99,
+      "column": 36,
+      "x": -414.58333333074216,
+      "y": 381.2499796558984,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 29,
+          "floor_z": 7.807280048367523,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 99,
+      "column": 37,
+      "x": -414.58333333074216,
+      "y": 377.0833129892578,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 127,
+          "floor_z": 8.702541861763503,
+          "below_authored_water": false,
+          "ground_nav": null
+        },
+        {
+          "group": 1720,
+          "triangle": 147,
+          "floor_z": 20.956067777279074,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 99,
+      "column": 38,
+      "x": -414.58333333074216,
+      "y": 372.9166463226172,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 12,
+          "floor_z": 16.95181075429082,
+          "below_authored_water": false,
+          "ground_nav": null
+        },
+        {
+          "group": 1718,
+          "triangle": 128,
+          "floor_z": 8.611673713336772,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 747,
+            "nav_z": 9.242178886261323,
+            "ground_delta": 0.6305051729245505,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 99,
+      "column": 39,
+      "x": -414.58333333074216,
+      "y": 368.7499796559766,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1718,
+          "triangle": 141,
+          "floor_z": 8.0694742688545,
+          "below_authored_water": false,
+          "ground_nav": null
+        },
+        {
+          "group": 1720,
+          "triangle": 61,
+          "floor_z": 24.48920821971246,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 99,
+      "column": 40,
+      "x": -414.58333333074216,
+      "y": 364.5833129893359,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 61,
+          "floor_z": 26.890393875866323,
+          "below_authored_water": false,
+          "ground_nav": {
+            "polygon": 741,
+            "nav_z": 26.494435061130822,
+            "ground_delta": -0.39595881473550065,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "row": 99,
+      "column": 41,
+      "x": -414.58333333074216,
+      "y": 360.4166463226953,
+      "authored_visible_water": false,
+      "water_z": null,
+      "water_nav": null,
+      "upward_floor_intersections": [
+        {
+          "group": 1720,
+          "triangle": 115,
+          "floor_z": 29.3022031048468,
+          "below_authored_water": false,
+          "ground_nav": null
+        }
+      ]
+    }
+  ],
+  "floor_centroid_samples": [
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 5,
+      "x": -405.2173075873956,
+      "y": 293.8314656021098,
+      "collision_z": 2.190562753946089,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 928,
+        "nav_z": 2.7494275434966986,
+        "ground_delta": 0.5588647895506096,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 7,
+      "x": -411.2883143765226,
+      "y": 291.8185888842281,
+      "collision_z": 2.327664404120377,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 668,
+        "nav_z": 2.632246855731271,
+        "ground_delta": 0.3045824516108939,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 9,
+      "x": -409.31845664038264,
+      "y": 295.30636651032586,
+      "collision_z": 2.067628576871883,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 667,
+        "nav_z": 2.2140777259820172,
+        "ground_delta": 0.14644914911013407,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 11,
+      "x": -409.45839902999165,
+      "y": 298.45680042010775,
+      "collision_z": 1.691145877773904,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 664,
+        "nav_z": 2.3154490269308576,
+        "ground_delta": 0.6243031491569537,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 13,
+      "x": -419.9861171600969,
+      "y": 303.1663071806138,
+      "collision_z": 1.3592260575321653,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 685,
+        "nav_z": 1.6564729990400182,
+        "ground_delta": 0.2972469415078529,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 16,
+      "x": -414.9080511668878,
+      "y": 301.6072438125331,
+      "collision_z": 1.0136633441480987,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 687,
+        "nav_z": 1.3862992695148384,
+        "ground_delta": 0.37263592536673973,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 17,
+      "x": -410.2676138517871,
+      "y": 302.9455223723375,
+      "collision_z": 1.2804876508826701,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 687,
+        "nav_z": 1.5764524972253156,
+        "ground_delta": 0.2959648463426454,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 19,
+      "x": -413.1419233001104,
+      "y": 304.0607299303701,
+      "collision_z": 1.2616921217551518,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 686,
+        "nav_z": 1.3505280913234265,
+        "ground_delta": 0.08883596956827478,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 21,
+      "x": -417.93309148530574,
+      "y": 271.74456881173205,
+      "collision_z": 5.419315957215955,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 651,
+        "nav_z": 5.626023327860532,
+        "ground_delta": 0.206707370644577,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 26,
+      "x": -400.393718037845,
+      "y": 271.16523984199193,
+      "collision_z": 5.972791991224956,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 905,
+        "nav_z": 6.35055351459328,
+        "ground_delta": 0.37776152336832336,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 27,
+      "x": -400.7153530937442,
+      "y": 269.473623967297,
+      "collision_z": 6.32926456978164,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 897,
+        "nav_z": 6.847926573674336,
+        "ground_delta": 0.5186620038926959,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 28,
+      "x": -397.63024862120363,
+      "y": 274.0727905186121,
+      "collision_z": 6.112238583504204,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 904,
+        "nav_z": 6.186866196260923,
+        "ground_delta": 0.07462761275671959,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 30,
+      "x": -410.63683668396624,
+      "y": 270.68143655304584,
+      "collision_z": 5.793815071004612,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 651,
+        "nav_z": 6.134791119167505,
+        "ground_delta": 0.34097604816289273,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 32,
+      "x": -399.2389691181197,
+      "y": 276.7974478480769,
+      "collision_z": 6.3056972653606005,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 904,
+        "nav_z": 6.3230986729695475,
+        "ground_delta": 0.01740140760894704,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 33,
+      "x": -399.8128360359013,
+      "y": 274.89812207841373,
+      "collision_z": 5.9618159467959435,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 904,
+        "nav_z": 6.228132656186602,
+        "ground_delta": 0.2663167093906589,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 37,
+      "x": -408.3622472084723,
+      "y": 272.8204952508079,
+      "collision_z": 5.98965144155722,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 657,
+        "nav_z": 6.196834248874151,
+        "ground_delta": 0.20718280731693017,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 42,
+      "x": -398.6579458377971,
+      "y": 288.8590389023841,
+      "collision_z": 2.001993909936996,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 926,
+        "nav_z": 2.527121788458162,
+        "ground_delta": 0.5251278785211659,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 44,
+      "x": -399.8683366564008,
+      "y": 285.9519078905998,
+      "collision_z": 2.0653279069213872,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 921,
+        "nav_z": 2.482212618004388,
+        "ground_delta": 0.41688471108300096,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 279,
+      "x": -412.735234611557,
+      "y": 267.7320346777954,
+      "collision_z": 7.495641943213176,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 655,
+        "nav_z": 6.995187811605701,
+        "ground_delta": -0.5004541316074747,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 287,
+      "x": -410.4977481053452,
+      "y": 268.22236823991403,
+      "collision_z": 7.294839720752509,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 655,
+        "nav_z": 7.233417438881568,
+        "ground_delta": -0.06142228187094112,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 342,
+      "x": -394.2342702037863,
+      "y": 288.1287492702061,
+      "collision_z": 6.007893934513269,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 909,
+        "nav_z": 6.468229619806819,
+        "ground_delta": 0.4603356852935505,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 531,
+      "x": -398.3536483644929,
+      "y": 280.39936436397636,
+      "collision_z": 6.073472383472933,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 913,
+        "nav_z": 6.463448219665118,
+        "ground_delta": 0.38997583619218457,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 543,
+      "x": -393.75807414793917,
+      "y": 283.7955435081445,
+      "collision_z": 6.315381133221454,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 912,
+        "nav_z": 6.681635242960164,
+        "ground_delta": 0.3662541097387102,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 545,
+      "x": -402.86787348908723,
+      "y": 288.3446122948646,
+      "collision_z": 2.002309478388106,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 928,
+        "nav_z": 2.2741323769998982,
+        "ground_delta": 0.2718228986117923,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 546,
+      "x": -402.3301895955121,
+      "y": 286.13385825756853,
+      "collision_z": 2.108087430346935,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 924,
+        "nav_z": 2.620469599274333,
+        "ground_delta": 0.5123821689273984,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 556,
+      "x": -395.440342652834,
+      "y": 275.7125162768169,
+      "collision_z": 6.267554563269648,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 903,
+        "nav_z": 6.666552344370604,
+        "ground_delta": 0.39899778110095596,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 560,
+      "x": -406.86300865349693,
+      "y": 270.2835947980565,
+      "collision_z": 5.91086652753314,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 650,
+        "nav_z": 6.347104602773361,
+        "ground_delta": 0.4362380752402206,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 561,
+      "x": -402.3088807603931,
+      "y": 273.92923820181,
+      "collision_z": 6.0295350547766935,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 904,
+        "nav_z": 6.30439483952374,
+        "ground_delta": 0.2748597847470462,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 567,
+      "x": -393.27553520626503,
+      "y": 279.5679227230342,
+      "collision_z": 6.046600942355326,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 916,
+        "nav_z": 6.135534806263062,
+        "ground_delta": 0.08893386390773639,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 578,
+      "x": -403.90985767084476,
+      "y": 276.80219485069773,
+      "collision_z": 5.957391220107571,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 904,
+        "nav_z": 6.323336022421526,
+        "ground_delta": 0.36594480231395554,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 580,
+      "x": -400.95600805165213,
+      "y": 279.855595177038,
+      "collision_z": 6.0984510748964995,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 913,
+        "nav_z": 6.443308673500511,
+        "ground_delta": 0.3448575986040119,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 611,
+      "x": -407.05093621194254,
+      "y": 285.15960281612166,
+      "collision_z": 2.401055167790585,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 669,
+        "nav_z": 2.5536405156585857,
+        "ground_delta": 0.15258534786800082,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 650,
+      "x": -417.42265394105516,
+      "y": 267.1743313701033,
+      "collision_z": 5.167642835526979,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 653,
+        "nav_z": 5.7221409094238185,
+        "ground_delta": 0.5544980738968395,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 713,
+      "x": -417.92125318153415,
+      "y": 294.93249199188784,
+      "collision_z": 1.8932005571239483,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 674,
+        "nav_z": 2.285352025415783,
+        "ground_delta": 0.39215146829183456,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 719,
+      "x": -407.2456523994521,
+      "y": 290.2312334148046,
+      "collision_z": 2.156184492964157,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 668,
+        "nav_z": 2.452820640130059,
+        "ground_delta": 0.29663614716590203,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 721,
+      "x": -413.7200378442515,
+      "y": 293.0153990118563,
+      "collision_z": 2.2426009644075764,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 674,
+        "nav_z": 2.2539272148371174,
+        "ground_delta": 0.011326250429541052,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 730,
+      "x": -390.0953028243598,
+      "y": 282.3326644860995,
+      "collision_z": 6.5127146428934095,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 916,
+        "nav_z": 6.7289579113090365,
+        "ground_delta": 0.21624326841562702,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 732,
+      "x": -391.3035773144547,
+      "y": 285.17354631325617,
+      "collision_z": 6.512956903236083,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 916,
+        "nav_z": 6.695071387049097,
+        "ground_delta": 0.18211448381301398,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 758,
+      "x": -409.45797249187143,
+      "y": 285.0939212908502,
+      "collision_z": 2.4005384100201392,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 669,
+        "nav_z": 2.5791370553014983,
+        "ground_delta": 0.17859864528135905,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 915,
+      "x": -420.318856430762,
+      "y": 271.39196157602316,
+      "collision_z": 6.641734927126372,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 652,
+        "nav_z": 7.127429758549992,
+        "ground_delta": 0.48569483142362024,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 922,
+      "x": -406.5292073387609,
+      "y": 279.8018805625627,
+      "collision_z": 7.945523942769552,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 678,
+        "nav_z": 8.172697427092931,
+        "ground_delta": 0.22717348432337925,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 956,
+      "x": -401.5445958238732,
+      "y": 283.8612841090511,
+      "collision_z": 7.98468261746276,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 913,
+        "nav_z": 8.186762172001668,
+        "ground_delta": 0.20207955453890758,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 966,
+      "x": -409.055895544822,
+      "y": 275.6797086209231,
+      "collision_z": 6.150954044746417,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 651,
+        "nav_z": 6.312898934086483,
+        "ground_delta": 0.16194488934006657,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1709,
+      "triangle": 1077,
+      "x": -418.08105814571314,
+      "y": 294.3713663303483,
+      "collision_z": 2.390440949299039,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 674,
+        "nav_z": 2.753219648699025,
+        "ground_delta": 0.36277869939998597,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 0,
+      "x": -382.4858606426663,
+      "y": 235.1292524438758,
+      "collision_z": -1.047991622653561,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1200,
+        "nav_z": -0.5445213342621765,
+        "ground_delta": 0.5034702883913845,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 4,
+      "x": -381.3105910165297,
+      "y": 237.33546105788022,
+      "collision_z": -0.6493828576691817,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1200,
+        "nav_z": -0.22074033164884074,
+        "ground_delta": 0.4286425260203409,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 9,
+      "x": -365.8951828523645,
+      "y": 255.49685557865465,
+      "collision_z": 2.1157220864030504,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1199,
+        "nav_z": 2.6800101050108753,
+        "ground_delta": 0.564288018607825,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 11,
+      "x": -369.70890832669926,
+      "y": 257.3601506831454,
+      "collision_z": 2.0754108140630994,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1223,
+        "nav_z": 2.447347626932194,
+        "ground_delta": 0.3719368128690945,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 14,
+      "x": -369.4972366403983,
+      "y": 253.2402864887781,
+      "collision_z": 1.727364018678269,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1190,
+        "nav_z": 2.0780253120990473,
+        "ground_delta": 0.35066129342077823,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 17,
+      "x": -378.6064124060637,
+      "y": 231.8521900058782,
+      "collision_z": -0.8946344076729223,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1180,
+        "nav_z": -0.3984949789162813,
+        "ground_delta": 0.4961394287566411,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 18,
+      "x": -380.0546574903389,
+      "y": 231.37923057879797,
+      "collision_z": -1.1258090731605535,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1180,
+        "nav_z": -0.7640955758300272,
+        "ground_delta": 0.36171349733052627,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 24,
+      "x": -385.1166081246359,
+      "y": 230.6963872491133,
+      "collision_z": -1.3610604053366089,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 887,
+        "nav_z": -1.1103136401936573,
+        "ground_delta": 0.2507467651429516,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 25,
+      "x": -369.5573475186866,
+      "y": 251.1790642122991,
+      "collision_z": 1.6335038795496466,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1190,
+        "nav_z": 1.8965817463997838,
+        "ground_delta": 0.26307786685013723,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 28,
+      "x": -372.3924231865711,
+      "y": 248.35915677717503,
+      "collision_z": 0.7280756505534951,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1192,
+        "nav_z": 1.2059163623981866,
+        "ground_delta": 0.47784071184469146,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 173,
+      "x": -363.38509469516924,
+      "y": 253.74071029841193,
+      "collision_z": 2.8070966021416943,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1189,
+        "nav_z": 3.158981399764013,
+        "ground_delta": 0.3518847976223185,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 257,
+      "x": -385.19991570337544,
+      "y": 234.2770751082253,
+      "collision_z": -0.7262453071697644,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 875,
+        "nav_z": -0.117122665148653,
+        "ground_delta": 0.6091226420211114,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 285,
+      "x": -384.9493542749961,
+      "y": 236.13323363185427,
+      "collision_z": -0.3512120359736528,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 890,
+        "nav_z": 0.19799812323495936,
+        "ground_delta": 0.5492101592086122,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 477,
+      "x": -369.1886828315941,
+      "y": 239.33540747981388,
+      "collision_z": 9.745052151240458,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1204,
+        "nav_z": 9.816554069519043,
+        "ground_delta": 0.07150191827858521,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 577,
+      "x": -370.1908297019549,
+      "y": 246.3918393632176,
+      "collision_z": 9.824028123650224,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1205,
+        "nav_z": 10.05613115512405,
+        "ground_delta": 0.23210303147382483,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 585,
+      "x": -372.3535567504933,
+      "y": 235.3983081989389,
+      "collision_z": 9.701325175134548,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1204,
+        "nav_z": 9.816554069519043,
+        "ground_delta": 0.11522889438449546,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 586,
+      "x": -372.2558971206682,
+      "y": 238.63883863547449,
+      "collision_z": 9.737542500806668,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1204,
+        "nav_z": 9.816554069519043,
+        "ground_delta": 0.07901156871237447,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 613,
+      "x": -374.8534061406037,
+      "y": 247.50052924766155,
+      "collision_z": 0.8738247583834786,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1193,
+        "nav_z": 1.0497045817249224,
+        "ground_delta": 0.1758798233414438,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1710,
+      "triangle": 618,
+      "x": -374.09390416910816,
+      "y": 242.96909584613357,
+      "collision_z": 0.3838814983631747,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1194,
+        "nav_z": 0.7276949443725877,
+        "ground_delta": 0.34381344600941305,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 1,
+      "x": -389.34486489016064,
+      "y": 217.55173211883445,
+      "collision_z": -1.789884706356674,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 888,
+        "nav_z": -1.390609096435954,
+        "ground_delta": 0.39927560992072,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 2,
+      "x": -389.2481452861971,
+      "y": 224.99472438976184,
+      "collision_z": -1.640371744987678,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 887,
+        "nav_z": -1.562065180331845,
+        "ground_delta": 0.07830656465583297,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 3,
+      "x": -387.69231933986543,
+      "y": 224.4103988402744,
+      "collision_z": -1.5653235907982843,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 887,
+        "nav_z": -1.416879285090574,
+        "ground_delta": 0.14844430570771028,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 8,
+      "x": -387.29207202457127,
+      "y": 220.88372410185124,
+      "collision_z": -1.6601851757862451,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 887,
+        "nav_z": -1.402654990730811,
+        "ground_delta": 0.2575301850554341,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 14,
+      "x": -395.95069607548163,
+      "y": 222.43003679925638,
+      "collision_z": -1.6272327974247087,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 888,
+        "nav_z": -1.3931493820088923,
+        "ground_delta": 0.23408341541581645,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 15,
+      "x": -396.1007145989208,
+      "y": 217.29512413307907,
+      "collision_z": -1.7553303508523268,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 888,
+        "nav_z": -1.2585132642802166,
+        "ground_delta": 0.4968170865721102,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 78,
+      "x": -396.66860930774106,
+      "y": 213.50913294122006,
+      "collision_z": -1.3062937063012676,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 879,
+        "nav_z": -0.7814576426157986,
+        "ground_delta": 0.524836063685469,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 125,
+      "x": -379.11282663758726,
+      "y": 224.03300624809103,
+      "collision_z": -0.784033640662733,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1178,
+        "nav_z": -0.3017438264676476,
+        "ground_delta": 0.4822898141950854,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 127,
+      "x": -388.2138089388445,
+      "y": 230.07345689217786,
+      "collision_z": -0.9705386740220273,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 877,
+        "nav_z": -0.5753027846289348,
+        "ground_delta": 0.3952358893930925,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 149,
+      "x": -404.43503255217865,
+      "y": 230.78425694149465,
+      "collision_z": 0.39345851440377605,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 886,
+        "nav_z": 0.8909877616818638,
+        "ground_delta": 0.4975292472780877,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1711,
+      "triangle": 242,
+      "x": -390.4761242552316,
+      "y": 221.94395809196115,
+      "collision_z": -1.8511877170183617,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 888,
+        "nav_z": -1.5664892918235924,
+        "ground_delta": 0.2846984251947693,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 2,
+      "x": -370.03533308536225,
+      "y": 269.4011216985029,
+      "collision_z": 3.446669980172929,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1220,
+        "nav_z": 3.7561115867577497,
+        "ground_delta": 0.30944160658482067,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 4,
+      "x": -366.03472934157276,
+      "y": 270.19005764500554,
+      "collision_z": 3.6524768782303276,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1220,
+        "nav_z": 4.149528257424692,
+        "ground_delta": 0.4970513791943647,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 5,
+      "x": -364.42509523913424,
+      "y": 258.202035356069,
+      "collision_z": 2.606282153988237,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1223,
+        "nav_z": 3.2325984507741574,
+        "ground_delta": 0.6263162967859204,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 7,
+      "x": -368.3030048578148,
+      "y": 259.8327097078623,
+      "collision_z": 2.662773372683355,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1223,
+        "nav_z": 2.9672227292269886,
+        "ground_delta": 0.3044493565436337,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 9,
+      "x": -365.20824281928844,
+      "y": 272.18290374433263,
+      "collision_z": 4.032680923954621,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1220,
+        "nav_z": 4.332658409720365,
+        "ground_delta": 0.29997748576574335,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 10,
+      "x": -368.23749787405313,
+      "y": 263.2728024698883,
+      "collision_z": 3.097604302689165,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1223,
+        "nav_z": 3.4542595677864147,
+        "ground_delta": 0.3566552650972499,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 11,
+      "x": -368.1312001811622,
+      "y": 276.76915702937185,
+      "collision_z": 4.518138739857619,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1220,
+        "nav_z": 4.8839991923402035,
+        "ground_delta": 0.36586045248258436,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 12,
+      "x": -368.28469278279607,
+      "y": 274.8296936919682,
+      "collision_z": 3.923154812877058,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1220,
+        "nav_z": 4.3895395149817,
+        "ground_delta": 0.4663847021046421,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 72,
+      "x": -373.0362218572332,
+      "y": 268.7826122707983,
+      "collision_z": 4.089228560888363,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1217,
+        "nav_z": 4.211905977271715,
+        "ground_delta": 0.12267741638335217,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 73,
+      "x": -372.4968440611385,
+      "y": 269.9280932240918,
+      "collision_z": 3.876662275421223,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1217,
+        "nav_z": 3.9423080337584033,
+        "ground_delta": 0.06564575833718012,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 74,
+      "x": -362.2552186878899,
+      "y": 270.5531391388158,
+      "collision_z": 4.7412374961199575,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1391,
+        "nav_z": 5.137351327778519,
+        "ground_delta": 0.3961138316585613,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 103,
+      "x": -362.92112752645727,
+      "y": 256.1778967655176,
+      "collision_z": 2.7914025211617868,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1223,
+        "nav_z": 3.1423275887077344,
+        "ground_delta": 0.35092506754594766,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1712,
+      "triangle": 203,
+      "x": -365.6192747767413,
+      "y": 265.5260935378529,
+      "collision_z": 3.4029537812103405,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1220,
+        "nav_z": 3.88153084170892,
+        "ground_delta": 0.4785770604985795,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 2,
+      "x": -443.2439357337148,
+      "y": 234.58755261161363,
+      "collision_z": 0.04456882704258843,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 492,
+        "nav_z": 0.43813955253390047,
+        "ground_delta": 0.39357072549131206,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 4,
+      "x": -433.6978902732961,
+      "y": 227.33514258890958,
+      "collision_z": -0.22848149063253467,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 484,
+        "nav_z": 0.11119012517154336,
+        "ground_delta": 0.339671615804078,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 6,
+      "x": -436.5253621875731,
+      "y": 231.17967283067273,
+      "collision_z": -0.04580180310410853,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 491,
+        "nav_z": -0.09017117385392182,
+        "ground_delta": -0.044369370749813286,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 8,
+      "x": -439.52363235130673,
+      "y": 235.0355803368908,
+      "collision_z": 0.05427121425591638,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 509,
+        "nav_z": -0.03431660923163454,
+        "ground_delta": -0.08858782348755093,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 11,
+      "x": -434.6639942276816,
+      "y": 232.14905320184766,
+      "collision_z": -0.4746216824303797,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 492,
+        "nav_z": -0.4434590760403615,
+        "ground_delta": 0.03116260639001822,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 20,
+      "x": -430.8066180602386,
+      "y": 230.3958509592976,
+      "collision_z": -1.100969796715021,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 489,
+        "nav_z": -0.5345251479587666,
+        "ground_delta": 0.5664446487562543,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 25,
+      "x": -424.9730352031409,
+      "y": 232.39811229724296,
+      "collision_z": -0.730260689759886,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": -0.5360135642400874,
+        "ground_delta": 0.1942471255197986,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 27,
+      "x": -409.32806915882685,
+      "y": 230.3521558515913,
+      "collision_z": -0.21503350508034558,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": 0.19179127123531753,
+        "ground_delta": 0.4068247763156631,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 29,
+      "x": -444.1822298613763,
+      "y": 236.7861112396407,
+      "collision_z": -0.0642148094405881,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 497,
+        "nav_z": 0.4365384954025645,
+        "ground_delta": 0.5007533048431526,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 30,
+      "x": -442.19859298445914,
+      "y": 237.86316694253105,
+      "collision_z": -0.07263431817003181,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 508,
+        "nav_z": 0.0738717185067073,
+        "ground_delta": 0.14650603667673912,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 36,
+      "x": -424.5853929819637,
+      "y": 222.77905395792877,
+      "collision_z": -0.16567959295623602,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": 0.07116241383217307,
+        "ground_delta": 0.2368420067884091,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 37,
+      "x": -423.67868158600345,
+      "y": 224.94969131820676,
+      "collision_z": -0.347560656721118,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": 0.04019362330125818,
+        "ground_delta": 0.3877542800223762,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 38,
+      "x": -419.68173789356024,
+      "y": 225.45137400124102,
+      "collision_z": -0.13624842272422644,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": 0.20690307107975192,
+        "ground_delta": 0.34315149380397836,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 41,
+      "x": -436.9005034748696,
+      "y": 241.46483681838586,
+      "collision_z": -3.8696535696433743,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 499,
+        "nav_z": -3.378894184571731,
+        "ground_delta": 0.4907593850716432,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 45,
+      "x": -438.8483230290572,
+      "y": 246.0641434425676,
+      "collision_z": -3.8446904068892778,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 506,
+        "nav_z": -3.3640145490299473,
+        "ground_delta": 0.4806758578593304,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 46,
+      "x": -439.1806894198801,
+      "y": 244.32281600107618,
+      "collision_z": -4.008404945842746,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 506,
+        "nav_z": -3.508760770059905,
+        "ground_delta": 0.49964417578284115,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 49,
+      "x": -441.1871124807115,
+      "y": 243.2025296517174,
+      "collision_z": -3.913094142880309,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 506,
+        "nav_z": -3.6928927553508615,
+        "ground_delta": 0.2202013875294475,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 54,
+      "x": -441.663061310029,
+      "y": 254.3007325657253,
+      "collision_z": -2.7688700961117507,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 496,
+        "nav_z": -2.339379816918919,
+        "ground_delta": 0.4294902791928319,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 55,
+      "x": -441.82962125416765,
+      "y": 256.73799768506285,
+      "collision_z": -2.3104209314712105,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 511,
+        "nav_z": -1.8002570314628399,
+        "ground_delta": 0.5101639000083706,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 57,
+      "x": -437.86374908545304,
+      "y": 252.74745562375892,
+      "collision_z": -2.9693195095890403,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 496,
+        "nav_z": -2.345913267474861,
+        "ground_delta": 0.6234062421141795,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 69,
+      "x": -426.8726661145121,
+      "y": 242.42036326786805,
+      "collision_z": -2.47872479248007,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 509,
+        "nav_z": -2.1162759026986335,
+        "ground_delta": 0.36244888978143663,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 73,
+      "x": -415.159166528299,
+      "y": 234.49824289969465,
+      "collision_z": -0.2481444427298015,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": 0.38726182513640833,
+        "ground_delta": 0.6354062678662098,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 75,
+      "x": -419.29178963840985,
+      "y": 232.11469025352304,
+      "collision_z": -0.48680951923218796,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": 0.08665782666698163,
+        "ground_delta": 0.5734673458991696,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 78,
+      "x": -423.61387995422115,
+      "y": 235.09612022977763,
+      "collision_z": -0.6634656323053543,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 635,
+        "nav_z": -0.38017585269860543,
+        "ground_delta": 0.28328977960674884,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 80,
+      "x": -431.5403646195983,
+      "y": 225.11143462255026,
+      "collision_z": -0.43931981082700844,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 484,
+        "nav_z": 0.19339546216853506,
+        "ground_delta": 0.6327152729955435,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 81,
+      "x": -422.4748967538265,
+      "y": 228.51498688899756,
+      "collision_z": -0.5141104948537306,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": -0.04112612897399326,
+        "ground_delta": 0.47298436587973736,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 181,
+      "x": -423.5279344933131,
+      "y": 221.0506965108342,
+      "collision_z": 0.5531748691293853,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 623,
+        "nav_z": 1.0537084508774373,
+        "ground_delta": 0.500533581748052,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 182,
+      "x": -418.7520009709388,
+      "y": 223.873339209817,
+      "collision_z": 0.584297901783566,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 626,
+        "nav_z": 0.7779518393615557,
+        "ground_delta": 0.19365393757798965,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 207,
+      "x": -416.3545366926698,
+      "y": 237.1740933694207,
+      "collision_z": 0.8267427295772238,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 636,
+        "nav_z": 1.3445552885451149,
+        "ground_delta": 0.517812558967891,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 208,
+      "x": -415.0124704442578,
+      "y": 236.84272817151114,
+      "collision_z": 0.3819758449461596,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 636,
+        "nav_z": 0.8802329259068951,
+        "ground_delta": 0.49825708096073545,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 243,
+      "x": -407.27684032517135,
+      "y": 235.07073109062753,
+      "collision_z": 0.928655822533829,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 638,
+        "nav_z": 1.3100034422145694,
+        "ground_delta": 0.3813476196807405,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 265,
+      "x": -451.7150329479855,
+      "y": 255.55625970982206,
+      "collision_z": -1.8804362828613292,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 360,
+        "nav_z": -1.3114769922589764,
+        "ground_delta": 0.5689592906023528,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 433,
+      "x": -422.8082172190521,
+      "y": 245.4092497068274,
+      "collision_z": 1.378950230435214,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 642,
+        "nav_z": 1.8508871689752076,
+        "ground_delta": 0.47193693853999363,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 449,
+      "x": -443.6856804052816,
+      "y": 243.48720584043085,
+      "collision_z": -1.0592357967715997,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 498,
+        "nav_z": -0.7308948556205018,
+        "ground_delta": 0.3283409411510979,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 770,
+      "x": -427.2234085103067,
+      "y": 225.89219071356558,
+      "collision_z": -0.41037962664732613,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 489,
+        "nav_z": -0.3132848099857369,
+        "ground_delta": 0.09709481666158926,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1713,
+      "triangle": 789,
+      "x": -445.7207673881635,
+      "y": 257.5092982192032,
+      "collision_z": -2.248853173326061,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 511,
+        "nav_z": -1.680031142738853,
+        "ground_delta": 0.568822030587208,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 3,
+      "x": -393.78751069454785,
+      "y": 316.14631062604855,
+      "collision_z": 3.26127448496061,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 940,
+        "nav_z": 3.3929439078176937,
+        "ground_delta": 0.1316694228570836,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 5,
+      "x": -401.3175469541279,
+      "y": 316.5086272530232,
+      "collision_z": 2.3171753425584973,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 940,
+        "nav_z": 2.785950610732236,
+        "ground_delta": 0.4687752681737387,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 6,
+      "x": -399.3601709648364,
+      "y": 316.34890592055837,
+      "collision_z": 2.6311818644413463,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 940,
+        "nav_z": 3.0678770633481274,
+        "ground_delta": 0.4366951989067811,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 7,
+      "x": -406.0018154502521,
+      "y": 315.78092068019777,
+      "collision_z": 1.8100860216510288,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 692,
+        "nav_z": 2.445878483795596,
+        "ground_delta": 0.6357924621445672,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 12,
+      "x": -395.6619859794285,
+      "y": 314.2185501790088,
+      "collision_z": 3.282846927491072,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 940,
+        "nav_z": 3.37850080729825,
+        "ground_delta": 0.09565387980717777,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 13,
+      "x": -397.41198001134927,
+      "y": 314.1150910377808,
+      "collision_z": 2.8520238099607504,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 940,
+        "nav_z": 3.2237942439080305,
+        "ground_delta": 0.37177043394728004,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 15,
+      "x": -390.3757720537996,
+      "y": 321.62420685337423,
+      "collision_z": 2.8848629172561986,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 967,
+        "nav_z": 3.235374763080236,
+        "ground_delta": 0.3505118458240375,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 84,
+      "x": -389.45391412779964,
+      "y": 327.742954414375,
+      "collision_z": 2.1737711340476213,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 966,
+        "nav_z": 2.6978514839691683,
+        "ground_delta": 0.524080349921547,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 91,
+      "x": -386.892954140875,
+      "y": 325.9802525329576,
+      "collision_z": 2.6336898425237205,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 966,
+        "nav_z": 3.143728786356098,
+        "ground_delta": 0.5100389438323774,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 113,
+      "x": -398.93115098037407,
+      "y": 307.5046219303205,
+      "collision_z": 2.293361218977767,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 935,
+        "nav_z": 2.523906873619568,
+        "ground_delta": 0.230545654641801,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 388,
+      "x": -400.93183162848436,
+      "y": 324.8248287759172,
+      "collision_z": 2.2346504764786306,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 955,
+        "nav_z": 2.349888801574707,
+        "ground_delta": 0.11523832509607645,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 401,
+      "x": -401.2870276700396,
+      "y": 321.81662612996524,
+      "collision_z": 2.442241750205588,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 967,
+        "nav_z": 2.6185006878050103,
+        "ground_delta": 0.17625893759942235,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 444,
+      "x": -391.1422667174893,
+      "y": 328.44004232511764,
+      "collision_z": 1.9620139306703637,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 967,
+        "nav_z": 2.433556934653452,
+        "ground_delta": 0.4715430039830881,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 454,
+      "x": -406.6761306383378,
+      "y": 326.5832122832898,
+      "collision_z": 2.0171558191404486,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 702,
+        "nav_z": 2.659207362277728,
+        "ground_delta": 0.6420515431372795,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 457,
+      "x": -397.1505050210316,
+      "y": 326.39614455015385,
+      "collision_z": 2.1661814571836246,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 967,
+        "nav_z": 2.6360586547013627,
+        "ground_delta": 0.46987719751773804,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 459,
+      "x": -390.3430048945449,
+      "y": 314.1001641413333,
+      "collision_z": 3.252065457767579,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 943,
+        "nav_z": 3.3092288608917904,
+        "ground_delta": 0.05716340312421142,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 461,
+      "x": -386.1084148907441,
+      "y": 312.3486780588924,
+      "collision_z": 3.149087133547242,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 941,
+        "nav_z": 3.4942591986794396,
+        "ground_delta": 0.34517206513219767,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 487,
+      "x": -397.01365726483004,
+      "y": 321.5463846052471,
+      "collision_z": 2.8109431891483254,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 967,
+        "nav_z": 2.885189093151501,
+        "ground_delta": 0.07424590400317577,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 490,
+      "x": -392.7585841951106,
+      "y": 323.6903179863332,
+      "collision_z": 2.5546517223623537,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 967,
+        "nav_z": 3.1385861329509233,
+        "ground_delta": 0.5839344105885695,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1714,
+      "triangle": 495,
+      "x": -394.70568744268627,
+      "y": 324.08394711428105,
+      "collision_z": 2.564453616470503,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 967,
+        "nav_z": 2.9070837710346416,
+        "ground_delta": 0.3426301545641386,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1715,
+      "triangle": 0,
+      "x": -421.00954363449983,
+      "y": 253.9510005345786,
+      "collision_z": 2.373079421016569,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 643,
+        "nav_z": 2.678775311522353,
+        "ground_delta": 0.3056958905057843,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1715,
+      "triangle": 1,
+      "x": -417.700292557015,
+      "y": 254.41407179791494,
+      "collision_z": 1.987583670676284,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 643,
+        "nav_z": 2.412299248013954,
+        "ground_delta": 0.42471557733766985,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1715,
+      "triangle": 3,
+      "x": -424.25658540885314,
+      "y": 249.63088694184594,
+      "collision_z": 1.3476834756698597,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 642,
+        "nav_z": 1.8477646644426005,
+        "ground_delta": 0.5000811887727408,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1715,
+      "triangle": 84,
+      "x": -419.37730391010354,
+      "y": 264.06302346856523,
+      "collision_z": 4.429314218286656,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 649,
+        "nav_z": 4.913827744208054,
+        "ground_delta": 0.48451352592139774,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1715,
+      "triangle": 99,
+      "x": -423.37456320336946,
+      "y": 263.49297758591376,
+      "collision_z": 4.300569912844246,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 649,
+        "nav_z": 4.777095300772569,
+        "ground_delta": 0.4765253879283229,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1715,
+      "triangle": 117,
+      "x": -417.14132394333495,
+      "y": 256.2001292596942,
+      "collision_z": 2.405702357172451,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 654,
+        "nav_z": 2.74559332138107,
+        "ground_delta": 0.3398909642086192,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 0,
+      "x": -378.57349148549383,
+      "y": 353.89490112782227,
+      "collision_z": 3.0361674958915685,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1263,
+        "nav_z": 3.5839485949503236,
+        "ground_delta": 0.547781099058755,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 6,
+      "x": -378.93937730103556,
+      "y": 358.29163599941967,
+      "collision_z": 3.0514636255209475,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1263,
+        "nav_z": 3.198453513738651,
+        "ground_delta": 0.14698988821770342,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 10,
+      "x": -384.2131376640282,
+      "y": 352.8384196936276,
+      "collision_z": 2.8225403159940767,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 970,
+        "nav_z": 3.444883030799751,
+        "ground_delta": 0.6223427148056744,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 20,
+      "x": -384.94182866779823,
+      "y": 356.3612305900351,
+      "collision_z": 2.8938348139230947,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 977,
+        "nav_z": 3.275184060292214,
+        "ground_delta": 0.3813492463691195,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 257,
+      "x": -390.4178109950094,
+      "y": 358.7551964640541,
+      "collision_z": 3.972628772017041,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 972,
+        "nav_z": 4.2538637970848665,
+        "ground_delta": 0.2812350250678257,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 288,
+      "x": -376.8460584967218,
+      "y": 350.18755867058803,
+      "collision_z": 4.789832084172602,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1267,
+        "nav_z": 4.736602551333087,
+        "ground_delta": -0.053229532839514704,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 300,
+      "x": -377.6654809330871,
+      "y": 351.12209078001587,
+      "collision_z": 3.8050826369806665,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1267,
+        "nav_z": 4.13335225075051,
+        "ground_delta": 0.3282696137698431,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 323,
+      "x": -393.3184886568351,
+      "y": 358.9728771715265,
+      "collision_z": 4.592776870700708,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 976,
+        "nav_z": 4.674138942503163,
+        "ground_delta": 0.08136207180245503,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1716,
+      "triangle": 324,
+      "x": -392.2685893592996,
+      "y": 360.24832795613537,
+      "collision_z": 4.554220115676009,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 976,
+        "nav_z": 4.69913480823523,
+        "ground_delta": 0.14491469255922063,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 0,
+      "x": -383.3900733531391,
+      "y": 281.3587184529702,
+      "collision_z": 5.309654987910891,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1245,
+        "nav_z": 5.651226486346921,
+        "ground_delta": 0.3415714984360303,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 3,
+      "x": -388.0432205696587,
+      "y": 285.14375601578473,
+      "collision_z": 6.31928979945597,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 915,
+        "nav_z": 6.514609861296014,
+        "ground_delta": 0.1953200618400439,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 4,
+      "x": -379.60564291680595,
+      "y": 306.08070828984046,
+      "collision_z": 3.9182613366967742,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1251,
+        "nav_z": 4.301087416940469,
+        "ground_delta": 0.38282608024369447,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 5,
+      "x": -380.6708343240336,
+      "y": 303.97160996151524,
+      "collision_z": 4.236299051989963,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1251,
+        "nav_z": 4.585366654770032,
+        "ground_delta": 0.3490676027800683,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 6,
+      "x": -380.51470895155734,
+      "y": 277.96042247127207,
+      "collision_z": 4.574491691448858,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1247,
+        "nav_z": 4.8766489413267164,
+        "ground_delta": 0.3021572498778582,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 8,
+      "x": -385.151994807788,
+      "y": 282.9328465820272,
+      "collision_z": 5.712535394056071,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 910,
+        "nav_z": 6.286256465332161,
+        "ground_delta": 0.5737210712760898,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 9,
+      "x": -374.8660445792636,
+      "y": 283.33090964420535,
+      "collision_z": 6.068809762871498,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1238,
+        "nav_z": 6.342849994375718,
+        "ground_delta": 0.27404023150421963,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 12,
+      "x": -374.2832052618622,
+      "y": 281.52932328700643,
+      "collision_z": 5.396675797031186,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1235,
+        "nav_z": 5.734851301002716,
+        "ground_delta": 0.33817550397152996,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 13,
+      "x": -377.43600936450724,
+      "y": 280.5704880007013,
+      "collision_z": 4.931794232884779,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1235,
+        "nav_z": 5.439606422026965,
+        "ground_delta": 0.5078121891421858,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 14,
+      "x": -377.4414917336723,
+      "y": 278.63170415721333,
+      "collision_z": 4.634199544204589,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1235,
+        "nav_z": 5.071719956900179,
+        "ground_delta": 0.4375204126955907,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 17,
+      "x": -374.23496164699435,
+      "y": 277.5449659003587,
+      "collision_z": 4.33434579453866,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1235,
+        "nav_z": 4.932376693965855,
+        "ground_delta": 0.5980308994271955,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 18,
+      "x": -371.04781682911124,
+      "y": 278.3600528114899,
+      "collision_z": 4.644512577446491,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1235,
+        "nav_z": 5.153391047673956,
+        "ground_delta": 0.5088784702274651,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 19,
+      "x": -371.10154281314414,
+      "y": 280.40562635464966,
+      "collision_z": 5.409247891258826,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1235,
+        "nav_z": 5.768189520689521,
+        "ground_delta": 0.35894162943069485,
+        "flags": 1,
+        "area": 11
+      }
+    },
+    {
+      "source_unique_id": 46,
+      "group": 1717,
+      "triangle": 23,
+      "x": -380.08715858792476,
+      "y": 275.73057661027445,
+      "collision_z": 4.836895546389094,
+      "tile": [
+        31,
+        32
+      ],
+      "nav": {
+        "polygon": 1214,
+        "nav_z": 5.120855821252099,
+        "ground_delta": 0.2839602748630048,
+        "flags": 1,
+        "area": 11
+      }
+    }
+  ],
+  "method": "Current native WMO collision triangles transformed into server coordinates; upward <=40-degree floors projected at finite centroids/hole-square centers into final native NAV polygons.",
+  "nav_height_tolerance": 0.65,
+  "entrance_to_interior_route_verified": false,
+  "nav_adjacency_verified": false,
+  "physical_player_walk_verified": false,
+  "composed_runtime_liquid_status_verified": false,
+  "limitations": [
+    "Finite geometry/polygon projection samples prove local surfaces only, not complete floor coverage or accessible tunnel connectivity.",
+    "Projected native polygon planes omit Detour detail interpolation; no native VMAP BIH raycasts or composed server liquid-status calls are executed.",
+    "Authored MH2O water is preserved. Water overlapping the newly cut terrain holes is reported as a source finding."
+  ],
+  "source_receipt_sha256": "333046113f8c4bd77c4543bf1c9ad8d4642705dcc4ea77fdcff4991ffcd64427",
+  "authored_hole_squares": 32,
+  "hole_centers_with_authored_water": 0,
+  "hole_centers_with_water_nav": 0,
+  "hole_centers_with_collision_floor_below_water": 0,
+  "hole_centers_with_matching_ground_floor_nav": 20,
+  "private_verification_sha256": "6b1dbb77844c4ab59eb5a69723afffcd9531aa5c48df76f277ca9bbf1b4100dc",
+  "private_verification_path": "runtime/lab-validation/map-preview-v8/server-fixed-data-verification.json",
+  "published_verification_path": "data/realm_lab/aiworldlab/preview-v8/data-verification.json",
+  "published_verification_sha256": "f166d060454fa324d987f6729c99411c4e85d4692d13e9642aedaf90fa1f65c2",
+  "private_probe_path": "runtime/lab-validation/map-preview-v8/mine-nav-probe.json",
+  "private_probe_sha256": "450809ae8b1ac58a9f3344b320aac13caf24103f51509259320dc702507930b7"
+}

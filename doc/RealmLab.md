@@ -788,6 +788,105 @@ se sklonem 1,37°, mimo rozšířené VMAP hranice a nad ověřeným ground
 navigačním polygonem. Fyzický průchod hráče a chování NPC na této revizi
 musí potvrdit samostatný test.
 
+### Náhled s tábory menších frakcí v8
+
+Uložená mapa z 11. 10. 2026 je zachycená v
+[manifestu v8](../data/realm_lab/aiworldlab/preview-v8/project-manifest.json).
+Oproti v7 přibylo 14 M2 objektů ve třech autorských táborech:
+čtyři lidské stany UID 42–45, pět gnollích stanů UID 37–41
+a pět vodních chýší UID 28–32. Jejich středy v serverových souřadnicích jsou
+`(77,12; 969,71)`, `(464,00; 972,58)` a `(-399,07; 956,79)`.
+Gnollí modely určují tábor gnollů; vodní chýše odpovídají zamýšleným
+murlocům. Přiřazení obecných lidských stanů k Defias vychází ze zadání
+frakcí, samotný model ho nekóduje. Tyto středy jsou kotvy pro návrh
+rozmístění, nikoli ověřené spawn body NPC.
+
+Důl byl přemístěný a vyrovnaný: původní UID 27 nahradilo UID 46,
+se serverovým počátkem `(-403,87; 350,92; 7,62)` a rotací přibližně
+`(-0,64; -89,54; 0)` stupňů. Osm bloků otvorů, celkem 32 terénních
+čtverců, se přesunulo kolem nového vstupu. Aktuální masky v ADT `31_32`
+jsou `(4,11)=0x8000`, `(5,11)=0x1000`, `(4,12)=0x00cc`
+a `(5,12)=0x0011`; dřívější otvor v `(4,13)` je uzavřený.
+
+Všech 132 100 terénních výškových vrcholů zůstalo shodných s v7.
+Autor upravil pokrytí vody ve dvou jižních ADT: počet MH2O vrstev
+klesl z 560 na 421, při zachování výšek společných vodních vrcholů.
+Původních 14 budov a tři mosty zůstaly na místě. Současná mapa má
+15 jedinečných WMO a 17 M2; šest opakovaných WMO záznamů náleží
+přesahům mezi dlaždicemi. Rozloha je stále 1 066,7 × 1 066,7 jednotek.
+DBC, WDT a WDL zůstaly shodné s v7. Všech 15 autorských souborů bylo
+po zachycení znovu ověřeno beze změny; odvozená kopie v8 doplňuje
+pouze AreaID 4988 a vylučuje Azeroth.
+
+Klientský patch v8 byl sestavený a nainstalovaný s přesnou zálohou v7;
+jeho SHA-256 je
+`cd4141f22999c22cf1cc6f680cee0c14ff90e3a3f0dc9c9bbb6c90598a70adba`.
+[Serverový manifest](../data/realm_lab/aiworldlab/preview-v8/server-manifest.json)
+obsahuje 61 souborů, 205 kolizních umístění a 44 modelů. Ze stejného
+patche jsou sestavené mapy, VMAP a všechny čtyři navigační dlaždice.
+[Nezávislé ověření](../data/realm_lab/aiworldlab/preview-v8/data-verification.json)
+prošlo pro terén, oblasti, vodu, otvory, kolize i navigaci. Oprava pouze
+124 zdrojem nezapsaných okrajových vodních vzorků změnila 392 bajtů;
+autorské vodní hodnoty jsou zachované. Vnitřní terénní švy mají již
+ve zdroji odchylku do 0,0491 jednotky; autorský terén se nevyhlazoval.
+
+[Místní kontrola stanů](../data/realm_lab/aiworldlab/preview-v8/tent-ground-nav-probe.json)
+našla 631 suchých kandidátů s ground navigací kolem všech 14 stanů,
+ze 896 zkoušených bodů. Kontrola zahrnuje sklon nejvýše 15°,
+odstup od kolizních obálek a devět výškových/vodních vzorků kolem
+každého přijatého bodu. Tyto body nejsou hotové spawny ani důkaz
+spojení táborů. [Kontrola dolu](../data/realm_lab/aiworldlab/preview-v8/mine-nav-probe.json)
+našla odpovídající ground navigaci u 172 ze 400 podlahových vzorků
+a u 20 ze 32 středů otvorů. V aktuálním zdroji není MH2O voda pod
+žádným z 32 otvorů; průchod od vstupu celým dolem a skutečný runtime
+stav kapalin stále vyžadují herní test.
+
+[Počáteční nasazení](../data/realm_lab/aiworldlab/preview-v8/activation.json)
+ověřilo všech 61 instalovaných souborů, čtyři zdravé lab služby,
+šest původních kontejnerů s nezměněnými časy spuštění a zachování
+všech 7 540 sdílených kolizních modelů. Záloha serveru je v
+`runtime/lab/validation/map-preview-v8/before/installed-data`, klientská
+v `runtime/lab/client-patches/map725-v8/backups/patch-4-v7.MPQ`.
+Vstup zůstává `.go xyz 266.667 800 2.02 725` na ověřeném suchém terénu.
+Záznam zachycuje počáteční instalaci dat před navazujícím branch CI.
+Populace předchozího testu zůstává potlačená a AI profil je vypnutý.
+
+### Návrh populace podle autorských táborů v8
+
+[Návrh NPC](../data/realm_lab/aiworldlab/preview-v8/npc-layout-proposal.json)
+je návrh oblastí a rolí, zatím bez aktivace populace. Používá skutečné
+UID stanů, jejich středy a nový důl UID 46. Obsahuje celkem 100 entit:
+
+| Skupina | Počet | Rozmístění a role |
+| --- | ---: | --- |
+| Stormwind | 44 | Město 16, čtyři vesnice po 6, pohyblivá karavana 4. Město má 8 stráží a 8 služeb/obyvatel; vesnice 4 pracovníky a 2 stráže. |
+| Defias Brotherhood | 16 | U čtyř lidských stanů UID 42–45: vůdce, 3 stráže, 2 zásobovači, dvě skupiny po 5 banditech. |
+| Elwynn Gnolls | 6 | U pěti stanů UID 37–41: vůdce, 2 lovci, 2 sběrači a strážce. |
+| Elwynn Murlocs | 6 | U pěti vodních chýší UID 28–32: 4 rybáři a 2 strážci. |
+| Elwynn Kobolds | 8 | Přesunutý důl: 5 horníků, strážce vstupu a 2 venkovní lovci/sběrači. |
+| Zvěř | 20 | Čtyři loviště po 4 kusech kořisti a 1 predátorovi; obnova v rámci tohoto limitu. |
+
+Levá vesnice je od středu Defias asi 136 jednotek, proto přepady
+spouští stav výpravy, zásoby a čas mezi výpravami. Blízkost sama nesmí
+vyvolat trvalý boj. Zpočátku vyráží jedna pětičlenná skupina; garrison
+obsazené vesnice se přesune z existující populace Defias. Gnollové
+nejprve loví a sbírají ve svém okolí, murloci rybaří a koboldové těží
+a hledají potravu u dolu. Útoky z hladu nastanou až při místním nedostatku.
+
+Město je stálá bezpečná základna hráče. Čtyři vesnice začínají pod
+Stormwind; převzetí vyžaduje oslabené obránce, udržení středu a
+zásobovanou posádku. Hráč může doprovázet karavanu, chránit pracovníky,
+zachraňovat uprchlíky, přerušit zásobování Defias nebo pomoci s osvobozením.
+Záchranná výprava Stormwind používá 2–4 již existující městské stráže.
+Původní domov NPC zůstává neměnný; vlastník, zásoby, posádka a stav
+výpravy se později ukládají přes restart.
+
+Před aktivací je potřeba rozdělit konkrétní NPC do suchých bodů kolem
+stanů, ověřit podlahy dolu a skutečné cesty přes mosty. Šipky návrhu
+označují cíle výprav, nikoli ověřené navigační trasy. První herní etapa
+má ověřit jednotlivé cesty domů; teprve potom přidat hlad, přepravu
+zásob a nakonec obsazování vesnic. Celý návrh se nemá aktivovat najednou.
+
 ### Postup při prvním selhání
 
 Při selhání etapu zastavit, uložit přesný scénář, revizi kódu, hashe dat a

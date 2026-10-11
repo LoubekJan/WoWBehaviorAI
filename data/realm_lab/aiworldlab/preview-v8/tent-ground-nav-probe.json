@@ -1,0 +1,2453 @@
+{
+  "source_revision": "preview-v8",
+  "ok": true,
+  "status": "pass",
+  "errors": [],
+  "asset_pattern": "tent|murloc|gnoll|kobold|hut",
+  "method": "Finite points at 10/20/35/50 units from authored tent-like asset centers; source-preserved native terrain queried for slope <=15 degrees; nine terrain samples within a 2-unit clearance check reject holes and visible authored water only if its verified native level is >= the local terrain; conservative known collision AABB clearance >=2 and containing NAV_GROUND polygon plane within 2 units.",
+  "npc_deployment_performed": false,
+  "global_routes_verified": false,
+  "physical_walk_verified": false,
+  "limitations": [
+    "Tent interiors and connectivity between camps are unverified.",
+    "Collision clearance uses known AABBs rather than native BIH queries; rendered assets without native collision cannot supply a collision clearance proof.",
+    "Nav heights use polygon planes without Detour detail interpolation."
+  ],
+  "tent_count": 14,
+  "tents_with_local_ground_evidence": 14,
+  "source_receipt_sha256": "333046113f8c4bd77c4543bf1c9ad8d4642705dcc4ea77fdcff4991ffcd64427",
+  "private_full_probe_sha256": "49157598f5ab5204d942c2e3001cd8b1dde514f3085613d12d35fbdf01239214",
+  "private_full_probe_path": "runtime/lab-validation/map-preview-v8/tent-ground-nav-probe.json",
+  "retained_anchor_samples_per_tent": 6,
+  "tents": [
+    {
+      "source_unique_id": 43,
+      "asset": "WORLD\\GENERIC\\BUILDINGS\\HUMANTENTLARGE\\HUMANTENTLARGE.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 84.81640625,
+        "y": 975.5810546875,
+        "z": -7.62939453125e-06
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698248
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 9
+      },
+      "valid_ground_anchor_count": 55,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 94.05520157511287,
+          "y": 979.4078890111509,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 1,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 461,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 88.6432405736509,
+          "y": 984.8198500126128,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 3,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 476,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 80.9895719263491,
+          "y": 984.8198500126128,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 5,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 412,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 88.6432405736509,
+          "y": 966.3422593623872,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 13,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 458,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 80.9895719263491,
+          "y": 966.3422593623872,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 11,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 402,
+            "nav_z": 0.282018712879821,
+            "ground_delta": 0.282018712879821,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 94.05520157511286,
+          "y": 971.7542203638491,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 15,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 460,
+            "nav_z": 0.3331533141670306,
+            "ground_delta": 0.3331533141670306,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 44,
+      "asset": "WORLD\\GENERIC\\BUILDINGS\\HUMANTENTMEDIUM\\HUMANTENTMEDIUM.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 59.373046875,
+        "y": 964.8408203125,
+        "z": 0.0
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698249
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 5
+      },
+      "valid_ground_anchor_count": 59,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 50.13425154988713,
+          "y": 961.0139859888491,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 9,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 279,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 55.5462125513491,
+          "y": 955.6020249873872,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 11,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 276,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 66.44411468686548,
+          "y": 957.7697525006345,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 14,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 382,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 69.373046875,
+          "y": 964.8408203125,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 0,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 402,
+            "nav_z": 0.3053683991035281,
+            "ground_delta": 0.3053683991035281,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 66.44411468686548,
+          "y": 971.9118881243655,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 2,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 401,
+            "nav_z": 0.4384681756503238,
+            "ground_delta": 0.4384681756503238,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 50.13425154988713,
+          "y": 968.6676546361509,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 7,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 282,
+            "nav_z": 0.5666003281132598,
+            "ground_delta": 0.5666003281132598,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 45,
+      "asset": "WORLD\\GENERIC\\BUILDINGS\\HUMANTENTMEDIUM\\HUMANTENTMEDIUM.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 65.7578125,
+        "y": 978.33984375,
+        "z": -7.62939453125e-06
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698250
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 5
+      },
+      "valid_ground_anchor_count": 59,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 74.99660782511287,
+          "y": 982.1666780736509,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 1,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 412,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 69.5846468236509,
+          "y": 987.5786390751128,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 3,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 412,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 61.9309781763491,
+          "y": 987.5786390751128,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 5,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 288,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 56.51901717488713,
+          "y": 982.1666780736509,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 7,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 288,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 74.99660782511286,
+          "y": 974.5130094263491,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 15,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 384,
+            "nav_z": 0.394828818217857,
+            "ground_delta": 0.394828818217857,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 65.7578125,
+          "y": 968.33984375,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 12,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 402,
+            "nav_z": 0.4409202812029912,
+            "ground_delta": 0.4409202812029912,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 42,
+      "asset": "WORLD\\GENERIC\\BUILDINGS\\HUMANTENTLARGE\\HUMANTENTLARGE.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 98.533203125,
+        "y": 960.0869140625,
+        "z": 0.0
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698251
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 5
+      },
+      "valid_ground_anchor_count": 59,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 108.533203125,
+          "y": 960.0869140625,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 0,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 500,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 105.60427093686548,
+          "y": 967.1579818743655,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 2,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 457,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 91.46213531313452,
+          "y": 967.1579818743655,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 6,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 458,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 88.533203125,
+          "y": 960.0869140625,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 8,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 458,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 91.46213531313452,
+          "y": 953.0158462506346,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 10,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 447,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 98.533203125,
+          "y": 950.0869140625,
+          "ground_z": 0.0,
+          "teleport_z": 2.0,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 12,
+          "slope_degrees": 0.0,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 447,
+            "nav_z": 0.21655654907226562,
+            "ground_delta": 0.21655654907226562,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 38,
+      "asset": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GNOLLTENT\\GNOLLTENT03.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 458.775390625,
+        "y": 979.9775390625,
+        "z": 15.34796142578125
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698252
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 5,
+        "slope-over-15-degrees": 18,
+        "no-containing-ground-nav-at-height": 1
+      },
+      "valid_ground_anchor_count": 40,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 451.7043228131345,
+          "y": 987.0486068743655,
+          "ground_z": 14.842392310633704,
+          "teleport_z": 16.842392310633706,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 6,
+          "slope_degrees": 3.4280708088480356,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 993,
+            "nav_z": 15.618530819690742,
+            "ground_delta": 0.7761385090570379,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 448.775390625,
+          "y": 979.9775390625,
+          "ground_z": 15.244990220821961,
+          "teleport_z": 17.24499022082196,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 8,
+          "slope_degrees": 6.119997628582379,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 990,
+            "nav_z": 15.32923214288306,
+            "ground_delta": 0.08424192206109815,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 458.775390625,
+          "y": 989.9775390625,
+          "ground_z": 14.838535848954436,
+          "teleport_z": 16.838535848954436,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 4,
+          "slope_degrees": 6.982336426775237,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 993,
+            "nav_z": 16.0587850973788,
+            "ground_delta": 1.2202492484243628,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 465.8464584368655,
+          "y": 972.9064712506345,
+          "ground_z": 12.68979063874278,
+          "teleport_z": 14.68979063874278,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 14,
+          "slope_degrees": 7.820159865892527,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 970,
+            "nav_z": 13.04511246203284,
+            "ground_delta": 0.3553218232900601,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 454.9485563013491,
+          "y": 970.7387437373872,
+          "ground_z": 14.377744193167453,
+          "teleport_z": 16.37774419316745,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 11,
+          "slope_degrees": 8.913034717445159,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 990,
+            "nav_z": 14.556535086858764,
+            "ground_delta": 0.17879089369131052,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 465.8464584368655,
+          "y": 987.0486068743655,
+          "ground_z": 14.704448730238438,
+          "teleport_z": 16.70444873023844,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 2,
+          "slope_degrees": 12.650657158390056,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 991,
+            "nav_z": 15.640139127618651,
+            "ground_delta": 0.9356903973802133,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 40,
+      "asset": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GNOLLTENT\\GNOLLTENT02.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 471.810546875,
+        "y": 971.58203125,
+        "z": 12.079483985900879
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698253
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "slope-over-15-degrees": 19,
+        "known-collision-aabb": 7
+      },
+      "valid_ground_anchor_count": 38,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 475.6373811986509,
+          "y": 962.3432359248872,
+          "ground_z": 11.321829677060467,
+          "teleport_z": 13.321829677060467,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 13,
+          "slope_degrees": 3.408587394493315,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1025,
+            "nav_z": 12.226791849647418,
+            "ground_delta": 0.9049621725869503,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 481.04934220011285,
+          "y": 967.7551969263491,
+          "ground_z": 11.491739040710055,
+          "teleport_z": 13.491739040710055,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 15,
+          "slope_degrees": 7.198479394058106,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1020,
+            "nav_z": 12.641000667029584,
+            "ground_delta": 1.1492616263195288,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 471.810546875,
+          "y": 981.58203125,
+          "ground_z": 13.821383025233972,
+          "teleport_z": 15.821383025233972,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 4,
+          "slope_degrees": 14.247587489213636,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1026,
+            "nav_z": 14.046039086962521,
+            "ground_delta": 0.2246560617285489,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 485.95268249873095,
+          "y": 957.439895626269,
+          "ground_z": 10.949756844906268,
+          "teleport_z": 12.949756844906268,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 14,
+          "slope_degrees": 0.5382776641460113,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1016,
+            "nav_z": 11.796498665133853,
+            "ground_delta": 0.8467418202275852,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 490.28813752522575,
+          "y": 963.9283626026981,
+          "ground_z": 11.09712489073617,
+          "teleport_z": 13.09712489073617,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 15,
+          "slope_degrees": 3.6137294660965127,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1020,
+            "nav_z": 11.88793314701114,
+            "ground_delta": 0.7908082562749694,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 457.66841125126905,
+          "y": 985.724166873731,
+          "ground_z": 14.42319622077653,
+          "teleport_z": 16.423196220776532,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 6,
+          "slope_degrees": 5.92574015708795,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 993,
+            "nav_z": 14.93869399336597,
+            "ground_delta": 0.5154977725894394,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 37,
+      "asset": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GNOLLTENT\\GNOLLTENT03.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 464.62109375,
+        "y": 963.6845703125,
+        "z": 13.816352844238281
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698254
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 5,
+        "slope-over-15-degrees": 19
+      },
+      "valid_ground_anchor_count": 40,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 474.62109375,
+          "y": 963.6845703125,
+          "ground_z": 11.427146906533562,
+          "teleport_z": 13.427146906533562,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 0,
+          "slope_degrees": 4.608395197525901,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1025,
+            "nav_z": 12.369062472818838,
+            "ground_delta": 0.9419155662852763,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 468.44792807365087,
+          "y": 972.9233656376128,
+          "ground_z": 12.349808888245411,
+          "teleport_z": 14.349808888245411,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 3,
+          "slope_degrees": 8.16933229102746,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 970,
+            "nav_z": 12.82152280322636,
+            "ground_delta": 0.47171391498094906,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 455.38229842488715,
+          "y": 967.5114046361509,
+          "ground_z": 14.43770670514943,
+          "teleport_z": 16.43770670514943,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 7,
+          "slope_degrees": 10.206483343130856,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 990,
+            "nav_z": 14.61091054290481,
+            "ground_delta": 0.17320383775537884,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 455.38229842488715,
+          "y": 959.8577359888491,
+          "ground_z": 15.026411996354545,
+          "teleport_z": 17.026411996354547,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 9,
+          "slope_degrees": 11.264420164254505,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 965,
+            "nav_z": 15.130996178068344,
+            "ground_delta": 0.10458418171379869,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 460.7942594263491,
+          "y": 954.4457749873872,
+          "ground_z": 14.814481000385332,
+          "teleport_z": 16.81448100038533,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 11,
+          "slope_degrees": 13.501454117984968,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 965,
+            "nav_z": 15.333941231785195,
+            "ground_delta": 0.5194602313998633,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 468.4479280736509,
+          "y": 954.4457749873872,
+          "ground_z": 13.404853136404872,
+          "teleport_z": 15.404853136404872,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 13,
+          "slope_degrees": 14.756192137441394,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 965,
+            "nav_z": 13.898877333978165,
+            "ground_delta": 0.4940241975732924,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 41,
+      "asset": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GNOLLTENT\\GNOLLTENT02.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 466.896484375,
+        "y": 976.9091796875,
+        "z": 12.879880905151367
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698255
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "slope-over-15-degrees": 21,
+        "known-collision-aabb": 9
+      },
+      "valid_ground_anchor_count": 34,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 459.8254165631345,
+          "y": 983.9802474993655,
+          "ground_z": 14.143265179106905,
+          "teleport_z": 16.143265179106905,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 6,
+          "slope_degrees": 5.940308873031777,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 993,
+            "nav_z": 14.773171020662264,
+            "ground_delta": 0.6299058415553596,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 476.896484375,
+          "y": 976.9091796875,
+          "ground_z": 13.047989279475239,
+          "teleport_z": 15.047989279475239,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 0,
+          "slope_degrees": 13.10015576234423,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1024,
+            "nav_z": 13.361007261278584,
+            "ground_delta": 0.3130179818033447,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 466.896484375,
+          "y": 986.9091796875,
+          "ground_z": 14.75573591806353,
+          "teleport_z": 16.75573591806353,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 4,
+          "slope_degrees": 13.219785117783951,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 991,
+            "nav_z": 15.565497617362078,
+            "ground_delta": 0.8097616992985479,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 481.03861999873095,
+          "y": 962.767044063769,
+          "ground_z": 11.081778874053798,
+          "teleport_z": 13.081778874053798,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 14,
+          "slope_degrees": 2.4325637269398435,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 1025,
+            "nav_z": 11.914097121731755,
+            "ground_delta": 0.8323182476779571,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 452.75434875126905,
+          "y": 991.051315311231,
+          "ground_z": 15.018264117729032,
+          "teleport_z": 17.018264117729032,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 6,
+          "slope_degrees": 4.21227690588667,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 993,
+            "nav_z": 15.943832345929748,
+            "ground_delta": 0.9255682282007154,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 448.41889372477425,
+          "y": 984.5628483348017,
+          "ground_z": 15.122660399978347,
+          "teleport_z": 17.122660399978347,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 7,
+          "slope_degrees": 4.9174773950683175,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 993,
+            "nav_z": 15.73000620932438,
+            "ground_delta": 0.6073458093460324,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 39,
+      "asset": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GNOLLTENT\\GNOLLTENT03.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": 457.884765625,
+        "y": 970.7421875,
+        "z": 15.650497436523438
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698256
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 6,
+        "slope-over-15-degrees": 19
+      },
+      "valid_ground_anchor_count": 39,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": 454.05793130134913,
+          "y": 979.9809828251128,
+          "ground_z": 14.614958273365541,
+          "teleport_z": 16.61495827336554,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 5,
+          "slope_degrees": 6.683513617081756,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 985,
+            "nav_z": 14.703838508105028,
+            "ground_delta": 0.08888023473948614,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 448.64597029988715,
+          "y": 974.5690218236509,
+          "ground_z": 15.355459211883495,
+          "teleport_z": 17.355459211883495,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 7,
+          "slope_degrees": 7.35532731315501,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 990,
+            "nav_z": 15.625542397584663,
+            "ground_delta": 0.27008318570116785,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 467.884765625,
+          "y": 970.7421875,
+          "ground_z": 12.324633275541842,
+          "teleport_z": 14.324633275541842,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 0,
+          "slope_degrees": 7.5486136250947835,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 970,
+            "nav_z": 12.705555972466371,
+            "ground_delta": 0.38092269692452874,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 448.64597029988715,
+          "y": 966.9153531763491,
+          "ground_z": 15.650499352944585,
+          "teleport_z": 17.650499352944585,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 9,
+          "slope_degrees": 10.580465011176557,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 990,
+            "nav_z": 16.008226172095732,
+            "ground_delta": 0.35772681915114646,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 454.0579313013491,
+          "y": 961.5033921748872,
+          "ground_z": 15.114980167602615,
+          "teleport_z": 17.114980167602617,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 11,
+          "slope_degrees": 10.781862012167192,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 989,
+            "nav_z": 15.232620331807414,
+            "ground_delta": 0.11764016420479884,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        },
+        {
+          "x": 450.2310969776982,
+          "y": 989.2197781502257,
+          "ground_z": 14.999659105657297,
+          "teleport_z": 16.999659105657297,
+          "tile": [
+            30,
+            31
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 5,
+          "slope_degrees": 3.540481063779372,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 993,
+            "nav_z": 16.038172083672517,
+            "ground_delta": 1.0385129780152198,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 0,
+          "minimum_ground_above_visible_water": null
+        }
+      ]
+    },
+    {
+      "source_unique_id": 31,
+      "asset": "WORLD\\AZEROTH\\SWAMPOSORROW\\PASSIVEDOODADS\\WATERHUTS\\WATERHUT02.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": -411.607421875,
+        "y": 956.3974609375,
+        "z": -1.5102386474609375
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698303
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 4,
+        "visible-water-at-or-above-local-terrain": 16
+      },
+      "valid_ground_anchor_count": 44,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": -411.607421875,
+          "y": 966.3974609375,
+          "ground_z": -0.8833792859112327,
+          "teleport_z": 1.1166207140887674,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 4,
+          "slope_degrees": 2.584387197184302,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 265,
+            "nav_z": -0.8351084989970652,
+            "ground_delta": 0.04827078691416753,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.139183406529785
+        },
+        {
+          "x": -418.6784896868655,
+          "y": 963.4685287493655,
+          "ground_z": -0.9922623533402546,
+          "teleport_z": 1.0077376466597454,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 6,
+          "slope_degrees": 2.9965910769077375,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 265,
+            "nav_z": -0.8565554856684802,
+            "ground_delta": 0.13570686767177442,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.006135753502583
+        },
+        {
+          "x": -402.36862654988715,
+          "y": 960.2242952611509,
+          "ground_z": -1.232199783081563,
+          "teleport_z": 0.767800216918437,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 1,
+          "slope_degrees": 4.100804694679747,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 305,
+            "nav_z": -1.1310022359783236,
+            "ground_delta": 0.10119754710323936,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.708474290444921
+        },
+        {
+          "x": -421.607421875,
+          "y": 956.3974609375,
+          "ground_z": -1.4167271914037385,
+          "teleport_z": 0.5832728085962615,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 8,
+          "slope_degrees": 4.499429469767201,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 257,
+            "nav_z": -1.4342286859973912,
+            "ground_delta": -0.01750149459365269,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.5249833981834304
+        },
+        {
+          "x": -418.6784896868655,
+          "y": 949.3263931256346,
+          "ground_z": -2.1740682985481565,
+          "teleport_z": -0.17406829854815653,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 10,
+          "slope_degrees": 7.962758779914351,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 257,
+            "nav_z": -2.597762663889314,
+            "ground_delta": -0.42369436534115756,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 1.556457987683764
+        },
+        {
+          "x": -407.7805875513491,
+          "y": 947.1586656123872,
+          "ground_z": -2.9258582059666267,
+          "teleport_z": -0.9258582059666267,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 13,
+          "slope_degrees": 10.994333136564268,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 255,
+            "nav_z": -3.1400569024165703,
+            "ground_delta": -0.2141986964499436,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 0.6772781931926435
+        }
+      ]
+    },
+    {
+      "source_unique_id": 29,
+      "asset": "WORLD\\AZEROTH\\SWAMPOSORROW\\PASSIVEDOODADS\\WATERHUTS\\WATERHUT01.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": -402.2578125,
+        "y": 965.3896484375,
+        "z": -0.94915771484375
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698304
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 4,
+        "visible-water-at-or-above-local-terrain": 10
+      },
+      "valid_ground_anchor_count": 50,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": -402.2578125,
+          "y": 975.3896484375,
+          "ground_z": -0.5571634357368254,
+          "teleport_z": 1.4428365642631746,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 4,
+          "slope_degrees": 1.901954736180673,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -0.45047801225027284,
+            "ground_delta": 0.10668542348655252,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.4913554791509025
+        },
+        {
+          "x": -395.1867446881345,
+          "y": 972.4607162493655,
+          "ground_z": -0.6617852946676172,
+          "teleport_z": 1.338214705332383,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 2,
+          "slope_degrees": 2.095872867591832,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -0.4385689091360221,
+            "ground_delta": 0.22321638553159506,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.383767127939394
+        },
+        {
+          "x": -409.3288803118655,
+          "y": 972.4607162493655,
+          "ground_z": -0.6495449694222213,
+          "teleport_z": 1.3504550305777787,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 6,
+          "slope_degrees": 2.1028814153955038,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 265,
+            "nav_z": -0.6362183573152043,
+            "ground_delta": 0.013326612107017022,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.3923926981108896
+        },
+        {
+          "x": -412.2578125,
+          "y": 965.3896484375,
+          "ground_z": -0.9298992216230773,
+          "teleport_z": 1.0701007783769227,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 8,
+          "slope_degrees": 2.7684155777360178,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 265,
+            "nav_z": -0.8647716756270072,
+            "ground_delta": 0.06512754599607007,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.091851466122052
+        },
+        {
+          "x": -392.2578125,
+          "y": 965.3896484375,
+          "ground_z": -0.9443270802837067,
+          "teleport_z": 1.0556729197162933,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 0,
+          "slope_degrees": 2.8512088336912798,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -0.8161666315182338,
+            "ground_delta": 0.12816044876547295,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.078280175678848
+        },
+        {
+          "x": -406.0846468236509,
+          "y": 956.1508531123872,
+          "ground_z": -1.580847321124343,
+          "teleport_z": 0.419152678875657,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 11,
+          "slope_degrees": 6.406395526815441,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 255,
+            "nav_z": -1.748253515629285,
+            "ground_delta": -0.1674061945049421,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.2782852387414003
+        }
+      ]
+    },
+    {
+      "source_unique_id": 28,
+      "asset": "WORLD\\AZEROTH\\SWAMPOSORROW\\PASSIVEDOODADS\\WATERHUTS\\WATERHUT01.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": -402.7109375,
+        "y": 949.9599609375,
+        "z": -0.8624191284179688
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698305
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 4,
+        "visible-water-at-or-above-local-terrain": 25
+      },
+      "valid_ground_anchor_count": 35,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": -402.7109375,
+          "y": 959.9599609375,
+          "ground_z": -1.253658191359792,
+          "teleport_z": 0.746341808640208,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 4,
+          "slope_degrees": 4.100804694679747,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 291,
+            "nav_z": -1.1534442901611328,
+            "ground_delta": 0.10021390119865914,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.683241280950876
+        },
+        {
+          "x": -393.47214217488715,
+          "y": 953.7867952611509,
+          "ground_z": -2.0187549937467546,
+          "teleport_z": -0.0187549937467546,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 1,
+          "slope_degrees": 8.738755520402464,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 296,
+            "nav_z": -1.8763683026472529,
+            "ground_delta": 0.14238669109950175,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 1.7421428563033423
+        },
+        {
+          "x": -412.7109375,
+          "y": 949.9599609375,
+          "ground_z": -2.252971499345199,
+          "teleport_z": -0.252971499345199,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 8,
+          "slope_degrees": 8.9927551906885,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 257,
+            "nav_z": -2.3868513667070252,
+            "ground_delta": -0.13387986736182622,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 1.4692719849908116
+        },
+        {
+          "x": -393.47214217488715,
+          "y": 946.1331266138491,
+          "ground_z": -3.5191375203795663,
+          "teleport_z": -1.5191375203795663,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 15,
+          "slope_degrees": 12.80166709236315,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 295,
+            "nav_z": -3.1753236737595514,
+            "ground_delta": 0.3438138466200149,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 0.029664656847149473
+        },
+        {
+          "x": -402.7109375,
+          "y": 969.9599609375,
+          "ground_z": -0.7573619633626394,
+          "teleport_z": 1.2426380366373606,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 4,
+          "slope_degrees": 2.284046990871883,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 303,
+            "nav_z": -0.5764487493596874,
+            "ground_delta": 0.18091321400295202,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.281658940909988
+        },
+        {
+          "x": -395.0572688526982,
+          "y": 968.4375515877257,
+          "ground_z": -0.8180557927299938,
+          "teleport_z": 1.1819442072700062,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 3,
+          "slope_degrees": 2.3305810798533915,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -0.6407903732611505,
+            "ground_delta": 0.17726541946884333,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.219335003339949
+        }
+      ]
+    },
+    {
+      "source_unique_id": 32,
+      "asset": "WORLD\\AZEROTH\\SWAMPOSORROW\\PASSIVEDOODADS\\WATERHUTS\\WATERHUT02.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": -391.94140625,
+        "y": 960.490234375,
+        "z": -1.796844482421875
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698306
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 7,
+        "visible-water-at-or-above-local-terrain": 13
+      },
+      "valid_ground_anchor_count": 44,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": -388.11457192634913,
+          "y": 969.7290297001128,
+          "ground_z": -0.7492875534757748,
+          "teleport_z": 1.2507124465242252,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 3,
+          "slope_degrees": 2.291586352852579,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -0.6332091770297167,
+            "ground_delta": 0.11607837644605812,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.286657210209094
+        },
+        {
+          "x": -395.76824057365087,
+          "y": 969.7290297001128,
+          "ground_z": -0.7673186510784786,
+          "teleport_z": 1.2326813489215214,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 5,
+          "slope_degrees": 2.3305810798533915,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -0.5703799621953888,
+            "ground_delta": 0.19693868888308985,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.273331961514148
+        },
+        {
+          "x": -382.70261092488715,
+          "y": 964.3170686986509,
+          "ground_z": -0.9709719104034517,
+          "teleport_z": 1.0290280895965482,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 1,
+          "slope_degrees": 3.150620262896007,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 344,
+            "nav_z": -0.9213670022867494,
+            "ground_delta": 0.04960490811670226,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.0277528174220767
+        },
+        {
+          "x": -401.94140625,
+          "y": 960.490234375,
+          "ground_z": -1.2125047503605086,
+          "teleport_z": 0.7874952496394914,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 8,
+          "slope_degrees": 4.470919746616405,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 305,
+            "nav_z": -1.1044079441586574,
+            "ground_delta": 0.10809680620185125,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.730092554360946
+        },
+        {
+          "x": -382.70261092488715,
+          "y": 956.6634000513491,
+          "ground_z": -1.667377053753858,
+          "teleport_z": 0.3326229462461421,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 15,
+          "slope_degrees": 7.159822966651458,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 343,
+            "nav_z": -1.6931676412839702,
+            "ground_delta": -0.02579058753011232,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.2020082559656453
+        },
+        {
+          "x": -395.7682405736509,
+          "y": 951.2514390498872,
+          "ground_z": -2.428442048201492,
+          "teleport_z": -0.4284420482014921,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 11,
+          "slope_degrees": 9.458509896568819,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 293,
+            "nav_z": -2.2469987654880694,
+            "ground_delta": 0.1814432827134227,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 1.2982607982923935
+        }
+      ]
+    },
+    {
+      "source_unique_id": 30,
+      "asset": "WORLD\\AZEROTH\\SWAMPOSORROW\\PASSIVEDOODADS\\WATERHUTS\\WATERHUT01.M2",
+      "kind": "m2",
+      "server_position": {
+        "x": -386.849609375,
+        "y": 951.6904296875,
+        "z": -1.07891845703125
+      },
+      "native_collision_present": true,
+      "native_spawn_ids": [
+        698307
+      ],
+      "candidate_count": 64,
+      "rejected": {
+        "known-collision-aabb": 3,
+        "visible-water-at-or-above-local-terrain": 26
+      },
+      "valid_ground_anchor_count": 35,
+      "local_ground_evidence": true,
+      "sample_ground_anchors": [
+        {
+          "x": -386.849609375,
+          "y": 961.6904296875,
+          "ground_z": -1.1509758874653446,
+          "teleport_z": 0.8490241125346554,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 4,
+          "slope_degrees": 5.124606130793951,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -1.0455240150903704,
+            "ground_delta": 0.10545187237497422,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.792872067168196
+        },
+        {
+          "x": -379.7785415631345,
+          "y": 958.7614974993655,
+          "ground_z": -1.411439053449129,
+          "teleport_z": 0.588560946550871,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 2,
+          "slope_degrees": 5.969167009982467,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 343,
+            "nav_z": -1.3157987147157186,
+            "ground_delta": 0.09564033873341038,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.4742128980618925
+        },
+        {
+          "x": -396.08840470011285,
+          "y": 955.5172640111509,
+          "ground_z": -1.7707046561814637,
+          "teleport_z": 0.22929534381853633,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 7,
+          "slope_degrees": 7.167265961030724,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 296,
+            "nav_z": -1.6200010677943526,
+            "ground_delta": 0.15070358838711106,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 2.066197158321471
+        },
+        {
+          "x": -376.849609375,
+          "y": 951.6904296875,
+          "ground_z": -2.354790515474908,
+          "teleport_z": -0.35479051547490803,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 0,
+          "slope_degrees": 10.738744984087928,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 343,
+            "nav_z": -2.497617221854193,
+            "ground_delta": -0.14282670637928518,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 1.361448665105732
+        },
+        {
+          "x": -396.08840470011285,
+          "y": 947.8635953638491,
+          "ground_z": -3.0997011703055586,
+          "teleport_z": -1.0997011703055586,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 10,
+          "angle_index": 9,
+          "slope_degrees": 12.501584427921705,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 295,
+            "nav_z": -2.817989885264016,
+            "ground_delta": 0.2817112850415424,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 0.5504450688541209
+        },
+        {
+          "x": -386.849609375,
+          "y": 971.6904296875,
+          "ground_z": -0.6702750580758434,
+          "teleport_z": 1.3297249419241566,
+          "tile": [
+            30,
+            32
+          ],
+          "distance_from_tent_center": 20,
+          "angle_index": 4,
+          "slope_degrees": 2.0582679594767557,
+          "known_collision_bounds_clearance": 2,
+          "dry_terrain_clearance_radius": 2,
+          "nav": {
+            "polygon": 306,
+            "nav_z": -0.545523121019846,
+            "ground_delta": 0.12475193705599741,
+            "flags": 1,
+            "area": 11
+          },
+          "dry_terrain_samples_verified": 9,
+          "samples_over_visible_water_below_terrain": 9,
+          "minimum_ground_above_visible_water": 3.3691528531246675
+        }
+      ]
+    }
+  ],
+  "private_summary_path": "runtime/lab-validation/map-preview-v8/tent-ground-nav-summary.json",
+  "private_summary_sha256": "bc2716bfcd04280bd6c6b7c4dae29600ac1b71a609fe55ee65dca69a8409b83a",
+  "published_compact_summary": true,
+  "summary_scope": "Full probe totals and source identities are retained. At most six checked ground anchors per tent are shown; the complete private probe contains every accepted anchor and every dry-terrain sample.",
+  "private_verification_sha256": "6b1dbb77844c4ab59eb5a69723afffcd9531aa5c48df76f277ca9bbf1b4100dc",
+  "private_verification_path": "runtime/lab-validation/map-preview-v8/server-fixed-data-verification.json",
+  "published_verification_path": "data/realm_lab/aiworldlab/preview-v8/data-verification.json",
+  "published_verification_sha256": "f166d060454fa324d987f6729c99411c4e85d4692d13e9642aedaf90fa1f65c2",
+  "private_probe_path": "runtime/lab-validation/map-preview-v8/tent-ground-nav-probe.json",
+  "private_probe_sha256": "49157598f5ab5204d942c2e3001cd8b1dde514f3085613d12d35fbdf01239214"
+}
