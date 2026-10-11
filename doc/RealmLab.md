@@ -677,6 +677,53 @@ Vstup `.go xyz 266.667 800 2 725` je na suché rovině Z 0, mimo kolizní
 hranice budov a nad ověřeným ground navigačním polygonem. Fyzickou prohlídku,
 globální průchodnost a chování NPC na v5 tyto kontroly nepotvrzují.
 
+### Procházkový náhled s novými mosty v6
+
+Uložená úprava z 11. 10. 2026 je zachycená v
+[manifestu v6](../data/realm_lab/aiworldlab/preview-v6/project-manifest.json).
+Oproti v5 se změnil pouze `aiworldlab_30_32.adt`: původní tři
+`ElwynnFootbridge` (ID 18, 19, 21) nahradily tři nově umístěné
+`StrangleChasmBridge` (ID 24, 25, 26), včetně jejich poloh a rotací.
+Všech 132 100 terénních vrcholů, autorská voda MH2O, 14 budov WMO,
+textury, DBC, WDT a WDL zůstaly shodné s v5. Mapa má stále čtyři ADT
+a rozměr **1 066,7 × 1 066,7 herních jednotek**.
+
+Zmrazená kopie `runtime/lab/map-project-preview-v6` obsahuje pouze
+AIWorldLab a odvozené AreaID 4988. Všech 15 autorských souborů bylo
+po sestavení znovu porovnáno beze změny; Azeroth se nebalí.
+Klientský patch je nainstalovaný v `C:\WoWModding\Client-Lab\Data\patch-4.MPQ`;
+má 2 831 722 bajtů a SHA-256
+`6f36fad8b4bf06f2cbb07938e53fe6bb1f4d65fbff925d5b321ca350b7f20b92`.
+Nezávislé načtení porovnalo všech devět obsahových souborů se stagingem.
+
+[Audit nového modelu](../data/realm_lab/aiworldlab/preview-v6/m2-collision-audit.json)
+ověřil 92 kolizních vrcholů a 150 trojúhelníků. Nativní VMAP obsahují
+všechny tři nové instance se shodnými polohami, rotacemi a měřítky.
+[Serverový manifest](../data/realm_lab/aiworldlab/preview-v6/server-manifest.json)
+obsahuje 41 souborů, 138 kolizních umístění včetně vybavení budov a 24 modelů.
+[Nezávislé ověření](../data/realm_lab/aiworldlab/preview-v6/data-verification.json)
+prošlo pro terén, oblasti, vodu, VMAP a všechny čtyři nově sestavené
+navigační dlaždice. Nový plán odvodil 45 zdrojem nezapsaných vodních
+okrajových vzorků; oprava zachovala všechny autorské hodnoty.
+
+[Omezená navigační kontrola mostů](../data/realm_lab/aiworldlab/preview-v6/bridge-nav-probe.json)
+našla u 18 vzorků kolizních povrchů všech tří mostů odpovídající
+NAV_GROUND polygony nad terénem. Jde o lokální povrchové vzorky;
+nepotvrzují úplné pokrytí mostu, spojení břehů, fyzický průchod hráče
+ani trasu AI přes most.
+
+[Počáteční nasazení](../data/realm_lab/aiworldlab/preview-v6/activation.json)
+ověřilo všech 41 nainstalovaných souborů, čtyři zdravé lab služby a
+šest původních kontejnerů s nezměněnými časy spuštění. Všech 7 540
+původních sdílených kolizních modelů zůstalo hashově shodných.
+Záloha v5 je v `runtime/lab/validation/map-preview-v6/before/installed-data`
+a klientská v `runtime/lab/client-patches/map725-v6/backups/patch-4-v5.MPQ`.
+Prohlídka zachovává `LAB_AI_PROFILE=disabled` a 100 potlačených NPC;
+SQL populace se v tomto nasazení neměnila.
+Vstup `.go xyz 266.667 800 2 725` je potvrzený na suché rovině Z 0
+mimo VMAP hranice a nad ground navigačním polygonem. Fyzickou prohlídku
+nového světa a chování NPC musí potvrdit samostatný test.
+
 ### Postup při prvním selhání
 
 Při selhání etapu zastavit, uložit přesný scénář, revizi kódu, hashe dat a

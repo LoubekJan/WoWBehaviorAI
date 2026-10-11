@@ -1,0 +1,421 @@
+{
+  "source_revision": "preview-v6",
+  "ok": true,
+  "status": "pass",
+  "bridges": [
+    {
+      "source_unique_id": 25,
+      "native_id": 698291,
+      "server_position": {
+        "x": -248.369140625,
+        "y": 702.0908203125,
+        "z": -10.192331314086914
+      },
+      "collision_vertices": 92,
+      "collision_triangles": 150,
+      "eligible_collision_centroids": 22,
+      "matching_ground_nav_samples": 4,
+      "distinct_matching_polygons": 2,
+      "collision_geometry_present": true,
+      "limited_ground_nav_surface_evidence": true,
+      "samples": [
+        {
+          "collision_triangle": 27,
+          "x": -254.91218160811079,
+          "y": 697.7475758597819,
+          "collision_z": 1.02956239522093,
+          "terrain_z": -8.104411589473852,
+          "collision_above_terrain": 9.133973984694782,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 602,
+            "nav_z": 1.1447885088478889,
+            "ground_delta": 0.11522611362695878,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 28,
+          "x": -253.16203843474605,
+          "y": 709.42065805409,
+          "collision_z": 0.6382588026825194,
+          "terrain_z": -7.832264602410467,
+          "collision_above_terrain": 8.470523405092987,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 627,
+            "nav_z": 0.7569416759420503,
+            "ground_delta": 0.11868287325953086,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 92,
+          "x": -243.98771032699256,
+          "y": 696.0090700534764,
+          "collision_z": 1.3384311719163484,
+          "terrain_z": -6.653943305825833,
+          "collision_above_terrain": 7.992374477742182,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 602,
+            "nav_z": 0.9614634259071189,
+            "ground_delta": -0.37696774600922955,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 93,
+          "x": -242.2375671321564,
+          "y": 707.682152213427,
+          "collision_z": 0.9471266265646131,
+          "terrain_z": -6.591168656972464,
+          "collision_above_terrain": 7.538295283537077,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 627,
+            "nav_z": 0.39043254860184595,
+            "ground_delta": -0.5566940779627672,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "source_unique_id": 26,
+      "native_id": 698292,
+      "server_position": {
+        "x": -211.626953125,
+        "y": 583.09765625,
+        "z": -12.727066040039062
+      },
+      "collision_vertices": 92,
+      "collision_triangles": 150,
+      "eligible_collision_centroids": 21,
+      "matching_ground_nav_samples": 7,
+      "distinct_matching_polygons": 3,
+      "collision_geometry_present": true,
+      "limited_ground_nav_surface_evidence": true,
+      "samples": [
+        {
+          "collision_triangle": 10,
+          "x": -217.94984257744366,
+          "y": 580.5957403407405,
+          "collision_z": -3.1795045839410245,
+          "terrain_z": -10.894401576596941,
+          "collision_above_terrain": 7.714896992655916,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 666,
+            "nav_z": -3.0054048857537983,
+            "ground_delta": 0.17409969818722626,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 15,
+          "x": -217.99863698052226,
+          "y": 576.3551379969105,
+          "collision_z": -3.5217049394491706,
+          "terrain_z": -10.793127836965983,
+          "collision_above_terrain": 7.271422897516812,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 668,
+            "nav_z": -3.2650342954824216,
+            "ground_delta": 0.256670643966749,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 37,
+          "x": -217.90884848538312,
+          "y": 584.1585760142085,
+          "collision_z": -2.891998473864083,
+          "terrain_z": -10.502932397731172,
+          "collision_above_terrain": 7.610933923867089,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 666,
+            "nav_z": -2.7872715056672472,
+            "ground_delta": 0.10472696819683591,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 38,
+          "x": -205.10025760750656,
+          "y": 585.7930941122964,
+          "collision_z": -2.7512254975390067,
+          "terrain_z": -11.019826741733048,
+          "collision_above_terrain": 8.268601244194041,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 746,
+            "nav_z": -2.675742707991337,
+            "ground_delta": 0.07548278954766952,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 41,
+          "x": -205.16644112767798,
+          "y": 588.5592632231966,
+          "collision_z": -2.528074444963218,
+          "terrain_z": -11.345214306841047,
+          "collision_above_terrain": 8.817139861877829,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 746,
+            "nav_z": -2.506477053171085,
+            "ground_delta": 0.021597391792132825,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 42,
+          "x": -217.86005789199726,
+          "y": 588.3991788407665,
+          "collision_z": -2.549799357747313,
+          "terrain_z": -9.897623593122962,
+          "collision_above_terrain": 7.347824235375649,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 666,
+            "nav_z": -2.527642066383772,
+            "ground_delta": 0.022157291363540832,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 93,
+          "x": -205.5679882256609,
+          "y": 576.6596475851602,
+          "collision_z": -2.01316395368251,
+          "terrain_z": -10.498325848743756,
+          "collision_above_terrain": 8.485161895061246,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 746,
+            "nav_z": -2.439966846353785,
+            "ground_delta": -0.426802892671275,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    },
+    {
+      "source_unique_id": 24,
+      "native_id": 698293,
+      "server_position": {
+        "x": -185.654296875,
+        "y": 866.5,
+        "z": -12.498990058898926
+      },
+      "collision_vertices": 92,
+      "collision_triangles": 150,
+      "eligible_collision_centroids": 24,
+      "matching_ground_nav_samples": 7,
+      "distinct_matching_polygons": 3,
+      "collision_geometry_present": true,
+      "limited_ground_nav_surface_evidence": true,
+      "samples": [
+        {
+          "collision_triangle": 10,
+          "x": -192.01096434312706,
+          "y": 865.3776179776323,
+          "collision_z": -2.7149478830740956,
+          "terrain_z": -13.377644239576131,
+          "collision_above_terrain": 10.662696356502035,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 801,
+            "nav_z": -2.506188617953926,
+            "ground_delta": 0.2087592651201695,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 11,
+          "x": -179.2645260991093,
+          "y": 863.3138378266553,
+          "collision_z": -2.571453809631247,
+          "terrain_z": -13.91885971200344,
+          "collision_above_terrain": 11.347405902372193,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 881,
+            "nav_z": -2.3805722993857032,
+            "ground_delta": 0.19088151024554367,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 15,
+          "x": -192.10466857573874,
+          "y": 861.1304180409403,
+          "collision_z": -2.4810623766149456,
+          "terrain_z": -13.027397205565062,
+          "collision_above_terrain": 10.546334828950117,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 801,
+            "nav_z": -2.2404933940430016,
+            "ground_delta": 0.24056898257194392,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 37,
+          "x": -191.93223826543576,
+          "y": 868.945996636135,
+          "collision_z": -2.9114530211405665,
+          "terrain_z": -13.769100907847742,
+          "collision_above_terrain": 10.857647886707175,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 884,
+            "nav_z": -2.729534072159944,
+            "ground_delta": 0.18191894898062255,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 38,
+          "x": -179.10707394594826,
+          "y": 870.4505951961473,
+          "collision_z": -2.9644631335378935,
+          "terrain_z": -14.056147265137323,
+          "collision_above_terrain": 11.091684131599429,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 881,
+            "nav_z": -2.8361098651719288,
+            "ground_delta": 0.12835326836596472,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 41,
+          "x": -179.14395688137003,
+          "y": 873.2220830335451,
+          "collision_z": -3.117312788223531,
+          "terrain_z": -14.143422666400273,
+          "collision_above_terrain": 11.026109878176742,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 881,
+            "nav_z": -3.0198053368192537,
+            "ground_delta": 0.0975074514042773,
+            "flags": 1,
+            "area": 11
+          }
+        },
+        {
+          "collision_triangle": 42,
+          "x": -191.838537836185,
+          "y": 873.1931969234083,
+          "collision_z": -3.1453398292967187,
+          "terrain_z": -14.351245660752904,
+          "collision_above_terrain": 11.205905831456185,
+          "tile": [
+            30,
+            32
+          ],
+          "nav": {
+            "polygon": 884,
+            "nav_z": -2.9953892341910504,
+            "ground_delta": 0.14995059510566833,
+            "flags": 1,
+            "area": 11
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "method": "Native VMAP model upward low-slope triangle centroids, above terrain by >0.75, projected into containing final NAV_GROUND polygon with <=0.65 height difference.",
+  "height_tolerance": 0.65,
+  "minimum_above_terrain": 0.75,
+  "route_between_banks_verified": false,
+  "nav_adjacency_verified": false,
+  "physical_player_walk_verified": false,
+  "limitations": [
+    "Finite samples at bridge collision surfaces prove nearby ground-nav geometry only; no complete deck coverage, bank connection or traversal is asserted.",
+    "Recast detail surface interpolation is not executed; nav polygon plane interpolation is approximate."
+  ],
+  "model_sha256": "00de06494a844f2f3b9785ce1a5ae422089b1b527db2baf7d472f887ee6181e8",
+  "private_probe_sha256": "2d3ac6e023bf2cfa2b27383274c43bb552e12b09f952fbf787f67e26885d70f2",
+  "private_verification_sha256": "42d657980150ed2f1db641b8f72a71114b2e5de86f54918e391b5a65c3770cfd",
+  "private_verification_path": "runtime/lab-validation/map-preview-v6/server-fixed-data-verification.json",
+  "published_verification_path": "data/realm_lab/aiworldlab/preview-v6/data-verification.json",
+  "published_verification_sha256": "724793ec2c579780b914318e4837e59f36aecbbcfea14b239deb648a2111f123",
+  "private_probe_path": "runtime/lab-validation/map-preview-v6/bridge-nav-probe.json"
+}
