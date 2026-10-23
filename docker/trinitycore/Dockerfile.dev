@@ -5,7 +5,8 @@ FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Build headlessly: package installation must not allocate a host pseudo-TTY.
+RUN apt-get update && apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
     build-essential \
     clang \
     cmake \
