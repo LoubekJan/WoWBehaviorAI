@@ -7,6 +7,7 @@ addon -> gmlevel, rollback via delete on a later failure) is what's under
 test, not any real SOAP round trip.
 """
 import unittest
+import os
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -78,7 +79,29 @@ class CreateAccountRouteTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         commands = [call.args[1] for call in mock_exec.call_args_list]
-        self.assertEqual(commands, ["account create newplayer pw", "account set addon newplayer 1"])
+        self.assertEqual(commands, ["account create newplayer pw", "account set addon newplayer 2"])
+        self.assertIn("Wrath of the Lich King", response.text)
+
+    @patch("app.main.execute_command")
+    def test_old_form_cannot_create_an_account_without_custom_map_access(self, mock_exec):
+        mock_exec.return_value = "ok"
+        response = self.client.post("/accounts", data={"username": "legacy", "password": "pw", "northrend": ""})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([call.args[1] for call in mock_exec.call_args_list],
+                         ["account create legacy pw", "account set addon legacy 2"])
+
+    @patch("app.main.execute_command")
+    def test_incompatible_server_expansion_fails_before_creating_account(self, mock_exec):
+        with patch.dict(os.environ, {"TC_ACCOUNT_EXPANSION": "1"}):
+            response = self.client.post("/accounts", data={"username": "blocked", "password": "pw"})
+            self.assertEqual(self.client.get("/health").status_code, 503)
+        self.assertIn("TC_ACCOUNT_EXPANSION=2", response.text)
+        mock_exec.assert_not_called()
+
+    def test_form_explains_required_client_without_optional_northrend_checkbox(self):
+        response = self.client.get("/")
+        self.assertIn("3.3.5a", response.text)
+        self.assertNotIn('id="northrend"', response.text)
 
     @patch("app.main.execute_command")
     def test_admin_with_northrend_sets_addon_2_and_gmlevel(self, mock_exec):
@@ -114,7 +137,7 @@ class CreateAccountRouteTests(unittest.TestCase):
             commands,
             [
                 "account create broken pw",
-                "account set addon broken 1",
+                "account set addon broken 2",
                 "account delete broken",
             ],
         )

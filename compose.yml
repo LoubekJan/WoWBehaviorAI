@@ -1,262 +1,233 @@
-# Base development stack (section 1.5). Services do not depend on manual
-# start order — dependencies are expressed via depends_on + healthchecks.
-# Combine with compose.dev.yml for the interactive build/dev shell:
-#   docker compose -f compose.yml -f compose.dev.yml up -d
+# Complete authored-world stack. Existing realm, character and build storage
+# retain their deployed identities; auth owns a separate database volume.
+# docker compose --env-file .env -f compose.yml up -d
+name: aitc-lab
+
+x-trinity-build: &trinity-build
+  context: .
+  dockerfile: docker/trinitycore/Dockerfile.dev
+  args:
+    USER_UID: ${DEV_UID:-1000}
+    USER_GID: ${DEV_GID:-1000}
+
+x-lab-environment: &lab-environment
+  TC_DB_USER: ${TC_DB_USER:?Set the dedicated lab DB user}
+  TC_DB_PASSWORD: ${TC_DB_PASSWORD:?Set the dedicated lab DB password}
+  TC_AUTH_DB_HOST: ${TC_AUTH_DB_HOST:-aiworld-auth-db}
+  TC_AUTH_DB_PORT: ${TC_AUTH_DB_PORT:-3306}
+  TC_AUTH_DB_USER: ${TC_AUTH_DB_USER:?Set the dedicated shared-auth user}
+  TC_AUTH_DB_PASSWORD: ${TC_AUTH_DB_PASSWORD:?Set the shared-auth password}
+  LAB_REALM_ID: ${LAB_REALM_ID:-2}
+  LAB_REALM_NAME: ${LAB_REALM_NAME:-AI World Lab}
+  LAB_REALM_ADDRESS: ${LAB_REALM_ADDRESS:?Set the client-reachable address}
+  LAB_REALM_LOCAL_ADDRESS: ${LAB_REALM_LOCAL_ADDRESS:?Set the LAN address}
+  LAB_REALM_LOCAL_SUBNET_MASK: ${LAB_REALM_LOCAL_SUBNET_MASK:-255.255.255.0}
+  LAB_WORLD_PORT: ${LAB_WORLD_PORT:-9086}
+  LAB_SOAP_ENABLED: ${LAB_SOAP_ENABLED:-1}
+  LAB_AI_PROFILE: ${LAB_AI_PROFILE:-settlement-v8}
+  WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
 
 services:
-  mysql:
+  auth-mysql:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
-      TC_DB_USER: ${TC_DB_USER:-trinity}
-      TC_DB_PASSWORD: ${TC_DB_PASSWORD:-trinity}
+      MYSQL_ROOT_PASSWORD: ${AUTH_MYSQL_ROOT_PASSWORD:?Set the separate auth MySQL root password}
+      TC_AUTH_SERVER_USER: ${TC_AUTH_SERVER_USER:?Set the auth schema owner}
+      TC_AUTH_SERVER_PASSWORD: ${TC_AUTH_SERVER_PASSWORD:?Set the auth schema owner password}
+      TC_AUTH_DB_USER: ${TC_AUTH_DB_USER:?Set the world login database user}
+      TC_AUTH_DB_PASSWORD: ${TC_AUTH_DB_PASSWORD:?Set the world login database password}
+    networks:
+      default:
+        aliases: [aiworld-auth-db]
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./deploy/mysql:/docker-entrypoint-initdb.d:ro
+      - auth-mysql-data:/var/lib/mysql
+      - ./deploy/auth/mysql:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [CMD, mysqladmin, ping, -h, localhost]
       interval: 5s
       timeout: 5s
-      retries: 20
-    # Not published to the host — only authserver/worldserver need it, over
-    # the internal Compose network. Publish 3306 yourself if you need an
-    # external DB client against a dev box.
+      retries: 30
 
   authserver:
-    build:
-      context: .
-      dockerfile: docker/trinitycore/Dockerfile.dev
-      args:
-        USER_UID: ${DEV_UID:-1000}
-        USER_GID: ${DEV_GID:-1000}
+    build: *trinity-build
+    image: aitc-lab-trinity-dev
     restart: unless-stopped
     depends_on:
-      mysql:
+      auth-mysql:
         condition: service_healthy
     working_dir: /build/bin
-    command: ["bash", "/scripts/render-conf-and-run.sh", "/etc/trinitycore/authserver.conf", "./authserver"]
+    command: [python3, /workspace/tools/realm_lab/auth.py, run-auth, /etc/trinitycore/authserver.conf, /build/bin/authserver]
     environment:
-      TC_DB_USER: ${TC_DB_USER:-trinity}
-      TC_DB_PASSWORD: ${TC_DB_PASSWORD:-trinity}
+      TC_AUTH_DB_HOST: ${TC_AUTH_DB_HOST:-aiworld-auth-db}
+      TC_AUTH_DB_PORT: ${TC_AUTH_DB_PORT:-3306}
+      TC_AUTH_SERVER_USER: ${TC_AUTH_SERVER_USER:?Set the auth schema owner}
+      TC_AUTH_SERVER_PASSWORD: ${TC_AUTH_SERVER_PASSWORD:?Set the auth schema owner password}
     volumes:
-      - build-data:/build
+      - build-data:/build:ro
       - ./deploy/authserver.conf:/etc/trinitycore/authserver.conf:ro
-      - ./docker/scripts:/scripts:ro
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
       - ./sql:/workspace/sql:ro
-      - ./runtime/logs:/runtime/logs
+      - ./runtime/lab/logs:/runtime/logs
+    ports:
+      - "${AUTHSERVER_PORT:-3724}:3724"
     healthcheck:
-      test:
-        - CMD
-        - bash
-        - -ec
-        - "exec 3<>/dev/tcp/127.0.0.1/3724"
+      test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/3724"]
       interval: 5s
       timeout: 3s
       retries: 30
       start_period: 20s
-    ports:
-      - "${AUTHSERVER_PORT:-3724}:3724"
 
-  worldserver:
-    build:
-      context: .
-      dockerfile: docker/trinitycore/Dockerfile.dev
-      args:
-        USER_UID: ${DEV_UID:-1000}
-        USER_GID: ${DEV_GID:-1000}
-    stdin_open: true
-    tty: true
+  account-web:
+    build: {context: docker/account-web}
     restart: unless-stopped
     depends_on:
-      mysql:
+      worldserver:
+        condition: service_healthy
+    environment:
+      TC_SOAP_URL: http://worldserver:7878
+      TC_SOAP_USER: ${TC_SOAP_USER:-}
+      TC_SOAP_PASSWORD: ${TC_SOAP_PASSWORD:-}
+      TC_ACCOUNT_EXPANSION: "2"
+    ports:
+      - "${ACCOUNT_WEB_PORT:-9088}:8000"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  lab-mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set the lab MySQL root password}
+      TC_DB_USER: ${TC_DB_USER:?Set the dedicated lab DB user}
+      TC_DB_PASSWORD: ${TC_DB_PASSWORD:?Set the dedicated lab DB password}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./deploy/lab/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, localhost]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  worldserver:
+    build: *trinity-build
+    image: aitc-lab-trinity-dev
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    depends_on:
+      lab-mysql:
+        condition: service_healthy
+      auth-mysql:
+        condition: service_healthy
+      authserver:
+        condition: service_healthy
+      ai-server:
         condition: service_healthy
     working_dir: /build/bin
-    command: ["bash", "/scripts/render-conf-and-run.sh", "/etc/trinitycore/worldserver.conf", "./worldserver"]
-    environment:
-      TC_DB_USER: ${TC_DB_USER:-trinity}
-      TC_DB_PASSWORD: ${TC_DB_PASSWORD:-trinity}
-      WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:-}
+    command: [python3, /workspace/tools/realm_lab/manage.py, run-world, /etc/trinitycore/worldserver.conf, /build/bin/worldserver]
+    environment: *lab-environment
     volumes:
-      - build-data:/build
+      - build-data:/build:ro
       - ./deploy/worldserver.conf:/etc/trinitycore/worldserver.conf:ro
-      - ./docker/scripts:/scripts:ro
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./data/realm_lab:/workspace/data/realm_lab:ro
       - ./sql:/workspace/sql:ro
-      - ${WOW_DATA_DIR:-./runtime/data}:/runtime/data
-      - ./runtime/logs:/runtime/logs
+      - ./runtime/lab/data:/runtime/data:ro
+      - ./runtime/lab/logs:/runtime/logs
+    ports:
+      - "${LAB_WORLD_PORT:-9086}:8085"
     healthcheck:
-      test:
-        - CMD
-        - bash
-        - -ec
-        - "exec 3<>/dev/tcp/127.0.0.1/8085"
+      test: [CMD, bash, -ec, "exec 3<>/dev/tcp/127.0.0.1/8085"]
       interval: 5s
       timeout: 3s
       retries: 60
       start_period: 30s
-    ports:
-      - "${WORLDSERVER_PORT:-8085}:8085"
 
   ai-server:
-    build:
-      context: docker/ai
+    build: {context: docker/ai}
     restart: unless-stopped
     environment:
-      # Milestone 2.13A2: /dynamic-task's local-model provider, default-off
-      # (AI_TASK_MODEL_ENABLED=0). AI_TASK_MODEL_URL points at any
-      # OpenAI-compatible /v1/chat/completions endpoint (Ollama,
-      # llama.cpp's server, ...) - no model service is added to this
-      # Compose file automatically, point it at one you run yourself.
-      AI_TASK_MODEL_ENABLED: ${AI_TASK_MODEL_ENABLED:-0}
+      # Request protocols remain available; autonomous model requests are off.
+      AI_TASK_MODEL_ENABLED: "0"
+      AI_RECOVERY_MODEL_ENABLED: "0"
       AI_TASK_MODEL_URL: ${AI_TASK_MODEL_URL:-}
       AI_TASK_MODEL_NAME: ${AI_TASK_MODEL_NAME:-}
-      # Recovery pilot reuses the existing model backend unless overridden.
-      # Enabling recovery does not enable dynamic quest generation.
-      AI_RECOVERY_MODEL_ENABLED: ${AI_RECOVERY_MODEL_ENABLED:-1}
-      AI_RECOVERY_MODEL_URL: ${AI_RECOVERY_MODEL_URL:-}
-      AI_RECOVERY_MODEL_NAME: ${AI_RECOVERY_MODEL_NAME:-}
-      # Raised from 5000 to 30000 for 2.13A3B development - a real local
-      # model's /dynamic-task response can take much longer than 5s,
-      # especially with reasoning enabled; matches AIWorld.RequestTimeoutMs.
-      AI_TASK_MODEL_TIMEOUT_MS: ${AI_TASK_MODEL_TIMEOUT_MS:-30000}
-      AI_TASK_MODEL_MAX_REQUEST_BYTES: ${AI_TASK_MODEL_MAX_REQUEST_BYTES:-32768}
-      AI_TASK_MODEL_MAX_RESPONSE_BYTES: ${AI_TASK_MODEL_MAX_RESPONSE_BYTES:-16384}
-      AI_TASK_MODEL_MAX_TOKENS: ${AI_TASK_MODEL_MAX_TOKENS:-512}
-      # Optional bearer token for backends that require one (some
-      # gateways/proxies in front of an otherwise-open local model do,
-      # even when the model itself doesn't) - empty by default.
       AI_TASK_MODEL_API_KEY: ${AI_TASK_MODEL_API_KEY:-}
-      # Optional tri-state thinking control for backends that support a
-      # chat_template_kwargs.enable_thinking toggle (e.g. Qwen3-style
-      # reasoning models served through llama.cpp) - "0"/"1" sends
-      # enable_thinking false/true explicitly, empty sends nothing
-      # backend-specific at all. Defaults to 0 (explicitly disabled) for
-      # 2.13A3B development - the model this phase is validated against
-      # is a reasoning model whose chain-of-thought must stay off for
-      # SYSTEM_PROMPT/AI_TASK_MODEL_MAX_TOKENS to work reliably.
-      # false/true. Useful to force a reasoning model's chain-of-thought
-      # off so it spends its max_tokens budget on the actual JSON answer.
       AI_TASK_MODEL_ENABLE_THINKING: ${AI_TASK_MODEL_ENABLE_THINKING:-0}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
-    # Internal only: worldserver reaches it at http://ai-server:8000 over the
-    # Compose network. Publish AI_SERVER_PORT yourself if you need to hit
-    # /health from the host while developing.
 
   world-viewer:
-    build:
-      context: docker/world-viewer
+    build: {context: docker/world-viewer}
     restart: unless-stopped
     environment:
-      # Without a token the ingest endpoint rejects all POSTs. Configure the
-      # same value for worldserver in .env before enabling telemetry export.
-      WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:-}
+      WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
+      LAB_AI_PROFILE: ${LAB_AI_PROFILE:-settlement-v8}
+    command: [python, /workspace/tools/realm_lab/run_scoped.py, uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000"]
+    volumes:
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./data/realm_lab:/workspace/data/realm_lab:ro
+    ports:
+      - "${LAB_VIEWER_PORT:-9091}:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
-    ports:
-      - "${WORLD_VIEWER_PORT:-8090}:8000"
 
-  # Opt-in recording of the public Observer snapshot. No ingest token or
-  # worldserver rebuild is required; the script is mounted from this checkout.
+  tc-dev:
+    profiles: [tools]
+    build: *trinity-build
+    image: aitc-lab-trinity-dev
+    environment:
+      <<: *lab-environment
+      TC_AUTH_SERVER_USER: ${TC_AUTH_SERVER_USER:?Set the auth schema owner}
+      TC_AUTH_SERVER_PASSWORD: ${TC_AUTH_SERVER_PASSWORD:?Set the auth schema owner password}
+    volumes:
+      - .:/workspace
+      - build-data:/build
+      - ccache-data:/ccache
+      - ./runtime/lab/data:/runtime/data:ro
+      - ./runtime/lab/logs:/runtime/logs
+    command: [bash]
+    stdin_open: true
+    tty: true
+
   aiworld-recorder:
+    profiles: [recording]
     image: python:3.11-slim
-    profiles: ["recording"]
     restart: "no"
     init: true
     stop_grace_period: 20s
     depends_on:
       world-viewer:
         condition: service_healthy
-    command:
-      - python
-      - -u
-      - /record.py
-      - --url
-      - http://world-viewer:8000/api/state
-      - --output
-      - /recordings
-      - --hours
-      - "${AIWORLD_RECORD_HOURS:-4}"
-      - --interval
-      - "${AIWORLD_RECORD_INTERVAL:-5}"
-      - --label
-      - "${AIWORLD_RECORD_LABEL:-Elwynn}"
-      - --analyze
-      - --minimum-minutes
-      - "${AIWORLD_TEST_MINUTES:-60}"
-      - --build-label
-      - "${AIWORLD_RECORD_BUILD_LABEL:-unknown}"
+    environment:
+      LAB_AI_PROFILE: ${LAB_AI_PROFILE:-settlement-v8}
+    command: [python, /workspace/tools/realm_lab/run_scoped.py, python, -u, /record.py, --url, "http://world-viewer:8000/api/state", --output, /recordings, --hours, "${AIWORLD_RECORD_HOURS:-4}", --interval, "${AIWORLD_RECORD_INTERVAL:-5}", --label, "${AIWORLD_RECORD_LABEL:-AI-World}", --build-label, "${AIWORLD_RECORD_BUILD_LABEL:-unknown}", --analyze, --minimum-minutes, "${AIWORLD_TEST_MINUTES:-60}"]
     volumes:
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./data/realm_lab:/workspace/data/realm_lab:ro
       - ./docker/world-viewer/app/record.py:/record.py:ro
       - ./docker/world-viewer/app/behavior.py:/behavior.py:ro
       - ./docker/world-viewer/app/recording_gate.py:/recording_gate.py:ro
-      - ./runtime/recordings:/recordings
-
-  # Offline evaluation of an existing session; no game services are started.
-  aiworld-analysis:
-    image: python:3.11-slim
-    profiles: ["recording"]
-    entrypoint: ["python", "/behavior.py"]
-    volumes:
-      - ./docker/world-viewer/app/behavior.py:/behavior.py:ro
-      - ./runtime/recordings:/recordings
-
-  account-web:
-    build:
-      context: docker/account-web
-    restart: unless-stopped
-    depends_on:
-      worldserver:
-        condition: service_healthy
-    environment:
-      # worldserver's SOAP console (deploy/worldserver.conf SOAP.*) is only
-      # bound inside the Compose network (port 7878 is not published to the
-      # host below), so this URL is only ever reachable from other
-      # containers. TC_SOAP_USER must already be an existing account with
-      # SEC_ADMINISTRATOR on this realm — TrinityCore's own SOAP handler
-      # requires that (src/server/worldserver/TCSoap/TCSoap.cpp) for every
-      # command, account-web included. See README_DEV.md "Account creation
-      # web UI" for the one-time bootstrap of that account. Defaults to
-      # empty (not required) so an unrelated deploy that hasn't set these
-      # in .env yet still comes up — the form just fails at submit time
-      # until they're set, same failure mode as a wrong password.
-      TC_SOAP_URL: http://worldserver:7878
-      TC_SOAP_USER: ${TC_SOAP_USER:-}
-      TC_SOAP_PASSWORD: ${TC_SOAP_PASSWORD:-}
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    ports:
-      # Published on all interfaces at the user's request — the form has
-      # no login of its own and a single unchecked checkbox grants
-      # SEC_ADMINISTRATOR, so anyone who can reach ACCOUNT_WEB_PORT can
-      # create a full admin account. Restrict at the network layer
-      # (firewall/VPN) instead, or scope this back to 127.0.0.1 if that
-      # isn't in place.
-      - "${ACCOUNT_WEB_PORT:-8088}:8000"
-
-  gpu-check:
-    image: nvidia/cuda:12.4.1-base-ubuntu22.04
-    profiles: ["gpu-check"]
-    command: ["nvidia-smi"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      - ./docker/world-viewer/app/scope.py:/scope.py:ro
+      - ./runtime/lab/recordings:/recordings
 
 volumes:
+  auth-mysql-data:
+    name: aitc_auth_mysql-data
   mysql-data:
-    name: ${MYSQL_VOLUME_NAME:-aitc_mysql-data}
+    name: aitc_lab_mysql-data
   build-data:
-    name: ${BUILD_VOLUME_NAME:-aitc_build-data}
+    name: aitc_lab_build-data
+  ccache-data:
+    name: aitc_lab_ccache-data

@@ -294,11 +294,9 @@ GridUnload = 1
 
 BaseMapLoadAllGrids = 0
 
-# Keep Elwynn's entire spawn footprint (plus one grid of padding) loaded and
-# ticking, even with zero players. Includes creatures, gameobjects and respawns.
-# Uses map 0 / zoneId 12 from the world DB; also activates bordering grid content.
-# Startup-only; costs additional CPU/RAM. Set 0 and restart to disable.
-AIWorld.ElwynnAlwaysActive = 1
+# Deprecated compatibility setting; no longer read by the server. Persistent
+# grid loading requires an explicit bounded AIWorld.ScopeAlwaysActive scope.
+AIWorld.ElwynnAlwaysActive = 0
 
 #
 #    InstanceMapLoadAllGrids
@@ -3411,7 +3409,8 @@ AIWorld.Enable = 0
 
 # Shared geographic definition for living movement, recovery and telemetry.
 # Root zones include their subareas. Bounds are inclusive XY world coordinates.
-# Default preserves Elwynn; lab profiles replace these from test-points.json.
+# Inactive compatibility coordinates; the reviewed custom-world profile sets
+# its map, root zones, bounds and explicit spawn IDs before startup.
 AIWorld.ScopeMapId = 0
 AIWorld.ScopeZoneIds = "12"
 AIWorld.ScopeBoundsEnabled = 0
@@ -3423,14 +3422,14 @@ AIWorld.ScopeSpawnIds = ""
 # Restricted ownership requires a nonempty explicit spawn list.
 AIWorld.ScopeRestrictAgents = 0
 AIWorld.ScopeAlwaysActive = 0
-AIWorld.RemoteInferenceEnabled = 1
-AIWorld.LivingNeedEvolutionEnabled = 1
-AIWorld.GroupCoarseSimulationEnabled = 1
+AIWorld.RemoteInferenceEnabled = 0
+AIWorld.LivingNeedEvolutionEnabled = 0
+AIWorld.GroupCoarseSimulationEnabled = 0
 
 # Read-only AI World Observer. Requires WORLD_VIEWER_TELEMETRY_TOKEN in the
 # worldserver and world-viewer environments. Capture runs once per second;
 # network I/O runs on the shared asynchronous io_context. No grid is loaded.
-AIWorld.TelemetryEnabled = 1
+AIWorld.TelemetryEnabled = 0
 # Observe native creatures without loading agents or taking ownership. Requires
 # AIWorld.Enable=0, TelemetryEnabled=1 and a bounded non-instance scope with
 # explicit ScopeSpawnIds. ScopeAlwaysActive independently controls grid loading.
@@ -4345,13 +4344,13 @@ AIWorld.WolfGroupRoamArrivalRadius = 5.0
 AIWorld.LivingWolvesEnabled = 0
 
 # Role-specific local life for existing AIWorld-controlled permanent NPCs in
-# Elwynn (map 0, zone 12). Does not register or promote any NPC. Wolf packs keep
+# the configured simulation scope. Does not register or promote NPCs. Wolf packs keep
 # LivingWolves; predators hunt classified attackable prey, other roles use local
 # activities and role-specific defense/flee. Service NPCs keep their posts.
 AIWorld.LivingRolesEnabled = 0
 
 # Early danger awareness, refuges/alarms, local herds, risk memory and work stocks.
-# Requires LivingRolesEnabled. Scope remains controlled permanent Elwynn roles.
+# Requires LivingRolesEnabled. Scope remains controlled permanent NPC roles.
 AIWorld.LivingRoleExtensionsEnabled = 0
 
 # Temporary local recovery pilot for one existing spawn; 0 disables it.
@@ -5778,11 +5777,11 @@ Metric.OverallStatusInterval = 1
 #
 ###################################################################################################
 
-# Local-model recovery for eligible Elwynn living roles. Geometry remains
+# Local-model recovery for eligible configured living roles. Geometry remains
 # authoritative. Two requests in flight, fair admission every 2s, per-NPC
 # cooldown at least 120s (longer for unsuccessful food advice), deadline 10s.
 AIWorld.RecoveryAdviceEnabled = 0
-# All eligible living-role NPCs; existing Elwynn/ownership guards still apply.
+# All eligible living-role NPCs; configured scope and ownership guards still apply.
 # With AllAgents=0, only RecoveryAdviceAgents are eligible; empty means none.
 AIWorld.RecoveryAdviceAllAgents = 0
 AIWorld.RecoveryAdviceAgents = ""

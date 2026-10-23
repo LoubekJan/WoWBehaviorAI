@@ -1,484 +1,148 @@
-# AI TrinityCore — Development Setup
+# Vývoj a provoz vlastního světa
 
-Development guide for the WoWBehaviorAI fork of TrinityCore `3.3.5`.
+Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
+herní realm **AI World Lab**, ID **2**, s vlastní mapou **725**, oblastí
+**4988** a profilem `settlement-v8`. Sto NPC používá běžné chování
+TrinityCore; živá telemetrie běží bez převzetí řízení NPC systémem AIWorld.
 
-For architecture and milestone history see [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md).
+## Služby a data
 
-Separate custom-map realm preparation lives on `AI-World-lab`.
-See [RealmLab.md](doc/RealmLab.md) for shared login/accounts, isolated
-world/characters/AI persistence, first-time host setup and independent CI/CD.
-Use `make -f Makefile.lab` for this realm; the normal commands below target
-the original Elwynn stack. Custom-map AI activation remains a separate step.
+| Služba | Úloha | Port hostu |
+| --- | --- | --- |
+| `auth-mysql` | Účty, přihlášení a seznam realmů | interní |
+| `authserver` | Přihlášení existujících i nových účtů | 3724 |
+| `lab-mysql` | Postavy, svět a AI paměť vlastního realmu | interní |
+| `worldserver` | Herní svět a interní SOAP | 9086 |
+| `world-viewer` | Pozice, zdraví a bojový stav 100 NPC | 9091 |
+| `account-web` | Formulář pro vytvoření účtů přes TrinityCore | 9088 |
+| `ai-server` | AI protokoly; modelové požadavky jsou vypnuté | interní |
+| `tc-dev` | Build, extraktory a správcovské nástroje | profil `tools` |
+| `aiworld-recorder` | Volitelný záznam telemetrie | profil `recording` |
 
-## Current status
+Compose zachovává identitu `aitc-lab`, databázi `aitc_lab_mysql-data`,
+build `aitc_lab_build-data`, cache `aitc_lab_ccache-data` a soubory
+`runtime/lab/`. Účty mají samostatný volume `aitc_auth_mysql-data`.
+Všechny služby používají interní síť tohoto stacku; původní Elwynn
+stack ani externí auth síť nejsou potřeba. SOAP port 7878 se na hostu
+nezveřejňuje.
 
-The development stack has been exercised on a real Ubuntu/NVIDIA host. The old README status that said Docker/GPU runtime was untested is no longer true.
+## Přechod existujícího serveru
 
-Runtime-verified infrastructure includes:
+Existující instalace musí nejprve převést celé `auth` ze staré MySQL do
+nové `auth-mysql`, zachovat účty, přístupová práva a záznamy realmu 2,
+vyřadit původní realm 1 a staré automatické nasazování. Staré databáze
+se uchovají v chráněné záloze. Import TDB ani vytvoření náhradních účtů
+se při tomto přechodu neopakují. Provozní stav a historii mapových
+balíků popisuje [RealmLab.md](doc/RealmLab.md).
 
-- TrinityCore build/install in Docker with persistent `/build` and `ccache` volumes;
-- MySQL bootstrap and TDB import;
-- `authserver`, `worldserver`, MySQL and `ai-server` through Compose;
-- mounted `dbc/maps/vmaps/mmaps` game data;
-- LAN WoW 3.3.5a client login;
-- versioned realm configuration via `make configure-realm`;
-- worldserver restart without losing DB state;
-- NVIDIA Container Toolkit visibility from Docker.
+Root `.env` nahradil dřívější `deploy/lab/.env`. Zachovat existující
+lab hesla, telemetry token, realm ID, název i porty; doplnit samostatné
+přihlašovací údaje nové auth MySQL a jejího schema ownera. Soubory
+`.env` ani databázové dumpy se necommitují.
 
-Etapa 2 is CLOSED / POC COMPLETE, including the scheduler/tier foundation, farmer, group coordination and local LLM dynamic quest vertical slices. The next planned work is Etapa 3 — Elwynn scope and complete spawn census. The roadmap above owns detailed milestone status and evidence.
+## Čistá instalace na Linuxu
 
-## Origin
+Potřebné jsou Docker Engine s Compose **2.24+**, Git, Make a Python 3.
+Compose stáhne build závislosti; není potřeba hostitelská instalace C++.
 
-- Base: `TrinityCore/TrinityCore`, branch `3.3.5`.
-- Upstream starting commit: `2a64b72689cc8d797e4c93a0c96dfa2dc06f64c8`.
-- `origin`: `https://github.com/LoubekJan/WoWBehaviorAI.git`.
-- `upstream`: `https://github.com/TrinityCore/TrinityCore.git`.
-- Development branch: `ai-world`.
+```bash
+git clone --branch AI-World-lab https://github.com/LoubekJan/WoWBehaviorAI.git
+cd WoWBehaviorAI
+umask 077
+cp .env.example .env
+```
 
-The repository keeps TrinityCore history, so normal upstream merges remain possible.
-
-## Prerequisites
-
-Host requirements:
-
-- Git
-- Docker Engine
-- Docker Compose plugin
-- NVIDIA driver + NVIDIA Container Toolkit for GPU checks/future inference
-- legally obtained WoW 3.3.5a client data for `dbc/maps/vmaps/mmaps`
-
-## First-time setup
+V `.env` nahradit všechna `change-me-*` vlastními hesly a tokenem,
+nastavit adresy dostupné klientovi. Auth schema owner a world DML účet
+jsou oddělené účty MySQL; herní účty spravuje TrinityCore.
 
 ```bash
 make bootstrap
-```
-
-This creates `.env` from `.env.example` when needed, prepares runtime directories and builds the development image.
-
-Edit `.env` before first real startup. DB credentials and realm/network settings should come from `.env`, not hand-edited deployment files.
-
-## WoW game data
-
-### Persistent Elwynn simulation
-
-`AIWorld.ElwynnAlwaysActive = 1` (default, also set in
-`deploy/worldserver.conf`) preloads Elwynn at startup after AIWorld initializes.
-It runs independently of player presence and AIWorld control mode. Restart the
-worldserver after changing this setting; set it to `0` to disable.
-
-The footprint comes from world DB creature and gameobject spawns with
-`map = 0 AND zoneId = 12`. The server keeps the enclosing grid rectangle,
-including empty interior grids and a one-grid movement buffer, loaded and
-ACTIVE. This is conservative grid coverage, not an exact terrain zone boundary:
-neighboring content inside that rectangle also runs. Correct DB zone IDs are
-required; an empty/invalid census produces an error in the startup log.
-
-Every cell in the footprint continues normal creature/gameobject updates,
-movement, combat, and relocation processing with zero players. Respawns retain
-normal timers, pool and event rules; this does not resurrect dead creatures or
-force inactive event spawns into existence. Player visits share the same cell
-update markers, so they do not cause double ticking. Forced map teardown still
-unloads everything normally. Expect increased idle CPU/RAM and startup time.
-
-After `make build` and `make restart-world`, verify on the running server:
-
-1. Start with zero players. Find `Always-active zone 12 on map 0` in the log;
-   it reports census size, grid bounds and persistent grid count.
-2. In the observer, verify living Elwynn agents materialize before anyone logs
-   in and moving agents change position. Repeat after waiting longer than
-   `GridCleanUpDelay` with everyone offline.
-3. Log in and out, checking movement/combat continues after logout. Kill a
-   normal respawning creature, leave, and check it returns after its normal
-   respawn delay without re-entering the area.
-4. Restart with the setting disabled to check the normal proximity-driven
-   grid lifecycle, then re-enable it for the simulation.
-
-### Extracted client data
-
-Place extracted client data under:
-
-```text
-runtime/data/dbc
-runtime/data/maps
-runtime/data/vmaps
-runtime/data/mmaps
-```
-
-`runtime/` is host-only, gitignored state and is mounted into `worldserver`.
-
-A precise step-by-step extraction document is still a hardening backlog item.
-
-## Database bootstrap
-
-`deploy/mysql/01-init-users.sh` creates the TrinityCore databases and application DB user on first MySQL start. TrinityCore's own updater applies schema updates from the mounted `sql/` tree.
-
-Import a pinned TDB world dataset before first useful worldserver startup:
-
-```bash
-make db-import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<sha256>
-```
-
-The import helper waits for MySQL and verifies the checksum when provided.
-
-### Realm address
-
-Set the realm values in `.env`, then run:
-
-```bash
-make configure-realm
-```
-
-For a client on another machine, `REALM_ADDRESS` must be a reachable server address, not `127.0.0.1`.
-
-## Account creation web UI
-
-`account-web` (docker/account-web) is a small form at `http://<host>:${ACCOUNT_WEB_PORT:-8088}` — published on all interfaces, reachable from outside the host — for creating player/GM accounts without a manual `docker compose attach worldserver` session. It never touches the `auth` database itself — every submission runs TrinityCore's own `account create` / `account set addon` / `account set gmlevel` console commands over worldserver's SOAP interface (`SOAP.*` in `deploy/worldserver.conf`), which is only reachable over the internal Compose network, never published to the host.
-
-The form itself has no login, and a single unchecked checkbox grants `SEC_ADMINISTRATOR` — anyone who can reach `ACCOUNT_WEB_PORT` can create a full admin account. Restrict access at the network layer (firewall/VPN) if this box is reachable from anywhere untrusted.
-
-TrinityCore's SOAP handler requires the *calling* account to already have `SEC_ADMINISTRATOR` on the realm — including for account-web's own account-creation calls — so a one-time bootstrap admin account is required before the form can be used at all:
-
-```bash
-make start
-docker compose attach worldserver
-# at the worldserver console:
-account create svc-account-web <a-strong-password>
-account set gmlevel svc-account-web 3 -1
-# detach without stopping the server: Ctrl+P, Ctrl+Q
-```
-
-Put those same credentials in `.env` as `TC_SOAP_USER` / `TC_SOAP_PASSWORD`, then `make start` (or `docker compose restart account-web`) to pick them up. This bootstrap account is a service credential for account-web itself, separate from the accounts the form creates.
-
-## Day-to-day workflow
-
-Typical C++ workflow:
-
-```bash
-git checkout ai-world
-git pull --ff-only origin ai-world
-git log -1 --oneline
+make config
 make build
-make restart-world
-make world-logs
+make test
+make init-auth
+make register-realm
+make import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=b426641e6ce8da02e4109b40e570c2db75f89c228a412b3113f82eb3c8725299
 ```
 
-Useful targets:
-
-| Command | Purpose |
-|---|---|
-| `make bootstrap` | prepare `.env`, runtime dirs and dev image |
-| `make build` | incremental configure/build/install |
-| `make rebuild` | clean-first rebuild without deleting DB state |
-| `make start` | start the Compose stack |
-| `make stop` | stop the stack |
-| `make restart-world` | restart only worldserver |
-| `make logs` | follow all services |
-| `make world-logs` | follow worldserver container stdout/stderr |
-| `make shell` | development container shell |
-| `make db-shell` | MySQL shell as application user |
-| `make gpu-test` | run `nvidia-smi` through the GPU profile |
-| `make db-import-tdb` | import pinned TDB |
-| `make configure-realm` | update `auth.realmlist` from `.env` |
-
-`make clean-build` and `make reset-db` are intentionally destructive. Use them only when a clean build or DB reset is explicitly intended.
-
-## Standard build and test gate
-
-Run all commands from the repository root. The normal order for a C++ change is:
-
-```text
-confirm revision → build → automated tests → restart → smoke/runtime test → error scan → disable test hooks
-```
-
-### 1. Confirm the revision
+Import TDB patří pouze do nové prázdné world databáze. Do
+`runtime/lab/data/{dbc,maps,vmaps,mmaps}` dodat kompatibilní extrahovaná
+data klienta 3.3.5a včetně schváleného serverového balíku vlastní mapy.
+Šedesát jedna souborů balíku musí odpovídat manifestu
+`data/realm_lab/aiworldlab/preview-v8/server-manifest.json`, včetně
+potřebných sdílených VMAP modelů. Samotné zdrojové ADT z Noggit nestačí.
+Do `runtime/lab/dbc-base/` patří neupravené `Faction.dbc` a
+`FactionTemplate.dbc` pro generátor vlastních frakcí a `WorldSafeLocs.dbc`
+pro hřbitov vlastní mapy.
 
 ```bash
-git status --short
-git checkout ai-world
-git pull --ff-only origin ai-world
-git log -1 --oneline
-```
-
-Review any output from `git status --short`; do not discard unrelated local changes. Record the tested commit SHA so runtime evidence can be tied to the exact code.
-
-### 2. Build and install TrinityCore
-
-The standard incremental build is:
-
-```bash
-make build
-```
-
-This configures CMake, builds with Ninja and installs the binaries into the persistent `/build` volume. An `Up-to-date` result is a valid successful incremental build. The command must exit with status `0` and contain no compile or link failure.
-
-Use a clean-first rebuild only when the incremental build is insufficient:
-
-```bash
-make rebuild
-```
-
-Do not use `make clean-build` routinely: it deletes the contents of the persistent build volume before rebuilding. It does not reset the database, but it makes the next build substantially longer.
-
-### 3. Run the C++ unit tests
-
-`make build` does not run Catch2 tests because `BUILD_TESTING` is `OFF` by default. Enable the test target explicitly, build it and run CTest:
-
-```bash
-docker compose -f compose.yml -f compose.dev.yml run --rm tc-dev bash -c \
-  "cmake -S /workspace -B /build -G Ninja \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DCMAKE_INSTALL_PREFIX=/build \
-    -DBUILD_TESTING=ON && \
-   cmake --build /build --target tests && \
-   ctest --test-dir /build --output-on-failure"
-```
-
-The expected final result is `100% tests passed, 0 tests failed`. `BUILD_TESTING` is cached in the persistent build directory. To return to the normal default after testing, reconfigure it to `OFF`:
-
-```bash
-docker compose -f compose.yml -f compose.dev.yml run --rm tc-dev bash -c \
-  "cmake -S /workspace -B /build -G Ninja \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DCMAKE_INSTALL_PREFIX=/build \
-    -DBUILD_TESTING=OFF"
-```
-
-### 4. Restart and verify worldserver startup
-
-If the stack is not running yet:
-
-```bash
+make dbc-factions
+make graveyard-data
+make setup-world
 make start
 ```
 
-After a successful C++ build:
+`setup-world` pod zámkem zastaví pouze vlastní worldserver, aktualizuje
+world/characters schéma, nastaví start nových postav na vlastní mapu a
+zapojí hřbitov a vloží či ověří přesných 100 NPC. Předchozí startovní záznamy uloží do
+privátního receipt souboru. Existující postavy ani jejich homebindy
+nepřesouvá. Mapové hashe a databázové kontrakty se kontrolují před
+spuštěním; neúspěšná kontrola svět nespustí.
+
+Klient potřebuje shodný mapový patch, patch vlastních faction DBC a
+`runtime/lab/client-patch/patch-X.MPQ` s hřbitovem. Účet používá rozšíření
+Wrath of the Lich King (2).
+`realmlist.wtf` míří na auth adresu serveru; při výchozím portu 3724
+například `set realmlist 192.168.0.248`. Herní port 9086 obdrží ze
+seznamu realmů.
+
+## Registrace účtů
+
+`account-web` je na `http://<server>:9088/`. Nastavit `TC_SOAP_USER` a
+`TC_SOAP_PASSWORD` na existující administrátorský herní účet pro realm
+2 nebo globální realm `-1`; `LAB_SOAP_ENABLED=1` ponechá SOAP pouze
+uvnitř Dockeru. První administrátorský účet lze vytvořit přes
+TrinityCore konzoli:
 
 ```bash
-make restart-world
+docker attach aitc-lab-worldserver-1
+# V konzoli serveru:
+# account create JMENO HESLO
+# account set gmlevel JMENO 3 -1
+# Odpojení od konzole: Ctrl+P a poté Ctrl+Q.
+docker compose --env-file .env -f compose.yml up -d --force-recreate account-web
+```
+
+Formulář začne vytvářet účty po nastavení servisního přihlášení.
+Umožňuje také založení administrátora; port 9088 patří pouze do
+spravované sítě.
+
+## Běžný provoz
+
+```bash
+make start                 # Zapne celý stack a počká na healthchecks.
+make restart-world         # Restartuje jen herní server.
 make world-logs
+make backup                # Privátní gzip dumpy auth a world/characters + SHA256.
+make record                # Zahájí výchozí čtyřhodinový záznam.
+make record-status
+make record-stop
+make stop                  # Zastaví kontejnery; volumes zachová.
 ```
 
-Wait until worldserver has completed startup, then leave the live log with `Ctrl-C`. Detailed AIWorld DEBUG output is written to `runtime/logs/Server.log`.
-
-Scan the latest startup window for serious errors:
-
-```bash
-tail -n 500 runtime/logs/Server.log | grep -Ei \
-"fatal|assert|segmentation|database.*failed|unknown.*config"
-```
-
-For a clean startup this command prints nothing. If it prints a match, inspect the surrounding log before accepting the build.
-
-### 5. Run an AIWorld smoke test
-
-Startup smoke hooks are disabled by default. When a change has a dedicated hook:
-
-1. Set only the required `AIWorld.Test...` option to `1` in `deploy/worldserver.conf`.
-2. Restart worldserver.
-3. Filter the detailed log by the test's exact prefix and the common error signatures.
-4. Require every case and the final summary to say `PASSED`, with no `FAILED` or error match.
-5. Return the option to `0` and restart worldserver again.
-
-Standard command shape:
-
-```bash
-make restart-world
-
-grep -E \
-"AI <test name>.*(PASSED|FAILED)|fatal|assert|segmentation|database.*failed|unknown.*config" \
-runtime/logs/Server.log
-```
-
-After restoring the flag to `0`:
-
-```bash
-make restart-world
-
-grep -E \
-"AI <test name>|unknown.*config" \
-runtime/logs/Server.log
-```
-
-The second check must not show a new execution of that smoke test. Never commit a local test hook enabled.
-
-### 6. Run the feature-specific live test
-
-Pure/unit smoke tests do not replace a live runtime proof when the change owns movement, combat, lifecycle, persistence or world-thread integration. Exercise the exact scenario required by the milestone and capture a narrow evidence window, for example:
-
-```bash
-grep -E \
-"<feature marker>|sourceGoal=<GOAL>|fatal|assert|segmentation|database.*failed|unknown.*config" \
-runtime/logs/Server.log | tail -n 300
-```
-
-The feature test must prove the requested successful path and its required stop/failure paths. Do not treat the absence of log lines as a pass.
-
-### 7. Record the gate result
-
-Use this summary in the review or roadmap entry:
-
-```text
-REVISION=<tested commit SHA>
-BUILD=PASS
-UNIT=PASS | NOT APPLICABLE
-SMOKE=PASS | NOT APPLICABLE
-RUNTIME=PASS | NOT APPLICABLE
-ERROR_SCAN=PASS
-TEST_FLAGS_RESTORED=YES
-```
-
-`NOT APPLICABLE` must be justified by the change scope; it does not mean that a required test was skipped.
-
-## CI/CD pipeline
-
-[.github/workflows/ci.yml](.github/workflows/ci.yml) automates the build-and-test gate above, split across three jobs:
-
-- `build-pr` — runs on `pull_request` only. GitHub-hosted `ubuntu-24.04`, GCC 13, fresh VM every run: apt dependencies, `ccache`-backed CMake configure (`-DBUILD_TESTING=1`), Ninja build, `cmake --build --target test`. `ccache` is restored from `actions/cache`, but the CMake/Ninja build directory itself is not persisted, so this job always reconfigures/relinks from scratch.
-- `build-server` — runs on `push` to `ai-world` or `workflow_dispatch`. Self-hosted Docker runner (labels `self-hosted, linux, docker, wow, ci`): builds/tests inside the same `tc-dev` container `make build` uses, but against its own persistent `aitc_ci_build-data`/`aitc_ci_ccache-data` volumes (`BUILD_VOLUME_NAME`/`CCACHE_VOLUME_NAME` env — see `compose.yml`'s parametrized volume names) — kept separate from the running server's own `aitc_build-data`/`aitc_ccache-data` so a CI build can never touch production binaries. First run per volume is a full build; later runs are incremental.
-- `deploy` — runs only after `build-server` passes on a `push` to `ai-world` (never on `pull_request`, since this repo is public — see the job's own `if:`). Self-hosted Docker runner (labels `self-hosted, linux, docker, wow, deploy`): syncs `/home/voslik/WoWBehaviorAI` to the pushed commit (`git fetch` + `git reset --hard`, not `actions/checkout`, to keep the deploy checkout's untracked `.env`/`runtime/` state intact), runs `make build` — the same incremental build, but into the production `build-data` volume — then `docker compose up -d` and `docker compose restart authserver worldserver` so the running stack picks up the freshly compiled binaries.
-
-Both self-hosted runners live in [deploy/runner/](deploy/runner/) (`Dockerfile`, `compose.yml`, `.env.example`); see [deploy/runner/README.md](deploy/runner/README.md) for the one-time host bootstrap and how to update them.
-
-Note: `build-server`/`deploy` compile the full checkout on every push regardless of what changed, so even a docs-only commit like this one exercises the whole pipeline.
-
-The original per-platform workflows (`linux-build.yml` GCC/Clang/PCH matrix, `win-x64-build.yml`, `macos-arm-build.yml`) are disabled (manual `workflow_dispatch` only) — they don't currently pass, and `ci.yml` is the maintained gate for `ai-world`.
-
-## Python ai-server workflow
-
-When Python decision-service code changes, rebuild that service:
-
-```bash
-docker compose -f compose.yml -f compose.dev.yml up -d --build ai-server
-make restart-world
-make logs
-```
-
-There is no separate `make restart-ai` workflow.
-
-Run the ai-server's own unit tests (no real LLM required - see `docker/ai/tests/test_dynamic_task.py`) against the built image:
-
-```bash
-docker compose -f compose.yml -f compose.dev.yml run --rm ai-server \
-  python -m unittest discover -s tests -p 'test_*.py' -v
-```
-
-Expect every test to report `ok` and a final `OK` summary line.
-
-## AIWorld configuration
-
-AIWorld settings are versioned in `deploy/worldserver.conf` and mirrored in `src/server/worldserver/worldserver.conf.dist`.
-
-### AI World Observer
-
-`world-viewer` serves a read-only Elwynn agent map at `http://<server-LAN-IP>:${WORLD_VIEWER_PORT:-8090}`. Compose publishes the port on all host interfaces. The container can start without telemetry; it shows a waiting state until a snapshot arrives. `AIWorld.TelemetryEnabled = 1` is now the default in `deploy/worldserver.conf`, but the feature still fails closed without a token: set a long random `WORLD_VIEWER_TELEMETRY_TOKEN` in `.env` and restart `worldserver` to actually enable live data (a missing token just logs a warning and does nothing). The same token is passed to both containers by Compose and is required on `POST /internal/telemetry`. Browser reads are unauthenticated, so anyone who can reach the port can see the telemetry.
-
-The world thread captures AI-controlled Elwynn agents once per second and hands value-only snapshots to a bounded asynchronous HTTP exporter. The Elwynn spawn ID scope is read once at startup from `creature.zoneId = 12`; those zone IDs must be current for all expected agents to appear. Capture never loads grids. `live` positions and combat/health data come from a currently resolved Creature; `spawn` positions are authoritative spawn coordinates for an abstract agent and are never presented as a current location. The viewer keeps only the latest snapshot in memory, displays its age, and has no NPC control API. It does not query the database for live state.
-
-Observer protocol v3 exposes living roles/perception, predator hunt and
-sprint diagnostics, wolf pack activity, movement problems, stocks, all group
-memberships/coordination and reputation faction mapping. Filters and activity
-colors help locate these states; selected NPCs show their target/destination links.
-Selecting an agent also loads its long-term memory in pages of 25 records,
-including importance, times, location and historical participants. These reads
-use the worldserver's memory index and the existing telemetry connection.
-The receiver still accepts v1/v2 snapshots. Upgrade `world-viewer` first with
-`docker compose up -d --build world-viewer`, then run `make build` and
-`make restart-world` to enable the new export. See
-[the Observer guide](docker/world-viewer/README.md) for the protocol and checks.
-
-The subsystem can be disabled:
-
-```ini
-AIWorld.Enable = 0
-```
-
-Current scheduler controls include:
-
-```ini
-AIWorld.DecisionSchedulerIntervalMs = 250
-AIWorld.DecisionNearbyIntervalMs = 1000
-AIWorld.DecisionActiveIntervalMs = 5000
-AIWorld.DecisionNearbyPlayerRange = 60.0
-AIWorld.DecisionMaxInFlight = 4
-AIWorld.BackgroundSimulationIntervalMs = 60000
-AIWorld.AbstractSimulationIntervalMs = 300000
-AIWorld.CoarseSimulationMaxPerPass = 50
-```
-
-Semantics:
-
-```text
-NEARBY     → materialized, player near, ~1 s decision cadence
-ACTIVE     → materialized, no nearby player, ~5 s decision cadence
-BACKGROUND → unloaded ordinary agent, coarse scheduler seam
-ABSTRACT   → future aggregate/group agent, coarse scheduler seam
-```
-
-`BACKGROUND/ABSTRACT` never send `/decision`, execute actions or force-load grids in the current 2.10D scope.
-
-## Logging
-
-Primary categories used by the current AIWorld implementation include:
-
-```text
-ai.world
-ai.agent
-```
-
-`make world-logs` follows the worldserver container console. Detailed AIWorld DEBUG records are normally written to the file appender at:
-
-```text
-runtime/logs/Server.log
-```
-
-Useful runtime checks:
-
-```bash
-grep "AI simulation tier" runtime/logs/Server.log
-grep "AI simulation tick" runtime/logs/Server.log
-```
-
-The console appender may filter DEBUG messages even when the `ai.world` logger itself is configured at DEBUG level, so `Server.log` is the preferred source for detailed tier/scheduler evidence.
-
-## Scheduler runtime evidence
-
-2.10A–2.10D are CLOSED. Deterministic Background entry staggering and steady-state cadence were runtime verified; this is no longer a pending handoff. Historical samples and known scaling work are retained in [roadmap 2.10](AIWorld_Current_Roadmap.md#210-scheduler-a-úrovně-simulace).
-
-## Debugging and metrics hardening
-
-Still open:
-
-- exact game-data extraction walkthrough;
-- convenient Debug build target;
-- measured no-op/incremental rebuild smoke;
-- `gdb` attach/breakpoint workflow;
-- core dump/crash artifact workflow;
-- CUDA/PyTorch compute smoke;
-- Influx/metrics backend runtime evidence;
-- scaling improvements for the fast registry/materialization scan and full-sort coarse due selection.
-
-## Persistence
-
-Project-specific persistent state currently uses the `characters` database.
-
-Implemented tables include:
-
-```text
-ai_agents
-ai_long_term_memories
-```
-
-Persistent `AgentId` is separate from runtime `ObjectGuid`. A spawn can unload/reload or produce a new runtime Creature incarnation while the logical agent persists.
-
-## Safety invariants for development
-
-When changing AIWorld code, preserve these rules:
-
-- no live TrinityCore pointer across async boundaries;
-- no blocking network/DB work on the world thread;
-- no force-loading grids to simulate agents;
-- async responses are consumed on the world thread;
-- `RuntimeGuid` provenance must protect runtime Creature incarnation changes;
-- AI proposes, `ActionSystem` validates, TrinityCore executes;
-- do not create duplicate execution ownership between deterministic and remote decision paths;
-- prefer deterministic logic and use LLM/inference only when it adds real value.
+Zálohy vznikají v `runtime/lab/backups/` s adresáři 0700 a soubory 0600,
+včetně privátní konfigurace. Každá DB má konzistentní transakční dump;
+pro společný migrační okamžik nejprve zastavit zápisy do světa i účtů.
+
+Pro vývoj používat `make shell`, pro C++ kontroly `make test`.
+Python kontroly: `python3 -m unittest discover -s tools/realm_lab/tests -v`
+a testy v `docker/world-viewer`, `docker/ai`, `docker/account-web`.
+Soubor `Makefile.lab` a `compose.lab.yml` zůstávají kompatibilními vstupy
+do stejného stacku. Hlavní nasazování má jedinou větev `AI-World-lab`;
+CI používá vlastní `aitc_lab_ci_*` build volumes.
+
+Názvy `data/elwynn/factions` a `tools/dbc/build_elwynn_factions.py`
+označují sdílené definice frakcí současných NPC. Jejich zachování
+neobnovuje původní svět. Historické návratové/hunt testy zůstávají
+samostatnými regresními profily, výchozí svět používá `settlement-v8`.

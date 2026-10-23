@@ -2,6 +2,8 @@
 
 This profile creates static spawns in the private lab world only. It never
 creates AI agents or changes the masked regression population or templates.
+A fresh world may omit the historical regression population entirely; an
+existing regression population must remain complete and match its proof.
 Host deployment must hold its deployment lock and stop the world container;
 the TCP guard is an additional check at the private world endpoint.
 """
@@ -283,8 +285,15 @@ def ensure_world_offline(host: str = OFFLINE_WORLD_HOST) -> None:
     require(host == OFFLINE_WORLD_HOST, "Settlement offline guard must target the private lab worldserver")
     # Docker may remove a stopped container from DNS. Deployment captures its
     # private network IP before stopping it, under the same host deployment lock.
+    # For a fresh project with no world container, that trusted host-side check
+    # can attest absence instead. It only handles Docker's temporary DNS error;
+    # the fixed world endpoint is still probed and a listener always vetoes it.
     endpoint = host
     override = os.environ.get("LAB_SETTLEMENT_WORLD_IP")
+    absent = os.environ.get("LAB_SETTLEMENT_WORLD_ABSENT")
+    require(absent in (None, "0", "1"), "Settlement world absence flag must be 0 or 1")
+    require(not (absent == "1" and override is not None),
+            "Settlement world absence cannot be combined with a captured world IP")
     if override is not None:
         try:
             address = ipaddress.IPv4Address(override)
@@ -299,6 +308,8 @@ def ensure_world_offline(host: str = OFFLINE_WORLD_HOST) -> None:
         return
     except socket.gaierror as exc:
         if exc.errno == socket.EAI_NONAME:
+            return
+        if exc.errno == socket.EAI_AGAIN and absent == "1" and endpoint == host:
             return
         raise ProfileError("Cannot confirm private world listener is stopped") from exc
     except OSError as exc:
@@ -392,17 +403,26 @@ def validate_snapshot(rows: list[dict], population: Population, *, bootstrap: bo
                 all(base.near(row[field], value) for field, value in
                     (("x", actor.x), ("y", actor.y), ("z", actor.z), ("orientation", actor.orientation))),
                 "Settlement spawn home, mask or native movement contract changed")
-    require(legacy_seen == LEGACY_IDS, "Masked 100-actor legacy population is incomplete")
     require(bootstrap or seen == SPAWN_IDS, "Settlement bootstrap incomplete")
-    require(len(grouped["agent"]) == 100 and
-            {row["id"] for row in grouped["agent"]} == LEGACY_IDS and
-            all(row["spawn"] == row["id"] and row["map"] == 725 and row["control"] == 0
-                for row in grouped["agent"]), "Only the 100 disabled legacy AI agents may exist")
     require(all(row["spawn"] in LEGACY_IDS and row["mode"] == 0 for row in grouped["participation"]) and
             all(row["member"] in LEGACY_IDS for row in grouped["membership"]),
             "Settlement must not have AI participation or group memberships")
-    require(legacy_snapshot_digest(rows) == population.legacy_snapshot_sha256,
-            "Legacy regression identities/homes/control changed")
+    # New installations do not need to recreate retired test actors. Presence
+    # of any legacy record still requires the entire reviewed population, so
+    # a partially deleted/migrated population cannot be adopted as a fresh one.
+    has_legacy_state = bool(legacy_seen or grouped["participation"] or grouped["membership"] or
+                            any(row["id"] in LEGACY_IDS or row["spawn"] in LEGACY_IDS
+                                for row in grouped["agent"]))
+    if has_legacy_state:
+        require(legacy_seen == LEGACY_IDS, "Masked 100-actor legacy population is incomplete")
+        require(len(grouped["agent"]) == 100 and
+                {row["id"] for row in grouped["agent"]} == LEGACY_IDS and
+                all(row["spawn"] == row["id"] and row["map"] == 725 and row["control"] == 0
+                    for row in grouped["agent"]), "Only the 100 disabled legacy AI agents may exist")
+        require(legacy_snapshot_digest(rows) == population.legacy_snapshot_sha256,
+                "Legacy regression identities/homes/control changed")
+    else:
+        require(not grouped["agent"], "Native settlement must not have AI agents")
 
 
 def bootstrap_sql(population: Population) -> str:

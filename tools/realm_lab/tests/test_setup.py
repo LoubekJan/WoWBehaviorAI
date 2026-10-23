@@ -24,6 +24,14 @@ class RealmSetupTests(unittest.TestCase):
     def setUp(self):
         self.settings = Settings.load(environment())
 
+    def test_account_service_enables_only_explicit_internal_soap(self):
+        self.assertEqual(config_overrides(self.settings)["SOAP.Enabled"], "0")
+        enabled = Settings.load({**environment(), "LAB_SOAP_ENABLED": "1"})
+        self.assertEqual(config_overrides(enabled)["SOAP.Enabled"], "1")
+        for invalid in ("2", "true", "1;bad"):
+            with self.subTest(value=invalid), self.assertRaises(SetupError):
+                Settings.load({**environment(), "LAB_SOAP_ENABLED": invalid})
+
     def test_real_template_routes_databases_and_disables_shared_auth_migrations(self):
         rendered = render_config((ROOT / "deploy/worldserver.conf").read_text(), self.settings)
         self.assertIn('LoginDatabaseInfo = "aiworld-auth-db;3306;lab_auth;auth-pass;auth"', rendered)

@@ -1,88 +1,51 @@
-# Deploy runner
+# CI a deploy runnery vlastního světa
 
-Self-hosted GitHub Actions runners on the deploy server. `compose.yml` in
-this directory defines two:
+Aktivní workflow je [Realm Lab CI/CD](../../.github/workflows/realm-lab.yml)
+na větvi `AI-World-lab`. Používá dva samostatné runnery:
 
-- `runner` (labels `self-hosted, linux, docker, wow, deploy`) — executes the
-  `deploy` job in [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
-  It only ever runs on `push` to `ai-world` after `build-server` passes —
-  pull requests (including from forks, since this repo is public) never
-  reach it. See `compose.yml` for why.
-- `ci-runner` (labels `self-hosted, linux, docker, wow, ci`) — executes the
-  `build-server` job on `push`/`workflow_dispatch`, against its own
-  persistent `aitc_ci_build-data`/`aitc_ci_ccache-data` volumes (kept
-  separate from the production volumes `runner`/`deploy` use).
+| Compose soubor / služba | Jméno a účel | Labels |
+| --- | --- | --- |
+| `compose.yml` / `ci-runner` | `wow-ci-runner`: C++ build a testy v oddělených CI volumes | `self-hosted,linux,docker,wow,ci` |
+| `compose.lab.yml` / `lab-runner` | `wow-lab-deploy-runner`: nasazení otestovaného commitu do `/home/voslik/WoWBehaviorAI-lab` | `self-hosted,linux,docker,wow,realm-lab-deploy` |
 
-## One-time host bootstrap
+CI projekt zůstává `runner`, tedy kontejner `runner-ci-runner-1`.
+Deploy projekt zůstává `aitc-lab-runners`. Původní Elwynn deploy služba
+`runner` a label `deploy` se už nedefinují. Starý workflow `ci.yml`
+je vyřazený a nic nenasazuje.
 
-Do this once on the dedicated Linux deploy server, before either runner
-container is started for the first time.
+## Příprava hostu
 
-1. Clone the persistent deploy checkout at the exact path the runner
-   container expects (`compose.yml` bind-mounts it 1:1, host path == container
-   path, so it can't move without editing that file too):
+Vytvořit `/home/voslik/ci-runner-work` a persistentní checkout větve
+`AI-World-lab` v `/home/voslik/WoWBehaviorAI-lab`. Cesty bind mountů
+musí být na hostu i uvnitř runneru shodné: Docker CLI používá daemon
+hostu a podle těchto absolutních cest načítá zdroje i runtime soubory.
 
-   ```
-   sudo git clone https://github.com/LoubekJan/WoWBehaviorAI.git /home/voslik/WoWBehaviorAI
-   ```
-
-   This checkout is what the `deploy` job builds and restarts — it is kept in
-   sync with `git fetch` + `git reset --hard origin/ai-world` on every deploy,
-   never with `actions/checkout` (which would wipe the untracked `.env` and
-   `runtime/` state below on every run).
-
-2. Inside `/home/voslik/WoWBehaviorAI`, set up the app stack's own secrets and
-   persistent data, same as any other deployment of this repo's
-   [compose.yml](../../compose.yml):
-
-   ```
-   cd /home/voslik/WoWBehaviorAI
-   cp .env.example .env
-   # edit .env: MYSQL_ROOT_PASSWORD, TC_DB_USER/PASSWORD, ports, etc.
-   mkdir -p runtime/logs runtime/data
-   ```
-
-3. Create `ci-runner`'s own workdir (bind-mounted 1:1 into the container for
-   the same reason as the deploy checkout above — the `build-server` job's
-   `docker compose run tc-dev`, run from inside this container, needs the
-   build context on the same absolute path the host daemon resolves bind
-   mounts against):
-
-   ```
-   mkdir -p /home/voslik/ci-runner-work
-   ```
-
-4. Create a fine-grained GitHub PAT for this repo (Administration: read &
-   write) and set up both runners' env file:
-
-   ```
-   cd /home/voslik/WoWBehaviorAI/deploy/runner
-   cp .env.example .env
-   # edit .env: GH_RUNNER_REPO_URL, GH_RUNNER_PAT
-   ```
-
-5. Build and start both runners (run from this directory, not with `-f` from
-   elsewhere, so Compose picks up the `.env` here for `GH_RUNNER_*`
-   substitution):
-
-   ```
-   cd /home/voslik/WoWBehaviorAI/deploy/runner
-   docker compose up -d --build
-   ```
-
-   Confirm they registered: GitHub → repo → Settings → Actions → Runners
-   should show `wow-deploy-runner` and `wow-ci-runner` as idle, with labels
-   `self-hosted, linux, docker, wow, deploy` and
-   `self-hosted, linux, docker, wow, ci` respectively.
-
-From this point on, every push to `ai-world` that passes CI will
-`docker compose build && docker compose up -d` the app stack in
-`/home/voslik/WoWBehaviorAI` automatically.
-
-## Updating the runners
-
+```bash
+cd /home/voslik/WoWBehaviorAI-lab/deploy/runner
+umask 077
+cp .env.example .env
+# Nastavit GH_RUNNER_REPO_URL a GH_RUNNER_PAT.
+docker compose --env-file .env -f compose.yml up -d --build ci-runner
+docker compose --env-file .env -f compose.lab.yml up -d --build lab-runner
 ```
-cd /home/voslik/WoWBehaviorAI/deploy/runner
-git pull
-docker compose up -d --build
-```
+
+PAT slouží k registraci runnerů; potřebuje repository Administration
+read/write. Soubor `.env` má práva 0600 a necommitovat jej. Runnery
+používají Docker socket, proto trusted push build/deploy běží jen na
+povolené větvi. PR buildy zůstávají na GitHub-hosted runneru.
+
+V GitHub Settings → Actions → Runners ověřit oba výše uvedené názvy,
+labels a stav online. Automatické nasazování dále vyžaduje
+`REALM_LAB_DEPLOY_ENABLED=true` a dokončený provisioning světa.
+
+## Aktualizace a vyřazení původního runneru
+
+Po aktualizaci checkoutu zopakovat příslušný `up -d --build` příkaz.
+Build runner používá volumes `aitc_lab_ci_build-data` a
+`aitc_lab_ci_ccache-data`, provozní build má jiné volumes.
+
+Existující starý `runner-runner-1` nejprve ponechat dostupný migračnímu
+nástroji: ověřuje z něj registraci a deaktivované původní nasazování.
+Vyřazení se dokončí až po migraci účtů a ověření canonical stacku.
+Na odstranění původního světa nepoužívat hromadné mazání Docker volumes;
+účty i současný vlastní svět musí zůstat zachované.

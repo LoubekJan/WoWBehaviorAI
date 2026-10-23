@@ -34,7 +34,7 @@ jobs:
           python-version: '3.11'
       - name: Install Python test dependencies
         run: |
-          python -m pip install 'fastapi>=0.115,<1' 'httpx>=0.27,<1' 'PyYAML>=6,<7' 'mpyq==0.2.5'
+          python -m pip install 'fastapi>=0.115,<1' 'httpx>=0.27,<1' 'PyYAML>=6,<7' 'mpyq==0.2.5' 'jinja2>=3.1,<4' 'python-multipart>=0.0.18,<1'
           sudo apt-get update
           sudo apt-get install -yq default-mysql-client
       - name: Test realm boundaries and setup
@@ -42,24 +42,22 @@ jobs:
           LAB_TEST_MYSQL: '1'
           LAB_TEST_MYSQL_ROOT_PASSWORD: realm-ci-root
         run: python -m unittest discover -s tools/realm_lab/tests -v
-      - name: Validate lab Compose, CI override and scripts
+      - name: Validate canonical Compose, compatibility entries and scripts
         run: |
-          docker compose --env-file deploy/lab/.env.example -f compose.lab.yml config --quiet
-          docker compose --env-file deploy/lab/.env.example -f compose.lab.yml -f compose.lab.ci.yml config --quiet
-          for script in docker/scripts/build-lab.sh docker/scripts/deploy-lab.sh deploy/lab/mysql/01-init-users.sh; do
+          docker compose --env-file .env.example -f compose.yml config --quiet
+          docker compose --env-file .env.example -f compose.yml -f compose.lab.ci.yml config --quiet
+          docker compose --env-file .env.example -f compose.yml -f compose.dev.yml config --quiet
+          docker compose --env-file .env.example -f compose.lab.yml config --quiet
+          docker compose --env-file deploy/runner/.env.example -f deploy/runner/compose.yml config --quiet
+          docker compose --env-file deploy/runner/.env.example -f deploy/runner/compose.lab.yml config --quiet
+          for script in docker/scripts/build-lab.sh docker/scripts/deploy-lab.sh docker/scripts/setup-world.sh docker/scripts/backup-world.sh deploy/lab/mysql/01-init-users.sh deploy/auth/mysql/01-init-users.sh; do
             bash -n "$script"
           done
-      - name: Check shared-auth compatibility with original realm
-        run: |
-          git fetch origin ai-world
-          git diff --exit-code origin/ai-world HEAD -- \
-            sql/base/auth_database.sql sql/updates/auth \
-            src/server/database/Database/Implementation/LoginDatabase.h \
-            src/server/database/Database/Implementation/LoginDatabase.cpp
-      - name: Test Observer and AI protocols
+      - name: Test Observer, AI protocols and account registration
         run: |
           (cd docker/world-viewer && python -m unittest discover -s tests -v)
           (cd docker/ai && python -m unittest discover -s tests -v)
+          (cd docker/account-web && python -m unittest discover -s tests -v)
 
   build-pr:
     if: github.event_name == 'pull_request' && github.base_ref == 'AI-World-lab'
@@ -109,7 +107,7 @@ jobs:
           chmod 0777 CMakeFiles
       - name: Build and test in isolated lab CI volumes
         run: |
-          docker compose --env-file deploy/lab/.env.example -f compose.lab.yml -f compose.lab.ci.yml \
+          docker compose --env-file .env.example -f compose.yml -f compose.lab.ci.yml \
             run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh /build/check_install
 
   deploy:
@@ -137,18 +135,31 @@ jobs:
           flock -x 9
           test "$(git branch --show-current)" = AI-World-lab
           # Close recording before changing its bind-mounted Python files.
-          if test -f deploy/lab/.env; then
+          if test -f .env; then
+            docker compose --env-file .env -f compose.yml --profile recording stop --timeout 30 aiworld-recorder
+          elif test -f deploy/lab/.env; then
             docker compose --env-file deploy/lab/.env -f compose.lab.yml --profile recording stop --timeout 30 aiworld-recorder
           fi
           git fetch origin AI-World-lab
           git reset --hard "$TESTED_SHA"
           test "$(git rev-parse HEAD)" = "$TESTED_SHA"
-      - name: Deploy lab infrastructure
+      - name: Prepare preserved accounts and canonical infrastructure
+        run: |
+          set -euo pipefail
+          cd /home/voslik/WoWBehaviorAI-lab
+          python3 tools/realm_lab/promotion.py prepare
+      - name: Deploy authored-world infrastructure
         env:
           TESTED_SHA: ${{ github.sha }}
         run: |
+          set -euo pipefail
           cd /home/voslik/WoWBehaviorAI-lab
           bash docker/scripts/deploy-lab.sh "$TESTED_SHA"
+      - name: Finalize original-realm retirement
+        run: |
+          set -euo pipefail
+          cd /home/voslik/WoWBehaviorAI-lab
+          python3 tools/realm_lab/promotion.py finalize
       - name: Report acceptance boundary
         run: |
-          echo 'Lab build, tests and service health passed. Physical map and NPC return acceptance are recorded separately in data/realm_lab/aiworldlab and doc/RealmLab.md.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Canonical authored-world stack, preserved accounts, service health and live NPC telemetry passed. Physical movement and new gameplay acceptance are recorded separately in data/realm_lab/aiworldlab and doc/RealmLab.md.' >> "$GITHUB_STEP_SUMMARY"

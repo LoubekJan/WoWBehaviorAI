@@ -40,8 +40,8 @@ def legacy_snapshot():
     return rows
 
 
-def snapshot(population, *, actors=True):
-    rows = (legacy_snapshot() + [{"kind": "template", **row} for row in population.templates] +
+def snapshot(population, *, actors=True, legacy=True):
+    rows = ((legacy_snapshot() if legacy else []) + [{"kind": "template", **row} for row in population.templates] +
             list(population.smart_scripts) + list(population.template_addons))
     if actors:
         rows.extend(spawn(a.spawn_id, a.entry, a.x, a.y, a.z, a.label) for a in population.actors)
@@ -124,6 +124,38 @@ class SettlementPopulationTests(unittest.TestCase):
         self.assertEqual(settlement.legacy_snapshot_digest(list(reversed(legacy_snapshot()))),
                          self.population.legacy_snapshot_sha256)
 
+    def test_fresh_world_accepts_no_legacy_records_without_creating_test_actors(self):
+        rows = snapshot(self.population, legacy=False)
+        before = copy.deepcopy(rows)
+        settlement.validate_snapshot(rows, self.population)
+        self.assertEqual(rows, before)
+        settlement.validate_snapshot(snapshot(self.population, actors=False, legacy=False),
+                                     self.population, bootstrap=True)
+        with self.assertRaisesRegex(settlement.ProfileError, "bootstrap incomplete"):
+            settlement.validate_snapshot(snapshot(self.population, actors=False, legacy=False), self.population)
+        sql = settlement.bootstrap_sql(self.population)
+        for identity in settlement.LEGACY_IDS:
+            self.assertNotIn(str(identity), sql)
+
+    def test_fresh_world_rejects_every_orphaned_legacy_record_kind(self):
+        orphan_membership = {"kind": "membership", "group": 123, "member": 900725}
+        for orphan in [*legacy_snapshot()[:3], orphan_membership]:
+            with self.subTest(kind=orphan["kind"]):
+                rows = snapshot(self.population, legacy=False) + [orphan]
+                with self.assertRaisesRegex(settlement.ProfileError, "legacy population is incomplete"):
+                    settlement.validate_snapshot(rows, self.population, bootstrap=True)
+
+    def test_fresh_world_rejects_foreign_ai_and_native_population_participation(self):
+        agent = copy.deepcopy(next(row for row in legacy_snapshot() if row["kind"] == "agent"))
+        for identity, map_id, control in ((901000, 725, 0), (80683, 0, 1)):
+            agent.update(id=identity, spawn=identity, map=map_id, control=control)
+            with self.subTest(identity=identity), self.assertRaisesRegex(settlement.ProfileError, "must not have AI agents"):
+                settlement.validate_snapshot(snapshot(self.population, legacy=False) + [agent], self.population)
+        for row in ({"kind": "participation", "spawn": 901000, "mode": 0},
+                    {"kind": "membership", "group": 123, "member": 901000}):
+            with self.subTest(kind=row["kind"]), self.assertRaisesRegex(settlement.ProfileError, "participation"):
+                settlement.validate_snapshot(snapshot(self.population, legacy=False) + [row], self.population)
+
     def test_reserved_identity_role_counts_map_and_coordinate_mutations_fail(self):
         changes = [("realm_id", 1), ("map_id", 0), ("source_revision", "preview-v7")]
         for key, value in changes:
@@ -204,7 +236,7 @@ class SettlementPopulationTests(unittest.TestCase):
         with self.assertRaisesRegex(settlement.ProfileError, "participation"):
             settlement.validate_snapshot(bad, self.population)
 
-    def test_partial_matching_spawns_are_repeatable_but_missing_legacy_is_never_adopted(self):
+    def test_partial_matching_spawns_are_repeatable_but_partial_legacy_is_never_adopted(self):
         rows = snapshot(self.population)
         rows = [r for r in rows if not (r.get("kind") == "spawn" and r.get("guid", 0) > 901049)]
         settlement.validate_snapshot(rows, self.population, bootstrap=True)
@@ -291,6 +323,49 @@ class SettlementPopulationTests(unittest.TestCase):
                  self.assertRaisesRegex(settlement.ProfileError, "private IPv4"):
                 settlement.ensure_world_offline()
             connect.assert_not_called()
+
+    def test_offline_guard_accepts_host_attested_absence_only_for_temporary_dns_failure(self):
+        with patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_ABSENT": "1"}, clear=True), \
+                patch.object(settlement.socket, "create_connection", side_effect=socket.gaierror(
+                    socket.EAI_AGAIN, "Docker DNS has no container record")) as connect:
+            settlement.ensure_world_offline()
+            connect.assert_called_once_with(("aitc-lab-worldserver-1", 8085), timeout=3)
+        for error in (TimeoutError(), OSError("network unreachable"), socket.gaierror(socket.EAI_FAIL, "DNS failure"),
+                      socket.gaierror()):
+            with self.subTest(error=error), \
+                    patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_ABSENT": "1"}, clear=True), \
+                    patch.object(settlement.socket, "create_connection", side_effect=error), \
+                    self.assertRaisesRegex(settlement.ProfileError, "Cannot confirm"):
+                settlement.ensure_world_offline()
+        with patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_ABSENT": "0"}, clear=True), \
+                patch.object(settlement.socket, "create_connection", side_effect=socket.gaierror(socket.EAI_AGAIN, "DNS")), \
+                self.assertRaisesRegex(settlement.ProfileError, "Cannot confirm"):
+            settlement.ensure_world_offline()
+
+    def test_host_attested_absence_never_bypasses_a_live_world_listener(self):
+        connection = type("Connection", (), {"close": lambda self: None})()
+        with patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_ABSENT": "1"}, clear=True), \
+                patch.object(settlement.socket, "create_connection", return_value=connection) as connect, \
+                patch.object(connection, "close") as close, \
+                self.assertRaisesRegex(settlement.ProfileError, "accepting connections"):
+            settlement.ensure_world_offline()
+        connect.assert_called_once_with(("aitc-lab-worldserver-1", 8085), timeout=3)
+        close.assert_called_once_with()
+
+    def test_offline_guard_rejects_invalid_or_contradictory_host_absence_attestation(self):
+        for flag in ("", "true", "yes", "2"):
+            with self.subTest(flag=flag), \
+                    patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_ABSENT": flag}, clear=True), \
+                    patch.object(settlement.socket, "create_connection") as connect, \
+                    self.assertRaisesRegex(settlement.ProfileError, "absence flag"):
+                settlement.ensure_world_offline()
+            connect.assert_not_called()
+        with patch.dict(settlement.os.environ, {"LAB_SETTLEMENT_WORLD_ABSENT": "1",
+                                               "LAB_SETTLEMENT_WORLD_IP": "172.18.0.2"}, clear=True), \
+                patch.object(settlement.socket, "create_connection") as connect, \
+                self.assertRaisesRegex(settlement.ProfileError, "cannot be combined"):
+            settlement.ensure_world_offline()
+        connect.assert_not_called()
 
     def test_settlement_profile_observes_exact_native_population_with_ai_off(self):
         settings = manage.Settings.load({**environment(), "LAB_AI_PROFILE": settlement.PROFILE})

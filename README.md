@@ -6,13 +6,28 @@ The project extends TrinityCore with long-lived individual agents that can perce
 
 The goal is not to replace TrinityCore AI with a language model. Deterministic systems handle common behavior; external AI/inference is used only where it adds value.
 
-> Development branch: `ai-world`
+> Active branch: **`AI-World-lab`**. Updated **2026-10-23**.
 >
-> Current milestone: **Etapa 2 — CLOSED / POC COMPLETE, including 2.13 and the final 2.14 integration gate**
+> The project now runs one authored world: realm **2**, map **725**, area
+> **4988**, with **100 native NPCs** and live observer telemetry. The
+> original Elwynn runtime is retired through the account-preserving
+> migration; existing realm-2 characters and world data are retained.
 >
-> Current next gate: **Etapa 3 — Elwynn Forest scope and complete spawn census (3.0–3.1)**
+> Root **`compose.yml`** is the complete stack: dedicated auth and world
+> databases, login/game servers, observer, AI protocol service and account
+> registration. Ports: login **3724**, world **9086**, observer **9091**,
+> account registration **9088**.
 
-The single source for milestone status, implementation history and the next plan is [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md).
+Use [README_DEV.md](README_DEV.md) for setup and operation and
+[doc/RealmLab.md](doc/RealmLab.md) for the current map, population,
+account migration and deployment model. Autonomous raids, hunger and
+territory capture remain future gameplay work; the active settlement
+keeps normal TrinityCore NPC behavior.
+
+The AI subsystem notes below preserve the project's implementation
+history. [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md) records
+the earlier Elwynn research plan; current runtime instructions are the
+authored-world guides linked above.
 
 ---
 
@@ -58,7 +73,7 @@ Core invariants:
 
 ---
 
-## Current project status
+## AI subsystem implementation history
 
 ### Infrastructure — runtime verified
 
@@ -240,15 +255,15 @@ This proves persistent GroupId provenance and non-reuse while the individual wol
 
 ---
 
-## Current next gate
+## Earlier research gate
 
 Etapa 2 is **CLOSED / POC COMPLETE**. Its later gates added async-safe group lifecycle, Loose/Stable policy, generic automatic formation/maintenance, Elwynn population activation (`3540 / 3540 AIWorldControlled`), a second real coalition profile, REGROUP/ROAM/HUNT, and a local LLM dynamic quest lifecycle with outcome feedback. The final 2.14 gate confirmed real coalition HUNT through per-member ActionSystem validation and TrinityCore movement/combat.
 
-The next planned work is **Etapa 3, starting with 3.0–3.1**: define the authoritative Elwynn scope, export the complete creature/NPC census, classify every spawn and produce a coverage report. Semantic locations, factions, coalition constraints and world DB corrections follow. See the [roadmap acceptance gate](AIWorld_Current_Roadmap.md#nejbližší-acceptance-gate--3031).
+The earlier **Etapa 3** plan focused on Elwynn scope and a complete census. Development now proceeds on the authored map described in [RealmLab.md](doc/RealmLab.md); the prior plan remains historical context for the reusable AI subsystem.
 
 ## What remains beyond the POC
 
-- Elwynn semantic/faction/data-quality preparation (Etapa 3), followed by Living World composition (Etapa 4).
+- Authored-world settlement semantics, faction activity, economy and territory behavior, integrated in independently verifiable steps.
 - World-scale indexing/bounded-work hardening and global rollout (2.12F4C/F4D), required before expanding beyond one location.
 - Roles/leadership (2.12G4) only when actual behavior demonstrates a need.
 - Richer persistent relationships, active goals and explicitly designed persistence for dynamic quests; current dynamic quests survive reconnect but are discarded on worldserver restart.
@@ -276,70 +291,36 @@ WoWBehaviorAI/
 └── AIWorld_Current_Roadmap.md
 ```
 
-The repository is a real fork of TrinityCore and keeps upstream history. Active development happens on `ai-world`.
+The repository is a real fork of TrinityCore and keeps upstream history. Active development happens on `AI-World-lab`.
 
 ---
 
-## Quick start
+## Setup and development
+
+Follow the complete [authored-world setup guide](README_DEV.md). A fresh
+installation supplies private `.env` credentials, imports pinned TDB and
+installs the matching map/client data before preparing the realm:
 
 ```bash
-git clone https://github.com/LoubekJan/WoWBehaviorAI.git
-cd WoWBehaviorAI
-git checkout ai-world
+git checkout AI-World-lab
 make bootstrap
-```
-
-Place extracted WoW 3.3.5a data under the configured `WOW_DATA_DIR` (default `runtime/data`):
-
-```text
-runtime/data/dbc
-runtime/data/maps
-runtime/data/vmaps
-runtime/data/mmaps
-```
-
-Import world content and start:
-
-```bash
-make db-import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=<sha256>
 make build
+make test
+# Complete the one-time auth, TDB, data and world setup in README_DEV.md.
 make start
-make configure-realm
-make world-logs
 ```
 
-For a LAN client, configure a reachable `REALM_ADDRESS` in `.env`, not `127.0.0.1`.
-
----
-
-## Day-to-day development
-
-Typical C++ workflow:
-
-```bash
-git checkout ai-world
-git pull --ff-only origin ai-world
-git log -1 --oneline
-make build
-make restart-world
-make world-logs
-```
-
-When Python `ai-server` code changes:
-
-```bash
-docker compose -f compose.yml -f compose.dev.yml up -d --build ai-server
-make restart-world
-make logs
-```
-
-`make clean-build` and `make reset-db` are destructive operations and should be used only deliberately.
+Existing deployments preserve accounts and realm-2 data through the
+migration described in [RealmLab.md](doc/RealmLab.md); they do not repeat
+the TDB import. Routine source changes use `make build`,
+`make restart-world` and `make world-logs`. `make backup` writes protected
+auth and world/character backups under `runtime/lab/backups`.
 
 ---
 
 ## AIWorld configuration
 
-AIWorld settings are versioned in `deploy/worldserver.conf`. Relevant scheduler/group defaults include:
+AIWorld settings are versioned in `deploy/worldserver.conf` and rendered by the selected realm profile. The active `settlement-v8` profile keeps AI management disabled and exports native NPC telemetry. The following scheduler/group examples describe the earlier AI research profiles:
 
 ```ini
 AIWorld.Enable = 1
@@ -396,7 +377,7 @@ Decision metrics use TrinityCore's existing `Metric.h` infrastructure. Dedicated
 
 ## Roadmap handoff
 
-Use [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md) for the complete roadmap: Etapa 1 infrastructure, the closed Etapa 2 POC and its runtime evidence, the detailed Etapa 3 plan and the Etapa 4 outlook. Update milestone status there so implementation history and the current plan remain together.
+Use [doc/RealmLab.md](doc/RealmLab.md) for the current authored-world direction and acceptance boundaries. [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md) retains the earlier infrastructure/AI POC history and research backlog.
 
 See [README_DEV.md](README_DEV.md) for environment details and the standard build/test workflow.
 

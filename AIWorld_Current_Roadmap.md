@@ -1,10 +1,20 @@
+# Aktuální směr — 23. října 2026
+
+Aktivní svět je vlastní mapa **725 / oblast 4988**, realm **2**, větev
+`AI-World-lab`. Výchozí Docker Compose spravuje přihlášení, vlastní svět,
+správu účtů a telemetrii. Původní Elwynn realm je vyřazený směr; jeho
+níže uvedený plán a dosažené milníky jsou historický podklad.
+Aktuální provozní postup je v [README_DEV.md](README_DEV.md) a
+[doc/RealmLab.md](doc/RealmLab.md). Stávajících 100 NPC používá nativní
+chování; hlad, přepady, ekonomika a boj o území jsou další vývoj.
+
 # AIWorld — Roadmap
 
 | Kontext | Hodnota |
 |---|---|
 | Výchozí stav | TrinityCore `3.3.5` + Ubuntu Server + NVIDIA GPU |
 | Rozsah | Etapy 1–3 + výhled Etapy 4 |
-| Aktivní větev | `ai-world` |
+| Aktivní větev | `AI-World-lab` |
 | Stav po uzavření Etapy 2 | [`a0bd5a8834`](https://github.com/LoubekJan/WoWBehaviorAI/commit/a0bd5a8834929da95d27388f47cd9c7b71ee3253) |
 
 Tento dokument je jediná projektová roadmapa: obsahuje aktuální stav, implementační historii, ověřovací důkazy a navazující plán. Další změny milníků se zapisují přímo sem. Starší datované statusy jsou historické snapshoty.

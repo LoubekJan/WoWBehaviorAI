@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -33,8 +33,18 @@ def get_soap_config() -> SoapConfig:
     )
 
 
+def account_expansion() -> int:
+    if os.environ.get("TC_ACCOUNT_EXPANSION", "2") != "2":
+        raise ValueError("Vlastní svět vyžaduje Wrath of the Lich King (TC_ACCOUNT_EXPANSION=2).")
+    return 2
+
+
 @app.get("/health")
 def health() -> dict:
+    try:
+        account_expansion()
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"status": "ok"}
 
 
@@ -69,6 +79,10 @@ def create_account(
     error = _validate(username, password)
     if error:
         return templates.TemplateResponse(request, "index.html", {"error": error})
+    try:
+        expansion = account_expansion()
+    except ValueError as exc:
+        return templates.TemplateResponse(request, "index.html", {"error": str(exc)})
 
     try:
         execute_command(config, f"account create {username} {password}")
@@ -80,7 +94,8 @@ def create_account(
     # Account row now exists. Expansion and (optionally) gmlevel follow;
     # either failing leaves a half-configured account nobody asked for, so
     # roll the whole thing back rather than leave it half-done.
-    expansion = 2 if northrend else 1
+    # Map 725 requires expansion 2. Accept the historical form field, but all
+    # accounts created for this world receive the same compatible expansion.
     try:
         execute_command(config, f"account set addon {username} {expansion}")
         if admin:
@@ -103,7 +118,7 @@ def create_account(
             "success": {
                 "username": username,
                 "admin": admin,
-                "northrend": northrend,
+                "northrend": True,
             }
         },
     )

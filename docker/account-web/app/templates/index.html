@@ -27,7 +27,7 @@
   <div class="message success">
     Účet <strong>{{ success.username }}</strong> vytvořen
     ({{ "administrátor" if success.admin else "hráč" }},
-    {{ "s Northrendem" if success.northrend else "bez Northrendu" }}).
+    Wrath of the Lich King).
   </div>
   {% endif %}
 
@@ -44,10 +44,8 @@
         <label for="admin">Administrator</label>
       </div>
 
-      <div class="checkbox-row">
-        <input type="checkbox" id="northrend" name="northrend">
-        <label for="northrend">Přístup do Northrendu</label>
-      </div>
+      <p>Vlastní svět používá klienta 3.3.5a. Každý nový účet má přístup
+        k Wrath of the Lich King včetně Northrendu.</p>
 
       <button type="submit">Vytvořit účet</button>
     </fieldset>

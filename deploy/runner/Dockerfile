@@ -1,4 +1,5 @@
-# Self-hosted GitHub Actions runner for the deploy job in .github/workflows/ci.yml.
+# Self-hosted GitHub Actions image for the build/deploy jobs in
+# .github/workflows/realm-lab.yml.
 # Base image handles registration/deregistration with GitHub; we add the
 # Docker CLI + compose plugin so the runner can drive the host's Docker
 # daemon over the mounted /var/run/docker.sock (see compose.yml in this dir).

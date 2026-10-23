@@ -1,33 +1,69 @@
-.PHONY: bootstrap build rebuild start stop restart-world logs world-logs shell db-shell clean-build reset-db gpu-test db-import-tdb configure-realm dbc-factions record-aiworld record-aiworld-status record-aiworld-stop test-aiworld analyze-aiworld
+# Canonical authored-world stack. All persistent world/build identities match
+# the deployed realm; auth uses its own database and preserved accounts.
+WORLD_ENV_FILE ?= .env
+COMPOSE := docker compose --env-file $(WORLD_ENV_FILE) -f compose.yml
+RUN := $(COMPOSE) run --rm --no-deps -T --interactive=false
+.DEFAULT_GOAL := help
+.PHONY: help bootstrap config build rebuild test init-auth setup-world import-tdb db-import-tdb dbc-factions graveyard-data register-realm configure-realm preflight start stop restart-world logs world-logs shell db-shell backup record record-aiworld test-aiworld record-status record-aiworld-status record-stop record-aiworld-stop analyze-aiworld test-recovery-navigation
 
-COMPOSE := docker compose -f compose.yml -f compose.dev.yml
-BUILD_DIR := /build
-BUILD_TYPE := RelWithDebInfo
-CMAKE_CONFIGURE := cmake -S /workspace -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_INSTALL_PREFIX=$(BUILD_DIR)
+help:
+	@echo 'Authored world: bootstrap -> build -> init-auth -> register-realm -> import-tdb -> dbc-factions -> graveyard-data -> setup-world -> start'
+	@echo 'Provide the map/client data and private .env first; see README_DEV.md.'
+	@echo 'Operations: config test backup logs world-logs restart-world stop record record-status record-stop shell db-shell'
 
-# Workflow order matters: bootstrap -> build -> start. authserver/worldserver
-# expect /build/bin (the build-data volume) to already contain binaries, so
-# build runs in a throwaway tc-dev container and does not require `start`
-# (or tc-dev) to already be running.
-
-## first-time setup: .env, runtime dirs, build the dev image
 bootstrap:
-	@test -f .env || cp .env.example .env
-	@mkdir -p runtime/data/dbc runtime/data/maps runtime/data/vmaps runtime/data/mmaps runtime/logs
+	@test -f $(WORLD_ENV_FILE) || (umask 077; cp .env.example $(WORLD_ENV_FILE))
+	@mkdir -p runtime/lab/data/dbc runtime/lab/data/maps runtime/lab/data/vmaps runtime/lab/data/mmaps runtime/lab/logs/auth runtime/lab/recordings runtime/lab/client-patch runtime/lab/dbc-base runtime/lab/backups
+	$(COMPOSE) config --quiet
 	$(COMPOSE) build
 
-## incremental TrinityCore build — runs in a throwaway tc-dev container
+config:
+	$(COMPOSE) config --quiet
+
 build:
-	$(COMPOSE) run --rm tc-dev bash -c "$(CMAKE_CONFIGURE) && cmake --build $(BUILD_DIR) && cmake --install $(BUILD_DIR) --config $(BUILD_TYPE)"
+	$(RUN) tc-dev bash /workspace/docker/scripts/build-lab.sh
 
-## reconfigure + build without wiping the build/ccache volumes
 rebuild:
-	$(COMPOSE) run --rm tc-dev bash -c "$(CMAKE_CONFIGURE) && cmake --build $(BUILD_DIR) --clean-first && cmake --install $(BUILD_DIR) --config $(BUILD_TYPE)"
+	$(RUN) tc-dev cmake --build /build --clean-first
+	$(MAKE) build
 
-## start mysql, authserver, worldserver, ai-server (requires `make build` first)
-start:
-	$(COMPOSE) up -d
+test:
+	$(RUN) tc-dev ctest --test-dir /build --output-on-failure --no-tests=error
 
+init-auth:
+	@mkdir -p runtime/lab/logs/auth
+	$(COMPOSE) up -d --wait auth-mysql authserver
+
+register-realm:
+	$(RUN) tc-dev python3 tools/realm_lab/world_setup.py register
+
+configure-realm: register-realm
+
+import-tdb:
+	@test -n "$(TDB_VERSION)" && test -n "$(TDB_SHA256)" || (echo 'Set TDB_VERSION and TDB_SHA256'; exit 2)
+	$(COMPOSE) up -d --wait lab-mysql
+	$(RUN) -e TDB_DB_HOST=lab-mysql -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh
+
+db-import-tdb: import-tdb
+
+# Shared faction definitions are retained because the current NPCs use them.
+dbc-factions:
+	python3 tools/dbc/build_elwynn_factions.py --dbc-base-dir runtime/lab/dbc-base --out-dir runtime/lab/data/dbc
+
+graveyard-data:
+	python3 tools/realm_lab/graveyard.py build-server runtime/lab/data --base runtime/lab/dbc-base/WorldSafeLocs.dbc --client-patch runtime/lab/client-patch/patch-X.MPQ
+
+setup-world:
+	WORLD_ENV_FILE=$(WORLD_ENV_FILE) bash docker/scripts/setup-world.sh
+
+preflight:
+	$(COMPOSE) up -d --wait auth-mysql authserver lab-mysql
+	$(RUN) tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
+
+start: preflight
+	$(COMPOSE) up -d --wait auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web
+
+# No command here removes database or build volumes.
 stop:
 	$(COMPOSE) down
 
@@ -40,73 +76,35 @@ logs:
 world-logs:
 	$(COMPOSE) logs -f worldserver
 
-## record Observer every 5s for 4 hours, independently of the SSH session
-## override e.g. AIWORLD_RECORD_HOURS=8 make record-aiworld
-record-aiworld:
-	$(COMPOSE) up -d aiworld-recorder
+shell:
+	$(COMPOSE) run --rm --no-deps tc-dev bash
 
-## Detached four-hour behavior test; final report and exit status in recorder.
-test-aiworld: record-aiworld
+db-shell:
+	$(COMPOSE) exec lab-mysql sh -ec 'MYSQL_PWD="$$TC_DB_PASSWORD" exec mysql --user="$$TC_DB_USER"'
 
-## Example: make analyze-aiworld SESSION=aiworld-20260924T155848Z-d7abf197
-analyze-aiworld:
-	@test -n "$(SESSION)" || (echo "Set SESSION to a directory under runtime/recordings"; exit 2)
-	$(COMPOSE) run --rm --no-deps aiworld-analysis "/recordings/$(SESSION)"
+backup:
+	WORLD_ENV_FILE=$(WORLD_ENV_FILE) bash docker/scripts/backup-world.sh
 
-record-aiworld-status:
+record:
+	$(COMPOSE) up -d --no-deps --force-recreate aiworld-recorder
+
+record-aiworld: record
+test-aiworld: record
+
+record-status:
 	$(COMPOSE) ps -a aiworld-recorder
 	$(COMPOSE) logs --tail=5 aiworld-recorder
 
-## gracefully finish the current gzip file before collecting the session folder
-record-aiworld-stop:
-	$(COMPOSE) stop aiworld-recorder
+record-aiworld-status: record-status
 
-## interactive dev shell — throwaway container, independent of `start`
-shell:
-	$(COMPOSE) run --rm tc-dev bash
+record-stop:
+	$(COMPOSE) stop --timeout 30 aiworld-recorder
 
-db-shell:
-	$(COMPOSE) exec mysql sh -c 'mysql -u"$$TC_DB_USER" -p"$$TC_DB_PASSWORD"'
+record-aiworld-stop: record-stop
 
-## deliberate, explicit clean build — wipes the persistent build volume
-clean-build:
-	$(COMPOSE) run --rm tc-dev bash -c 'find $(BUILD_DIR) -mindepth 1 -delete'
-	$(MAKE) build
+analyze-aiworld:
+	@test -n "$(SESSION)" || (echo 'Set SESSION to a directory under runtime/lab/recordings'; exit 2)
+	$(COMPOSE) run --rm --no-deps --entrypoint python aiworld-recorder /behavior.py "/recordings/$(SESSION)"
 
-## deliberate, explicit destructive reset of the development database
-reset-db:
-	$(COMPOSE) stop mysql
-	$(COMPOSE) rm -f mysql
-	docker volume rm aitc_mysql-data
-	$(COMPOSE) up -d mysql
-
-gpu-test:
-	$(COMPOSE) --profile gpu-check run --rm gpu-check
-
-.PHONY: test-recovery-ai
-test-recovery-ai:
-	$(COMPOSE) exec -T ai-server python -m app.recovery_smoke
-
-.PHONY: test-recovery-navigation
-## Requires a build configured with BUILD_TESTING=1; no running game is needed.
 test-recovery-navigation:
-	$(COMPOSE) run --rm --no-deps tc-dev ctest --test-dir "$(BUILD_DIR)" --output-on-failure --no-tests=error -R "^(Recovery (navigation|food)|Planning )"
-
-## import a pinned TDB world-content dump: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]
-db-import-tdb:
-	@test -n "$(TDB_VERSION)" || (echo "Usage: make db-import-tdb TDB_VERSION=TDB335.25101 [TDB_SHA256=...]"; exit 1)
-	$(COMPOSE) up -d mysql
-	$(COMPOSE) run --rm -e TDB_VERSION=$(TDB_VERSION) -e TDB_SHA256=$(TDB_SHA256) tc-dev bash /workspace/docker/scripts/download-tdb.sh
-
-## configure auth.realmlist address/port from REALM_* in .env (versioned alternative to a manual UPDATE realmlist)
-configure-realm:
-	$(COMPOSE) up -d mysql
-	$(COMPOSE) run --rm tc-dev bash /workspace/docker/scripts/configure-realm.sh
-
-## regenerate runtime/data/dbc/Faction.dbc from data/elwynn/factions/factions.csv
-## (see tools/dbc/build_elwynn_factions.py). Runs on the host with python3,
-## not through tc-dev like every other target above - tc-dev's own image
-## (docker/trinitycore/Dockerfile.dev) installs no Python interpreter at all,
-## and this script has no TrinityCore build dependency to justify adding one.
-dbc-factions:
-	python3 tools/dbc/build_elwynn_factions.py
+	$(RUN) tc-dev ctest --test-dir /build --output-on-failure --no-tests=error -R '^(Recovery (navigation|food)|Planning )'

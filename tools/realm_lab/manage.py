@@ -74,6 +74,7 @@ class Settings:
     auth_user: str
     auth_password: str
     ai_profile: str = "disabled"
+    soap_enabled: bool = False
 
     @classmethod
     def load(cls, env: Mapping[str, str]) -> Settings:
@@ -103,6 +104,7 @@ class Settings:
             credential(env, "TC_AUTH_DB_USER", username=True),
             credential(env, "TC_AUTH_DB_PASSWORD"),
             profile,
+            bool(number(env, "LAB_SOAP_ENABLED", "0", 0, 1)),
         )
 
 
@@ -156,7 +158,8 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.RemoteInferenceEnabled": "0",
         "AIWorld.LivingNeedEvolutionEnabled": "0",
         "AIWorld.GroupCoarseSimulationEnabled": "0",
-        "SOAP.Enabled": "0",
+        "SOAP.Enabled": str(int(settings.soap_enabled)),
+        "SkipCinematics": "2",
     }
     for key in ("TestGroupMemberAgentId1", "TestGroupMemberAgentId2", "TestGroupMemberAgentId3",
                 "TestDissolveGroupId", "TestDissolveOnActiveRegroupGroupId", "TestPreemptOnActiveRoamAgentId",

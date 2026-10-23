@@ -339,9 +339,6 @@ int main(int argc, char** argv)
                 bounds.MinX, bounds.MaxX, bounds.MinY, bounds.MaxY);
         }
     }
-    else if (sConfigMgr->GetBoolDefault("AIWorld.ElwynnAlwaysActive", true))
-        sMapMgr->CreateBaseMap(0)->LoadAlwaysActiveZone(12);
-
     std::shared_ptr<void> mapManagementHandle(nullptr, [](void*)
     {
         // unload battleground templates before different singletons destroyed

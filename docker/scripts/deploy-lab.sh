@@ -1,19 +1,19 @@
 #!/bin/bash
-# Executed in the dedicated lab checkout after trusted branch CI has passed.
-# Does not register realms, update auth schemas, or restart the shared login.
+# Deploy the complete authored world after trusted branch CI has passed.
+# Auth owns its schema; worldserver only updates world and characters.
 set -euo pipefail
 expected_revision="${1:?Expected tested revision is required}"
 test "$(git branch --show-current)" = AI-World-lab
 test "$(git rev-parse HEAD)" = "$expected_revision"
-test -f deploy/lab/.env
+test -f .env
 
 mkdir -p runtime/lab
 exec 9>runtime/lab/deploy.lock
 flock -x 9
 
-lab_compose=(docker compose --env-file deploy/lab/.env -f compose.lab.yml)
+lab_compose=(docker compose --env-file .env -f compose.yml)
 "${lab_compose[@]}" config --quiet
-mkdir -p runtime/lab/logs runtime/lab/recordings
+mkdir -p runtime/lab/logs/auth runtime/lab/recordings runtime/lab/receipts
 services="$("${lab_compose[@]}" --profile recording ps --services --status running)"
 if grep -Fxq aiworld-recorder <<< "$services"; then
   "${lab_compose[@]}" stop --timeout 30 aiworld-recorder
@@ -21,29 +21,48 @@ fi
 
 "${lab_compose[@]}" build
 make -f Makefile.lab dbc-factions
+make graveyard-data
+"${lab_compose[@]}" up -d --wait auth-mysql authserver lab-mysql
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
 # Retain the lab-only address while Docker DNS still advertises its container.
 # A stopped container can return SERVFAIL rather than NXDOMAIN for its name.
 lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
-if [ "$lab_profile" = settlement-v8 ]; then
-  world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
-  test -n "$world_id"
+world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
+world_ip=
+if [ -n "$world_id" ]; then
   world_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "aitc-lab_default").IPAddress}}' "$world_id")"
-  test -n "$world_ip"
 fi
-# Stop only the lab world before replacing its installed binaries.
-"${lab_compose[@]}" stop worldserver
-if [ "$lab_profile" = settlement-v8 ]; then
-  # The native NPC population is installed only with the world container stopped.
-  world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
-  test -n "$world_id"
+if [ -z "$world_ip" ] && [ -f runtime/lab/receipts/world-promotion.json ]; then
+  world_ip="$(python3 -c 'import json; from pathlib import Path; print(json.loads(Path("runtime/lab/receipts/world-promotion.json").read_text()).get("prior_world", {}).get("address", ""))')"
+fi
+# Both executables share the build volume; stop both before replacing binaries.
+"${lab_compose[@]}" stop worldserver authserver
+run_args=(run --rm --no-deps -T --interactive=false)
+if [ -n "$world_id" ]; then
   test "$(docker inspect --format '{{.State.Running}}' "$world_id")" = false
-  "${lab_compose[@]}" run --rm --no-deps -T --interactive=false -e LAB_SETTLEMENT_WORLD_IP="$world_ip" tc-dev \
+fi
+if [ -n "$world_ip" ]; then
+  run_args+=(-e "LAB_SETTLEMENT_WORLD_IP=$world_ip")
+else
+  # An already-stopped container has no retained IP. Recreate its disposable
+  # container later; all database/build/runtime data remain on persistent mounts.
+  if [ -n "$world_id" ]; then docker rm "$world_id"; fi
+  test -z "$("${lab_compose[@]}" ps --all -q worldserver)"
+  run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
+fi
+if [ "$lab_profile" = settlement-v8 ]; then
+  "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
+    /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
+  receipt="/workspace/runtime/lab/receipts/start-policy-deploy-$(date -u +%Y%m%dT%H%M%SZ)-${expected_revision:0:12}.json"
+  "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py apply-start \
+    /workspace/runtime/lab/data --receipt "$receipt"
+  "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/graveyard.py bootstrap /workspace/runtime/lab/data
+  "${lab_compose[@]}" "${run_args[@]}" tc-dev \
     python3 tools/realm_lab/manage.py bootstrap-settlement-v8 /workspace/runtime/lab/data
 fi
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh
-"${lab_compose[@]}" up -d lab-mysql ai-server world-viewer worldserver
+"${lab_compose[@]}" up -d auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web
 
 wait_healthy() {
   local service="$1" cid state
@@ -60,7 +79,7 @@ wait_healthy() {
   "${lab_compose[@]}" logs --tail=100 "$service"
   return 1
 }
-for service in lab-mysql ai-server world-viewer worldserver; do
+for service in auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web; do
   wait_healthy "$service"
 done
 if [ "$lab_profile" = settlement-v8 ]; then
