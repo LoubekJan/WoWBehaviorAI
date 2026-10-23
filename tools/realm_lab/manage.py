@@ -159,6 +159,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.LivingNeedEvolutionEnabled": "0",
         "AIWorld.GroupCoarseSimulationEnabled": "0",
         "SOAP.Enabled": str(int(settings.soap_enabled)),
+        "Console.Enable": "0",
         "SkipCinematics": "2",
     }
     for key in ("TestGroupMemberAgentId1", "TestGroupMemberAgentId2", "TestGroupMemberAgentId3",

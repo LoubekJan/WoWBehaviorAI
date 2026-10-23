@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import io
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -11,6 +12,9 @@ import unittest
 from unittest.mock import patch
 
 from tools.realm_lab import promotion
+from tools.realm_lab import settlement_population as settlement
+from tools.realm_lab.tests.test_settlement_population import fixture, snapshot
+from tools.realm_lab.tests.test_setup import environment
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -214,20 +218,108 @@ class WorldPromotionTests(unittest.TestCase):
                 promotion.finalize()
         self.assertTrue(all(call.args[0][1] not in ("stop", "rm", "update") for call in run.call_args_list))
 
-    def test_completed_finalization_is_repeatable_and_checks_only_original_account_prefix(self):
+    def test_completed_finalization_allows_legitimate_password_changes_without_historical_credential_reads(self):
         state = self.acceptance_state()
         state["status"] = "complete"
         promotion.private_json(self.state, state)
-        with patch.object(promotion, "wait_healthy", return_value="healthy"), \
+        with patch.object(promotion, "wait_healthy", return_value="healthy") as healthy, \
              patch.object(promotion, "run", return_value=b"destination") as run, \
-             patch.object(promotion, "account_identity", return_value=state["account_identity"]) as identity, \
+             patch.object(promotion, "account_identity", side_effect=AssertionError("password legitimately changed after promotion")) as identity, \
              patch.object(promotion, "sql", return_value="2"), \
              patch.object(promotion, "project_containers", return_value={}), \
              patch.object(promotion, "inspect") as inspect:
             promotion.finalize()
-        identity.assert_called_once_with("destination", 2)
+        identity.assert_not_called()
+        self.assertEqual(healthy.call_count, 7)
         inspect.assert_not_called()
         self.assertTrue(all(call.args[0][1] not in ("stop", "rm", "update") for call in run.call_args_list))
+
+    def adoption_fixture(self):
+        values = {**environment(), "LAB_REALM_ID": "2", "LAB_AI_PROFILE": settlement.PROFILE,
+                  "TC_AUTH_DB_HOST": "aiworld-auth-db", "TC_AUTH_DB_PORT": "3306"}
+        (self.directory / ".env").write_text("".join(f"{key}={value}\n" for key, value in values.items()))
+        metadata, data, document = fixture(self.directory)
+        population = settlement.Population.load(metadata)
+        containers = {}
+        for service, volume in (("auth-mysql", "aitc_auth_mysql-data"), ("lab-mysql", "aitc_lab_mysql-data")):
+            containers[f"canonical-{service}"] = {
+                "Id": f"canonical-{service}", "State": {"Running": True},
+                "Config": {"Labels": {"com.docker.compose.project": "aitc-lab", "com.docker.compose.service": service}},
+                "Mounts": [{"Type": "volume", "Name": volume, "Destination": "/var/lib/mysql"}],
+            }
+        return population, containers
+
+    def run_adoption(self, population, containers, *, realms="2", rows=None):
+        native_rows = snapshot(population, legacy=False) if rows is None else rows
+
+        def commands(arguments, *args, **kwargs):
+            self.assertEqual(arguments[:-1], promotion.COMPOSE + ["ps", "-q"])
+            return f"canonical-{arguments[-1]}".encode()
+
+        def database(container, statement):
+            if container == "canonical-auth-mysql":
+                self.assertIn("FROM auth.realmlist", statement)
+                return realms
+            self.assertEqual(container, "canonical-lab-mysql")
+            self.assertEqual(statement, settlement.snapshot_sql(population))
+            return "\n".join(json.dumps(row) for row in native_rows)
+
+        with patch.object(promotion, "project_containers", return_value={}), \
+             patch.object(promotion, "run", side_effect=commands), \
+             patch.object(promotion, "inspect", side_effect=lambda identity: containers[identity]), \
+             patch.object(promotion, "sql", side_effect=database), \
+             patch.object(promotion, "account_identity", return_value=self.acceptance_state()["account_identity"]), \
+             patch.object(settlement, "verify_data", return_value=population) as verify, \
+             patch.object(promotion, "dump") as backup, \
+             patch.object(promotion, "import_dump") as restore, \
+             patch.object(promotion, "retire_workflow") as retire:
+            promotion.prepare()
+        verify.assert_called_once_with(self.directory / "runtime/lab/data")
+        backup.assert_not_called()
+        restore.assert_not_called()
+        retire.assert_not_called()
+
+    def test_fresh_canonical_installation_can_be_adopted_without_old_stack_or_database_mutation(self):
+        population, containers = self.adoption_fixture()
+        self.run_adoption(population, containers)
+        state = json.loads(self.state.read_text())
+        self.assertEqual(state["status"], "auth_ready")
+        self.assertEqual(state["original"], {})
+        self.assertEqual(state["mode"], "adopted_canonical_installation")
+        self.assertEqual(state["native_spawn_count"], 100)
+        self.assertEqual(state["native_files_verified"], 61)
+        self.assertFalse((self.directory / "deploy/lab/.env").exists())
+
+    def test_fresh_adoption_refuses_an_unknown_or_original_auth_database_volume(self):
+        population, containers = self.adoption_fixture()
+        containers["canonical-auth-mysql"]["Mounts"][0]["Name"] = "aitc_mysql-data"
+        with self.assertRaisesRegex(promotion.PromotionError, "named volume"):
+            self.run_adoption(population, containers)
+        self.assertFalse(self.state.exists())
+
+    def test_fresh_adoption_refuses_foreign_realm_registration(self):
+        population, containers = self.adoption_fixture()
+        with self.assertRaisesRegex(promotion.PromotionError, "only canonical realm 2"):
+            self.run_adoption(population, containers, realms="1,2")
+        self.assertFalse(self.state.exists())
+
+    def test_fresh_adoption_refuses_an_incomplete_native_population(self):
+        population, containers = self.adoption_fixture()
+        incomplete = snapshot(population, legacy=False)[:-1]
+        with self.assertRaisesRegex(promotion.PromotionError, "native-population"):
+            self.run_adoption(population, containers, rows=incomplete)
+        self.assertFalse(self.state.exists())
+
+    def test_fresh_adoption_refuses_geometry_that_fails_the_current_61_file_contract(self):
+        population, containers = self.adoption_fixture()
+        with patch.object(promotion, "project_containers", return_value={}), \
+             patch.object(promotion, "run", side_effect=lambda arguments: f"canonical-{arguments[-1]}".encode()), \
+             patch.object(promotion, "inspect", side_effect=lambda identity: containers[identity]), \
+             patch.object(promotion, "sql", return_value="2"), \
+             patch.object(settlement, "verify_data", side_effect=settlement.ProfileError("map hash changed")):
+            with self.assertRaisesRegex(promotion.PromotionError, "native-population"):
+                promotion.prepare()
+        self.assertFalse(self.state.exists())
 
     def test_partial_finalization_resumes_without_touching_an_already_removed_identity(self):
         state = self.acceptance_state()
@@ -314,6 +406,43 @@ class WorldPromotionTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 2)
         self.assertNotIn("sensitive-account-data", output.getvalue())
         rollback.assert_called_once_with()
+
+    def test_timeout_diagnostic_is_saved_before_rollback_without_command_or_process_output(self):
+        failure = self.state.with_name("world-promotion-failure.json")
+        exception = subprocess.TimeoutExpired(["docker", "inspect", "sensitive-container-and-password"], 120,
+                                              output=b"private-output", stderr=b"private-stderr")
+
+        def rollback():
+            record = json.loads(failure.read_text())
+            self.assertEqual(record["exception_type"], "TimeoutExpired")
+            self.assertEqual(record["operation"], "docker_inspect")
+            self.assertEqual(record["timeout_seconds"], 120)
+            self.assertIn("captured_utc", record)
+
+        with patch("sys.argv", ["promotion.py", "prepare"]), \
+             patch.object(promotion, "prepare", side_effect=exception), \
+             patch.object(promotion, "rollback_preparation", side_effect=rollback) as restore, \
+             patch("sys.stderr", new_callable=io.StringIO) as output, self.assertRaises(SystemExit):
+            promotion.main()
+        restore.assert_called_once()
+        combined = failure.read_text() + output.getvalue()
+        for secret in ("sensitive-container-and-password", "private-output", "private-stderr"):
+            self.assertNotIn(secret, combined)
+
+    def test_validation_diagnostic_excludes_exception_message_and_keeps_public_error_sanitized(self):
+        exception = promotion.PromotionError("SELECT verifier, 'private-account-password' FROM auth.account")
+        with patch("sys.argv", ["promotion.py", "finalize"]), \
+             patch.object(promotion, "finalize", side_effect=exception), \
+             patch("sys.stderr", new_callable=io.StringIO) as output, self.assertRaises(SystemExit):
+            promotion.main()
+        failure = self.state.with_name("world-promotion-failure.json")
+        record = json.loads(failure.read_text())
+        self.assertEqual(record["exception_type"], "PromotionError")
+        self.assertEqual(record["operation"], "validation_or_operation")
+        self.assertIsNone(record["timeout_seconds"])
+        combined = failure.read_text() + output.getvalue()
+        self.assertNotIn("private-account-password", combined)
+        self.assertNotIn("SELECT verifier", combined)
 
 
 if __name__ == "__main__":

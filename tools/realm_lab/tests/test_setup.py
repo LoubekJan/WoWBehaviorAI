@@ -40,6 +40,7 @@ class RealmSetupTests(unittest.TestCase):
         self.assertIn("RealmID = 2\n", rendered)
         self.assertIn("WorldServerPort = 8085\n", rendered)
         self.assertIn("Updates.EnableDatabases = 6\n", rendered)
+        self.assertIn("Console.Enable = 0\n", rendered)
         self.assertNotIn("__TC_DB_", rendered)
         self.assertIn("AIWorld.ElwynnAlwaysActive = 0\n", rendered)
         self.assertIn("AIWorld.Enable = 0\n", rendered)

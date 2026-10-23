@@ -246,6 +246,48 @@ def prepare_graveyard() -> None:
     build_server(data, base, ROOT / "runtime/lab/client-patch/patch-X.MPQ")
 
 
+def adopt_canonical_installation() -> None:
+    """Recognize a completed fresh installation without importing any database."""
+    try:
+        from . import manage, settlement_population, single_return
+    except ImportError:
+        import manage, settlement_population, single_return
+    configuration = ROOT / ".env"
+    require(configuration.is_file(), "No original realm exists and canonical credentials are missing")
+    try:
+        settings = manage.Settings.load(read_env(configuration))
+        require(settings.realm_id == 2 and settings.ai_profile == settlement_population.PROFILE and
+                settings.auth_host == "aiworld-auth-db" and settings.auth_port == 3306,
+                "Only the canonical realm 2 settlement with its local auth may be adopted")
+        databases = {}
+        for service, volume in (("auth-mysql", "aitc_auth_mysql-data"), ("lab-mysql", "aitc_lab_mysql-data")):
+            identities = run(COMPOSE + ["ps", "-q", service]).decode().split()
+            require(len(identities) == 1, "Canonical database container is missing or ambiguous")
+            container = inspect(identities[0])
+            labels = container["Config"]["Labels"]
+            mounts = [mount for mount in container["Mounts"] if mount.get("Destination") == "/var/lib/mysql"]
+            require(container["State"]["Running"] and labels.get("com.docker.compose.project") == "aitc-lab" and
+                    labels.get("com.docker.compose.service") == service and len(mounts) == 1 and
+                    mounts[0].get("Type") == "volume" and mounts[0].get("Name") == volume,
+                    "Canonical database identity or named volume differs from the reviewed installation")
+            databases[service] = identities[0]
+        auth = databases["auth-mysql"]
+        require(sql(auth, "SELECT GROUP_CONCAT(id ORDER BY id) FROM auth.realmlist;") == "2",
+                "Fresh installation must contain only canonical realm 2")
+        population = settlement_population.verify_data(ROOT / "runtime/lab/data")
+        rows = single_return.parse_snapshot(sql(databases["lab-mysql"], settlement_population.snapshot_sql(population)))
+        settlement_population.validate_snapshot(rows, population)
+    except (manage.SetupError, settlement_population.ProfileError, OSError, ValueError, KeyError, TypeError) as exc:
+        raise PromotionError("Fresh canonical installation did not pass configuration, database and native-population checks") from exc
+    state = {"schema_version": 1, "status": "auth_ready", "mode": "adopted_canonical_installation",
+             "original": {}, "running_before": {}, "backups": {},
+             "account_identity": account_identity(auth), "native_spawn_count": len(population.actors),
+             "native_files_verified": len(population.geometry_files),
+             "prepared_utc": datetime.now(timezone.utc).isoformat()}
+    private_json(STATE, state)
+    print("Existing canonical realm 2 installation verified; no database was imported or reset.")
+
+
 def prepare() -> None:
     if STATE.exists():
         state = json.loads(STATE.read_text())
@@ -255,6 +297,9 @@ def prepare() -> None:
             return
         raise PromotionError("Previous cutover requires inspection; protected backup and original containers retained")
     old = project_containers(OLD_PROJECT)
+    if not old:
+        adopt_canonical_installation()
+        return
     require({"mysql", "authserver", "worldserver", "account-web"}.issubset(old), "Original realm inventory is incomplete")
     source_mysql = old["mysql"]["Id"]
     if not old["mysql"]["State"]["Running"]:
@@ -339,13 +384,15 @@ def finalize() -> None:
     for service in ("auth-mysql", "authserver", "lab-mysql", "worldserver", "world-viewer", "ai-server", "account-web"):
         wait_healthy(service)
     destination = run(COMPOSE + ["ps", "-q", "auth-mysql"]).decode().strip()
-    require(account_identity(destination, state["account_identity"]["maximum_id"]) == state["account_identity"],
-            "Final original account credentials differ from the backed-up original")
     require(sql(destination, "SELECT GROUP_CONCAT(id ORDER BY id) FROM auth.realmlist;") == "2", "Unexpected active realm after cutover")
     if state["status"] == "complete":
         require(not project_containers(OLD_PROJECT), "Retired original-realm containers reappeared")
         print("Canonical world and preserved accounts verified; original realm already retired.")
         return
+    # Credential preservation is a one-time cutover assertion. Passwords and
+    # account membership may legitimately change after promotion completes.
+    require(account_identity(destination, state["account_identity"]["maximum_id"]) == state["account_identity"],
+            "Final original account credentials differ from the backed-up original")
     # The retired database volume is an offline rollback artifact. No volumes
     # are pruned and no original directory or shared client data is deleted.
     for service, cid in state["original"].items():
@@ -397,6 +444,24 @@ def rollback_preparation() -> None:
     private_json(STATE, state)
 
 
+def record_failure(error: BaseException) -> None:
+    """Persist only a fixed operation category; exception payloads stay private."""
+    operation = "validation_or_operation"
+    timeout = None
+    if isinstance(error, subprocess.TimeoutExpired):
+        operation = "subprocess_timeout"
+        command = error.cmd
+        if isinstance(command, (list, tuple)) and len(command) >= 2 and command[0] == "docker":
+            if command[1] in ("inspect", "stop", "start", "ps", "rm", "update", "exec", "compose"):
+                operation = "docker_" + command[1]
+        if type(error.timeout) in (int, float) and 0 <= error.timeout <= 86400:
+            timeout = error.timeout
+    private_json(STATE.with_name(STATE.stem + "-failure.json"), {
+        "schema_version": 1, "captured_utc": datetime.now(timezone.utc).isoformat(),
+        "exception_type": type(error).__name__, "operation": operation, "timeout_seconds": timeout,
+    })
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare", "finalize"))
@@ -406,7 +471,11 @@ def main() -> None:
             prepare()
         else:
             finalize()
-    except (PromotionError, OSError, subprocess.SubprocessError, ValueError, KeyError):
+    except (PromotionError, OSError, subprocess.SubprocessError, ValueError, KeyError) as error:
+        try:
+            record_failure(error)
+        except Exception:
+            print("Private promotion diagnostics could not be saved.", file=sys.stderr)
         if args.command == "prepare":
             try:
                 rollback_preparation()

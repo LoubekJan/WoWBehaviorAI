@@ -71,6 +71,8 @@ Fyzický průchod vytvořením postavy, smrtí a návratem ke spirit healerovi
 je samostatný herní acceptance test.
 
 Account-web vytváří účty přes interní SOAP `http://worldserver:7878`.
+Worldserver běží bez interaktivní konzole a bez virtuálního terminálu;
+správa příkazů používá interní SOAP, logy zůstávají dostupné přes Docker.
 `TC_SOAP_USER` musí mít administrátorské oprávnění na realm 2 nebo `-1`.
 Registrace nastavuje rozšíření Wrath of the Lich King (2). SOAP se na
 hostu nezveřejňuje; samotný registrační web je na portu 9088.

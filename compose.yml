@@ -117,8 +117,6 @@ services:
     build: *trinity-build
     image: aitc-lab-trinity-dev
     restart: unless-stopped
-    stdin_open: true
-    tty: true
     depends_on:
       lab-mysql:
         condition: service_healthy
