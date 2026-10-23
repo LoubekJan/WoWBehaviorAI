@@ -115,6 +115,28 @@ class AuthSetupTests(unittest.TestCase):
             self.assertFalse(captured.exists())
             self.assertNotIn(env["TC_AUTH_SERVER_PASSWORD"], result.stdout + result.stderr)
 
+    @unittest.skipIf(os.name == "nt", "Execute sourced entrypoint contracts on Linux CI")
+    def test_sourcing_init_scripts_does_not_leak_nounset_errexit_or_pipefail(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
+            directory = Path(temporary)
+            client = directory / "mysql"
+            client.write_text("#!/bin/sh\ncat >/dev/null\n")
+            client.chmod(0o700)
+            env = {**os.environ, "PATH": f"{directory}:{os.environ['PATH']}",
+                   "MYSQL_ROOT_PASSWORD": "test-root", "TC_AUTH_SERVER_USER": "test_owner",
+                   "TC_AUTH_SERVER_PASSWORD": "owner-test", "TC_AUTH_DB_USER": "test_login",
+                   "TC_AUTH_DB_PASSWORD": "login-test", "TC_DB_USER": "test_world", "TC_DB_PASSWORD": "world-test"}
+            program = '''set +eu; set +o pipefail; unset MYSQL_ONETIME_PASSWORD
+. "$1"
+case ":$SHELLOPTS:" in *:errexit:*|*:nounset:*|*:pipefail:*) exit 42;; esac
+test -z "$MYSQL_ONETIME_PASSWORD"
+'''
+            for name in ("deploy/auth/mysql/01-init-users.sh", "deploy/lab/mysql/01-init-users.sh"):
+                with self.subTest(script=name):
+                    result = subprocess.run(["bash", "-c", program, "entrypoint-test", str(ROOT / name)],
+                                            env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

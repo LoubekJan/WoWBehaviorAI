@@ -1,5 +1,7 @@
 #!/bin/bash
 # Runs only for a NEW dedicated auth volume. Never mounts the retired world DB.
+# The official image may source this file; contain shell options and variables.
+(
 set -euo pipefail
 : "${MYSQL_ROOT_PASSWORD:?}"
 : "${TC_AUTH_SERVER_USER:?}"
@@ -41,3 +43,4 @@ CREATE USER IF NOT EXISTS '${TC_AUTH_DB_USER}'@'%' IDENTIFIED BY '${world_passwo
 GRANT ALL PRIVILEGES ON auth.* TO '${TC_AUTH_SERVER_USER}'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON auth.* TO '${TC_AUTH_DB_USER}'@'%';
 SQL
+)

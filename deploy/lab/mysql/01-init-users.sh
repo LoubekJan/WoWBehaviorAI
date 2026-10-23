@@ -1,6 +1,8 @@
 #!/bin/bash
 # Dedicated MySQL instance: world + characters (including AIWorld persistence).
 # No auth database or shared-auth credentials exist in this instance.
+# The official image may source this file; contain shell options and variables.
+(
 set -euo pipefail
 : "${TC_DB_USER:?}"
 : "${TC_DB_PASSWORD:?}"
@@ -24,3 +26,4 @@ CREATE USER IF NOT EXISTS '${TC_DB_USER}'@'%' IDENTIFIED BY '${password}';
 GRANT ALL PRIVILEGES ON world.* TO '${TC_DB_USER}'@'%';
 GRANT ALL PRIVILEGES ON characters.* TO '${TC_DB_USER}'@'%';
 SQL
+)

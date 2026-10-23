@@ -143,11 +143,17 @@ def auth_copy_digest(container: str) -> str:
 def cutover_sql() -> str:
     return """SET SESSION sql_mode='NO_BACKSLASH_ESCAPES';
 START TRANSACTION;
+UPDATE auth.account_access AS destination
+INNER JOIN auth.account_access AS source ON source.AccountID=destination.AccountID AND source.RealmID=1
+SET destination.SecurityLevel=GREATEST(destination.SecurityLevel,source.SecurityLevel)
+WHERE destination.RealmID=2;
 INSERT INTO auth.account_access (AccountID,SecurityLevel,RealmID,Comment)
-SELECT AccountID,SecurityLevel,2,Comment FROM auth.account_access WHERE RealmID=1
-ON DUPLICATE KEY UPDATE SecurityLevel=GREATEST(SecurityLevel,VALUES(SecurityLevel));
-INSERT IGNORE INTO auth.rbac_account_permissions (accountId,permissionId,granted,realmId)
-SELECT accountId,permissionId,granted,2 FROM auth.rbac_account_permissions WHERE realmId=1;
+SELECT source.AccountID,source.SecurityLevel,2,source.Comment FROM auth.account_access AS source
+LEFT JOIN auth.account_access AS destination ON destination.AccountID=source.AccountID AND destination.RealmID=2
+WHERE source.RealmID=1 AND destination.AccountID IS NULL;
+INSERT IGNORE INTO auth.rbac_account_permissions (`accountId`,`permissionId`,`granted`,`realmId`)
+SELECT source.`accountId`,source.`permissionId`,source.`granted`,2
+FROM auth.rbac_account_permissions AS source WHERE source.`realmId`=1;
 DELETE FROM auth.account_access WHERE RealmID=1;
 DELETE FROM auth.rbac_account_permissions WHERE realmId=1;
 DELETE FROM auth.realmcharacters WHERE realmid=1;

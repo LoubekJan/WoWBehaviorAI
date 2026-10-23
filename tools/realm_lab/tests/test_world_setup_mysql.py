@@ -2,7 +2,7 @@
 import os
 import unittest
 
-from tools.realm_lab import manage, world_setup
+from tools.realm_lab import manage, promotion, world_setup
 
 
 @unittest.skipUnless(os.getenv("LAB_TEST_MYSQL") == "1", "Disposable MySQL integration is a CI gate")
@@ -66,6 +66,54 @@ INSERT INTO account_access VALUES (100,3,-1);
                 world_setup.register_world(self.settings)
             self.assertEqual(manage.mysql(self.settings, "SELECT COUNT(*) FROM realmlist WHERE id=1;"), "1")
             manage.mysql(self.settings, cleanup + ";")
+
+    def cutover_fixture(self):
+        manage.mysql(self.settings, """
+ALTER TABLE account ADD username VARCHAR(32), ADD salt BINARY(32), ADD verifier BINARY(32), ADD expansion INT DEFAULT 1;
+ALTER TABLE account_access ADD Comment VARCHAR(255), ADD PRIMARY KEY (AccountID,RealmID);
+ALTER TABLE rbac_account_permissions ADD granted TINYINT DEFAULT 1, ADD PRIMARY KEY (accountId,permissionId,realmId);
+INSERT INTO account(id) VALUES (102);
+UPDATE account SET username=CONCAT('USER',id),salt=UNHEX(REPEAT('11',32)),verifier=UNHEX(REPEAT('22',32));
+UPDATE account SET expansion=2 WHERE id=101;
+UPDATE realmlist SET name='Elwynn' WHERE id=1;
+INSERT INTO realmlist VALUES (2,'AI World Lab','192.168.0.248','192.168.0.248','255.255.255.0',9086,0,12340);
+UPDATE realmcharacters SET numchars=3 WHERE realmid=1;
+INSERT INTO realmcharacters VALUES (2,100,4),(2,101,2);
+INSERT INTO account_access (AccountID,SecurityLevel,RealmID,Comment) VALUES
+ (100,3,1,'old administrator'),(100,1,2,'current lab'),(101,1,1,'old moderator'),
+ (102,1,1,'old player'),(102,3,2,'current administrator');
+INSERT INTO rbac_account_permissions(accountId,permissionId,granted,realmId) VALUES
+ (100,1,0,1),(100,2,1,1),(100,2,0,2),(100,3,1,-1);
+""")
+
+    def test_cutover_preserves_credentials_character_counts_and_permissions_without_ambiguous_columns(self):
+        self.cutover_fixture()
+        identity_sql = "SELECT id,username,HEX(salt),HEX(verifier) FROM account ORDER BY id;"
+        before = manage.mysql(self.settings, identity_sql)
+        counts = manage.mysql(self.settings, "SELECT acctid,numchars FROM realmcharacters WHERE realmid=2 ORDER BY acctid;")
+        manage.mysql(self.settings, promotion.cutover_sql())
+        self.assertEqual(manage.mysql(self.settings, identity_sql), before)
+        self.assertEqual(manage.mysql(self.settings, "SELECT acctid,numchars FROM realmcharacters WHERE realmid=2 ORDER BY acctid;"), counts)
+        self.assertEqual(manage.mysql(self.settings, "SELECT GROUP_CONCAT(id ORDER BY id) FROM realmlist;"), "2")
+        self.assertEqual(manage.mysql(self.settings, "SELECT COUNT(*) FROM account WHERE expansion=2;"), "3")
+        self.assertEqual(manage.mysql(self.settings, "SELECT GROUP_CONCAT(CONCAT(AccountID,':',RealmID,':',SecurityLevel) ORDER BY AccountID,RealmID) FROM account_access;"),
+                         "100:-1:3,100:2:3,101:2:1,102:2:3")
+        self.assertEqual(manage.mysql(self.settings, "SELECT granted FROM rbac_account_permissions WHERE accountId=100 AND permissionId=1 AND realmId=2;"), "0")
+        self.assertEqual(manage.mysql(self.settings, "SELECT granted FROM rbac_account_permissions WHERE accountId=100 AND permissionId=2 AND realmId=2;"), "0")
+        self.assertEqual(manage.mysql(self.settings, "SELECT COUNT(*) FROM rbac_account_permissions WHERE realmId=-1;"), "1")
+        self.assertEqual(manage.mysql(self.settings, "SELECT COUNT(*) FROM realmcharacters WHERE realmid=1;"), "0")
+        manage.mysql(self.settings, promotion.cutover_sql())
+        self.assertEqual(manage.mysql(self.settings, identity_sql), before)
+
+    def test_cutover_sql_error_rolls_back_prior_permission_merges(self):
+        self.cutover_fixture()
+        before = manage.mysql(self.settings, "SELECT * FROM account_access ORDER BY AccountID,RealmID;")
+        manage.mysql(self.settings, "DROP TABLE rbac_account_permissions;")
+        with self.assertRaises(manage.SetupError):
+            manage.mysql(self.settings, promotion.cutover_sql())
+        self.assertEqual(manage.mysql(self.settings, "SELECT * FROM account_access ORDER BY AccountID,RealmID;"), before)
+        self.assertEqual(manage.mysql(self.settings, "SELECT GROUP_CONCAT(id ORDER BY id) FROM realmlist;"), "1,2")
+        self.assertEqual(manage.mysql(self.settings, "SELECT COUNT(*) FROM account WHERE expansion=1;"), "2")
 
 
 if __name__ == "__main__":

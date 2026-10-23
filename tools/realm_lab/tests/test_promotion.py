@@ -104,8 +104,9 @@ class WorldPromotionTests(unittest.TestCase):
 
     def test_cutover_copies_realm_permissions_and_only_deletes_old_realm_references(self):
         sql = promotion.cutover_sql()
-        self.assertIn("FROM auth.account_access WHERE RealmID=1", sql)
-        self.assertIn("GREATEST(SecurityLevel", sql)
+        self.assertIn("FROM auth.account_access AS source", sql)
+        self.assertIn("GREATEST(destination.SecurityLevel,source.SecurityLevel)", sql)
+        self.assertNotIn("ON DUPLICATE KEY UPDATE SecurityLevel", sql)
         self.assertIn("INSERT IGNORE INTO auth.rbac_account_permissions", sql)
         self.assertIn("DELETE FROM auth.realmlist WHERE id=1", sql)
         self.assertIn("DELETE FROM auth.realmcharacters WHERE realmid=1", sql)

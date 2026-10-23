@@ -44,7 +44,7 @@ services:
       - auth-mysql-data:/var/lib/mysql
       - ./deploy/auth/mysql:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: [CMD, mysqladmin, ping, -h, localhost]
+      test: [CMD, mysqladmin, ping, --protocol=TCP, -h, 127.0.0.1]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -108,7 +108,7 @@ services:
       - mysql-data:/var/lib/mysql
       - ./deploy/lab/mysql:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: [CMD, mysqladmin, ping, -h, localhost]
+      test: [CMD, mysqladmin, ping, --protocol=TCP, -h, 127.0.0.1]
       interval: 5s
       timeout: 5s
       retries: 30
