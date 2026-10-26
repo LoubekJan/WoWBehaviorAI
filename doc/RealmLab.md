@@ -315,6 +315,49 @@ samostatně. Jde o krátké provozní řetězce, nikoliv dlouhodobou rovnováhu
 nebo patnáctiminutové pozorování nehybnosti. Perzistence přes restart
 zůstává odložená podle zadání.
 
+## Spotřebitelé zásob — consumers-v8
+
+Profil `consumers-v8` navazuje na stejné zásobování a mapu `preview-v8`.
+Přidává pouze tři existující NPC:
+
+| Spawn | Původní role | Vlastní zásobárna |
+|---|---|---|
+| 901035, 901036 | Pracovníci jižní vesnice | Jižní vesnice, sklad 1 |
+| 901063 | Gnoll, původní bojová role | Gnollí tábor, sklad 2 |
+
+Jde o schopnost spotřebitele; jejich klasifikace, frakce, domovy a běžné
+chování se nemění. Nezískávají lov ani převoz. Při hladu dojdou ke svému
+skladu, dokončí vlastní pětisekundové jídlo a atomicky odeberou jednu
+porci. Hlad klesne pouze po úspěšném odběru. Při prázdném skladu čekají
+a zkusí to později; dvě NPC nemohou spotřebovat tutéž poslední porci.
+Přerušená animace, cizí akce ani jídlo mimo dosah a dohled skladu
+nemají účinek. Po jídle se vrátí domů a pokračují v běžné činnosti.
+U této skupiny běžná práce nevytváří osobní potraviny a běžná animace
+jídla neobchází společnou bilanci.
+
+Před první aktivací vytvoř `make backup`. Po úspěšném buildu nastav
+v privátním `.env` a nasaď:
+
+```dotenv
+LAB_AI_PROFILE=consumers-v8
+LAB_WILDLIFE_ENABLED=1
+```
+
+Offline bootstrap ověří původní populaci a rozšíří existujících 23 vazeb
+o tyto tři: výsledkem je **26 řízených + 74 nativních = 100 NPC**.
+Nový přepínač `AIWorld.LivingConsumersEnabled` se zapne jen pro tento
+profil. Pro pauzu ponech profil `consumers-v8` a nastav
+`LAB_WILDLIFE_ENABLED=0`; návrat na starší profil po založení vazeb
+neprojde jeho přísnou kontrolou vlastnictví. Potřeby, zásobárny a nové
+čítače zůstávají pouze v paměti a při restartu se resetují podle zadání.
+
+Viewer rozlišuje schopnost `CONSUMER` od původní role NPC a ukazuje
+sklad, fázi cesty a skutečnou spotřebu. Fyzické přijetí přes
+`tools/realm_lab/consumer_acceptance.py` vyžaduje souvislý záznam
+příchodu, dokončeného jídla s úbytkem zásob a hladu a návratu všech tří
+spotřebitelů. Současně ověřuje původní lovecký řetězec a zachování bilance.
+Výsledky jednotkových testů nepředstavují samy o sobě runtime důkaz.
+
 ## Telemetrie a navazující vývoj
 
 Viewer na portu 9091 ukazuje vybraných 100 NPC: živou

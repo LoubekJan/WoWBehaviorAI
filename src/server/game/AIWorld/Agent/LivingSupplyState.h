@@ -94,18 +94,19 @@ namespace LivingSupply
         }
 
         bool RegisterActor(uint64 actor, uint32 depotId = 0, uint32 cargoCapacity = HunterCargoCapacity,
-            bool predator = false)
+            bool predator = false, bool consumer = false)
         {
-            if (!actor || (predator ? (depotId || cargoCapacity) :
+            if (!actor || (predator && consumer) || (consumer ? (!GetDepot(depotId) || cargoCapacity) :
+                predator ? (depotId || cargoCapacity) :
                 (!GetDepot(depotId) || !cargoCapacity || cargoCapacity > HunterCargoCapacity)))
                 return false;
             auto current = _actors.find(actor);
             if (current != _actors.end())
                 return current->second.DepotId == depotId && current->second.Capacity == cargoCapacity &&
-                    current->second.Predator == predator;
+                    current->second.Predator == predator && current->second.Consumer == consumer;
             if (_actors.size() >= 128)
                 return false;
-            _actors.emplace(actor, Actor{depotId, cargoCapacity, predator});
+            _actors.emplace(actor, Actor{depotId, cargoCapacity, predator, consumer});
             return true;
         }
 
@@ -141,7 +142,7 @@ namespace LivingSupply
                 (kind != ClaimKind::Harvest && kind != ClaimKind::PredatorMeal))
                 return std::nullopt;
             auto& owner = actor->second;
-            if (owner.Predator != (kind == ClaimKind::PredatorMeal) ||
+            if (owner.Consumer || owner.Predator != (kind == ClaimKind::PredatorMeal) ||
                 requested > (owner.Predator ? PredatorMealPortions : owner.Capacity))
                 return std::nullopt;
             if (owner.Pending)
@@ -258,7 +259,7 @@ namespace LivingSupply
             if (auto replay = ReplayEvent(owner, eventSerial, EventKind::Delivery, depotId, requested))
                 return *replay;
             auto depot = _depots.find(depotId);
-            if (!physicallyCompleted || !eventSerial || !requested || owner.Predator ||
+            if (!physicallyCompleted || !eventSerial || !requested || owner.Predator || owner.Consumer ||
                 owner.DepotId != depotId || depot == _depots.end())
                 return Rejected("DELIVERY_NOT_AUTHORIZED");
             uint32 amount = std::min({requested, owner.Cargo, depot->second.Capacity - depot->second.Stock});
@@ -349,6 +350,7 @@ namespace LivingSupply
             uint32 DepotId;
             uint32 Capacity;
             bool Predator;
+            bool Consumer;
             uint32 Cargo = 0;
             std::optional<Claim> Pending;
             std::optional<std::pair<Token, Result>> LastCommitted;

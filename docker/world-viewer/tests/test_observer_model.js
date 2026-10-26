@@ -166,3 +166,19 @@ test("food depots are deduplicated current observations on the selected map", ()
   assert.deepEqual(model.foodDepots([{ ...hunter, position: { ...base.position, source: "spawn" } }], 725), []);
   assert.equal(model.foodDepots([hunter], 725)[0].stock, 4);
 });
+
+test("consumer facts show meals and ordinary work without invented hunting cargo", () => {
+  const consumer = { ...base, supply: { enabled: true, role: "CONSUMER", phase: "ORDINARY", cargo: 0, capacity: 0,
+    harvested: "0", delivered: "0", consumed: "2", lost: "0", last_result: "ATE_DEPOT",
+    depot: { name: "Jižní vesnice", stock: 1, capacity: 30, low_threshold: 4, delivered: "6", consumed: "5" } } };
+  const rows = Object.fromEntries(model.supplyFacts(consumer));
+  assert.equal(rows["Zásobování"], "Spotřebitel");
+  assert.equal(rows["Právě dělá"], "Běžná činnost");
+  assert.equal(rows["Snědeno"], "2");
+  assert.equal(rows["Zásobárna"], "Jižní vesnice");
+  assert.equal(rows["Náklad"], null);
+  assert.equal(rows["Získáno z kořisti"], null);
+  assert.equal(rows["Doručeno"], null);
+  consumer.supply.phase = "NO_FOOD";
+  assert.equal(Object.fromEntries(model.supplyFacts(consumer))["Právě dělá"], "Čeká na jídlo");
+});

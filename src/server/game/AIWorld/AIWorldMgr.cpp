@@ -849,6 +849,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _livingRolesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRolesEnabled", false);
     _livingRoleExtensionsEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRoleExtensionsEnabled", false);
     _livingSupplyEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingSupplyEnabled", false);
+    _livingConsumersEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingConsumersEnabled", false);
     InitializeLivingSupply();
     _livingRecoverySpawnId = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("AIWorld.LocalRecoverySpawnId", 0)));
     _recoveryAdviceEnabled = sConfigMgr->GetBoolDefault("AIWorld.RecoveryAdviceEnabled", false);

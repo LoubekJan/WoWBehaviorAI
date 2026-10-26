@@ -434,3 +434,103 @@ TEST_CASE("Supply search counts eight real attempts independently of denied turn
     REQUIRE(actor.EmptySearches == 8);
     REQUIRE_FALSE(actor.PendingSearch.has_value());
 }
+
+TEST_CASE("Depot consumers require an explicit zero-cargo capability and cannot become harvesters", "[AIWorld][LivingSupply][Consumers]")
+{
+    auto ledger = SupplyFixture();
+    REQUIRE_FALSE(ledger.RegisterActor(301, 1, 0));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 3, 0, false, true));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 1, 6, false, true));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 0, 0, true, true));
+    REQUIRE(ledger.RegisterActor(301, 1, 0, false, true));
+    REQUIRE(ledger.RegisterActor(301, 1, 0, false, true));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 1, 6));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 2, 0, false, true));
+    REQUIRE(ledger.RegisterCarcass({401, 1}, 1, 30000));
+    REQUIRE_FALSE(ledger.Reserve(301, {401, 1}, ClaimKind::Harvest, 1, 2));
+    REQUIRE_FALSE(ledger.Reserve(301, {401, 1}, ClaimKind::PredatorMeal, 1, 2));
+    REQUIRE_FALSE(ledger.Deliver(301, 1, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.Commit({301, 1}, 3).Success);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    REQUIRE(ledger.GetCarcass({401, 1})->Remaining == 6);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    Conserved(ledger);
+}
+
+TEST_CASE("Two consumers compete atomically for the final depot portion", "[AIWorld][LivingSupply][Consumers]")
+{
+    auto ledger = SupplyFixture(1);
+    REQUIRE(ledger.RegisterActor(301, 1, 0, false, true));
+    REQUIRE(ledger.RegisterActor(302, 1, 0, false, true));
+    auto first = ledger.EatDepot(301, 1, 1, 1, true);
+    REQUIRE(first.Success);
+    REQUIRE_FALSE(first.Duplicate);
+    REQUIRE(first.Portions == 1);
+    auto other = ledger.EatDepot(302, 1, 1, 1, true);
+    REQUIRE_FALSE(other.Success);
+    REQUIRE(other.Portions == 0);
+    REQUIRE(std::string(other.Reason) == "NO_FOOD");
+    REQUIRE(ledger.GetDepot(1)->Stock == 0);
+    REQUIRE(ledger.GetCounters().DepotConsumed == 1);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    auto replay = ledger.EatDepot(301, 1, 1, 1, true);
+    REQUIRE(replay.Success);
+    REQUIRE(replay.Duplicate);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    Conserved(ledger);
+}
+
+TEST_CASE("A consumer at an empty or interrupted depot meal receives no successful receipt", "[AIWorld][LivingSupply][Consumers]")
+{
+    auto ledger = SupplyFixture(1);
+    REQUIRE(ledger.RegisterActor(301, 1, 0, false, true));
+    REQUIRE_FALSE(ledger.EatDepot(301, 1, 1, 1, false).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 1);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 0);
+    REQUIRE_FALSE(ledger.EatDepot(301, 1, 2, 1, true).Success);
+    REQUIRE(ledger.EatDepot(301, 1, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(301, 2, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(301, 3, 1, 1, true).Success);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    Conserved(ledger);
+}
+
+TEST_CASE("Consumer meals debit food actually delivered by a hunter without granting cargo", "[AIWorld][LivingSupply][Consumers]")
+{
+    auto ledger = SupplyFixture();
+    REQUIRE(ledger.RegisterActor(301, 1, 0, false, true));
+    REQUIRE_FALSE(ledger.EatDepot(301, 1, 1, 1, true).Success);
+    Harvest(ledger, 101, {401, 1});
+    REQUIRE(ledger.Deliver(101, 1, 1, 6, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 6);
+    REQUIRE(ledger.EatDepot(301, 1, 1, 1, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 5);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 6);
+    REQUIRE(ledger.GetCounters().DeliveredTotal == 6);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    REQUIRE(ledger.ConfigureDepot(1));
+    REQUIRE(ledger.GetDepot(1)->Stock == 5);
+    Conserved(ledger);
+}
+
+TEST_CASE("Only the reviewed two workers and gnoll gatherer acquire depot-consumer capability", "[AIWorld][LivingSupply][Consumers]")
+{
+    for (auto const& spec : LivingSupply::Consumers)
+    {
+        REQUIRE(LivingSupply::ConsumerCapability(spec.Spawn, 725, spec.Type, AgentControlMode::AIWorldControlled, true));
+        REQUIRE_FALSE(LivingSupply::ConsumerCapability(spec.Spawn, 725, spec.Type, AgentControlMode::ObserveOnly, true));
+        REQUIRE_FALSE(LivingSupply::ConsumerCapability(spec.Spawn, 0, spec.Type, AgentControlMode::AIWorldControlled, true));
+        REQUIRE_FALSE(LivingSupply::ConsumerCapability(spec.Spawn, 725, spec.Type, AgentControlMode::AIWorldControlled, false));
+        REQUIRE_FALSE(LivingSupply::ConsumerCapability(spec.Spawn, 725, AgentType::Predator, AgentControlMode::AIWorldControlled, true));
+        REQUIRE_FALSE(LivingSupply::HunterCapability(spec.Spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+    }
+    REQUIRE_FALSE(LivingSupply::ConsumerCapability(901063, 725, AgentType::Civilian, AgentControlMode::AIWorldControlled, true));
+    REQUIRE_FALSE(LivingSupply::ConsumerCapability(901035, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+    REQUIRE_FALSE(LivingSupply::ConsumerCapability(901034, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+    REQUIRE_FALSE(LivingSupply::ConsumerCapability(901037, 725, AgentType::Civilian, AgentControlMode::AIWorldControlled, true));
+    REQUIRE(LivingSupply::Consumer(901035)->Depot == 1);
+    REQUIRE(LivingSupply::Consumer(901036)->Depot == 1);
+    REQUIRE(LivingSupply::Consumer(901063)->Depot == 2);
+}

@@ -47,7 +47,16 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    lovci doručili potravu a jedli, doloženo je šest doručení a pět jídel.
    Bilance je `0 + 51 = 31 + 0 + 20 + 0` porcí. Důkazy jsou připnuté
    ke konkrétním revizím; další změny se ověřují samostatně.
-3. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
+3. **Spotřeba obyvatel — rozšíření `consumers-v8`.** Dva pracovníci jižní
+   vesnice 901035/901036 a gnoll 901063 mají vlastní sklad, ke kterému
+   při hladu dojdou. Jedna dokončená pětisekundová porce sníží zásobu a
+   teprve potom hlad. Prázdný sklad hlad nesníží; běžná práce jim nevyrábí
+   osobní jídlo. Následuje cesta domů a původní běžné chování. Profil má
+   26 řízených a 74 nativních NPC; mapová data a domovy zůstávají stejné.
+   Runtime přijetí vyžaduje záznam všech tří skutečných jídel a návratů,
+   zachování bilance a regresní ověření zásobování lovci. Implementace ani
+   navigační průchodnost samy nejsou důkazem fyzického chování.
+4. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
    pravidla mají stavět na fungujícím pohybu, potravě a zásobování.
 
 **Perzistence individuálních potřeb je odložená.** Podle rozhodnutí z

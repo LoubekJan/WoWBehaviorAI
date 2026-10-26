@@ -8,8 +8,9 @@ import time
 import urllib.request
 
 try:
-    from . import settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
+    from . import consumer_population as consumers, settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
 except ImportError:
+    import consumer_population as consumers
     import settlement_population as settlement
     import supply_population as supply
     import wildlife_population as wildlife
@@ -17,7 +18,7 @@ except ImportError:
 
 def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) -> dict[str, int]:
     require = settlement.require
-    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE), "Unknown authored-world telemetry profile")
+    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE), "Unknown authored-world telemetry profile")
     require(isinstance(state, dict) and state.get("stale") is False and state.get("version") == 4,
             "Authored-world telemetry must be a fresh version-4 snapshot")
     require(type(state.get("captured_at_ms")) is int and state["captured_at_ms"] > 0,
@@ -28,8 +29,8 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
     ids = [a.get("spawn_id") for a in actors]
     require(all(type(identity) is int for identity in ids) and set(ids) == settlement.SPAWN_IDS,
             "Telemetry population differs from the reviewed 100 spawns")
-    active = (supply.SPAWN_IDS if profile == supply.PROFILE else wildlife.SPAWN_IDS) \
-        if profile in (wildlife.PROFILE, supply.PROFILE) and wildlife_enabled else frozenset()
+    active = {wildlife.PROFILE: wildlife.SPAWN_IDS, supply.PROFILE: supply.SPAWN_IDS,
+              consumers.PROFILE: consumers.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
     live_roles = 0
     for actor in actors:
         identity = actor["spawn_id"]
@@ -49,8 +50,8 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 "Controlled wildlife needs are unavailable or invalid")
         role = actor.get("living_role")
         if actor.get("alive") is True and (actor.get("position") or {}).get("source") == "live":
-            expected_role = "HUNTER" if identity in supply.HUNTER_IDS else \
-                "PREDATOR" if identity in wildlife.PREDATOR_IDS else "PREY"
+            expected_role = consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
+                "PREDATOR" if identity in wildlife.PREDATOR_IDS else "PREY")
             require(isinstance(role, dict) and role.get("enabled") is True and role.get("extensions_enabled") is True and
                     role.get("role") == expected_role,
                     "Live wildlife role is disabled or misclassified")
@@ -75,6 +76,27 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 require(isinstance(supplied.get("accounting"), dict) and
                         supplied["accounting"].get("conserved") is True,
                         "Supply food conservation invariant failed or is unavailable")
+            elif identity in consumers.CONSUMER_IDS:
+                expected_type = "CIVILIAN" if consumers.CONSUMER_TYPES[identity] == 0 else "COMBATANT"
+                require(actor.get("type") == expected_type and type(actor.get("world_faction")) is int and
+                        actor["world_faction"] == consumers.CONSUMER_FACTIONS[identity],
+                        "Consumer ordinary type or faction changed")
+                supplied = actor.get("supply")
+                depot_id = consumers.CONSUMER_DEPOTS[identity]
+                require(isinstance(supplied, dict) and supplied.get("enabled") is True and
+                        supplied.get("role") == "CONSUMER" and supplied.get("depot_id") == depot_id and
+                        type(supplied.get("cargo")) is int and supplied["cargo"] == 0 and
+                        type(supplied.get("capacity")) is int and supplied["capacity"] == 0,
+                        "Consumer depot capability must not acquire hunting or cargo")
+                depot = supplied.get("depot")
+                require(isinstance(depot, dict) and depot.get("id") == depot_id and
+                        (depot.get("position") or {}).get("map_id") == 725 and
+                        type(depot.get("stock")) is int and type(depot.get("capacity")) is int and
+                        0 <= depot["stock"] <= depot["capacity"] and depot["capacity"] > 0,
+                        "Consumer depot snapshot is missing or unbounded")
+                require(isinstance(supplied.get("accounting"), dict) and
+                        supplied["accounting"].get("conserved") is True,
+                        "Consumer food conservation invariant failed or is unavailable")
             live_roles += 1
     require(not active or live_roles > 0, "No living controlled wildlife role is observable")
     return {"total": 100, "managed": len(active), "native": 100 - len(active), "live_roles": live_roles}

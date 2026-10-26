@@ -172,6 +172,12 @@ služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
 
 ## Příprava zásobování lovem
 
+Navazující profil `consumers-v8` přidává ke třem lovcům dva pracovníky
+jižní vesnice (901035/901036) a gnolla 901063 jako spotřebitele jejich
+vlastních zásobáren. Po jeho aktivaci jde o 26 řízených a 74 nativních NPC;
+všech 100 původních spawnů a jejich domovy zůstává zachováno. Postup a
+ověřovací podmínky jsou v [doc/RealmLab.md](doc/RealmLab.md#spotřebitelé-zásob--consumers-v8).
+
 Volitelný profil `supply-v8` přidává ke stávající zvěři lidského lovce
 901034, dva gnollí lovce 901061/901062 a dvě zásobárny. Po aktivaci jde
 o 23 řízených a 77 nativních NPC na stejné mapě. První fyzický řetězec

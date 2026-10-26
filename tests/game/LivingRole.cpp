@@ -31,6 +31,24 @@
 #include <limits>
 #include <string>
 
+TEST_CASE("Depot consumers keep ordinary work without free personal meals", "[AIWorld][LivingRole][LivingSupply]")
+{
+    using namespace LivingRolePolicy;
+    // Hunger and old personal stock cannot bypass the shared depot, even
+    // during recovery. The same worker still works during a normal work cycle.
+    for (Role role : {Role::Worker, Role::Combatant})
+    {
+        REQUIRE(IdleActivity(role, 2, true, 1.0f, 0.0f, true) != Activity::Eat);
+        REQUIRE(RecoveryActivity(role, 1.0f, false, true) != Activity::Eat);
+        REQUIRE(CuratedSelfCare(role, 1.0f, 0.0f, 20, true) == Activity::None);
+        REQUIRE(CuratedSelfCare(role, 1.0f, 1.0f, 20, true) == Activity::Rest);
+        REQUIRE(RecoveryActivity(role, 1.0f, true, true) == Activity::Look);
+        REQUIRE(IdleActivity(role, 2, true, 1.0f, 0.0f) == Activity::Eat);
+    }
+    REQUIRE(IdleActivity(Role::Worker, 2, true, 1.0f, 0.0f, true) == Activity::Work);
+    REQUIRE(RecoveryActivity(Role::Prey, 1.0f, false) == Activity::Graze);
+}
+
 TEST_CASE("Defias social allies can assist despite mutually neutral native templates", "[AIWorld][LivingRole]")
 {
     // FT 2300 is the accepted clone of native FT 7: same zero reaction

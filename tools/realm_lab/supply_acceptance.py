@@ -64,7 +64,7 @@ class Track:
 
 
 class _Evaluator:
-    def __init__(self, minimum_seconds=900, max_gap_seconds=5):
+    def __init__(self, minimum_seconds=900, max_gap_seconds=5, *, consumers=None):
         if not finite(minimum_seconds) or minimum_seconds <= 0 or not finite(max_gap_seconds) or max_gap_seconds <= 0:
             raise ValueError("observation windows must be finite and positive")
         manifest = json.loads(wildlife.MANIFEST.read_text(encoding="utf-8"))
@@ -72,6 +72,13 @@ class _Evaluator:
         self.bounds = manifest["bounds"]
         self.depots = {d["id"]: d["position"] for d in population.DEPOTS}
         self.grounds = {g["id"]: g["position"] for g in population.GROUNDS}
+        # The default gate remains the reviewed 23-owner supply profile. The
+        # consumer evaluator supplies its separately reviewed, fixed roster.
+        self.consumers = consumers or {}
+        self.owned_ids = OWNED_IDS | self.consumers.keys()
+        self.depot_members = {1: (901034,), 2: (901061, 901062)}
+        for sid, spec in self.consumers.items():
+            self.depot_members[spec["depot"]] += (sid,)
         self.tracks = {sid: Track() for sid in sorted(HUNTER_IDS)}
         self.minimum_seconds, self.max_gap = minimum_seconds, max_gap_seconds
         self.quality = Counter()
@@ -179,7 +186,7 @@ class _Evaluator:
         for sid, actor in by_id.items():
             if sid not in self.actors:
                 continue
-            owned = sid in OWNED_IDS
+            owned = sid in self.owned_ids
             if actor.get("agent_id") != sid:
                 self.violation("agent_spawn_identity_mismatch", sid)
             if actor.get("native_creature") is not (not owned) or actor.get("control_mode") != ("AI_WORLD_CONTROLLED" if owned else "OBSERVE_ONLY"):
@@ -196,8 +203,8 @@ class _Evaluator:
                 if actor.get("supply") is not None or actor.get("needs") is not None or actor.get("living_role") is not None:
                     self.violation("native_acquired_ai_state", sid)
             else:
-                expected_type = "COMBATANT" if sid in HUNTER_IDS else "PREDATOR" if sid in PREDATOR_IDS else "PREY"
-                faction = (1 if sid == 901034 else 3) if sid in HUNTER_IDS else 0
+                expected_type = self.consumers[sid]["type"] if sid in self.consumers else "COMBATANT" if sid in HUNTER_IDS else "PREDATOR" if sid in PREDATOR_IDS else "PREY"
+                faction = self.consumers[sid]["faction"] if sid in self.consumers else (1 if sid == 901034 else 3) if sid in HUNTER_IDS else 0
                 if actor.get("type") != expected_type or actor.get("world_faction") != faction:
                     self.violation("role_or_faction_changed", sid)
                 pos = actor.get("position") or {}
@@ -242,7 +249,7 @@ class _Evaluator:
             return None
         result = dict(agent=actor, position=xyz, role=role, alive=alive, guid=guid, life=life,
                       t=t, capture=capture, epoch=self.epoch, hunger=needs.get("hunger"), movement=movement)
-        if sid not in HUNTER_IDS | PREDATOR_IDS:
+        if sid not in HUNTER_IDS | PREDATOR_IDS | self.consumers.keys():
             return result
         supply = actor.get("supply")
         if not isinstance(supply, dict) or supply.get("enabled") is not True:
@@ -260,17 +267,23 @@ class _Evaluator:
                 self.violation("invalid_carcass_identity_or_quantity", sid)
             else:
                 result.update(source=(source, incarnation), remaining=remaining)
-        if sid in HUNTER_IDS:
-            expected = 1 if sid == 901034 else 2
+        if sid in HUNTER_IDS or sid in self.consumers:
+            consumer = sid in self.consumers
+            expected = self.consumers[sid]["depot"] if consumer else 1 if sid == 901034 else 2
             depot, ground = supply.get("depot"), supply.get("hunting_ground")
-            if supply.get("role") != "HUNTER" or supply.get("depot_id") != expected:
+            if supply.get("role") != ("CONSUMER" if consumer else "HUNTER") or supply.get("depot_id") != expected:
                 self.violation("hunter_depot_or_capability_changed", sid)
                 return None
-            if not isinstance(depot, dict) or point(depot.get("position")) is None or point(ground) is None:
+            if consumer and (supply["cargo"] != 0 or supply["capacity"] != 0 or
+                any(counters[key] != 0 for key in ("harvested", "delivered", "lost")) or
+                any(supply.get(key) is not None for key in ("hunting_ground", "carcass_remaining", "carcass_spawn_id", "carcass_life"))):
+                self.violation("consumer_acquired_hunting_or_cargo_capability", sid)
+                return None
+            if not isinstance(depot, dict) or point(depot.get("position")) is None or not consumer and point(ground) is None:
                 self.quality["missing_depot_or_hunting_ground"] += 1
                 return None
-            if depot.get("id") != expected or any(p.get("map_id") != 725 or dist3(point(p), point(want)) > 0.05 for p, want in
-                ((depot["position"], self.depots[expected]), (ground, self.grounds[expected]))):
+            anchors = ((depot["position"], self.depots[expected]),) if consumer else ((depot["position"], self.depots[expected]), (ground, self.grounds[expected]))
+            if depot.get("id") != expected or any(p.get("map_id") != 725 or dist3(point(p), point(want)) > 0.05 for p, want in anchors):
                 self.violation("depot_or_hunting_ground_moved", sid)
                 return None
             if (not quantity(depot.get("stock")) or not positive_int(depot.get("capacity")) or not quantity(depot["capacity"]) or depot["stock"] > depot["capacity"] or
@@ -318,7 +331,7 @@ class _Evaluator:
         # Two gnolls can deliver and eat in the same producer tick. Reconcile
         # all owners of one depot instead of pretending the net stock change
         # belongs to whichever actor happens to be checked first.
-        for depot_id, members in ((1, (901034,)), (2, (901061, 901062))):
+        for depot_id, members in self.depot_members.items():
             if not all(sid in rows and sid in self.previous_rows and "depot" in rows[sid] and
                        "depot" in self.previous_rows[sid] for sid in members):
                 continue
@@ -345,7 +358,7 @@ class _Evaluator:
             return
         self.fresh += 1
         rows = {}
-        for sid in sorted(OWNED_IDS & by_id.keys()):
+        for sid in sorted(self.owned_ids & by_id.keys()):
             row = self.row(by_id[sid], t, capture)
             if row is not None:
                 rows[sid] = row
@@ -380,7 +393,11 @@ class _Evaluator:
                 self.interrupt(sid, "hunter_not_live")
                 continue
             self.update_hunter(sid, row, prey)
+        self.update_consumers(rows)
         self.previous_rows, self.previous_prey, self.previous_sources = rows, prey, sources
+
+    def update_consumers(self, rows):
+        pass
 
     def update_hunter(self, sid, row, prey):
         track = self.tracks[sid]
@@ -528,7 +545,7 @@ class _Evaluator:
         chosen = max(epochs, key=lambda epoch: (len(coverage(epoch)), any(m["epoch"] == epoch for m in meals), epoch))
         missing = []
         if not self.population_frames:
-            missing.append("one_fresh_complete_population_of_23_owned_and_77_native")
+            missing.append(f"one_fresh_complete_population_of_{len(self.owned_ids)}_owned_and_{100 - len(self.owned_ids)}_native")
         for sid in sorted(HUNTER_IDS):
             if chosen not in self.tracks[sid].movements:
                 missing.append(f"physical_movement_at_least_2_yards_{sid}")
@@ -539,8 +556,8 @@ class _Evaluator:
         violations = list(self.violations.values())
         status = "FAIL" if violations else "INCONCLUSIVE" if missing else "PASS"
         return dict(profile="supply-v8", status=status, exit_code=EXIT_CODES[status], samples=self.samples,
-            fresh_samples=self.fresh, complete_population_frames=self.population_frames, expected_owned=23,
-            expected_native=77, selected_epoch=chosen, delivered_hunters=sorted(coverage(chosen)), cycles=cycles, meals=meals,
+            fresh_samples=self.fresh, complete_population_frames=self.population_frames, expected_owned=len(self.owned_ids),
+            expected_native=100 - len(self.owned_ids), selected_epoch=chosen, delivered_hunters=sorted(coverage(chosen)), cycles=cycles, meals=meals,
             agents={str(sid): dict(live_samples=t.samples, maximum_displacement_yards=round(t.maximum_displacement, 3),
                 continuous_seconds=round(t.continuous_seconds, 3), movements=t.movements, cycles=len(t.cycles),
                 partial_cycle=t.cycle or t.partial, interruptions=dict(t.interruptions)) for sid, t in self.tracks.items()},

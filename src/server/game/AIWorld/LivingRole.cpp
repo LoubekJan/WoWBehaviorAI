@@ -646,6 +646,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     bool service = IsService(creature);
     Role role = ResolveLivingRole(record, creature);
     bool supplyHunter = IsSupplyHunter(record);
+    bool supplyConsumer = IsSupplyConsumer(record);
     if (!scoped || role == Role::None || IsLivingWolf(record) || creature.IsPet() ||
         !creature.GetCharmerOrOwnerGUID().IsEmpty() || creature.IsControlledByPlayer())
     {
@@ -1033,7 +1034,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             return false;
         // The supply cohort has reviewed distant hunting grounds. Every leg
         // still executes with strict scoped recovery navigation and danger checks.
-        if (supplyHunter && request.Type == ActionType::MoveTo && request.Destination &&
+        if ((supplyHunter || supplyConsumer) && request.Type == ActionType::MoveTo && request.Destination &&
             request.SourceGoal == GoalType::LocalActivity)
         {
             approvedRecovery = RecoveryMovement{*request.Destination, homePoint, 384.0f,
@@ -1362,6 +1363,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         state.NextDecisionAtMs = nowMs + 2000;
     }
     auto supplyStep = [&](ActionPosition const& destination) { return FoodSupplyStep(creature, destination); };
+    if (supplyConsumer && UpdateLivingSupplyConsumer(record, creature, nowMs, start, supplyStep))
+        return true;
     if (supplyHunter && UpdateLivingSupplyHunter(record, creature, nowMs, start, supplyStep))
         return true;
     if (state.CurrentPhase == Phase::Hunting || state.CurrentPhase == Phase::Feeding)
@@ -1539,7 +1542,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         uint64 duration = state.Activity == Activity::Rest ? 20000 : extensions && state.Activity == Activity::Work ? 15000 : 5000;
         if (!WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, duration))
             return true;
-        if (state.Activity == Activity::Graze || state.Activity == Activity::Eat)
+        if (!supplyConsumer && (state.Activity == Activity::Graze || state.Activity == Activity::Eat))
         {
             // A curated stock meal is not free food if the stock was removed
             // during the animation. Interrupted animations never reach here.
@@ -1549,7 +1552,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 { fed = LivingRolePolicy::ConsumeStockMeal(economy); });
             if (fed) _needsSystem.SatisfyHunger(record.Needs);
         }
-        if (extensions && state.Activity == Activity::Work)
+        if (extensions && !supplyConsumer && state.Activity == Activity::Work)
         {
             uint64 window = nowMs - nowMs % _routineScheduleConfig.DayLengthMs + _routineScheduleConfig.WorkStartMs;
             uint64 dayTime = nowMs % _routineScheduleConfig.DayLengthMs;
@@ -1580,7 +1583,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (extensions && !record.GroupCoordinationGoalState && !record.ActiveActionState &&
             !creature.IsInCombat() && creature.IsStopped() && nowMs >= state.NextDecisionAtMs)
         {
-            if (!record.EconomyState.Food && record.Needs.Hunger >= 0.65f &&
+            if (!supplyConsumer && !record.EconomyState.Food && record.Needs.Hunger >= 0.65f &&
                 LivingRolePolicy::CanGatherFood(role, creature.GetEntry()))
             {
                 auto const& work = *record.WorkLocation;
@@ -1609,7 +1612,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.NextDecisionAtMs = nowMs + 30000;
                 state.MovementPurpose = "FOOD_SUPPLY_BLOCKED";
             }
-            Activity care = LivingRolePolicy::CuratedSelfCare(role, record.Needs.Hunger, record.Needs.Fatigue, record.EconomyState.Food);
+            Activity care = LivingRolePolicy::CuratedSelfCare(role, record.Needs.Hunger, record.Needs.Fatigue,
+                record.EconomyState.Food, supplyConsumer);
             if (care != Activity::None)
             {
                 ActionRequest request;
@@ -1670,7 +1674,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         watch.Type = ActionType::Ambient; watch.SourceGoal = GoalType::LocalActivity;
         bool unsafe = rememberedDanger && creature.GetExactDist2d(rememberedDanger->X, rememberedDanger->Y) <
             LivingRolePolicy::SafetyRadius(record.Id.Value) && nowMs >= state.BlockedThreatUntilMs;
-        watch.AmbientActivity = LivingRolePolicy::RecoveryActivity(role, record.Needs.Hunger, unsafe);
+        watch.AmbientActivity = LivingRolePolicy::RecoveryActivity(role, record.Needs.Hunger, unsafe, supplyConsumer);
         if (watch.AmbientActivity == Activity::Rest && creature.GetStandState() != UNIT_STAND_STATE_STAND)
             watch.AmbientActivity = Activity::Look;
         bool paused = preservePendingReturn && resumingPlan &&
@@ -2046,7 +2050,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
 
     uint32 dayTime = uint32(nowMs % _routineScheduleConfig.DayLengthMs);
     bool workHours = dayTime >= _routineScheduleConfig.WorkStartMs && dayTime < _routineScheduleConfig.WorkEndMs;
-    Activity activity = LivingRolePolicy::IdleActivity(role, cycle, workHours, record.Needs.Hunger, record.Needs.Fatigue);
+    Activity activity = LivingRolePolicy::IdleActivity(role, cycle, workHours, record.Needs.Hunger,
+        record.Needs.Fatigue, supplyConsumer);
     if (anchored && (activity == Activity::Roam || activity == Activity::Rest)) activity = Activity::Look;
     if (rememberedDanger && activity == Activity::Rest) activity = Activity::Look;
 

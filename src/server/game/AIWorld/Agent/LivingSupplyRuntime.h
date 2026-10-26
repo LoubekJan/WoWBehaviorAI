@@ -18,6 +18,12 @@ namespace LivingSupply
         {901061, 2, {725, 245.0f, 1020.0f, 10.5024320642f}},
         {901062, 2, {725, 245.0f, 1020.0f, 10.5024320642f}}
     }};
+    struct ConsumerSpec { uint64 Spawn; uint32 Depot; AgentType Type; };
+    inline constexpr std::array<ConsumerSpec, 3> Consumers{{
+        {901035, 1, AgentType::Civilian},
+        {901036, 1, AgentType::Civilian},
+        {901063, 2, AgentType::Combatant}
+    }};
     struct DepotSpec { uint32 Id; char const* Name; ActionPosition Point; };
     inline constexpr std::array<DepotSpec, 2> Depots{{
         {1, "South village", {725, -372.4611532703f, 492.6821677284f, 0.15f}},
@@ -33,6 +39,17 @@ namespace LivingSupply
     {
         return enabled && map == 725 && type == AgentType::Combatant &&
             control == AgentControlMode::AIWorldControlled && Hunter(spawn);
+    }
+    inline ConsumerSpec const* Consumer(uint64 spawn)
+    {
+        for (auto const& spec : Consumers) if (spec.Spawn == spawn) return &spec;
+        return nullptr;
+    }
+    inline bool ConsumerCapability(uint64 spawn, uint32 map, AgentType type,
+        AgentControlMode control, bool enabled)
+    {
+        auto spec = Consumer(spawn);
+        return enabled && map == 725 && control == AgentControlMode::AIWorldControlled && spec && spec->Type == type;
     }
     inline DepotSpec const* DepotLocation(uint32 id)
     {
@@ -54,7 +71,7 @@ namespace LivingSupply
         uint32 SearchLeg = 0, EmptySearches = 0;
         std::optional<ActionPosition> PendingSearch;
         bool PendingSearchCount = false;
-        bool Trip = false, AtGround = false, Live = false;
+        bool Trip = false, AtGround = false, Live = false, ReturningToHome = false;
         char const* Phase = "IDLE";
         char const* LastResult = "READY";
     };

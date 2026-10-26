@@ -73,13 +73,16 @@ const ObserverModel = (() => {
       HARVESTING: "Zpracování kořisti", CARRYING: "Nese potravu", TO_DEPOT: "Cesta do skladu",
       RETURNING_TO_DEPOT: "Cesta do skladu", DELIVERING: "Vykládání", EATING_DEPOT: "Jídlo ze skladu",
       FEEDING: "Krmení z kořisti", FED: "Nakrmený", RESTING: "Odpočinek", NO_ROUTE: "Cesta nedostupná",
+      RETURNING_HOME: "Návrat k běžné činnosti", RETURN_HOME: "Návrat k běžné činnosti",
+      ORDINARY: "Běžná činnost", NORMAL: "Běžná činnost", NO_FOOD: "Čeká na jídlo", WAITING_FOR_FOOD: "Čeká na jídlo",
       ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený" };
-    const rows = [["Zásobování", supply.role === "HUNTER" ? "Lovec" : "Predátor"],
+    const consumer = supply.role === "CONSUMER";
+    const rows = [["Zásobování", consumer ? "Spotřebitel" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
       ["Právě dělá", phases[supply.phase] || supply.phase],
-      ["Náklad", `${supply.cargo} / ${supply.capacity} porcí`],
+      ["Náklad", consumer ? null : `${supply.cargo} / ${supply.capacity} porcí`],
       ["Zbývá v kořisti", supply.carcass_remaining == null ? null : `${supply.carcass_remaining} porcí`],
-      ["Získáno z kořisti", supply.harvested], ["Doručeno", supply.delivered],
-      ["Snědeno", supply.consumed], ["Ztracený náklad", supply.lost]];
+      ["Získáno z kořisti", consumer ? null : supply.harvested], ["Doručeno", consumer ? null : supply.delivered],
+      ["Snědeno", supply.consumed], ["Ztracený náklad", consumer ? null : supply.lost]];
     if (depot) rows.push(["Zásobárna", depot.name], ["Zásoba jídla", `${depot.stock} / ${depot.capacity} porcí`],
       ["Stav zásob", depot.stock === 0 ? "Prázdná" : depot.stock <= depot.low_threshold ? "Nízká zásoba" : "Dostatek"],
       ["Do skladu doručeno", depot.delivered], ["Ze skladu snědeno", depot.consumed]);

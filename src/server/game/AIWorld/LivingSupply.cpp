@@ -17,12 +17,13 @@ namespace
     using Phase = LivingRoleState::Phase;
     using Activity = LivingRolePolicy::Activity;
 
-    bool SupplyIdentity(AgentRecord const& record)
+    bool SupplyIdentity(AgentRecord const& record, bool consumersEnabled = false)
     {
         return record.MapId == 725 && record.Id.Value == record.SpawnId &&
             record.ControlMode == AgentControlMode::AIWorldControlled &&
             ((LivingSupply::Predator(record.SpawnId) && record.Type == AgentType::Predator) ||
-                LivingSupply::HunterCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, true));
+                LivingSupply::HunterCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, true) ||
+                LivingSupply::ConsumerCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, consumersEnabled));
     }
 
     bool OwnedGoal(AgentRecord const& record)
@@ -60,7 +61,8 @@ namespace
     {
         std::string_view value(purpose);
         return value == "TO_HUNTING_GROUND" || value == "SUPPLY_SEARCH" ||
-            value == "DELIVER_FOOD" || value == "GET_DEPOT_FOOD" || value == "RETURN_DEPOT";
+            value == "DELIVER_FOOD" || value == "GET_DEPOT_FOOD" || value == "RETURN_DEPOT" ||
+            value == "RETURN_CONSUMER_HOME";
     }
 }
 
@@ -70,7 +72,12 @@ void AIWorldMgr::InitializeLivingSupply()
     _supplyActors.clear();
     _supplySources.clear();
     if (!_livingSupplyEnabled)
+    {
+        if (_livingConsumersEnabled)
+            TC_LOG_ERROR("ai.world", "Living depot consumers require living supply; disabled");
+        _livingConsumersEnabled = false;
         return;
+    }
     auto const& scope = GetSimulationScope();
     bool valid = _enabled && _livingRolesEnabled && _livingRoleExtensionsEnabled &&
         _restrictAgentsToSimulationScope && scope.Valid() && scope.MapId == 725 && scope.Bounds &&
@@ -80,6 +87,7 @@ void AIWorldMgr::InitializeLivingSupply()
     if (!valid)
     {
         _livingSupplyEnabled = false;
+        _livingConsumersEnabled = false;
         TC_LOG_ERROR("ai.world", "Living supply requires the explicit bounded map-725 authored population and enabled living roles/extensions; disabled");
         return;
     }
@@ -90,6 +98,12 @@ void AIWorldMgr::InitializeLivingSupply()
         valid = _supplyLedger.RegisterActor(spec.Spawn, spec.Depot) && valid;
         _supplyActors.emplace(spec.Spawn, LivingSupply::ActorRuntime{});
     }
+    if (_livingConsumersEnabled)
+        for (auto const& spec : LivingSupply::Consumers)
+        {
+            valid = _supplyLedger.RegisterActor(spec.Spawn, spec.Depot, 0, false, true) && valid;
+            _supplyActors.emplace(spec.Spawn, LivingSupply::ActorRuntime{});
+        }
     for (uint64 spawn : {901076ull, 901081ull, 901086ull, 901091ull})
     {
         valid = _supplyLedger.RegisterActor(spawn, 0, 0, true) && valid;
@@ -98,6 +112,7 @@ void AIWorldMgr::InitializeLivingSupply()
     if (!valid)
     {
         _livingSupplyEnabled = false;
+        _livingConsumersEnabled = false;
         _supplyLedger = {};
         _supplyActors.clear();
         TC_LOG_ERROR("ai.world", "Living supply could not register its fixed runtime depots and participants; disabled");
@@ -108,6 +123,13 @@ bool AIWorldMgr::IsSupplyHunter(AgentRecord const& record) const
 {
     return LivingSupply::HunterCapability(record.SpawnId, record.MapId, record.Type,
         record.ControlMode, _livingSupplyEnabled) && record.Id.Value == record.SpawnId &&
+        GetSimulationScope().ContainsActor(record.MapId, record.SpawnId);
+}
+
+bool AIWorldMgr::IsSupplyConsumer(AgentRecord const& record) const
+{
+    return LivingSupply::ConsumerCapability(record.SpawnId, record.MapId, record.Type,
+        record.ControlMode, _livingSupplyEnabled && _livingConsumersEnabled) && record.Id.Value == record.SpawnId &&
         GetSimulationScope().ContainsActor(record.MapId, record.SpawnId);
 }
 
@@ -159,7 +181,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         }
         return;
     }
-    if (!SupplyIdentity(record)) return;
+    if (!SupplyIdentity(record, _livingConsumersEnabled)) return;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end()) return;
     auto& actor = found->second;
@@ -170,6 +192,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         actor.Claim.reset();
         actor.Corpse = {};
         actor.Trip = actor.AtGround = false;
+        actor.ReturningToHome = false;
         LivingSupply::ClearHunterSearch(actor);
         actor.EmptySearches = actor.SearchLeg = 0;
         actor.Live = live;
@@ -186,7 +209,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
 
 void AIWorldMgr::CancelSupplyClaim(AgentRecord const& record)
 {
-    if (!_livingSupplyEnabled || !SupplyIdentity(record)) return;
+    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled)) return;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end()) return;
     if (found->second.Claim) _supplyLedger.Cancel(*found->second.Claim);
@@ -195,7 +218,7 @@ void AIWorldMgr::CancelSupplyClaim(AgentRecord const& record)
 
 bool AIWorldMgr::ClaimSupplyCarcass(AgentRecord const& record, Creature& creature, Creature& prey, uint64 nowMs)
 {
-    if (!_livingSupplyEnabled || !SupplyIdentity(record) || !BoundActor(record, creature) ||
+    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled) || !BoundActor(record, creature) ||
         !InSupplyScope(GetSimulationScope(), creature) || !InSupplyScope(GetSimulationScope(), prey) ||
         prey.IsAlive() || prey.GetEntry() != 883 || !LivingSupply::Prey(prey.GetSpawnId()) ||
         !creature.IsWithinDistInMap(&prey, 5.0f) || !creature.IsWithinLOSInMap(&prey) ||
@@ -224,7 +247,7 @@ bool AIWorldMgr::ClaimSupplyCarcass(AgentRecord const& record, Creature& creatur
 uint32 AIWorldMgr::CommitSupplyCarcass(AgentRecord const& record, Creature& creature, Creature& prey, uint64 nowMs)
 {
     auto found = _supplyActors.find(record.SpawnId);
-    if (!_livingSupplyEnabled || !SupplyIdentity(record) || found == _supplyActors.end() ||
+    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled) || found == _supplyActors.end() ||
         !found->second.Claim || !BoundActor(record, creature)) return 0;
     auto& actor = found->second;
     auto const& state = record.LivingRole;
@@ -279,16 +302,17 @@ bool AIWorldMgr::SupplyWantsHunt(AgentRecord const& record) const
 
 std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const
 {
-    if (!_livingSupplyEnabled || !SupplyIdentity(record) || creature.GetMapId() != 725 ||
+    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled) || creature.GetMapId() != 725 ||
         creature.GetSpawnId() != record.SpawnId || record.WorldState != AgentWorldState::Materialized ||
         record.RuntimeGuid != creature.GetGUID()) return std::nullopt;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end() || found->second.Guid != creature.GetGUID()) return std::nullopt;
     auto const& actor = found->second;
     bool hunter = IsSupplyHunter(record);
+    bool consumer = IsSupplyConsumer(record);
     LivingSupplyTelemetry info;
     info.Enabled = true;
-    info.Role = hunter ? "HUNTER" : "PREDATOR";
+    info.Role = hunter ? "HUNTER" : consumer ? "CONSUMER" : "PREDATOR";
     info.Phase = actor.Phase;
     info.LastResult = actor.LastResult;
     if (creature.IsAlive() && record.LivingRole.CurrentPhase == Phase::Hunting) info.Phase = "HUNTING";
@@ -311,22 +335,27 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
             info.CarcassLife = actor.Corpse.Life;
         }
     }
-    if (hunter)
+    if (hunter || consumer)
     {
-        auto spec = LivingSupply::Hunter(record.SpawnId);
-        info.DepotId = spec->Depot;
-        info.HuntingGround = spec->Ground;
-        auto depot = _supplyLedger.GetDepot(spec->Depot);
-        auto location = LivingSupply::DepotLocation(spec->Depot);
+        uint32 depotId = hunter ? LivingSupply::Hunter(record.SpawnId)->Depot : LivingSupply::Consumer(record.SpawnId)->Depot;
+        info.DepotId = depotId;
+        if (hunter) info.HuntingGround = LivingSupply::Hunter(record.SpawnId)->Ground;
+        auto depot = _supplyLedger.GetDepot(depotId);
+        auto location = LivingSupply::DepotLocation(depotId);
         if (depot && location)
         {
             FoodDepotTelemetry stock;
             stock.Id = depot->Id; stock.Name = location->Name; stock.Position = location->Point;
             stock.Stock = depot->Stock; stock.Capacity = depot->Capacity; stock.LowThreshold = depot->Low;
             for (auto const& member : LivingSupply::Hunters)
-                if (member.Depot == spec->Depot)
+                if (member.Depot == depotId)
                     if (auto other = _supplyActors.find(member.Spawn); other != _supplyActors.end())
                     { stock.Delivered += other->second.Delivered; stock.Consumed += other->second.Consumed; }
+            if (_livingConsumersEnabled)
+                for (auto const& member : LivingSupply::Consumers)
+                    if (member.Depot == depotId)
+                        if (auto other = _supplyActors.find(member.Spawn); other != _supplyActors.end())
+                            stock.Consumed += other->second.Consumed;
             info.Depot = std::move(stock);
         }
     }
@@ -509,4 +538,158 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
     }
     ActionPosition search = LivingSupply::PrepareHunterSearch(actor, spec->Ground);
     return travel(search, "SEARCHING", "SUPPLY_SEARCH", true);
+}
+
+bool AIWorldMgr::UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creature, uint64 nowMs,
+    std::function<bool(ActionRequest, Phase, Unit*, bool)> const& start,
+    std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step)
+{
+    if (!IsSupplyConsumer(record) || !BoundActor(record, creature)) return false;
+    auto found = _supplyActors.find(record.SpawnId);
+    auto spec = LivingSupply::Consumer(record.SpawnId);
+    if (found == _supplyActors.end() || !spec) return false;
+    auto& actor = found->second;
+    auto& state = record.LivingRole;
+    auto location = LivingSupply::DepotLocation(spec->Depot);
+    auto depot = _supplyLedger.GetDepot(spec->Depot);
+    if (!location || !depot) return true;
+
+    auto finish = [&](char const* phase, char const* result, uint64 delay)
+    {
+        StopLivingRole(record, creature);
+        actor.Phase = phase;
+        actor.LastResult = result;
+        actor.NextAtMs = nowMs + delay;
+        state.NextDecisionAtMs = actor.NextAtMs;
+    };
+    bool hungry = record.Needs.Hunger >= 0.65f;
+    bool supplyMove = std::string_view(state.MovementPurpose) == "GET_DEPOT_FOOD" ||
+        std::string_view(state.MovementPurpose) == "RETURN_CONSUMER_HOME";
+    if (state.CurrentPhase == Phase::Moving && supplyMove)
+    {
+        auto* point = dynamic_cast<PointMovementGenerator<Creature>*>(creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE));
+        bool ownership = state.SourceGoal == GoalType::LocalActivity && OwnedGoal(record) &&
+            (!record.ActiveActionState || OwnedAction(record, ActionType::MoveTo));
+        bool arrived = ownership && creature.IsStopped() &&
+            creature.GetExactDist(state.Destination.X, state.Destination.Y, state.Destination.Z) <= 2.0f;
+        if (!arrived && ownership && record.ActiveActionState && point && point->GetId() == ActionExecutor::MovePointId &&
+            state.MoveWatchdog.Continue(nowMs, {725, creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()}, false))
+            return true;
+        finish(arrived ? "WAITING" : "NO_ROUTE", arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 1000 : 10000);
+        return true;
+    }
+    if (state.CurrentPhase == Phase::Moving && hungry && state.SourceGoal == GoalType::LocalActivity &&
+        OwnedAction(record, ActionType::MoveTo))
+    {
+        // A need may interrupt this actor's own ordinary stroll. Foreign or
+        // emergency motion remains with its existing owner.
+        StopLivingRole(record, creature);
+        state.NextDecisionAtMs = nowMs;
+    }
+    if (state.CurrentPhase == Phase::Acting && std::string_view(actor.Phase) == "EATING_DEPOT")
+    {
+        bool owned = state.SourceGoal == GoalType::LocalActivity && OwnedAction(record, ActionType::Ambient) &&
+            state.Activity == Activity::Eat && creature.IsStopped() && !creature.IsInCombat() &&
+            creature.GetStandState() == UNIT_STAND_STATE_STAND &&
+            creature.GetExactDist(location->Point.X, location->Point.Y, location->Point.Z) <= 3.0f &&
+            creature.IsWithinLOS(location->Point.X, location->Point.Y, location->Point.Z);
+        if (!owned || nowMs < state.StartedAtMs)
+        {
+            finish("WAITING", "ACTIVITY_INTERRUPTED", 10000);
+            return true;
+        }
+        if (nowMs - state.StartedAtMs < 5000) return true;
+        if (actor.EventSerial == std::numeric_limits<uint64>::max())
+        {
+            finish("WAITING", "EVENT_ID_EXHAUSTED", 60000);
+            return true;
+        }
+        auto result = _supplyLedger.EatDepot(record.SpawnId, ++actor.EventSerial, spec->Depot, 1, true);
+        if (result.Success && !result.Duplicate)
+        {
+            actor.Consumed += result.Portions;
+            _needsSystem.SatisfyHunger(record.Needs);
+            actor.ReturningToHome = true;
+            finish("RETURNING_HOME", "ATE_DEPOT", 2000);
+        }
+        else
+            finish("NO_FOOD", result.Reason, 15000);
+        return true;
+    }
+    if (state.CurrentPhase != Phase::Idle) return false;
+    if (!hungry && !actor.ReturningToHome)
+    {
+        actor.Phase = "ORDINARY";
+        return false;
+    }
+    if (nowMs < actor.NextAtMs || nowMs < state.NextDecisionAtMs) return true;
+
+    auto travel = [&](ActionPosition const& destination, char const* phase, char const* purpose)
+    {
+        auto permit = PlanningWorkBudget::TryAcquire();
+        if (!permit)
+        {
+            actor.Phase = "WAITING"; actor.LastResult = "PLANNING_DEFERRED";
+            state.Planning.MarkDeferred(nowMs, "WORK_BUDGET", "CONSUMER_TRAVEL");
+            state.NextDecisionAtMs = nowMs + 100;
+            state.MovementPurpose = "SUPPLY_PLANNING_DEFERRED";
+            return true;
+        }
+        auto next = step(destination);
+        permit.Finish();
+        state.Planning.MarkProgress(nowMs);
+        if (!next)
+        {
+            actor.Phase = "NO_ROUTE"; actor.LastResult = "NO_ROUTE";
+            actor.NextAtMs = nowMs + 10000;
+            return true;
+        }
+        ActionRequest move;
+        move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = next;
+        if (!start(move, Phase::Moving, nullptr, false))
+        {
+            actor.Phase = "NO_ROUTE"; actor.LastResult = "MOVE_REJECTED";
+            actor.NextAtMs = nowMs + 10000;
+            return true;
+        }
+        state.MovementPurpose = purpose;
+        actor.Phase = phase;
+        actor.LastResult = "MOVING";
+        return true;
+    };
+    if (actor.ReturningToHome)
+    {
+        auto const home = creature.GetHomePosition();
+        ActionPosition destination{725, home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
+        if (creature.GetExactDist(destination.X, destination.Y, destination.Z) > 3.0f ||
+            !creature.IsWithinLOS(destination.X, destination.Y, destination.Z))
+            return travel(destination, "RETURNING_HOME", "RETURN_CONSUMER_HOME");
+        actor.ReturningToHome = false;
+        actor.Phase = "ORDINARY";
+        actor.LastResult = "HOME_REACHED";
+        return false;
+    }
+    if (!depot->Stock)
+    {
+        actor.Phase = "NO_FOOD";
+        actor.LastResult = "NO_FOOD";
+        actor.NextAtMs = nowMs + 15000;
+        return true;
+    }
+    if (creature.GetExactDist(location->Point.X, location->Point.Y, location->Point.Z) > 3.0f ||
+        !creature.IsWithinLOS(location->Point.X, location->Point.Y, location->Point.Z))
+        return travel(location->Point, "TO_DEPOT", "GET_DEPOT_FOOD");
+    ActionRequest eat;
+    eat.Type = ActionType::Ambient; eat.SourceGoal = GoalType::LocalActivity; eat.AmbientActivity = Activity::Eat;
+    if (start(eat, Phase::Acting, nullptr, false))
+    {
+        actor.Phase = "EATING_DEPOT";
+        actor.LastResult = "STARTED";
+    }
+    else
+    {
+        actor.Phase = "WAITING"; actor.LastResult = "MEAL_REJECTED";
+        actor.NextAtMs = nowMs + 10000;
+    }
+    return true;
 }

@@ -89,7 +89,7 @@ class FoodAccounting(ProtocolModel):
 
 class LivingSupply(ProtocolModel):
     enabled: bool = Field(strict=True)
-    role: Literal["HUNTER", "PREDATOR"]
+    role: Literal["HUNTER", "PREDATOR", "CONSUMER"]
     phase: str = Field(min_length=1, max_length=80, strict=True)
     depot_id: Quantity32
     cargo: Quantity32
@@ -110,6 +110,12 @@ class LivingSupply(ProtocolModel):
     def consistent_cargo_and_depot(self):
         if self.cargo > self.capacity:
             raise ValueError("Cargo exceeds carrying capacity")
+        if self.role == "CONSUMER" and (self.cargo != 0 or self.capacity != 0 or
+            any(int(value) != 0 for value in (self.harvested, self.delivered, self.lost)) or
+            self.hunting_ground is not None or self.carcass_remaining is not None or
+            self.carcass_spawn_id is not None or self.carcass_life is not None or
+            self.depot_id == 0 or self.depot is None):
+            raise ValueError("Depot consumers cannot hunt, carry, deliver or expose carcass state")
         if (self.carcass_spawn_id is None) != (self.carcass_life is None):
             raise ValueError("Carcass source and incarnation must be supplied together")
         if self.carcass_spawn_id is not None and (int(self.carcass_spawn_id) == 0 or int(self.carcass_life) == 0):

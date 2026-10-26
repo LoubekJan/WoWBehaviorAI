@@ -27,6 +27,24 @@ def supply():
 
 
 class SupplyTelemetryTests(unittest.TestCase):
+    def test_consumer_keeps_a_depot_without_hunting_or_carrying_capability(self):
+        value = supply()
+        value.update(role="CONSUMER", phase="EATING_DEPOT", cargo=0, capacity=0,
+                     harvested="0", delivered="0", hunting_ground=None)
+        self.assertEqual(LivingSupply.model_validate(value).depot.stock, 4)
+        payload = agent(901035)
+        payload["supply"] = value
+        self.assertEqual(Agent.model_validate(payload).supply.role, "CONSUMER")
+        for field, invalid in (("cargo", 1), ("capacity", 6), ("harvested", "1"),
+                               ("delivered", "1"), ("lost", "1"), ("depot", None),
+                               ("depot_id", 0), ("hunting_ground", dict(map_id=725, x=1, y=2, z=0)),
+                               ("carcass_remaining", 0), ("carcass_spawn_id", "901088")):
+            with self.subTest(field=field):
+                broken = copy.deepcopy(value)
+                broken[field] = invalid
+                with self.assertRaises(ValidationError):
+                    LivingSupply.model_validate(broken)
+
     def test_live_hunter_and_predator_supply_are_optional(self):
         legacy = Agent.model_validate(agent())
         self.assertIsNone(legacy.supply)

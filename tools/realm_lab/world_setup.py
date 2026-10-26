@@ -16,9 +16,9 @@ import subprocess
 import sys
 
 try:
-    from . import manage, settlement_population, single_return, supply_population, wildlife_population
+    from . import consumer_population, manage, settlement_population, single_return, supply_population, wildlife_population
 except ImportError:  # Direct invocation inside the tools container.
-    import manage, settlement_population, single_return, supply_population, wildlife_population
+    import consumer_population, manage, settlement_population, single_return, supply_population, wildlife_population
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -78,7 +78,7 @@ class WorldStart:
 
 
 def validate_profile(settings: manage.Settings) -> None:
-    require(settings.realm_id == 2 and settings.ai_profile in (settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE),
+    require(settings.realm_id == 2 and settings.ai_profile in (settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE),
             "Canonical world setup requires realm 2 with a reviewed authored-world profile")
 
 
@@ -130,8 +130,9 @@ WHERE map_id=0 AND agent_id=spawn_id AND spawn_id IN ({identities}) AND control_
 COMMIT;
 """)
     predicate = "control_mode=1"
-    if settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE):
-        profile = supply_population if settings.ai_profile == supply_population.PROFILE else wildlife_population
+    if settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE):
+        profile = {wildlife_population.PROFILE: wildlife_population, supply_population.PROFILE: supply_population,
+                   consumer_population.PROFILE: consumer_population}[settings.ai_profile]
         owned = profile.Population.load().spawn_ids
         predicate += f" AND (agent_id NOT IN ({owned}) OR spawn_id<>agent_id OR map_id<>725)"
     remaining = manage.lab_mysql(settings, f"SELECT COUNT(*) FROM characters.ai_agents WHERE {predicate};")
@@ -144,8 +145,9 @@ def prepare(data: Path, template: Path, binary: Path, settings: manage.Settings)
     population = settlement_population.verify_data(data)
     WorldStart.load(population)
     manage.preflight(data, settings)
-    runtime_population = supply_population.Population.load() if settings.ai_profile == supply_population.PROFILE else \
-        wildlife_population.Population.load() if settings.ai_profile == wildlife_population.PROFILE else population
+    profile = {wildlife_population.PROFILE: wildlife_population, supply_population.PROFILE: supply_population,
+               consumer_population.PROFILE: consumer_population}.get(settings.ai_profile)
+    runtime_population = profile.Population.load() if profile else population
     rendered = manage.render_config(template.read_text(encoding="utf-8"), settings, runtime_population)
     target = Path("/tmp/world-schema-setup.conf")
     descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

@@ -195,10 +195,10 @@ namespace LivingRolePolicy
         }
     }
 
-    inline Activity CuratedSelfCare(Role role, float hunger, float fatigue, uint32 food)
+    inline Activity CuratedSelfCare(Role role, float hunger, float fatigue, uint32 food, bool depotConsumer = false)
     {
         if (Wildlife(role) || !KnownRole(role)) return Activity::None;
-        if (hunger >= 0.65f && food) return Activity::Eat;
+        if (!depotConsumer && hunger >= 0.65f && food) return Activity::Eat;
         if (fatigue >= 0.8f && role != Role::Service && role != Role::Guard) return Activity::Rest;
         return Activity::None;
     }
@@ -224,11 +224,11 @@ namespace LivingRolePolicy
         return true;
     }
 
-    inline Activity RecoveryActivity(Role role, float hunger, bool rememberedDanger)
+    inline Activity RecoveryActivity(Role role, float hunger, bool rememberedDanger, bool depotConsumer = false)
     {
         if (rememberedDanger) return Activity::Look;
         if (hunger >= 0.65f && role == Role::Prey) return Activity::Graze;
-        if (hunger >= 0.65f && !Wildlife(role) && role != Role::Hunter) return Activity::Eat;
+        if (!depotConsumer && hunger >= 0.65f && !Wildlife(role) && role != Role::Hunter) return Activity::Eat;
         return role == Role::Service || role == Role::Guard ? Activity::Look : Activity::Rest;
     }
 
@@ -249,7 +249,7 @@ namespace LivingRolePolicy
         }
     }
 
-    inline Activity IdleActivity(Role role, uint64 phase, bool workHours, float hunger, float fatigue)
+    inline Activity IdleActivity(Role role, uint64 phase, bool workHours, float hunger, float fatigue, bool depotConsumer = false)
     {
         if (!KnownRole(role))
             return Activity::None;
@@ -257,7 +257,7 @@ namespace LivingRolePolicy
             return hunger >= 0.65f ? Activity::Eat : (phase % 2 ? Activity::Talk : Activity::Look);
         if (role == Role::Prey && hunger >= 0.65f)
             return Activity::Graze;
-        if (!Wildlife(role) && role != Role::Hunter && hunger >= 0.65f)
+        if (!depotConsumer && !Wildlife(role) && role != Role::Hunter && hunger >= 0.65f)
             return Activity::Eat;
         if (Allows(role, Activity::Rest) && (fatigue >= 0.8f || (!workHours && phase % 3 == 0)))
             return Activity::Rest;

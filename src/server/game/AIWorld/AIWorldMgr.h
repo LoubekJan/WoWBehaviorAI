@@ -2908,11 +2908,13 @@ class TC_GAME_API AIWorldMgr
         bool _livingRolesEnabled = false;
         bool _livingRoleExtensionsEnabled = false;
         bool _livingSupplyEnabled = false;
+        bool _livingConsumersEnabled = false;
         LivingSupply::Ledger _supplyLedger;
         std::unordered_map<uint64, LivingSupply::ActorRuntime> _supplyActors;
         std::unordered_map<uint64, LivingSupply::SourceRuntime> _supplySources;
         void InitializeLivingSupply();
         bool IsSupplyHunter(AgentRecord const& record) const;
+        bool IsSupplyConsumer(AgentRecord const& record) const;
         LivingRolePolicy::Role ResolveLivingRole(AgentRecord const& record, Creature const& creature) const;
         void ObserveLivingSupply(AgentRecord const& record, Creature const* creature, uint64 nowMs);
         void CancelSupplyClaim(AgentRecord const& record);
@@ -2923,6 +2925,9 @@ class TC_GAME_API AIWorldMgr
             std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
             std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step,
             bool searchOnly = false);
+        bool UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creature, uint64 nowMs,
+            std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
+            std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step);
         uint32 _livingRecoverySpawnId = 0;
         bool _recoveryAdviceEnabled = false;
         std::unordered_set<uint64> _recoveryAdviceAgents;
