@@ -2921,6 +2921,8 @@ class TC_GAME_API AIWorldMgr
         bool ClaimSupplyCarcass(AgentRecord const& record, Creature& creature, Creature& prey, uint64 nowMs);
         uint32 CommitSupplyCarcass(AgentRecord const& record, Creature& creature, Creature& prey, uint64 nowMs);
         bool SupplyWantsHunt(AgentRecord const& record) const;
+        std::optional<ActionPosition> PlanLivingSupplyStep(AgentRecord& record, Creature& creature,
+            ActionPosition const& destination, uint64 nowMs, std::optional<RecoveryMovement>& approved);
         bool UpdateLivingSupplyHunter(AgentRecord& record, Creature& creature, uint64 nowMs,
             std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
             std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step,

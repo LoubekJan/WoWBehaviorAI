@@ -1023,6 +1023,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     std::optional<ActionPosition> approvedRoleDestination;
     std::optional<RecoveryMovement> approvedRecovery;
+    std::optional<RecoveryMovement> approvedSupplyRecovery;
     std::optional<NavigationDiagnostics> lastRoleExecutionNavigation;
 
     // Build authoritative facts at dispatch time. No request itself can grant
@@ -1046,9 +1047,14 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if ((supplyHunter || supplyConsumer) && request.Type == ActionType::MoveTo && request.Destination &&
             request.SourceGoal == GoalType::LocalActivity)
         {
-            approvedRecovery = RecoveryMovement{*request.Destination, homePoint, 384.0f,
-                nowMs < state.DangerUntilMs ? std::optional<ActionPosition>(state.DangerPosition) : std::nullopt, false};
-            approvedRecovery->DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
+            if (approvedSupplyRecovery && RecoveryMovement::SamePoint(approvedSupplyRecovery->Destination, *request.Destination))
+                approvedRecovery = approvedSupplyRecovery;
+            else
+            {
+                approvedRecovery = RecoveryMovement{*request.Destination, homePoint, 384.0f,
+                    nowMs < state.DangerUntilMs ? std::optional<ActionPosition>(state.DangerPosition) : std::nullopt, false};
+                approvedRecovery->DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
+            }
             request.Recovery = approvedRecovery;
         }
         // Local roaming/foraging must execute with the same strict path
@@ -1373,7 +1379,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         StopLivingRole(record, creature);
         state.NextDecisionAtMs = nowMs + 2000;
     }
-    auto supplyStep = [&](ActionPosition const& destination) { return FoodSupplyStep(creature, destination); };
+    auto supplyStep = [&](ActionPosition const& destination)
+    { return PlanLivingSupplyStep(record, creature, destination, nowMs, approvedSupplyRecovery); };
     if (supplyConsumer && UpdateLivingSupplyConsumer(record, creature, nowMs, start, supplyStep))
         return true;
     if (supplyHunter && UpdateLivingSupplyHunter(record, creature, nowMs, start, supplyStep))

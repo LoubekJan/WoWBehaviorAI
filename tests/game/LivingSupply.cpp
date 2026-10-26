@@ -534,3 +534,139 @@ TEST_CASE("Only the reviewed two workers and gnoll gatherer acquire depot-consum
     REQUIRE(LivingSupply::Consumer(901036)->Depot == 1);
     REQUIRE(LivingSupply::Consumer(901063)->Depot == 2);
 }
+
+TEST_CASE("Supply planning preserves an issued corridor and candidate cursor across budget yields", "[AIWorld][LivingSupply][SupplyPlanning]")
+{
+    LivingSupply::TravelContext travel;
+    ActionPosition from{725, 0, 0, 0}, goal{725, 30, 0, 0};
+    travel.Begin({}, from, goal, from, std::nullopt, 8, 1, 1);
+    travel.Search.Begin(from, goal, 3, 384, nullptr, 8, true);
+    travel.Search.IssueCorridor(false);
+    travel.Route.Planned = {{725, 10, 2, 0}, goal};
+    for (unsigned denied = 0; denied < 30; ++denied)
+    {
+        REQUIRE(travel.ObserveSource(from));
+        REQUIRE(travel.Search.NextTarget == 1);
+        REQUIRE(travel.Route.Planned.size() == 2);
+        REQUIRE(travel.Route.Planned.front().X == 10);
+        REQUIRE_FALSE(travel.Route.Failed(from, travel.Route.Planned.front()));
+    }
+    auto first = travel.Route.Planned.front();
+    travel.RejectCandidate(from, first);
+    REQUIRE(travel.Search.NextTarget == 1);
+    REQUIRE(travel.Route.Planned.empty());
+    REQUIRE(travel.Route.Failed(from, first));
+    REQUIRE_FALSE(travel.Route.Failed(from, {725, 10, -2, 0}));
+    travel.Search.IssueCorridor(false);
+    REQUIRE(travel.Search.NextTarget == 2);
+    REQUIRE(travel.Route.Failed(from, first));
+}
+
+TEST_CASE("Only an owned reached supply leg consumes one corner and preserves the surface proof", "[AIWorld][LivingSupply][SupplyPlanning]")
+{
+    LivingSupply::TravelContext travel;
+    ActionPosition from{725, 0, 0, 0}, corner{725, 2.5f, 0, 0}, next{725, 2.5f, 1.25f, 0}, goal{725, 6, 2, 0};
+    travel.Begin({}, from, goal, from, std::nullopt, 8, 1, 1);
+    travel.Route.Planned = {corner, next, goal};
+    travel.Route.SurfaceCorridor = true;
+    RecoveryMovement request{corner, from, 384, std::nullopt, false};
+    request.SurfaceCorridor = true;
+    request.QueryDestination = corner;
+    // Its physical endpoint was normalized by the independent strict builder.
+    request.Destination.Z = 0.2f;
+    travel.Pending = request;
+    travel.PendingFrom = from;
+    REQUIRE_FALSE(travel.ObserveSource(request.Destination));
+    REQUIRE(travel.Route.Planned.size() == 3);
+    REQUIRE(travel.Pending.has_value());
+    REQUIRE(travel.ObserveSource(request.Destination, true));
+    REQUIRE_FALSE(travel.Pending.has_value());
+    REQUIRE(travel.Route.Planned.size() == 2);
+    REQUIRE(travel.Route.Planned.front().Y == 1.25f);
+    REQUIRE(travel.Route.SurfaceCorridor);
+    REQUIRE(travel.ObserveSource(request.Destination));
+    REQUIRE(travel.Route.Planned.size() == 2);
+    REQUIRE_FALSE(travel.ObserveSource({725, 3.2f, 0, 0}));
+    // Being within the ordinary three-yard arrival radius never discards the
+    // next protected bend, nor does a second arrival without an issued leg.
+    REQUIRE_FALSE(travel.ObserveSource(next, true));
+    REQUIRE(travel.Route.Planned.size() == 2);
+}
+
+TEST_CASE("Supply route identity rejects changed goal lifecycle danger phase and source contexts", "[AIWorld][LivingSupply][SupplyPlanning]")
+{
+    LivingSupply::TravelContext travel;
+    ActionPosition from{725, 0, 0, 0}, goal{725, 20, 0, 0}, home{725, -5, 0, 0}, danger{725, 10, 10, 0};
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(1000, 1);
+    travel.Begin(guid, from, goal, home, danger, 8, 1, 1);
+    REQUIRE(travel.Matches(guid, goal, home, danger, 8, 1, 1));
+    REQUIRE_FALSE(travel.Matches(ObjectGuid::Create<HighGuid::Unit>(1000, 2), goal, home, danger, 8, 1, 1));
+    REQUIRE_FALSE(travel.Matches(guid, {725, 21, 0, 0}, home, danger, 8, 1, 1));
+    REQUIRE_FALSE(travel.Matches(guid, goal, {725, -6, 0, 0}, danger, 8, 1, 1));
+    REQUIRE_FALSE(travel.Matches(guid, goal, home, std::nullopt, 8, 1, 1));
+    REQUIRE_FALSE(travel.Matches(guid, goal, home, ActionPosition{725, 10, 11, 0}, 8, 1, 1));
+    REQUIRE_FALSE(travel.Matches(guid, goal, home, danger, 9, 1, 1));
+    REQUIRE_FALSE(travel.Matches(guid, goal, home, danger, 8, 2, 1));
+    REQUIRE_FALSE(travel.Matches(guid, goal, home, danger, 8, 1, 3));
+    REQUIRE_FALSE(travel.ObserveSource({726, 0, 0, 0}));
+    REQUIRE_FALSE(travel.ObserveSource({725, 0.1f, 0, 0}));
+    travel.Search.NextTarget = 5;
+    travel.Route.MarkIneffective(from, goal);
+    travel.Begin(guid, from, {725, 21, 0, 0}, home, danger, 8, 1, 1);
+    REQUIRE(travel.Search.NextTarget == 0);
+    REQUIRE(travel.Route.FailedEdges.empty());
+    travel = {};
+    REQUIRE_FALSE(travel.Active);
+    REQUIRE_FALSE(travel.ObserveSource(from));
+}
+
+TEST_CASE("Supply's live blocked-source fixtures retain the first bend before executing a later endpoint", "[AIWorld][LivingSupply][SupplyPlanning]")
+{
+    using LivingReturnPolicy::Distance;
+    // Actual 901035 and 901063 mesh corridors from the failing live run. A
+    // 28-yard arc-length endpoint lies beyond the bend; strict short legs must
+    // reach its preceding corridor corner before issuing the following one.
+    std::vector<std::vector<ActionPosition>> paths{
+        {{725, -406.6194f, 495.3748f, 0}, {725, -391.2f, 490.9332f, 0.21656f}, {725, -372.4612f, 492.6822f, 0.3998f}},
+        {{725, 483.4182f, 981.9759f, 15.1422f}, {725, 465.8665f, 977.8665f, 14.8832f}, {725, 463.9977f, 972.5791f, 13.2545f}}
+    };
+    for (auto const& path : paths)
+    {
+        auto corridor = LivingReturnPolicy::Corridor(path);
+        REQUIRE(corridor.size() >= 3);
+        REQUIRE(Distance(path.front(), corridor.front()) <= 14.001f);
+        REQUIRE(Distance(path.front(), corridor.front()) < Distance(path.front(), path[1]));
+        REQUIRE(std::any_of(corridor.begin(), corridor.end(), [&](ActionPosition const& point)
+            { return Distance(point, path[1]) < 0.01f; }));
+        auto old = LivingReturnPolicy::PathStep(path);
+        REQUIRE(old.has_value());
+        REQUIRE(Distance(path.front(), *old) > Distance(path.front(), path[1]));
+        LivingSupply::TravelContext travel;
+        travel.Begin({}, path.front(), path.back(), path.front(), std::nullopt, 8, 1, 1);
+        travel.Route.Planned = corridor;
+        auto first = corridor.front();
+        travel.Pending = RecoveryMovement{first, path.front(), 384, std::nullopt, false};
+        travel.PendingFrom = path.front();
+        REQUIRE(travel.ObserveSource(first, true));
+        REQUIRE(travel.Route.Planned.size() == corridor.size() - 1);
+        REQUIRE(Distance(travel.Route.Planned.front(), path[1]) < 0.01f);
+    }
+}
+
+TEST_CASE("Rejected or budget-suspended supply travel cannot complete a consumer meal", "[AIWorld][LivingSupply][SupplyPlanning]")
+{
+    auto ledger = SupplyFixture(1);
+    REQUIRE(ledger.RegisterActor(301, 1, 0, false, true));
+    LivingSupply::TravelContext travel;
+    ActionPosition from{725, 0, 0, 0}, goal{725, 20, 0, 0};
+    travel.Begin({}, from, goal, from, std::nullopt, 8, 1, 1);
+    travel.Route.Planned = {{725, 10, 0, 0}, goal};
+    for (unsigned denied = 0; denied < 10; ++denied)
+        REQUIRE(travel.ObserveSource(from));
+    travel.RejectCandidate(from, travel.Route.Planned.front());
+    REQUIRE_FALSE(ledger.EatDepot(301, 1, 1, 1, false).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 1);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 0);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    Conserved(ledger);
+}

@@ -6,7 +6,9 @@
 #include "LivingSupplyState.h"
 #include "AgentType.h"
 #include "Action/ActionPosition.h"
+#include "Action/RecoveryMovement.h"
 #include "ObjectGuid.h"
+#include "LivingReturnPolicy.h"
 #include <array>
 #include <cmath>
 #include <string>
@@ -62,6 +64,69 @@ namespace LivingSupply
     inline bool Prey(uint64 spawn)
     { return spawn >= 901072 && spawn <= 901091 && !Predator(spawn); }
 
+    // Separate from the actor's immutable home and its ordinary-role return
+    // search. Only an owned reached leg consumes a corner; budget yields keep
+    // both the issued corridor and the next untested endpoint candidate.
+    struct TravelContext
+    {
+        bool Active = false;
+        ObjectGuid Guid;
+        ActionPosition Goal, Home, Origin;
+        std::optional<ActionPosition> Danger;
+        float Clearance = 0;
+        uint32 PhaseMask = 0, Capabilities = 0;
+        uint64 RetryAtMs = 0;
+        LivingReturnPolicy::HomeCorridorSearch Search;
+        LivingReturnPolicy::RouteMemory Route;
+        std::optional<RecoveryMovement> Pending;
+        ActionPosition PendingFrom;
+
+        bool Matches(ObjectGuid guid, ActionPosition const& goal, ActionPosition const& home,
+            std::optional<ActionPosition> const& danger, float clearance, uint32 phase, uint32 capabilities) const
+        {
+            return Active && Guid == guid && LivingReturnPolicy::SamePosition(Goal, goal) &&
+                LivingReturnPolicy::SamePosition(Home, home) && Danger.has_value() == danger.has_value() &&
+                (!Danger || LivingReturnPolicy::SamePosition(*Danger, *danger)) && Clearance == clearance &&
+                PhaseMask == phase && Capabilities == capabilities;
+        }
+        void Begin(ObjectGuid guid, ActionPosition const& from, ActionPosition const& goal,
+            ActionPosition const& home, std::optional<ActionPosition> danger, float clearance,
+            uint32 phase, uint32 capabilities)
+        {
+            *this = {};
+            Active = true; Guid = guid; Origin = from; Goal = goal; Home = home;
+            Danger = std::move(danger); Clearance = clearance; PhaseMask = phase; Capabilities = capabilities;
+        }
+        bool ObserveSource(ActionPosition const& here, bool ownedArrival = false)
+        {
+            if (!Active || here.MapId != Origin.MapId) return false;
+            if (ownedArrival && Pending && LivingReturnPolicy::Distance(PendingFrom, here) > 0.25f &&
+                LivingReturnPolicy::Distance(Pending->Destination, here) <= (Route.SurfaceCorridor ? 0.5f : 2.0f))
+            {
+                auto query = Pending->QueryDestination.value_or(Pending->Destination);
+                if (!Route.Planned.empty() && LivingReturnPolicy::SamePosition(Route.Planned.front(), query))
+                    Route.Planned.erase(Route.Planned.begin());
+                // The remaining proved route survives. Unissued alternatives
+                // refer to the old origin and must be queried afresh if needed.
+                Pending.reset(); Origin = here; Search = {};
+                if (Route.Planned.empty()) Route.SurfaceCorridor = false;
+                return true;
+            }
+            return LivingReturnPolicy::Distance(Origin, here) <= 0.01f;
+        }
+        void RejectPending()
+        {
+            if (Pending)
+                Route.Reject(PendingFrom, Pending->QueryDestination.value_or(Pending->Destination));
+            Pending.reset();
+        }
+        void RejectCandidate(ActionPosition const& from, ActionPosition const& query)
+        {
+            Route.Reject(from, query);
+            Pending.reset();
+        }
+    };
+
     struct ActorRuntime
     {
         ObjectGuid Guid;
@@ -75,6 +140,7 @@ namespace LivingSupply
         bool Trip = false, AtGround = false, Live = false, ReturningToHome = false;
         char const* Phase = "IDLE";
         std::string LastResult = "READY";
+        TravelContext Travel;
     };
     // Preparing a candidate is administrative. Budget refusal must preserve
     // the same candidate and consume none of the eight real search attempts.

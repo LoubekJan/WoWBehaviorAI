@@ -21,11 +21,12 @@ The goal is not to replace TrinityCore AI with a language model. Deterministic s
 
 Use [README_DEV.md](README_DEV.md) for setup and operation and
 [doc/RealmLab.md](doc/RealmLab.md) for the current map, population,
-account migration and deployment model. The active `supply-v8` profile
+account migration and deployment model. The active `consumers-v8` profile
 extends the existing 16 deer and 4 bears with one human hunter, two gnoll
 hunters and two shared food depots. Finite carcass portions become cargo,
-physical delivery increases depot stock, and the hunters' completed meals
-consume it. New food state is runtime-only and resets on restart.
+physical delivery increases depot stock, and completed meals consume it.
+Two village workers and one gnoll also use their own depot while retaining
+their ordinary roles. New food state is runtime-only and resets on restart.
 The native `settlement-v8` and animal-only `wildlife-v8` baselines remain
 documented separately. Recording acceptance verifies physical behavior
 independently of service health.

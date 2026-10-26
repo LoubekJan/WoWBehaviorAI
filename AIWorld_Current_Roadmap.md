@@ -5,8 +5,9 @@ Aktivní svět je vlastní mapa **725 / oblast 4988**, realm **2**, větev
 správu účtů a telemetrii. Původní Elwynn realm je vyřazený směr; jeho
 níže uvedený plán a dosažené milníky jsou historický podklad.
 Aktuální provozní postup je v [README_DEV.md](README_DEV.md) a
-[doc/RealmLab.md](doc/RealmLab.md). Aktivní profil `supply-v8` řídí
-20 zvířat a tři lovce; zbývajících 77 NPC používá nativní chování.
+[doc/RealmLab.md](doc/RealmLab.md). Aktivní profil `consumers-v8` řídí
+20 zvířat, tři lovce a tři spotřebitele; zbývajících 74 NPC používá
+nativní chování. Fyzické přijetí spotřebitelů se ověřuje samostatně.
 První fyzický řetězec lov–odběr–náklad–doručení–jídlo prošel na revizi
 `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81` dne 26. října 2026.
 Stejný řetězec po úpravě plánovacího rozpočtu prošel také na revizi

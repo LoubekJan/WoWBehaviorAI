@@ -335,6 +335,15 @@ nemají účinek. Po jídle se vrátí domů a pokračují v běžné činnosti.
 U této skupiny běžná práce nevytváří osobní potraviny a běžná animace
 jídla neobchází společnou bilanci.
 
+Zásobovací pohyb používá vlastní průběžně uchovávané hledání koridoru.
+Po odmítnutí fyzické kolize nepovažuje navmesh spojení za průchod:
+zkusí další koncový bod nebo omezenou objížďku ověřenou proti terénu,
+kolizím, hranicím mapy a nebezpečí. Každý spuštěný krok znovu ověřuje
+server. Čekání na výpočetní rozpočet zachová kandidáta; vyčerpané hledání
+se znovu prověří po 10 sekundách. Domov NPC tím nevzniká ani se nemění.
+Telemetrie u zásobovacích aktérů exportuje také přesný důvod odmítnutí
+a navigační diagnostiku.
+
 Před první aktivací vytvoř `make backup`. Po úspěšném buildu nastav
 v privátním `.env` a nasaď:
 
@@ -362,8 +371,10 @@ Výsledky jednotkových testů nepředstavují samy o sobě runtime důkaz.
 
 Viewer na portu 9091 ukazuje vybraných 100 NPC: živou
 pozici, zdraví a bojový stav. V nativním `settlement-v8` je AI vypnutá;
-`wildlife-v8` přidává výše popsanou řízenou zvěř; aktivní `supply-v8`
-navazuje třemi lovci a zásobárnami s prvním fyzickým důkazem.
+`wildlife-v8` přidává výše popsanou řízenou zvěř; `supply-v8`
+navazuje třemi lovci a zásobárnami s prvním fyzickým důkazem. Aktivní
+`consumers-v8` přidává tři spotřebitele; jejich přijetí vyžaduje samostatný
+záznam všech jídel a návratů.
 Automatické skupiny,
 přepady vesnic a dobývání teritoria zatím nejsou zapnuté.
 Nové chování se má přidávat po ověřitelných krocích nad touto vlastní

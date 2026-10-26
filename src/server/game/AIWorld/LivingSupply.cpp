@@ -6,6 +6,7 @@
 #include "Map.h"
 #include "MotionMaster.h"
 #include "PointMovementGenerator.h"
+#include "Agent/LivingRecoveryPath.h"
 #include "Scheduler/PlanningWorkBudget.h"
 #include <algorithm>
 #include <cmath>
@@ -193,6 +194,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         actor.Corpse = {};
         actor.Trip = actor.AtGround = false;
         actor.ReturningToHome = false;
+        actor.Travel = {};
         LivingSupply::ClearHunterSearch(actor);
         actor.EmptySearches = actor.SearchLeg = 0;
         actor.Live = live;
@@ -369,6 +371,124 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
     return info;
 }
 
+std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& record, Creature& creature,
+    ActionPosition const& destination, uint64 nowMs, std::optional<RecoveryMovement>& approved)
+{
+    using namespace LivingReturnPolicy;
+    approved.reset();
+    if ((!IsSupplyHunter(record) && !IsSupplyConsumer(record)) || !BoundActor(record, creature))
+        return std::nullopt;
+    auto found = _supplyActors.find(record.SpawnId);
+    if (found == _supplyActors.end()) return std::nullopt;
+    auto& travel = found->second.Travel;
+    auto& state = record.LivingRole;
+    auto const& scope = GetSimulationScope();
+    ActionPosition from{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+    auto const homePosition = creature.GetHomePosition();
+    ActionPosition home{from.MapId, homePosition.GetPositionX(), homePosition.GetPositionY(), homePosition.GetPositionZ()};
+    auto inBounds = [&](ActionPosition const& point)
+    {
+        return Finite(point) && point.MapId == from.MapId &&
+            scope.Contains(point.MapId, creature.GetMap()->GetZoneId(creature.GetPhaseMask(), point.X, point.Y, point.Z),
+                point.X, point.Y, point.Z) && std::hypot(point.X-home.X, point.Y-home.Y) <= 384.0f;
+    };
+    if (!InSupplyScope(scope, creature) || !inBounds(from) || !inBounds(home) || !inBounds(destination))
+    {
+        travel = {};
+        state.Planning.ResumeWork(nowMs);
+        return std::nullopt;
+    }
+    std::optional<ActionPosition> danger = nowMs < state.DangerUntilMs ?
+        std::optional<ActionPosition>(state.DangerPosition) : std::nullopt;
+    float clearance = LivingRolePolicy::SafetyRadius(record.Id.Value);
+    uint32 capabilities = uint32(creature.CanWalk()) + uint32(creature.CanEnterWater()) * 2 + uint32(creature.IsFlying()) * 4;
+    if (!travel.Matches(creature.GetGUID(), destination, home, danger, clearance, creature.GetPhaseMask(), capabilities) ||
+        !travel.ObserveSource(from) || (travel.RetryAtMs && nowMs >= travel.RetryAtMs))
+        travel.Begin(creature.GetGUID(), from, destination, home, danger, clearance, creature.GetPhaseMask(), capabilities);
+    state.Planning.ResumeWork(nowMs);
+    if (travel.RetryAtMs) return std::nullopt;
+    auto noRoute = [&]() -> std::optional<ActionPosition>
+    {
+        // Exhaustion is a bounded observation, not a permanent verdict about
+        // mutable geometry. Recheck after the runtime's existing slow retry.
+        travel.RetryAtMs = nowMs + 10000;
+        return std::nullopt;
+    };
+    auto defer = [&]() -> std::optional<ActionPosition>
+    {
+        state.ReturnDiagnostics.Deferred = true;
+        state.Planning.MarkDeferred(nowMs, "WORK_BUDGET", "SUPPLY_CORRIDOR");
+        return std::nullopt;
+    };
+    // HomeCorridor's providers own their own leaf permits. Holding an outer
+    // permit would prevent a suspended graph from making any progress.
+    for (unsigned attempt = 0; attempt < 24; ++attempt)
+    {
+        if (travel.Route.Planned.empty())
+        {
+            auto* rememberedDanger = danger ? &*danger : nullptr;
+            if (!travel.Search.Matches(from, destination, 3.0f, 384.0f, rememberedDanger, clearance, true))
+                travel.Search.Begin(from, destination, 3.0f, 384.0f, rememberedDanger, clearance, true);
+            // The caller's real arrival predicate includes 3D distance and
+            // LOS. Being near an endpoint in XY cannot complete this trip.
+            travel.Search.ArrivalChecked = true;
+            uint64 started = PlanningWorkBudget::StartedOperations();
+            auto corridor = LivingRecoveryPath::HomeCorridor(creature, from, destination, 3.0f, 384.0f,
+                rememberedDanger, clearance, &state.ReturnDiagnostics, &travel.Search, true);
+            if (PlanningWorkBudget::StartedOperations() != started) state.Planning.MarkProgress(nowMs);
+            if (state.ReturnDiagnostics.Deferred) return defer();
+            if (corridor.empty()) return noRoute();
+            travel.Route.Planned = std::move(corridor);
+            travel.Route.SurfaceCorridor = travel.Search.Report.SurfaceCorridor;
+        }
+        // Remove only the literal origin. Nearby future bends remain in the
+        // proof and are consumed individually after an owned arrival.
+        while (!travel.Route.Planned.empty() && Distance(from, travel.Route.Planned.front()) <= 0.01f)
+            travel.Route.Planned.erase(travel.Route.Planned.begin());
+        if (travel.Route.Planned.empty()) continue;
+        ActionPosition query = travel.Route.Planned.front();
+        if (!UsefulStep(from, query) || travel.Route.Failed(from, query))
+        {
+            travel.RejectCandidate(from, query);
+            continue;
+        }
+        auto permit = PlanningWorkBudget::TryAcquire();
+        if (!permit) return defer();
+        state.Planning.MarkProgress(nowMs);
+        auto const& endpoint = travel.Route.Planned.back();
+        float lift = std::max(0.5f, creature.GetCollisionHeight());
+        bool endpointReachable = Distance(endpoint, destination) <= 3.0f &&
+            creature.GetMap()->isInLineOfSight(endpoint.X, endpoint.Y, endpoint.Z + lift,
+                destination.X, destination.Y, destination.Z + lift, creature.GetPhaseMask(),
+                LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing);
+        if (!endpointReachable || !std::all_of(travel.Route.Planned.begin(), travel.Route.Planned.end(), inBounds))
+        {
+            travel.RejectCandidate(from, query);
+            continue;
+        }
+        RecoveryMovement request{query, home, 384.0f, danger, false};
+        request.SurfaceCorridor = travel.Route.SurfaceCorridor;
+        request.DangerRadius = clearance;
+        Movement::PointsArray points;
+        state.ReturnDiagnostics.Deferred = false;
+        if (!LivingRecoveryPath::Build(creature, request, points, &state.ReturnDiagnostics))
+        {
+            travel.RejectCandidate(from, query);
+            continue;
+        }
+        auto const& end = points.back();
+        request.Destination = {from.MapId, end.x, end.y, end.z};
+        request.QueryDestination = query;
+        travel.Pending = request;
+        travel.PendingFrom = from;
+        approved = request;
+        return request.Destination;
+    }
+    // Bounded administrative work may yield even before the next expensive
+    // query. Keep its candidate cursor rather than declaring a route failure.
+    return defer();
+}
+
 bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creature, uint64 nowMs,
     std::function<bool(ActionRequest, Phase, Unit*, bool)> const& start,
     std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step, bool searchOnly)
@@ -402,6 +522,12 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
         if (!arrived && ownership && record.ActiveActionState && point && point->GetId() == ActionExecutor::MovePointId &&
             state.MoveWatchdog.Continue(nowMs, {725, creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()}, false))
             return true;
+        ActionPosition reached{725, creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+        if (arrived && actor.Travel.Pending && RecoveryMovement::SamePoint(actor.Travel.Pending->Destination, state.Destination))
+        {
+            if (!actor.Travel.ObserveSource(reached, true)) actor.Travel = {};
+        }
+        else actor.Travel.RejectPending();
         finish(arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 1000 : 10000);
         if (!arrived) actor.Phase = "NO_ROUTE";
         return true;
@@ -444,18 +570,15 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
 
     auto travel = [&](ActionPosition const& destination, char const* phase, char const* purpose, bool searchAttempt = false)
     {
-        auto permit = PlanningWorkBudget::TryAcquire();
-        if (!permit)
+        auto next = step(destination);
+        if (!next && state.Planning.Deferred)
         {
             actor.Phase = "WAITING"; actor.LastResult = "PLANNING_DEFERRED";
-            state.Planning.MarkDeferred(nowMs, "WORK_BUDGET", "SUPPLY_TRAVEL");
+            actor.NextAtMs = nowMs + 100;
             state.NextDecisionAtMs = nowMs + 100;
             state.MovementPurpose = "SUPPLY_PLANNING_DEFERRED";
             return true;
         }
-        auto next = step(destination);
-        permit.Finish();
-        state.Planning.MarkProgress(nowMs);
         if (searchAttempt) LivingSupply::FinishHunterSearchAttempt(actor, true);
         if (!next)
         {
@@ -468,6 +591,8 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
         actor.LastResult = "MOVE_REJECTED";
         if (!start(move, Phase::Moving, nullptr, false))
         {
+            if (actor.LastResult != "MOVEMENT_OWNER_BUSY" && actor.LastResult != "ACTOR_MOVEMENT_BUSY" &&
+                actor.LastResult != "ACTOR_IN_COMBAT") actor.Travel.RejectPending();
             actor.Phase = "NO_ROUTE";
             actor.NextAtMs = nowMs + 10000;
             return true;
@@ -576,6 +701,12 @@ bool AIWorldMgr::UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creat
         if (!arrived && ownership && record.ActiveActionState && point && point->GetId() == ActionExecutor::MovePointId &&
             state.MoveWatchdog.Continue(nowMs, {725, creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()}, false))
             return true;
+        ActionPosition reached{725, creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
+        if (arrived && actor.Travel.Pending && RecoveryMovement::SamePoint(actor.Travel.Pending->Destination, state.Destination))
+        {
+            if (!actor.Travel.ObserveSource(reached, true)) actor.Travel = {};
+        }
+        else actor.Travel.RejectPending();
         finish(arrived ? "WAITING" : "NO_ROUTE", arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 1000 : 10000);
         return true;
     }
@@ -627,18 +758,15 @@ bool AIWorldMgr::UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creat
 
     auto travel = [&](ActionPosition const& destination, char const* phase, char const* purpose)
     {
-        auto permit = PlanningWorkBudget::TryAcquire();
-        if (!permit)
+        auto next = step(destination);
+        if (!next && state.Planning.Deferred)
         {
             actor.Phase = "WAITING"; actor.LastResult = "PLANNING_DEFERRED";
-            state.Planning.MarkDeferred(nowMs, "WORK_BUDGET", "CONSUMER_TRAVEL");
+            actor.NextAtMs = nowMs + 100;
             state.NextDecisionAtMs = nowMs + 100;
             state.MovementPurpose = "SUPPLY_PLANNING_DEFERRED";
             return true;
         }
-        auto next = step(destination);
-        permit.Finish();
-        state.Planning.MarkProgress(nowMs);
         if (!next)
         {
             actor.Phase = "NO_ROUTE"; actor.LastResult = "NO_ROUTE";
@@ -650,6 +778,8 @@ bool AIWorldMgr::UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creat
         actor.LastResult = "MOVE_REJECTED";
         if (!start(move, Phase::Moving, nullptr, false))
         {
+            if (actor.LastResult != "MOVEMENT_OWNER_BUSY" && actor.LastResult != "ACTOR_MOVEMENT_BUSY" &&
+                actor.LastResult != "ACTOR_IN_COMBAT") actor.Travel.RejectPending();
             actor.Phase = "NO_ROUTE";
             actor.NextAtMs = nowMs + 10000;
             return true;
