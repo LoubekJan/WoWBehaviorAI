@@ -177,6 +177,9 @@ jižní vesnice (901035/901036) a gnolla 901063 jako spotřebitele jejich
 vlastních zásobáren. Po jeho aktivaci jde o 26 řízených a 74 nativních NPC;
 všech 100 původních spawnů a jejich domovy zůstává zachováno. Postup a
 ověřovací podmínky jsou v [doc/RealmLab.md](doc/RealmLab.md#spotřebitelé-zásob--consumers-v8).
+[První fyzický důkaz](data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json)
+prošel na revizi `28ce11753874`: všichni tři spotřebitelé dokončili jídlo
+a návrat, všichni tři lovci doručili potravu a bilance zůstala zachovaná.
 
 Volitelný profil `supply-v8` přidává ke stávající zvěři lidského lovce
 901034, dva gnollí lovce 901061/901062 a dvě zásobárny. Po aktivaci jde
@@ -190,19 +193,20 @@ zůstává historickým podkladem. Každý důkaz platí pro uvedenou revizi;
 další změny se ověřují samostatně.
 
 Po sestavení verze se zásobováním a před první aktivací použij `make backup`.
-V privátním `.env` nastav `LAB_AI_PROFILE=supply-v8` a
+V privátním `.env` nastav `LAB_AI_PROFILE=consumers-v8` a
 `LAB_WILDLIFE_ENABLED=1`, potom spusť `make setup-world` a `make start`.
 CI/CD používá stejnou přípravu pod deploy zámkem. Výchozí `.env.example`
-zůstává u `settlement-v8`; současný realm používá `supply-v8`.
+zůstává u `settlement-v8`; současný realm používá `consumers-v8`.
 
 Nové zásoby, náklad a rezervace kořisti jsou pouze stav aktuálního běhu;
 při restartu se resetují a sklady začínají prázdné. Jejich ukládání je
 odložené podle zadání. Z identity ani starých osobních zásob se nové jídlo
-nevytváří. Zatím ze skladů jedí jen tři lovci, nikoliv celá vesnice.
+nevytváří. Ze skladů jedí tři lovci a tři vybraní spotřebitelé;
+spotřeba celé vesnice zatím zapnutá není.
 
-Pro pauzu ponech profil `supply-v8`, nastav `LAB_WILDLIFE_ENABLED=0` a
-znovu vytvoř worldserver. Přepínač pozastaví všech 23 řízených aktérů.
-Po založení tří loveckých vazeb se prosté přepnutí na `wildlife-v8`
+Pro pauzu ponech profil `consumers-v8`, nastav `LAB_WILDLIFE_ENABLED=0` a
+znovu vytvoř worldserver. Přepínač pozastaví všech 26 řízených aktérů.
+Po založení nových vazeb se prosté přepnutí na starší profil
 odmítne; jejich identity a paměť se při pauze nemažou. Pravidla, limity,
 navigační důkaz a fyzická kritéria jsou v
 [doc/RealmLab.md](doc/RealmLab.md#zásobování-lovem--supply-v8).

@@ -7,7 +7,9 @@ níže uvedený plán a dosažené milníky jsou historický podklad.
 Aktuální provozní postup je v [README_DEV.md](README_DEV.md) a
 [doc/RealmLab.md](doc/RealmLab.md). Aktivní profil `consumers-v8` řídí
 20 zvířat, tři lovce a tři spotřebitele; zbývajících 74 NPC používá
-nativní chování. Fyzické přijetí spotřebitelů se ověřuje samostatně.
+nativní chování. Fyzické přijetí všech tří spotřebitelů prošlo na revizi
+`28ce11753874`; [důkaz](data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json)
+obsahuje konkrétní záznam, hashe a omezení.
 První fyzický řetězec lov–odběr–náklad–doručení–jídlo prošel na revizi
 `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81` dne 26. října 2026.
 Stejný řetězec po úpravě plánovacího rozpočtu prošel také na revizi
@@ -48,15 +50,21 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    lovci doručili potravu a jedli, doloženo je šest doručení a pět jídel.
    Bilance je `0 + 51 = 31 + 0 + 20 + 0` porcí. Důkazy jsou připnuté
    ke konkrétním revizím; další změny se ověřují samostatně.
-3. **Spotřeba obyvatel — rozšíření `consumers-v8`.** Dva pracovníci jižní
+3. **Spotřeba obyvatel — nasazeno, fyzický gate PASS.** Dva pracovníci jižní
    vesnice 901035/901036 a gnoll 901063 mají vlastní sklad, ke kterému
    při hladu dojdou. Jedna dokončená pětisekundová porce sníží zásobu a
    teprve potom hlad. Prázdný sklad hlad nesníží; běžná práce jim nevyrábí
    osobní jídlo. Následuje cesta domů a původní běžné chování. Profil má
    26 řízených a 74 nativních NPC; mapová data a domovy zůstávají stejné.
-   Runtime přijetí vyžaduje záznam všech tří skutečných jídel a návratů,
-   zachování bilance a regresní ověření zásobování lovci. Implementace ani
-   navigační průchodnost samy nejsou důkazem fyzického chování.
+   [Fyzický důkaz](data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json)
+   na revizi `28ce117538745eafaeb70378e3090cffddb326ae` prošel za
+   794,033 sekundy: 3 177 čerstvých snímků, 3 166 unikátních, sedm
+   doložených jídel a šest úplných cyklů spotřebitelů. Pokryti jsou všichni
+   tři; úplné cykly jsou rozdělené 1/2/3 mezi 901035/901036/901063.
+   Všichni tři lovci dokončili doručení, bilance je `0 + 69 = 20 + 0 + 49 + 0`.
+   Záznam obsahuje i čekání u prázdných skladů bez uspokojení hladu.
+   Nezávislé přehrání přesně odpovídá uloženému výsledku. Důkaz nepotvrzuje
+   dlouhodobou rovnováhu, perzistenci ani patnáctiminutový gate nehybnosti.
 4. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
    pravidla mají stavět na fungujícím pohybu, potravě a zásobování.
 

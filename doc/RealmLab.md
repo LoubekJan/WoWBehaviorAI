@@ -317,6 +317,22 @@ zůstává odložená podle zadání.
 
 ## Spotřebitelé zásob — consumers-v8
 
+**Nasazeno; fyzický gate PASS** na revizi
+`28ce117538745eafaeb70378e3090cffddb326ae`.
+[Versionovaný důkaz](../data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json)
+připíná záznam 794,033 sekundy, CI, zdrojové hashe a nezávislé přehrání.
+Všech 3 177 přijatých snímků je čerstvých; 11 duplicitních časů zachycení
+se do důkazu nepočítá. Ze 3 166 unikátních snímků plyne sedm doložených
+jídel a šest úplných cyklů spotřebitelů: 901035 jednou, 901036 dvakrát
+a 901063 třikrát. Všichni tři lovci dokončili doručení, celkem šest
+úplných loveckých cyklů. Bilance je `0 + 69 = 20 + 0 + 49 + 0` porcí.
+
+Záznam zachytil prázdné sklady bez snížení hladu; souběh o poslední porci
+je doložený jednotkovými testy. Jeden začátek jídla nemá celé pozorované
+časové okno a je z doložených jídel vyřazený. Jde o pozitivní krátký test,
+nikoliv dlouhodobou rovnováhu, perzistenci nebo patnáctiminutový gate
+nehybnosti. Nezávislé přehrání uzavřeného gzipu přesně odpovídá reportu.
+
 Profil `consumers-v8` navazuje na stejné zásobování a mapu `preview-v8`.
 Přidává pouze tři existující NPC:
 
@@ -377,8 +393,8 @@ Viewer na portu 9091 ukazuje vybraných 100 NPC: živou
 pozici, zdraví a bojový stav. V nativním `settlement-v8` je AI vypnutá;
 `wildlife-v8` přidává výše popsanou řízenou zvěř; `supply-v8`
 navazuje třemi lovci a zásobárnami s prvním fyzickým důkazem. Aktivní
-`consumers-v8` přidává tři spotřebitele; jejich přijetí vyžaduje samostatný
-záznam všech jídel a návratů.
+`consumers-v8` přidává tři spotřebitele se samostatným fyzickým důkazem
+jídel a návratů všech tří.
 Automatické skupiny,
 přepady vesnic a dobývání teritoria zatím nejsou zapnuté.
 Nové chování se má přidávat po ověřitelných krocích nad touto vlastní

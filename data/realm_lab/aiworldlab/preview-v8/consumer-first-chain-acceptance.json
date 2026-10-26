@@ -1,0 +1,959 @@
+{
+  "schema_version": 1,
+  "profile": "consumers-v8",
+  "status": "PASS",
+  "tested_revision": "28ce117538745eafaeb70378e3090cffddb326ae",
+  "ci": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/40404497156",
+  "source_revision": "preview-v8",
+  "map_id": 725,
+  "area_id": 4988,
+  "realm_id": 2,
+  "recording": {
+    "session_id": "20261026T213231Z-4e38c575",
+    "started_at_utc": "2026-10-26T21:32:31.123+00:00",
+    "source_directory": "runtime/lab/recordings/aiworld-20261026T213231Z-4e38c575",
+    "elapsed_seconds": 794.033,
+    "interval_seconds": 0.25,
+    "samples": 3177,
+    "fresh_received_samples": 3177,
+    "unique_fresh_samples": 3166,
+    "stale_samples": 0,
+    "parts": [
+      {
+        "name": "part-0001.jsonl.gz",
+        "bytes": 38393693,
+        "sha256": "08e0c546d53de549191bcbc97d24b843f3cfbfddab99344c61c251253f385765"
+      }
+    ],
+    "summary": {
+      "bytes": 1044,
+      "sha256": "6edbc0deb5f29a0b6c225cdee3ffb837dee2f56fee35f841afae969d7eab906f"
+    },
+    "acceptance": {
+      "bytes": 22593,
+      "sha256": "068a4e4f9c6cc92a7fd25354e83e486bc58ce19757c736b7bdab0332d2d97037"
+    }
+  },
+  "physical_scope": {
+    "total_npcs": 100,
+    "managed": 26,
+    "native": 74,
+    "completed_consumers": [
+      901035,
+      901036,
+      901063
+    ],
+    "complete_consumer_cycles": 6,
+    "consumer_cycles_by_actor": {
+      "901035": 1,
+      "901036": 2,
+      "901063": 3
+    },
+    "proven_consumer_meals": 7,
+    "proven_meals_by_actor": {
+      "901035": 2,
+      "901036": 2,
+      "901063": 3
+    },
+    "complete_hunter_cycles": 6,
+    "delivered_hunters": [
+      901034,
+      901061,
+      901062
+    ],
+    "empty_depot_observations": {
+      "901035": 21,
+      "901036": 14,
+      "901063": 81
+    }
+  },
+  "accounting": {
+    "initial_food": 0,
+    "harvested": 69,
+    "in_depots": 20,
+    "in_cargo": 0,
+    "consumed": 49,
+    "lost": 0
+  },
+  "independent_normalized_replay_matches": true,
+  "source_git_blobs": [
+    {
+      "path": "src/server/game/AIWorld/Agent/LivingSupplyState.h",
+      "git_blob_bytes": 17044,
+      "git_blob_sha256": "fc5a94701d8bf3d5769de8d39711f398a73d2cd825ff447fa9049baf8fe649d1"
+    },
+    {
+      "path": "src/server/game/AIWorld/Agent/LivingSupplyRuntime.h",
+      "git_blob_bytes": 7808,
+      "git_blob_sha256": "c250cb0a50fc729f898a60b6e18a35a517666eeaff67f3b8a7bebc65d075a5ec"
+    },
+    {
+      "path": "src/server/game/AIWorld/Agent/LivingRolePolicy.h",
+      "git_blob_bytes": 13319,
+      "git_blob_sha256": "97ecf376a4450a4690dd123d66749e02e3ac6204ec6a4b4c88dc5e3bb8fbd7b4"
+    },
+    {
+      "path": "src/server/game/AIWorld/LivingSupply.cpp",
+      "git_blob_bytes": 40686,
+      "git_blob_sha256": "131b5c8637e891f3dc80f41f815c27ac530a71bdba6228af5f25c261a1406247"
+    },
+    {
+      "path": "src/server/game/AIWorld/LivingRole.cpp",
+      "git_blob_bytes": 127227,
+      "git_blob_sha256": "334e1126058b8b64d9f15e3f41178bba363ed41aac71e74ba4ac21a10f09b587"
+    },
+    {
+      "path": "src/server/game/AIWorld/Telemetry/TelemetryCapture.cpp",
+      "git_blob_bytes": 22623,
+      "git_blob_sha256": "4f3b8ba8ff57aaf704aa00a2185dea6de9fcb7196732b577b685cb8a3ba1f339"
+    },
+    {
+      "path": "tools/realm_lab/consumer_population.py",
+      "git_blob_bytes": 13577,
+      "git_blob_sha256": "a1269f4d51268f6e2df500d3f7d3bb3e973cb21e09b0b025a8c37da559d0f99f"
+    },
+    {
+      "path": "tools/realm_lab/consumer_acceptance.py",
+      "git_blob_bytes": 12627,
+      "git_blob_sha256": "6b2f1f78c8d26733c3178323745fe9e7d607129ed1294b473c8f794891fcc4aa"
+    },
+    {
+      "path": "tools/realm_lab/supply_acceptance.py",
+      "git_blob_bytes": 35676,
+      "git_blob_sha256": "874bab627b6f79eb9e8ab71da6ee7b04a24650ef4067fbc7d0b879089455e2d2"
+    },
+    {
+      "path": "docker/world-viewer/app/telemetry.py",
+      "git_blob_bytes": 21689,
+      "git_blob_sha256": "198df67d5f6b78705b3ab49d951ae97bdf22fa022bffe75218042deb87bcc799"
+    }
+  ],
+  "deployment_verification": {
+    "tested_revision": "28ce117538745eafaeb70378e3090cffddb326ae",
+    "counts": {
+      "total": 100,
+      "managed": 26,
+      "native": 74,
+      "live_roles": 21
+    },
+    "services": {
+      "auth-mysql": "healthy",
+      "lab-mysql": "healthy",
+      "authserver": "healthy",
+      "worldserver": "healthy",
+      "world-viewer": "healthy",
+      "ai-server": "healthy",
+      "account-web": "healthy"
+    },
+    "original_accounts_preserved": 4,
+    "saved_characters_preserved_at_activation": true,
+    "saved_homebinds_preserved_at_activation": true,
+    "consumer_meal_counters": {
+      "901035": "3",
+      "901036": "2",
+      "901063": "3"
+    },
+    "geometry_files": 61,
+    "status": "verified"
+  },
+  "limitations": [
+    "Observed hunted-target death does not attribute the killing blow or exclude player intervention.",
+    "Positive first-cycle proof does not establish long-term balance, restart persistence, or a completed stationary window.",
+    "Carcass life is a runtime ledger incarnation counter, not the prey LivingRole lifetime timestamp.",
+    "Position/action samples do not independently measure line of sight; the runtime checks it before debit.",
+    "Observed individual goal ownership and matching action/role start times do not independently expose the internal goal-start timestamp.",
+    "A last-portion race or an empty-depot refusal is not proven unless that situation is actually observed; ledger unit tests cover the race.",
+    "All 3177 received snapshots were fresh; 11 identical capture timestamps were excluded from independent evidence.",
+    "One consumer meal beginning was not observed for the full required window and is excluded from proven meals.",
+    "Fallback/dead/unbound actor observations and missing role lifetimes are excluded from physical action evidence.",
+    "A last-portion race is covered by ledger unit tests, not claimed as a live race in this recording.",
+    "This positive approximately thirteen-minute run does not establish long-term balance, restart persistence, or a fifteen-minute stationary gate."
+  ],
+  "acceptance_report": {
+    "profile": "consumers-v8",
+    "status": "PASS",
+    "exit_code": 0,
+    "samples": 3177,
+    "fresh_samples": 3166,
+    "complete_population_frames": 3166,
+    "expected_owned": 26,
+    "expected_native": 74,
+    "selected_epoch": 0,
+    "delivered_hunters": [
+      901034,
+      901061,
+      901062
+    ],
+    "cycles": [
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901034,
+        "runtime_guid": "GUID Full: 0xF130002C4000000C Type: Creature Entry: 11328 Low: 12",
+        "lifetime_ms": 1793050349366,
+        "prey_spawn_id": 901087,
+        "prey_runtime_guid": "GUID Full: 0xF130000373000010 Type: Creature Entry: 883 Low: 16",
+        "prey_lifetime_ms": 1793050348807,
+        "hunt_started_at_ms": 1793050462366,
+        "depot_id": 1,
+        "covered": [
+          "HUNTING",
+          "TARGET_DEATH",
+          "HARVESTING",
+          "HARVESTED",
+          "RETURNING_TO_DEPOT",
+          "DELIVERING",
+          "DELIVERED"
+        ],
+        "times": {
+          "HUNTING": 111.5,
+          "TARGET_DEATH": 112.5,
+          "HARVESTING": 113.5,
+          "HARVESTED": 118.5,
+          "RETURNING_TO_DEPOT": 121.75,
+          "DELIVERING": 220.5,
+          "DELIVERED": 225.5
+        },
+        "source_life": 1,
+        "harvesting_started_at_ms": 1793050464366,
+        "harvested_portions": 6,
+        "harvest_position": [
+          -251.9743,
+          350.6595,
+          0.0
+        ],
+        "carcass_before": 6,
+        "carcass_after": 0,
+        "carry_travel_yards": 186.24591374551017,
+        "harvest_depot_distance": 186.24597414951018,
+        "delivery_started_at_ms": 1793050571366,
+        "delivered_portions": 6,
+        "stock_before": 0,
+        "stock_after": 6,
+        "delivery_distance_yards": 0.15,
+        "aggregate_delivered_during_sample": 6,
+        "aggregate_consumed_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901034,
+        "runtime_guid": "GUID Full: 0xF130002C4000000C Type: Creature Entry: 11328 Low: 12",
+        "lifetime_ms": 1793050349366,
+        "prey_spawn_id": 901090,
+        "prey_runtime_guid": "GUID Full: 0xF13000037300005F Type: Creature Entry: 883 Low: 95",
+        "prey_lifetime_ms": 1793050349176,
+        "hunt_started_at_ms": 1793050683366,
+        "depot_id": 1,
+        "covered": [
+          "HUNTING",
+          "TARGET_DEATH",
+          "HARVESTING",
+          "HARVESTED",
+          "RETURNING_TO_DEPOT",
+          "DELIVERING",
+          "DELIVERED"
+        ],
+        "times": {
+          "HUNTING": 332.5,
+          "TARGET_DEATH": 334.25,
+          "HARVESTING": 334.5,
+          "HARVESTED": 339.5,
+          "RETURNING_TO_DEPOT": 341.75,
+          "DELIVERING": 445.5,
+          "DELIVERED": 450.5
+        },
+        "source_life": 1,
+        "harvesting_started_at_ms": 1793050685366,
+        "harvested_portions": 6,
+        "harvest_position": [
+          -249.3293,
+          333.7746,
+          0.0
+        ],
+        "carcass_before": 6,
+        "carcass_after": 0,
+        "carry_travel_yards": 198.94830794374698,
+        "harvest_depot_distance": 201.03012867570376,
+        "delivery_started_at_ms": 1793050796366,
+        "delivered_portions": 6,
+        "stock_before": 3,
+        "stock_after": 9,
+        "delivery_distance_yards": 2.189,
+        "aggregate_delivered_during_sample": 6,
+        "aggregate_consumed_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901034,
+        "runtime_guid": "GUID Full: 0xF130002C4000000C Type: Creature Entry: 11328 Low: 12",
+        "lifetime_ms": 1793050349366,
+        "prey_spawn_id": 901088,
+        "prey_runtime_guid": "GUID Full: 0xF130000373000069 Type: Creature Entry: 883 Low: 105",
+        "prey_lifetime_ms": 1793050888945,
+        "hunt_started_at_ms": 1793050907366,
+        "depot_id": 1,
+        "covered": [
+          "HUNTING",
+          "TARGET_DEATH",
+          "HARVESTING",
+          "HARVESTED",
+          "RETURNING_TO_DEPOT",
+          "DELIVERING",
+          "DELIVERED"
+        ],
+        "times": {
+          "HUNTING": 556.5,
+          "TARGET_DEATH": 557.0,
+          "HARVESTING": 557.5,
+          "HARVESTED": 562.5,
+          "RETURNING_TO_DEPOT": 564.75,
+          "DELIVERING": 657.5,
+          "DELIVERED": 662.5
+        },
+        "source_life": 2,
+        "harvesting_started_at_ms": 1793050908366,
+        "harvested_portions": 6,
+        "harvest_position": [
+          -267.2143,
+          348.6992,
+          0.02855154
+        ],
+        "carcass_before": 6,
+        "carcass_after": 0,
+        "carry_travel_yards": 177.74677174840616,
+        "harvest_depot_distance": 178.34805577392328,
+        "delivery_started_at_ms": 1793051008366,
+        "delivered_portions": 6,
+        "stock_before": 6,
+        "stock_after": 12,
+        "delivery_distance_yards": 0.636,
+        "aggregate_delivered_during_sample": 6,
+        "aggregate_consumed_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901061,
+        "runtime_guid": "GUID Full: 0xF1300001DE000058 Type: Creature Entry: 478 Low: 88",
+        "lifetime_ms": 1793050348739,
+        "prey_spawn_id": 901075,
+        "prey_runtime_guid": "GUID Full: 0xF13000037300004F Type: Creature Entry: 883 Low: 79",
+        "prey_lifetime_ms": 1793050348811,
+        "hunt_started_at_ms": 1793050468740,
+        "depot_id": 2,
+        "covered": [
+          "HUNTING",
+          "TARGET_DEATH",
+          "HARVESTING",
+          "HARVESTED",
+          "RETURNING_TO_DEPOT",
+          "DELIVERING",
+          "DELIVERED"
+        ],
+        "times": {
+          "HUNTING": 118.0,
+          "TARGET_DEATH": 122.25,
+          "HARVESTING": 122.75,
+          "HARVESTED": 127.75,
+          "RETURNING_TO_DEPOT": 130.25,
+          "DELIVERING": 238.75,
+          "DELIVERED": 243.75
+        },
+        "source_life": 1,
+        "harvesting_started_at_ms": 1793050473739,
+        "harvested_portions": 6,
+        "harvest_position": [
+          255.2848,
+          984.4755,
+          7.572169
+        ],
+        "carcass_before": 6,
+        "carcass_after": 0,
+        "carry_travel_yards": 208.0005697822244,
+        "harvest_depot_distance": 209.12465012917403,
+        "delivery_started_at_ms": 1793050589739,
+        "delivered_portions": 6,
+        "stock_before": 0,
+        "stock_after": 6,
+        "delivery_distance_yards": 1.055,
+        "aggregate_delivered_during_sample": 6,
+        "aggregate_consumed_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901061,
+        "runtime_guid": "GUID Full: 0xF1300001DE000058 Type: Creature Entry: 478 Low: 88",
+        "lifetime_ms": 1793050348739,
+        "prey_spawn_id": 901073,
+        "prey_runtime_guid": "GUID Full: 0xF13000037300005E Type: Creature Entry: 883 Low: 94",
+        "prey_lifetime_ms": 1793050348831,
+        "hunt_started_at_ms": 1793050720739,
+        "depot_id": 2,
+        "covered": [
+          "HUNTING",
+          "TARGET_DEATH",
+          "HARVESTING",
+          "HARVESTED",
+          "RETURNING_TO_DEPOT",
+          "DELIVERING",
+          "DELIVERED"
+        ],
+        "times": {
+          "HUNTING": 369.75,
+          "TARGET_DEATH": 372.25,
+          "HARVESTING": 372.75,
+          "HARVESTED": 377.75,
+          "RETURNING_TO_DEPOT": 380.25,
+          "DELIVERING": 502.75,
+          "DELIVERED": 507.75
+        },
+        "source_life": 1,
+        "harvesting_started_at_ms": 1793050723739,
+        "harvested_portions": 6,
+        "harvest_position": [
+          233.9638,
+          1030.336,
+          12.57155
+        ],
+        "carcass_before": 6,
+        "carcass_after": 0,
+        "carry_travel_yards": 234.42046819407642,
+        "harvest_depot_distance": 237.17447252779883,
+        "delivery_started_at_ms": 1793050853739,
+        "delivered_portions": 6,
+        "stock_before": 9,
+        "stock_after": 15,
+        "delivery_distance_yards": 2.786,
+        "aggregate_delivered_during_sample": 6,
+        "aggregate_consumed_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901062,
+        "runtime_guid": "GUID Full: 0xF1300001DE000059 Type: Creature Entry: 478 Low: 89",
+        "lifetime_ms": 1793050349118,
+        "prey_spawn_id": 901074,
+        "prey_runtime_guid": "GUID Full: 0xF130000373000060 Type: Creature Entry: 883 Low: 96",
+        "prey_lifetime_ms": 1793050349115,
+        "hunt_started_at_ms": 1793050475118,
+        "depot_id": 2,
+        "covered": [
+          "HUNTING",
+          "TARGET_DEATH",
+          "HARVESTING",
+          "HARVESTED",
+          "RETURNING_TO_DEPOT",
+          "DELIVERING",
+          "DELIVERED"
+        ],
+        "times": {
+          "HUNTING": 124.25,
+          "TARGET_DEATH": 128.25,
+          "HARVESTING": 128.25,
+          "HARVESTED": 133.25,
+          "RETURNING_TO_DEPOT": 135.5,
+          "DELIVERING": 262.25,
+          "DELIVERED": 267.25
+        },
+        "source_life": 1,
+        "harvesting_started_at_ms": 1793050479118,
+        "harvested_portions": 6,
+        "harvest_position": [
+          220.8417,
+          1006.752,
+          11.7465
+        ],
+        "carcass_before": 6,
+        "carcass_after": 0,
+        "carry_travel_yards": 243.82065375798254,
+        "harvest_depot_distance": 245.54928312549825,
+        "delivery_started_at_ms": 1793050613118,
+        "delivered_portions": 6,
+        "stock_before": 5,
+        "stock_after": 11,
+        "delivery_distance_yards": 1.732,
+        "aggregate_delivered_during_sample": 6,
+        "aggregate_consumed_during_sample": 0
+      }
+    ],
+    "meals": [
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901034,
+        "depot_id": 1,
+        "seconds": 232.5,
+        "portions": 1,
+        "hunger_before": 0.7017098,
+        "hunger_after": 0.0,
+        "stock_before": 6,
+        "stock_after": 5,
+        "distance_yards": 0.15,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901034,
+        "depot_id": 1,
+        "seconds": 457.5,
+        "portions": 1,
+        "hunger_before": 0.6720004,
+        "hunger_after": 0.0,
+        "stock_before": 9,
+        "stock_after": 8,
+        "distance_yards": 2.189,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901034,
+        "depot_id": 1,
+        "seconds": 700.5,
+        "portions": 1,
+        "hunger_before": 0.7260007,
+        "hunger_after": 0.0,
+        "stock_before": 12,
+        "stock_after": 11,
+        "distance_yards": 0.636,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901061,
+        "depot_id": 2,
+        "seconds": 250.75,
+        "portions": 1,
+        "hunger_before": 0.7568291,
+        "hunger_after": 0.0,
+        "stock_before": 6,
+        "stock_after": 5,
+        "distance_yards": 1.055,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901061,
+        "depot_id": 2,
+        "seconds": 514.75,
+        "portions": 1,
+        "hunger_before": 0.7890013,
+        "hunger_after": 0.0,
+        "stock_before": 15,
+        "stock_after": 14,
+        "distance_yards": 2.786,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901061,
+        "depot_id": 2,
+        "seconds": 745.75,
+        "portions": 1,
+        "hunger_before": 0.6900006,
+        "hunger_after": 0.0,
+        "stock_before": 12,
+        "stock_after": 11,
+        "distance_yards": 2.786,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901062,
+        "depot_id": 2,
+        "seconds": 274.25,
+        "portions": 1,
+        "hunger_before": 0.8269664,
+        "hunger_after": 0.0,
+        "stock_before": 11,
+        "stock_after": 10,
+        "distance_yards": 1.732,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      },
+      {
+        "epoch": 0,
+        "hunter_spawn_id": 901062,
+        "depot_id": 2,
+        "seconds": 610.25,
+        "portions": 1,
+        "hunger_before": 1.0,
+        "hunger_after": 0.0,
+        "stock_before": 13,
+        "stock_after": 12,
+        "distance_yards": 0.15,
+        "aggregate_delivered_during_sample": 0,
+        "aggregate_consumed_during_sample": 1
+      }
+    ],
+    "agents": {
+      "901034": {
+        "live_samples": 3166,
+        "maximum_displacement_yards": 201.03,
+        "continuous_seconds": 793.999,
+        "movements": {
+          "0": {
+            "start_seconds": 0.001,
+            "end_seconds": 13.75,
+            "yards": 2.718
+          }
+        },
+        "cycles": 3,
+        "partial_cycle": null,
+        "interruptions": {}
+      },
+      "901061": {
+        "live_samples": 3166,
+        "maximum_displacement_yards": 232.306,
+        "continuous_seconds": 793.999,
+        "movements": {
+          "0": {
+            "start_seconds": 0.001,
+            "end_seconds": 6.25,
+            "yards": 2.799
+          }
+        },
+        "cycles": 2,
+        "partial_cycle": null,
+        "interruptions": {}
+      },
+      "901062": {
+        "live_samples": 3166,
+        "maximum_displacement_yards": 249.159,
+        "continuous_seconds": 793.999,
+        "movements": {
+          "0": {
+            "start_seconds": 0.001,
+            "end_seconds": 7.75,
+            "yards": 3.506
+          }
+        },
+        "cycles": 1,
+        "partial_cycle": null,
+        "interruptions": {}
+      }
+    },
+    "accounting": {
+      "initial_food": 0,
+      "harvested": 69,
+      "in_depots": 20,
+      "in_cargo": 0,
+      "consumed": 49,
+      "lost": 0
+    },
+    "latest_accounting": {
+      "initial_food": 0,
+      "harvested": 69,
+      "in_depots": 20,
+      "in_cargo": 0,
+      "consumed": 49,
+      "lost": 0
+    },
+    "missing_evidence": [],
+    "violations": [],
+    "quality": {
+      "spawn_or_last_known_fallback": 11171,
+      "missing_role_lifetime": 37,
+      "consumer_meal_start_not_observed": 1,
+      "identical_capture_ignored": 11
+    },
+    "minimum_stationary_observation_seconds": 900,
+    "limitations": [
+      "Observed hunted-target death does not attribute the killing blow or exclude player intervention.",
+      "Positive first-cycle proof does not establish long-term balance, restart persistence, or a completed stationary window.",
+      "Carcass life is a runtime ledger incarnation counter, not the prey LivingRole lifetime timestamp.",
+      "Position/action samples do not independently measure line of sight; the runtime checks it before debit.",
+      "Observed individual goal ownership and matching action/role start times do not independently expose the internal goal-start timestamp.",
+      "A last-portion race or an empty-depot refusal is not proven unless that situation is actually observed; ledger unit tests cover the race."
+    ],
+    "consumer_cycles": [
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901035,
+        "runtime_guid": "GUID Full: 0xF130002C40000005 Type: Creature Entry: 11328 Low: 5",
+        "lifetime_ms": 1793050349172,
+        "depot_id": 1,
+        "departure_seconds": 235.25,
+        "departure_depot_distance_yards": 33.56,
+        "travel_yards": 121.0190326484591,
+        "meal": {
+          "epoch": 0,
+          "consumer_spawn_id": 901035,
+          "depot_id": 1,
+          "seconds": 540.25,
+          "portions": 1,
+          "observed_meal_seconds": 6.001,
+          "hunger_before": 0.7470011,
+          "hunger_after": 0.0,
+          "stock_before": 7,
+          "stock_after": 6,
+          "distance_yards": 1.118,
+          "aggregate_consumed_during_sample": 1,
+          "aggregate_delivered_during_sample": 0
+        },
+        "return_movement_observed": true,
+        "returned_seconds": 585.25,
+        "home_distance_yards": 2.916
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901036,
+        "runtime_guid": "GUID Full: 0xF130002C40000006 Type: Creature Entry: 11328 Low: 6",
+        "lifetime_ms": 1793050348953,
+        "depot_id": 1,
+        "departure_seconds": 237.0,
+        "departure_depot_distance_yards": 43.31,
+        "travel_yards": 43.40977542061441,
+        "meal": {
+          "epoch": 0,
+          "consumer_spawn_id": 901036,
+          "depot_id": 1,
+          "seconds": 267.0,
+          "portions": 1,
+          "observed_meal_seconds": 5.004,
+          "hunger_before": 0.8054714,
+          "hunger_after": 0.0,
+          "stock_before": 5,
+          "stock_after": 4,
+          "distance_yards": 0.15,
+          "aggregate_consumed_during_sample": 1,
+          "aggregate_delivered_during_sample": 0
+        },
+        "return_movement_observed": true,
+        "returned_seconds": 294.0,
+        "home_distance_yards": 0.0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901036,
+        "runtime_guid": "GUID Full: 0xF130002C40000006 Type: Creature Entry: 11328 Low: 6",
+        "lifetime_ms": 1793050348953,
+        "depot_id": 1,
+        "departure_seconds": 498.0,
+        "departure_depot_distance_yards": 48.217,
+        "travel_yards": 47.12101536414695,
+        "meal": {
+          "epoch": 0,
+          "consumer_spawn_id": 901036,
+          "depot_id": 1,
+          "seconds": 527.0,
+          "portions": 1,
+          "observed_meal_seconds": 5.0,
+          "hunger_before": 0.7770013,
+          "hunger_after": 0.0,
+          "stock_before": 8,
+          "stock_after": 7,
+          "distance_yards": 1.126,
+          "aggregate_consumed_during_sample": 1,
+          "aggregate_delivered_during_sample": 0
+        },
+        "return_movement_observed": true,
+        "returned_seconds": 551.0,
+        "home_distance_yards": 1.954
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901063,
+        "runtime_guid": "GUID Full: 0xF13000006100005B Type: Creature Entry: 97 Low: 91",
+        "lifetime_ms": 1793050348473,
+        "depot_id": 2,
+        "departure_seconds": 253.5,
+        "departure_depot_distance_yards": 21.496,
+        "travel_yards": 20.80496581564448,
+        "meal": {
+          "epoch": 0,
+          "consumer_spawn_id": 901063,
+          "depot_id": 2,
+          "seconds": 274.5,
+          "portions": 1,
+          "observed_meal_seconds": 5.001,
+          "hunger_before": 0.8280283,
+          "hunger_after": 0.0,
+          "stock_before": 10,
+          "stock_after": 9,
+          "distance_yards": 2.049,
+          "aggregate_consumed_during_sample": 1,
+          "aggregate_delivered_during_sample": 0
+        },
+        "return_movement_observed": true,
+        "returned_seconds": 299.5,
+        "home_distance_yards": 2.663
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901063,
+        "runtime_guid": "GUID Full: 0xF13000006100005B Type: Creature Entry: 97 Low: 91",
+        "lifetime_ms": 1793050348473,
+        "depot_id": 2,
+        "departure_seconds": 506.5,
+        "departure_depot_distance_yards": 19.013,
+        "travel_yards": 19.008637718638493,
+        "meal": {
+          "epoch": 0,
+          "consumer_spawn_id": 901063,
+          "depot_id": 2,
+          "seconds": 522.5,
+          "portions": 1,
+          "observed_meal_seconds": 5.0,
+          "hunger_before": 0.741001,
+          "hunger_after": 0.0,
+          "stock_before": 14,
+          "stock_after": 13,
+          "distance_yards": 0.15,
+          "aggregate_consumed_during_sample": 1,
+          "aggregate_delivered_during_sample": 0
+        },
+        "return_movement_observed": true,
+        "returned_seconds": 536.5,
+        "home_distance_yards": 0.0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901063,
+        "runtime_guid": "GUID Full: 0xF13000006100005B Type: Creature Entry: 97 Low: 91",
+        "lifetime_ms": 1793050348473,
+        "depot_id": 2,
+        "departure_seconds": 741.75,
+        "departure_depot_distance_yards": 13.597,
+        "travel_yards": 14.067844078144708,
+        "meal": {
+          "epoch": 0,
+          "consumer_spawn_id": 901063,
+          "depot_id": 2,
+          "seconds": 758.75,
+          "portions": 1,
+          "observed_meal_seconds": 5.003,
+          "hunger_before": 0.7050037,
+          "hunger_after": 0.0,
+          "stock_before": 11,
+          "stock_after": 10,
+          "distance_yards": 2.041,
+          "aggregate_consumed_during_sample": 1,
+          "aggregate_delivered_during_sample": 0
+        },
+        "return_movement_observed": true,
+        "returned_seconds": 768.75,
+        "home_distance_yards": 0.0
+      }
+    ],
+    "consumer_meals": [
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901035,
+        "depot_id": 1,
+        "seconds": 540.25,
+        "portions": 1,
+        "observed_meal_seconds": 6.001,
+        "hunger_before": 0.7470011,
+        "hunger_after": 0.0,
+        "stock_before": 7,
+        "stock_after": 6,
+        "distance_yards": 1.118,
+        "aggregate_consumed_during_sample": 1,
+        "aggregate_delivered_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901035,
+        "depot_id": 1,
+        "seconds": 792.5,
+        "portions": 1,
+        "observed_meal_seconds": 5.0,
+        "hunger_before": 0.7530013,
+        "hunger_after": 0.0,
+        "stock_before": 11,
+        "stock_after": 10,
+        "distance_yards": 2.526,
+        "aggregate_consumed_during_sample": 1,
+        "aggregate_delivered_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901036,
+        "depot_id": 1,
+        "seconds": 267.0,
+        "portions": 1,
+        "observed_meal_seconds": 5.004,
+        "hunger_before": 0.8054714,
+        "hunger_after": 0.0,
+        "stock_before": 5,
+        "stock_after": 4,
+        "distance_yards": 0.15,
+        "aggregate_consumed_during_sample": 1,
+        "aggregate_delivered_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901036,
+        "depot_id": 1,
+        "seconds": 527.0,
+        "portions": 1,
+        "observed_meal_seconds": 5.0,
+        "hunger_before": 0.7770013,
+        "hunger_after": 0.0,
+        "stock_before": 8,
+        "stock_after": 7,
+        "distance_yards": 1.126,
+        "aggregate_consumed_during_sample": 1,
+        "aggregate_delivered_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901063,
+        "depot_id": 2,
+        "seconds": 274.5,
+        "portions": 1,
+        "observed_meal_seconds": 5.001,
+        "hunger_before": 0.8280283,
+        "hunger_after": 0.0,
+        "stock_before": 10,
+        "stock_after": 9,
+        "distance_yards": 2.049,
+        "aggregate_consumed_during_sample": 1,
+        "aggregate_delivered_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901063,
+        "depot_id": 2,
+        "seconds": 522.5,
+        "portions": 1,
+        "observed_meal_seconds": 5.0,
+        "hunger_before": 0.741001,
+        "hunger_after": 0.0,
+        "stock_before": 14,
+        "stock_after": 13,
+        "distance_yards": 0.15,
+        "aggregate_consumed_during_sample": 1,
+        "aggregate_delivered_during_sample": 0
+      },
+      {
+        "epoch": 0,
+        "consumer_spawn_id": 901063,
+        "depot_id": 2,
+        "seconds": 758.75,
+        "portions": 1,
+        "observed_meal_seconds": 5.003,
+        "hunger_before": 0.7050037,
+        "hunger_after": 0.0,
+        "stock_before": 11,
+        "stock_after": 10,
+        "distance_yards": 2.041,
+        "aggregate_consumed_during_sample": 1,
+        "aggregate_delivered_during_sample": 0
+      }
+    ],
+    "completed_consumers": [
+      901035,
+      901036,
+      901063
+    ],
+    "empty_depot_observations": {
+      "901035": 21,
+      "901036": 14,
+      "901063": 81
+    }
+  }
+}
