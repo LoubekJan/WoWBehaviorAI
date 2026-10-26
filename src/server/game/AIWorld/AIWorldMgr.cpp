@@ -382,9 +382,13 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     if (_telemetryNativeCreaturesEnabled)
     {
         MapEntry const* mapEntry = sMapStore.LookupEntry(_simulationScope.MapId);
-        if (_enabled || !telemetryEnabled || !_simulationScope.Bounds || _simulationScope.SpawnIds.empty() ||
+        if (!telemetryEnabled || !_simulationScope.Bounds || _simulationScope.SpawnIds.empty() ||
             !mapEntry || mapEntry->Instanceable())
-            throw std::runtime_error("Native telemetry requires AIWorld.Enable=0, TelemetryEnabled=1 and a bounded non-instance scope with explicit SpawnIds");
+            throw std::runtime_error("Native telemetry requires TelemetryEnabled=1 and a bounded non-instance scope with explicit SpawnIds");
+        if (_enabled && (!_restrictAgentsToSimulationScope ||
+            sConfigMgr->GetBoolDefault("AIWorld.EnableSpawnReconciliation", false) ||
+            sConfigMgr->GetBoolDefault("AIWorld.EnableZoneControlActivation", false)))
+            throw std::runtime_error("Mixed native/managed telemetry requires ScopeRestrictAgents=1 with spawn reconciliation and zone control activation disabled");
         std::unordered_set<uint64> zoneSpawns;
         for (uint32 zone : _simulationScope.ZoneIds)
         {
@@ -397,11 +401,14 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
                 throw std::runtime_error("Native telemetry spawn is missing or outside the configured map/zone/bounds");
             _telemetrySpawnIds.insert(spawnId);
         }
-        // Classification reads only. No agent registry, participation policy,
-        // persistence, inference client or AI ownership is initialized here.
-        _worldFactionCatalog.Load();
-        _agentTypeCatalog.Load();
-        _worldFactionReputationCatalog.Load();
+        // Native-only mode needs classification but never initializes agent
+        // ownership. Enabled AI loads these catalogs once below as usual.
+        if (!_enabled)
+        {
+            _worldFactionCatalog.Load();
+            _agentTypeCatalog.Load();
+            _worldFactionReputationCatalog.Load();
+        }
         TC_LOG_INFO("ai.world", "Native creature telemetry scoped to {} spawn ids on map {}", _telemetrySpawnIds.size(), _simulationScope.MapId);
     }
     // The observer is independent of AI ownership. A missing token fails closed.
@@ -2084,8 +2091,9 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
 
     // A startup-only zone identity read, not a live-state database poll.
     // Runtime position/needs/goal/action still come only from world-thread
-    // value snapshots. Elwynn's zoneId is 12 in the current V1 scope.
-    if (_telemetryExporter)
+    // value snapshots. Native/mixed telemetry retains the explicit spawn set
+    // already validated above; it must not fall back to a broader zone census.
+    if (_telemetryExporter && !_telemetryNativeCreaturesEnabled)
     {
         _telemetrySpawnIds.clear();
         for (uint32 zone : _simulationScope.ZoneIds)

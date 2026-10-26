@@ -210,6 +210,8 @@ class LivingRole(ProtocolModel):
     awareness: str = Field(max_length=80)
     movement_purpose: str = Field(max_length=80)
     caution: float = Field(ge=0, le=1)
+    # Incarnation marker; older recordings provide no continuity evidence.
+    lifetime_ms: int | None = Field(default=None, ge=0, le=18446744073709551615, strict=True)
     started_at_ms: int = Field(ge=0)
     decision_wait_ms: int = Field(ge=0)
     danger_remaining_ms: int = Field(ge=0)
@@ -267,6 +269,7 @@ class Agent(ProtocolModel):
     agent_id: int = Field(ge=0)
     spawn_id: int = Field(ge=0)
     native_creature: bool = Field(default=False, strict=True)
+    runtime_guid: str | None = Field(default=None, max_length=80, strict=True)
     entry: int | None = Field(default=None, ge=0)
     name: str | None = Field(default=None, max_length=200)
     type: str = Field(max_length=80)
@@ -323,6 +326,7 @@ class Agent(ProtocolModel):
             self.living_role, self.movement, self.target, self.destination, self.living_wolf,
             self.meal_target_spawn_id is not None,
             self.faction_template_id is not None,
+            self.runtime_guid is not None,
         )):
             raise ValueError("Live observations require a live position")
         return self

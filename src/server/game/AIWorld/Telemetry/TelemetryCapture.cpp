@@ -23,6 +23,7 @@
 #include "MoveSpline.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
+#include "TelemetryPopulation.h"
 #include <algorithm>
 
 void AIWorldMgr::UpdateTelemetry(uint32 diff)
@@ -38,14 +39,10 @@ void AIWorldMgr::UpdateTelemetry(uint32 diff)
     }
 }
 
-void AIWorldMgr::CaptureNativeTelemetry(Map* scopeMap)
+void AIWorldMgr::AppendNativeTelemetry(Map* scopeMap, std::vector<AgentTelemetrySnapshot>& snapshots)
 {
-    std::vector<AgentTelemetrySnapshot> snapshots;
-    snapshots.reserve(_telemetrySpawnIds.size());
-    for (uint64 spawnId : GetSimulationScope().SpawnIds)
+    for (uint64 spawnId : AIWorldTelemetry::NativeSpawnIds(GetSimulationScope().SpawnIds, _telemetrySpawnIds, snapshots))
     {
-        if (!_telemetrySpawnIds.count(spawnId))
-            continue;
         CreatureData const* spawn = sObjectMgr->GetCreatureData(spawnId);
         if (!spawn)
             continue;
@@ -78,6 +75,7 @@ void AIWorldMgr::CaptureNativeTelemetry(Map* scopeMap)
             live.Health = creature->GetHealth(); live.MaxHealth = creature->GetMaxHealth();
             live.Alive = creature->IsAlive(); live.InCombat = creature->IsInCombat();
             item.Live = live;
+            item.RuntimeGuid = creature->GetGUID().ToString();
             item.WorldState = AgentWorldState::Materialized;
             item.Tier = SimulationTier::Active;
             item.FactionTemplateId = creature->GetFaction();
@@ -97,22 +95,15 @@ void AIWorldMgr::CaptureNativeTelemetry(Map* scopeMap)
         }
         snapshots.push_back(std::move(item));
     }
-    // Native observer IDs have no persistent AI memory identity.
-    _telemetryExporter->TakeMemoryRequest();
-    _telemetryExporter->Submit(std::move(snapshots), GetCurrentTimeMs());
 }
 
 void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
 {
-    if (_telemetryNativeCreaturesEnabled)
-    {
-        CaptureNativeTelemetry(scopeMap);
-        return;
-    }
     uint64 nowMs = GetCurrentTimeMs();
     std::vector<AgentTelemetrySnapshot> snapshots;
-    std::vector<AgentId> ids = _registry.GetAgents();
-    snapshots.reserve(std::min(ids.size(), _telemetrySpawnIds.size()));
+    std::vector<AgentId> ids = _enabled ? _registry.GetAgents() : std::vector<AgentId>{};
+    snapshots.reserve(_telemetryNativeCreaturesEnabled ? _telemetrySpawnIds.size() :
+        std::min(ids.size(), _telemetrySpawnIds.size()));
     for (AgentId id : ids)
     {
         AgentRecord const* record = _registry.Find(id);
@@ -211,6 +202,7 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
             live.InCombat = creature->IsInCombat();
             live.SnapshotSequence = record->SnapshotSequence;
             item.Live = live;
+            item.RuntimeGuid = creature->GetGUID().ToString();
             item.FactionTemplateId = creature->GetFaction();
             item.WorldState = AgentWorldState::Materialized;
             auto tier = _agentSimulationTier.find(id.Value);
@@ -237,6 +229,7 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
                 role.Phase = info.Phase; role.Activity = info.Activity;
                 role.Awareness = info.Awareness; role.MovementPurpose = info.MovementPurpose;
                 role.Caution = info.Caution;
+                role.LifetimeMs = record->LivingRole.Advice.LifetimeAt;
                 role.StartedAtMs = record->LivingRole.StartedAtMs;
                 role.DecisionWaitMs = record->LivingRole.NextDecisionAtMs > nowMs ? record->LivingRole.NextDecisionAtMs - nowMs : 0;
                 role.DangerRemainingMs = record->LivingRole.DangerUntilMs > nowMs ? record->LivingRole.DangerUntilMs - nowMs : 0;
@@ -353,9 +346,12 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
         snapshots.push_back(std::move(item));
     }
 
+    if (_telemetryNativeCreaturesEnabled)
+        AppendNativeTelemetry(scopeMap, snapshots);
+
     std::optional<MemoryPageTelemetry> memoryPage;
     if (auto request = _telemetryExporter->TakeMemoryRequest(); request &&
-        std::any_of(snapshots.begin(), snapshots.end(), [&](auto const& item) { return item.Agent == request->Agent; }))
+        AIWorldTelemetry::HasManagedMemoryOwner(snapshots, request->Agent))
     {
         auto page = _longTermMemory.GetPage(request->Agent, request->Offset, TelemetryMemoryPageSize, request->Anchor);
         memoryPage.emplace();

@@ -6,7 +6,7 @@ The project extends TrinityCore with long-lived individual agents that can perce
 
 The goal is not to replace TrinityCore AI with a language model. Deterministic systems handle common behavior; external AI/inference is used only where it adds value.
 
-> Active branch: **`AI-World-lab`**. Updated **2026-10-23**.
+> Active branch: **`AI-World-lab`**. Updated **2026-10-26**.
 >
 > The project now runs one authored world: realm **2**, map **725**, area
 > **4988**, with **100 native NPCs** and live observer telemetry. The
@@ -20,9 +20,12 @@ The goal is not to replace TrinityCore AI with a language model. Deterministic s
 
 Use [README_DEV.md](README_DEV.md) for setup and operation and
 [doc/RealmLab.md](doc/RealmLab.md) for the current map, population,
-account migration and deployment model. Autonomous raids, hunger and
-territory capture remain future gameplay work; the active settlement
-keeps normal TrinityCore NPC behavior.
+account migration and deployment model. The opt-in `wildlife-v8` profile
+adds deterministic movement, hunger, grazing, hunting, feeding and return
+for the existing 16 deer and 4 bears. The other 80 NPCs retain native
+behavior. `settlement-v8` remains the native baseline; the separate
+recording acceptance checks physical behavior rather than service health.
+Raids and territory capture remain future work.
 
 The AI subsystem notes below preserve the project's implementation
 history. [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md) records

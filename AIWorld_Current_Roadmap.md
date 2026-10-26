@@ -1,4 +1,4 @@
-# Aktuální směr — 23. října 2026
+# Aktuální směr — 26. října 2026
 
 Aktivní svět je vlastní mapa **725 / oblast 4988**, realm **2**, větev
 `AI-World-lab`. Výchozí Docker Compose spravuje přihlášení, vlastní svět,
@@ -6,7 +6,27 @@ správu účtů a telemetrii. Původní Elwynn realm je vyřazený směr; jeho
 níže uvedený plán a dosažené milníky jsou historický podklad.
 Aktuální provozní postup je v [README_DEV.md](README_DEV.md) a
 [doc/RealmLab.md](doc/RealmLab.md). Stávajících 100 NPC používá nativní
-chování; hlad, přepady, ekonomika a boj o území jsou další vývoj.
+chování v `settlement-v8`. Následující vývoj probíhá nad tímto vlastním
+světem; historické Elwynn milníky níže nejsou aktuální rollout plán.
+
+## Nejbližší postup ve vlastním světě
+
+1. **Zvěř, potrava a lov — implementace připravená, fyzický gate se měří.**
+   Profil `wildlife-v8` řídí stávajících 16 jelenů a 4 medvědy; 80 ostatních
+   NPC zůstává nativních. Přísný overlay zachovává spawny, domovy,
+   geometrii i staré regresní identity. Smíšená telemetrie a samostatný
+   evaluator rozlišují běžící služby od skutečného cyklu lov–krmení–návrat.
+2. **Perzistence individuálních potřeb.** Hlad, únava a resource pressure
+   zatím nepřežívají restart. Doplnit migraci, hodnotové uložení/obnovení
+   a test restartu; neslibovat tuto vlastnost z pouhé existence `ai_agents`.
+3. **Potrava jako zdroj a zásobování osad.** Po fyzickém gate zvěře propojit
+   výsledek lovu s omezeným zdrojem a zásobami, pak navázat lidské a gnollí
+   lovce. Další role rozšiřovat podle skutečně naměřeného chování.
+4. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
+   pravidla mají stavět na fungujícím pohybu, potravě a zásobování.
+
+Aktuální pravidla, přepínač pauzy a fyzický acceptance jsou v
+[doc/RealmLab.md](doc/RealmLab.md#zvěř-potrava-a-lov--wildlife-v8).
 
 # AIWorld — Roadmap
 

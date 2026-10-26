@@ -3430,9 +3430,10 @@ AIWorld.GroupCoarseSimulationEnabled = 0
 # worldserver and world-viewer environments. Capture runs once per second;
 # network I/O runs on the shared asynchronous io_context. No grid is loaded.
 AIWorld.TelemetryEnabled = 0
-# Observe native creatures without loading agents or taking ownership. Requires
-# AIWorld.Enable=0, TelemetryEnabled=1 and a bounded non-instance scope with
-# explicit ScopeSpawnIds. ScopeAlwaysActive independently controls grid loading.
+# Complete the observer population with native creatures without taking ownership.
+# Requires TelemetryEnabled=1 and a bounded non-instance scope with explicit IDs.
+# Mixed AI also requires ScopeRestrictAgents=1 and disabled spawn reconciliation
+# and zone control activation. ScopeAlwaysActive controls grid loading separately.
 AIWorld.TelemetryNativeCreaturesEnabled = 0
 AIWorld.TelemetryHost = world-viewer
 AIWorld.TelemetryPort = 8000

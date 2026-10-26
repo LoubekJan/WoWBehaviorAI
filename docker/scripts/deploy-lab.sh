@@ -51,7 +51,7 @@ else
   test -z "$("${lab_compose[@]}" ps --all -q worldserver)"
   run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
 fi
-if [ "$lab_profile" = settlement-v8 ]; then
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
     /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
   receipt="/workspace/runtime/lab/receipts/start-policy-deploy-$(date -u +%Y%m%dT%H%M%SZ)-${expected_revision:0:12}.json"
@@ -59,7 +59,7 @@ if [ "$lab_profile" = settlement-v8 ]; then
     /workspace/runtime/lab/data --receipt "$receipt"
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/graveyard.py bootstrap /workspace/runtime/lab/data
   "${lab_compose[@]}" "${run_args[@]}" tc-dev \
-    python3 tools/realm_lab/manage.py bootstrap-settlement-v8 /workspace/runtime/lab/data
+    python3 tools/realm_lab/manage.py "bootstrap-$lab_profile" /workspace/runtime/lab/data
 fi
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh
 "${lab_compose[@]}" up -d auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web
@@ -82,9 +82,9 @@ wait_healthy() {
 for service in auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web; do
   wait_healthy "$service"
 done
-if [ "$lab_profile" = settlement-v8 ]; then
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ]; then
   "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
-    python3 tools/realm_lab/manage.py preflight-settlement-v8 /runtime/data
+    python3 tools/realm_lab/manage.py "preflight-$lab_profile" /runtime/data
 fi
 
 version="$("${lab_compose[@]}" exec -T --interactive=false worldserver /build/bin/worldserver --version)"
@@ -99,36 +99,18 @@ template = Path("/etc/trinitycore/worldserver.conf").read_text(encoding="utf-8")
 assert config == render_config(template, settings)
 assert "Updates.EnableDatabases = 6" in config
 expected_enable = "1" if settings.ai_profile in ("single-return", "hunt-cycle", "hunt-100", "hunt-terrain-100") else "0"
+if settings.ai_profile == "wildlife-v8":
+    expected_enable = str(int(settings.wildlife_enabled))
 assert f"AIWorld.Enable = {expected_enable}\n" in config
-if settings.ai_profile == "settlement-v8":
+if settings.ai_profile in ("settlement-v8", "wildlife-v8"):
     assert "AIWorld.TelemetryEnabled = 1\n" in config
     assert "AIWorld.TelemetryNativeCreaturesEnabled = 1\n" in config
 assert f"RealmID = {settings.realm_id}\n" in config
 print("Lab realm ID, shared-auth migration exclusion and rendered AI profile verified:", settings.ai_profile)
 '
-if [ "$lab_profile" = settlement-v8 ]; then
-  "${lab_compose[@]}" exec -T --interactive=false worldserver python3 -c '
-import json, time, urllib.request
-expected = set(range(901000, 901100))
-previous = None
-for attempt in range(30):
-    with urllib.request.urlopen("http://world-viewer:8000/api/state", timeout=5) as response:
-        state = json.load(response)
-    actors = state["agents"]
-    if not state["stale"] and {a["spawn_id"] for a in actors} == expected:
-        assert len(actors) == 100
-        assert all(a["native_creature"] and a["control_mode"] == "OBSERVE_ONLY" and
-                   a["position"]["map_id"] == 725 and a["needs"] is None and
-                   a["economy"] is None and a["living_role"] is None for a in actors)
-        captured = state["captured_at_ms"]
-        if previous is not None and captured > previous:
-            print("Native NPC telemetry verified: 100 selected spawns, two fresh snapshots, AI management disabled")
-            break
-        previous = captured
-    time.sleep(1)
-else:
-    raise RuntimeError("Native NPC telemetry did not produce two fresh complete snapshots")
-'
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ]; then
+  "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
+    python3 tools/realm_lab/telemetry_contract.py
 fi
 "${lab_compose[@]}" ps
 echo "Lab deployed. Physical movement and return acceptance remain separate from service health."

@@ -9,8 +9,78 @@
 
 #include "tc_catch2.h"
 #include "Telemetry/TelemetryJsonCodec.h"
+#include "Telemetry/TelemetryPopulation.h"
 #include "Memory/LongTermMemory.h"
 #include <limits>
+
+TEST_CASE("Mixed observer preserves managed wildlife and completes the native population once", "[AIWorld][Telemetry][Mixed]")
+{
+    std::vector<uint64> configured;
+    std::unordered_set<uint64> selected;
+    for (uint64 spawn = 901000; spawn < 901100; ++spawn)
+    {
+        configured.push_back(spawn);
+        selected.insert(spawn);
+    }
+    std::vector<AgentTelemetrySnapshot> captured;
+    for (uint64 spawn = 901072; spawn <= 901091; ++spawn)
+    {
+        AgentTelemetrySnapshot managed;
+        managed.Agent = AgentId{spawn}; managed.SpawnId = spawn;
+        managed.ControlMode = AgentControlMode::AIWorldControlled;
+        managed.MapId = 725; managed.Needs.Hunger = 0.75f;
+        captured.push_back(managed);
+    }
+    auto native = AIWorldTelemetry::NativeSpawnIds(configured, selected, captured);
+    REQUIRE(native.size() == 80);
+    for (uint64 spawn : native)
+    {
+        CHECK_FALSE((spawn >= 901072 && spawn <= 901091));
+        AgentTelemetrySnapshot observation;
+        observation.Agent = AgentId{spawn}; observation.SpawnId = spawn;
+        observation.NativeCreature = true;
+        captured.push_back(observation);
+    }
+    REQUIRE(captured.size() == 100);
+    std::unordered_set<uint64> identities;
+    for (auto const& item : captured)
+        REQUIRE(identities.insert(item.SpawnId).second);
+    CHECK(identities == selected);
+    CHECK(AIWorldTelemetry::NativeSpawnIds(configured, selected, captured).empty());
+    for (std::size_t i = 0; i < 20; ++i)
+    {
+        CHECK_FALSE(captured[i].NativeCreature);
+        CHECK(captured[i].Needs.Hunger == 0.75f);
+        CHECK(AIWorldTelemetry::HasManagedMemoryOwner(captured, captured[i].Agent));
+    }
+    for (std::size_t i = 20; i < captured.size(); ++i)
+        CHECK_FALSE(AIWorldTelemetry::HasManagedMemoryOwner(captured, captured[i].Agent));
+
+    // Removing a registry-derived observation restores its native fallback;
+    // neither a stale binding nor a failed managed capture hides that spawn.
+    captured.erase(captured.begin());
+    CHECK(AIWorldTelemetry::NativeSpawnIds(configured, selected, captured) == std::vector<uint64>{901072});
+    CHECK(AIWorldTelemetry::NativeSpawnIds(configured, selected, {}).size() == 100);
+}
+
+TEST_CASE("Native observer selection excludes unselected and duplicate identities", "[AIWorld][Telemetry][Mixed]")
+{
+    std::vector<uint64> configured{0, 901000, 901000, 901001, 901002};
+    std::unordered_set<uint64> selected{901000, 901001, 999999};
+    AgentTelemetrySnapshot existing;
+    existing.Agent = AgentId{901001}; existing.SpawnId = 901001;
+    existing.NativeCreature = true;
+    CHECK(AIWorldTelemetry::NativeSpawnIds(configured, selected, {existing}) == std::vector<uint64>{901000});
+    CHECK_FALSE(AIWorldTelemetry::HasManagedMemoryOwner({existing}, existing.Agent));
+    existing.ControlMode = AgentControlMode::AIWorldControlled;
+    CHECK_FALSE(AIWorldTelemetry::HasManagedMemoryOwner({existing}, existing.Agent));
+    existing.NativeCreature = false;
+    CHECK(AIWorldTelemetry::HasManagedMemoryOwner({existing}, existing.Agent));
+    CHECK_FALSE(AIWorldTelemetry::HasManagedMemoryOwner({existing}, AgentId{0}));
+    CHECK_FALSE(AIWorldTelemetry::HasManagedMemoryOwner({existing}, AgentId{901002}));
+    existing.ControlMode = AgentControlMode::ObserveOnly;
+    CHECK_FALSE(AIWorldTelemetry::HasManagedMemoryOwner({existing}, existing.Agent));
+}
 
 TEST_CASE("Native observer distinguishes live data from spawn fallback without AI state", "[AIWorld][Telemetry]")
 {
@@ -36,6 +106,40 @@ TEST_CASE("Native observer distinguishes live data from spawn fallback without A
     CHECK(json.find("\"health\":42") != std::string::npos);
     CHECK(json.find("\"evading\":true") != std::string::npos);
     CHECK(json.find("\"needs\":null") != std::string::npos);
+}
+
+TEST_CASE("Observer incarnation evidence survives loaded death and disappears with spawn fallback", "[AIWorld][Telemetry]")
+{
+    AgentTelemetrySnapshot native;
+    native.Agent = AgentId{901000}; native.SpawnId = 901000;
+    native.NativeCreature = true;
+    native.Live.emplace(); native.Live->Alive = true;
+    native.RuntimeGuid = "Creature-0-1-725-0-1423-12345";
+    auto json = SerializeAgentTelemetry({native}, 1000);
+    CHECK(json.find("\"runtime_guid\":\"Creature-0-1-725-0-1423-12345\"") != std::string::npos);
+    CHECK(json.find("\"alive\":true") != std::string::npos);
+    native.Live->Alive = false;
+    json = SerializeAgentTelemetry({native}, 2000);
+    CHECK(json.find("\"runtime_guid\":\"Creature-0-1-725-0-1423-12345\"") != std::string::npos);
+    CHECK(json.find("\"alive\":false") != std::string::npos);
+    native.Live.reset();
+    json = SerializeAgentTelemetry({native}, 3000);
+    CHECK(json.find("\"runtime_guid\":null") != std::string::npos);
+    CHECK(json.find("Creature-0-1-725-0-1423-12345") == std::string::npos);
+
+    AgentTelemetrySnapshot managed;
+    managed.Agent = AgentId{901072}; managed.SpawnId = 901072;
+    managed.ControlMode = AgentControlMode::AIWorldControlled;
+    managed.Live.emplace(); managed.Live->Alive = true;
+    managed.RuntimeGuid = "Creature-0-1-725-0-1186-12346";
+    managed.LivingRole.emplace(); managed.LivingRole->LifetimeMs = 43210;
+    json = SerializeAgentTelemetry({managed}, 4000);
+    CHECK(json.find("\"runtime_guid\":\"Creature-0-1-725-0-1186-12346\"") != std::string::npos);
+    CHECK(json.find("\"lifetime_ms\":43210") != std::string::npos);
+    managed.Live.reset();
+    json = SerializeAgentTelemetry({managed}, 5000);
+    CHECK(json.find("\"runtime_guid\":null") != std::string::npos);
+    CHECK(json.find("\"lifetime_ms\"") == std::string::npos);
 }
 
 TEST_CASE("Observer exports owned living state and exact stockpiles", "[AIWorld][Telemetry]")

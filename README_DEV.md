@@ -145,4 +145,27 @@ CI používá vlastní `aitc_lab_ci_*` build volumes.
 Názvy `data/elwynn/factions` a `tools/dbc/build_elwynn_factions.py`
 označují sdílené definice frakcí současných NPC. Jejich zachování
 neobnovuje původní svět. Historické návratové/hunt testy zůstávají
-samostatnými regresními profily, výchozí svět používá `settlement-v8`.
+samostatnými regresními profily. Výchozí `.env.example` používá nativní
+`settlement-v8`; zvířata se aktivují profilem `wildlife-v8`.
+
+## Vývoj zvěře
+
+V `.env` nastav `LAB_AI_PROFILE=wildlife-v8` a `LAB_WILDLIFE_ENABLED=1`.
+`make setup-world` připraví při zastaveném světě stejné spawny a AI vazby
+20 zvířat; `make start` spustí stack. CI/CD tuto přípravu provádí samo pod
+deploy zámkem. Před první aktivací použij `make backup`.
+
+Pozastavení používá `LAB_WILDLIFE_ENABLED=0` a nové vytvoření kontejneru
+worldserveru, aby se načetlo prostředí. Identita a dlouhodobá paměť zůstává;
+individuální potřeby zatím nejsou uložené přes restart. Podrobnosti a
+kritéria fyzického testu jsou v [doc/RealmLab.md](doc/RealmLab.md).
+
+Pro měření lovu nastav u recorderu interval 1 sekunda; delší interval může
+minout krátký přechod živé kořisti na mrtvolu. Záznam vyhodnotíš příkazem:
+
+```bash
+python3 tools/realm_lab/wildlife_acceptance.py runtime/lab/recordings/aiworld-SESSION --output runtime/lab/validation/wildlife-acceptance.json
+```
+
+Výsledky jsou `PASS`, `FAIL` nebo `INCONCLUSIVE` (exit 0, 3, 2). Zdravá
+služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.

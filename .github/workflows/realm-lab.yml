@@ -50,7 +50,7 @@ jobs:
           docker compose --env-file .env.example -f compose.lab.yml config --quiet
           docker compose --env-file deploy/runner/.env.example -f deploy/runner/compose.yml config --quiet
           docker compose --env-file deploy/runner/.env.example -f deploy/runner/compose.lab.yml config --quiet
-          for script in docker/scripts/build-lab.sh docker/scripts/deploy-lab.sh docker/scripts/setup-world.sh docker/scripts/backup-world.sh deploy/lab/mysql/01-init-users.sh deploy/auth/mysql/01-init-users.sh; do
+          for script in docker/scripts/build-lab.sh docker/scripts/deploy-lab.sh docker/scripts/setup-world.sh docker/scripts/backup-world.sh deploy/lab/mysql/01-init-users.sh deploy/auth/mysql/01-init-users.sh deploy/runner/restart-entrypoint.sh; do
             bash -n "$script"
           done
       - name: Test Observer, AI protocols and account registration
@@ -162,4 +162,4 @@ jobs:
           python3 tools/realm_lab/promotion.py finalize
       - name: Report acceptance boundary
         run: |
-          echo 'Canonical authored-world stack, preserved accounts, service health and live NPC telemetry passed. Physical movement and new gameplay acceptance are recorded separately in data/realm_lab/aiworldlab and doc/RealmLab.md.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Canonical authored-world stack, preserved accounts, service health and exact native/mixed NPC telemetry passed. Physical hunting/feeding/return acceptance is measured separately with tools/realm_lab/wildlife_acceptance.py and documented in doc/RealmLab.md.' >> "$GITHUB_STEP_SUMMARY"

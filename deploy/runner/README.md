@@ -44,6 +44,15 @@ Po aktualizaci checkoutu zopakovat příslušný `up -d --build` příkaz.
 Build runner používá volumes `aitc_lab_ci_build-data` a
 `aitc_lab_ci_ccache-data`, provozní build má jiné volumes.
 
+Image obsahuje restart wrapper, který před registrací bez reuse odstraní
+pouze pět lokálních konfiguračních souborů v `/actions-runner`. Starší
+upstream ponechával `.runner_migrated` po smazání `.runner`, takže po
+restartu mohl hlásit současně „already configured“ a
+`configuredSettings=null`. Pracovní adresáře a hostitelské mounty se
+nemění; původní entrypoint dál zajišťuje registraci a obsluhu signálů.
+Přerušený CI job je po restartu potřeba ověřit či spustit znovu; wrapper
+neobnovuje rozpracovaný job.
+
 Existující starý `runner-runner-1` nejprve ponechat dostupný migračnímu
 nástroji: ověřuje z něj registraci a deaktivované původní nasazování.
 Vyřazení se dokončí až po migraci účtů a ověření canonical stacku.

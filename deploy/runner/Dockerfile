@@ -20,3 +20,10 @@ RUN apt-get update && apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recomme
     && apt-get update \
     && apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
+
+# Preserve upstream registration/token/signal handling, while clearing the
+# complete local configuration set before a non-reuse container restart.
+COPY --chmod=0755 restart-entrypoint.sh /restart-entrypoint.sh
+ENTRYPOINT ["/restart-entrypoint.sh"]
+# A new ENTRYPOINT resets the CMD inherited from the base image.
+CMD ["./bin/Runner.Listener", "run", "--startuptype", "service"]

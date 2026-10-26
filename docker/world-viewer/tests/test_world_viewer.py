@@ -75,6 +75,55 @@ def return_recovery() -> dict:
 
 
 class WorldViewerApiTests(unittest.TestCase):
+    def test_runtime_incarnation_is_preserved_for_live_and_loaded_dead_native_npcs(self):
+        payload = native_batch()
+        current = payload['agents'][0]
+        current['runtime_guid'] = 'Creature-0-1-725-0-1423-12345'
+        payload['agents'][1]['runtime_guid'] = None
+        for alive in (True, False):
+            with self.subTest(alive=alive):
+                current.update(alive=alive, health=100 if alive else 0)
+                response = self.client.post('/internal/telemetry', headers=self.headers, json=payload)
+                self.assertEqual(response.status_code, 200, response.text)
+                observed = self.client.get('/api/state').json()['agents']
+                self.assertEqual(observed[0]['runtime_guid'], current['runtime_guid'])
+                self.assertEqual(observed[0]['alive'], alive)
+                self.assertIsNone(observed[1]['runtime_guid'])
+
+    def test_older_recordings_do_not_invent_runtime_or_lifetime_identity(self):
+        for payload in (batch(), v2_batch(), native_batch()):
+            with self.subTest(version=payload['version']):
+                response = self.client.post('/internal/telemetry', headers=self.headers, json=payload)
+                self.assertEqual(response.status_code, 200, response.text)
+                for observed in self.client.get('/api/state').json()['agents']:
+                    self.assertIsNone(observed['runtime_guid'])
+                    if observed['living_role'] is not None:
+                        self.assertIsNone(observed['living_role']['lifetime_ms'])
+
+    def test_managed_lifetime_marker_roundtrips_and_rejects_invalid_continuity_values(self):
+        payload = v2_batch()
+        current = payload['agents'][0]
+        current['runtime_guid'] = 'Creature-0-1-725-0-1186-12346'
+        current['living_role']['lifetime_ms'] = 43210
+        response = self.client.post('/internal/telemetry', headers=self.headers, json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        observed = self.client.get('/api/state').json()['agents'][0]
+        self.assertEqual(observed['runtime_guid'], current['runtime_guid'])
+        self.assertEqual(observed['living_role']['lifetime_ms'], 43210)
+        for value in (-1, True, '43210', 1.5, 18446744073709551616, [], {}):
+            with self.subTest(lifetime_ms=value):
+                invalid = copy.deepcopy(payload)
+                invalid['agents'][0]['living_role']['lifetime_ms'] = value
+                self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=invalid).status_code, 422)
+        for value in ('x' * 81, 42, True, [], {}):
+            with self.subTest(runtime_guid=value):
+                invalid = copy.deepcopy(payload)
+                invalid['agents'][0]['runtime_guid'] = value
+                self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=invalid).status_code, 422)
+        invalid = native_batch()
+        invalid['agents'][1]['runtime_guid'] = 'Creature-0-1-725-0-40-12347'
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=invalid).status_code, 422)
+
     def test_native_loaded_and_spawn_only_observations_roundtrip_without_ai_state(self):
         payload = native_batch()
         response = self.client.post('/internal/telemetry', headers=self.headers, json=payload)
@@ -408,6 +457,8 @@ class WorldViewerApiTests(unittest.TestCase):
         expected = copy.deepcopy(payload["agents"])
         for observed in expected:
             observed['native_creature'] = False
+            observed['runtime_guid'] = None
+        expected[0]["living_role"]["lifetime_ms"] = None
         expected[0]["living_role"]["return_recovery"] = None
         expected[0]["living_role"]["advice"] = None
         expected[0]["living_role"]["forage"] = None

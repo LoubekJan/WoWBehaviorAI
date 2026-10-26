@@ -156,7 +156,8 @@ namespace
         WriteJsonField(out, "role", role.Role); WriteJsonField(out, "status", role.Status);
         WriteJsonField(out, "phase", role.Phase); WriteJsonField(out, "activity", role.Activity);
         WriteJsonField(out, "awareness", role.Awareness); WriteJsonField(out, "movement_purpose", role.MovementPurpose);
-        WriteJsonField(out, "caution", role.Caution); WriteJsonField(out, "started_at_ms", role.StartedAtMs);
+        WriteJsonField(out, "caution", role.Caution); WriteJsonField(out, "lifetime_ms", role.LifetimeMs);
+        WriteJsonField(out, "started_at_ms", role.StartedAtMs);
         WriteJsonField(out, "decision_wait_ms", role.DecisionWaitMs);
         WriteJsonField(out, "danger_remaining_ms", role.DangerRemainingMs); WriteJsonField(out, "alarm_remaining_ms", role.AlarmRemainingMs);
         WriteJsonField(out, "hunt_status", role.HuntStatus); WriteJsonField(out, "hunt_end", role.HuntEnd);
@@ -358,6 +359,7 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         out << ",\"control_mode\":";
         WriteString(out, ToString(item.ControlMode));
         WriteJsonField(out, "native_creature", item.NativeCreature);
+        WriteJsonField(out, "runtime_guid", item.Live ? item.RuntimeGuid : std::nullopt);
         out << ",\"world_faction\":" << item.WorldFaction.Value
             << ",\"world_state\":";
         WriteString(out, item.Live ? "MATERIALIZED" : "ABSTRACT");

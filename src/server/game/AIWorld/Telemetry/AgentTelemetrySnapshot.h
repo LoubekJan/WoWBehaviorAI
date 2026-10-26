@@ -127,6 +127,7 @@ struct LivingRoleTelemetry
     bool ExtensionsEnabled = false;
     std::string Role, Status, Phase, Activity, Awareness, MovementPurpose;
     float Caution = 0.0f;
+    uint64 LifetimeMs = 0;
     uint64 StartedAtMs = 0;
     uint64 DecisionWaitMs = 0;
     uint64 DangerRemainingMs = 0;
@@ -194,6 +195,9 @@ struct AgentTelemetrySnapshot
     float SpawnY = 0.0f;
     float SpawnZ = 0.0f;
     std::optional<AgentSnapshot> Live;
+    // Current NPC incarnation only, including a loaded corpse. Never populated
+    // from player lookups or used as a persistent agent/spawn identity.
+    std::optional<std::string> RuntimeGuid;
 
     NeedsState Needs;
     std::optional<GoalType> Goal;

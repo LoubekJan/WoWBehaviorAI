@@ -7,10 +7,10 @@ import sys
 
 try:
     from .single_return import ProfileError, Scope
-    from . import settlement_population, terrain_profile
+    from . import settlement_population, terrain_profile, wildlife_population
 except ImportError:
     from single_return import ProfileError, Scope
-    import settlement_population, terrain_profile
+    import settlement_population, terrain_profile, wildlife_population
 
 
 def main() -> None:
@@ -18,9 +18,11 @@ def main() -> None:
         raise SystemExit("run_scoped.py requires a command")
     try:
         profile = os.environ.get("LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE):
+        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE):
             raise ProfileError("Unknown reviewed observer lab profile")
-        if profile == settlement_population.PROFILE:
+        if profile == wildlife_population.PROFILE:
+            scope = wildlife_population.Population.load()
+        elif profile == settlement_population.PROFILE:
             scope = settlement_population.Population.load()
         else:
             scope = terrain_profile.load_scope() if profile == terrain_profile.PROFILE else Scope.load()

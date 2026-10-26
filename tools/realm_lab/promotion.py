@@ -180,8 +180,8 @@ def configure_env(old: dict[str, dict]) -> None:
     target = ROOT / ".env"
     require(source.is_file(), "Existing authored-world configuration is missing")
     values = read_env(target if target.exists() else source)
-    require(values.get("LAB_REALM_ID", "2") == "2" and values.get("LAB_AI_PROFILE") == "settlement-v8",
-            "Only the verified realm 2 settlement can be promoted")
+    require(values.get("LAB_REALM_ID", "2") == "2" and values.get("LAB_AI_PROFILE") in ("settlement-v8", "wildlife-v8"),
+            "Only the verified authored realm 2 can be promoted")
     values.setdefault("AUTH_MYSQL_ROOT_PASSWORD", secrets.token_urlsafe(32))
     values.setdefault("TC_AUTH_SERVER_USER", "world_auth")
     values.setdefault("TC_AUTH_SERVER_PASSWORD", secrets.token_urlsafe(32))
@@ -255,14 +255,14 @@ def prepare_graveyard() -> None:
 def adopt_canonical_installation() -> None:
     """Recognize a completed fresh installation without importing any database."""
     try:
-        from . import manage, settlement_population, single_return
+        from . import manage, settlement_population, single_return, wildlife_population
     except ImportError:
-        import manage, settlement_population, single_return
+        import manage, settlement_population, single_return, wildlife_population
     configuration = ROOT / ".env"
     require(configuration.is_file(), "No original realm exists and canonical credentials are missing")
     try:
         settings = manage.Settings.load(read_env(configuration))
-        require(settings.realm_id == 2 and settings.ai_profile == settlement_population.PROFILE and
+        require(settings.realm_id == 2 and settings.ai_profile in (settlement_population.PROFILE, wildlife_population.PROFILE) and
                 settings.auth_host == "aiworld-auth-db" and settings.auth_port == 3306,
                 "Only the canonical realm 2 settlement with its local auth may be adopted")
         databases = {}
@@ -280,14 +280,16 @@ def adopt_canonical_installation() -> None:
         auth = databases["auth-mysql"]
         require(sql(auth, "SELECT GROUP_CONCAT(id ORDER BY id) FROM auth.realmlist;") == "2",
                 "Fresh installation must contain only canonical realm 2")
-        population = settlement_population.verify_data(ROOT / "runtime/lab/data")
-        rows = single_return.parse_snapshot(sql(databases["lab-mysql"], settlement_population.snapshot_sql(population)))
-        settlement_population.validate_snapshot(rows, population)
+        profile = wildlife_population if settings.ai_profile == wildlife_population.PROFILE else settlement_population
+        population = profile.verify_data(ROOT / "runtime/lab/data")
+        rows = single_return.parse_snapshot(sql(databases["lab-mysql"], profile.snapshot_sql(population)))
+        profile.validate_snapshot(rows, population)
     except (manage.SetupError, settlement_population.ProfileError, OSError, ValueError, KeyError, TypeError) as exc:
         raise PromotionError("Fresh canonical installation did not pass configuration, database and native-population checks") from exc
     state = {"schema_version": 1, "status": "auth_ready", "mode": "adopted_canonical_installation",
              "original": {}, "running_before": {}, "backups": {},
-             "account_identity": account_identity(auth), "native_spawn_count": len(population.actors),
+             "account_identity": account_identity(auth), "native_spawn_count": 100 if profile is settlement_population else 80,
+             "managed_spawn_count": 0 if profile is settlement_population else 20,
              "native_files_verified": len(population.geometry_files),
              "prepared_utc": datetime.now(timezone.utc).isoformat()}
     private_json(STATE, state)

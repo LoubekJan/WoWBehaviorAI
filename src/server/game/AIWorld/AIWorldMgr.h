@@ -382,7 +382,7 @@ class TC_GAME_API AIWorldMgr
         void ScanNearbyEntities();
         void UpdateNeeds();
         void CaptureTelemetry(Map* scopeMap);
-        void CaptureNativeTelemetry(Map* scopeMap);
+        void AppendNativeTelemetry(Map* scopeMap, std::vector<AgentTelemetrySnapshot>& snapshots);
         void UpdateTelemetry(uint32 diff);
         // Reuse command diagnostics without a linear FindBySpawn per exported agent.
         LivingRoleDebugInfo DescribeLivingRole(Creature const& creature, AgentRecord const& record) const;
