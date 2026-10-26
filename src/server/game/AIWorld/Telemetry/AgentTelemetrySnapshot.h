@@ -20,6 +20,7 @@
 #include "Needs/NeedsState.h"
 #include "Scheduler/SimulationTier.h"
 #include "NavigationDiagnostics.h"
+#include "LivingSupplyTelemetry.h"
 #include "Agent/LivingForageState.h"
 #include "Agent/LivingPlanningState.h"
 #include "Agent/LivingAdviceAdmission.h"
@@ -212,6 +213,7 @@ struct AgentTelemetrySnapshot
     std::optional<ActionPosition> Home, Work;
     std::vector<GroupTelemetry> Groups;
     std::optional<LivingRoleTelemetry> LivingRole;
+    std::optional<LivingSupplyTelemetry> Supply;
     std::optional<MovementTelemetry> Movement;
     bool LivingWolf = false;
     std::optional<uint64> MealTargetSpawnId;

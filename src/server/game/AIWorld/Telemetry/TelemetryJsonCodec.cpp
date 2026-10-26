@@ -255,6 +255,54 @@ namespace
         out << '}';
     }
 
+    void WriteValue(std::ostream& out, FoodDepotTelemetry const& depot)
+    {
+        out << "{\"id\":" << depot.Id;
+        WriteJsonField(out, "name", depot.Name); WriteJsonField(out, "position", depot.Position);
+        WriteJsonField(out, "stock", depot.Stock); WriteJsonField(out, "capacity", depot.Capacity);
+        WriteJsonField(out, "low_threshold", depot.LowThreshold);
+        WriteJsonField(out, "delivered", std::to_string(depot.Delivered));
+        WriteJsonField(out, "consumed", std::to_string(depot.Consumed));
+        out << '}';
+    }
+
+    void WriteValue(std::ostream& out, FoodAccountingTelemetry const& accounting)
+    {
+        // Cumulative uint64 counters use decimal strings, like economy.money,
+        // so the browser cannot round them before displaying or checking them.
+        out << "{\"initial_food\":"; WriteString(out, std::to_string(accounting.InitialFood));
+        WriteJsonField(out, "harvested", std::to_string(accounting.Harvested));
+        WriteJsonField(out, "in_depots", std::to_string(accounting.InDepots));
+        WriteJsonField(out, "in_cargo", std::to_string(accounting.InCargo));
+        WriteJsonField(out, "consumed", std::to_string(accounting.Consumed));
+        WriteJsonField(out, "lost", std::to_string(accounting.Lost));
+        WriteJsonField(out, "conserved", accounting.Conserved); out << '}';
+    }
+
+    void WriteValue(std::ostream& out, LivingSupplyTelemetry const& supply)
+    {
+        out << "{\"enabled\":"; WriteValue(out, supply.Enabled);
+        WriteJsonField(out, "role", supply.Role); WriteJsonField(out, "phase", supply.Phase);
+        WriteJsonField(out, "depot_id", supply.DepotId); WriteJsonField(out, "cargo", supply.Cargo);
+        WriteJsonField(out, "capacity", supply.Capacity);
+        WriteJsonField(out, "carcass_remaining", supply.CarcassRemaining);
+        out << ",\"carcass_spawn_id\":";
+        if (supply.CarcassSpawnId) WriteString(out, std::to_string(*supply.CarcassSpawnId)); else out << "null";
+        out << ",\"carcass_life\":";
+        if (supply.CarcassLife) WriteString(out, std::to_string(*supply.CarcassLife)); else out << "null";
+        WriteJsonField(out, "hunting_ground", supply.HuntingGround);
+        WriteJsonField(out, "harvested", std::to_string(supply.Harvested));
+        WriteJsonField(out, "delivered", std::to_string(supply.Delivered));
+        WriteJsonField(out, "consumed", std::to_string(supply.Consumed));
+        WriteJsonField(out, "lost", std::to_string(supply.Lost));
+        WriteJsonField(out, "last_result", supply.LastResult);
+        out << ",\"depot\":";
+        if (supply.Depot) WriteValue(out, *supply.Depot); else out << "null";
+        out << ",\"accounting\":";
+        if (supply.Accounting) WriteValue(out, *supply.Accounting); else out << "null";
+        out << '}';
+    }
+
     // Overloads must be declared before the optional template instantiates for
     // nested DTOs (ordinary lookup in templates is fixed at definition time).
     template<typename T> void OptionalObject(std::ostream& out, char const* key, std::optional<T> const& value)
@@ -427,6 +475,7 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         WriteJsonField(out, "meal_target_spawn_id", item.Live ? item.MealTargetSpawnId : std::nullopt);
         WriteJsonField(out, "destination", item.Live ? item.Destination : std::nullopt);
         OptionalObject(out, "living_role", item.Live ? item.LivingRole : std::nullopt);
+        OptionalObject(out, "supply", item.Live && !item.NativeCreature ? item.Supply : std::nullopt);
         OptionalObject(out, "movement", item.Live ? item.Movement : std::nullopt);
         OptionalObject(out, "target", item.Live ? item.Target : std::nullopt);
         out << ",\"groups\":[";

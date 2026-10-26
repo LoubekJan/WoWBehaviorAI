@@ -124,4 +124,45 @@ test("native details hide AI sections, retain observed state, and restore AI det
   for (const id of aiSections) assert.equal(elements.get(id).hidden, false, id);
   assert.equal(elements.get("needs").children.length, 5);
   assert(!elements.get("detail-type").textContent.includes("běžné NPC"));
+  context.testSupply = { enabled: true, role: "HUNTER", phase: "DELIVERING", cargo: 6, capacity: 6,
+    harvested: "6", delivered: "0", consumed: "0", lost: "0",
+    depot: { id: 1, name: "Jižní vesnice", stock: 4, capacity: 24, low_threshold: 6, delivered: "0", consumed: "0" } };
+  vm.runInContext("snapshot.agents[0].supply = testSupply; showDetail();", context);
+  assert.equal(elements.get("supply-section").hidden, false);
+  assert.match(elements.get("supply-facts").textContent, /Vykládání/);
+  assert.match(elements.get("supply-facts").textContent, /6 \/ 6 porcí/);
+  assert.match(elements.get("supply-facts").textContent, /Jižní vesnice/);
+  assert.match(elements.get("supply-facts").textContent, /4 \/ 24 porcí/);
+  context.testSnapshot = native;
+  vm.runInContext("snapshot = testSnapshot; selectedId = 901000; showDetail();", context);
+  assert.equal(elements.get("supply-section").hidden, true);
+  assert.equal(elements.get("supply-facts").textContent, "");
+});
+
+test("supply facts preserve exact counters and disappear without current controlled evidence", () => {
+  const hunter = { ...base, supply: { enabled: true, role: "HUNTER", phase: "TO_DEPOT", cargo: 6, capacity: 6,
+    harvested: "18446744073709551615", delivered: "8", consumed: "2", lost: "0", carcass_remaining: 0,
+    depot: { name: "Gnollí tábor", stock: 0, capacity: 24, low_threshold: 6, delivered: "8", consumed: "8" },
+    accounting: { conserved: false, in_depots: "0", in_cargo: "6" } } };
+  const rows = Object.fromEntries(model.supplyFacts(hunter));
+  assert.equal(rows["Právě dělá"], "Cesta do skladu");
+  assert.equal(rows["Získáno z kořisti"], "18446744073709551615");
+  assert.equal(rows["Zbývá v kořisti"], "0 porcí");
+  assert.equal(rows["Stav zásob"], "Prázdná");
+  assert.equal(rows["Bilance potravy"], "Nesouhlasí");
+  assert.deepEqual(model.supplyFacts(base), []);
+  assert.deepEqual(model.supplyFacts({ ...hunter, native_creature: true }), []);
+  assert.deepEqual(model.supplyFacts({ ...hunter, position: { ...base.position, source: "spawn" } }), []);
+  assert.deepEqual(model.supplyFacts({ ...hunter, supply: { ...hunter.supply, enabled: false } }), []);
+});
+
+test("food depots are deduplicated current observations on the selected map", () => {
+  const depot = { id: 2, name: "Gnollí tábor", position: { map_id: 725, x: 1, y: 2, z: 0 }, stock: 4, capacity: 24 };
+  const hunter = { ...base, supply: { enabled: true, depot } };
+  const other = { ...base, supply: { enabled: true, depot: { ...depot, id: 1, name: "Jižní vesnice" } } };
+  assert.deepEqual(model.foodDepots([hunter, hunter, other], 725).map(item => item.id), [1, 2]);
+  assert.deepEqual(model.foodDepots([hunter], 0), []);
+  assert.deepEqual(model.foodDepots([{ ...hunter, native_creature: true }], 725), []);
+  assert.deepEqual(model.foodDepots([{ ...hunter, position: { ...base.position, source: "spawn" } }], 725), []);
+  assert.equal(model.foodDepots([hunter], 725)[0].stock, 4);
 });

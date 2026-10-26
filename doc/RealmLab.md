@@ -151,10 +151,10 @@ docker compose --env-file .env -f compose.yml up -d --no-deps --force-recreate w
 
 Tato pauza ponechává identity a dlouhodobou paměť. Individuální hlad,
 únava a průběh aktuální akce zatím nemají perzistenci přes restart;
-jejich uložení a obnovení je další samostatný krok. Návrat pouhým
-přepnutím na `settlement-v8` se po aktivaci odmítne, protože původní
-profil správně nedovoluje nové AI vazby. Pro pauzu se používá přepínač
-výše.
+jejich uložení a obnovení je odloženo, dokud nebude fungovat chování světa.
+Návrat pouhým přepnutím na `settlement-v8` se po aktivaci odmítne,
+protože původní profil správně nedovoluje nové AI vazby. Pro pauzu se
+používá přepínač výše.
 
 Viewer stále zobrazuje všech 100 NPC v jedné dávce. U dvaceti řízených
 zvířat doplňuje potřeby a role, zbývajících 80 má nativní pozorování.
@@ -186,17 +186,100 @@ dokončili souvislý cyklus lov–krmení–návrat. Aktivní populace je 20 ř�
 zvířat + 80 nativních NPC. [Versionovaný důkaz](../data/realm_lab/aiworldlab/preview-v8/wildlife-first-cycle-acceptance.json)
 obsahuje jednotlivé cykly, kontrolní součty záznamu a 233 pozorování
 ze spawn/last-known fallbacku, která evaluator vyloučil z živého fyzického
-důkazu. Jde o první krátký lovecký gate; dlouhodobý běh, patnáctiminutový
-gate nehybnosti a perzistence potřeb přes restart zůstávají neověřené.
+důkazu. Jde o první krátký lovecký gate; dlouhodobý běh a patnáctiminutový
+gate nehybnosti zůstávají neověřené. Perzistence potřeb přes restart je
+odložena až po zprovoznění chování světa.
 Značka `FORAGE` u medvěda 901086 nemá potvrzený souvislý pohyb.
 Obecný navigační analyzátor skončil pro zkrácený záznam `INCONCLUSIVE`;
 výše uvedené `PASS` patří samostatnému wildlife evaluatoru.
+
+## Zásobování lovem — supply-v8
+
+**Implementace je připravená; živý řetězec zásobování ještě nemá fyzický
+PASS.** Dosavadní provozní důkaz zvěře patří profilu `wildlife-v8`.
+Nový opt-in profil `supply-v8` přidává ke stejným 20 zvířatům tři lovce:
+lidského 901034 z jižní vesnice a gnollí 901061/901062 z jejich tábora.
+Celkem bude po aktivaci řízených 23 NPC a 77 zůstane nativních. Jde
+o schopnost konkrétních spawnů, nikoliv přetypování všech NPC sdílejících
+stejnou šablonu. [Manifest](../data/realm_lab/aiworldlab/preview-v8/supply-population.json)
+připíná původní identitu, domov, geometrii a dvě sady sklad–loviště.
+
+Pravidla první verze:
+
+- Jedna mrtvola jelena poskytne nejvýše **6 porcí**. Porce jsou společně
+  evidované pro dané zvíře a jeho aktuální život; opakovaný odběr stejné
+  kořisti ani soupeřící rezervace je nemohou zdvojit.
+- Medvěd při dokončeném krmení spotřebuje nejvýše **3 dostupné porce**
+  na místě. Lovec odnese nejvýše **6 porcí** jako vlastní náklad.
+- Zásobárny jižní vesnice a gnollího tábora mají každá kapacitu **30 porcí**,
+  cíl doplňování **12** a hranici nízkých zásob **4**. Obě začínají na **nule**.
+- Jídlo do skladu přibude až po fyzickém příchodu naloženého lovce a
+  dokončení doručení. Spotřeba ze skladu sníží jeho zásobu; hlad lovce
+  klesne až po dokončeném jídle. Zatím ze skladů jedí jen tři lovci.
+  Ostatní obyvatelé nemají v této verzi zapnutou společnou spotřebu.
+
+Lovec má oddělený původní domov, sklad a loviště. Lidská trasa vede
+z jižní vesnice do `wildSouth`, gnollí z tábora do `wildLeft`.
+[Navigační důkaz](../data/realm_lab/aiworldlab/preview-v8/supply-nav-probe.json)
+ověřil všech sedm bodů a 12 směrovaných tras v nativním 64bitovém Detouru
+s filtrem pouze `NAV_GROUND`; původních 61 geometrických souborů se shoduje.
+Malá projekce bodu i úplná navmesh cesta jsou přípravný důkaz. Nepotvrzují
+NPC skutečně procházející trasou, lov, průchod aktuální překážkou ani doručení.
+
+Po sestavení verze podporující zásobování nejprve vytvoř zálohu:
+
+```bash
+make backup
+```
+
+V privátním `.env` zvol:
+
+```dotenv
+LAB_AI_PROFILE=supply-v8
+LAB_WILDLIFE_ENABLED=1
+```
+
+Přípravu a spuštění proveď přes stávající pipeline:
+
+```bash
+make setup-world
+make start
+```
+
+`setup-world` zastaví svět pod deploy zámkem a ověří původních 100 spawnů,
+šablony, geometrii, 20 zvířecích vazeb a maskovanou regresní populaci.
+Přidá jen chybějící vazby tří lovců a aktivuje přesně vybraných 23.
+Původní domovy, postavy, účty, osobní ekonomický stav a dlouhodobá paměť
+se nepřepisují. CI/CD pro vybraný profil provádí stejnou přípravu.
+
+`LAB_WILDLIFE_ENABLED=0` je společná pauza pro všech 23 aktérů tohoto
+profilu. Po změně `.env` znovu vytvoř worldserver:
+
+```bash
+docker compose --env-file .env -f compose.yml up -d --no-deps --force-recreate worldserver
+```
+
+Profil při pauze ponech `supply-v8`. Po založení loveckých vazeb už
+`wildlife-v8` ani `settlement-v8` tuto novou populaci nepřijmou; identity
+a paměť není potřeba kvůli pauze mazat. Nové množství potravy, rezervace,
+náklad, zásoby a jejich čítače existují pouze v aktuálním běhu serveru.
+Restart je resetuje a zásobárny znovu začnou prázdné. Nová perzistence
+zůstává odložená, dokud nebude fungovat chování světa.
+
+Viewer má ukazovat roli, fázi zásobování, množství neseného masa, přiřazený
+sklad, zásoby a společnou bilanci. Provozní přijetí vyžaduje čerstvý záznam
+celého řetězce: konkrétní živá kořist → její úmrtí → odběr konečného množství
+masa → naložený lovec na cestě → dokončené doručení a růst zásoby → jídlo,
+pokles zásoby a hladu. Zásoby, náklad, spotřeba a ztráty musí zachovat
+celkovou bilanci; staré čítače, spawn fallback ani zdravý kontejner tento
+fyzický důkaz nenahrazují.
 
 ## Telemetrie a navazující vývoj
 
 Viewer na portu 9091 ukazuje vybraných 100 NPC: živou
 pozici, zdraví a bojový stav. V nativním `settlement-v8` je AI vypnutá;
-`wildlife-v8` přidává výše popsanou řízenou zvěř. Automatické skupiny,
+`wildlife-v8` přidává výše popsanou řízenou zvěř; připravený `supply-v8`
+navazuje třemi lovci a zásobárnami. Automatické skupiny,
 přepady vesnic a dobývání teritoria zatím nejsou zapnuté.
 Nové chování se má přidávat po ověřitelných krocích nad touto vlastní
 mapou. Zdravý kontejner ani úplná telemetrie samy nepotvrzují fyzickou

@@ -458,6 +458,7 @@ class WorldViewerApiTests(unittest.TestCase):
         for observed in expected:
             observed['native_creature'] = False
             observed['runtime_guid'] = None
+            observed['supply'] = None
         expected[0]["living_role"]["lifetime_ms"] = None
         expected[0]["living_role"]["return_recovery"] = None
         expected[0]["living_role"]["advice"] = None

@@ -466,7 +466,7 @@ bool AIWorldMgr::CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creatu
         return false;
     bool neutral = WorldObject::GetFactionReactionTo(hunter.GetFactionTemplateEntry(), &prey) == REP_NEUTRAL &&
         WorldObject::GetFactionReactionTo(prey.GetFactionTemplateEntry(), &hunter) == REP_NEUTRAL;
-    return LivingRolePolicy::CanHuntNeutralPrey(LivingRolePolicy::Resolve(record->Type, hunter.GetEntry(), IsService(hunter)),
+    return LivingRolePolicy::CanHuntNeutralPrey(ResolveLivingRole(*record, hunter),
         _agentTypeCatalog.Resolve(prey.GetEntry()), neutral);
 }
 
@@ -481,7 +481,7 @@ std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Cr
 AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& creature, AgentRecord const& agent) const
 {
     AgentRecord const* record = &agent;
-    Role role = LivingRolePolicy::Resolve(record->Type, creature.GetEntry(), IsService(creature));
+    Role role = ResolveLivingRole(*record, creature);
     LivingRoleDebugInfo info;
     info.Enabled = _livingRolesEnabled;
     info.ControlMode = record->ControlMode;
@@ -517,7 +517,7 @@ AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& c
         info.ReturnStalledMs = observedAt - record->LivingRole.ReturnStalledSinceMs;
     if (Creature* companion = ObjectAccessor::GetCreature(creature, record->LivingRole.CompanionGuid))
         info.CompanionSpawnId = companion->GetSpawnId();
-    if (role == Role::Predator && !IsLivingWolf(*record))
+    if ((role == Role::Predator || role == Role::Hunter) && !IsLivingWolf(*record))
     {
         info.HuntStatus = record->LivingRole.LastHuntStatus;
         info.HuntEnd = record->LivingRole.LastHuntEnd;
@@ -582,6 +582,8 @@ AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& c
 void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
 {
     auto& state = record.LivingRole;
+    if (state.CurrentPhase == Phase::Feeding)
+        CancelSupplyClaim(record);
     if (state.CurrentPhase == Phase::Acting && state.Planning.CarePause.Active)
     {
         uint64 nowMs = GetCurrentTimeMs();
@@ -642,7 +644,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         creature.GetZoneId(), _spawnParticipationCatalog.Resolve(record.SpawnId), GetSimulationScope()) &&
         InSimulationScope(creature) && GetSimulationScope().ContainsActor(creature.GetMapId(), creature.GetSpawnId());
     bool service = IsService(creature);
-    Role role = LivingRolePolicy::Resolve(record.Type, creature.GetEntry(), service);
+    Role role = ResolveLivingRole(record, creature);
+    bool supplyHunter = IsSupplyHunter(record);
     if (!scoped || role == Role::None || IsLivingWolf(record) || creature.IsPet() ||
         !creature.GetCharmerOrOwnerGUID().IsEmpty() || creature.IsControlledByPlayer())
     {
@@ -1028,6 +1031,16 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         lastRoleExecutionNavigation.reset();
         if (!OwnsRoleMovement(record, creature))
             return false;
+        // The supply cohort has reviewed distant hunting grounds. Every leg
+        // still executes with strict scoped recovery navigation and danger checks.
+        if (supplyHunter && request.Type == ActionType::MoveTo && request.Destination &&
+            request.SourceGoal == GoalType::LocalActivity)
+        {
+            approvedRecovery = RecoveryMovement{*request.Destination, homePoint, 384.0f,
+                nowMs < state.DangerUntilMs ? std::optional<ActionPosition>(state.DangerPosition) : std::nullopt, false};
+            approvedRecovery->DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
+            request.Recovery = approvedRecovery;
+        }
         // Local roaming/foraging must execute with the same strict path
         // provider as recovery, including after a speed change or resume.
         if (request.Type == ActionType::MoveTo && request.SourceGoal == GoalType::LocalActivity &&
@@ -1348,6 +1361,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         StopLivingRole(record, creature);
         state.NextDecisionAtMs = nowMs + 2000;
     }
+    auto supplyStep = [&](ActionPosition const& destination) { return FoodSupplyStep(creature, destination); };
+    if (supplyHunter && UpdateLivingSupplyHunter(record, creature, nowMs, start, supplyStep))
+        return true;
     if (state.CurrentPhase == Phase::Hunting || state.CurrentPhase == Phase::Feeding)
     {
         Creature* prey = ObjectAccessor::GetCreature(creature, state.TargetGuid);
@@ -1403,7 +1419,15 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.TargetGuid = meal;
                 ActionRequest feed;
                 feed.Type = ActionType::Eat; feed.SourceGoal = GoalType::Feed;
-                state.LastHuntStatus = start(feed, Phase::Feeding, prey) ? "FEEDING" : "FEED_REJECTED";
+                if (_livingSupplyEnabled && !ClaimSupplyCarcass(record, creature, *prey, nowMs))
+                    state.LastHuntStatus = state.LastHuntEnd = "CARCASS_UNAVAILABLE";
+                else if (start(feed, Phase::Feeding, prey))
+                    state.LastHuntStatus = supplyHunter ? "HARVESTING" : "FEEDING";
+                else
+                {
+                    CancelSupplyClaim(record);
+                    state.LastHuntStatus = "FEED_REJECTED";
+                }
             }
             else
                 state.LastHuntEnd = state.LastHuntStatus = creature.IsInCombat() ? "FEED_COMBAT_BLOCKED" : "CORPSE_TOO_FAR";
@@ -1416,7 +1440,21 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         }
         if (WolfBehaviorPolicy::Elapsed(nowMs, state.StartedAtMs, 5000))
         {
-            _needsSystem.SatisfyHunger(record.Needs);
+            uint32 portions = _livingSupplyEnabled ? CommitSupplyCarcass(record, creature, *prey, nowMs) :
+                LivingSupply::PredatorMealPortions;
+            if (!portions)
+            {
+                endHunt("CARCASS_UNAVAILABLE");
+                return true;
+            }
+            if (supplyHunter)
+            {
+                endHunt("HARVESTED", 0);
+                return true;
+            }
+            if (portions >= LivingSupply::PredatorMealPortions) _needsSystem.SatisfyHunger(record.Needs);
+            else record.Needs.Hunger = std::max(0.0f, record.Needs.Hunger -
+                float(portions) / float(LivingSupply::PredatorMealPortions));
             advice.Food.Fed(here, nowMs);
             if (advice.Active && !advice.ActiveReturning && advice.StepArrived &&
                 nowMs <= advice.ActiveAt + 180000 && record.Needs.Hunger + 0.1f < advice.ActiveHunger)
@@ -1708,7 +1746,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         ++advice.Rejected; advice.Status = "EXECUTION_REJECTED";
         return false;
     };
-    bool hungryHunter = role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false);
+    bool hungryHunter = (role == Role::Predator && WolfBehaviorPolicy::WantsHunt(record.Needs.Hunger, record.Needs.HealthPressure, false)) ||
+        (supplyHunter && SupplyWantsHunt(record));
     // Stationary care does not require navigation work. Preserve an unfinished
     // return across this explicit pause, without counting care as query work.
     if (state.ReturningHome && homeDistance > radius + 2.0f &&
@@ -1788,7 +1827,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
 
     // Also scan the current surroundings during a bounded search/recovery;
     // prey still has to be actually visible, reachable and attackable.
-    if (hungryHunter && !state.Planning.HuntScanned && (homeDistance < 20.0f ||
+    if (hungryHunter && !state.Planning.HuntScanned && (supplyHunter || homeDistance < 20.0f ||
         ((state.ForageUntilMs || state.ReturnFailures || state.ReturningHome) &&
             homeDistance <= LivingForagePolicy::SearchRadius(advice.Food.EmptyRounds))))
     {
@@ -1874,6 +1913,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 state.NearbyPrey ? "PREY_NOT_ATTACKABLE" : "NO_PREY";
         state.Planning.HuntScanned = true;
     }
+
+    if (supplyHunter)
+        return UpdateLivingSupplyHunter(record, creature, nowMs, start, supplyStep, true);
 
     if (!priorityAttempt.Tried() && extensions && hungryHunter && !anchored && !rememberedDanger && !state.ReturningHome)
     {

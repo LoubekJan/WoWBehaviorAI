@@ -21,17 +21,29 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    uvádí revizi, CI, hashe záznamu a omezení. Tento krátký test nepotvrzuje
    dlouhodobou stabilitu, patnáctiminutový gate nehybnosti, perzistenci
    potřeb ani souvislý pohyb při `FORAGE`.
-2. **Perzistence individuálních potřeb — další krok.** Hlad, únava a resource pressure
-   zatím nepřežívají restart. Doplnit migraci, hodnotové uložení/obnovení
-   a test restartu; neslibovat tuto vlastnost z pouhé existence `ai_agents`.
-3. **Potrava jako zdroj a zásobování osad.** Po fyzickém gate zvěře propojit
-   výsledek lovu s omezeným zdrojem a zásobami, pak navázat lidské a gnollí
-   lovce. Další role rozšiřovat podle skutečně naměřeného chování.
-4. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
+2. **Potrava jako zdroj a zásobování osad — implementace připravená, fyzický gate čeká.**
+   Opt-in profil `supply-v8` rozšiřuje stávající zvěř o lidského lovce
+   901034 a gnollí lovce 901061/901062. Po aktivaci bude řídit 23 ze
+   stávajících 100 NPC; 77 zůstane nativních. Řetězec používá omezené maso,
+   náklad a dvě zásobárny. Zásoby začínají na nule; zatím z nich jedí jen
+   samotní lovci. Spotřeba celé vesnice je navazující rozšíření.
+   [Nativní navigační důkaz](data/realm_lab/aiworldlab/preview-v8/supply-nav-probe.json)
+   potvrdil šest spojení v obou směrech (12 cest) mezi původními domovy,
+   sklady a lovišti.
+   Nejde o důkaz živé chůze, lovu ani doručení; ty musí potvrdit samostatný
+   záznam. Aktivní svět zatím používá ověřený `wildlife-v8`.
+3. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
    pravidla mají stavět na fungujícím pohybu, potravě a zásobování.
 
+**Perzistence individuálních potřeb je odložená.** Podle rozhodnutí z
+26. října 2026 se ukládání hladu, únavy a resource pressure přes restart
+bude řešit až po zprovoznění chování světa. Do té doby se tyto potřeby
+při restartu resetují.
+
 Aktuální pravidla, přepínač pauzy a fyzický acceptance jsou v
-[doc/RealmLab.md](doc/RealmLab.md#zvěř-potrava-a-lov--wildlife-v8).
+[doc/RealmLab.md](doc/RealmLab.md#zvěř-potrava-a-lov--wildlife-v8);
+příprava nového zásobování je v
+[části supply-v8](doc/RealmLab.md#zásobování-lovem--supply-v8).
 
 # AIWorld — Roadmap
 

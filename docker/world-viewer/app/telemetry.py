@@ -1,9 +1,9 @@
 """Validated, bounded telemetry protocol for the read-only world viewer."""
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 MAX_AGENTS = 10_000
 # Full Elwynn snapshots with v4 recovery diagnostics exceed the former 8 MiB.
@@ -40,6 +40,85 @@ class Economy(ProtocolModel):
     money: str = Field(pattern=r"^\d{1,20}$")
     food: int = Field(ge=0)
     resource: int = Field(ge=0)
+
+
+def uint64_decimal(value: str) -> str:
+    if int(value) > 2**64 - 1:
+        raise ValueError("Counter exceeds uint64")
+    return value
+
+
+Counter64 = Annotated[str, Field(pattern=r"^(0|[1-9][0-9]{0,19})$", strict=True), AfterValidator(uint64_decimal)]
+Quantity32 = Annotated[int, Field(ge=0, le=2**32 - 1, strict=True)]
+
+
+class FoodDepot(ProtocolModel):
+    id: int = Field(gt=0, le=2**32 - 1, strict=True)
+    name: str = Field(min_length=1, max_length=120, strict=True)
+    position: Point
+    stock: Quantity32
+    capacity: int = Field(gt=0, le=2**32 - 1, strict=True)
+    low_threshold: Quantity32
+    delivered: Counter64
+    consumed: Counter64
+
+    @model_validator(mode="after")
+    def bounded_stock(self):
+        if self.stock > self.capacity or self.low_threshold > self.capacity:
+            raise ValueError("Depot stock or low threshold exceeds capacity")
+        return self
+
+
+class FoodAccounting(ProtocolModel):
+    initial_food: Counter64
+    harvested: Counter64
+    in_depots: Counter64
+    in_cargo: Counter64
+    consumed: Counter64
+    lost: Counter64
+    conserved: bool = Field(strict=True)
+
+    @model_validator(mode="after")
+    def accurate_conservation_flag(self):
+        conserved = int(self.initial_food) + int(self.harvested) == sum(
+            int(value) for value in (self.in_depots, self.in_cargo, self.consumed, self.lost))
+        if self.conserved != conserved:
+            raise ValueError("Food conservation flag differs from quantities")
+        return self
+
+
+class LivingSupply(ProtocolModel):
+    enabled: bool = Field(strict=True)
+    role: Literal["HUNTER", "PREDATOR"]
+    phase: str = Field(min_length=1, max_length=80, strict=True)
+    depot_id: Quantity32
+    cargo: Quantity32
+    capacity: Quantity32
+    carcass_remaining: Quantity32 | None = None
+    carcass_spawn_id: Counter64 | None = None
+    carcass_life: Counter64 | None = None
+    hunting_ground: Point | None = None
+    harvested: Counter64
+    delivered: Counter64
+    consumed: Counter64
+    lost: Counter64
+    last_result: str = Field(max_length=100, strict=True)
+    depot: FoodDepot | None = None
+    accounting: FoodAccounting | None = None
+
+    @model_validator(mode="after")
+    def consistent_cargo_and_depot(self):
+        if self.cargo > self.capacity:
+            raise ValueError("Cargo exceeds carrying capacity")
+        if (self.carcass_spawn_id is None) != (self.carcass_life is None):
+            raise ValueError("Carcass source and incarnation must be supplied together")
+        if self.carcass_spawn_id is not None and (int(self.carcass_spawn_id) == 0 or int(self.carcass_life) == 0):
+            raise ValueError("Carcass source and incarnation must be positive")
+        if self.depot is not None and self.depot.id != self.depot_id:
+            raise ValueError("Supply depot ID differs from its snapshot")
+        if self.depot is not None and self.hunting_ground is not None and self.depot.position.map_id != self.hunting_ground.map_id:
+            raise ValueError("Depot and hunting ground must be on the same map")
+        return self
 
 
 class NavigationDiagnostics(ProtocolModel):
@@ -295,6 +374,7 @@ class Agent(ProtocolModel):
     work: Point | None = None
     groups: list[Group] = Field(default_factory=list)
     living_role: LivingRole | None = None
+    supply: LivingSupply | None = None
     movement: Movement | None = None
     living_wolf: bool = False
     meal_target_spawn_id: int | None = Field(default=None, ge=0)
@@ -314,7 +394,7 @@ class Agent(ProtocolModel):
         if self.native_creature:
             if self.control_mode != "OBSERVE_ONLY":
                 raise ValueError("Native creatures must remain observation-only")
-            if self.needs is not None or self.economy is not None or self.living_role is not None or self.living_wolf:
+            if self.needs is not None or self.economy is not None or self.living_role is not None or self.living_wolf or self.supply is not None:
                 raise ValueError("Native creatures do not have AI needs, economy or living-role state")
             if self.position.source != "live" and any(value is not None for value in (
                 self.health, self.max_health, self.alive, self.in_combat,
@@ -322,8 +402,15 @@ class Agent(ProtocolModel):
                 raise ValueError("Unloaded native creatures do not have live observations")
         elif self.needs is None:
             raise ValueError("AI agents require needs")
+        if self.supply is not None:
+            if self.control_mode != "AI_WORLD_CONTROLLED":
+                raise ValueError("Supply observations require an AI-controlled actor")
+            for point in (self.supply.hunting_ground, self.supply.depot.position if self.supply.depot else None):
+                if point is not None and point.map_id != self.position.map_id:
+                    raise ValueError("Supply observations must remain on the actor's map")
         if self.position.source != "live" and any((
             self.living_role, self.movement, self.target, self.destination, self.living_wolf,
+            self.supply,
             self.meal_target_spawn_id is not None,
             self.faction_template_id is not None,
             self.runtime_guid is not None,
@@ -385,4 +472,24 @@ class TelemetryBatch(ProtocolModel):
             agent.native_creature and agent.agent_id == self.memory_page.agent_id for agent in self.agents
         ):
             raise ValueError("Native creatures cannot supply AI memory pages")
+        return self
+
+    @model_validator(mode="after")
+    def supply_copies_share_one_ledger_snapshot(self):
+        depots = {}
+        accounting = None
+        for agent in self.agents:
+            if agent.supply is None:
+                continue
+            supply = agent.supply
+            if supply.depot is not None:
+                depot = supply.depot.model_dump()
+                if supply.depot_id in depots and depots[supply.depot_id] != depot:
+                    raise ValueError("Conflicting copies of the same food depot")
+                depots[supply.depot_id] = depot
+            if supply.accounting is not None:
+                current = supply.accounting.model_dump()
+                if accounting is not None and accounting != current:
+                    raise ValueError("Conflicting copies of the food accounting snapshot")
+                accounting = current
         return self

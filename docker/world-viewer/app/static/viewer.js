@@ -108,6 +108,18 @@ function pointColor(agent) {
   return "#a8dbc0";
 }
 
+function drawFoodDepots() {
+  for (const depot of ObserverModel.foodDepots(snapshot.agents, scope.map_id)) {
+    const p = project(depot.position);
+    if (p.x < -100 || p.x > cssWidth + 100 || p.y < -30 || p.y > cssHeight + 30) continue;
+    ctx.fillStyle = depot.stock === 0 ? "#ed786c" : depot.stock <= depot.low_threshold ? "#e9bf72" : "#a5d281";
+    ctx.strokeStyle = "#102119"; ctx.lineWidth = 2;
+    ctx.fillRect(p.x - 5, p.y - 5, 10, 10); ctx.strokeRect(p.x - 5, p.y - 5, 10, 10);
+    ctx.font = "600 11px Segoe UI, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(`${depot.name} · ${depot.stock}/${depot.capacity}`, p.x, p.y - 13);
+  }
+}
+
 function render() {
   if (!cssWidth || !cssHeight) return;
   ctx.clearRect(0, 0, cssWidth, cssHeight);
@@ -130,6 +142,7 @@ function render() {
     }
   }
   drawLandmarks();
+  drawFoodDepots();
 }
 
 function drawConnections() {
@@ -148,6 +161,10 @@ function drawConnections() {
   }
   connect(agent.target?.position, agent.target?.name || "Cíl", "#f1aa80");
   connect(agent.destination, "Místo přesunu", "#91d3d6", true);
+  if (ObserverModel.supplySupported(agent)) {
+    connect(agent.supply.hunting_ground, "Loviště", "#cdb67f", true);
+    connect(agent.supply.depot?.position, agent.supply.depot?.name || "Zásobárna", "#a5d281", true);
+  }
   const companion = snapshot.agents.find(item => item.spawn_id === agent.living_role?.companion_spawn_id && item.position.source === "live");
   connect(companion?.position, "Společník", "#c7b9f3", true);
 }
@@ -195,6 +212,8 @@ function facts(id, rows) {
 function showDiagnostics(agent) {
   const role = agent.living_role, movement = agent.movement;
   const recovery = role?.return_recovery;
+  $("supply-section").hidden = !ObserverModel.supplySupported(agent);
+  facts("supply-facts", ObserverModel.supplyFacts(agent));
   if (agent.native_creature) {
     text("detail-availability", agent.position.source === "live" ?
       "Běžné NPC · skutečný stav Creature; AI potřeby, ekonomika a paměť nejsou dostupné." :

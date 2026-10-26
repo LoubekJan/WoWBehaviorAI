@@ -62,6 +62,41 @@ const ObserverModel = (() => {
       (!f.alert || alert(agent)) && (!f.blocked || blocked(agent));
   }
   function aiDetailsSupported(agent) { return agent.native_creature !== true; }
-  return { goal, phase, groupIds, alert, blocked, matches, viewport, project, phaseColors, aiDetailsSupported };
+  function supplySupported(agent) {
+    return agent.native_creature !== true && agent.position.source === "live" && agent.supply?.enabled === true;
+  }
+  function supplyFacts(agent) {
+    if (!supplySupported(agent)) return [];
+    const supply = agent.supply, depot = supply.depot, accounting = supply.accounting;
+    const phases = { IDLE: "Čeká", WAITING: "Čeká", TO_GROUND: "Cesta na loviště",
+      TO_HUNTING_GROUND: "Cesta na loviště", SEARCHING: "Hledání kořisti", HUNTING: "Lov",
+      HARVESTING: "Zpracování kořisti", CARRYING: "Nese potravu", TO_DEPOT: "Cesta do skladu",
+      RETURNING_TO_DEPOT: "Cesta do skladu", DELIVERING: "Vykládání", EATING_DEPOT: "Jídlo ze skladu",
+      FEEDING: "Krmení z kořisti", FED: "Nakrmený", RESTING: "Odpočinek", NO_ROUTE: "Cesta nedostupná",
+      ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený" };
+    const rows = [["Zásobování", supply.role === "HUNTER" ? "Lovec" : "Predátor"],
+      ["Právě dělá", phases[supply.phase] || supply.phase],
+      ["Náklad", `${supply.cargo} / ${supply.capacity} porcí`],
+      ["Zbývá v kořisti", supply.carcass_remaining == null ? null : `${supply.carcass_remaining} porcí`],
+      ["Získáno z kořisti", supply.harvested], ["Doručeno", supply.delivered],
+      ["Snědeno", supply.consumed], ["Ztracený náklad", supply.lost]];
+    if (depot) rows.push(["Zásobárna", depot.name], ["Zásoba jídla", `${depot.stock} / ${depot.capacity} porcí`],
+      ["Stav zásob", depot.stock === 0 ? "Prázdná" : depot.stock <= depot.low_threshold ? "Nízká zásoba" : "Dostatek"],
+      ["Do skladu doručeno", depot.delivered], ["Ze skladu snědeno", depot.consumed]);
+    if (accounting) rows.push(["Bilance potravy", accounting.conserved ? "Souhlasí" : "Nesouhlasí"],
+      ["Ve skladech / v nákladech", `${accounting.in_depots} / ${accounting.in_cargo}`]);
+    if (supply.last_result) rows.push(["Poslední výsledek", supply.last_result]);
+    return rows;
+  }
+  function foodDepots(agents, mapId) {
+    const depots = new Map();
+    for (const agent of agents) {
+      const depot = supplySupported(agent) ? agent.supply.depot : null;
+      if (depot?.position?.map_id === mapId && !depots.has(depot.id)) depots.set(depot.id, depot);
+    }
+    return [...depots.values()].sort((a, b) => a.id - b.id);
+  }
+  return { goal, phase, groupIds, alert, blocked, matches, viewport, project, phaseColors, aiDetailsSupported,
+    supplySupported, supplyFacts, foodDepots };
 })();
 if (typeof module !== "undefined") module.exports = ObserverModel;

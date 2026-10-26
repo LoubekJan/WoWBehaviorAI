@@ -399,7 +399,8 @@ ActionValidationResult ActionSystem::ValidateAttack(ActionRequest const& request
         return { false, ActionRejectReason::GoalMismatch };
 
     if (*context.ActiveGoalType == GoalType::PredatorHunt &&
-        (context.LivingRole != LivingRolePolicy::Role::Predator || !context.TargetIsRolePrey || context.HasActiveMovement))
+        ((context.LivingRole != LivingRolePolicy::Role::Predator && context.LivingRole != LivingRolePolicy::Role::Hunter) ||
+            !context.TargetIsRolePrey || context.HasActiveMovement))
         return { false, ActionRejectReason::TargetNotAttackable };
 
     // Same GUID/entry-binding requirements ValidateHuntTarget() already

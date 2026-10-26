@@ -17,9 +17,9 @@ import sys
 from typing import Mapping
 
 try:
-    from . import hunt_population, settlement_population, single_return, terrain_profile, wildlife_population
+    from . import hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 except ImportError:  # Direct script invocation inside the lab container.
-    import hunt_population, settlement_population, single_return, terrain_profile, wildlife_population
+    import hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 
 
 class SetupError(ValueError):
@@ -91,7 +91,7 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, *hunt_population.PROFILES):
+        if profile not in ("disabled", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, *hunt_population.PROFILES):
             raise SetupError("Unknown reviewed LAB_AI_PROFILE")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
@@ -110,7 +110,7 @@ class Settings:
         )
 
 
-def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | None = None) -> dict[str, str]:
+def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | None = None) -> dict[str, str]:
     auth = f"{settings.auth_host};{settings.auth_port};{settings.auth_user};{settings.auth_password};auth"
     local = f"lab-mysql;3306;{settings.db_user};{settings.db_password}"
     result = {
@@ -138,6 +138,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.RecoveryAdviceAllAgents": "0",
         "AIWorld.RecoveryAdviceAgents": '""',
         "AIWorld.LivingRoleExtensionsEnabled": "0",
+        "AIWorld.LivingSupplyEnabled": "0",
         "AIWorld.CoalitionMaintenance": "0",
         "AIWorld.GroupCoordination": "0",
         "AIWorld.WolfGroupRegroupEnabled": "0",
@@ -189,10 +190,11 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
                        "AIWorld.NeedsHungerRatePerSecond": "0.003",
                        "AIWorld.NeedsFatigueRatePerSecond": "0",
                        "AIWorld.NeedsResourcePressureRatePerSecond": "0"})
-    elif settings.ai_profile == wildlife_population.PROFILE:
-        if scope is not None and not isinstance(scope, wildlife_population.Population):
+    elif settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE):
+        expected = supply_population.Population if settings.ai_profile == supply_population.PROFILE else wildlife_population.Population
+        if scope is not None and not isinstance(scope, expected):
             raise SetupError("Population does not match the selected wildlife profile")
-        population = scope or wildlife_population.Population.load()
+        population = scope or expected.load()
         result.update(population.config())
         result.update({"AIWorld.TelemetryEnabled": "1",
                        "AIWorld.TelemetryNativeCreaturesEnabled": "1",
@@ -200,7 +202,8 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         if not settings.wildlife_enabled:
             # Pause ownership without deleting identities or long-term memory.
             for key in ("AIWorld.Enable", "AIWorld.LivingRolesEnabled",
-                        "AIWorld.LivingRoleExtensionsEnabled", "AIWorld.LivingNeedEvolutionEnabled"):
+                        "AIWorld.LivingRoleExtensionsEnabled", "AIWorld.LivingNeedEvolutionEnabled",
+                        "AIWorld.LivingSupplyEnabled"):
                 result[key] = "0"
     elif settings.ai_profile == settlement_population.PROFILE:
         if scope is not None and not isinstance(scope, settlement_population.Population):
@@ -215,7 +218,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
     return result
 
 
-def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | None = None) -> str:
+def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | None = None) -> str:
     overrides = config_overrides(settings, scope)
     seen: set[str] = set()
     lines: list[str] = []
@@ -402,6 +405,32 @@ def bootstrap_wildlife(data: Path, settings: Settings,
     print("Wildlife ownership verified: 16 prey, 4 predators, 80 native settlement NPCs; homes and long-term memory preserved.")
 
 
+def supply_preflight(data: Path, settings: Settings, *, bootstrap: bool = False,
+                     metadata: Path = settlement_population.METADATA) -> supply_population.Population:
+    population = supply_population.verify_data(data, metadata)
+    rows = single_return.parse_snapshot(lab_mysql(settings, supply_population.snapshot_sql(population)))
+    supply_population.validate_snapshot(rows, population, control=None if bootstrap else 1, bootstrap=bootstrap)
+    return population
+
+
+def bootstrap_supply(data: Path, settings: Settings,
+                     metadata: Path = settlement_population.METADATA) -> None:
+    if settings.ai_profile != supply_population.PROFILE:
+        raise SetupError("Supply setup requires LAB_AI_PROFILE=supply-v8 and the worldserver stopped")
+    settlement_population.ensure_world_offline()
+    population = supply_preflight(data, settings, bootstrap=True, metadata=metadata)
+    settlement_population.ensure_world_offline()
+    lab_mysql(settings, settlement_population.bootstrap_sql(population.settlement))
+    lab_mysql(settings, wildlife_population.bootstrap_sql(population.wildlife))
+    lab_mysql(settings, supply_population.bootstrap_sql(population))
+    rows = single_return.parse_snapshot(lab_mysql(settings, supply_population.snapshot_sql(population)))
+    supply_population.validate_snapshot(rows, population, control=None)
+    settlement_population.ensure_world_offline()
+    lab_mysql(settings, supply_population.activation_sql(population))
+    supply_preflight(data, settings, metadata=metadata)
+    print("Supply ownership verified: 20 wildlife, 3 explicit humanoid hunters, 77 native NPCs; all homes and long-term memory preserved.")
+
+
 def auth_user_sql(settings: Settings) -> str:
     account = f"{sql_literal(settings.auth_user)}@'%'"
     return f"""CREATE USER {account} IDENTIFIED BY {sql_literal(settings.auth_password)};
@@ -468,7 +497,8 @@ def main() -> None:
                     "bootstrap-hunt-100", "activate-hunt-100", "preflight-hunt-100",
                     "migrate-hunt-terrain-100", "activate-hunt-terrain-100", "preflight-hunt-terrain-100",
                     "bootstrap-settlement-v8", "preflight-settlement-v8",
-                    "bootstrap-wildlife-v8", "preflight-wildlife-v8"):
+                    "bootstrap-wildlife-v8", "preflight-wildlife-v8",
+                    "bootstrap-supply-v8", "preflight-supply-v8"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -481,6 +511,9 @@ def main() -> None:
             elif settings.ai_profile in hunt_population.PROFILES:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = population_preflight(Path("/runtime/data"), settings, control=1, profile=settings.ai_profile)
+            elif settings.ai_profile == supply_population.PROFILE:
+                value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
+                scope = supply_preflight(Path("/runtime/data"), settings)
             elif settings.ai_profile == wildlife_population.PROFILE:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = wildlife_preflight(Path("/runtime/data"), settings)
@@ -541,6 +574,11 @@ def main() -> None:
         elif args.command == "preflight-wildlife-v8":
             wildlife_preflight(args.data, settings)
             print("Complete v8 geometry, 20 wildlife identities and 80 native NPCs verified; physical feeding/hunt acceptance is separate.")
+        elif args.command == "bootstrap-supply-v8":
+            bootstrap_supply(args.data, settings)
+        elif args.command == "preflight-supply-v8":
+            supply_preflight(args.data, settings)
+            print("Complete v8 geometry, 20 wildlife plus 3 hunter identities and 77 native NPCs verified; physical supply acceptance is separate.")
     except (SetupError, single_return.ProfileError, OSError) as exc:
         print(f"Lab setup failed: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

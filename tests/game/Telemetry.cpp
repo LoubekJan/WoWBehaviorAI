@@ -176,6 +176,42 @@ TEST_CASE("Observer exports owned living state and exact stockpiles", "[AIWorld]
     CHECK(json.find("\"id\":18") != std::string::npos);
 }
 
+TEST_CASE("Observer exports finite supply without rounding counters or leaking unloaded state", "[AIWorld][Telemetry][Supply]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Agent = AgentId{901034}; agent.SpawnId = 901034;
+    agent.ControlMode = AgentControlMode::AIWorldControlled;
+    agent.Live.emplace(); agent.Live->Alive = true;
+    agent.Supply.emplace();
+    auto& supply = *agent.Supply;
+    supply.Enabled = true; supply.Role = "HUNTER"; supply.Phase = "TO_DEPOT";
+    supply.LastResult = "HARVESTED"; supply.DepotId = 1; supply.Cargo = supply.Capacity = 6;
+    supply.CarcassRemaining = 0;
+    supply.HuntingGround = ActionPosition{725, 10, 20, 0};
+    supply.Harvested = std::numeric_limits<uint64>::max();
+    supply.Depot.emplace(); supply.Depot->Id = 1; supply.Depot->Name = "Southern village";
+    supply.Depot->Position = {725, 1, 2, 0}; supply.Depot->Stock = 4;
+    supply.Depot->Capacity = 24; supply.Depot->LowThreshold = 6;
+    supply.Accounting.emplace(); supply.Accounting->InitialFood = 4;
+    supply.Accounting->Harvested = 6; supply.Accounting->InDepots = 4;
+    supply.Accounting->InCargo = 6; supply.Accounting->Conserved = true;
+    auto json = SerializeAgentTelemetry({agent}, 1000);
+    CHECK(json.find("\"supply\":{\"enabled\":true,\"role\":\"HUNTER\",\"phase\":\"TO_DEPOT\"") != std::string::npos);
+    CHECK(json.find("\"cargo\":6,\"capacity\":6,\"carcass_remaining\":0") != std::string::npos);
+    CHECK(json.find("\"harvested\":\"18446744073709551615\"") != std::string::npos);
+    CHECK(json.find("\"depot\":{\"id\":1,\"name\":\"Southern village\"") != std::string::npos);
+    CHECK(json.find("\"in_depots\":\"4\",\"in_cargo\":\"6\"") != std::string::npos);
+    CHECK(json.find("\"conserved\":true") != std::string::npos);
+    agent.Live.reset();
+    json = SerializeAgentTelemetry({agent}, 2000);
+    CHECK(json.find("\"supply\":null") != std::string::npos);
+    CHECK(json.find("HARVESTED") == std::string::npos);
+    agent.Live.emplace(); agent.NativeCreature = true;
+    json = SerializeAgentTelemetry({agent}, 3000);
+    CHECK(json.find("\"supply\":null") != std::string::npos);
+    CHECK(json.find("Southern village") == std::string::npos);
+}
+
 TEST_CASE("Observer preserves bounded return diagnostics independently of the animation label", "[AIWorld][Telemetry]")
 {
     AgentTelemetrySnapshot agent;

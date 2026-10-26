@@ -31,7 +31,7 @@
 // Role policy for the permanent simulation population. No engine or database access.
 namespace LivingRolePolicy
 {
-    enum class Role : uint8 { None, Predator, Prey, Guard, Combatant, Civilian, Worker, Traveler, Service };
+    enum class Role : uint8 { None, Predator, Prey, Guard, Combatant, Civilian, Worker, Traveler, Service, Hunter };
     enum class Activity : uint8 { None, Roam, Look, Talk, Work, Graze, Eat, Rest };
 
     // Adjacent spawn IDs must not produce adjacent millisecond delays.
@@ -48,7 +48,7 @@ namespace LivingRolePolicy
         switch (role)
         {
             case Role::Predator: case Role::Prey: case Role::Guard: case Role::Combatant:
-            case Role::Civilian: case Role::Worker: case Role::Traveler: case Role::Service: return true;
+            case Role::Civilian: case Role::Worker: case Role::Traveler: case Role::Service: case Role::Hunter: return true;
             default: return false;
         }
     }
@@ -85,9 +85,9 @@ namespace LivingRolePolicy
         }
     }
 
-    inline bool Fighter(Role role) { return role == Role::Guard || role == Role::Combatant || role == Role::Predator; }
+    inline bool Fighter(Role role) { return role == Role::Guard || role == Role::Combatant || role == Role::Predator || role == Role::Hunter; }
     inline bool Wildlife(Role role) { return role == Role::Predator || role == Role::Prey; }
-    inline bool HelpsAllies(Role role) { return role == Role::Guard || role == Role::Combatant; }
+    inline bool HelpsAllies(Role role) { return role == Role::Guard || role == Role::Combatant || role == Role::Hunter; }
 
     // Native neutral templates (notably Defias Thug's FT 7 clone) are not
     // friendly even to themselves. Social membership supplies the alliance;
@@ -101,7 +101,7 @@ namespace LivingRolePolicy
     // Ecology may specialize neutrality; it never overrides friendship.
     inline bool CanHuntNeutralPrey(Role hunter, AgentType prey, bool mutuallyNeutral)
     {
-        return hunter == Role::Predator && prey == AgentType::Prey && mutuallyNeutral;
+        return (hunter == Role::Predator || hunter == Role::Hunter) && prey == AgentType::Prey && mutuallyNeutral;
     }
 
     inline float FreeChaseBearing(float approachBearing, std::vector<float> occupied)
@@ -187,7 +187,7 @@ namespace LivingRolePolicy
         switch (role)
         {
             case Role::Predator: case Role::Traveler: return 12.0f;
-            case Role::Combatant: return 10.0f;
+            case Role::Combatant: case Role::Hunter: return 10.0f;
             case Role::Guard: return 8.0f;
             case Role::Prey: return 6.0f;
             case Role::Civilian: case Role::Worker: return 4.0f;
@@ -228,7 +228,7 @@ namespace LivingRolePolicy
     {
         if (rememberedDanger) return Activity::Look;
         if (hunger >= 0.65f && role == Role::Prey) return Activity::Graze;
-        if (hunger >= 0.65f && !Wildlife(role)) return Activity::Eat;
+        if (hunger >= 0.65f && !Wildlife(role) && role != Role::Hunter) return Activity::Eat;
         return role == Role::Service || role == Role::Guard ? Activity::Look : Activity::Rest;
     }
 
@@ -241,7 +241,7 @@ namespace LivingRolePolicy
             case Activity::Roam: return RoamRadius(role) > 0.0f;
             case Activity::Look: return true;
             case Activity::Talk: return !Wildlife(role);
-            case Activity::Work: return role == Role::Worker;
+            case Activity::Work: return role == Role::Worker || role == Role::Hunter;
             case Activity::Graze: return role == Role::Prey;
             case Activity::Eat: return !Wildlife(role);
             case Activity::Rest: return role != Role::Service && role != Role::Guard;
@@ -257,7 +257,7 @@ namespace LivingRolePolicy
             return hunger >= 0.65f ? Activity::Eat : (phase % 2 ? Activity::Talk : Activity::Look);
         if (role == Role::Prey && hunger >= 0.65f)
             return Activity::Graze;
-        if (!Wildlife(role) && hunger >= 0.65f)
+        if (!Wildlife(role) && role != Role::Hunter && hunger >= 0.65f)
             return Activity::Eat;
         if (Allows(role, Activity::Rest) && (fatigue >= 0.8f || (!workHours && phase % 3 == 0)))
             return Activity::Rest;
@@ -282,6 +282,7 @@ namespace LivingRolePolicy
             case Role::Worker: return "WORKER";
             case Role::Traveler: return "TRAVELER";
             case Role::Service: return "SERVICE";
+            case Role::Hunter: return "HUNTER";
             default: return "NONE";
         }
     }

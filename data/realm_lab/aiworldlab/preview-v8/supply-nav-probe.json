@@ -1,0 +1,1028 @@
+{
+  "schema_version": 1,
+  "profile": "supply-v8",
+  "source_revision": "preview-v8",
+  "map_id": 725,
+  "captured_at_utc": "2026-10-26T18:28:42.405672+00:00",
+  "status": "PASS",
+  "ok": true,
+  "scope": "native_detour_ground_connectivity_only",
+  "physical_movement_verified": false,
+  "native_collision_queries_verified": false,
+  "new_server_deployment_performed": false,
+  "all_authored_homes_preserved": true,
+  "anchors_changed": false,
+  "method": "MSVC x64 executable linked to this repository native DT_POLYREF64 Detour sources. Validated mmap/tile ABI and complete native payload sizes, loaded all four tiles, queried small local ground-only projections then bidirectional full findPath and findStraightPath. Partial results, status-detail flags, non-ground corridor polygons and endpoint errors are rejected.",
+  "parameters": {
+    "poly_ref_bits": 64,
+    "query_node_capacity": 8192,
+    "path_capacity": 8192,
+    "include_flags": 1,
+    "exclude_flags": 65534,
+    "nearest_poly_extents_y_z_x": [
+      2,
+      4,
+      2
+    ],
+    "maximum_projection_xy_yards": 1,
+    "maximum_projection_z_yards": 2,
+    "maximum_anchor_to_terrain_z_yards": 2,
+    "maximum_straight_endpoint_error_yards": 0.01
+  },
+  "population_manifest": {
+    "path": "data/realm_lab/aiworldlab/preview-v8/supply-population.json",
+    "bytes": 3841,
+    "sha256": "27996c621ff7c23b42e2fe7b1d0af0caf7e1ba760b79c9361947036bb8cf3f3a"
+  },
+  "baseline_pins": {
+    "settlement_manifest_sha256": "107489731df5d4860e10b9829b9730a55501ee2de8f61e5432f6cdf616bf0b8d",
+    "placement_proof_sha256": "bd940387800b0d710196fbef114847edbe221e682c36e3b3948d55767a511071",
+    "wildlife_manifest_sha256": "8d90827cc6b4bd6b295b7d29164ea5540af16cc5a52f53d6423664648f29a9cb"
+  },
+  "native_geometry_files_verified": 61,
+  "native_navigation_inputs": [
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253130.mmtile",
+      "bytes": 212700,
+      "sha256": "512a86fb6e5b5df4a69e1187ccc7a68916b82352fc6b54c6d5859dc6b1b3f6b1"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253131.mmtile",
+      "bytes": 143024,
+      "sha256": "4cec41414980ba65e5440f4957db63c5091ed531a91518f8b48e61e33aab4bd3"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253230.mmtile",
+      "bytes": 239812,
+      "sha256": "d7715e200461de32442937eff865c60dc6da6ce4bdbfffa8dc69ec70feb23b62"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253231.mmtile",
+      "bytes": 507252,
+      "sha256": "535cceace6af01373488c2421451737de80ff744982281f65ddbfd2370c5ff5b"
+    }
+  ],
+  "native_terrain_inputs": [
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253130.map",
+      "bytes": 136144,
+      "sha256": "4bbb5f60de676ce3f03dbf15b07cfb17369b1a0aad6b7eb38416056313f3322f"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253131.map",
+      "bytes": 142756,
+      "sha256": "f77c30855a6870307ec6e4af7b47ff5f487206c8ce04496d42fa65c3e42865eb"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253230.map",
+      "bytes": 199516,
+      "sha256": "22081fd67ab1506114610bc635ae4d3978013e401763022747d288f7d2d39172"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253231.map",
+      "bytes": 172164,
+      "sha256": "549c381a2f0f215346b06af5e9eb05201f038caeff4727c2d3b6e0b86b9f0a73"
+    }
+  ],
+  "verifier_sources": [
+    {
+      "path": "tools/realm_lab/verify_terrain_navmesh.cpp",
+      "bytes": 26625,
+      "sha256": "0de8a9c74c6430e97b116d3e2be1ca7600e8b32ee2fbd4918b53bd975c00891e"
+    },
+    {
+      "path": "src/common/Collision/Maps/MapDefines.h",
+      "bytes": 4272,
+      "sha256": "32901637d8bee0a3a43ae18f060a22b51446148ab95cf9363ec056abbaba78c0"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Include/DetourNavMesh.h",
+      "bytes": 32815,
+      "sha256": "7b5b5d72550b6c4257d050e81689be484c150e57ae3d423bfc66c3d864a52cf5"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Include/DetourNavMeshQuery.h",
+      "bytes": 30489,
+      "sha256": "53e904270ff67f5e2237030a26356682eae356344725ee523c3e704402abc0fc"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourAlloc.cpp",
+      "bytes": 1565,
+      "sha256": "2d021a2982f55b4f1406fa2e214104e4a1a645d4dffc7c3720d6ffaf95b6dde9"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourAssert.cpp",
+      "bytes": 1229,
+      "sha256": "071fd42170f3cc4960c2b897eb4643995e08a7b9b24dfc3048e1f0fb8c3ae2e7"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourCommon.cpp",
+      "bytes": 10220,
+      "sha256": "3e6b26a41c2f2d754472df5d4045619ea924e338dce1a263ed08434943b270d4"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNavMesh.cpp",
+      "bytes": 46670,
+      "sha256": "123a373cb3dfc2439108a3895dc8c26c69d6a2da03e639ade221c60f5a285970"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNavMeshBuilder.cpp",
+      "bytes": 25014,
+      "sha256": "defd67990ddeaeca13c55f02cb92997eefd839ddeb4188ac323c37cb817e765a"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNavMeshQuery.cpp",
+      "bytes": 107707,
+      "sha256": "d85a2f19448a07d6d9be780297a34fc4d4c7092bcd5f28a7d87e160ac750adad"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNode.cpp",
+      "bytes": 5084,
+      "sha256": "464b86a04dbd55138fdcb909e57d52c0575603f2a21fc6495ff40c572e06c1c8"
+    }
+  ],
+  "private_probe_artifacts": [
+    {
+      "path": "runtime/lab-validation/supply-v8/supply_nav_probe.cpp",
+      "bytes": 20773,
+      "sha256": "7de74630a9e6a0ef10c72093590549ddd8ffd416d7e819ed989f27d0120989e4"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/nav-probe.rsp",
+      "bytes": 604,
+      "sha256": "473132a268f1190ce53a969c8dd16882e52d070685acdc2575ac91dd13093f8a"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/nav-probe.cmd",
+      "bytes": 470,
+      "sha256": "95a71ca7c615972d8dcead54fb005f38835083d1ce12d05c09f4035aaf7e7bd5"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/points.tsv",
+      "bytes": 439,
+      "sha256": "822a2ab761f0f9be50092261f9ff2e87d4a5d61e04c0f1b6b9b1709b08ac4f40"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/routes.tsv",
+      "bytes": 198,
+      "sha256": "e95ffd100908ef4a5acb7b49c2008c03770df10b21d02ac0ec9b15b9d3d07303"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/supply_nav_probe.exe",
+      "bytes": 582144,
+      "sha256": "675e9dd3bff08bb3eb96e751463becf360469de74f45e8f2b476c2205cd0370b"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/nav-raw.json",
+      "bytes": 10678,
+      "sha256": "e86e2add470c10aecede1f1b6df1e84b5e67c5930f5a73ffc0a9c92c1750021f"
+    }
+  ],
+  "results": {
+    "ok": true,
+    "map_id": 725,
+    "poly_ref_bits": 64,
+    "tiles": 4,
+    "include_flags": 1,
+    "exclude_flags": 65534,
+    "projection_limits": {
+      "xy": 1,
+      "z": 2
+    },
+    "valid_projections": 7,
+    "required_paths": 12,
+    "complete_paths": 12,
+    "projections": [
+      {
+        "id": "901034",
+        "input": {
+          "x": -372.4611532703225,
+          "y": 492.68216772838707,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503606069822715",
+        "valid": true,
+        "projected": {
+          "x": -372.4611511230469,
+          "y": 492.6821594238281,
+          "z": 0.39979493618011475
+        },
+        "xy_delta": 8.577674033963261e-06,
+        "z_delta": 0.24979493618011475,
+        "terrain": {
+          "ground_z": 0.0,
+          "triangle_slope_degrees": 0.0,
+          "square_row": 89,
+          "square_col": 9,
+          "triangle": 3,
+          "tile": [
+            31,
+            32
+          ],
+          "anchor_height_delta": 0.15,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "901061",
+        "input": {
+          "x": 462.60222494865087,
+          "y": 989.2163343876128,
+          "z": 14.991597032428016
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371489",
+        "valid": true,
+        "projected": {
+          "x": 462.60223388671875,
+          "y": 989.21630859375,
+          "z": 15.351398468017578
+        },
+        "xy_delta": 2.7298579046339562e-05,
+        "z_delta": 0.3598014355895618,
+        "terrain": {
+          "ground_z": 14.841597032428016,
+          "triangle_slope_degrees": 12.850780481535331,
+          "square_row": 16,
+          "square_col": 18,
+          "triangle": 2,
+          "tile": [
+            30,
+            31
+          ],
+          "anchor_height_delta": 0.15000000000000036,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "901062",
+        "input": {
+          "x": 464.1568782276982,
+          "y": 953.1044405997743,
+          "z": 14.587375408257572
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371461",
+        "valid": true,
+        "projected": {
+          "x": 464.1568908691406,
+          "y": 953.1044311523438,
+          "z": 14.745059967041016
+        },
+        "xy_delta": 1.5781635235251807e-05,
+        "z_delta": 0.15768455878344412,
+        "terrain": {
+          "ground_z": 14.437375408257571,
+          "triangle_slope_degrees": 13.98946724058478,
+          "square_row": 16,
+          "square_col": 27,
+          "triangle": 0,
+          "tile": [
+            30,
+            31
+          ],
+          "anchor_height_delta": 0.15000000000000036,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "depot_1",
+        "input": {
+          "x": -372.4611532703225,
+          "y": 492.68216772838707,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503606069822715",
+        "valid": true,
+        "projected": {
+          "x": -372.4611511230469,
+          "y": 492.6821594238281,
+          "z": 0.39979493618011475
+        },
+        "xy_delta": 8.577674033963261e-06,
+        "z_delta": 0.24979493618011475,
+        "terrain": {
+          "ground_z": 0.0,
+          "triangle_slope_degrees": 0.0,
+          "square_row": 89,
+          "square_col": 9,
+          "triangle": 3,
+          "tile": [
+            31,
+            32
+          ],
+          "anchor_height_delta": 0.15,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "depot_2",
+        "input": {
+          "x": 463.99765625,
+          "y": 972.5791015625,
+          "z": 13.096685538770844
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371466",
+        "valid": true,
+        "projected": {
+          "x": 463.9976501464844,
+          "y": 972.5791015625,
+          "z": 13.2545166015625
+        },
+        "xy_delta": 6.1035156022626325e-06,
+        "z_delta": 0.15783106279165615,
+        "terrain": {
+          "ground_z": 12.946685538770843,
+          "triangle_slope_degrees": 10.183382347915577,
+          "square_row": 16,
+          "square_col": 22,
+          "triangle": 2,
+          "tile": [
+            30,
+            31
+          ],
+          "anchor_height_delta": 0.15000000000000036,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "ground_1",
+        "input": {
+          "x": -260,
+          "y": 340,
+          "z": 0.32227310920645647
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503606069823105",
+        "valid": true,
+        "projected": {
+          "x": -260,
+          "y": 340,
+          "z": 0.3165550231933594
+        },
+        "xy_delta": 0,
+        "z_delta": -0.00571808601309709,
+        "terrain": {
+          "ground_z": 1.272212720110702e-08,
+          "triangle_slope_degrees": 0.045038710290715676,
+          "square_row": 62,
+          "square_col": 46,
+          "triangle": 0,
+          "tile": [
+            31,
+            32
+          ],
+          "anchor_height_delta": 0.3222730964843293,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "ground_2",
+        "input": {
+          "x": 245,
+          "y": 1020,
+          "z": 10.502432064212549
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371148",
+        "valid": true,
+        "projected": {
+          "x": 245,
+          "y": 1020,
+          "z": 10.658469200134277
+        },
+        "xy_delta": 0,
+        "z_delta": 0.15603713592172852,
+        "terrain": {
+          "ground_z": 10.399580280989916,
+          "triangle_slope_degrees": 5.093647642010229,
+          "square_row": 69,
+          "square_col": 11,
+          "triangle": 0,
+          "tile": [
+            30,
+            31
+          ],
+          "anchor_height_delta": 0.10285178322263278,
+          "terrain_hole": false
+        }
+      }
+    ],
+    "paths": [
+      {
+        "from": "901034",
+        "to": "ground_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 14,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -372.4611511230469,
+            "y": 492.6821594238281,
+            "z": 0.39979493618011475
+          },
+          {
+            "x": -277.3333740234375,
+            "y": 383.9998779296875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": -260,
+            "y": 340,
+            "z": 0.3165550231933594
+          }
+        ],
+        "straight_path_length_yards": 191.72501782802294
+      },
+      {
+        "from": "ground_1",
+        "to": "901034",
+        "complete": true,
+        "attempted": true,
+        "polygons": 14,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -260,
+            "y": 340,
+            "z": 0.3165550231933594
+          },
+          {
+            "x": -362.66668701171875,
+            "y": 447.9998779296875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": -372.4611511230469,
+            "y": 492.6821594238281,
+            "z": 0.39979493618011475
+          }
+        ],
+        "straight_path_length_yards": 194.75505643672216
+      },
+      {
+        "from": "901061",
+        "to": "depot_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 462.60223388671875,
+            "y": 989.21630859375,
+            "z": 15.351398468017578
+          },
+          {
+            "x": 463.9976501464844,
+            "y": 972.5791015625,
+            "z": 13.2545166015625
+          }
+        ],
+        "straight_path_length_yards": 16.826786915527304
+      },
+      {
+        "from": "depot_2",
+        "to": "901061",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 463.9976501464844,
+            "y": 972.5791015625,
+            "z": 13.2545166015625
+          },
+          {
+            "x": 462.60223388671875,
+            "y": 989.21630859375,
+            "z": 15.351398468017578
+          }
+        ],
+        "straight_path_length_yards": 16.826786915527304
+      },
+      {
+        "from": "901062",
+        "to": "depot_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 464.1568908691406,
+            "y": 953.1044311523438,
+            "z": 14.745059967041016
+          },
+          {
+            "x": 463.1998596191406,
+            "y": 964.7998657226562,
+            "z": 13.81655216217041
+          },
+          {
+            "x": 463.9976501464844,
+            "y": 972.5791015625,
+            "z": 13.2545166015625
+          }
+        ],
+        "straight_path_length_yards": 19.611411381447333
+      },
+      {
+        "from": "depot_2",
+        "to": "901062",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 463.9976501464844,
+            "y": 972.5791015625,
+            "z": 13.2545166015625
+          },
+          {
+            "x": 463.1998596191406,
+            "y": 964.7998657226562,
+            "z": 13.81655216217041
+          },
+          {
+            "x": 464.1568908691406,
+            "y": 953.1044311523438,
+            "z": 14.745059967041016
+          }
+        ],
+        "straight_path_length_yards": 19.611411381447333
+      },
+      {
+        "from": "depot_2",
+        "to": "ground_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 18,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 463.9976501464844,
+            "y": 972.5791015625,
+            "z": 13.2545166015625
+          },
+          {
+            "x": 459.73321533203125,
+            "y": 975.9998779296875,
+            "z": 13.81655216217041
+          },
+          {
+            "x": 426.6665344238281,
+            "y": 1002.66650390625,
+            "z": 17.549884796142578
+          },
+          {
+            "x": 245,
+            "y": 1020,
+            "z": 10.658469200134277
+          }
+        ],
+        "straight_path_length_yards": 230.76070000922152
+      },
+      {
+        "from": "ground_2",
+        "to": "depot_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 17,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 245,
+            "y": 1020,
+            "z": 10.658469200134277
+          },
+          {
+            "x": 298.6665954589844,
+            "y": 1002.66650390625,
+            "z": 7.4165544509887695
+          },
+          {
+            "x": 405.3332214355469,
+            "y": 981.3331909179688,
+            "z": 16.74988555908203
+          },
+          {
+            "x": 463.9976501464844,
+            "y": 972.5791015625,
+            "z": 13.2545166015625
+          }
+        ],
+        "straight_path_length_yards": 225.08509873523332
+      },
+      {
+        "from": "901061",
+        "to": "ground_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 12,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 462.60223388671875,
+            "y": 989.21630859375,
+            "z": 15.351398468017578
+          },
+          {
+            "x": 245,
+            "y": 1020,
+            "z": 10.658469200134277
+          }
+        ],
+        "straight_path_length_yards": 219.81899698205984
+      },
+      {
+        "from": "ground_2",
+        "to": "901061",
+        "complete": true,
+        "attempted": true,
+        "polygons": 12,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 245,
+            "y": 1020,
+            "z": 10.658469200134277
+          },
+          {
+            "x": 298.6665954589844,
+            "y": 1002.66650390625,
+            "z": 7.4165544509887695
+          },
+          {
+            "x": 462.60223388671875,
+            "y": 989.21630859375,
+            "z": 15.351398468017578
+          }
+        ],
+        "straight_path_length_yards": 221.1672547876584
+      },
+      {
+        "from": "901062",
+        "to": "ground_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 16,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 464.1568908691406,
+            "y": 953.1044311523438,
+            "z": 14.745059967041016
+          },
+          {
+            "x": 426.6665344238281,
+            "y": 981.3331909179688,
+            "z": 18.08321762084961
+          },
+          {
+            "x": 319.9999084472656,
+            "y": 1002.66650390625,
+            "z": 8.483220100402832
+          },
+          {
+            "x": 245,
+            "y": 1020,
+            "z": 10.658469200134277
+          }
+        ],
+        "straight_path_length_yards": 233.25761139527165
+      },
+      {
+        "from": "ground_2",
+        "to": "901062",
+        "complete": true,
+        "attempted": true,
+        "polygons": 14,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 245,
+            "y": 1020,
+            "z": 10.658469200134277
+          },
+          {
+            "x": 362.66656494140625,
+            "y": 981.3331909179688,
+            "z": 5.816554069519043
+          },
+          {
+            "x": 426.6665344238281,
+            "y": 959.9998779296875,
+            "z": 17.549884796142578
+          },
+          {
+            "x": 464.1568908691406,
+            "y": 953.1044311523438,
+            "z": 14.745059967041016
+          }
+        ],
+        "straight_path_length_yards": 230.64845649764217
+      }
+    ]
+  },
+  "limitations": [
+    "This proves native ground-navmesh connectivity for the selected anchors and paths, not an NPC walking, hunting, hauling or completing a delivery.",
+    "Runtime movement must still validate current collision, route bounds, danger, dynamically occupied terrain and each action completion.",
+    "The routes do not certify all points in the hunting-ground radius or passage through tent interiors; native BIH/LOS and live obstacle behavior remain separate checks."
+  ]
+}

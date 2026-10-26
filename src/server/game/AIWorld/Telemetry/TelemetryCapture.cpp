@@ -205,6 +205,7 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
             item.RuntimeGuid = creature->GetGUID().ToString();
             item.FactionTemplateId = creature->GetFaction();
             item.WorldState = AgentWorldState::Materialized;
+            item.Supply = DescribeLivingSupply(*creature, *record);
             auto tier = _agentSimulationTier.find(id.Value);
             item.Tier = tier != _agentSimulationTier.end() && tier->second != SimulationTier::Background
                 ? tier->second : SimulationTier::Active;

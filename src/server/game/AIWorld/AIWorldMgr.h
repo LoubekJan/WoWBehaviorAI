@@ -35,6 +35,8 @@
 #include "Agent/AgentGroupSimulationSystem.h"
 #include "Agent/AgentId.h"
 #include "Agent/LivingAdviceBudget.h"
+#include "Agent/LivingSupplyRuntime.h"
+#include "Telemetry/LivingSupplyTelemetry.h"
 #include "Agent/AgentRegistry.h"
 #include "Agent/CoalitionCandidate.h"
 #include "Agent/CoalitionFormationAttempt.h"
@@ -325,6 +327,7 @@ class TC_GAME_API AIWorldMgr
         // Creature-to-creature ecology only; native flags/immunities and the
         // ordinary attack validator still run. Does not change player reactions.
         bool CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creature const& prey) const;
+        std::optional<LivingSupplyTelemetry> DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const;
 
         // Thin Manual-only wrappers around the otherwise-private
         // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below -
@@ -2904,6 +2907,22 @@ class TC_GAME_API AIWorldMgr
         bool _livingWolvesEnabled = false;
         bool _livingRolesEnabled = false;
         bool _livingRoleExtensionsEnabled = false;
+        bool _livingSupplyEnabled = false;
+        LivingSupply::Ledger _supplyLedger;
+        std::unordered_map<uint64, LivingSupply::ActorRuntime> _supplyActors;
+        std::unordered_map<uint64, LivingSupply::SourceRuntime> _supplySources;
+        void InitializeLivingSupply();
+        bool IsSupplyHunter(AgentRecord const& record) const;
+        LivingRolePolicy::Role ResolveLivingRole(AgentRecord const& record, Creature const& creature) const;
+        void ObserveLivingSupply(AgentRecord const& record, Creature const* creature, uint64 nowMs);
+        void CancelSupplyClaim(AgentRecord const& record);
+        bool ClaimSupplyCarcass(AgentRecord const& record, Creature& creature, Creature& prey, uint64 nowMs);
+        uint32 CommitSupplyCarcass(AgentRecord const& record, Creature& creature, Creature& prey, uint64 nowMs);
+        bool SupplyWantsHunt(AgentRecord const& record) const;
+        bool UpdateLivingSupplyHunter(AgentRecord& record, Creature& creature, uint64 nowMs,
+            std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
+            std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step,
+            bool searchOnly = false);
         uint32 _livingRecoverySpawnId = 0;
         bool _recoveryAdviceEnabled = false;
         std::unordered_set<uint64> _recoveryAdviceAgents;

@@ -18,6 +18,7 @@
 #include "tc_catch2.h"
 #include "Action/ActionSystem.h"
 #include "Agent/LivingRolePolicy.h"
+#include "Agent/LivingSupplyRuntime.h"
 #include "Agent/LivingHuntPolicy.h"
 #include "Agent/LivingReturnPolicy.h"
 #include "Agent/LivingForagePolicy.h"
@@ -108,6 +109,32 @@ TEST_CASE("Materialization cleanup discards role attempts without claiming newer
     REQUIRE(record.LivingRole.UnreachablePreyGuid.IsEmpty());
     REQUIRE(record.LivingRole.UnreachablePreyUntilMs == 0);
     REQUIRE(std::string(record.LivingRole.LastHuntEnd) == "NONE");
+}
+
+TEST_CASE("Supply hunters require an explicit scoped capability and never get free recovery meals", "[AIWorld][LivingRole][LivingSupply]")
+{
+    using namespace LivingRolePolicy;
+    REQUIRE(!Wildlife(Role::Hunter));
+    REQUIRE(Fighter(Role::Hunter));
+    REQUIRE(HelpsAllies(Role::Hunter));
+    REQUIRE(CanHuntNeutralPrey(Role::Hunter, AgentType::Prey, true));
+    REQUIRE(!CanHuntNeutralPrey(Role::Hunter, AgentType::Prey, false));
+    REQUIRE(!CanHuntNeutralPrey(Role::Hunter, AgentType::Civilian, true));
+    REQUIRE(Resolve(AgentType::Combatant, 11328, false) == Role::Combatant);
+    REQUIRE(Resolve(AgentType::Civilian, 11328, false) == Role::Worker);
+    REQUIRE(RecoveryActivity(Role::Hunter, 1.0f, false) != Activity::Eat);
+    REQUIRE(RecoveryActivity(Role::Hunter, 1.0f, true) != Activity::Eat);
+    REQUIRE(IdleActivity(Role::Hunter, 0, false, 1.0f, 0.0f) != Activity::Eat);
+    for (uint64 spawn : {901034, 901061, 901062})
+    {
+        REQUIRE(LivingSupply::HunterCapability(spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+        REQUIRE(!LivingSupply::HunterCapability(spawn, 0, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+        REQUIRE(!LivingSupply::HunterCapability(spawn, 725, AgentType::Combatant, AgentControlMode::ObserveOnly, true));
+        REQUIRE(!LivingSupply::HunterCapability(spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, false));
+        for (AgentType type : {AgentType::Civilian, AgentType::Guard, AgentType::Predator, AgentType::Prey, AgentType::Unclassified})
+            REQUIRE(!LivingSupply::HunterCapability(spawn, 725, type, AgentControlMode::AIWorldControlled, true));
+    }
+    REQUIRE(!LivingSupply::HunterCapability(901035, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
 }
 
 TEST_CASE("Living roles only cover controlled permanent Elwynn agents", "[AIWorld][LivingRole]")
@@ -318,7 +345,7 @@ TEST_CASE("New attackers reserve separate world bearings before reaching the tar
     }
 }
 
-TEST_CASE("Predators only hunt resolved classified attackable creature prey", "[AIWorld][LivingRole]")
+TEST_CASE("Predators and opted-in hunters only hunt resolved classified attackable creature prey", "[AIWorld][LivingRole]")
 {
     using namespace LivingRolePolicy;
     ActionSystem actions;
@@ -331,7 +358,7 @@ TEST_CASE("Predators only hunt resolved classified attackable creature prey", "[
     context.ControlMode = AgentControlMode::AIWorldControlled;
     context.Materialized = context.Alive = context.LivingRoleAllowed = true;
     context.LivingRoleZoneId = 12;
-    context.LivingRole = Role::Predator;
+    context.LivingRole = GENERATE(Role::Predator, Role::Hunter);
     context.ActiveGoalType = GoalType::PredatorHunt;
     context.ActiveGoalStartedAtMs = 100;
     context.TargetResolved = context.TargetAlive = context.TargetAttackable = context.TargetIsRolePrey = true;

@@ -169,3 +169,28 @@ python3 tools/realm_lab/wildlife_acceptance.py runtime/lab/recordings/aiworld-SE
 
 Výsledky jsou `PASS`, `FAIL` nebo `INCONCLUSIVE` (exit 0, 3, 2). Zdravá
 služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
+
+## Příprava zásobování lovem
+
+Volitelný profil `supply-v8` přidává ke stávající zvěři lidského lovce
+901034, dva gnollí lovce 901061/901062 a dvě zásobárny. Po aktivaci jde
+o 23 řízených a 77 nativních NPC na stejné mapě. Implementace je připravená;
+fyzický řetězec lov–náklad–doručení–spotřeba zatím čeká na provozní ověření.
+
+Po sestavení verze se zásobováním a před první aktivací použij `make backup`.
+V privátním `.env` nastav `LAB_AI_PROFILE=supply-v8` a
+`LAB_WILDLIFE_ENABLED=1`, potom spusť `make setup-world` a `make start`.
+CI/CD používá stejnou přípravu pod deploy zámkem. Výchozí `.env.example`
+zůstává u `settlement-v8`; současný ověřený běh používá `wildlife-v8`.
+
+Nové zásoby, náklad a rezervace kořisti jsou pouze stav aktuálního běhu;
+při restartu se resetují a sklady začínají prázdné. Jejich ukládání je
+odložené podle zadání. Z identity ani starých osobních zásob se nové jídlo
+nevytváří. Zatím ze skladů jedí jen tři lovci, nikoliv celá vesnice.
+
+Pro pauzu ponech profil `supply-v8`, nastav `LAB_WILDLIFE_ENABLED=0` a
+znovu vytvoř worldserver. Přepínač pozastaví všech 23 řízených aktérů.
+Po založení tří loveckých vazeb se prosté přepnutí na `wildlife-v8`
+odmítne; jejich identity a paměť se při pauze nemažou. Pravidla, limity,
+navigační důkaz a fyzická kritéria jsou v
+[doc/RealmLab.md](doc/RealmLab.md#zásobování-lovem--supply-v8).
