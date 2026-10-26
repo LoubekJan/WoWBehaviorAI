@@ -1,5 +1,6 @@
 """Execute wildlife transactions only against disposable CI MySQL."""
-import copy
+import hashlib
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -8,7 +9,7 @@ from unittest.mock import patch
 
 from tools.realm_lab import manage, settlement_population as settlement, wildlife_population as wildlife
 from tools.realm_lab.tests.test_setup import environment
-from tools.realm_lab.tests.test_wildlife_population import fixture, native_snapshot
+from tools.realm_lab.tests.test_wildlife_population import fixture, native_snapshot, write_json
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -75,6 +76,7 @@ CREATE TABLE characters.ai_long_term_memories (
             if row["kind"] == "spawn" and row["guid"] in actors:
                 row["orientation"] = actors[row["guid"]].orientation
         self.insert_snapshot(rows)
+        self.bind_legacy_readback(metadata, rows)
         self.before_native = self.sql("SELECT * FROM world.creature ORDER BY guid;")
         self.before_legacy = self.sql("SELECT * FROM characters.ai_agents ORDER BY agent_id;")
         self.auth_tables = self.sql("SHOW TABLES FROM auth;")
@@ -84,6 +86,58 @@ CREATE TABLE characters.ai_long_term_memories (
 
     def rows(self):
         return wildlife.parse_snapshot(self.sql(wildlife.snapshot_sql(self.population)))
+
+    def bind_legacy_readback(self, metadata, seeded):
+        """Record fixture evidence as production does: from actual SQL JSON.
+
+        MySQL's JSON representation of FLOAT zero/integral values need not
+        preserve Python seed literals' int/float spelling. First verify every
+        inserted legacy record semantically, then pin the exact SQL snapshot
+        bytes through its canonical digest. Production hashes stay unchanged.
+        """
+        def index(rows):
+            selected = {}
+            identity_fields = {"spawn": "guid", "agent": "id", "participation": "spawn", "membership": "member"}
+            for row in rows:
+                kind = row["kind"]
+                identity = row.get(identity_fields.get(kind, ""))
+                if identity in settlement.LEGACY_IDS or (kind == "agent" and row["spawn"] in settlement.LEGACY_IDS):
+                    key = (kind, identity)
+                    self.assertNotIn(key, selected)
+                    selected[key] = row
+            return selected
+
+        readback = self.rows()
+        expected, actual = index(seeded), index(readback)
+        self.assertEqual(set(actual), set(expected))
+        for kind in ("spawn", "agent", "participation"):
+            self.assertEqual({identity for row_kind, identity in actual if row_kind == kind}, settlement.LEGACY_IDS)
+        coordinate_fields = {"x", "y", "z", "orientation", "home_x", "home_y", "home_z", "home_o"}
+        for key, expected_row in expected.items():
+            self.assertEqual(set(actual[key]), set(expected_row))
+            for field, expected_value in expected_row.items():
+                if field in coordinate_fields:
+                    self.assertAlmostEqual(float(actual[key][field]), float(expected_value), delta=0.001,
+                                           msg=f"Legacy SQL coordinate differs: {key} {field}")
+                else:
+                    self.assertEqual(actual[key][field], expected_value,
+                                     f"Legacy SQL record differs: {key} {field}")
+        self.legacy_readback_sha256 = settlement.legacy_snapshot_digest(readback)
+        native_path = metadata / settlement.MANIFEST
+        native = json.loads(native_path.read_text(encoding="utf-8"))
+        native["legacy_snapshot_sha256"] = self.legacy_readback_sha256
+        write_json(native_path, native)
+        manifest_sha = hashlib.sha256(native_path.read_bytes()).hexdigest()
+        overlay_path = metadata / wildlife.MANIFEST
+        overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
+        overlay["settlement_manifest_sha256"] = manifest_sha
+        write_json(overlay_path, overlay)
+        # Only this disposable fixture's reviewed manifest changes. Loading it
+        # again exercises the same production pin checks with its new evidence.
+        patcher = patch.object(wildlife, "BASE_MANIFEST_SHA256", manifest_sha)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.population = wildlife.Population.load(metadata)
 
     def insert_snapshot(self, rows):
         mapping = {
@@ -132,6 +186,7 @@ INSERT INTO characters.ai_long_term_memories VALUES (1,901072,0.875,7);""")
         self.assertEqual(self.sql("SELECT COUNT(*) FROM characters.ai_agents WHERE agent_id BETWEEN 901000 AND 901071 OR agent_id BETWEEN 901092 AND 901099;"), "0")
         self.assertEqual(self.sql("SELECT * FROM world.creature ORDER BY guid;"), self.before_native)
         self.assertEqual(self.sql("SELECT * FROM characters.ai_agents WHERE agent_id BETWEEN 900725 AND 900824 ORDER BY agent_id;"), self.before_legacy)
+        self.assertEqual(settlement.legacy_snapshot_digest(self.rows()), self.legacy_readback_sha256)
         self.assertEqual(self.sql("SELECT money,food,resource FROM characters.ai_agents WHERE agent_id=901072;"), persistent)
         self.assertEqual(self.sql("SELECT * FROM characters.ai_long_term_memories;"), memory)
         self.assertEqual(self.sql("SHOW TABLES FROM auth;"), self.auth_tables)
@@ -173,6 +228,12 @@ INSERT INTO characters.ai_long_term_memories VALUES (1,901072,0.875,7);""")
         self.sql(wildlife.activation_sql(self.population))
         self.assert_owned_inactive()
         with self.assertRaises(wildlife.ProfileError):
+            wildlife.validate_snapshot(self.rows(), self.population, control=None)
+
+    def test_recorded_legacy_digest_rejects_later_home_drift(self):
+        self.prepare()
+        self.sql("UPDATE characters.ai_agents SET home_x=home_x+0.25 WHERE agent_id=900725;")
+        with self.assertRaisesRegex(wildlife.ProfileError, "Legacy regression identities/homes/control changed"):
             wildlife.validate_snapshot(self.rows(), self.population, control=None)
 
 

@@ -110,6 +110,35 @@ class WildlifeAcceptanceTests(unittest.TestCase):
     def test_exported_api_states_use_the_same_evaluator(self):
         self.assertEqual(acceptance.evaluate_samples(s["state"] for s in happy_samples())["status"], "PASS")
 
+    def test_identical_capture_poll_is_ignored_without_new_evidence_or_cycle_reset(self):
+        original = happy_samples()
+        expected = acceptance.evaluate_samples(original)
+        duplicate = deepcopy(original[3])
+        duplicate["elapsed_seconds"] += 1
+        duplicate["state"]["age_ms"] = 1000
+        rows = original[:4] + [duplicate] + original[4:]
+        for sequence, row in enumerate(rows, 1):
+            row["sequence"] = sequence
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["cycles"], expected["cycles"])
+        self.assertEqual(report["fresh_samples"], expected["fresh_samples"])
+        self.assertEqual(report["agents"][str(PREDATOR)]["live_samples"], expected["agents"][str(PREDATOR)]["live_samples"])
+        self.assertEqual(report["quality"]["identical_capture_ignored"], 1)
+        direct = [row["state"] for row in happy_samples()]
+        direct.insert(4, deepcopy(direct[3]))
+        self.assertEqual(acceptance.evaluate_samples(direct)["status"], "PASS")
+
+    def test_same_capture_mutated_death_cannot_advance_or_complete_a_cycle(self):
+        rows = happy_samples()
+        # Claim the already published live-prey frame changed into a corpse
+        # and feeding frame. This is not a new producer observation.
+        rows[4]["state"]["captured_at_ms"] = rows[3]["state"]["captured_at_ms"]
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE")
+        self.assertFalse(report["cycles"])
+        self.assertEqual(report["quality"]["mutated_repeat_or_duplicate_gap"], 1)
+
     def test_stale_and_missing_life_protocol_cannot_pass(self):
         for field in ("stale", "runtime_guid", "lifetime_ms"):
             with self.subTest(field=field):

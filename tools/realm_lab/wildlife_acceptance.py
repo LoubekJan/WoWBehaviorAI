@@ -80,6 +80,7 @@ class _Evaluator:
         self.epoch = 0
         self.direct_sequence = 0
         self.last_rows = {}
+        self.last_payload = self.last_unique_time = None
 
     def violation(self, code: str, sid: int):
         self.violations[(code, sid)] = {"code": code, "spawn_id": sid}
@@ -188,7 +189,8 @@ class _Evaluator:
             return
         if record.get("kind") == "summary":
             return
-        if "state" not in record and "agents" in record:
+        direct_state = "state" not in record and "agents" in record
+        if direct_state:
             self.direct_sequence += 1
             capture = record.get("captured_at_ms")
             record = {"state": record, "status": "fresh", "sequence": self.direct_sequence,
@@ -200,20 +202,37 @@ class _Evaluator:
             self.reset("invalid_sample")
             return
         session = record.get("session_id", self.session)
-        if self.last_time is not None and (session != self.previous_session or sequence != self.last_sequence + 1 or
-                                          not 0 < t - self.last_time <= self.max_gap):
+        capture = state.get("captured_at_ms")
+        same_capture = self.last_capture is not None and capture == self.last_capture
+        poll_continuous = self.last_time is None or (
+            session == self.previous_session and sequence == self.last_sequence + 1 and
+            (0 < t - self.last_time <= self.max_gap or (direct_state and same_capture and t == self.last_time)))
+        if not poll_continuous:
             self.reset("session_sequence_or_time_gap")
         self.previous_session, self.last_time, self.last_sequence = session, t, sequence
-        capture = state.get("captured_at_ms")
         if (record.get("status") != "fresh" or state.get("configured") is not True or state.get("stale") is not False or
             state.get("version") not in (2, 3, 4) or
             not positive_int(capture) or type(state.get("age_ms")) is not int or not 0 <= state["age_ms"] < 5000 or
             not isinstance(state.get("agents"), list)):
             self.reset("stale_or_unusable_snapshot")
             return
-        if self.last_capture is not None and not 0 < capture - self.last_capture <= self.max_gap * 1000:
+        # HTTP polls can read one producer snapshot more than once. Transport
+        # age/receive timestamps may change; the actual captured payload may
+        # not. An identical repeat contributes no new evidence or duration.
+        payload = json.dumps({key: state.get(key) for key in ("version", "scope", "agents")},
+                             sort_keys=True, separators=(",", ":"), allow_nan=False)
+        if same_capture:
+            if (poll_continuous and payload == self.last_payload and self.last_unique_time is not None and
+                0 <= t - self.last_unique_time <= self.max_gap):
+                self.quality["identical_capture_ignored"] += 1
+                return
+            self.reset("mutated_repeat_or_duplicate_gap")
+            return
+        if self.last_capture is not None and (not 0 < capture - self.last_capture <= self.max_gap * 1000 or
+            self.last_unique_time is not None and not 0 < t - self.last_unique_time <= self.max_gap):
             self.reset("capture_repeat_reset_or_gap")
         self.last_capture = capture
+        self.last_payload, self.last_unique_time = payload, t
         agents = state["agents"]
         ids = [a.get("spawn_id") for a in agents if isinstance(a, dict)]
         if len(ids) != len(agents) or any(not positive_int(i) for i in ids) or len(set(ids)) != len(ids):
