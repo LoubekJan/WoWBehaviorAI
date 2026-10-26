@@ -12,7 +12,9 @@ compose=(docker compose --env-file "$env_file" -f compose.yml)
 world_id="$("${compose[@]}" ps --all -q worldserver)"
 world_ip=
 if [ -n "$world_id" ]; then
-  world_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "aitc-lab_default").IPAddress}}' "$world_id")"
+  if [ "$(docker inspect --format '{{.State.Running}}' "$world_id")" = true ]; then
+    world_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "aitc-lab_default").IPAddress}}' "$world_id")"
+  fi
   "${compose[@]}" stop worldserver
   test "$(docker inspect --format '{{.State.Running}}' "$world_id")" = false
 fi

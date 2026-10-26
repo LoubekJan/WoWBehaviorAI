@@ -30,11 +30,8 @@ make graveyard-data
 lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
 world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
 world_ip=
-if [ -n "$world_id" ]; then
+if [ -n "$world_id" ] && [ "$(docker inspect --format '{{.State.Running}}' "$world_id")" = true ]; then
   world_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "aitc-lab_default").IPAddress}}' "$world_id")"
-fi
-if [ -z "$world_ip" ] && [ -f runtime/lab/receipts/world-promotion.json ]; then
-  world_ip="$(python3 -c 'import json; from pathlib import Path; print(json.loads(Path("runtime/lab/receipts/world-promotion.json").read_text()).get("prior_world", {}).get("address", ""))')"
 fi
 # Both executables share the build volume; stop both before replacing binaries.
 "${lab_compose[@]}" stop worldserver authserver
