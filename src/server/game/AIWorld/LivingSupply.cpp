@@ -465,9 +465,10 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
         }
         ActionRequest move;
         move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = next;
+        actor.LastResult = "MOVE_REJECTED";
         if (!start(move, Phase::Moving, nullptr, false))
         {
-            actor.Phase = "NO_ROUTE"; actor.LastResult = "MOVE_REJECTED";
+            actor.Phase = "NO_ROUTE";
             actor.NextAtMs = nowMs + 10000;
             return true;
         }
@@ -646,9 +647,10 @@ bool AIWorldMgr::UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creat
         }
         ActionRequest move;
         move.Type = ActionType::MoveTo; move.SourceGoal = GoalType::LocalActivity; move.Destination = next;
+        actor.LastResult = "MOVE_REJECTED";
         if (!start(move, Phase::Moving, nullptr, false))
         {
-            actor.Phase = "NO_ROUTE"; actor.LastResult = "MOVE_REJECTED";
+            actor.Phase = "NO_ROUTE";
             actor.NextAtMs = nowMs + 10000;
             return true;
         }

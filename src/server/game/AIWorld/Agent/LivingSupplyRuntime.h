@@ -9,6 +9,7 @@
 #include "ObjectGuid.h"
 #include <array>
 #include <cmath>
+#include <string>
 
 namespace LivingSupply
 {
@@ -73,7 +74,7 @@ namespace LivingSupply
         bool PendingSearchCount = false;
         bool Trip = false, AtGround = false, Live = false, ReturningToHome = false;
         char const* Phase = "IDLE";
-        char const* LastResult = "READY";
+        std::string LastResult = "READY";
     };
     // Preparing a candidate is administrative. Budget refusal must preserve
     // the same candidate and consume none of the eight real search attempts.

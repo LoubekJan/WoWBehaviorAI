@@ -1030,8 +1030,17 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     auto start = [&](ActionRequest request, Phase phase, Unit* target = nullptr, bool preservePlanning = false) -> bool
     {
         lastRoleExecutionNavigation.reset();
+        auto supplyRejected = [&](std::string const& reason)
+        {
+            if (supplyHunter || supplyConsumer)
+                if (auto actor = _supplyActors.find(record.SpawnId); actor != _supplyActors.end())
+                    actor->second.LastResult = reason;
+        };
         if (!OwnsRoleMovement(record, creature))
+        {
+            supplyRejected("MOVEMENT_OWNER_BUSY");
             return false;
+        }
         // The supply cohort has reviewed distant hunting grounds. Every leg
         // still executes with strict scoped recovery navigation and danger checks.
         if ((supplyHunter || supplyConsumer) && request.Type == ActionType::MoveTo && request.Destination &&
@@ -1127,6 +1136,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         auto validation = _actionSystem.Validate(request, context);
         if (!validation.Allowed)
         {
+            supplyRejected(ToString(validation.Reason));
             TC_LOG_DEBUG("ai.world", "AI living role rejected agent={} goal={} reason={}",
                 record.Id.Value, ToString(request.SourceGoal), ToString(validation.Reason));
             return false;
@@ -1161,6 +1171,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             lastRoleExecutionNavigation = result.RecoveryNavigation;
             if (result.RecoveryNavigation) state.ReturnDiagnostics.Navigation = *result.RecoveryNavigation;
+            supplyRejected(result.RecoveryNavigation ? result.RecoveryNavigation->Failure : "ENGINE_REJECTED");
             return false;
         }
         ActiveGoal goal;
