@@ -25,29 +25,19 @@ make graveyard-data
 "${lab_compose[@]}" up -d --wait auth-mysql authserver lab-mysql
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
-# Retain the lab-only address while Docker DNS still advertises its container.
-# A stopped container can return SERVFAIL rather than NXDOMAIN for its name.
 lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
 world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
-world_ip=
-if [ -n "$world_id" ] && [ "$(docker inspect --format '{{.State.Running}}' "$world_id")" = true ]; then
-  world_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "aitc-lab_default").IPAddress}}' "$world_id")"
-fi
 # Both executables share the build volume; stop both before replacing binaries.
 "${lab_compose[@]}" stop worldserver authserver
 run_args=(run --rm --no-deps -T --interactive=false)
 if [ -n "$world_id" ]; then
   test "$(docker inspect --format '{{.State.Running}}' "$world_id")" = false
+  # Docker disconnects a stopped endpoint; probing its former IP can time out.
+  # Remove only the verified stopped container, keeping all persistent mounts.
+  docker rm "$world_id"
 fi
-if [ -n "$world_ip" ]; then
-  run_args+=(-e "LAB_SETTLEMENT_WORLD_IP=$world_ip")
-else
-  # An already-stopped container has no retained IP. Recreate its disposable
-  # container later; all database/build/runtime data remain on persistent mounts.
-  if [ -n "$world_id" ]; then docker rm "$world_id"; fi
-  test -z "$("${lab_compose[@]}" ps --all -q worldserver)"
-  run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
-fi
+test -z "$("${lab_compose[@]}" ps --all -q worldserver)"
+run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
 if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
     /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver

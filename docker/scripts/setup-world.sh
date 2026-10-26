@@ -10,23 +10,17 @@ flock -x 9
 compose=(docker compose --env-file "$env_file" -f compose.yml)
 "${compose[@]}" config --quiet
 world_id="$("${compose[@]}" ps --all -q worldserver)"
-world_ip=
 if [ -n "$world_id" ]; then
-  if [ "$(docker inspect --format '{{.State.Running}}' "$world_id")" = true ]; then
-    world_ip="$(docker inspect --format '{{(index .NetworkSettings.Networks "aitc-lab_default").IPAddress}}' "$world_id")"
-  fi
   "${compose[@]}" stop worldserver
   test "$(docker inspect --format '{{.State.Running}}' "$world_id")" = false
+  # A stopped Docker endpoint has no reachable IP. Remove only its disposable
+  # container after confirming the process stopped; persistent mounts remain.
+  docker rm "$world_id"
 fi
 "${compose[@]}" up -d --wait auth-mysql authserver lab-mysql
 run=("${compose[@]}" run --rm --no-deps -T --interactive=false)
-if [ -n "$world_ip" ]; then
-  run+=(-e "LAB_SETTLEMENT_WORLD_IP=$world_ip")
-else
-  if [ -n "$world_id" ]; then docker rm "$world_id"; fi
-  test -z "$("${compose[@]}" ps --all -q worldserver)"
-  run+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
-fi
+test -z "$("${compose[@]}" ps --all -q worldserver)"
+run+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
 receipt="runtime/lab/receipts/start-policy-$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import uuid; print(uuid.uuid4().hex)').json"
 "${run[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
   /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
