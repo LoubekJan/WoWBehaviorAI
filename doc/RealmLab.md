@@ -178,9 +178,23 @@ stará telemetrie nebo mezera v záznamu cyklus přeruší. Samotný čítač
 `FED`, zdravá služba ani přítomnost potřeby nestačí. Záznam dokládá
 úmrtí sledované kořisti, nikoli autora poslední rány.
 
+První provozní ověření **26. října 2026 prošlo (PASS)** na revizi
+`3de22f87d6617313d1a1fc78b3bce61ad4dfd670`. Oficiální záznam dlouhý
+438,819 sekundy má 439 čerstvých vzorků: všech 20 zvířat se pohnulo,
+všech 16 jelenů se páslo s poklesem hladu a všichni čtyři medvědi
+dokončili souvislý cyklus lov–krmení–návrat. Aktivní populace je 20 řízených
+zvířat + 80 nativních NPC. [Versionovaný důkaz](../data/realm_lab/aiworldlab/preview-v8/wildlife-first-cycle-acceptance.json)
+obsahuje jednotlivé cykly, kontrolní součty záznamu a 233 pozorování
+ze spawn/last-known fallbacku, která evaluator vyloučil z živého fyzického
+důkazu. Jde o první krátký lovecký gate; dlouhodobý běh, patnáctiminutový
+gate nehybnosti a perzistence potřeb přes restart zůstávají neověřené.
+Značka `FORAGE` u medvěda 901086 nemá potvrzený souvislý pohyb.
+Obecný navigační analyzátor skončil pro zkrácený záznam `INCONCLUSIVE`;
+výše uvedené `PASS` patří samostatnému wildlife evaluatoru.
+
 ## Telemetrie a navazující vývoj
 
-Viewer na portu 9091 ukazuje pouze vybraných 100 nativních NPC: živou
+Viewer na portu 9091 ukazuje vybraných 100 NPC: živou
 pozici, zdraví a bojový stav. V nativním `settlement-v8` je AI vypnutá;
 `wildlife-v8` přidává výše popsanou řízenou zvěř. Automatické skupiny,
 přepady vesnic a dobývání teritoria zatím nejsou zapnuté.

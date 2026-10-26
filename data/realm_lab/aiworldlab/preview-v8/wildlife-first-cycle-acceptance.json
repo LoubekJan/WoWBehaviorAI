@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "profile": "wildlife-v8",
+  "gate": "first_physical_hunt_feed_return_cycle",
+  "status": "PASS",
+  "recording_completed_at_utc": "2026-10-26T01:26:34.767+00:00",
+  "tested_revision": "3de22f87d6617313d1a1fc78b3bce61ad4dfd670",
+  "ci": {
+    "run_id": 40253179856,
+    "url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/40253179856"
+  },
+  "world": {
+    "realm_id": 2,
+    "map_id": 725,
+    "zone_id": 4988,
+    "geometry_and_spawn_homes_changed": false
+  },
+  "recording": {
+    "session_id": "20261026T011915Z-65b7d7fc",
+    "started_at_utc": "2026-10-26T01:19:15.948+00:00",
+    "updated_at_utc": "2026-10-26T01:26:34.767+00:00",
+    "interval_seconds": 1.0,
+    "elapsed_seconds": 438.819,
+    "samples": 439,
+    "counts": {
+      "fresh": 439
+    },
+    "max_agents": 100,
+    "stop_reason": "stopped"
+  },
+  "population": {
+    "total": 100,
+    "managed": 20,
+    "native": 80,
+    "predators": 4,
+    "prey": 16
+  },
+  "physical_evaluator": {
+    "script": "tools/realm_lab/wildlife_acceptance.py",
+    "minimum_stationary_observation_seconds": 900,
+    "max_gap_seconds": 5,
+    "fresh_samples": 439,
+    "complete_population_frames": 360,
+    "all_20_moved_at_least_2_yards": true,
+    "all_16_prey_grazed_with_hunger_drop": true,
+    "complete_predator_cycles": 4,
+    "missing_evidence": [],
+    "violations": [],
+    "independent_local_replay_matches_saved_report": true
+  },
+  "quality": {
+    "counters": {
+      "spawn_or_last_known_fallback": 233
+    },
+    "fallback_counter_unit": "owned-animal observations",
+    "fallback_handling": "233 spawn/last-known observations were excluded from live physical evidence and interrupted the affected actor continuity; valid continuous cycles still passed."
+  },
+  "agents": [
+    {
+      "spawn_id": 901072,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 25.077,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901073,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 18.493,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901074,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 20.427,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901075,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 23.409,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901076,
+      "role": "PREDATOR",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 29.275,
+      "grazed_with_hunger_drop": null
+    },
+    {
+      "spawn_id": 901077,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 20.115,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901078,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 20.387,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901079,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 6.0,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901080,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 6.0,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901081,
+      "role": "PREDATOR",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 22.553,
+      "grazed_with_hunger_drop": null
+    },
+    {
+      "spawn_id": 901082,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 6.0,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901083,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 11.971,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901084,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 6.0,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901085,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 6.0,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901086,
+      "role": "PREDATOR",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 54.537,
+      "grazed_with_hunger_drop": null
+    },
+    {
+      "spawn_id": 901087,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 37.823,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901088,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 22.0,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901089,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 11.971,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901090,
+      "role": "PREY",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 14.854,
+      "grazed_with_hunger_drop": true
+    },
+    {
+      "spawn_id": 901091,
+      "role": "PREDATOR",
+      "moved_at_least_2_yards": true,
+      "maximum_displacement_yards": 35.084,
+      "grazed_with_hunger_drop": null
+    }
+  ],
+  "cycles": [
+    {
+      "predator_spawn_id": 901076,
+      "prey_spawn_id": 901073,
+      "covered": [
+        "HUNTING",
+        "TARGET_DEATH",
+        "FEEDING",
+        "FED",
+        "RETURN_HOME",
+        "ARRIVED"
+      ],
+      "times": {
+        "HUNTING": 208.0,
+        "TARGET_DEATH": 211.0,
+        "FEEDING": 211.0,
+        "FED": 216.0,
+        "RETURN_HOME": 246.0,
+        "ARRIVED": 250.0
+      },
+      "hunger_before": 0.6810246,
+      "hunger_after": 0.0,
+      "return_start_distance": 29.27465,
+      "return_end_distance": 13.15522,
+      "death_evidence": "observed_live_target_alive_to_dead_same_runtime_guid"
+    },
+    {
+      "predator_spawn_id": 901081,
+      "prey_spawn_id": 901077,
+      "covered": [
+        "HUNTING",
+        "TARGET_DEATH",
+        "FEEDING",
+        "FED",
+        "RETURN_HOME",
+        "ARRIVED"
+      ],
+      "times": {
+        "HUNTING": 211.0,
+        "TARGET_DEATH": 212.0,
+        "FEEDING": 213.0,
+        "FED": 218.0,
+        "RETURN_HOME": 249.0,
+        "ARRIVED": 252.0
+      },
+      "hunger_before": 0.6847355,
+      "hunger_after": 0.0,
+      "return_start_distance": 21.56738,
+      "return_end_distance": 12.0,
+      "death_evidence": "observed_live_target_alive_to_dead_same_runtime_guid"
+    },
+    {
+      "predator_spawn_id": 901086,
+      "prey_spawn_id": 901083,
+      "covered": [
+        "HUNTING",
+        "TARGET_DEATH",
+        "FEEDING",
+        "FED",
+        "RETURN_HOME",
+        "ARRIVED"
+      ],
+      "times": {
+        "HUNTING": 292.0,
+        "TARGET_DEATH": 295.0,
+        "FEEDING": 296.0,
+        "FED": 301.0,
+        "RETURN_HOME": 333.0,
+        "ARRIVED": 395.0
+      },
+      "hunger_before": 0.9339231,
+      "hunger_after": 0.0,
+      "return_start_distance": 48.46053,
+      "return_end_distance": 12.24184,
+      "death_evidence": "observed_live_target_alive_to_dead_same_runtime_guid"
+    },
+    {
+      "predator_spawn_id": 901091,
+      "prey_spawn_id": 901088,
+      "covered": [
+        "HUNTING",
+        "TARGET_DEATH",
+        "FEEDING",
+        "FED",
+        "RETURN_HOME",
+        "ARRIVED"
+      ],
+      "times": {
+        "HUNTING": 210.0,
+        "TARGET_DEATH": 214.0,
+        "FEEDING": 214.0,
+        "FED": 219.0,
+        "RETURN_HOME": 254.0,
+        "ARRIVED": 260.0
+      },
+      "hunger_before": 0.6889716,
+      "hunger_after": 0.0,
+      "return_start_distance": 32.3769,
+      "return_end_distance": 11.5265,
+      "death_evidence": "observed_live_target_alive_to_dead_same_runtime_guid"
+    }
+  ],
+  "forage_901086": {
+    "observed": true,
+    "travel_yards": 0.0,
+    "movement_confirmed": false,
+    "start_seconds": 290.0,
+    "end_seconds": 290.0
+  },
+  "generic_navigation_analyzer": {
+    "status": "INCONCLUSIVE",
+    "exit_code": 2,
+    "report": "behavior-report.json",
+    "findings": 0
+  },
+  "source_files": [
+    {
+      "file": "recording-acceptance.json",
+      "bytes": 26680,
+      "sha256": "e8f34b18d6184fdb96e5a25798ac404ece739c99d6f7065e6359893727f3e26c"
+    },
+    {
+      "file": "recording-summary.json",
+      "bytes": 1040,
+      "sha256": "b8f84580f28c361728ae60e62045c1049d12b078e353c2da740c035c99cd46d0"
+    },
+    {
+      "file": "part-0001.jsonl.gz",
+      "bytes": 4131892,
+      "sha256": "22ddf9f99aa73b70b726f037664afa9a2c25161189ef8a75eb51bffbd584975c"
+    }
+  ],
+  "scope_limits": [
+    "This is a 438.819-second first-cycle observation, not a completed 15-minute stationary-observation gate or long-term stability test.",
+    "Individual hunger, fatigue and resource pressure persistence across server restart remains unimplemented and unverified.",
+    "Target death was observed for the same live runtime identity; killing-blow attribution and absence of player intervention are not exported.",
+    "The recorded FORAGE marker for predator 901086 has movement_confirmed=false; this run does not prove continuous forage movement.",
+    "The generic navigation analyzer remains INCONCLUSIVE for this shortened recording; PASS applies to the separate wildlife physical evaluator."
+  ]
+}
