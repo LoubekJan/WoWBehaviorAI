@@ -15,7 +15,7 @@ struct FoodDepotTelemetry
     std::string Name;
     ActionPosition Position;
     uint32 Stock = 0, Capacity = 0, LowThreshold = 0;
-    uint64 Delivered = 0, Consumed = 0;
+    uint64 Delivered = 0, Consumed = 0, Stolen = 0;
 };
 
 struct FoodAccountingTelemetry
@@ -35,7 +35,7 @@ struct LivingSupplyTelemetry
     std::optional<ActionPosition> HuntingGround;
     std::optional<FoodDepotTelemetry> Depot;
     std::optional<FoodAccountingTelemetry> Accounting;
-    uint64 Harvested = 0, Delivered = 0, Consumed = 0, Lost = 0;
+    uint64 Harvested = 0, Delivered = 0, Consumed = 0, Lost = 0, Stolen = 0;
 };
 
 #endif

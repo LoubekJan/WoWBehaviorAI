@@ -36,9 +36,11 @@ class ConsumerTrack:
 
 
 class _Evaluator(supply._Evaluator):
-    def __init__(self, minimum_seconds=900, max_gap_seconds=5):
-        super().__init__(minimum_seconds, max_gap_seconds, consumers=CONSUMERS)
-        self.consumer_tracks = {sid: ConsumerTrack() for sid in CONSUMERS}
+    def __init__(self, minimum_seconds=900, max_gap_seconds=5, *, consumers=None, raiders=None, depots=None):
+        super().__init__(minimum_seconds, max_gap_seconds, consumers=CONSUMERS if consumers is None else consumers,
+                         raiders=raiders, depots=depots)
+        self.required_consumer_ids = CONSUMER_IDS
+        self.consumer_tracks = {sid: ConsumerTrack() for sid in self.consumers}
 
     @staticmethod
     def meal_ownership(row):
@@ -51,13 +53,13 @@ class _Evaluator(supply._Evaluator):
     def row(self, actor, t, capture):
         row = super().row(actor, t, capture)
         sid = actor["spawn_id"]
-        if row is None or sid not in CONSUMERS or not row["alive"]:
+        if row is None or sid not in self.consumers or not row["alive"]:
             return row
         needs, role, movement = actor.get("needs") or {}, row["role"], row["movement"]
-        if role.get("role") is not None and role["role"] != CONSUMERS[sid]["role"]:
+        if role.get("role") is not None and role["role"] != self.consumers[sid]["role"]:
             self.violation("consumer_ordinary_role_changed", sid)
             return None
-        if (role.get("role") != CONSUMERS[sid]["role"] or not supply.finite(needs.get("hunger")) or
+        if (role.get("role") != self.consumers[sid]["role"] or not supply.finite(needs.get("hunger")) or
             not 0 <= needs["hunger"] <= 1 or not supply.finite(movement.get("home_distance"))):
             self.quality["missing_consumer_role_or_needs"] += 1
             return None
@@ -103,7 +105,7 @@ class _Evaluator(supply._Evaluator):
                         row["agent"].get("action") == "MOVE_TO" and row["agent"].get("action_source_goal") == "LOCAL_ACTIVITY")
             if outgoing and track.journey is None and row["depot_distance"] > 3.01:
                 track.journey = dict(epoch=self.epoch, consumer_spawn_id=sid, runtime_guid=row["guid"],
-                    lifetime_ms=row["life"], depot_id=CONSUMERS[sid]["depot"], departure_seconds=row["t"],
+                    lifetime_ms=row["life"], depot_id=self.consumers[sid]["depot"], departure_seconds=row["t"],
                     departure_depot_distance_yards=round(row["depot_distance"], 3), travel_yards=0)
             eating = (self.activity(row, "EATING_DEPOT", "EAT") and row["depot_distance"] <= 3.01 and
                       supply.positive_int(row["role"].get("started_at_ms")) and self.meal_ownership(row) is True)
@@ -120,7 +122,7 @@ class _Evaluator(supply._Evaluator):
                     row["movement"].get("moving") is True):
                     track.pending_return["return_movement_observed"] = True
                 if (row["phase"] == "ORDINARY" and row["movement"].get("home_distance", 999) <= 3.01 and
-                    row["role"].get("role") == CONSUMERS[sid]["role"] and
+                    row["role"].get("role") == self.consumers[sid]["role"] and
                     track.pending_return.get("return_movement_observed")):
                     track.pending_return["returned_seconds"] = row["t"]
                     track.pending_return["home_distance_yards"] = round(row["movement"]["home_distance"], 3)
@@ -156,7 +158,7 @@ class _Evaluator(supply._Evaluator):
         if attempt is None or row["capture"] - attempt["first_capture"] < 5000:
             self.quality["consumer_meal_start_not_observed"] += 1
             return
-        meal = dict(epoch=self.epoch, consumer_spawn_id=sid, depot_id=CONSUMERS[sid]["depot"],
+        meal = dict(epoch=self.epoch, consumer_spawn_id=sid, depot_id=self.consumers[sid]["depot"],
             seconds=row["t"], portions=portions, observed_meal_seconds=(row["capture"] - attempt["first_capture"]) / 1000,
             hunger_before=old["hunger"], hunger_after=row["hunger"], stock_before=old["depot"]["stock"],
             stock_after=row["depot"]["stock"], distance_yards=round(row["depot_distance"], 3),
@@ -174,7 +176,7 @@ class _Evaluator(supply._Evaluator):
         epoch = report["selected_epoch"]
         completed = {cycle["consumer_spawn_id"] for cycle in cycles if cycle["epoch"] == epoch}
         missing = report["missing_evidence"] + [f"physical_depot_meal_and_return_to_ordinary_role_{sid}"
-            for sid in sorted(CONSUMER_IDS - completed)]
+            for sid in sorted(self.required_consumer_ids - completed)]
         status = "FAIL" if report["violations"] else "INCONCLUSIVE" if missing else "PASS"
         report.update(profile="consumers-v8", status=status, exit_code=supply.EXIT_CODES[status],
             missing_evidence=missing, consumer_cycles=cycles, consumer_meals=meals,

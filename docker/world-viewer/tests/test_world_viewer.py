@@ -478,6 +478,7 @@ class WorldViewerApiTests(unittest.TestCase):
             observed['native_creature'] = False
             observed['runtime_guid'] = None
             observed['supply'] = None
+            observed['raid'] = None
         expected[0]["living_role"]["lifetime_ms"] = None
         expected[0]["living_role"]["return_recovery"] = None
         expected[0]["living_role"]["advice"] = None

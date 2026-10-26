@@ -263,6 +263,7 @@ namespace
         WriteJsonField(out, "low_threshold", depot.LowThreshold);
         WriteJsonField(out, "delivered", std::to_string(depot.Delivered));
         WriteJsonField(out, "consumed", std::to_string(depot.Consumed));
+        WriteJsonField(out, "stolen", std::to_string(depot.Stolen));
         out << '}';
     }
 
@@ -295,11 +296,33 @@ namespace
         WriteJsonField(out, "delivered", std::to_string(supply.Delivered));
         WriteJsonField(out, "consumed", std::to_string(supply.Consumed));
         WriteJsonField(out, "lost", std::to_string(supply.Lost));
+        WriteJsonField(out, "stolen", std::to_string(supply.Stolen));
         WriteJsonField(out, "last_result", supply.LastResult);
         out << ",\"depot\":";
         if (supply.Depot) WriteValue(out, *supply.Depot); else out << "null";
         out << ",\"accounting\":";
         if (supply.Accounting) WriteValue(out, *supply.Accounting); else out << "null";
+        out << '}';
+    }
+
+    void WriteValue(std::ostream& out, LivingRaidTelemetry const& raid)
+    {
+        out << "{\"enabled\":"; WriteValue(out, raid.Enabled);
+        WriteJsonField(out, "role", raid.Role); WriteJsonField(out, "phase", raid.Phase);
+        WriteJsonField(out, "outcome", raid.Outcome);
+        WriteJsonField(out, "attempt_id", std::to_string(raid.AttemptId));
+        WriteJsonField(out, "target_spawn_id", std::to_string(raid.TargetSpawnId));
+        WriteJsonField(out, "noticed", std::to_string(raid.Noticed));
+        WriteJsonField(out, "interceptions", std::to_string(raid.Interceptions));
+        WriteJsonField(out, "thefts", std::to_string(raid.Thefts));
+        WriteJsonField(out, "delivered", std::to_string(raid.Delivered));
+        WriteJsonField(out, "prevented", std::to_string(raid.Prevented));
+        WriteJsonField(out, "source_depot_id", raid.SourceDepotId);
+        WriteJsonField(out, "camp_depot_id", raid.CampDepotId);
+        out << ",\"source_depot\":";
+        if (raid.SourceDepot) WriteValue(out, *raid.SourceDepot); else out << "null";
+        out << ",\"camp_depot\":";
+        if (raid.CampDepot) WriteValue(out, *raid.CampDepot); else out << "null";
         out << '}';
     }
 
@@ -476,6 +499,7 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         WriteJsonField(out, "destination", item.Live ? item.Destination : std::nullopt);
         OptionalObject(out, "living_role", item.Live ? item.LivingRole : std::nullopt);
         OptionalObject(out, "supply", item.Live && !item.NativeCreature ? item.Supply : std::nullopt);
+        OptionalObject(out, "raid", item.Live && !item.NativeCreature ? item.Raid : std::nullopt);
         OptionalObject(out, "movement", item.Live ? item.Movement : std::nullopt);
         OptionalObject(out, "target", item.Live ? item.Target : std::nullopt);
         out << ",\"groups\":[";

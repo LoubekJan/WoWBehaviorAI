@@ -1,4 +1,4 @@
-# Aktuální směr — 26. října 2026
+# Aktuální směr — 27. října 2026
 
 Aktivní svět je vlastní mapa **725 / oblast 4988**, realm **2**, větev
 `AI-World-lab`. Výchozí Docker Compose spravuje přihlášení, vlastní svět,
@@ -65,8 +65,17 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    Záznam obsahuje i čekání u prázdných skladů bez uspokojení hladu.
    Nezávislé přehrání přesně odpovídá uloženému výsledku. Důkaz nepotvrzuje
    dlouhodobou rovnováhu, perzistenci ani patnáctiminutový gate nehybnosti.
-4. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
-   pravidla mají stavět na fungujícím pohybu, potravě a zásobování.
+4. **První přepad zásob — připraven k fyzickému ověření.** Opt-in profil
+   `raids-v8` přebírá spotřebitele a přidává Defiase 901055 a strážného
+   901039 (28 řízených / 72 nativních NPC). Hladový Defias zkouší ukrást
+   dvě skutečné porce z jižního skladu a donést je do táborové zásobárny;
+   krádež i předání vyžadují vlastní pětisekundovou akci na místě.
+   Strážný střídá domov a sklad po čtyřech minutách a reaguje na skutečně
+   viděného útočníka. Boj může přepad přerušit; smrt ztrácí nesený náklad.
+   [Navigační důkaz](data/realm_lab/aiworldlab/preview-v8/raid-nav-probe.json)
+   potvrzuje spojení, nikoli skutečný průchod. Fyzický gate musí doložit
+   úspěšnou krádež a návrat, zastavený pokus před odečtením a pokračování
+   původního lovu i spotřeby. Obsazování vesnic a skupinové přepady následují.
 
 **Perzistence individuálních potřeb je odložená.** Podle rozhodnutí z
 26. října 2026 se ukládání hladu, únavy a resource pressure přes restart

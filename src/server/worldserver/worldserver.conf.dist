@@ -4352,6 +4352,8 @@ AIWorld.LivingRolesEnabled = 0
 AIWorld.LivingSupplyEnabled = 0
 # Explicit depot consumers retain their ordinary roles; runtime-only stock.
 AIWorld.LivingConsumersEnabled = 0
+# Explicit two-actor authored-world raid prototype.
+AIWorld.LivingRaidsEnabled = 0
 
 # Early danger awareness, refuges/alarms, local herds, risk memory and work stocks.
 # Requires LivingRolesEnabled. Scope remains controlled permanent NPC roles.

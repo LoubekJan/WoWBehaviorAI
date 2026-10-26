@@ -18,6 +18,7 @@ namespace LivingSupply
     constexpr uint32 CarcassPortions = 6;
     constexpr uint32 PredatorMealPortions = 3;
     constexpr uint32 HunterCargoCapacity = 6;
+    constexpr uint32 RaiderCargoCapacity = 2;
     constexpr uint32 DepotCapacity = 30;
     constexpr uint32 DepotTarget = 12;
     constexpr uint32 DepotLow = 4;
@@ -68,6 +69,8 @@ namespace LivingSupply
         uint64 ConsumedTotal = 0;
         uint64 LostTotal = 0;
         uint64 DeliveredTotal = 0;
+        // A transfer of existing accounted food, never a new food source.
+        uint64 StolenTotal = 0;
         uint64 PredatorConsumed = 0;
         uint64 DepotConsumed = 0;
         uint64 PotentialCreated = 0;
@@ -85,7 +88,7 @@ namespace LivingSupply
             if (auto current = GetDepot(id))
                 return current->Capacity == capacity && current->Target == target && current->Low == low &&
                     _initialDepotStock.at(id) == initial;
-            if (_depots.size() >= 2)
+            if (_depots.size() >= 3)
                 return false;
             _depots.emplace(id, Depot{id, initial, capacity, target, low});
             _initialDepotStock.emplace(id, initial);
@@ -103,10 +106,29 @@ namespace LivingSupply
             auto current = _actors.find(actor);
             if (current != _actors.end())
                 return current->second.DepotId == depotId && current->second.Capacity == cargoCapacity &&
-                    current->second.Predator == predator && current->second.Consumer == consumer;
+                    current->second.Predator == predator && current->second.Consumer == consumer &&
+                    !current->second.RaidSourceDepotId;
             if (_actors.size() >= 128)
                 return false;
             _actors.emplace(actor, Actor{depotId, cargoCapacity, predator, consumer});
+            return true;
+        }
+
+        // Theft is a separate narrow capability, not an ordinary carrier's
+        // permission to withdraw from an arbitrary warehouse. Registration
+        // never upgrades or replaces an existing participant's capability.
+        bool RegisterRaider(uint64 actor, uint32 ownDepotId = 3, uint32 sourceDepotId = 1,
+            uint32 cargoCapacity = RaiderCargoCapacity)
+        {
+            if (!actor || ownDepotId != 3 || sourceDepotId != 1 || cargoCapacity != RaiderCargoCapacity ||
+                !GetDepot(ownDepotId) || !GetDepot(sourceDepotId))
+                return false;
+            auto current = _actors.find(actor);
+            if (current != _actors.end())
+                return current->second.DepotId == ownDepotId && current->second.Capacity == cargoCapacity &&
+                    current->second.RaidSourceDepotId == sourceDepotId && !current->second.Predator && !current->second.Consumer;
+            if (_actors.size() >= 128) return false;
+            _actors.emplace(actor, Actor{ownDepotId, cargoCapacity, false, false, sourceDepotId});
             return true;
         }
 
@@ -142,7 +164,7 @@ namespace LivingSupply
                 (kind != ClaimKind::Harvest && kind != ClaimKind::PredatorMeal))
                 return std::nullopt;
             auto& owner = actor->second;
-            if (owner.Consumer || owner.Predator != (kind == ClaimKind::PredatorMeal) ||
+            if (owner.Consumer || owner.RaidSourceDepotId || owner.Predator != (kind == ClaimKind::PredatorMeal) ||
                 requested > (owner.Predator ? PredatorMealPortions : owner.Capacity))
                 return std::nullopt;
             if (owner.Pending)
@@ -247,8 +269,32 @@ namespace LivingSupply
         }
 
         // eventSerial is an owned completed-action identity, monotonically
-        // increasing per actor across delivery and meals. Exact latest repeats
+        // increasing per actor across delivery, theft and meals. Exact latest repeats
         // report the original receipt; altered or older repeats cannot mutate.
+        Result Steal(uint64 actorId, uint64 eventSerial, uint32 sourceDepotId,
+            uint32 requested, bool physicallyCompleted)
+        {
+            auto actor = _actors.find(actorId);
+            if (actor == _actors.end()) return Rejected("UNKNOWN_ACTOR");
+            auto& owner = actor->second;
+            if (auto replay = ReplayEvent(owner, eventSerial, EventKind::Theft, sourceDepotId, requested))
+                return *replay;
+            auto source = _depots.find(sourceDepotId);
+            if (!physicallyCompleted || !eventSerial || !requested || requested > RaiderCargoCapacity ||
+                owner.Predator || owner.Consumer || !owner.RaidSourceDepotId || owner.RaidSourceDepotId != sourceDepotId ||
+                source == _depots.end())
+                return Rejected("THEFT_NOT_AUTHORIZED");
+            uint32 amount = std::min(requested, owner.Capacity - owner.Cargo);
+            if (!amount) return Rejected("CARGO_FULL");
+            // Recheck the complete debit at commit. Another consumer/theft
+            // may have used these portions since the runtime began its action.
+            if (source->second.Stock < amount) return Rejected("NO_FOOD");
+            source->second.Stock -= amount;
+            owner.Cargo += amount;
+            _counters.StolenTotal += amount;
+            return SaveEvent(owner, eventSerial, EventKind::Theft, sourceDepotId, requested, amount);
+        }
+
         Result Deliver(uint64 actorId, uint64 eventSerial, uint32 depotId,
             uint32 requested, bool physicallyCompleted)
         {
@@ -336,7 +382,7 @@ namespace LivingSupply
             uint32 Amount;
             uint64 ExpiresAtMs;
         };
-        enum class EventKind : uint8 { Delivery, Meal };
+        enum class EventKind : uint8 { Delivery, Meal, Theft };
         struct Event
         {
             uint64 Serial;
@@ -351,6 +397,7 @@ namespace LivingSupply
             uint32 Capacity;
             bool Predator;
             bool Consumer;
+            uint32 RaidSourceDepotId = 0;
             uint32 Cargo = 0;
             std::optional<Claim> Pending;
             std::optional<std::pair<Token, Result>> LastCommitted;

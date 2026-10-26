@@ -17,9 +17,9 @@ import sys
 from typing import Mapping
 
 try:
-    from . import consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    from . import raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 except ImportError:  # Direct script invocation inside the lab container.
-    import consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    import raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 
 
 class SetupError(ValueError):
@@ -91,7 +91,7 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, *hunt_population.PROFILES):
+        if profile not in ("disabled", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, *hunt_population.PROFILES):
             raise SetupError("Unknown reviewed LAB_AI_PROFILE")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
@@ -110,7 +110,7 @@ class Settings:
         )
 
 
-def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | None = None) -> dict[str, str]:
+def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | raid_population.Population | None = None) -> dict[str, str]:
     auth = f"{settings.auth_host};{settings.auth_port};{settings.auth_user};{settings.auth_password};auth"
     local = f"lab-mysql;3306;{settings.db_user};{settings.db_password}"
     result = {
@@ -140,6 +140,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.LivingRoleExtensionsEnabled": "0",
         "AIWorld.LivingSupplyEnabled": "0",
         "AIWorld.LivingConsumersEnabled": "0",
+        "AIWorld.LivingRaidsEnabled": "0",
         "AIWorld.CoalitionMaintenance": "0",
         "AIWorld.GroupCoordination": "0",
         "AIWorld.WolfGroupRegroupEnabled": "0",
@@ -191,10 +192,11 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
                        "AIWorld.NeedsHungerRatePerSecond": "0.003",
                        "AIWorld.NeedsFatigueRatePerSecond": "0",
                        "AIWorld.NeedsResourcePressureRatePerSecond": "0"})
-    elif settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE):
+    elif settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE):
         expected = {wildlife_population.PROFILE: wildlife_population.Population,
                     supply_population.PROFILE: supply_population.Population,
-                    consumer_population.PROFILE: consumer_population.Population}[settings.ai_profile]
+                    consumer_population.PROFILE: consumer_population.Population,
+                    raid_population.PROFILE: raid_population.Population}[settings.ai_profile]
         if scope is not None and not isinstance(scope, expected):
             raise SetupError("Population does not match the selected wildlife profile")
         population = scope or expected.load()
@@ -206,7 +208,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
             # Pause ownership without deleting identities or long-term memory.
             for key in ("AIWorld.Enable", "AIWorld.LivingRolesEnabled",
                         "AIWorld.LivingRoleExtensionsEnabled", "AIWorld.LivingNeedEvolutionEnabled",
-                        "AIWorld.LivingSupplyEnabled", "AIWorld.LivingConsumersEnabled"):
+                        "AIWorld.LivingSupplyEnabled", "AIWorld.LivingConsumersEnabled", "AIWorld.LivingRaidsEnabled"):
                 result[key] = "0"
     elif settings.ai_profile == settlement_population.PROFILE:
         if scope is not None and not isinstance(scope, settlement_population.Population):
@@ -221,7 +223,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
     return result
 
 
-def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | None = None) -> str:
+def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | raid_population.Population | None = None) -> str:
     overrides = config_overrides(settings, scope)
     seen: set[str] = set()
     lines: list[str] = []
@@ -461,6 +463,34 @@ def bootstrap_consumers(data: Path, settings: Settings,
     print("Consumer ownership verified: 23 existing supply actors, 3 ordinary consumers, 74 native NPCs; all homes, types and long-term memory preserved.")
 
 
+def raid_preflight(data: Path, settings: Settings, *, bootstrap: bool = False,
+                       metadata: Path = settlement_population.METADATA) -> raid_population.Population:
+    population = raid_population.verify_data(data, metadata)
+    rows = single_return.parse_snapshot(lab_mysql(settings, raid_population.snapshot_sql(population)))
+    raid_population.validate_snapshot(rows, population, control=None if bootstrap else 1, bootstrap=bootstrap)
+    return population
+
+
+def bootstrap_raids(data: Path, settings: Settings,
+                        metadata: Path = settlement_population.METADATA) -> None:
+    if settings.ai_profile != raid_population.PROFILE:
+        raise SetupError("Raid setup requires LAB_AI_PROFILE=raids-v8 and the worldserver stopped")
+    settlement_population.ensure_world_offline()
+    population = raid_preflight(data, settings, bootstrap=True, metadata=metadata)
+    settlement_population.ensure_world_offline()
+    lab_mysql(settings, settlement_population.bootstrap_sql(population.settlement))
+    lab_mysql(settings, wildlife_population.bootstrap_sql(population.wildlife))
+    lab_mysql(settings, supply_population.bootstrap_sql(population.supply))
+    lab_mysql(settings, consumer_population.bootstrap_sql(population.consumers))
+    lab_mysql(settings, raid_population.bootstrap_sql(population))
+    rows = single_return.parse_snapshot(lab_mysql(settings, raid_population.snapshot_sql(population)))
+    raid_population.validate_snapshot(rows, population, control=None)
+    settlement_population.ensure_world_offline()
+    lab_mysql(settings, raid_population.activation_sql(population))
+    raid_preflight(data, settings, metadata=metadata)
+    print("Raid ownership verified: 26 existing actors, 1 explicit raider, 1 ordinary guard, 72 native NPCs; all homes, types and long-term memory preserved.")
+
+
 def auth_user_sql(settings: Settings) -> str:
     account = f"{sql_literal(settings.auth_user)}@'%'"
     return f"""CREATE USER {account} IDENTIFIED BY {sql_literal(settings.auth_password)};
@@ -529,7 +559,8 @@ def main() -> None:
                     "bootstrap-settlement-v8", "preflight-settlement-v8",
                     "bootstrap-wildlife-v8", "preflight-wildlife-v8",
                     "bootstrap-supply-v8", "preflight-supply-v8",
-                    "bootstrap-consumers-v8", "preflight-consumers-v8"):
+                    "bootstrap-consumers-v8", "preflight-consumers-v8",
+                    "bootstrap-raids-v8", "preflight-raids-v8"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -542,6 +573,9 @@ def main() -> None:
             elif settings.ai_profile in hunt_population.PROFILES:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = population_preflight(Path("/runtime/data"), settings, control=1, profile=settings.ai_profile)
+            elif settings.ai_profile == raid_population.PROFILE:
+                value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
+                scope = raid_preflight(Path("/runtime/data"), settings)
             elif settings.ai_profile == consumer_population.PROFILE:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = consumer_preflight(Path("/runtime/data"), settings)
@@ -613,6 +647,10 @@ def main() -> None:
         elif args.command == "preflight-supply-v8":
             supply_preflight(args.data, settings)
             print("Complete v8 geometry, 20 wildlife plus 3 hunter identities and 77 native NPCs verified; physical supply acceptance is separate.")
+        elif args.command == "bootstrap-raids-v8":
+            bootstrap_raids(args.data, settings)
+        elif args.command == "preflight-raids-v8":
+            raid_preflight(args.data, settings)
         elif args.command == "bootstrap-consumers-v8":
             bootstrap_consumers(args.data, settings)
         elif args.command == "preflight-consumers-v8":

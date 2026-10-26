@@ -27,6 +27,13 @@ namespace
         REQUIRE(ledger.RegisterActor(202, 0, 0, true));
         return ledger;
     }
+    Ledger RaidFixture(uint32 initial = 6)
+    {
+        auto ledger = SupplyFixture(initial);
+        REQUIRE(ledger.ConfigureDepot(3));
+        REQUIRE(ledger.RegisterRaider(301));
+        return ledger;
+    }
     void Conserved(Ledger const& ledger)
     {
         REQUIRE(ledger.Conserved());
@@ -335,9 +342,10 @@ TEST_CASE("Supply registration and operations reject foreign or invalid particip
     REQUIRE(ledger.GetCounters().InitialFood == 2);
     REQUIRE_FALSE(ledger.ConfigureDepot(1, 3));
     REQUIRE(ledger.ConfigureDepot(2));
-    REQUIRE_FALSE(ledger.ConfigureDepot(3));
+    REQUIRE(ledger.ConfigureDepot(3));
+    REQUIRE_FALSE(ledger.ConfigureDepot(4));
     REQUIRE_FALSE(ledger.RegisterActor(0, 1));
-    REQUIRE_FALSE(ledger.RegisterActor(101, 3));
+    REQUIRE_FALSE(ledger.RegisterActor(101, 4));
     REQUIRE_FALSE(ledger.RegisterActor(101, 1, 7));
     REQUIRE_FALSE(ledger.RegisterActor(201, 1, 0, true));
     REQUIRE_FALSE(ledger.RegisterActor(201, 0, 6, true));
@@ -363,7 +371,7 @@ TEST_CASE("Supply registration and operations reject foreign or invalid particip
     REQUIRE_FALSE(ledger.Deliver(101, 0, 1, 1, true).Success);
     REQUIRE_FALSE(ledger.EatDepot(201, 1, 1, 1, true).Success);
     REQUIRE(ledger.GetCargo(999) == 0);
-    REQUIRE(ledger.GetDepot(3) == nullptr);
+    REQUIRE(ledger.GetDepot(4) == nullptr);
     REQUIRE(ledger.GetCarcass({999, 1}) == nullptr);
     Conserved(ledger);
 }
@@ -668,5 +676,214 @@ TEST_CASE("Rejected or budget-suspended supply travel cannot complete a consumer
     REQUIRE(ledger.GetDepot(1)->Stock == 1);
     REQUIRE(ledger.GetCounters().ConsumedTotal == 0);
     REQUIRE(ledger.GetCargo(301) == 0);
+    Conserved(ledger);
+}
+
+TEST_CASE("Raider theft requires a separate exact source home and bounded cargo capability", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = SupplyFixture(6);
+    REQUIRE_FALSE(ledger.RegisterRaider(301)); // Its home warehouse is absent.
+    REQUIRE(ledger.ConfigureDepot(3));
+    REQUIRE_FALSE(ledger.ConfigureDepot(4));
+    REQUIRE_FALSE(ledger.RegisterRaider(0));
+    REQUIRE_FALSE(ledger.RegisterRaider(301, 2, 1));
+    REQUIRE_FALSE(ledger.RegisterRaider(301, 3, 2));
+    REQUIRE_FALSE(ledger.RegisterRaider(301, 3, 1, 0));
+    REQUIRE_FALSE(ledger.RegisterRaider(301, 3, 1, 1));
+    REQUIRE_FALSE(ledger.RegisterRaider(301, 3, 1, 3));
+    REQUIRE_FALSE(ledger.RegisterRaider(101));
+    REQUIRE_FALSE(ledger.RegisterRaider(201));
+    REQUIRE(ledger.RegisterActor(302, 3, 2));
+    REQUIRE_FALSE(ledger.RegisterRaider(302)); // Identical cargo is no authority upgrade.
+    REQUIRE(ledger.RegisterRaider(301));
+    REQUIRE(ledger.RegisterRaider(301));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 3, 2));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 3, 0, false, true));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 0, 0, true));
+    REQUIRE(ledger.RegisterCarcass({401, 1}, 1, 30000));
+    REQUIRE_FALSE(ledger.Reserve(301, {401, 1}, ClaimKind::Harvest, 2, 2));
+    REQUIRE_FALSE(ledger.Reserve(301, {401, 1}, ClaimKind::PredatorMeal, 2, 2));
+    REQUIRE_FALSE(ledger.Commit({301, 1}, 3).Success);
+    REQUIRE(ledger.GetCarcass({401, 1})->Remaining == 6);
+    REQUIRE(ledger.RegisterActor(303, 1, 0, false, true));
+    for (uint64 forbidden : {101ull, 201ull, 302ull, 303ull, 999ull})
+        REQUIRE_FALSE(ledger.Steal(forbidden, 1, 1, 2, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 6);
+    REQUIRE(ledger.GetCounters().StolenTotal == 0);
+    Conserved(ledger);
+}
+
+TEST_CASE("Only completed theft transfers stock and its receipt shares the delivery and meal watermark", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = RaidFixture();
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 2, false).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 0, 1, 2, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 2, 2, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 3, 2, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 4, 2, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 0, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 3, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 6);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    auto stolen = ledger.Steal(301, 1, 1, 2, true);
+    REQUIRE(stolen.Success);
+    REQUIRE_FALSE(stolen.Duplicate);
+    REQUIRE(stolen.Portions == 2);
+    REQUIRE(ledger.GetCargo(301) == 2);
+    REQUIRE(ledger.GetDepot(1)->Stock == 4);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 0);
+    Conserved(ledger);
+    auto replay = ledger.Steal(301, 1, 1, 2, true);
+    REQUIRE(replay.Success);
+    REQUIRE(replay.Duplicate);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 2, 2, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(301, 1, 3, 2, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(301, 1, 3, 1, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(301, 2, 1, 2, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(301, 2, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(301, 2, 3, 2, false).Success);
+    REQUIRE(ledger.GetCargo(301) == 2);
+    REQUIRE(ledger.Deliver(301, 2, 3, 2, true).Success);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    REQUIRE(ledger.GetDepot(3)->Stock == 2);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 2, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 2, 1, 2, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(301, 2, 3, 1, true).Success);
+    REQUIRE(ledger.EatDepot(301, 3, 3, 1, true).Success);
+    REQUIRE(ledger.EatDepot(301, 3, 3, 1, true).Duplicate);
+    REQUIRE_FALSE(ledger.Steal(301, 3, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(301, 3, 3, 1, true).Success);
+    REQUIRE(ledger.GetDepot(3)->Stock == 1);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    REQUIRE(ledger.GetCounters().DeliveredTotal == 2);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    Conserved(ledger);
+}
+
+TEST_CASE("A raider cannot exceed two cargo portions even across multiple completed thefts", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = RaidFixture();
+    REQUIRE(ledger.Steal(301, 1, 1, 1, true).Portions == 1);
+    auto fill = ledger.Steal(301, 2, 1, 2, true);
+    REQUIRE(fill.Success);
+    REQUIRE(fill.Portions == 1);
+    REQUIRE(ledger.GetCargo(301) == RaiderCargoCapacity);
+    REQUIRE_FALSE(ledger.Steal(301, 3, 1, 1, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 4);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    REQUIRE(ledger.Deliver(301, 3, 3, 2, true).Portions == 2);
+    REQUIRE(ledger.Steal(301, 4, 1, 2, true).Portions == 2);
+    REQUIRE(ledger.GetCargo(301) == 2);
+    REQUIRE(ledger.GetDepot(1)->Stock == 2);
+    REQUIRE(ledger.GetDepot(3)->Stock == 2);
+    REQUIRE(ledger.GetCounters().StolenTotal == 4);
+    Conserved(ledger);
+}
+
+TEST_CASE("Two raiders cannot both claim the same final depot portions", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = RaidFixture(2);
+    REQUIRE(ledger.RegisterRaider(302));
+    REQUIRE(ledger.Steal(301, 1, 1, 2, true).Success);
+    auto second = ledger.Steal(302, 1, 1, 2, true);
+    REQUIRE_FALSE(second.Success);
+    REQUIRE(std::string(second.Reason) == "NO_FOOD");
+    REQUIRE(ledger.GetCargo(301) == 2);
+    REQUIRE(ledger.GetCargo(302) == 0);
+    REQUIRE(ledger.GetDepot(1)->Stock == 0);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    Conserved(ledger);
+}
+
+TEST_CASE("A meal racing a theft can consume the last portion without a partial theft debit", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = RaidFixture(2);
+    REQUIRE(ledger.RegisterActor(302, 1, 0, false, true));
+    REQUIRE(ledger.EatDepot(302, 1, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 2, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 1);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    REQUIRE(ledger.GetCounters().StolenTotal == 0);
+    REQUIRE(ledger.Steal(301, 1, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(302, 2, 1, 1, true).Success);
+    REQUIRE(ledger.GetCargo(301) == 1);
+    REQUIRE(ledger.GetDepot(1)->Stock == 0);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    REQUIRE(ledger.GetCounters().StolenTotal == 1);
+    Conserved(ledger);
+}
+
+TEST_CASE("Carrying stolen food through death records one loss and cannot replay the previous life's theft", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = RaidFixture();
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 2, false).Success);
+    REQUIRE(ledger.DropCargo(301) == 0);
+    REQUIRE(ledger.GetDepot(1)->Stock == 6);
+    REQUIRE(ledger.GetCounters().LostTotal == 0);
+    REQUIRE(ledger.Steal(301, 1, 1, 2, true).Success);
+    REQUIRE(ledger.DropCargo(301) == 2);
+    REQUIRE(ledger.DropCargo(301) == 0);
+    REQUIRE(ledger.GetCounters().LostTotal == 2);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    REQUIRE(ledger.GetCargo(301) == 0);
+    REQUIRE_FALSE(ledger.Steal(301, 1, 1, 2, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(301, 2, 3, 2, true).Success);
+    REQUIRE(ledger.Steal(301, 2, 1, 2, true).Success);
+    REQUIRE(ledger.Deliver(301, 3, 3, 2, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 2);
+    REQUIRE(ledger.GetDepot(3)->Stock == 2);
+    REQUIRE(ledger.GetCounters().LostTotal == 2);
+    REQUIRE(ledger.GetCounters().StolenTotal == 4);
+    Conserved(ledger);
+}
+
+TEST_CASE("Raided harvested food remains conserved through the foreign depot camp and meals", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = RaidFixture(0);
+    REQUIRE(ledger.RegisterActor(302, 1, 0, false, true));
+    Harvest(ledger, 101, {401, 1});
+    REQUIRE(ledger.Deliver(101, 1, 1, 6, true).Portions == 6);
+    REQUIRE(ledger.Steal(301, 1, 1, 2, true).Portions == 2);
+    REQUIRE(ledger.EatDepot(302, 1, 1, 1, true).Success);
+    REQUIRE(ledger.Deliver(301, 2, 3, 2, true).Portions == 2);
+    REQUIRE(ledger.EatDepot(301, 3, 3, 1, true).Success);
+    REQUIRE(ledger.GetCounters().InitialFood == 0);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 6);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    REQUIRE(ledger.GetCounters().DeliveredTotal == 8); // Six original + two transferred.
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 2);
+    REQUIRE(ledger.DepotFood() == 4);
+    REQUIRE(ledger.CargoFood() == 0);
+    Conserved(ledger);
+}
+
+TEST_CASE("A full raider camp preserves stolen cargo until a real meal creates delivery capacity", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = SupplyFixture(6);
+    REQUIRE(ledger.ConfigureDepot(3, 30));
+    REQUIRE(ledger.RegisterRaider(301));
+    REQUIRE(ledger.Steal(301, 1, 1, 2, true).Success);
+    auto full = ledger.Deliver(301, 2, 3, 2, true);
+    REQUIRE_FALSE(full.Success);
+    REQUIRE(std::string(full.Reason) == "DEPOT_FULL");
+    REQUIRE(ledger.GetCargo(301) == 2);
+    REQUIRE_FALSE(ledger.EatDepot(101, 1, 3, 1, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(101, 1, 3, 1, true).Success);
+    REQUIRE(ledger.EatDepot(301, 2, 3, 1, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(301, 2, 3, 2, true).Success);
+    auto partial = ledger.Deliver(301, 3, 3, 2, true);
+    REQUIRE(partial.Success);
+    REQUIRE(partial.Portions == 1);
+    REQUIRE(ledger.Deliver(301, 3, 3, 2, true).Duplicate);
+    REQUIRE(ledger.GetCargo(301) == 1);
+    REQUIRE(ledger.GetDepot(3)->Stock == 30);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    REQUIRE(ledger.GetCounters().DeliveredTotal == 1);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    REQUIRE(ledger.DropCargo(301) == 1);
+    REQUIRE(ledger.GetCounters().LostTotal == 1);
     Conserved(ledger);
 }

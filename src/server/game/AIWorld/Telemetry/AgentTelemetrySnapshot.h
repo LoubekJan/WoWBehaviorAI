@@ -21,6 +21,7 @@
 #include "Scheduler/SimulationTier.h"
 #include "NavigationDiagnostics.h"
 #include "LivingSupplyTelemetry.h"
+#include "LivingRaidTelemetry.h"
 #include "Agent/LivingForageState.h"
 #include "Agent/LivingPlanningState.h"
 #include "Agent/LivingAdviceAdmission.h"
@@ -214,6 +215,7 @@ struct AgentTelemetrySnapshot
     std::vector<GroupTelemetry> Groups;
     std::optional<LivingRoleTelemetry> LivingRole;
     std::optional<LivingSupplyTelemetry> Supply;
+    std::optional<LivingRaidTelemetry> Raid;
     std::optional<MovementTelemetry> Movement;
     bool LivingWolf = false;
     std::optional<uint64> MealTargetSpawnId;

@@ -182,3 +182,22 @@ test("consumer facts show meals and ordinary work without invented hunting cargo
   consumer.supply.phase = "NO_FOOD";
   assert.equal(Object.fromEntries(model.supplyFacts(consumer))["Právě dělá"], "Čeká na jídlo");
 });
+
+test("raid facts retain attempt identity and share village and camp stock observations", () => {
+  const source = { id: 1, name: "Jižní vesnice", stock: 4, position: { map_id: 725, x: 1, y: 2, z: 0 } };
+  const camp = { id: 3, name: "Tábor Defias", stock: 2, position: { map_id: 725, x: 20, y: 30, z: 0 } };
+  const raider = { ...base, supply: { enabled: true, role: "RAIDER", cargo: 2, capacity: 2, stolen: "2", depot: camp },
+    raid: { enabled: true, role: "RAIDER", phase: "STEALING", attempt_id: "18446744073709551615", outcome: "STOLEN",
+      target_spawn_id: "901039", noticed: "1", interceptions: "0", thefts: "1", delivered: "0", prevented: "0",
+      source_depot: source, camp_depot: camp } };
+  const facts = Object.fromEntries(model.raidFacts(raider));
+  assert.equal(facts["Pokus"], "18446744073709551615");
+  assert.equal(facts["Právě dělá"], "Odcizování zásob");
+  assert.equal(facts["Jídlo ve vesnici"], 4);
+  assert.equal(facts["Jídlo v táboře"], 2);
+  assert.equal(Object.fromEntries(model.supplyFacts(raider))["Odcizené jídlo"], "2");
+  assert.deepEqual(model.foodDepots([raider], 725).map(d => d.id), [1, 3]);
+  assert.deepEqual(model.raidFacts({ ...raider, native_creature: true }), []);
+  assert.deepEqual(model.raidFacts({ ...raider, position: { ...base.position, source: "spawn" } }), []);
+  assert.deepEqual(model.raidFacts(base), []);
+});

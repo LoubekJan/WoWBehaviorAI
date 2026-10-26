@@ -36,6 +36,8 @@
 #include "Agent/AgentId.h"
 #include "Agent/LivingAdviceBudget.h"
 #include "Agent/LivingSupplyRuntime.h"
+#include "Agent/LivingRaidRuntime.h"
+#include "Telemetry/LivingRaidTelemetry.h"
 #include "Telemetry/LivingSupplyTelemetry.h"
 #include "Agent/AgentRegistry.h"
 #include "Agent/CoalitionCandidate.h"
@@ -328,6 +330,7 @@ class TC_GAME_API AIWorldMgr
         // ordinary attack validator still run. Does not change player reactions.
         bool CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creature const& prey) const;
         std::optional<LivingSupplyTelemetry> DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const;
+        std::optional<LivingRaidTelemetry> DescribeLivingRaid(Creature const& creature, AgentRecord const& record) const;
 
         // Thin Manual-only wrappers around the otherwise-private
         // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below -
@@ -2909,12 +2912,23 @@ class TC_GAME_API AIWorldMgr
         bool _livingRoleExtensionsEnabled = false;
         bool _livingSupplyEnabled = false;
         bool _livingConsumersEnabled = false;
+        bool _livingRaidsEnabled = false;
+        uint64 _raidStartedAtMs = 0;
+        LivingRaid::State _raidRaider, _raidGuard;
         LivingSupply::Ledger _supplyLedger;
         std::unordered_map<uint64, LivingSupply::ActorRuntime> _supplyActors;
         std::unordered_map<uint64, LivingSupply::SourceRuntime> _supplySources;
         void InitializeLivingSupply();
         bool IsSupplyHunter(AgentRecord const& record) const;
         bool IsSupplyConsumer(AgentRecord const& record) const;
+        bool IsSupplyRaider(AgentRecord const& record) const;
+        bool IsRaidGuard(AgentRecord const& record) const;
+        LivingSupply::ConsumerSpec const* SupplyConsumerSpec(AgentRecord const& record) const;
+        std::optional<FoodDepotTelemetry> DescribeFoodDepot(uint32 depotId) const;
+        Unit* LivingRaidThreat(AgentRecord& record, Creature& creature, uint64 nowMs);
+        bool UpdateLivingRaid(AgentRecord& record, Creature& creature, uint64 nowMs,
+            std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
+            std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step);
         LivingRolePolicy::Role ResolveLivingRole(AgentRecord const& record, Creature const& creature) const;
         void ObserveLivingSupply(AgentRecord const& record, Creature const* creature, uint64 nowMs);
         void CancelSupplyClaim(AgentRecord const& record);

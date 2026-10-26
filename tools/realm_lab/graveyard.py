@@ -264,7 +264,7 @@ def bootstrap(data: Path, settings=None, graveyard: Graveyard | None = None) -> 
     except ImportError:
         import manage
     settings = settings or manage.Settings.load(os.environ)
-    if settings.ai_profile not in ("disabled", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8"):
+    if settings.ai_profile not in ("disabled", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8"):
         raise ValueError("Graveyard bootstrap requires the native settlement profile and a stopped world")
     settlement_population.ensure_world_offline()
     graveyard = verify_data(data, graveyard)

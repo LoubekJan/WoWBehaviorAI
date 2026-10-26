@@ -8,9 +8,10 @@ import time
 import urllib.request
 
 try:
-    from . import consumer_population as consumers, settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
+    from . import raid_population as raids, consumer_population as consumers, settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
 except ImportError:
     import consumer_population as consumers
+    import raid_population as raids
     import settlement_population as settlement
     import supply_population as supply
     import wildlife_population as wildlife
@@ -18,7 +19,7 @@ except ImportError:
 
 def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) -> dict[str, int]:
     require = settlement.require
-    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE), "Unknown authored-world telemetry profile")
+    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE), "Unknown authored-world telemetry profile")
     require(isinstance(state, dict) and state.get("stale") is False and state.get("version") == 4,
             "Authored-world telemetry must be a fresh version-4 snapshot")
     require(type(state.get("captured_at_ms")) is int and state["captured_at_ms"] > 0,
@@ -30,12 +31,14 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
     require(all(type(identity) is int for identity in ids) and set(ids) == settlement.SPAWN_IDS,
             "Telemetry population differs from the reviewed 100 spawns")
     active = {wildlife.PROFILE: wildlife.SPAWN_IDS, supply.PROFILE: supply.SPAWN_IDS,
-              consumers.PROFILE: consumers.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
+              consumers.PROFILE: consumers.SPAWN_IDS, raids.PROFILE: raids.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
     live_roles = 0
     for actor in actors:
         identity = actor["spawn_id"]
         require(actor.get("agent_id") == identity and (actor.get("position") or {}).get("map_id") == 725,
                 "Telemetry actor identity or map differs")
+        if profile != raids.PROFILE or identity not in raids.RECRUIT_IDS or not wildlife_enabled:
+            require(actor.get("raid") is None, "Unselected actor acquired a raid role")
         if identity not in active:
             require(actor.get("native_creature") is True and actor.get("control_mode") == "OBSERVE_ONLY" and
                     actor.get("needs") is None and actor.get("economy") is None and actor.get("living_role") is None,
@@ -50,7 +53,7 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 "Controlled wildlife needs are unavailable or invalid")
         role = actor.get("living_role")
         if actor.get("alive") is True and (actor.get("position") or {}).get("source") == "live":
-            expected_role = consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
+            expected_role = raids.RECRUIT_ROLES.get(identity) or consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
                 "PREDATOR" if identity in wildlife.PREDATOR_IDS else "PREY")
             require(isinstance(role, dict) and role.get("enabled") is True and role.get("extensions_enabled") is True and
                     role.get("role") == expected_role,
@@ -58,7 +61,40 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
             require(isinstance(actor.get("runtime_guid"), str) and 0 < len(actor["runtime_guid"]) <= 80 and
                     type(role.get("lifetime_ms")) is int and role["lifetime_ms"] > 0,
                     "Live wildlife incarnation telemetry is missing")
-            if identity in supply.HUNTER_IDS:
+            if identity in raids.RECRUIT_IDS:
+                require(actor.get("type") == ("GUARD" if identity in raids.GUARD_IDS else "COMBATANT") and
+                        type(actor.get("world_faction")) is int and actor["world_faction"] == raids.RECRUIT_FACTIONS[identity],
+                        "Raid ordinary type or faction changed")
+                raid = actor.get("raid")
+                require(isinstance(raid, dict) and raid.get("enabled") is True and
+                        raid.get("role") == raids.RECRUIT_ROLES[identity] and
+                        raid.get("source_depot_id") == 1 and raid.get("camp_depot_id") == 3,
+                        "Raid capability or reviewed depot assignment is missing")
+                for key, expected in (("source_depot", supply.DEPOTS[0]), ("camp_depot", raids.DEPOT)):
+                    depot = raid.get(key)
+                    require(isinstance(depot, dict) and depot.get("id") == expected["id"] and
+                            isinstance(depot.get("position"), dict) and
+                            all(type(depot["position"].get(field)) in (int, float) and
+                                math.isfinite(depot["position"][field]) and
+                                abs(depot["position"][field]-value) <= 0.001
+                                for field, value in expected["position"].items()) and
+                            type(depot.get("stock")) is int and type(depot.get("capacity")) is int and
+                            0 <= depot["stock"] <= depot["capacity"] == 30,
+                            "Raid depot coordinates, stock or capacity changed")
+            if identity in raids.RAIDER_IDS:
+                supplied = actor.get("supply")
+                require(isinstance(supplied, dict) and supplied.get("enabled") is True and
+                        supplied.get("role") == "RAIDER" and supplied.get("depot_id") == 3 and
+                        type(supplied.get("cargo")) is int and type(supplied.get("capacity")) is int and
+                        0 <= supplied["cargo"] <= supplied["capacity"] == 2 and
+                        all(supplied.get(field) is None for field in
+                            ("hunting_ground", "carcass_remaining", "carcass_spawn_id", "carcass_life")),
+                        "Raider cargo, depot or non-hunting capability changed")
+                require(supplied.get("depot") == actor["raid"]["camp_depot"] and
+                        isinstance(supplied.get("accounting"), dict) and
+                        supplied["accounting"].get("conserved") is True,
+                        "Raider camp ledger is missing or not conserved")
+            elif identity in supply.HUNTER_IDS:
                 supplied = actor.get("supply")
                 depot_id = 1 if identity == 901034 else 2
                 require(isinstance(supplied, dict) and supplied.get("enabled") is True and
@@ -76,13 +112,14 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 require(isinstance(supplied.get("accounting"), dict) and
                         supplied["accounting"].get("conserved") is True,
                         "Supply food conservation invariant failed or is unavailable")
-            elif identity in consumers.CONSUMER_IDS:
-                expected_type = "CIVILIAN" if consumers.CONSUMER_TYPES[identity] == 0 else "COMBATANT"
+            elif identity in consumers.CONSUMER_IDS | raids.GUARD_IDS:
+                guard = identity in raids.GUARD_IDS
+                expected_type = "GUARD" if guard else "CIVILIAN" if consumers.CONSUMER_TYPES[identity] == 0 else "COMBATANT"
                 require(actor.get("type") == expected_type and type(actor.get("world_faction")) is int and
-                        actor["world_faction"] == consumers.CONSUMER_FACTIONS[identity],
+                        actor["world_faction"] == (1 if guard else consumers.CONSUMER_FACTIONS[identity]),
                         "Consumer ordinary type or faction changed")
                 supplied = actor.get("supply")
-                depot_id = consumers.CONSUMER_DEPOTS[identity]
+                depot_id = 1 if guard else consumers.CONSUMER_DEPOTS[identity]
                 require(isinstance(supplied, dict) and supplied.get("enabled") is True and
                         supplied.get("role") == "CONSUMER" and supplied.get("depot_id") == depot_id and
                         type(supplied.get("cargo")) is int and supplied["cargo"] == 0 and

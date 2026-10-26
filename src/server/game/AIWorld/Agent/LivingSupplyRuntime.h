@@ -133,7 +133,7 @@ namespace LivingSupply
         std::optional<Token> Claim;
         CarcassKey Corpse;
         uint64 EventSerial = 0, NextAtMs = 0;
-        uint64 Harvested = 0, Delivered = 0, Consumed = 0, Lost = 0;
+        uint64 Harvested = 0, Delivered = 0, Consumed = 0, Lost = 0, Stolen = 0;
         uint32 SearchLeg = 0, EmptySearches = 0;
         std::optional<ActionPosition> PendingSearch;
         bool PendingSearchCount = false;

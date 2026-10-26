@@ -475,6 +475,36 @@ TEST_CASE("Observer exports admission attempts independently of model and recove
     CHECK(json.find("\"home_success\":0") != std::string::npos);
 }
 
+TEST_CASE("Observer preserves raid attempts and stolen food without native or unloaded evidence", "[AIWorld][Telemetry][Raid]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Agent = AgentId{901055}; agent.SpawnId = 901055; agent.MapId = 725;
+    agent.ControlMode = AgentControlMode::AIWorldControlled;
+    agent.Live.emplace(); agent.Supply.emplace(); agent.Raid.emplace();
+    agent.Supply->Enabled = true; agent.Supply->Role = "RAIDER";
+    agent.Supply->Capacity = agent.Supply->Cargo = 2;
+    agent.Supply->Stolen = std::numeric_limits<uint64>::max();
+    auto& raid = *agent.Raid;
+    raid.Enabled = true; raid.Role = "RAIDER"; raid.Phase = "TO_CAMP"; raid.Outcome = "STOLEN";
+    raid.AttemptId = std::numeric_limits<uint64>::max(); raid.TargetSpawnId = 901039;
+    raid.Thefts = 1; raid.SourceDepotId = 1; raid.CampDepotId = 3;
+    raid.SourceDepot.emplace(); raid.SourceDepot->Id = 1; raid.SourceDepot->Stolen = 2;
+    raid.CampDepot.emplace(); raid.CampDepot->Id = 3; raid.CampDepot->Name = "Defias camp";
+    auto json = SerializeAgentTelemetry({agent}, 1000);
+    CHECK(json.find("\"raid\":{\"enabled\":true,\"role\":\"RAIDER\",\"phase\":\"TO_CAMP\"") != std::string::npos);
+    CHECK(json.find("\"attempt_id\":\"18446744073709551615\"") != std::string::npos);
+    CHECK(json.find("\"stolen\":\"18446744073709551615\"") != std::string::npos);
+    CHECK(json.find("\"target_spawn_id\":\"901039\"") != std::string::npos);
+    CHECK(json.find("\"thefts\":\"1\"") != std::string::npos);
+    CHECK(json.find("\"source_depot\":{\"id\":1") != std::string::npos);
+    CHECK(json.find("\"camp_depot\":{\"id\":3") != std::string::npos);
+    CHECK(json.find("\"stolen\":\"2\"") != std::string::npos);
+    agent.Live.reset();
+    CHECK(SerializeAgentTelemetry({agent}, 1001).find("\"raid\":null") != std::string::npos);
+    agent.Live.emplace(); agent.NativeCreature = true;
+    CHECK(SerializeAgentTelemetry({agent}, 1002).find("\"raid\":null") != std::string::npos);
+}
+
 TEST_CASE("Observer memory reads are bounded and anchor pages against new insertions", "[AIWorld][Telemetry]")
 {
     LongTermMemory memory;

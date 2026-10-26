@@ -1,5 +1,28 @@
 # Vlastní svět jako jediný realm
 
+Nové rozšíření k 27. říjnu 2026: profil `raids-v8` navazuje na
+`consumers-v8` a řídí 28 ze stávajících 100 NPC. Přidává pouze Defiase
+901055 a strážného 901039; ostatních 72 NPC zůstává nativních. Nasazení
+a fyzický výsledek se ověřují samostatně po úspěšném CI.
+
+Hladový Defias při prázdném táboře a alespoň šesti porcích v jižním skladu
+vyrazí po vymezených bodech ke skladu. Po pěti sekundách vlastní práce
+na místě převede nejvýše dvě porce ze skladu do nákladu. Po skutečném
+návratu a další pětisekundové práci převede náklad do zásobárny Defias;
+tam jej může sníst. Strážný střídá čtyřminutovou službu doma a u skladu.
+Viditelného útočníka může napadnout; hráč může zasáhnout běžným bojem.
+Přerušená krádež nepřidá potravu, smrt ztrácí nesený náklad a všechny
+převody zůstávají v původní bilanci zásob. Stav přepadů, potřeby i zásoby
+se podle současného rozhodnutí přes restart neukládají.
+
+`AIWorld.LivingRaidsEnabled` je standardně vypnuté a zapíná jej pouze
+profil `raids-v8` spolu se zásobováním a spotřebiteli. Domovy, typy NPC,
+geometrie a původní lovecké vazby se nemění. Delší dosah 900 yd má pouze
+konkrétní útočník. Každý pohyb nadále prochází skutečnou navigací a
+kontrolami kolizí. Přijímací nástroj je
+`python -m tools.realm_lab.raid_acceptance <recording-directory>`;
+vyžaduje i původní lovecké a spotřebitelské řetězce ve stejném záznamu.
+
 Verzovaný provozní model k **26. říjnu 2026**. Aktivní větev zůstává
 `AI-World-lab`; hlavním vstupem jsou root `compose.yml`, `.env` a
 `Makefile`. Původní Elwynn realm 1 je určen k vyřazení. Přihlášení a

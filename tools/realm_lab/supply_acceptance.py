@@ -64,21 +64,28 @@ class Track:
 
 
 class _Evaluator:
-    def __init__(self, minimum_seconds=900, max_gap_seconds=5, *, consumers=None):
+    def __init__(self, minimum_seconds=900, max_gap_seconds=5, *, consumers=None, raiders=None, depots=None):
         if not finite(minimum_seconds) or minimum_seconds <= 0 or not finite(max_gap_seconds) or max_gap_seconds <= 0:
             raise ValueError("observation windows must be finite and positive")
         manifest = json.loads(wildlife.MANIFEST.read_text(encoding="utf-8"))
         self.actors = {a["spawn_id"]: a for a in manifest["actors"]}
         self.bounds = manifest["bounds"]
         self.depots = {d["id"]: d["position"] for d in population.DEPOTS}
+        self.depots.update(depots or {})
         self.grounds = {g["id"]: g["position"] for g in population.GROUNDS}
         # The default gate remains the reviewed 23-owner supply profile. The
         # consumer evaluator supplies its separately reviewed, fixed roster.
         self.consumers = consumers or {}
-        self.owned_ids = OWNED_IDS | self.consumers.keys()
+        self.raiders = raiders or {}
+        self.owned_ids = OWNED_IDS | self.consumers.keys() | self.raiders.keys()
         self.depot_members = {1: (901034,), 2: (901061, 901062)}
         for sid, spec in self.consumers.items():
             self.depot_members[spec["depot"]] += (sid,)
+        self.theft_sources = {depot_id: () for depot_id in self.depots}
+        for sid, spec in self.raiders.items():
+            self.depot_members.setdefault(spec["depot"], ())
+            self.depot_members[spec["depot"]] += (sid,)
+            self.theft_sources[spec["source_depot"]] += (sid,)
         self.tracks = {sid: Track() for sid in sorted(HUNTER_IDS)}
         self.minimum_seconds, self.max_gap = minimum_seconds, max_gap_seconds
         self.quality = Counter()
@@ -203,8 +210,9 @@ class _Evaluator:
                 if actor.get("supply") is not None or actor.get("needs") is not None or actor.get("living_role") is not None:
                     self.violation("native_acquired_ai_state", sid)
             else:
-                expected_type = self.consumers[sid]["type"] if sid in self.consumers else "COMBATANT" if sid in HUNTER_IDS else "PREDATOR" if sid in PREDATOR_IDS else "PREY"
-                faction = self.consumers[sid]["faction"] if sid in self.consumers else (1 if sid == 901034 else 3) if sid in HUNTER_IDS else 0
+                spec = self.consumers.get(sid) or self.raiders.get(sid)
+                expected_type = spec["type"] if spec else "COMBATANT" if sid in HUNTER_IDS else "PREDATOR" if sid in PREDATOR_IDS else "PREY"
+                faction = spec["faction"] if spec else (1 if sid == 901034 else 3) if sid in HUNTER_IDS else 0
                 if actor.get("type") != expected_type or actor.get("world_faction") != faction:
                     self.violation("role_or_faction_changed", sid)
                 pos = actor.get("position") or {}
@@ -249,13 +257,14 @@ class _Evaluator:
             return None
         result = dict(agent=actor, position=xyz, role=role, alive=alive, guid=guid, life=life,
                       t=t, capture=capture, epoch=self.epoch, hunger=needs.get("hunger"), movement=movement)
-        if sid not in HUNTER_IDS | PREDATOR_IDS | self.consumers.keys():
+        if sid not in HUNTER_IDS | PREDATOR_IDS | self.consumers.keys() | self.raiders.keys():
             return result
         supply = actor.get("supply")
         if not isinstance(supply, dict) or supply.get("enabled") is not True:
             self.quality["missing_supply"] += 1
             return None
         counters = {name: counter(supply.get(name)) for name in COUNTERS}
+        counters["stolen"] = counter(supply.get("stolen", "0"))
         if any(value is None for value in counters.values()) or not quantity(supply.get("cargo"), 6) or not quantity(supply.get("capacity"), 6) or supply["cargo"] > supply["capacity"]:
             self.violation("invalid_supply_quantity", sid)
             return None
@@ -267,11 +276,14 @@ class _Evaluator:
                 self.violation("invalid_carcass_identity_or_quantity", sid)
             else:
                 result.update(source=(source, incarnation), remaining=remaining)
-        if sid in HUNTER_IDS or sid in self.consumers:
+        if sid not in self.raiders and counters["stolen"] != 0:
+            self.violation("non_raider_acquired_theft_capability", sid)
+        if sid in HUNTER_IDS or sid in self.consumers or sid in self.raiders:
             consumer = sid in self.consumers
-            expected = self.consumers[sid]["depot"] if consumer else 1 if sid == 901034 else 2
+            raider = sid in self.raiders
+            expected = self.consumers[sid]["depot"] if consumer else self.raiders[sid]["depot"] if raider else 1 if sid == 901034 else 2
             depot, ground = supply.get("depot"), supply.get("hunting_ground")
-            if supply.get("role") != ("CONSUMER" if consumer else "HUNTER") or supply.get("depot_id") != expected:
+            if supply.get("role") != ("CONSUMER" if consumer else "RAIDER" if raider else "HUNTER") or supply.get("depot_id") != expected:
                 self.violation("hunter_depot_or_capability_changed", sid)
                 return None
             if consumer and (supply["cargo"] != 0 or supply["capacity"] != 0 or
@@ -279,15 +291,20 @@ class _Evaluator:
                 any(supply.get(key) is not None for key in ("hunting_ground", "carcass_remaining", "carcass_spawn_id", "carcass_life"))):
                 self.violation("consumer_acquired_hunting_or_cargo_capability", sid)
                 return None
-            if not isinstance(depot, dict) or point(depot.get("position")) is None or not consumer and point(ground) is None:
+            if raider and (supply["capacity"] != 2 or counters["harvested"] != 0 or
+                any(supply.get(key) is not None for key in ("hunting_ground", "carcass_remaining", "carcass_spawn_id", "carcass_life"))):
+                self.violation("raider_acquired_hunting_capability_or_excess_cargo", sid)
+                return None
+            if not isinstance(depot, dict) or point(depot.get("position")) is None or not (consumer or raider) and point(ground) is None:
                 self.quality["missing_depot_or_hunting_ground"] += 1
                 return None
-            anchors = ((depot["position"], self.depots[expected]),) if consumer else ((depot["position"], self.depots[expected]), (ground, self.grounds[expected]))
+            anchors = ((depot["position"], self.depots[expected]),) if consumer or raider else ((depot["position"], self.depots[expected]), (ground, self.grounds[expected]))
             if depot.get("id") != expected or any(p.get("map_id") != 725 or dist3(point(p), point(want)) > 0.05 for p, want in anchors):
                 self.violation("depot_or_hunting_ground_moved", sid)
                 return None
             if (not quantity(depot.get("stock")) or not positive_int(depot.get("capacity")) or not quantity(depot["capacity"]) or depot["stock"] > depot["capacity"] or
-                counter(depot.get("delivered")) is None or counter(depot.get("consumed")) is None):
+                counter(depot.get("delivered")) is None or counter(depot.get("consumed")) is None or
+                counter(depot.get("stolen", "0")) is None):
                 self.violation("invalid_depot_quantity", sid)
                 return None
             result.update(depot=depot, depot_distance=dist3(xyz, point(depot["position"])))
@@ -316,9 +333,10 @@ class _Evaluator:
         if any(value != values[0] for value in values):
             self.violation("conflicting_accounting_copies")
         value = values[0]
-        if len(depots) == 2 and sum(d["stock"] for d in depots.values()) != value["in_depots"]:
+        if set(depots) == set(self.depots) and sum(d["stock"] for d in depots.values()) != value["in_depots"]:
             self.violation("depot_total_disagrees_with_accounting")
-        if HUNTER_IDS.issubset(rows) and sum(rows[sid]["cargo"] for sid in HUNTER_IDS) != value["in_cargo"]:
+        carriers = HUNTER_IDS | self.raiders.keys()
+        if carriers.issubset(rows) and sum(rows[sid]["cargo"] for sid in carriers) != value["in_cargo"]:
             self.violation("cargo_total_disagrees_with_accounting")
         if self.previous_accounting and (value["initial_food"] != self.previous_accounting["initial_food"] or
             any(value[k] < self.previous_accounting[k] for k in ("harvested", "consumed", "lost"))):
@@ -332,17 +350,23 @@ class _Evaluator:
         # all owners of one depot instead of pretending the net stock change
         # belongs to whichever actor happens to be checked first.
         for depot_id, members in self.depot_members.items():
+            thieves = self.theft_sources.get(depot_id, ())
             if not all(sid in rows and sid in self.previous_rows and "depot" in rows[sid] and
                        "depot" in self.previous_rows[sid] for sid in members):
                 continue
+            if not all(sid in rows and sid in self.previous_rows and "counters" in rows[sid] and
+                       "counters" in self.previous_rows[sid] for sid in thieves):
+                continue
             changes = {key: sum(rows[sid]["counters"][key] - self.previous_rows[sid]["counters"][key]
                                 for sid in members) for key in ("delivered", "consumed")}
+            changes["stolen"] = sum(rows[sid]["counters"]["stolen"] - self.previous_rows[sid]["counters"]["stolen"] for sid in thieves)
             if any(value < 0 for value in changes.values()):
                 continue
             before, after = self.previous_rows[members[0]]["depot"], rows[members[0]]["depot"]
-            if (after["stock"] - before["stock"] != changes["delivered"] - changes["consumed"] or
+            if (after["stock"] - before["stock"] != changes["delivered"] - changes["consumed"] - changes["stolen"] or
                 counter(after["delivered"]) - counter(before["delivered"]) != changes["delivered"] or
-                counter(after["consumed"]) - counter(before["consumed"]) != changes["consumed"]):
+                counter(after["consumed"]) - counter(before["consumed"]) != changes["consumed"] or
+                counter(after.get("stolen", "0")) - counter(before.get("stolen", "0")) != changes["stolen"]):
                 self.violation("depot_stock_change_not_reconciled", depot_id)
                 continue
             for sid in members:

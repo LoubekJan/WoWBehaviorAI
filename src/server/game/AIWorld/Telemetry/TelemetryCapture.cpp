@@ -209,6 +209,7 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
             item.FactionTemplateId = creature->GetFaction();
             item.WorldState = AgentWorldState::Materialized;
             item.Supply = DescribeLivingSupply(*creature, *record);
+            item.Raid = DescribeLivingRaid(*creature, *record);
             auto tier = _agentSimulationTier.find(id.Value);
             item.Tier = tier != _agentSimulationTier.end() && tier->second != SimulationTier::Background
                 ? tier->second : SimulationTier::Active;
@@ -248,7 +249,7 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
                 auto const& recovery = record->LivingRole;
                 role.Planning = CaptureLivingPlanningTelemetry(recovery.Planning, nowMs);
                 if (recovery.Forage.ScannedAtMs || recovery.Forage.SearchAtMs) role.Forage = recovery.Forage;
-                if (recovery.ReturningHome || recovery.ReturnFailures || IsSupplyHunter(*record) || IsSupplyConsumer(*record))
+                if (recovery.ReturningHome || recovery.ReturnFailures || IsSupplyHunter(*record) || IsSupplyConsumer(*record) || IsSupplyRaider(*record))
                 {
                     ReturnRecoveryTelemetry diagnostic;
                     diagnostic.Failures = recovery.ReturnFailures;

@@ -28,6 +28,6 @@ receipt="runtime/lab/receipts/start-policy-$(date -u +%Y%m%dT%H%M%SZ)-$(python3 
   /workspace/runtime/lab/data --receipt "/workspace/$receipt"
 "${run[@]}" tc-dev python3 tools/realm_lab/graveyard.py bootstrap /workspace/runtime/lab/data
 profile="$("${run[@]}" tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
-case "$profile" in settlement-v8|wildlife-v8|supply-v8|consumers-v8) ;; *) echo 'A reviewed authored-world profile is required.' >&2; exit 2;; esac
+case "$profile" in settlement-v8|wildlife-v8|supply-v8|consumers-v8|raids-v8) ;; *) echo 'A reviewed authored-world profile is required.' >&2; exit 2;; esac
 "${run[@]}" tc-dev python3 tools/realm_lab/manage.py "bootstrap-$profile" /workspace/runtime/lab/data
 printf 'Authored world prepared offline; start-policy receipt: %s\n' "$receipt"

@@ -1,0 +1,230 @@
+/* This file is part of the TrinityCore Project. See AUTHORS file for Copyright information.
+ * Licensed under the GNU General Public License, version 2 or later. */
+#include "tc_catch2.h"
+#include "Agent/LivingRaidRuntime.h"
+#include "Agent/LivingRolePolicy.h"
+#include "Action/ActionSystem.h"
+#include <limits>
+
+namespace
+{
+    using namespace LivingRaid;
+    using LivingReturnPolicy::Distance;
+    using LivingReturnPolicy::SamePosition;
+
+    void Bounded(std::vector<ActionPosition> const& route, ActionPosition from, float limit = 14)
+    {
+        for (auto const& point : route)
+        {
+            REQUIRE(point.MapId == from.MapId);
+            REQUIRE(LivingReturnPolicy::Finite(point));
+            REQUIRE(Distance(from, point) <= limit + 0.0001f);
+            from = point;
+        }
+    }
+    bool Includes(std::vector<ActionPosition> const& route, ActionPosition const& point)
+    {
+        return std::any_of(route.begin(), route.end(), [&](ActionPosition const& other) { return SamePosition(point, other); });
+    }
+    ActionValidationContext RaidActionContext()
+    {
+        ActionValidationContext context;
+        context.ControlMode = AgentControlMode::AIWorldControlled;
+        context.Materialized = context.Alive = context.LivingRoleAllowed = true;
+        context.MapId = context.Scope.MapId = 725;
+        context.Scope.ZoneIds = {4988};
+        context.LivingRoleZoneId = 4988;
+        context.LivingRole = LivingRolePolicy::Role::Raider;
+        context.ActiveGoalType = GoalType::LocalActivity;
+        context.ActiveGoalStartedAtMs = 100;
+        context.ExpectedAmbientActivity = LivingRolePolicy::Activity::Work;
+        return context;
+    }
+}
+
+TEST_CASE("Only the reviewed controlled raider and guard receive raid capabilities", "[AIWorld][LivingRaid]")
+{
+    REQUIRE(RaiderCapability(901055, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+    REQUIRE(GuardCapability(901039, 725, AgentType::Guard, AgentControlMode::AIWorldControlled, true));
+    for (uint64 spawn : {901034ull, 901038ull, 901039ull, 901054ull, 901055ull, 901056ull, 0ull})
+    {
+        REQUIRE(RaiderCapability(spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true) == (spawn == 901055));
+        REQUIRE(GuardCapability(spawn, 725, AgentType::Guard, AgentControlMode::AIWorldControlled, true) == (spawn == 901039));
+    }
+    for (AgentType type : {AgentType::Civilian, AgentType::Guard, AgentType::Merchant, AgentType::Unclassified,
+        AgentType::Combatant, AgentType::Predator, AgentType::Prey, AgentType(255)})
+    {
+        REQUIRE(RaiderCapability(901055, 725, type, AgentControlMode::AIWorldControlled, true) == (type == AgentType::Combatant));
+        REQUIRE(GuardCapability(901039, 725, type, AgentControlMode::AIWorldControlled, true) == (type == AgentType::Guard));
+    }
+    for (auto control : {AgentControlMode::ObserveOnly, AgentControlMode(255)})
+    {
+        REQUIRE_FALSE(RaiderCapability(901055, 725, AgentType::Combatant, control, true));
+        REQUIRE_FALSE(GuardCapability(901039, 725, AgentType::Guard, control, true));
+    }
+    for (uint32 map : {0u, 1u, 724u, 726u})
+    {
+        REQUIRE_FALSE(RaiderCapability(901055, map, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+        REQUIRE_FALSE(GuardCapability(901039, map, AgentType::Guard, AgentControlMode::AIWorldControlled, true));
+    }
+    REQUIRE_FALSE(RaiderCapability(901055, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, false));
+    REQUIRE_FALSE(GuardCapability(901039, 725, AgentType::Guard, AgentControlMode::AIWorldControlled, false));
+}
+
+TEST_CASE("Dense straight raid travel coalesces into bounded three-dimensional execution legs", "[AIWorld][LivingRaid]")
+{
+    ActionPosition from{725, 0, 0, 0};
+    std::vector<ActionPosition> dense;
+    for (unsigned i = 1; i <= 30; ++i) dense.push_back({725, float(i)*2, 0, float(i)});
+    auto merged = CoalesceStraightLegs(from, dense);
+    REQUIRE(merged.size() == 5);
+    REQUIRE(SamePosition(merged.back(), dense.back()));
+    Bounded(merged, from);
+    auto smaller = CoalesceStraightLegs(from, dense, 7);
+    REQUIRE(smaller.size() == 10);
+    REQUIRE(SamePosition(smaller.back(), dense.back()));
+    Bounded(smaller, from, 7);
+    auto larger = CoalesceStraightLegs(from, dense, LivingReturnPolicy::MaxStepLength);
+    REQUIRE(larger.size() == 3);
+    Bounded(larger, from, LivingReturnPolicy::MaxStepLength);
+}
+
+TEST_CASE("Raid leg coalescing retains L turns reversals and terrain crests", "[AIWorld][LivingRaid]")
+{
+    ActionPosition from{725, 0, 0, 0};
+    SECTION("L turn")
+    {
+        std::vector<ActionPosition> route{{725, 4, 0, 0}, {725, 8, 0, 0}, {725, 8, 4, 0}, {725, 8, 8, 0}};
+        auto merged = CoalesceStraightLegs(from, route);
+        REQUIRE(merged.size() == 2);
+        REQUIRE(SamePosition(merged.front(), route[1]));
+        REQUIRE(SamePosition(merged.back(), route.back()));
+        Bounded(merged, from);
+    }
+    SECTION("a reversal is not a straight forward continuation")
+    {
+        std::vector<ActionPosition> route{{725, 4, 0, 0}, {725, 8, 0, 0}, {725, 4, 0, 0}, from};
+        auto merged = CoalesceStraightLegs(from, route);
+        REQUIRE(merged.size() == 2);
+        REQUIRE(SamePosition(merged.front(), route[1]));
+        REQUIRE(SamePosition(merged.back(), from));
+        Bounded(merged, from);
+    }
+    SECTION("height crest")
+    {
+        std::vector<ActionPosition> route{{725, 4, 0, 1}, {725, 8, 0, 2}, {725, 12, 0, 1}, {725, 16, 0, 0}};
+        auto merged = CoalesceStraightLegs(from, route);
+        REQUIRE(merged.size() == 2);
+        REQUIRE(SamePosition(merged.front(), route[1]));
+        REQUIRE(SamePosition(merged.back(), route.back()));
+        Bounded(merged, from);
+    }
+    SECTION("even a shallow height crest remains a protected corner")
+    {
+        std::vector<ActionPosition> route{{725, 4, 0, 0.001f}, {725, 8, 0, 0}};
+        auto merged = CoalesceStraightLegs(from, route);
+        REQUIRE(merged.size() == 2);
+        REQUIRE(SamePosition(merged.front(), route.front()));
+    }
+    SECTION("small successive bends do not accumulate into a smoothed curve")
+    {
+        std::vector<ActionPosition> route;
+        for (unsigned i = 1; i <= 10; ++i) route.push_back({725, float(i), float(i*i)*0.0001f, 0});
+        auto merged = CoalesceStraightLegs(from, route);
+        REQUIRE(merged.size() > 5);
+        REQUIRE(SamePosition(merged.back(), route.back()));
+        Bounded(merged, from);
+    }
+}
+
+TEST_CASE("Raid coalescing preserves the real source-to-guard navmesh bend", "[AIWorld][LivingRaid]")
+{
+    // Ground-only Detour probe of authored map725, source -> guard, 2026-10-27.
+    // Intermediate interpolation emulates the native dense corridor points;
+    // the original mesh corner must survive regardless of their density.
+    std::vector<ActionPosition> path{{725, -372.4611511f, 492.6821594f, 0.39979494f},
+        {725, -384.5333557f, 509.5998535f, 0.48322296f}, {725, -396, 520, 0.21655655f}};
+    std::vector<ActionPosition> dense;
+    for (unsigned leg = 1; leg < path.size(); ++leg)
+    {
+        auto const& a = path[leg-1]; auto const& b = path[leg];
+        unsigned samples = unsigned(std::ceil(Distance(a, b) / 3));
+        for (unsigned n = 1; n <= samples; ++n)
+        {
+            float t = float(n)/samples;
+            dense.push_back(n == samples ? b : ActionPosition{725, a.X+(b.X-a.X)*t,
+                a.Y+(b.Y-a.Y)*t, a.Z+(b.Z-a.Z)*t});
+        }
+    }
+    auto merged = CoalesceStraightLegs(path.front(), dense);
+    REQUIRE(merged.size() < dense.size());
+    REQUIRE(Includes(merged, path[1]));
+    REQUIRE(SamePosition(merged.back(), path.back()));
+    Bounded(merged, path.front());
+}
+
+TEST_CASE("Raid coalescing fails closed on invalid coordinates maps or step limits", "[AIWorld][LivingRaid]")
+{
+    ActionPosition from{725, 0, 0, 0};
+    std::vector<ActionPosition> route{{725, 4, 0, 0}, {725, 8, 0, 0}};
+    REQUIRE(CoalesceStraightLegs(from, {}).empty());
+    REQUIRE(CoalesceStraightLegs(from, {from, from}).empty());
+    REQUIRE(CoalesceStraightLegs(from, route, 0).empty());
+    REQUIRE(CoalesceStraightLegs(from, route, -1).empty());
+    REQUIRE(CoalesceStraightLegs(from, route, 1).empty());
+    REQUIRE(CoalesceStraightLegs(from, route, 29).empty());
+    REQUIRE(CoalesceStraightLegs(from, route, std::numeric_limits<float>::infinity()).empty());
+    REQUIRE(CoalesceStraightLegs(from, route, std::numeric_limits<float>::quiet_NaN()).empty());
+    REQUIRE(CoalesceStraightLegs({725, std::numeric_limits<float>::quiet_NaN(), 0, 0}, route).empty());
+    REQUIRE(CoalesceStraightLegs(from, {{725, 2, std::numeric_limits<float>::infinity(), 0}}).empty());
+    REQUIRE(CoalesceStraightLegs(from, {{724, 2, 0, 0}}).empty());
+    REQUIRE(CoalesceStraightLegs(from, {{725, 2, 0, 0}, {726, 4, 0, 0}}).empty());
+    REQUIRE(CoalesceStraightLegs(from, {{725, 15, 0, 0}}).empty());
+    REQUIRE(CoalesceStraightLegs(from, std::vector<ActionPosition>(129, {725, 1, 0, 0})).empty());
+    auto duplicate = CoalesceStraightLegs(from, {from, route.front(), route.front(), route.back(), route.back()});
+    REQUIRE(duplicate.size() == 1);
+    REQUIRE(SamePosition(duplicate.back(), route.back()));
+    // Corridor interpolation at float world coordinates can round a nominal
+    // fourteen-yard original edge by one representable float step.
+    ActionPosition rounded{725, std::nextafter(14.0f, 15.0f), 0, 0};
+    auto original = CoalesceStraightLegs(from, {rounded});
+    REQUIRE(original.size() == 1);
+    REQUIRE(SamePosition(original.back(), rounded));
+    Bounded(original, from);
+}
+
+TEST_CASE("Transient raid work does not grant ordinary combatants work or predator hunts", "[AIWorld][LivingRaid]")
+{
+    using namespace LivingRolePolicy;
+    REQUIRE(Resolve(AgentType::Combatant, 116, false) == Role::Combatant);
+    REQUIRE(Allows(Role::Raider, Activity::Work));
+    REQUIRE_FALSE(Allows(Role::Combatant, Activity::Work));
+    REQUIRE_FALSE(CanHuntNeutralPrey(Role::Raider, AgentType::Prey, true));
+    ActionSystem actions;
+    auto context = RaidActionContext();
+    ActionRequest work;
+    work.Actor = {RaiderSpawn}; work.Type = ActionType::Ambient; work.SourceGoal = GoalType::LocalActivity;
+    work.GoalStartedAtMs = 100; work.AmbientActivity = Activity::Work;
+    REQUIRE(actions.Validate(work, context).Allowed);
+    context.LivingRole = Role::Combatant;
+    REQUIRE_FALSE(actions.Validate(work, context).Allowed);
+    context = RaidActionContext();
+    context.ControlMode = AgentControlMode::ObserveOnly;
+    REQUIRE_FALSE(actions.Validate(work, context).Allowed);
+    context = RaidActionContext();
+    context.InCombat = true;
+    REQUIRE_FALSE(actions.Validate(work, context).Allowed);
+    context = RaidActionContext();
+    context.ActiveGoalType = GoalType::PredatorHunt;
+    context.TargetResolved = context.TargetAlive = context.TargetAttackable = context.TargetIsRolePrey = true;
+    context.TargetWithinAttackRange = context.TargetInLineOfSight = true;
+    context.TargetMapId = 725;
+    context.TargetGuid = ObjectGuid::Create<HighGuid::Unit>(883, 1);
+    context.TargetEntry = 883;
+    ActionRequest hunt;
+    hunt.Actor = {RaiderSpawn}; hunt.Type = ActionType::Attack; hunt.SourceGoal = GoalType::PredatorHunt;
+    hunt.GoalStartedAtMs = 100; hunt.Target = ActionTargetRef{context.TargetGuid, context.TargetEntry};
+    REQUIRE_FALSE(actions.Validate(hunt, context).Allowed);
+    context.LivingRole = Role::Hunter;
+    REQUIRE(actions.Validate(hunt, context).Allowed);
+}

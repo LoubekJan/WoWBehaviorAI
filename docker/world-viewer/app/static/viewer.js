@@ -165,6 +165,10 @@ function drawConnections() {
     connect(agent.supply.hunting_ground, "Loviště", "#cdb67f", true);
     connect(agent.supply.depot?.position, agent.supply.depot?.name || "Zásobárna", "#a5d281", true);
   }
+  if (ObserverModel.raidSupported(agent)) {
+    connect(agent.raid.source_depot?.position, "Zásobárna vesnice", "#d39d76", true);
+    connect(agent.raid.camp_depot?.position, "Tábor nájezdníka", "#d39d76", true);
+  }
   const companion = snapshot.agents.find(item => item.spawn_id === agent.living_role?.companion_spawn_id && item.position.source === "live");
   connect(companion?.position, "Společník", "#c7b9f3", true);
 }
@@ -214,6 +218,8 @@ function showDiagnostics(agent) {
   const recovery = role?.return_recovery;
   $("supply-section").hidden = !ObserverModel.supplySupported(agent);
   facts("supply-facts", ObserverModel.supplyFacts(agent));
+  $("raid-section").hidden = !ObserverModel.raidSupported(agent);
+  facts("raid-facts", ObserverModel.raidFacts(agent));
   if (agent.native_creature) {
     text("detail-availability", agent.position.source === "live" ?
       "Běžné NPC · skutečný stav Creature; AI potřeby, ekonomika a paměť nejsou dostupné." :

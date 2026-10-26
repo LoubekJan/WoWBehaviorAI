@@ -61,6 +61,7 @@ class FoodDepot(ProtocolModel):
     low_threshold: Quantity32
     delivered: Counter64
     consumed: Counter64
+    stolen: Counter64 = "0"
 
     @model_validator(mode="after")
     def bounded_stock(self):
@@ -89,7 +90,7 @@ class FoodAccounting(ProtocolModel):
 
 class LivingSupply(ProtocolModel):
     enabled: bool = Field(strict=True)
-    role: Literal["HUNTER", "PREDATOR", "CONSUMER"]
+    role: Literal["HUNTER", "PREDATOR", "CONSUMER", "RAIDER"]
     phase: str = Field(min_length=1, max_length=80, strict=True)
     depot_id: Quantity32
     cargo: Quantity32
@@ -102,6 +103,7 @@ class LivingSupply(ProtocolModel):
     delivered: Counter64
     consumed: Counter64
     lost: Counter64
+    stolen: Counter64 = "0"
     last_result: str = Field(max_length=100, strict=True)
     depot: FoodDepot | None = None
     accounting: FoodAccounting | None = None
@@ -110,6 +112,13 @@ class LivingSupply(ProtocolModel):
     def consistent_cargo_and_depot(self):
         if self.cargo > self.capacity:
             raise ValueError("Cargo exceeds carrying capacity")
+        if self.role != "RAIDER" and int(self.stolen) != 0:
+            raise ValueError("Only raiders can withdraw stolen food")
+        if self.role == "RAIDER" and (self.capacity != 2 or int(self.harvested) != 0 or
+            self.hunting_ground is not None or self.carcass_remaining is not None or
+            self.carcass_spawn_id is not None or self.carcass_life is not None or
+            self.depot_id == 0 or self.depot is None):
+            raise ValueError("Raiders carry at most two stolen portions without hunting capability")
         if self.role == "CONSUMER" and (self.cargo != 0 or self.capacity != 0 or
             any(int(value) != 0 for value in (self.harvested, self.delivered, self.lost)) or
             self.hunting_ground is not None or self.carcass_remaining is not None or
@@ -124,6 +133,31 @@ class LivingSupply(ProtocolModel):
             raise ValueError("Supply depot ID differs from its snapshot")
         if self.depot is not None and self.hunting_ground is not None and self.depot.position.map_id != self.hunting_ground.map_id:
             raise ValueError("Depot and hunting ground must be on the same map")
+        return self
+
+
+class LivingRaid(ProtocolModel):
+    enabled: bool = Field(strict=True)
+    role: Literal["RAIDER", "GUARD"]
+    phase: str = Field(min_length=1, max_length=80, strict=True)
+    outcome: str = Field(max_length=100, strict=True)
+    attempt_id: Counter64
+    target_spawn_id: Counter64
+    noticed: Counter64
+    interceptions: Counter64
+    thefts: Counter64
+    delivered: Counter64
+    prevented: Counter64
+    source_depot_id: int = Field(gt=0, le=2**32 - 1, strict=True)
+    camp_depot_id: int = Field(gt=0, le=2**32 - 1, strict=True)
+    source_depot: FoodDepot
+    camp_depot: FoodDepot
+
+    @model_validator(mode="after")
+    def distinct_consistent_depots(self):
+        if (self.source_depot_id == self.camp_depot_id or self.source_depot.id != self.source_depot_id or
+            self.camp_depot.id != self.camp_depot_id or self.source_depot.position.map_id != self.camp_depot.position.map_id):
+            raise ValueError("Raid source and camp must be distinct matching depot snapshots on the same map")
         return self
 
 
@@ -381,6 +415,7 @@ class Agent(ProtocolModel):
     groups: list[Group] = Field(default_factory=list)
     living_role: LivingRole | None = None
     supply: LivingSupply | None = None
+    raid: LivingRaid | None = None
     movement: Movement | None = None
     living_wolf: bool = False
     meal_target_spawn_id: int | None = Field(default=None, ge=0)
@@ -400,7 +435,7 @@ class Agent(ProtocolModel):
         if self.native_creature:
             if self.control_mode != "OBSERVE_ONLY":
                 raise ValueError("Native creatures must remain observation-only")
-            if self.needs is not None or self.economy is not None or self.living_role is not None or self.living_wolf or self.supply is not None:
+            if self.needs is not None or self.economy is not None or self.living_role is not None or self.living_wolf or self.supply is not None or self.raid is not None:
                 raise ValueError("Native creatures do not have AI needs, economy or living-role state")
             if self.position.source != "live" and any(value is not None for value in (
                 self.health, self.max_health, self.alive, self.in_combat,
@@ -414,9 +449,17 @@ class Agent(ProtocolModel):
             for point in (self.supply.hunting_ground, self.supply.depot.position if self.supply.depot else None):
                 if point is not None and point.map_id != self.position.map_id:
                     raise ValueError("Supply observations must remain on the actor's map")
+        if self.raid is not None:
+            if self.control_mode != "AI_WORLD_CONTROLLED" or self.supply is None or not self.supply.enabled:
+                raise ValueError("Raid observations require a controlled actor with current supply observations")
+            if self.supply.role != ("RAIDER" if self.raid.role == "RAIDER" else "CONSUMER"):
+                raise ValueError("Raid role must match the actor's supply capability")
+            for depot in (self.raid.source_depot, self.raid.camp_depot):
+                if depot.position.map_id != self.position.map_id:
+                    raise ValueError("Raid depots must remain on the actor's map")
         if self.position.source != "live" and any((
             self.living_role, self.movement, self.target, self.destination, self.living_wolf,
-            self.supply,
+            self.supply, self.raid,
             self.meal_target_spawn_id is not None,
             self.faction_template_id is not None,
             self.runtime_guid is not None,
@@ -485,16 +528,18 @@ class TelemetryBatch(ProtocolModel):
         depots = {}
         accounting = None
         for agent in self.agents:
-            if agent.supply is None:
-                continue
-            supply = agent.supply
-            if supply.depot is not None:
-                depot = supply.depot.model_dump()
-                if supply.depot_id in depots and depots[supply.depot_id] != depot:
+            copies = []
+            if agent.supply is not None and agent.supply.depot is not None:
+                copies.append(agent.supply.depot)
+            if agent.raid is not None:
+                copies.extend((agent.raid.source_depot, agent.raid.camp_depot))
+            for copy in copies:
+                depot = copy.model_dump()
+                if copy.id in depots and depots[copy.id] != depot:
                     raise ValueError("Conflicting copies of the same food depot")
-                depots[supply.depot_id] = depot
-            if supply.accounting is not None:
-                current = supply.accounting.model_dump()
+                depots[copy.id] = depot
+            if agent.supply is not None and agent.supply.accounting is not None:
+                current = agent.supply.accounting.model_dump()
                 if accounting is not None and accounting != current:
                     raise ValueError("Conflicting copies of the food accounting snapshot")
                 accounting = current

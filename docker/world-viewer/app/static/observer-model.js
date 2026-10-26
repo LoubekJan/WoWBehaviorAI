@@ -76,30 +76,56 @@ const ObserverModel = (() => {
       RETURNING_HOME: "Návrat k běžné činnosti", RETURN_HOME: "Návrat k běžné činnosti",
       ORDINARY: "Běžná činnost", NORMAL: "Běžná činnost", NO_FOOD: "Čeká na jídlo", WAITING_FOR_FOOD: "Čeká na jídlo",
       ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený" };
-    const consumer = supply.role === "CONSUMER";
-    const rows = [["Zásobování", consumer ? "Spotřebitel" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
+    const consumer = supply.role === "CONSUMER", raider = supply.role === "RAIDER";
+    const rows = [["Zásobování", consumer ? "Spotřebitel" : raider ? "Nájezdník" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
       ["Právě dělá", phases[supply.phase] || supply.phase],
       ["Náklad", consumer ? null : `${supply.cargo} / ${supply.capacity} porcí`],
       ["Zbývá v kořisti", supply.carcass_remaining == null ? null : `${supply.carcass_remaining} porcí`],
-      ["Získáno z kořisti", consumer ? null : supply.harvested], ["Doručeno", consumer ? null : supply.delivered],
+      ["Získáno z kořisti", consumer || raider ? null : supply.harvested],
+      ["Odcizené jídlo", raider ? supply.stolen : null], ["Doručeno", consumer ? null : supply.delivered],
       ["Snědeno", supply.consumed], ["Ztracený náklad", consumer ? null : supply.lost]];
     if (depot) rows.push(["Zásobárna", depot.name], ["Zásoba jídla", `${depot.stock} / ${depot.capacity} porcí`],
       ["Stav zásob", depot.stock === 0 ? "Prázdná" : depot.stock <= depot.low_threshold ? "Nízká zásoba" : "Dostatek"],
-      ["Do skladu doručeno", depot.delivered], ["Ze skladu snědeno", depot.consumed]);
+      ["Do skladu doručeno", depot.delivered], ["Ze skladu snědeno", depot.consumed],
+      ["Ze skladu odcizeno", depot.stolen || "0"]);
     if (accounting) rows.push(["Bilance potravy", accounting.conserved ? "Souhlasí" : "Nesouhlasí"],
       ["Ve skladech / v nákladech", `${accounting.in_depots} / ${accounting.in_cargo}`]);
     if (supply.last_result) rows.push(["Poslední výsledek", supply.last_result]);
     return rows;
   }
+  function raidSupported(agent) {
+    return supplySupported(agent) && agent.raid?.enabled === true;
+  }
+  function raidFacts(agent) {
+    if (!raidSupported(agent)) return [];
+    const raid = agent.raid;
+    const phases = { IDLE: "Čeká", WAITING: "Čeká", WAITING_SUPPLY: "Čeká na zásoby ve vesnici", COOLDOWN: "Čeká na další pokus",
+      TO_VILLAGE: "Cesta k vesnici", TO_SOURCE: "Cesta k zásobárně", STEALING: "Odcizování zásob",
+      CARRYING: "Odnáší zásoby", TO_CAMP: "Cesta do tábora", RETURNING_CAMP: "Cesta do tábora",
+      DELIVERING: "Vykládání zásob", DELIVERING_CAMP: "Vykládání zásob",
+      EATING_CAMP: "Jídlo v táboře", RETURNING_EMPTY: "Vrací se bez kořisti", FLEEING: "Ustupuje před nebezpečím",
+      PATROLLING: "Hlídka", GUARD_HOME: "U domova strážného", GUARD_POST: "Na strážním místě",
+      NOTICED: "Zpozoroval nájezdníka", INTERCEPTING: "Zasahuje",
+      PREVENTED: "Krádež zmařena", ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený" };
+    return [["Úloha při nájezdu", raid.role === "RAIDER" ? "Nájezdník" : "Strážný"],
+      ["Právě dělá", phases[raid.phase] || raid.phase], ["Pokus", raid.attempt_id],
+      ["Výsledek", raid.outcome], ["Protějšek NPC", raid.target_spawn_id],
+      ["Zpozorování", raid.noticed], ["Zásahy stráže", raid.interceptions],
+      ["Dokončené krádeže", raid.thefts], ["Doručení do tábora", raid.delivered], ["Zmařené pokusy", raid.prevented],
+      ["Zásobárna vesnice", raid.source_depot?.name], ["Jídlo ve vesnici", raid.source_depot?.stock],
+      ["Tábor", raid.camp_depot?.name], ["Jídlo v táboře", raid.camp_depot?.stock]];
+  }
   function foodDepots(agents, mapId) {
     const depots = new Map();
     for (const agent of agents) {
-      const depot = supplySupported(agent) ? agent.supply.depot : null;
-      if (depot?.position?.map_id === mapId && !depots.has(depot.id)) depots.set(depot.id, depot);
+      const copies = supplySupported(agent) ? [agent.supply.depot] : [];
+      if (raidSupported(agent)) copies.push(agent.raid.source_depot, agent.raid.camp_depot);
+      for (const depot of copies)
+        if (depot?.position?.map_id === mapId && !depots.has(depot.id)) depots.set(depot.id, depot);
     }
     return [...depots.values()].sort((a, b) => a.id - b.id);
   }
   return { goal, phase, groupIds, alert, blocked, matches, viewport, project, phaseColors, aiDetailsSupported,
-    supplySupported, supplyFacts, foodDepots };
+    supplySupported, supplyFacts, raidSupported, raidFacts, foodDepots };
 })();
 if (typeof module !== "undefined") module.exports = ObserverModel;
