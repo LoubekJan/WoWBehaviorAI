@@ -313,6 +313,25 @@ class WorldViewerApiTests(unittest.TestCase):
         self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
         self.assertEqual(self.client.get('/api/state').json()['agents'][0]['living_role']['planning'], planning)
 
+    def test_deferred_supply_corridor_packet_is_accepted_without_admitting_unknown_stages(self):
+        payload = v2_batch()
+        payload['version'] = 4
+        role = payload['agents'][0]['living_role']
+        role.update(phase='IDLE', movement_purpose='SUPPLY_PLANNING_DEFERRED')
+        planning = dict(deferred=True, reason='WORK_BUDGET', stage='SUPPLY_CORRIDOR', wait_ms=30000,
+                        query_age_ms=31000, no_progress_ms=30000, resets=0)
+        role['planning'] = planning
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=payload).status_code, 200)
+        accepted = self.client.get('/api/state').json()
+        self.assertEqual(accepted['agents'][0]['living_role']['planning'], planning)
+        bad = copy.deepcopy(payload)
+        bad['captured_at_ms'] += 1000
+        bad['agents'][0]['living_role']['planning']['stage'] = 'UNKNOWN_SUPPLY_STAGE'
+        self.assertEqual(self.client.post('/internal/telemetry', headers=self.headers, json=bad).status_code, 422)
+        retained = self.client.get('/api/state').json()
+        self.assertEqual(retained['captured_at_ms'], accepted['captured_at_ms'])
+        self.assertEqual(retained['agents'][0]['living_role']['planning'], planning)
+
     def test_planning_and_surface_diagnostics_are_independent_strict_fields(self):
         payload = v2_batch()
         payload['version'] = 4

@@ -96,7 +96,8 @@ class LivingPlanningProtocolTests(unittest.TestCase):
 
     def test_admission_and_work_budget_survive_json_without_coercion(self):
         for reason, stage in (("ADMISSION", "DECISION"), ("WORK_BUDGET", "ADVICE"),
-                              ("WORK_BUDGET", "RETURN"), ("WORK_BUDGET", "HUNT"), ("WORK_BUDGET", "FORAGE")):
+                              ("WORK_BUDGET", "RETURN"), ("WORK_BUDGET", "HUNT"), ("WORK_BUDGET", "FORAGE"),
+                              ("WORK_BUDGET", "SUPPLY_CORRIDOR")):
             source = dict(deferred=True, reason=reason, stage=stage, wait_ms=43000,
                           query_age_ms=50000, no_progress_ms=45000, resets=3)
             parsed = LivingPlanning.model_validate_json(json.dumps(source))

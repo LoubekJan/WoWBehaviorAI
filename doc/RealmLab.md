@@ -343,6 +343,10 @@ server. Čekání na výpočetní rozpočet zachová kandidáta; vyčerpané hle
 se znovu prověří po 10 sekundách. Domov NPC tím nevzniká ani se nemění.
 Telemetrie u zásobovacích aktérů exportuje také přesný důvod odmítnutí
 a navigační diagnostiku.
+Profil se zapnutými spotřebiteli odesílá telemetrii každých 250 ms,
+aby záznam mohl zachytit i krátké dokončené pohybové kroky. Ostatní
+profily zachovávají sekundový interval. Přijímač výslovně ověřuje také
+fázi plánování `SUPPLY_CORRIDOR`.
 
 Před první aktivací vytvoř `make backup`. Po úspěšném buildu nastav
 v privátním `.env` a nasaď:

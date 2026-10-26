@@ -277,7 +277,7 @@ class LivingPlanning(ProtocolModel):
     model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
     deferred: bool = False
     reason: Literal['NONE', 'ADMISSION', 'WORK_BUDGET'] = 'NONE'
-    stage: Literal['NONE', 'DECISION', 'HUNT', 'FORAGE', 'RETURN', 'ADVICE'] = 'NONE'
+    stage: Literal['NONE', 'DECISION', 'HUNT', 'FORAGE', 'RETURN', 'ADVICE', 'SUPPLY_CORRIDOR'] = 'NONE'
     # Wall-time ages include explicit stationary care, unlike query work credit.
     wait_ms: int = Field(default=0, ge=0, le=18446744073709551615)
     query_age_ms: int = Field(default=0, ge=0, le=18446744073709551615)

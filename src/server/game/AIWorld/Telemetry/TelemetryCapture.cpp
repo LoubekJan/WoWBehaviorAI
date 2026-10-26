@@ -31,7 +31,10 @@ void AIWorldMgr::UpdateTelemetry(uint32 diff)
     if (!_telemetryExporter || (!_enabled && !_telemetryNativeCreaturesEnabled))
         return;
     _telemetryTimer += diff;
-    if (_telemetryTimer >= 1000)
+    // Short supply legs may finish between one-second snapshots. Observe
+    // their actual owned motion without changing the movement cadence.
+    uint32 intervalMs = _livingSupplyEnabled && _livingConsumersEnabled ? 250 : 1000;
+    if (_telemetryTimer >= intervalMs)
     {
         _telemetryTimer = 0;
         if (!_telemetryExporter->Busy())
