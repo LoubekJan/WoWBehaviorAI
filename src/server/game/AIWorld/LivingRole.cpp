@@ -1889,6 +1889,12 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 ++state.Forage.ReachablePrey;
                 ActionRequest hunt;
                 hunt.Type = ActionType::Attack; hunt.SourceGoal = GoalType::PredatorHunt;
+                // A same-GUID respawn can be killed before its own needs turn.
+                // Witness the live incarnation before combat so its later
+                // carcass cannot be mistaken for the exhausted previous life.
+                if (_livingSupplyEnabled)
+                    if (auto observed = _registry.FindBySpawn(candidate->GetMapId(), candidate->GetSpawnId()))
+                        ObserveLivingSupply(*observed, candidate, nowMs);
                 if (start(hunt, Phase::Hunting, candidate))
                 {
                     state.LastHuntStatus = "HUNT_STARTED";

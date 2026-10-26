@@ -9,6 +9,8 @@ Aktuální provozní postup je v [README_DEV.md](README_DEV.md) a
 20 zvířat a tři lovce; zbývajících 77 NPC používá nativní chování.
 První fyzický řetězec lov–odběr–náklad–doručení–jídlo prošel na revizi
 `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81` dne 26. října 2026.
+Stejný řetězec po úpravě plánovacího rozpočtu prošel také na revizi
+`ed629af322ef69f950f56c86a40d4a916865526f`, se všemi 490 vzorky čerstvými.
 Následující vývoj probíhá nad tímto
 vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout plán.
 
@@ -38,8 +40,13 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    řetězec dokončili všichni tři lovci. Z 497 vzorků je 477 čerstvých
    a unikátních; 16 závěrečných zastaralých vzorků a čtyři opakování
    se do čerstvého důkazu nezapočítávají. Celková bilance zachovává
-   `0 + 57 = 30 + 0 + 27 + 0` porcí. Důkaz nepokrývá navazující změnu
-   plánovacího rozpočtu; její nasazení a nový běhový test ještě čekají.
+   `0 + 57 = 30 + 0 + 27 + 0` porcí.
+   [Navazující důkaz po úpravě plánovacího rozpočtu](data/realm_lab/aiworldlab/preview-v8/supply-budget-chain-acceptance.json)
+   na revizi `ed629af322ef69f950f56c86a40d4a916865526f` prošel za
+   489,91 sekundy: všech 490 vzorků je čerstvých a unikátních, všichni tři
+   lovci doručili potravu a jedli, doloženo je šest doručení a pět jídel.
+   Bilance je `0 + 51 = 31 + 0 + 20 + 0` porcí. Důkazy jsou připnuté
+   ke konkrétním revizím; další změny se ověřují samostatně.
 3. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
    pravidla mají stavět na fungujícím pohybu, potravě a zásobování.
 
@@ -50,7 +57,7 @@ při restartu resetují.
 
 Aktuální pravidla, přepínač pauzy a fyzický acceptance jsou v
 [doc/RealmLab.md](doc/RealmLab.md#zvěř-potrava-a-lov--wildlife-v8);
-příprava nového zásobování je v
+pravidla zásobování jsou v
 [části supply-v8](doc/RealmLab.md#zásobování-lovem--supply-v8).
 
 # AIWorld — Roadmap

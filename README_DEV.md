@@ -175,9 +175,13 @@ služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
 Volitelný profil `supply-v8` přidává ke stávající zvěři lidského lovce
 901034, dva gnollí lovce 901061/901062 a dvě zásobárny. Po aktivaci jde
 o 23 řízených a 77 nativních NPC na stejné mapě. První fyzický řetězec
-lov–náklad–doručení–spotřeba prošel na revizi `1937ad25ff05`; podrobný
-[důkaz](data/realm_lab/aiworldlab/preview-v8/supply-first-chain-acceptance.json)
-odděluje tento běh od navazujících změn plánování.
+lov–náklad–doručení–spotřeba prošel na revizi `1937ad25ff05`.
+[Ověření po úpravě plánovacího rozpočtu](data/realm_lab/aiworldlab/preview-v8/supply-budget-chain-acceptance.json)
+prošlo také na revizi `ed629af322ef`: za 489,91 sekundy má 490 čerstvých
+unikátních vzorků, šest doručení a pět jídel, s účastí všech tří lovců.
+[První důkaz](data/realm_lab/aiworldlab/preview-v8/supply-first-chain-acceptance.json)
+zůstává historickým podkladem. Každý důkaz platí pro uvedenou revizi;
+další změny se ověřují samostatně.
 
 Po sestavení verze se zásobováním a před první aktivací použij `make backup`.
 V privátním `.env` nastav `LAB_AI_PROFILE=supply-v8` a

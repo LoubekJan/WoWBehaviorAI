@@ -197,6 +197,8 @@ výše uvedené `PASS` patří samostatnému wildlife evaluatoru.
 
 **Profil je nasazený; první fyzický řetězec zásobování prošel (PASS)**
 26. října 2026 na revizi `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81`.
+Ověření po úpravě plánovacího rozpočtu prošlo také na revizi
+`ed629af322ef69f950f56c86a40d4a916865526f`.
 Opt-in profil `supply-v8` přidává ke stejným 20 zvířatům tři lovce:
 lidského 901034 z jižní vesnice a gnollí 901061/901062 z jejich tábora.
 Celkem řídí 23 NPC a 77 zůstává nativních. Jde
@@ -297,8 +299,20 @@ a dvě pozorování bez časové identity role také nedokazují živou akci.
 nehybnosti. Obecný navigační analyzátor zůstal `INCONCLUSIVE`.
 
 Tento první důkaz patří uvedené revizi `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81`.
-Navazující změna plánovacího rozpočtu vyžaduje vlastní nasazení a nový
-běhový test; první záznam ji nepotvrzuje. Perzistence přes restart
+[Navazující záznam po úpravě plánovacího rozpočtu](../data/realm_lab/aiworldlab/preview-v8/supply-budget-chain-acceptance.json)
+na revizi `ed629af322ef69f950f56c86a40d4a916865526f` prošel za 489,91 sekundy.
+Všech 490 zaznamenaných vzorků je čerstvých a unikátních, bez zastaralé
+dávky nebo opakovaného capture. Všichni tři lovci dokončili doručení
+i jídlo; celkem je doloženo šest doručení a pět jídel. Poslední platná
+bilance je 51 získaných porcí, 31 ve skladech, nula v nákladu,
+20 spotřebovaných a nula ztracených. Také tento gzip byl nezávisle
+přehrán stejnými bajty evaluatoru, které jsou součástí testované revize.
+1431 fallback pozorování aktérů a tři pozorování bez časové identity
+role se nepoužívají jako důkaz živých akcí.
+
+Oba důkazy jsou připnuté k uvedeným revizím; další změny se ověřují
+samostatně. Jde o krátké provozní řetězce, nikoliv dlouhodobou rovnováhu
+nebo patnáctiminutové pozorování nehybnosti. Perzistence přes restart
 zůstává odložená podle zadání.
 
 ## Telemetrie a navazující vývoj
