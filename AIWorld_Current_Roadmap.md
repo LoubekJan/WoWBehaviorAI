@@ -5,9 +5,11 @@ Aktivní svět je vlastní mapa **725 / oblast 4988**, realm **2**, větev
 správu účtů a telemetrii. Původní Elwynn realm je vyřazený směr; jeho
 níže uvedený plán a dosažené milníky jsou historický podklad.
 Aktuální provozní postup je v [README_DEV.md](README_DEV.md) a
-[doc/RealmLab.md](doc/RealmLab.md). Aktivní profil `wildlife-v8` řídí
-20 zvířat; zbývajících 80 NPC používá nativní chování. První fyzický
-lovecký gate prošel 26. října 2026. Následující vývoj probíhá nad tímto
+[doc/RealmLab.md](doc/RealmLab.md). Aktivní profil `supply-v8` řídí
+20 zvířat a tři lovce; zbývajících 77 NPC používá nativní chování.
+První fyzický řetězec lov–odběr–náklad–doručení–jídlo prošel na revizi
+`1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81` dne 26. října 2026.
+Následující vývoj probíhá nad tímto
 vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout plán.
 
 ## Nejbližší postup ve vlastním světě
@@ -21,17 +23,23 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    uvádí revizi, CI, hashe záznamu a omezení. Tento krátký test nepotvrzuje
    dlouhodobou stabilitu, patnáctiminutový gate nehybnosti, perzistenci
    potřeb ani souvislý pohyb při `FORAGE`.
-2. **Potrava jako zdroj a zásobování osad — implementace připravená, fyzický gate čeká.**
-   Opt-in profil `supply-v8` rozšiřuje stávající zvěř o lidského lovce
-   901034 a gnollí lovce 901061/901062. Po aktivaci bude řídit 23 ze
-   stávajících 100 NPC; 77 zůstane nativních. Řetězec používá omezené maso,
+2. **Potrava jako zdroj a zásobování osad — nasazeno, první fyzický gate PASS.**
+   Aktivní profil `supply-v8` rozšiřuje stávající zvěř o lidského lovce
+   901034 a gnollí lovce 901061/901062. Řídí 23 ze stávajících 100 NPC;
+   77 zůstává nativních. Řetězec používá omezené maso,
    náklad a dvě zásobárny. Zásoby začínají na nule; zatím z nich jedí jen
    samotní lovci. Spotřeba celé vesnice je navazující rozšíření.
    [Nativní navigační důkaz](data/realm_lab/aiworldlab/preview-v8/supply-nav-probe.json)
    potvrdil šest spojení v obou směrech (12 cest) mezi původními domovy,
    sklady a lovišti.
-   Nejde o důkaz živé chůze, lovu ani doručení; ty musí potvrdit samostatný
-   záznam. Aktivní svět zatím používá ověřený `wildlife-v8`.
+   Samostatný [první fyzický důkaz](data/realm_lab/aiworldlab/preview-v8/supply-first-chain-acceptance.json)
+   na revizi `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81` obsahuje za
+   496,196 sekundy šest úplných doručení a šest skutečných jídel;
+   řetězec dokončili všichni tři lovci. Z 497 vzorků je 477 čerstvých
+   a unikátních; 16 závěrečných zastaralých vzorků a čtyři opakování
+   se do čerstvého důkazu nezapočítávají. Celková bilance zachovává
+   `0 + 57 = 30 + 0 + 27 + 0` porcí. Důkaz nepokrývá navazující změnu
+   plánovacího rozpočtu; její nasazení a nový běhový test ještě čekají.
 3. **Frakční konflikty a hráčský zásah.** Přepady, obsazení vesnic a územní
    pravidla mají stavět na fungujícím pohybu, potravě a zásobování.
 

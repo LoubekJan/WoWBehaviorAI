@@ -2,6 +2,7 @@
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "tc_catch2.h"
 #include "Agent/LivingSupplyState.h"
+#include "Agent/LivingSupplyRuntime.h"
 #include <limits>
 #include <ostream>
 
@@ -379,4 +380,57 @@ TEST_CASE("Expired commit cannot mint food even when the corpse remains", "[AIWo
     REQUIRE(ledger.GetCarcass({300, 1})->Reserved == 0);
     REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
     Conserved(ledger);
+}
+
+TEST_CASE("Supply search preserves one pending waypoint across repeated planning budget yields", "[AIWorld][LivingSupply]")
+{
+    LivingSupply::ActorRuntime actor;
+    ActionPosition ground{725, 245, 1020, 10.5f};
+    ActionPosition first = LivingSupply::PrepareHunterSearch(actor, ground);
+    REQUIRE(actor.PendingSearch.has_value());
+    REQUIRE(actor.PendingSearchCount);
+    for (unsigned turn = 0; turn < 20; ++turn)
+    {
+        LivingSupply::FinishHunterSearchAttempt(actor, false);
+        auto retry = LivingSupply::PrepareHunterSearch(actor, ground);
+        REQUIRE(retry.MapId == first.MapId);
+        REQUIRE(retry.X == first.X);
+        REQUIRE(retry.Y == first.Y);
+        REQUIRE(retry.Z == first.Z);
+        REQUIRE(actor.EmptySearches == 0);
+        REQUIRE(actor.SearchLeg == 0);
+    }
+    LivingSupply::FinishHunterSearchAttempt(actor, true);
+    REQUIRE(actor.EmptySearches == 1);
+    REQUIRE(actor.SearchLeg == 1);
+    REQUIRE_FALSE(actor.PendingSearch.has_value());
+    REQUIRE_FALSE(actor.PendingSearchCount);
+    LivingSupply::FinishHunterSearchAttempt(actor, true);
+    REQUIRE(actor.EmptySearches == 1);
+    auto next = LivingSupply::PrepareHunterSearch(actor, ground);
+    REQUIRE(next.X != first.X);
+    REQUIRE(next.Y != first.Y);
+    REQUIRE(std::hypot(next.X - ground.X, next.Y - ground.Y) <= 36.001f);
+    LivingSupply::ClearHunterSearch(actor);
+    REQUIRE_FALSE(actor.PendingSearch.has_value());
+    REQUIRE_FALSE(actor.PendingSearchCount);
+    REQUIRE(actor.EmptySearches == 1);
+}
+
+TEST_CASE("Supply search counts eight real attempts independently of denied turns", "[AIWorld][LivingSupply]")
+{
+    LivingSupply::ActorRuntime actor;
+    ActionPosition ground{725, 245, 1020, 10.5f};
+    for (uint32 attempt = 0; attempt < 8; ++attempt)
+    {
+        auto point = LivingSupply::PrepareHunterSearch(actor, ground);
+        REQUIRE(std::hypot(point.X - ground.X, point.Y - ground.Y) <= 36.001f);
+        LivingSupply::FinishHunterSearchAttempt(actor, false);
+        REQUIRE(actor.EmptySearches == attempt);
+        LivingSupply::FinishHunterSearchAttempt(actor, true);
+        REQUIRE(actor.EmptySearches == attempt + 1);
+        REQUIRE(actor.SearchLeg == attempt + 1);
+    }
+    REQUIRE(actor.EmptySearches == 8);
+    REQUIRE_FALSE(actor.PendingSearch.has_value());
 }

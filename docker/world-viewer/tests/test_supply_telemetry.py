@@ -74,6 +74,18 @@ class SupplyTelemetryTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             LivingSupply.model_validate(broken)
 
+    def test_carcass_source_uses_a_paired_positive_ledger_incarnation(self):
+        value = supply()
+        value.update(carcass_spawn_id="901088", carcass_life="2", carcass_remaining=3)
+        self.assertEqual(LivingSupply.model_validate(value).carcass_life, "2")
+        for field, invalid in (("carcass_life", None), ("carcass_life", "0"), ("carcass_spawn_id", "0"),
+                               ("carcass_life", 2), ("carcass_spawn_id", str(2**64))):
+            with self.subTest(field=field, invalid=invalid):
+                broken = copy.deepcopy(value)
+                broken[field] = invalid
+                with self.assertRaises(ValidationError):
+                    LivingSupply.model_validate(broken)
+
     def test_conservation_uses_exact_integers_and_exposes_a_real_failure(self):
         value = supply()["accounting"]
         value.update(initial_food=str(2**64 - 2), harvested="1", in_depots=str(2**64 - 1), in_cargo="0")

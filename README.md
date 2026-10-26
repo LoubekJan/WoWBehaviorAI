@@ -9,7 +9,8 @@ The goal is not to replace TrinityCore AI with a language model. Deterministic s
 > Active branch: **`AI-World-lab`**. Updated **2026-10-26**.
 >
 > The project now runs one authored world: realm **2**, map **725**, area
-> **4988**, with **100 native NPCs** and live observer telemetry. The
+> **4988**, with **100 NPCs** (23 AI controlled and 77 native) and live
+> observer telemetry. The
 > original Elwynn runtime is retired through the account-preserving
 > migration; existing realm-2 characters and world data are retained.
 >
@@ -20,11 +21,14 @@ The goal is not to replace TrinityCore AI with a language model. Deterministic s
 
 Use [README_DEV.md](README_DEV.md) for setup and operation and
 [doc/RealmLab.md](doc/RealmLab.md) for the current map, population,
-account migration and deployment model. The opt-in `wildlife-v8` profile
-adds deterministic movement, hunger, grazing, hunting, feeding and return
-for the existing 16 deer and 4 bears. The other 80 NPCs retain native
-behavior. `settlement-v8` remains the native baseline; the separate
-recording acceptance checks physical behavior rather than service health.
+account migration and deployment model. The active `supply-v8` profile
+extends the existing 16 deer and 4 bears with one human hunter, two gnoll
+hunters and two shared food depots. Finite carcass portions become cargo,
+physical delivery increases depot stock, and the hunters' completed meals
+consume it. New food state is runtime-only and resets on restart.
+The native `settlement-v8` and animal-only `wildlife-v8` baselines remain
+documented separately. Recording acceptance verifies physical behavior
+independently of service health.
 Raids and territory capture remain future work.
 
 The AI subsystem notes below preserve the project's implementation

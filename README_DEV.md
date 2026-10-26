@@ -174,14 +174,16 @@ služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
 
 Volitelný profil `supply-v8` přidává ke stávající zvěři lidského lovce
 901034, dva gnollí lovce 901061/901062 a dvě zásobárny. Po aktivaci jde
-o 23 řízených a 77 nativních NPC na stejné mapě. Implementace je připravená;
-fyzický řetězec lov–náklad–doručení–spotřeba zatím čeká na provozní ověření.
+o 23 řízených a 77 nativních NPC na stejné mapě. První fyzický řetězec
+lov–náklad–doručení–spotřeba prošel na revizi `1937ad25ff05`; podrobný
+[důkaz](data/realm_lab/aiworldlab/preview-v8/supply-first-chain-acceptance.json)
+odděluje tento běh od navazujících změn plánování.
 
 Po sestavení verze se zásobováním a před první aktivací použij `make backup`.
 V privátním `.env` nastav `LAB_AI_PROFILE=supply-v8` a
 `LAB_WILDLIFE_ENABLED=1`, potom spusť `make setup-world` a `make start`.
 CI/CD používá stejnou přípravu pod deploy zámkem. Výchozí `.env.example`
-zůstává u `settlement-v8`; současný ověřený běh používá `wildlife-v8`.
+zůstává u `settlement-v8`; současný realm používá `supply-v8`.
 
 Nové zásoby, náklad a rezervace kořisti jsou pouze stav aktuálního běhu;
 při restartu se resetují a sklady začínají prázdné. Jejich ukládání je

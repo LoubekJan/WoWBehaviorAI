@@ -195,11 +195,11 @@ výše uvedené `PASS` patří samostatnému wildlife evaluatoru.
 
 ## Zásobování lovem — supply-v8
 
-**Implementace je připravená; živý řetězec zásobování ještě nemá fyzický
-PASS.** Dosavadní provozní důkaz zvěře patří profilu `wildlife-v8`.
-Nový opt-in profil `supply-v8` přidává ke stejným 20 zvířatům tři lovce:
+**Profil je nasazený; první fyzický řetězec zásobování prošel (PASS)**
+26. října 2026 na revizi `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81`.
+Opt-in profil `supply-v8` přidává ke stejným 20 zvířatům tři lovce:
 lidského 901034 z jižní vesnice a gnollí 901061/901062 z jejich tábora.
-Celkem bude po aktivaci řízených 23 NPC a 77 zůstane nativních. Jde
+Celkem řídí 23 NPC a 77 zůstává nativních. Jde
 o schopnost konkrétních spawnů, nikoliv přetypování všech NPC sdílejících
 stejnou šablonu. [Manifest](../data/realm_lab/aiworldlab/preview-v8/supply-population.json)
 připíná původní identitu, domov, geometrii a dvě sady sklad–loviště.
@@ -274,12 +274,40 @@ pokles zásoby a hladu. Zásoby, náklad, spotřeba a ztráty musí zachovat
 celkovou bilanci; staré čítače, spawn fallback ani zdravý kontejner tento
 fyzický důkaz nenahrazují.
 
+První uzavřený [provozní záznam a jeho ověření](../data/realm_lab/aiworldlab/preview-v8/supply-first-chain-acceptance.json)
+mají délku 496,196 sekundy. Všichni tři lovci dokončili celý řetězec;
+evaluator doložil šest dokončených doručení a šest jídel s úbytkem zásoby
+i hladu. Poslední platná celková bilance je 57 získaných porcí, 30 ve
+skladech, nula v nákladu, 27 spotřebovaných a nula ztracených, při nulové
+počáteční zásobě. Nezávislé přehrání staženého gzipu odpovídá uloženému
+výsledku přesně; důkaz připíná tři zdrojové soubory a zvlášť hash offline
+evaluatoru.
+
+Aktivační read-back ověřil přesně 23 řízených a 77 nativních NPC,
+61 původních geometrických souborů a zachování čtyř účtů. Kontrolní
+součty uložených postav a jejich homebindů se shodují; důkaz obsahuje
+filtrovaný výsledek a hash chráněného aktivačního protokolu.
+
+Z 497 vzorků záznamu je 477 čerstvých a unikátních. Čtyři identická
+opakování a 16 závěrečných zastaralých vzorků se do fyzického důkazu
+nezapočítávají; 1840 fallback pozorování jednotlivých řízených aktérů
+a dvě pozorování bez časové identity role také nedokazují živou akci.
+`PASS` vychází z dřívějšího souvislého platného úseku. Nepotvrzuje trvalou
+čerstvost telemetrie, dlouhodobou rovnováhu ani patnáctiminutové pozorování
+nehybnosti. Obecný navigační analyzátor zůstal `INCONCLUSIVE`.
+
+Tento první důkaz patří uvedené revizi `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81`.
+Navazující změna plánovacího rozpočtu vyžaduje vlastní nasazení a nový
+běhový test; první záznam ji nepotvrzuje. Perzistence přes restart
+zůstává odložená podle zadání.
+
 ## Telemetrie a navazující vývoj
 
 Viewer na portu 9091 ukazuje vybraných 100 NPC: živou
 pozici, zdraví a bojový stav. V nativním `settlement-v8` je AI vypnutá;
-`wildlife-v8` přidává výše popsanou řízenou zvěř; připravený `supply-v8`
-navazuje třemi lovci a zásobárnami. Automatické skupiny,
+`wildlife-v8` přidává výše popsanou řízenou zvěř; aktivní `supply-v8`
+navazuje třemi lovci a zásobárnami s prvním fyzickým důkazem.
+Automatické skupiny,
 přepady vesnic a dobývání teritoria zatím nejsou zapnuté.
 Nové chování se má přidávat po ověřitelných krocích nad touto vlastní
 mapou. Zdravý kontejner ani úplná telemetrie samy nepotvrzují fyzickou

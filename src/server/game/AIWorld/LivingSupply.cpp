@@ -170,6 +170,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         actor.Claim.reset();
         actor.Corpse = {};
         actor.Trip = actor.AtGround = false;
+        LivingSupply::ClearHunterSearch(actor);
         actor.EmptySearches = actor.SearchLeg = 0;
         actor.Live = live;
         actor.Phase = live ? "IDLE" : matches ? "ACTOR_DEAD" : "UNLOADED";
@@ -255,6 +256,7 @@ uint32 AIWorldMgr::CommitSupplyCarcass(AgentRecord const& record, Creature& crea
     if (IsSupplyHunter(record))
     {
         actor.Trip = actor.AtGround = false;
+        LivingSupply::ClearHunterSearch(actor);
         actor.Phase = "CARRYING";
         actor.LastResult = "HARVESTED";
         actor.NextAtMs = nowMs + 1000;
@@ -411,16 +413,21 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
     if (state.CurrentPhase != Phase::Idle) return false;
     if (nowMs < actor.NextAtMs || (!searchOnly && nowMs < state.NextDecisionAtMs)) return true;
 
-    auto travel = [&](ActionPosition const& destination, char const* phase, char const* purpose)
+    auto travel = [&](ActionPosition const& destination, char const* phase, char const* purpose, bool searchAttempt = false)
     {
         auto permit = PlanningWorkBudget::TryAcquire();
         if (!permit)
         {
             actor.Phase = "WAITING"; actor.LastResult = "PLANNING_DEFERRED";
+            state.Planning.MarkDeferred(nowMs, "WORK_BUDGET", "SUPPLY_TRAVEL");
+            state.NextDecisionAtMs = nowMs + 100;
+            state.MovementPurpose = "SUPPLY_PLANNING_DEFERRED";
             return true;
         }
         auto next = step(destination);
         permit.Finish();
+        state.Planning.MarkProgress(nowMs);
+        if (searchAttempt) LivingSupply::FinishHunterSearchAttempt(actor, true);
         if (!next)
         {
             actor.Phase = "NO_ROUTE"; actor.LastResult = "NO_ROUTE";
@@ -455,6 +462,7 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
     if (_supplyLedger.GetCargo(record.SpawnId))
     {
         actor.Trip = actor.AtGround = false;
+        LivingSupply::ClearHunterSearch(actor);
         if (!atDepot) return travel(location->Point, "RETURNING_TO_DEPOT", "DELIVER_FOOD");
         if (depot->Stock >= depot->Capacity)
         {
@@ -467,12 +475,14 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
     if (record.Needs.Hunger >= 0.65f && depot->Stock)
     {
         actor.Trip = actor.AtGround = false;
+        LivingSupply::ClearHunterSearch(actor);
         if (!atDepot) return travel(location->Point, "RETURNING_TO_DEPOT", "GET_DEPOT_FOOD");
         return depotActivity(Activity::Eat, "EATING_DEPOT");
     }
     if (!actor.Trip && (depot->Stock >= depot->Target || actor.EmptySearches >= 8))
     {
         actor.AtGround = false;
+        LivingSupply::ClearHunterSearch(actor);
         if (!atDepot) return travel(location->Point, "RETURNING_TO_DEPOT", "RETURN_DEPOT");
         bool empty = actor.EmptySearches >= 8;
         actor.EmptySearches = 0;
@@ -483,6 +493,7 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
     {
         actor.Trip = true; actor.AtGround = false;
         actor.EmptySearches = actor.SearchLeg = 0;
+        LivingSupply::ClearHunterSearch(actor);
     }
     float groundDistance = creature.GetExactDist2d(spec->Ground.X, spec->Ground.Y);
     if (groundDistance <= 8.0f) actor.AtGround = true;
@@ -490,16 +501,12 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
     if (!actor.AtGround) return travel(spec->Ground, "TO_HUNTING_GROUND", "TO_HUNTING_GROUND");
     if (!searchOnly)
     { actor.Phase = "SEARCHING"; return false; }
-    if (++actor.EmptySearches >= 8)
+    if (actor.EmptySearches >= 8)
     {
         actor.Trip = actor.AtGround = false;
         actor.LastResult = "NO_PREY";
         return travel(location->Point, "RETURNING_TO_DEPOT", "RETURN_DEPOT");
     }
-    uint32 leg = actor.SearchLeg++;
-    float angle = float(leg % 8) * 0.78539816339f;
-    float radius = 12.0f * float(1 + leg % 3);
-    ActionPosition search{725, spec->Ground.X + radius * std::cos(angle),
-        spec->Ground.Y + radius * std::sin(angle), spec->Ground.Z};
-    return travel(search, "SEARCHING", "SUPPLY_SEARCH");
+    ActionPosition search = LivingSupply::PrepareHunterSearch(actor, spec->Ground);
+    return travel(search, "SEARCHING", "SUPPLY_SEARCH", true);
 }

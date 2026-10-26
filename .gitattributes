@@ -21,6 +21,7 @@
 # Hash-bound NPC deployment records must retain identical bytes on Windows/Linux.
 data/realm_lab/aiworldlab/preview-v8/settlement-*.json text eol=lf
 data/realm_lab/aiworldlab/preview-v8/wildlife-population.json text eol=lf
+data/realm_lab/aiworldlab/preview-v8/supply-population.json text eol=lf
 
 # Standard to msysgit
 *.doc    diff=astextplain

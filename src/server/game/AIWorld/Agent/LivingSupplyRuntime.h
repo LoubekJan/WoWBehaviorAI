@@ -8,6 +8,7 @@
 #include "Action/ActionPosition.h"
 #include "ObjectGuid.h"
 #include <array>
+#include <cmath>
 
 namespace LivingSupply
 {
@@ -51,10 +52,39 @@ namespace LivingSupply
         uint64 EventSerial = 0, NextAtMs = 0;
         uint64 Harvested = 0, Delivered = 0, Consumed = 0, Lost = 0;
         uint32 SearchLeg = 0, EmptySearches = 0;
+        std::optional<ActionPosition> PendingSearch;
+        bool PendingSearchCount = false;
         bool Trip = false, AtGround = false, Live = false;
         char const* Phase = "IDLE";
         char const* LastResult = "READY";
     };
+    // Preparing a candidate is administrative. Budget refusal must preserve
+    // the same candidate and consume none of the eight real search attempts.
+    inline ActionPosition const& PrepareHunterSearch(ActorRuntime& actor, ActionPosition const& ground)
+    {
+        if (!actor.PendingSearch)
+        {
+            float angle = float(actor.SearchLeg % 8) * 0.78539816339f;
+            float radius = 12.0f * float(1 + actor.SearchLeg % 3);
+            actor.PendingSearch = ActionPosition{ground.MapId, ground.X + radius * std::cos(angle),
+                ground.Y + radius * std::sin(angle), ground.Z};
+            actor.PendingSearchCount = true;
+        }
+        return *actor.PendingSearch;
+    }
+    inline void FinishHunterSearchAttempt(ActorRuntime& actor, bool attempted)
+    {
+        if (!attempted || !actor.PendingSearch || !actor.PendingSearchCount) return;
+        ++actor.SearchLeg;
+        ++actor.EmptySearches;
+        actor.PendingSearch.reset();
+        actor.PendingSearchCount = false;
+    }
+    inline void ClearHunterSearch(ActorRuntime& actor)
+    {
+        actor.PendingSearch.reset();
+        actor.PendingSearchCount = false;
+    }
     struct SourceRuntime
     {
         ObjectGuid Guid;
