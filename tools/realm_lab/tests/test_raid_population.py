@@ -79,12 +79,43 @@ class PublishedRaidTests(unittest.TestCase):
             self.assertEqual(tuple(getattr(actor, field) for field in ("entry", "label", "role", "x", "y", "z", "orientation")),
                              tuple(getattr(before[actor.spawn_id], field) for field in ("entry", "label", "role", "x", "y", "z", "orientation")))
         self.assertEqual([(a.spawn_id, a.agent_type, a.world_faction) for a in population.recruits], [(901039, 1, 1), (901055, 5, 2)])
+        via = before[901035]
+        self.assertEqual(raids.GUARD_TRANSIT_SOURCE_SPAWN, 901035)
+        self.assertEqual(raids.GUARD_TRANSIT, {"map_id": 725, "x": via.x, "y": via.y, "z": via.z})
         self.assertEqual(len(raids.TRANSIT_WAYPOINTS), 9)
         self.assertEqual([(point["x"], point["y"], point["z"]) for point in raids.TRANSIT_WAYPOINTS[1:5]],
                          [(-160.0, 860.0, 0.15),
                           (-201.60006713867188, 861.0665283203125, -2.2201099395751953),
                           (-214.0, 861.0665283203125, 0.15),
                           (-235.0, 790.0, -0.62)])
+
+    def test_native_receipt_pins_guard_detour_without_claiming_physical_clearance(self):
+        proof = single_return.load_json(raids.METADATA / "raid-nav-probe.json")
+        self.assertEqual(proof["population_manifest"]["sha256"],
+                         hashlib.sha256((raids.METADATA / raids.MANIFEST).read_bytes()).hexdigest())
+        self.assertTrue(proof["ok"])
+        self.assertFalse(proof["physical_movement_verified"])
+        self.assertFalse(proof["native_collision_queries_verified"])
+        result = proof["results"]
+        self.assertEqual((result["valid_projections"], result["required_paths"], result["complete_paths"]), (12, 24, 24))
+        points = {point["id"]: point for point in result["projections"]}
+        self.assertEqual(points["guard_transit"]["input"],
+                         {field: raids.GUARD_TRANSIT[field] for field in ("x", "y", "z")})
+        self.assertEqual(points["guard"]["input"], {"x": -396.0, "y": 520.0, "z": 0.15})
+        guards = [path for path in result["paths"] if path["purpose"] == "guard_transit"]
+        self.assertEqual({(path["from"], path["to"]) for path in guards},
+                         {("guard", "guard_transit"), ("guard_transit", "guard"),
+                          ("guard_transit", "source"), ("source", "guard_transit")})
+        diagnostic = [path for path in result["paths"] if path["purpose"] == "diagnostic_direct_guard_only"]
+        self.assertEqual({(path["from"], path["to"]) for path in diagnostic},
+                         {("guard", "source"), ("source", "guard")})
+        for path in guards:
+            self.assertTrue(path["complete"] and path["all_corridor_flags_ground_only"])
+            self.assertLessEqual(path["endpoint_delta"], .01)
+            for field in ("status", "straight_status"):
+                self.assertTrue(path[field]["succeeded"])
+                self.assertFalse(path[field]["failed"])
+                self.assertEqual(path[field]["detail_bits"], 0)
 
     def test_profile_opt_in_shared_pause_and_setup_roster(self):
         population = raids.Population.load()
@@ -130,6 +161,9 @@ class RaidPopulationTests(unittest.TestCase):
                      lambda d: d["recruits"][0].update(capability="hunter"), lambda d: d["recruits"][0].update(cargo_capacity=2),
                      lambda d: d["recruits"][0]["home"].update(x=0), lambda d: d["camp_depot"]["position"].update(x=0),
                      lambda d: d["transit_waypoints"][0].update(x=0), lambda d: d["guard_post"].update(x=0),
+                     lambda d: d["guard_transit"].update(x=0), lambda d: d["guard_transit"].update(map_id=0),
+                     lambda d: d.pop("guard_transit"), lambda d: d.update(guard_transit_source_spawn_id=901036),
+                     lambda d: d.update(guard_transit_source_spawn_id=True),
                      lambda d: d.update(raider_max_home_distance_yards=901))
         for mutate in mutations:
             candidate = copy.deepcopy(original); mutate(candidate)

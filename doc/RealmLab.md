@@ -10,6 +10,9 @@ vyrazí po vymezených bodech ke skladu. Po pěti sekundách vlastní práce
 na místě převede nejvýše dvě porce ze skladu do nákladu. Po skutečném
 návratu a další pětisekundové práci převede náklad do zásobárny Defias;
 tam jej může sníst. Strážný střídá čtyřminutovou službu doma a u skladu.
+Při službě, cestě pro jídlo i návratu prochází bodem u původního domova
+pracovníka 901035. Přímá úhlopříčka od domova strážného vedla podél budovy
+a v živém testu jej blokovala; vlastní domov strážného se neposouvá.
 Viditelného útočníka může napadnout; hráč může zasáhnout běžným bojem.
 Přerušená krádež nepřidá potravu, smrt ztrácí nesený náklad a všechny
 převody zůstávají v původní bilanci zásob. Stav přepadů, potřeby i zásoby

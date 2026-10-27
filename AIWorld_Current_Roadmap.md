@@ -66,7 +66,7 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    Záznam obsahuje i čekání u prázdných skladů bez uspokojení hladu.
    Nezávislé přehrání přesně odpovídá uloženému výsledku. Důkaz nepotvrzuje
    dlouhodobou rovnováhu, perzistenci ani patnáctiminutový gate nehybnosti.
-4. **První přepad zásob — připraven k fyzickému ověření.** Opt-in profil
+4. **První přepad zásob — nasazeno, zásah strážného se ještě ověřuje.** Opt-in profil
    `raids-v8` přebírá spotřebitele a přidává Defiase 901055 a strážného
    901039 (28 řízených / 72 nativních NPC). Hladový Defias zkouší ukrást
    dvě skutečné porce z jižního skladu a donést je do táborové zásobárny;
@@ -80,8 +80,14 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    První nasazení `eacd941bf4c7` prošlo CI i kontrolou 28/72 NPC, ale při
    cestě ke skladu zkrátilo přístup k mostu přes hluboké koryto. Uzavřený
    záznam má 884 čerstvých vzorků bez porušení bilance a neprokazuje
-   dokončený přepad. Přístupové body nyní vedou přes severní most;
-   navazující fyzické ověření zůstává povinné.
+   dokončený přepad. Přístupové body nyní vedou přes severní most. Na revizi
+   `46e0a0f9ff28` hodinový záznam doložil dvě úplné krádeže po dvou porcích,
+   skutečný návrat přes oba mosty, předání i jídlo v táboře. Původní lovci
+   a spotřebitelé pokračovali bez porušení bilance. Zásah strážného v něm
+   doložen není: přímá cesta mezi domovem a skladem jej blokovala u budovy.
+   Nová cesta strážného vede přes původní domov pracovníka 901035 pro
+   hlídku, jídlo i návrat. Nativní test ověřil čtyři směrované úseky této
+   obcházky; fyzický průchod a přerušení přepadu musí potvrdit nový záznam.
 
 **Perzistence individuálních potřeb je odložená.** Podle rozhodnutí z
 26. října 2026 se ukládání hladu, únavy a resource pressure přes restart

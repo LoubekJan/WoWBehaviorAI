@@ -8,6 +8,7 @@
 #include "ObjectGuid.h"
 #include <array>
 #include <cmath>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,9 @@ namespace LivingRaid
     inline constexpr ActionPosition Camp{725, 58.6867446881f, 971.2687759381f, 0.15f};
     inline constexpr ActionPosition Source{725, -372.4611532703f, 492.6821677284f, 0.15f};
     inline constexpr ActionPosition GuardPost = Source;
+    // Approach the village depot around the authored buildings, using the
+    // ordinary worker's proven ground corridor. This does not change home.
+    inline constexpr ActionPosition GuardVia{725, -407.3137084990f, 499.3137084990f, 0.15f};
     // Reviewed transit anchors split the long journey into bounded searches.
     // Every actual leg is still grounded and checked against live collisions.
     inline constexpr std::array<ActionPosition, 9> ToSource{{
@@ -37,6 +41,47 @@ namespace LivingRaid
         {725, -340.0f, 580.0f, 0.15f},
         Source
     }};
+    struct GuardTransit
+    {
+        ObjectGuid Guid;
+        std::optional<ActionPosition> Goal;
+        bool PassedVia = false;
+
+        static bool Near(ActionPosition const& here, ActionPosition const& point)
+        {
+            return LivingReturnPolicy::Finite(here) && LivingReturnPolicy::Finite(point) &&
+                here.MapId == point.MapId && LivingReturnPolicy::Distance(here, point) <= 3.0f;
+        }
+        void Reset() { *this = {}; }
+        bool ObserveArrival(ActionPosition const& here, bool goalInLineOfSight)
+        {
+            if (!Goal || !goalInLineOfSight || !Near(here, *Goal)) return false;
+            Reset();
+            return true;
+        }
+        std::optional<ActionPosition> Select(ObjectGuid guid, ActionPosition const& here,
+            ActionPosition const& goal, bool goalInLineOfSight, bool viaInLineOfSight)
+        {
+            if (guid.IsEmpty() || !LivingReturnPolicy::Finite(here) || !LivingReturnPolicy::Finite(goal) ||
+                here.MapId != GuardVia.MapId || goal.MapId != here.MapId)
+            {
+                Reset();
+                return std::nullopt;
+            }
+            if (Guid != guid || !Goal || !LivingReturnPolicy::SamePosition(*Goal, goal))
+            {
+                Reset();
+                Guid = guid;
+                Goal = goal;
+            }
+            // A guard already at its real destination must not be sent away
+            // just to visit a route hint. Completing a trip clears its cursor.
+            if (ObserveArrival(here, goalInLineOfSight)) return goal;
+            if (viaInLineOfSight && Near(here, GuardVia)) PassedVia = true;
+            return PassedVia ? goal : GuardVia;
+        }
+    };
+
     struct State
     {
         ObjectGuid Guid;
@@ -46,6 +91,7 @@ namespace LivingRaid
         uint32 Leg = 0;
         bool Active = false, Returning = false, DutyAtPost = false;
         std::string Phase = "IDLE", Outcome = "MATERIALIZED";
+        GuardTransit Transit;
     };
 
     inline bool RaiderCapability(uint64 spawn, uint32 map, AgentType type,

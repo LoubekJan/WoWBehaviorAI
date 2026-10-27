@@ -3,7 +3,7 @@
   "profile": "raids-v8",
   "source_revision": "preview-v8",
   "map_id": 725,
-  "captured_at_utc": "2026-10-27T00:32:51.687199+00:00",
+  "captured_at_utc": "2026-10-27T16:15:32.574043+00:00",
   "status": "PASS",
   "ok": true,
   "scope": "native_detour_ground_connectivity_only",
@@ -11,8 +11,8 @@
   "native_collision_queries_verified": false,
   "new_server_deployment_performed": false,
   "all_authored_homes_preserved": true,
-  "anchors_changed": false,
-  "method": "Existing MSVC x64 executable linked to repository native DT_POLYREF64 Detour sources. Validated mmap/tile ABI and complete native payload sizes, loaded all four tiles and queried small local ground-only projections plus full findPath/findStraightPath in both directions. Independent receipt checks reject partial/status-detail flags, non-ground corridor polygons and endpoint errors, verify the eleven anchors against the pinned raid manifest and native terrain, and require all twenty intended directed routes.",
+  "anchors_changed": true,
+  "method": "Existing MSVC x64 executable linked to repository native DT_POLYREF64 Detour sources. Validated mmap/tile ABI and complete native payload sizes, loaded all four tiles and queried small local ground-only projections plus full findPath/findStraightPath in both directions. Independent receipt checks reject partial/status-detail flags, non-ground corridor polygons and endpoint errors, verify twelve anchors against the pinned raid manifest and native terrain, and require twenty-two active directed routes plus two retained direct guard diagnostic routes.",
   "parameters": {
     "poly_ref_bits": 64,
     "query_node_capacity": 8192,
@@ -138,16 +138,17 @@
     }
   ],
   "limitations": [
-    "This proves native ground-navmesh connectivity at eleven selected anchors and twenty directed paths. It does not prove physical NPC movement, bridge/body clearance, an actual theft, interception or delivery.",
+    "This proves native ground-navmesh connectivity at twelve selected anchors and twenty-four directed paths. Twenty-two paths belong to the active raider and guard routes; the two direct guard/source paths are retained diagnostics only. It does not prove physical NPC movement, body clearance, an actual theft, interception or delivery.",
     "Runtime must resolve each waypoint from the current physical floor and independently validate collisions, route and map bounds, dynamic occupants, real LOS, attackability and action completion.",
     "No live world was activated or changed by this receipt. Static ground hints are not authored spawn/home changes or permission to project an actor to another floor.",
     "The authored route now passes north through the Stranglechasmbridge M2 bounds. Native mesh connectivity and the model bounding box do not verify its current physical deck/body support or an NPC crossing it; runtime floor, collision and movement completion checks remain required.",
-    "The extra west_landing target forces travel west of the bridge before turning south-west. Half-yard native MAPS sampling proves only the underlying terrain change; it omits M2/WMO deck support, dynamic collision and actor body clearance, so physical movement remains a separate test."
+    "The extra west_landing target forces travel west of the bridge before turning south-west. Half-yard native MAPS sampling proves only the underlying terrain change; it omits M2/WMO deck support, dynamic collision and actor body clearance, so physical movement remains a separate test.",
+    "Guard travel uses the existing worker901035 home as a runtime transit point before reaching the depot or original guard home. No authored home is moved. Flat native terrain samples and complete Detour paths do not establish WMO/M2 body clearance; live guard movement still requires independent verification."
   ],
   "population_manifest": {
     "path": "data/realm_lab/aiworldlab/preview-v8/raid-population.json",
-    "bytes": 4109,
-    "sha256": "8704486d3d2cbf653bb73db868dc454b65ab382181d0c481b4f5e12cecd1c522"
+    "bytes": 4270,
+    "sha256": "df27cb62d694b39263cea6d9dd9e1781974d6afdf3b5613a78f9268aa2e7df8b"
   },
   "baseline_pins": {
     "consumer_manifest_sha256": "338e7e9325883308de6c5c90bc04a52451d13c3da07c9478b40e27b9b778bc84",
@@ -465,24 +466,29 @@
   ],
   "private_probe_artifacts": [
     {
-      "path": "runtime/lab-validation/raids-v8/west-exit-v3/prepare-nav.py",
-      "bytes": 1697,
-      "sha256": "3aec60ca29bfcd546a569c0b7d9c500a90076520894aa44a127eb9a4b272250a"
+      "path": "runtime/lab-validation/raids-v8/guard-transit-v4/prepare-nav.py",
+      "bytes": 2062,
+      "sha256": "b73b1fa09797172152d445aba5ed6a529bcfae0be1c1295e444d12ac27858030"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/west-exit-v3/points.tsv",
-      "bytes": 504,
-      "sha256": "ebad237d6c270fcaf4eb40327a2ad03e2a16a0636d53f796078a707c73c878f1"
+      "path": "runtime/lab-validation/raids-v8/guard-transit-v4/write-proof.py",
+      "bytes": 7903,
+      "sha256": "18b2ec009cc982c77ecc2b143365abfe3d40532deba4ab73f938cc9a5e08229c"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/west-exit-v3/routes.tsv",
-      "bytes": 334,
-      "sha256": "aca135ae3e60e07b43cdac0b319bdd7004fd1a4163440aa64a0e2b6334b2c102"
+      "path": "runtime/lab-validation/raids-v8/guard-transit-v4/points.tsv",
+      "bytes": 571,
+      "sha256": "bf21e1ee4781c07d20a68b8b220463dd04c59a9e74596a9a506062b19f7680c3"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/west-exit-v3/nav-raw.json",
-      "bytes": 16336,
-      "sha256": "8a7ace25d7621174d589ab3db688bc2d07714ad3a11060a3c0fe1bef5e8d5370"
+      "path": "runtime/lab-validation/raids-v8/guard-transit-v4/routes.tsv",
+      "bytes": 416,
+      "sha256": "d53593240d9c9580b61216e2810d7807665c605ed673a5aba7b1486472cce845"
+    },
+    {
+      "path": "runtime/lab-validation/raids-v8/guard-transit-v4/nav-raw.json",
+      "bytes": 19212,
+      "sha256": "c2362f5df49b32ad8f05833ec4090f9d841669a0bf7ada8e04ef002d754f991f"
     },
     {
       "path": "runtime/lab-validation/raids-v8/west-exit-v3/terrain-exit-samples.json",
@@ -521,9 +527,9 @@
       "xy": 1,
       "z": 2
     },
-    "valid_projections": 11,
-    "required_paths": 20,
-    "complete_paths": 20,
+    "valid_projections": 12,
+    "required_paths": 24,
+    "complete_paths": 24,
     "projections": [
       {
         "id": "camp",
@@ -953,6 +959,45 @@
           "anchor_height_delta": 0.15,
           "terrain_hole": false
         }
+      },
+      {
+        "id": "guard_transit",
+        "input": {
+          "x": -407.31370849898474,
+          "y": 499.31370849898474,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503606069822218",
+        "valid": true,
+        "projected": {
+          "x": -407.313720703125,
+          "y": 499.313720703125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.7259260675523304e-05,
+        "z_delta": 0.06655654907226563,
+        "terrain": {
+          "ground_z": 0.0,
+          "triangle_slope_degrees": 0.0,
+          "square_row": 97,
+          "square_col": 8,
+          "triangle": 0,
+          "tile": [
+            31,
+            32
+          ],
+          "anchor_height_delta": 0.15,
+          "terrain_hole": false
+        }
       }
     ],
     "paths": [
@@ -999,7 +1044,8 @@
             "z": 0.17988967895507812
           }
         ],
-        "straight_path_length_yards": 191.00653680780718
+        "straight_path_length_yards": 191.00653680780718,
+        "purpose": "raider_transit"
       },
       {
         "from": "upper",
@@ -1044,7 +1090,8 @@
             "z": 0.5681513547897339
           }
         ],
-        "straight_path_length_yards": 191.19119351422262
+        "straight_path_length_yards": 191.19119351422262,
+        "purpose": "raider_transit"
       },
       {
         "from": "upper",
@@ -1084,7 +1131,8 @@
             "z": 0.1447639763355255
           }
         ],
-        "straight_path_length_yards": 82.46211999345508
+        "straight_path_length_yards": 82.46211999345508,
+        "purpose": "raider_transit"
       },
       {
         "from": "approach",
@@ -1124,7 +1172,8 @@
             "z": 0.17988967895507812
           }
         ],
-        "straight_path_length_yards": 82.46211999345508
+        "straight_path_length_yards": 82.46211999345508,
+        "purpose": "raider_transit"
       },
       {
         "from": "approach",
@@ -1174,7 +1223,8 @@
             "z": -2.2201099395751953
           }
         ],
-        "straight_path_length_yards": 41.756115721766385
+        "straight_path_length_yards": 41.756115721766385,
+        "purpose": "raider_transit"
       },
       {
         "from": "ford_w",
@@ -1224,7 +1274,8 @@
             "z": 0.1447639763355255
           }
         ],
-        "straight_path_length_yards": 41.756115721766385
+        "straight_path_length_yards": 41.756115721766385,
+        "purpose": "raider_transit"
       },
       {
         "from": "ford_w",
@@ -1264,7 +1315,8 @@
             "z": 0.17988967895507812
           }
         ],
-        "straight_path_length_yards": 12.630056735200778
+        "straight_path_length_yards": 12.630056735200778,
+        "purpose": "raider_transit"
       },
       {
         "from": "west_landing",
@@ -1304,7 +1356,8 @@
             "z": -2.2201099395751953
           }
         ],
-        "straight_path_length_yards": 12.630056735200778
+        "straight_path_length_yards": 12.630056735200778,
+        "purpose": "raider_transit"
       },
       {
         "from": "west_landing",
@@ -1349,7 +1402,8 @@
             "z": -0.645107626914978
           }
         ],
-        "straight_path_length_yards": 77.67107643522331
+        "straight_path_length_yards": 77.67107643522331,
+        "purpose": "raider_transit"
       },
       {
         "from": "west_bank",
@@ -1389,7 +1443,8 @@
             "z": 0.17988967895507812
           }
         ],
-        "straight_path_length_yards": 74.10892030016677
+        "straight_path_length_yards": 74.10892030016677,
+        "purpose": "raider_transit"
       },
       {
         "from": "west_bank",
@@ -1429,7 +1484,8 @@
             "z": 0.16609978675842285
           }
         ],
-        "straight_path_length_yards": 65.00506178343343
+        "straight_path_length_yards": 65.00506178343343,
+        "purpose": "raider_transit"
       },
       {
         "from": "bridge_n",
@@ -1469,7 +1525,8 @@
             "z": -0.645107626914978
           }
         ],
-        "straight_path_length_yards": 65.00506178343343
+        "straight_path_length_yards": 65.00506178343343,
+        "purpose": "raider_transit"
       },
       {
         "from": "bridge_n",
@@ -1514,7 +1571,8 @@
             "z": 0.04647979140281677
           }
         ],
-        "straight_path_length_yards": 53.70726716122168
+        "straight_path_length_yards": 53.70726716122168,
+        "purpose": "raider_transit"
       },
       {
         "from": "bridge_s",
@@ -1559,7 +1617,8 @@
             "z": 0.16609978675842285
           }
         ],
-        "straight_path_length_yards": 53.70726716122168
+        "straight_path_length_yards": 53.70726716122168,
+        "purpose": "raider_transit"
       },
       {
         "from": "bridge_s",
@@ -1604,7 +1663,8 @@
             "z": -0.17816764116287231
           }
         ],
-        "straight_path_length_yards": 126.60533321589604
+        "straight_path_length_yards": 126.60533321589604,
+        "purpose": "raider_transit"
       },
       {
         "from": "south",
@@ -1649,7 +1709,8 @@
             "z": 0.04647979140281677
           }
         ],
-        "straight_path_length_yards": 125.61528664326768
+        "straight_path_length_yards": 125.61528664326768,
+        "purpose": "raider_transit"
       },
       {
         "from": "south",
@@ -1694,7 +1755,8 @@
             "z": 0.39979493618011475
           }
         ],
-        "straight_path_length_yards": 97.88789800436786
+        "straight_path_length_yards": 97.88789800436786,
+        "purpose": "raider_transit"
       },
       {
         "from": "source",
@@ -1744,7 +1806,8 @@
             "z": -0.17816764116287231
           }
         ],
-        "straight_path_length_yards": 94.73345259801137
+        "straight_path_length_yards": 94.73345259801137,
+        "purpose": "raider_transit"
       },
       {
         "from": "guard",
@@ -1789,7 +1852,8 @@
             "z": 0.39979493618011475
           }
         ],
-        "straight_path_length_yards": 36.26632209232032
+        "straight_path_length_yards": 36.26632209232032,
+        "purpose": "diagnostic_direct_guard_only"
       },
       {
         "from": "source",
@@ -1834,12 +1898,187 @@
             "z": 0.21655654907226562
           }
         ],
-        "straight_path_length_yards": 36.26632209232032
+        "straight_path_length_yards": 36.26632209232032,
+        "purpose": "diagnostic_direct_guard_only"
+      },
+      {
+        "from": "guard",
+        "to": "guard_transit",
+        "complete": true,
+        "attempted": true,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -396,
+            "y": 520,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": -407.313720703125,
+            "y": 499.313720703125,
+            "z": 0.21655654907226562
+          }
+        ],
+        "straight_path_length_yards": 23.578007280019204,
+        "purpose": "guard_transit"
+      },
+      {
+        "from": "guard_transit",
+        "to": "guard",
+        "complete": true,
+        "attempted": true,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -407.313720703125,
+            "y": 499.313720703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": -396,
+            "y": 520,
+            "z": 0.21655654907226562
+          }
+        ],
+        "straight_path_length_yards": 23.578007280019204,
+        "purpose": "guard_transit"
+      },
+      {
+        "from": "guard_transit",
+        "to": "source",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -407.313720703125,
+            "y": 499.313720703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": -391.20001220703125,
+            "y": 490.9331970214844,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": -372.4611511230469,
+            "y": 492.6821594238281,
+            "z": 0.39979493618011475
+          }
+        ],
+        "straight_path_length_yards": 36.98392493490773,
+        "purpose": "guard_transit"
+      },
+      {
+        "from": "source",
+        "to": "guard_transit",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -372.4611511230469,
+            "y": 492.6821594238281,
+            "z": 0.39979493618011475
+          },
+          {
+            "x": -391.20001220703125,
+            "y": 490.9331970214844,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": -407.313720703125,
+            "y": 499.313720703125,
+            "z": 0.21655654907226562
+          }
+        ],
+        "straight_path_length_yards": 36.98392493490773,
+        "purpose": "guard_transit"
       }
     ]
   },
-  "route_revision": "west-bridge-exit-v3",
-  "previous_native_receipt_sha256": "f50cce8db8a58cb3d54e21426f4c946638f6abae48f95a5eb843d8e1bef5b7ca",
+  "route_revision": "guard-worker-home-transit-v4",
+  "previous_native_receipt_sha256": "d8d8e34cc5bd5357347f639c17a95145b15021c66db4f1bb94161665fd62e413",
   "route_authoring_context": {
     "reason": "An explicit west_landing point beyond the bridge model western X bound keeps the route on the western exit before its south-west turn to west_bank.",
     "bridge_geometry_receipt": {
@@ -1895,5 +2134,51 @@
     "path": "runtime/lab-validation/raids-v8/west-exit-v3/terrain-exit-samples.json",
     "bytes": 36479,
     "sha256": "03d72af6d07314a8e3bc03be655363a9a5a21e58f5e1d771beb489e582df2a52"
-  }
+  },
+  "anchor_changes": "One runtime guard transit anchor added at the existing worker901035 home. All authored homes and existing runtime anchors are preserved.",
+  "guard_transit_context": {
+    "reason": "The old direct guard home/depot diagonal was physically blocked outside detection range. Only guard travel now goes via an existing worker home; native direct-path connectivity is kept as diagnostic evidence, not permission to reuse the blocked diagonal.",
+    "guard_spawn_id": 901039,
+    "transit_source_spawn_id": 901035,
+    "transit": {
+      "map_id": 725,
+      "x": -407.31370849898474,
+      "y": 499.31370849898474,
+      "z": 0.15
+    },
+    "original_home": {
+      "map_id": 725,
+      "x": -396.0,
+      "y": 520.0,
+      "z": 0.15
+    },
+    "applies_to": [
+      "patrol_to_post",
+      "food_commute",
+      "return_home"
+    ],
+    "physical_movement_verified": false
+  },
+  "guard_terrain_checks": [
+    {
+      "source": "guard",
+      "target": "guard_transit",
+      "sample_count": 49,
+      "sample_spacing_yards": 0.49120858606930035,
+      "maximum_consecutive_terrain_height_change_yards": 0.0,
+      "terrain_cliff_threshold_yards": 0.75,
+      "terrain_only": true,
+      "physical_model_deck_or_body_clearance_verified": false
+    },
+    {
+      "source": "guard_transit",
+      "target": "source",
+      "sample_count": 72,
+      "sample_spacing_yards": 0.4996880476885429,
+      "maximum_consecutive_terrain_height_change_yards": 0.0,
+      "terrain_cliff_threshold_yards": 0.75,
+      "terrain_only": true,
+      "physical_model_deck_or_body_clearance_verified": false
+    }
+  ]
 }

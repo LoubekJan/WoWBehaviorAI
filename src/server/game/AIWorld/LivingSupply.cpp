@@ -238,6 +238,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
                     raid.Outcome = "INTERCEPTED";
             }
             raid.Active = raid.Returning = false; raid.Leg = 0;
+            raid.Transit.Reset();
             // A loaded corpse retains the observed attempt for honest death
             // diagnostics; unloading cannot create a new incarnation.
             if (matches) raid.Guid = creature->GetGUID();
@@ -252,6 +253,27 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
             actor.NextAtMs = nowMs + 1000;
         }
         // EventSerial and the ledger's replay watermark survive this cleanup.
+    }
+    if (live && IsRaidGuard(record))
+    {
+        auto const& role = record.LivingRole;
+        // An emergency or a foreign action cannot leave a completed waypoint
+        // attached to a later commute. Its actual home remains unchanged.
+        bool foreign = (role.CurrentPhase == Phase::Moving || role.CurrentPhase == Phase::Acting) &&
+            (!OwnedGoal(record) || (record.ActiveActionState &&
+                !OwnedAction(record, role.CurrentPhase == Phase::Moving ? ActionType::MoveTo : ActionType::Ambient)));
+        if (creature->IsInCombat() || foreign || (role.CurrentPhase != Phase::Idle &&
+            role.CurrentPhase != Phase::Moving && role.CurrentPhase != Phase::Acting))
+        {
+            _raidGuard.Transit.Reset();
+            actor.Travel = {};
+        }
+        else if (_raidGuard.Transit.Goal)
+        {
+            auto const& goal = *_raidGuard.Transit.Goal;
+            _raidGuard.Transit.ObserveArrival({725, creature->GetPositionX(), creature->GetPositionY(), creature->GetPositionZ()},
+                creature->IsWithinLOS(goal.X, goal.Y, goal.Z));
+        }
     }
 }
 
@@ -403,7 +425,7 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
 }
 
 std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& record, Creature& creature,
-    ActionPosition const& destination, uint64 nowMs, std::optional<RecoveryMovement>& approved)
+    ActionPosition const& requestedDestination, uint64 nowMs, std::optional<RecoveryMovement>& approved)
 {
     using namespace LivingReturnPolicy;
     approved.reset();
@@ -417,6 +439,25 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
     ActionPosition from{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
     auto const homePosition = creature.GetHomePosition();
     ActionPosition home{from.MapId, homePosition.GetPositionX(), homePosition.GetPositionY(), homePosition.GetPositionZ()};
+    ActionPosition destination = requestedDestination;
+    if (IsRaidGuard(record))
+    {
+        if (!Finite(from) || !Finite(requestedDestination) || from.MapId != 725 || requestedDestination.MapId != from.MapId)
+        {
+            travel = {};
+            _raidGuard.Transit.Reset();
+            state.Planning.ResumeWork(nowMs);
+            return std::nullopt;
+        }
+        // Owned arrivals update Travel.Origin. Displacement by another owner
+        // invalidates the waypoint cursor as well as the old native corridor.
+        if (travel.Active && !travel.ObserveSource(from)) _raidGuard.Transit.Reset();
+        auto next = _raidGuard.Transit.Select(creature.GetGUID(), from, requestedDestination,
+            creature.IsWithinLOS(requestedDestination.X, requestedDestination.Y, requestedDestination.Z),
+            creature.IsWithinLOS(LivingRaid::GuardVia.X, LivingRaid::GuardVia.Y, LivingRaid::GuardVia.Z));
+        if (!next) return std::nullopt;
+        destination = *next;
+    }
     float homeRadius = IsSupplyRaider(record) ? LivingRaid::RaiderHomeRadius : 384.0f;
     auto inBounds = [&](ActionPosition const& point)
     {
@@ -424,9 +465,11 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
             scope.Contains(point.MapId, creature.GetMap()->GetZoneId(creature.GetPhaseMask(), point.X, point.Y, point.Z),
                 point.X, point.Y, point.Z) && std::hypot(point.X-home.X, point.Y-home.Y) <= homeRadius;
     };
-    if (!InSupplyScope(scope, creature) || !inBounds(from) || !inBounds(home) || !inBounds(destination))
+    if (!InSupplyScope(scope, creature) || !inBounds(from) || !inBounds(home) ||
+        !inBounds(requestedDestination) || !inBounds(destination))
     {
         travel = {};
+        if (IsRaidGuard(record)) _raidGuard.Transit.Reset();
         state.Planning.ResumeWork(nowMs);
         return std::nullopt;
     }
@@ -472,7 +515,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
             if (corridor.empty()) return noRoute();
             travel.Route.Planned = std::move(corridor);
             travel.Route.SurfaceCorridor = travel.Search.Report.SurfaceCorridor;
-            if (IsSupplyRaider(record) && !travel.Route.SurfaceCorridor)
+            if ((IsSupplyRaider(record) || IsRaidGuard(record)) && !travel.Route.SurfaceCorridor)
             {
                 auto straight = LivingRaid::CoalesceStraightLegs(from, travel.Route.Planned);
                 if (!straight.empty()) travel.Route.Planned = std::move(straight);

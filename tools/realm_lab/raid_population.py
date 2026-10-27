@@ -37,6 +37,8 @@ DEPOT = {"id": 3, "name": "defias", "world_faction_id": 2,
 # These hints have complete native ground routes; physical floor/body checks
 # still decide every runtime movement. The guard's ordinary home is separate.
 GUARD_POST = consumers.supply.DEPOTS[0]["position"]
+GUARD_TRANSIT = {"map_id": 725, "x": -407.31370849898474, "y": 499.31370849898474, "z": 0.15}
+GUARD_TRANSIT_SOURCE_SPAWN = 901035
 TRANSIT_WAYPOINTS = (
     {"map_id": 725, "x": -80.0, "y": 840.0, "z": 0.15},
     {"map_id": 725, "x": -160.0, "y": 860.0, "z": 0.15},
@@ -94,6 +96,9 @@ class Population:
                 document.get("recruit_spawn_ids") == sorted(RECRUIT_IDS) and
                 document.get("camp_depot") == DEPOT and type(document.get("source_depot_id")) is int and
                 document["source_depot_id"] == 1 and document.get("guard_post") == GUARD_POST and
+                document.get("guard_transit") == GUARD_TRANSIT and
+                type(document.get("guard_transit_source_spawn_id")) is int and
+                document["guard_transit_source_spawn_id"] == GUARD_TRANSIT_SOURCE_SPAWN and
                 document.get("transit_waypoints") == list(TRANSIT_WAYPOINTS) and
                 type(document.get("raider_max_home_distance_yards")) is int and
                 document["raider_max_home_distance_yards"] == MAX_HOME_DISTANCE_YARDS and
@@ -102,6 +107,9 @@ class Population:
         rows = document.get("recruits")
         require(isinstance(rows, list) and len(rows) == 2, "Raids require exactly two reviewed actors")
         expected = {actor.spawn_id: actor for actor in population.settlement.actors}
+        via = expected[GUARD_TRANSIT_SOURCE_SPAWN]
+        require(GUARD_TRANSIT == {"map_id": 725, "x": via.x, "y": via.y, "z": via.z},
+                "Guard transit must retain the reviewed ordinary worker home anchor")
         recruits, seen = [], set()
         try:
             for row in rows:

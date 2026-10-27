@@ -57,6 +57,7 @@ def fixture():
             raider["raid"].update(phase="STEALING", attempt_id="1")
         elif t == 241:
             move(raider, SOURCE)
+            raider["living_role"]["started_at_ms"] = BASE + 236000
             raider["raid"].update(phase="TO_CAMP", attempt_id="1", outcome="STOLEN")
         elif 242 <= t < 328:
             move(raider, interpolate(SOURCE, CAMP, (t-242)/85), t < 327)
@@ -68,6 +69,7 @@ def fixture():
             raider["raid"].update(phase="DELIVERING", attempt_id="1", outcome="STOLEN")
         elif 333 <= t < 400:
             move(raider, CAMP)
+            raider["living_role"]["started_at_ms"] = BASE + 328000
             raider["raid"].update(phase="COOLDOWN", attempt_id="1", outcome="DELIVERED")
         elif t >= 484:
             at = interpolate(CAMP, SOURCE, 83/85)
@@ -106,7 +108,29 @@ def fixture():
         for a in (raider, guard):
             a["supply"].update(depot=deepcopy(camp if a["spawn_id"] == RAIDER else source), accounting=deepcopy(balance))
             a["raid"].update(source_depot=deepcopy(source), camp_depot=deepcopy(camp))
+    # The real observer captures owned short actions every 250 ms. Keep the
+    # long approach at one second while retaining every action-local capture.
+    dense = []
+    for current in rows:
+        dense.append(current)
+        t = current["elapsed_seconds"]
+        if 236 <= t < 241 or 328 <= t < 333:
+            for fraction in (.25, .5, .75):
+                extra = deepcopy(current)
+                extra["elapsed_seconds"] = t + fraction
+                extra["state"]["captured_at_ms"] = BASE + int((t + fraction) * 1000)
+                dense.append(extra)
+    return resequence(dense)
+
+
+def resequence(rows):
+    for sequence, current in enumerate(rows, 1):
+        current["sequence"] = sequence
     return rows
+
+
+def at(rows, elapsed):
+    return next(current for current in rows if current["elapsed_seconds"] == elapsed)
 
 
 class RaidAcceptanceTests(unittest.TestCase):
@@ -116,10 +140,19 @@ class RaidAcceptanceTests(unittest.TestCase):
         self.assertEqual((report["expected_owned"], report["expected_native"]), (28, 72))
         self.assertEqual(report["successful_raid_attempts"], [1])
         self.assertEqual(report["prevented_raid_attempts"], [2])
+        prevented = report["prevented_raids"][0]
+        self.assertEqual([prevented[key] for key in ("noticed_seconds", "interception_event_seconds",
+            "intercepted_seconds", "prevention_event_seconds", "prevented_seconds")], [483, 483, 483, 484, 485])
         cycle = report["raid_cycles"][0]
         self.assertEqual(cycle["covered"], ["TO_SOURCE", "STOLEN", "CARRIED", "DELIVERED"])
         self.assertEqual(cycle["stolen_portions"], 2)
         self.assertEqual(cycle["delivered_portions"], 2)
+        for key in ("theft_work", "delivery_work"):
+            self.assertEqual(cycle[key]["start_observation_lag_ms"], 0)
+            self.assertEqual(cycle[key]["observed_camera_span_ms"], 5000)
+            self.assertEqual(cycle[key]["receipt_capture_age_ms"], 5000)
+            self.assertEqual(cycle[key]["max_sample_gap_ms"], 250)
+            self.assertEqual(cycle[key]["unique_samples"], 21)
         self.assertGreater(cycle["carry_travel_yards"], 600)
         self.assertEqual(len(report["consumer_cycles"]), 3)
         self.assertEqual(len(report["cycles"]), 3)
@@ -134,7 +167,7 @@ class RaidAcceptanceTests(unittest.TestCase):
                 for current in rows:
                     r, g = actor(current, RAIDER), actor(current, GUARD)
                     if missing == "carry" and r["raid"]["phase"] == "TO_CAMP": r["raid"]["phase"] = "WAITING"
-                    elif missing == "work_start" and current["elapsed_seconds"] == 236: r["raid"]["phase"] = "WAITING"
+                    elif missing == "work_start" and 236 <= current["elapsed_seconds"] <= 236.5: r["raid"]["phase"] = "WAITING"
                     elif missing == "notice": g["raid"]["noticed"] = "0"
                     elif missing == "intercept" and g["raid"]["phase"] == "INTERCEPTING": g["raid"]["phase"] = "GUARD_POST"
                 self.assertEqual(acceptance.evaluate_samples(rows)["status"], "INCONCLUSIVE")
@@ -143,26 +176,164 @@ class RaidAcceptanceTests(unittest.TestCase):
         for change in ("cargo", "free_hunger", "away", "action_start", "source_stock", "native_guard"):
             with self.subTest(change=change):
                 rows = deepcopy(fixture())
-                r = actor(rows[241], RAIDER)
+                r = actor(at(rows, 241), RAIDER)
                 if change == "cargo": r["supply"]["cargo"] = 3
                 elif change == "free_hunger": r["needs"]["hunger"] = 0
                 elif change == "away": move(r, CAMP)
-                elif change == "action_start": actor(rows[240], RAIDER)["action_started_at_ms"] -= 1000
+                elif change == "action_start": actor(at(rows, 240.75), RAIDER)["action_started_at_ms"] -= 1000
                 elif change == "source_stock": r["raid"]["source_depot"]["stock"] += 2
-                else: actor(rows[483], GUARD)["control_mode"] = "OBSERVE_ONLY"
+                else: actor(at(rows, 483), GUARD)["control_mode"] = "OBSERVE_ONLY"
                 self.assertEqual(acceptance.evaluate_samples(rows)["status"], "FAIL")
 
     def test_no_stitching_theft_to_delivery_across_stale_or_new_incarnation(self):
         for change in ("stale", "guid", "life", "attempt"):
             rows = deepcopy(fixture())
-            if change == "stale": rows[270]["status"] = "stale"
+            if change == "stale": at(rows, 270)["status"] = "stale"
             else:
-                for current in rows[270:]:
+                for current in rows:
+                    if current["elapsed_seconds"] < 270:
+                        continue
                     r = actor(current, RAIDER)
                     if change == "guid": r["runtime_guid"] += "-new"
                     elif change == "life": r["living_role"]["lifetime_ms"] = BASE + 269000
                     elif int(r["raid"]["attempt_id"]) > 0: r["raid"]["attempt_id"] = str(int(r["raid"]["attempt_id"])+1)
             self.assertNotEqual(acceptance.evaluate_samples(rows)["status"], "PASS")
+
+    def test_bounded_start_lag_proves_work_without_claiming_five_seconds_of_camera_span(self):
+        rows = resequence([deepcopy(current) for current in fixture()
+                           if current["elapsed_seconds"] not in (236, 328)])
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS", report)
+        for key in ("theft_work", "delivery_work"):
+            evidence = report["raid_cycles"][0][key]
+            self.assertEqual(evidence["start_observation_lag_ms"], 250)
+            self.assertEqual(evidence["observed_camera_span_ms"], 4750)
+            self.assertEqual(evidence["receipt_capture_age_ms"], 5000)
+            self.assertEqual(evidence["max_sample_gap_ms"], 250)
+            self.assertEqual(evidence["unique_samples"], 20)
+        self.assertTrue(any("upper bound" in limitation for limitation in report["limitations"]))
+
+    def test_late_first_owned_capture_cannot_prove_work(self):
+        rows = resequence([deepcopy(current) for current in fixture()
+                           if current["elapsed_seconds"] not in (236, 236.25, 236.5)])
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertFalse(report["raid_cycles"])
+
+    def test_start_lag_and_capture_gap_limits_are_inclusive(self):
+        rows = resequence([deepcopy(current) for current in fixture()
+                           if current["elapsed_seconds"] not in (236, 236.25, 238.25, 238.5)])
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS", report)
+        evidence = report["raid_cycles"][0]["theft_work"]
+        self.assertEqual(evidence["start_observation_lag_ms"], 500)
+        self.assertEqual(evidence["observed_camera_span_ms"], 4500)
+        self.assertEqual(evidence["max_sample_gap_ms"], 750)
+
+    def test_receipt_capture_age_below_five_seconds_fails(self):
+        rows = resequence([deepcopy(current) for current in fixture() if current["elapsed_seconds"] != 236])
+        for current in rows:
+            if 236.25 <= current["elapsed_seconds"] <= 241:
+                r = actor(current, RAIDER)
+                r["living_role"]["started_at_ms"] += 250
+                if current["elapsed_seconds"] < 241:
+                    r["action_started_at_ms"] += 250
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "FAIL", report)
+        self.assertFalse(report["raid_cycles"])
+
+    def test_intervening_invalid_work_cannot_rearm_the_same_action_stamp(self):
+        for change in ("started", "moving", "depot", "combat", "goal", "action"):
+            with self.subTest(change=change):
+                rows = deepcopy(fixture())
+                r = actor(at(rows, 238.5), RAIDER)
+                if change == "started":
+                    r["living_role"]["started_at_ms"] += 1
+                    r["action_started_at_ms"] += 1
+                elif change == "moving": r["movement"]["moving"] = True
+                elif change == "depot": r["position"]["x"] += 4
+                elif change == "combat": r["in_combat"] = True
+                elif change == "goal": r["goal"] = "DEFEND"
+                else: r["action"] = "MOVE_TO"
+                report = acceptance.evaluate_samples(rows)
+                self.assertEqual(report["status"], "INCONCLUSIVE", report)
+                self.assertFalse(report["raid_cycles"])
+
+    def test_action_local_gap_cannot_hide_in_a_valid_global_epoch(self):
+        rows = resequence([deepcopy(current) for current in fixture()
+                           if current["elapsed_seconds"] not in (238.25, 238.5, 238.75)])
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["selected_epoch"], 0)
+        self.assertFalse(report["raid_cycles"])
+
+    def test_identical_capture_replay_is_not_an_additional_owned_work_sample(self):
+        rows = deepcopy(fixture())
+        index = rows.index(at(rows, 238.5))
+        replay = deepcopy(rows[index])
+        replay["elapsed_seconds"] += .05
+        rows.insert(index + 1, replay)
+        report = acceptance.evaluate_samples(resequence(rows))
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["raid_cycles"][0]["theft_work"]["unique_samples"], 21)
+        self.assertEqual(report["quality"]["identical_capture_ignored"], 1)
+
+    def test_old_capture_replay_breaks_the_continuous_work_proof(self):
+        rows = deepcopy(fixture())
+        index = rows.index(at(rows, 238.5))
+        replay = deepcopy(at(rows, 237.5))
+        replay["elapsed_seconds"] = 238.55
+        rows.insert(index + 1, replay)
+        self.assertNotEqual(acceptance.evaluate_samples(resequence(rows))["status"], "PASS")
+
+    def test_guard_notice_cannot_be_stitched_to_a_new_incarnation_or_missing_observation(self):
+        for change in ("guid", "life", "missing"):
+            with self.subTest(change=change):
+                rows = deepcopy(fixture())
+                for current in rows:
+                    t = current["elapsed_seconds"]
+                    g = actor(current, GUARD)
+                    if t < 484:
+                        continue
+                    if change == "guid": g["runtime_guid"] += "-new"
+                    elif change == "life": g["living_role"]["lifetime_ms"] = BASE + 483500
+                    elif t == 484: g.pop("raid")
+                report = acceptance.evaluate_samples(rows)
+                self.assertNotEqual(report["status"], "PASS", report)
+                self.assertFalse(report["prevented_raids"])
+
+    def test_guard_notice_attack_and_prevention_must_be_observed_in_order(self):
+        for change in ("late_notice", "late_attack", "early_prevention", "early_interception_event"):
+            with self.subTest(change=change):
+                rows = deepcopy(fixture())
+                for current in rows:
+                    t = current["elapsed_seconds"]
+                    r, g = actor(current, RAIDER), actor(current, GUARD)
+                    if change == "late_notice" and t < 485:
+                        g["raid"]["noticed"] = "0"
+                    elif change == "late_attack" and 483 <= t < 485:
+                        owned(g, "AMBIENT", "ACTING", 483, activity="LOOK")
+                    elif change == "early_prevention" and t >= 482:
+                        r["raid"]["prevented"] = "1"
+                        if t == 482: r["raid"]["outcome"] = "INTERCEPTED"
+                    elif change == "early_interception_event" and 482 <= t < 483:
+                        g["raid"].update(interceptions="1", attempt_id="2")
+                report = acceptance.evaluate_samples(rows)
+                self.assertNotEqual(report["status"], "PASS", report)
+                self.assertFalse(report["prevented_raids"])
+
+    def test_known_guard_corpse_can_close_an_already_observed_interception(self):
+        rows = deepcopy(fixture())
+        for current in rows:
+            if current["elapsed_seconds"] < 484:
+                continue
+            g = actor(current, GUARD)
+            g.update(alive=False, health=0, in_combat=False, action="NONE", target=None)
+            g["living_role"].update(phase="IDLE", activity="NONE")
+            g["raid"]["phase"] = "ACTOR_DEAD"
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["prevented_raid_attempts"], [2])
 
 
 if __name__ == "__main__":

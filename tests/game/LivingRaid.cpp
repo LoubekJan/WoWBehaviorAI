@@ -89,6 +89,118 @@ TEST_CASE("Dense straight raid travel coalesces into bounded three-dimensional e
     Bounded(larger, from, LivingReturnPolicy::MaxStepLength);
 }
 
+TEST_CASE("Guard commutes use the safe approach independently of their duty or meal owner", "[AIWorld][LivingRaid]")
+{
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(1423, 901039);
+    ActionPosition home{725, -396, 520, .15f};
+    GuardTransit transit;
+    auto first = transit.Select(guid, home, Source, true, true);
+    REQUIRE(first.has_value());
+    REQUIRE(SamePosition(*first, GuardVia));
+    REQUIRE_FALSE(transit.PassedVia);
+    auto second = transit.Select(guid, GuardVia, Source, true, true);
+    REQUIRE(second.has_value());
+    REQUIRE(SamePosition(*second, Source));
+    REQUIRE(transit.PassedVia);
+    ActionPosition approach{725, -391.2f, 490.9332f, .21656f};
+    REQUIRE(SamePosition(*transit.Select(guid, approach, Source, true, true), Source));
+    REQUIRE(transit.ObserveArrival(Source, true));
+    REQUIRE_FALSE(transit.Goal.has_value());
+    REQUIRE_FALSE(transit.PassedVia);
+    // The meal's return and the duty's next departure are distinct trips,
+    // even though both use the same consumer step planner and incarnation.
+    REQUIRE(SamePosition(*transit.Select(guid, Source, home, true, true), GuardVia));
+    REQUIRE(SamePosition(*transit.Select(guid, GuardVia, home, true, true), home));
+    REQUIRE(transit.ObserveArrival(home, true));
+    REQUIRE(SamePosition(*transit.Select(guid, home, Source, true, true), GuardVia));
+}
+
+TEST_CASE("Guard waypoint and final arrival require their actual floor and line of sight", "[AIWorld][LivingRaid]")
+{
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(1423, 901039);
+    GuardTransit transit;
+    ActionPosition above = GuardVia; above.Z += 4;
+    REQUIRE(SamePosition(*transit.Select(guid, above, Source, true, true), GuardVia));
+    REQUIRE_FALSE(transit.PassedVia);
+    REQUIRE(SamePosition(*transit.Select(guid, GuardVia, Source, true, false), GuardVia));
+    REQUIRE_FALSE(transit.PassedVia);
+    ActionPosition edge = GuardVia; edge.Z += 3;
+    REQUIRE(SamePosition(*transit.Select(guid, edge, Source, true, true), Source));
+    REQUIRE(transit.PassedVia);
+    above = Source; above.Z += 4;
+    REQUIRE_FALSE(transit.ObserveArrival(above, true));
+    REQUIRE_FALSE(transit.ObserveArrival(Source, false));
+    REQUIRE(transit.Goal.has_value());
+    REQUIRE(transit.ObserveArrival(Source, true));
+    REQUIRE_FALSE(transit.Goal.has_value());
+}
+
+TEST_CASE("Guard transit cannot reuse a passed waypoint after a changed goal life or interruption", "[AIWorld][LivingRaid]")
+{
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(1423, 901039);
+    auto nextLife = ObjectGuid::Create<HighGuid::Unit>(1423, 901040);
+    ActionPosition home{725, -396, 520, .15f};
+    ActionPosition between{725, -391.2f, 490.9332f, .21656f};
+    GuardTransit transit;
+    REQUIRE(SamePosition(*transit.Select(guid, GuardVia, Source, true, true), Source));
+    SECTION("changed ultimate destination")
+    {
+        REQUIRE(SamePosition(*transit.Select(guid, between, home, true, true), GuardVia));
+    }
+    SECTION("changed incarnation")
+    {
+        REQUIRE(SamePosition(*transit.Select(nextLife, between, Source, true, true), GuardVia));
+    }
+    SECTION("same GUID respawn or emergency reset")
+    {
+        transit.Reset();
+        REQUIRE(SamePosition(*transit.Select(guid, between, Source, true, true), GuardVia));
+    }
+    REQUIRE_FALSE(transit.PassedVia);
+}
+
+TEST_CASE("A guard already at its final destination is not sent on a waypoint detour", "[AIWorld][LivingRaid]")
+{
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(1423, 901039);
+    GuardTransit transit;
+    REQUIRE(SamePosition(*transit.Select(guid, Source, Source, true, false), Source));
+    REQUIRE_FALSE(transit.Goal.has_value());
+    REQUIRE_FALSE(transit.PassedVia);
+    ActionPosition home{725, -396, 520, .15f};
+    REQUIRE(SamePosition(*transit.Select(guid, home, home, true, false), home));
+    REQUIRE_FALSE(transit.Goal.has_value());
+}
+
+TEST_CASE("Guard transit rejects malformed context without retaining a passed waypoint", "[AIWorld][LivingRaid]")
+{
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(1423, 901039);
+    GuardTransit transit;
+    REQUIRE(transit.Select(guid, GuardVia, Source, true, true).has_value());
+    SECTION("empty incarnation") { REQUIRE_FALSE(transit.Select({}, GuardVia, Source, true, true).has_value()); }
+    SECTION("foreign source map")
+    {
+        auto here = GuardVia; here.MapId = 0;
+        REQUIRE_FALSE(transit.Select(guid, here, Source, true, true).has_value());
+    }
+    SECTION("foreign destination map")
+    {
+        auto destination = Source; destination.MapId = 0;
+        REQUIRE_FALSE(transit.Select(guid, GuardVia, destination, true, true).has_value());
+    }
+    SECTION("nonfinite source")
+    {
+        auto here = GuardVia; here.Z = std::numeric_limits<float>::quiet_NaN();
+        REQUIRE_FALSE(transit.Select(guid, here, Source, true, true).has_value());
+    }
+    SECTION("nonfinite destination")
+    {
+        auto destination = Source; destination.X = std::numeric_limits<float>::infinity();
+        REQUIRE_FALSE(transit.Select(guid, GuardVia, destination, true, true).has_value());
+    }
+    REQUIRE_FALSE(transit.Goal.has_value());
+    REQUIRE_FALSE(transit.PassedVia);
+}
+
 TEST_CASE("Raid leg coalescing retains L turns reversals and terrain crests", "[AIWorld][LivingRaid]")
 {
     ActionPosition from{725, 0, 0, 0};
