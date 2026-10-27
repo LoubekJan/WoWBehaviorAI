@@ -472,7 +472,7 @@ TEST_CASE("Hungry warehouse planning respects own stock and retries the field wh
     FieldConserved(ledger);
 }
 
-TEST_CASE("Farmer anchor arrival rejects the observed left-village collision-edge standoff", "[AIWorld][LivingFields][Arrival]")
+TEST_CASE("Farmer warehouse arrival rejects the observed left-village collision-edge standoff", "[AIWorld][LivingFields][Arrival]")
 {
     auto worker = LivingFields::Worker(901022);
     REQUIRE(worker);
@@ -481,11 +481,11 @@ TEST_CASE("Farmer anchor arrival rejects the observed left-village collision-edg
     ActionPosition const home = field->DepotPoint;
     ActionPosition const stalled{725, 44.43344f, 857.5293f, 0.0f};
     float radius = LivingFields::ArrivalRadius(*worker, home, home);
-    REQUIRE(radius == Approx(1.25f));
+    REQUIRE(radius == Approx(1.9f));
     REQUIRE(LivingReturnPolicy::Distance(stalled, home) < 3.0f);
     REQUIRE(LivingReturnPolicy::Distance(stalled, home) > radius);
     // The tight request removes the old two-yard ring targets responsible
-    // for accepting this location as the completed home/warehouse approach.
+    // for accepting this location as the completed warehouse approach.
     auto targets = LivingReturnPolicy::HomeTargets(home, radius);
     REQUIRE(targets.size() == 1);
     REQUIRE(LivingReturnPolicy::SamePosition(targets.front(), home));
@@ -501,15 +501,16 @@ TEST_CASE("Farmer anchor arrival rejects the observed left-village collision-edg
     REQUIRE(LivingReturnPolicy::UsefulStep(outside, home));
 }
 
-TEST_CASE("Anchor precision is limited to the registered worker's exact home and own warehouse", "[AIWorld][LivingFields][Arrival]")
+TEST_CASE("Warehouse precision is limited to the registered worker's exact own warehouse", "[AIWorld][LivingFields][Arrival]")
 {
     auto worker = LivingFields::Worker(901023);
     REQUIRE(worker);
     auto field = LivingFields::Field(worker->Field);
     REQUIRE(field);
     ActionPosition const home{725, 43.0f, 865.0f, 0.15f};
-    REQUIRE(LivingFields::ArrivalRadius(*worker, home, home) == Approx(1.25f));
-    REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, home) == Approx(1.25f));
+    REQUIRE(LivingFields::ArrivalRadius(*worker, home, home) == Approx(3.0f));
+    REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, home) == Approx(1.9f));
+    REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, field->DepotPoint) == Approx(1.9f));
     for (auto const& point : field->WorkPoints)
         REQUIRE(LivingFields::ArrivalRadius(*worker, point, home) == Approx(3.0f));
     for (auto const& foreign : LivingFields::Fields)
@@ -526,10 +527,10 @@ TEST_CASE("Anchor precision is limited to the registered worker's exact home and
     REQUIRE(LivingFields::ArrivalRadius(*worker, moved, home) == Approx(3.0f));
     for (LivingFields::WorkerSpec forged : {LivingFields::WorkerSpec{901063, 5, 5, 1},
         LivingFields::WorkerSpec{901023, 6, 6, 1}, LivingFields::WorkerSpec{901023, 5, 5, 0}})
-        REQUIRE(LivingFields::ArrivalRadius(forged, home, home) == Approx(3.0f));
+        REQUIRE(LivingFields::ArrivalRadius(forged, field->DepotPoint, home) == Approx(3.0f));
 }
 
-TEST_CASE("Tight farmer anchor approach accepts supported terrain without ignoring three-dimensional distance", "[AIWorld][LivingFields][Arrival]")
+TEST_CASE("Farmer warehouse approach accepts supported terrain without ignoring three-dimensional distance", "[AIWorld][LivingFields][Arrival]")
 {
     auto worker = LivingFields::Worker(901022);
     REQUIRE(worker);
@@ -554,4 +555,54 @@ TEST_CASE("Tight farmer anchor approach accepts supported terrain without ignori
     REQUIRE_FALSE(search.Matches(from, home, radius, 384.0f, nullptr, 8.0f, true));
     search.Begin(from, home, radius, 384.0f, nullptr, 8.0f, true);
     REQUIRE(search.Matches(from, home, radius, 384.0f, nullptr, 8.0f, true));
+}
+
+TEST_CASE("Warehouse arrival covers the coarse detour grid cell including authored ground offset", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    ActionPosition const warehouse = LivingFields::Field(worker->Field)->DepotPoint;
+    float radius = LivingFields::ArrivalRadius(*worker, warehouse, warehouse);
+    float halfCell = LivingSurfaceDetour::GridStep / 2.0f;
+    // A goal at a flat grid-cell center is farthest from every surrounding
+    // node. Include the real 0.15-yard authored-home versus terrain offset.
+    float worstDistance = std::hypot(halfCell, halfCell, warehouse.Z);
+    REQUIRE(worstDistance == Approx(1.7741195f));
+    REQUIRE(worstDistance > 1.25f);
+    REQUIRE(worstDistance < radius);
+    REQUIRE(radius == Approx(1.9f));
+    auto nearest = warehouse;
+    nearest.X += halfCell;
+    nearest.Y += halfCell;
+    nearest.Z = 0.0f;
+    REQUIRE(LivingReturnPolicy::Distance(nearest, warehouse) < radius);
+    REQUIRE(LivingReturnPolicy::HomeEndpointMatches(warehouse, radius, nearest, nearest));
+}
+
+TEST_CASE("Ordinary farmer home arrival covers the observed nearest nodes without changing warehouse precision", "[AIWorld][LivingFields][Arrival]")
+{
+    struct Fixture { uint64 Spawn; ActionPosition From; ActionPosition Home; };
+    Fixture const fixtures[]{
+        {901019, {725, 378.4412f, 614.4083f, 0.0f}, {725, 381.3137f, 595.6863f, 0.15f}},
+        {901025, {725, 36.27481f, 850.8182f, 0.0f}, {725, 36.88912f, 829.6965f, 0.15f}}
+    };
+    for (auto const& fixture : fixtures)
+    {
+        auto worker = LivingFields::Worker(fixture.Spawn);
+        REQUIRE(worker);
+        auto field = LivingFields::Field(worker->Field);
+        REQUIRE(field);
+        float spacing = LivingSurfaceDetour::GridStep;
+        ActionPosition nearest{725,
+            fixture.From.X + spacing * std::round((fixture.Home.X - fixture.From.X) / spacing),
+            fixture.From.Y + spacing * std::round((fixture.Home.Y - fixture.From.Y) / spacing), 0.0f};
+        float distance = LivingReturnPolicy::Distance(nearest, fixture.Home);
+        REQUIRE(distance > 1.25f);
+        REQUIRE(distance < 1.30f);
+        float radius = LivingFields::ArrivalRadius(*worker, fixture.Home, fixture.Home);
+        REQUIRE(radius == Approx(3.0f));
+        REQUIRE(distance < radius);
+        REQUIRE(LivingReturnPolicy::HomeEndpointMatches(fixture.Home, radius, nearest, nearest));
+        REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, fixture.Home) == Approx(1.9f));
+    }
 }

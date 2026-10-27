@@ -95,12 +95,14 @@ namespace LivingFields
         return &field->WorkPoints[worker.Ordinal + 4 * (cycle % 3)];
     }
 
-    // A warehouse/home arrival beside a building can be close enough to
-    // interact yet leave the next departure on its collision edge. Approach
-    // these fixed anchors closely; field work keeps its ordinary three yards.
-    // This changes neither the immutable home nor any movement proof.
+    // A warehouse arrival beside a building can leave the next departure on
+    // its collision edge. Approach only the exact own warehouse more closely;
+    // ordinary homes and field work keep their existing three-yard targets.
+    // A home coincident with the warehouse naturally uses warehouse precision.
+    // The radius exceeds the coarse detour grid's coverage distance, while
+    // every actual movement still needs its complete floor/body/LOS proof.
     inline float ArrivalRadius(WorkerSpec const& worker, ActionPosition const& destination,
-        ActionPosition const& immutableHome)
+        ActionPosition const& /*immutableHome*/)
     {
         auto registered = Worker(worker.Spawn);
         auto field = Field(worker.Field);
@@ -109,9 +111,9 @@ namespace LivingFields
             return 3.0f;
         auto same = [](ActionPosition const& a, ActionPosition const& b)
         { return a.MapId == b.MapId && a.X == b.X && a.Y == b.Y && a.Z == b.Z; };
-        // Stay above the existing one-yard useful-step floor so a stopped
-        // actor cannot be outside arrival range yet too close to approach.
-        return same(destination, immutableHome) || same(destination, field->DepotPoint) ? 1.25f : 3.0f;
+        // Stay above both the one-yard useful-step floor and the 2.5-yard
+        // lattice's worst horizontal corner distance (sqrt(2)*1.25 yards).
+        return same(destination, field->DepotPoint) ? 1.9f : 3.0f;
     }
 }
 #endif
