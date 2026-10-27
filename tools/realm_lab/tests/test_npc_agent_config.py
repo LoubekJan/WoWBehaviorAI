@@ -21,7 +21,7 @@ NPC_DEFAULTS = {
 class NpcAgentConfigurationTests(unittest.TestCase):
     def test_every_existing_profile_keeps_npc_models_disabled_by_default(self):
         profiles = ("disabled", "single-return", settlement_population.PROFILE,
-            "wildlife-v8", "supply-v8", consumer_population.PROFILE, raid_population.PROFILE,
+            "wildlife-v8", "supply-v8", consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE,
             *hunt_population.PROFILES)
         for profile in profiles:
             with self.subTest(profile=profile):
@@ -30,7 +30,7 @@ class NpcAgentConfigurationTests(unittest.TestCase):
                 self.assertEqual({key: overrides[key] for key in NPC_DEFAULTS}, NPC_DEFAULTS)
                 self.assertEqual(overrides["AIWorld.RemoteInferenceEnabled"], "0")
 
-    def test_only_consumers_and_raids_can_opt_in_without_changing_scope_or_other_flags(self):
+    def test_supported_profiles_can_opt_in_without_changing_scope_or_other_flags(self):
         for population_type in (consumer_population.Population, raid_population.Population, field_population.Population):
             population = population_type.load()
             with self.subTest(profile=population.profile):
@@ -115,13 +115,7 @@ class NpcAgentConfigurationTests(unittest.TestCase):
     def test_example_npc_settings_match_and_leave_models_disabled(self):
         example = (ROOT / ".env.example").read_bytes()
         compatibility = (ROOT / "deploy/lab/.env.example").read_bytes()
-        # Compatibility profiles may have a different conservative default;
-        # the new model/ownership switches must agree and remain disabled.
-        def npc_values(raw):
-            return {key: value for line in raw.decode().splitlines()
-                    for key, separator, value in (line.partition("="),)
-                    if separator and key.startswith(("LAB_NPC_", "AI_NPC_"))}
-        self.assertEqual(npc_values(example), npc_values(compatibility))
+        self.assertEqual(example, compatibility)
         entries = dict(line.split("=", 1) for line in example.decode("utf-8").splitlines()
             if line and not line.startswith("#"))
         self.assertEqual(entries["LAB_NPC_AGENTS_ENABLED"], "0")
