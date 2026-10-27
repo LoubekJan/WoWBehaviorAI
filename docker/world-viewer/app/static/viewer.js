@@ -344,6 +344,7 @@ function showDetail() {
 async function poll() {
   if (requestPending) return;
   requestPending = true;
+  let nextPollMs = 1000;
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -362,11 +363,14 @@ async function poll() {
     text("behavior-summary", `${snapshot.agents.filter(ObserverModel.alert).length} v nebezpečí · ${snapshot.agents.filter(ObserverModel.blocked).length} s blokovaným pohybem`);
     $("capture-time").textContent = snapshot.received_at_ms ? `Přijato ${new Date(snapshot.received_at_ms).toLocaleTimeString("cs-CZ")}` : "Bez snímku";
     showStatus(); filterAgents(); showDetail();
+    // Consume the existing four-per-second telemetry without inventing motion
+    // between snapshots. Slow or failed requests still cannot overlap.
+    if (snapshot.configured && snapshot.stale === false) nextPollMs = 250;
   } catch (_) {
     showStatus(true);
   } finally {
     requestPending = false;
-    setTimeout(poll, 1000);
+    setTimeout(poll, nextPollMs);
   }
 }
 

@@ -44,18 +44,35 @@ public:
         {
             if (!id || states.count(id.Value)) continue;
             auto old = _states.find(id.Value);
-            State state{nowMs, nowMs + 1 + StableAgentHash(id.Value ^ salt) % intervalMs};
+            uint64 next = AddTime(nowMs, 1 + StableAgentHash(id.Value ^ salt) % intervalMs);
+            State state{nowMs, next, next, 1};
             if (old != _states.end() && nowMs >= old->second.LastMs)
             {
                 state.LastMs = old->second.LastMs;
-                if (intervalMs == _intervalMs) state.NextMs = old->second.NextMs;
+                if (intervalMs == _intervalMs) state = old->second;
+                else if (old->second.NextMs < old->second.PeriodicNextMs)
+                    state.NextMs = std::min(state.NextMs, old->second.NextMs);
             }
             states.emplace(id.Value, state);
-            entries.push_back({state.NextMs, id.Value});
+            entries.push_back({state.NextMs, id.Value, state.Generation});
         }
         _states = std::move(states);
         _due = Queue(Later{}, std::move(entries));
         _intervalMs = intervalMs;
+    }
+
+    // A validated engine event can request one early pass without moving the
+    // periodic deadline or charging the same needs time twice. The caller
+    // still drains work under its ordinary frame/count budgets.
+    bool Wake(AgentId id, uint64 nowMs)
+    {
+        auto state = _states.find(id.Value);
+        if (!id || state == _states.end() || nowMs <= state->second.LastMs || nowMs >= state->second.NextMs)
+            return false;
+        state->second.NextMs = nowMs;
+        ++state->second.Generation;
+        _due.push({nowMs, id.Value, state->second.Generation});
+        return true;
     }
 
     std::optional<Update> PopDue(uint64 nowMs)
@@ -79,7 +96,7 @@ public:
         {
             Entry entry = due.top(); due.pop();
             auto state = _states.find(entry.Id);
-            if (state != _states.end() && state->second.NextMs == entry.AtMs)
+            if (state != _states.end() && Matches(state->second, entry))
                 result.push_back(AgentId{entry.Id});
         }
         return result;
@@ -88,7 +105,8 @@ public:
     std::optional<Update> PopDueAgent(AgentId id, uint64 nowMs)
     {
         auto state = _states.find(id.Value);
-        if (!id || state == _states.end() || state->second.NextMs > nowMs) return std::nullopt;
+        if (!id || state == _states.end() || state->second.NextMs > nowMs || nowMs <= state->second.LastMs)
+            return std::nullopt;
         // The old heap entry is left stale. Ordinary pops/peeks discard it;
         // Sync rebuilds the queue and therefore removes every stale entry.
         return Advance(id.Value, nowMs);
@@ -101,8 +119,8 @@ public:
     }
 
 private:
-    struct State { uint64 LastMs; uint64 NextMs; };
-    struct Entry { uint64 AtMs; uint64 Id; };
+    struct State { uint64 LastMs; uint64 NextMs; uint64 PeriodicNextMs; uint64 Generation; };
+    struct Entry { uint64 AtMs; uint64 Id; uint64 Generation; };
     struct Later
     {
         bool operator()(Entry const& a, Entry const& b) const
@@ -110,14 +128,24 @@ private:
     };
     using Queue = std::priority_queue<Entry, std::vector<Entry>, Later>;
 
+    static uint64 AddTime(uint64 nowMs, uint64 delay)
+    { return nowMs + std::min(delay, std::numeric_limits<uint64>::max() - nowMs); }
+    static bool Matches(State const& state, Entry const& entry)
+    {
+        return state.NextMs == entry.AtMs && state.Generation == entry.Generation && state.NextMs > state.LastMs;
+    }
+
     std::optional<Update> Advance(uint64 id, uint64 nowMs)
     {
         State& state = _states.at(id);
         Update update{AgentId{id}, uint32(std::min<uint64>(nowMs - state.LastMs,
             std::numeric_limits<uint32>::max())), nowMs - state.NextMs};
         state.LastMs = nowMs;
-        state.NextMs = nowMs + _intervalMs - (nowMs - state.NextMs) % _intervalMs;
-        _due.push({state.NextMs, id});
+        if (nowMs >= state.PeriodicNextMs)
+            state.PeriodicNextMs = AddTime(nowMs, _intervalMs - (nowMs - state.PeriodicNextMs) % _intervalMs);
+        state.NextMs = state.PeriodicNextMs;
+        ++state.Generation;
+        _due.push({state.NextMs, id, state.Generation});
         return update;
     }
     void PruneStale() const
@@ -125,7 +153,7 @@ private:
         while (!_due.empty())
         {
             auto state = _states.find(_due.top().Id);
-            if (state != _states.end() && state->second.NextMs == _due.top().AtMs) break;
+            if (state != _states.end() && Matches(state->second, _due.top())) break;
             _due.pop();
         }
     }

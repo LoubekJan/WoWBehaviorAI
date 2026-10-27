@@ -515,7 +515,10 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
             if (corridor.empty()) return noRoute();
             travel.Route.Planned = std::move(corridor);
             travel.Route.SurfaceCorridor = travel.Search.Report.SurfaceCorridor;
-            if ((IsSupplyRaider(record) || IsRaidGuard(record)) && !travel.Route.SurfaceCorridor)
+            // All callers above are explicitly reviewed supply travellers.
+            // Dense native controls on one straight segment need no separate
+            // stop; preserve every bend and every short surface-proof leg.
+            if (!travel.Route.SurfaceCorridor)
             {
                 auto straight = LivingRaid::CoalesceStraightLegs(from, travel.Route.Planned);
                 if (!straight.empty()) travel.Route.Planned = std::move(straight);
@@ -608,9 +611,14 @@ bool AIWorldMgr::UpdateLivingSupplyHunter(AgentRecord& record, Creature& creatur
             if (!actor.Travel.ObserveSource(reached, true)) actor.Travel = {};
         }
         else actor.Travel.RejectPending();
-        finish(arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 1000 : 10000);
-        if (!arrived) actor.Phase = "NO_ROUTE";
-        return true;
+        finish(arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 0 : 10000);
+        if (!arrived)
+        {
+            actor.Phase = "NO_ROUTE";
+            return true;
+        }
+        // The owned leg has physically finished. Continue the same trip in
+        // this bounded update; planning still needs its ordinary fair permit.
     }
 
     bool delivering = std::string_view(actor.Phase) == "DELIVERING";
@@ -787,8 +795,8 @@ bool AIWorldMgr::UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creat
             if (!actor.Travel.ObserveSource(reached, true)) actor.Travel = {};
         }
         else actor.Travel.RejectPending();
-        finish(arrived ? "WAITING" : "NO_ROUTE", arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 1000 : 10000);
-        return true;
+        finish(arrived ? "WAITING" : "NO_ROUTE", arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 0 : 10000);
+        if (!arrived) return true;
     }
     if (state.CurrentPhase == Phase::Moving && hungry && state.SourceGoal == GoalType::LocalActivity &&
         OwnedAction(record, ActionType::MoveTo))

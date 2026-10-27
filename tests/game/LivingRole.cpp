@@ -24,6 +24,7 @@
 #include "Agent/LivingForagePolicy.h"
 #include "Agent/GroupMemberFormation.h"
 #include "Agent/AgentRecord.h"
+#include "Agent/LivingTravelContinuation.h"
 #include "DBCStructure.h"
 #include "MovementDefines.h"
 #include "MovementPathBounds.h"
@@ -1221,4 +1222,161 @@ TEST_CASE("A conversation can face only the nearby validated social partner", "[
     SECTION("different map") { context.TargetMapId = 1; }
     SECTION("emergency") { context.InCombat = true; }
     REQUIRE(!actions.Validate(request, context).Allowed);
+}
+
+namespace
+{
+    AgentRecord ContinuingJourney()
+    {
+        AgentRecord record;
+        record.Id = {410};
+        // Agent identity need not equal the permanent creature spawn identity.
+        record.SpawnId = 900123;
+        record.MapId = 725;
+        record.ControlMode = AgentControlMode::AIWorldControlled;
+        record.WorldState = AgentWorldState::Materialized;
+        record.RuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(116, 7);
+        auto& state = record.LivingRole;
+        state.RuntimeGuid = record.RuntimeGuid;
+        state.CurrentPhase = LivingRoleState::Phase::Moving;
+        state.SourceGoal = GoalType::LocalActivity;
+        state.StartedAtMs = 100;
+        state.MovementPurpose = "DELIVER_FOOD";
+        state.Destination = {725, 14, 2, 0.15f};
+        ActiveGoal goal;
+        goal.Type = GoalType::LocalActivity;
+        goal.StartedAtMs = state.StartedAtMs;
+        record.ActiveGoalState = goal;
+        ActiveAction action;
+        action.Type = ActionType::MoveTo;
+        action.SourceGoal = GoalType::LocalActivity;
+        action.StartedAtMs = action.GoalStartedAtMs = state.StartedAtMs;
+        action.Destination = state.Destination;
+        record.ActiveActionState = action;
+        return record;
+    }
+
+    ActionCompletion JourneyArrival(AgentRecord const& record)
+    {
+        ActionCompletion completion;
+        completion.Actor = record.Id;
+        completion.Type = ActionType::MoveTo;
+        completion.SourceGoal = GoalType::LocalActivity;
+        completion.GoalStartedAtMs = record.LivingRole.StartedAtMs;
+        completion.Status = ActionCompletionStatus::Succeeded;
+        completion.Reason = ActionCompletionReason::Arrived;
+        completion.CompletedAtMs = 200;
+        return completion;
+    }
+}
+
+TEST_CASE("Only directed local journeys wake on their owned arrival", "[AIWorld][LivingRole][TravelContinuation]")
+{
+    using namespace LivingTravelContinuation;
+    for (char const* purpose : {"DELIVER_FOOD", "GET_DEPOT_FOOD", "RETURN_DEPOT", "TO_HUNTING_GROUND",
+        "SUPPLY_SEARCH", "RETURN_CONSUMER_HOME", "RAID_SOURCE", "RAID_CAMP", "RAID_EMPTY_RETURN",
+        "GUARD_HOME", "GUARD_POST", "RETURN_HOME", "FORAGE_SEARCH"})
+    {
+        auto record = ContinuingJourney();
+        record.LivingRole.MovementPurpose = purpose;
+        auto completion = JourneyArrival(record);
+        REQUIRE(DirectedPurpose(purpose));
+        REQUIRE(CanWake(record, completion));
+        REQUIRE_FALSE(Ready(record));
+        record.LivingRole.MoveArrivalPending = true;
+        REQUIRE_FALSE(Ready(record)); // The completed action has not been released yet.
+        record.ActiveActionState.reset();
+        REQUIRE(Ready(record));
+        REQUIRE_FALSE(CanWake(record, completion)); // A duplicate completion has no current action.
+        record.ActiveActionState = ActiveAction{};
+        REQUIRE_FALSE(Ready(record)); // A replacement action cannot reuse the pending arrival.
+    }
+    REQUIRE_FALSE(DirectedPurpose(nullptr));
+}
+
+TEST_CASE("Arrival continuation never removes ordinary roaming or activity pauses", "[AIWorld][LivingRole][TravelContinuation]")
+{
+    using namespace LivingTravelContinuation;
+    for (char const* purpose : {"", "NONE", "LOCAL_ROAM", "BOUNDED_ESCAPE", "ESCAPE_NO_PATH",
+        "SEEK_SAFETY", "INVESTIGATE", "GO_TO_WORK", "GO_HOME", "WORK", "EATING_DEPOT", "RAID_THEFT",
+        "RETURN_HOME_EXTRA", "return_home"})
+    {
+        auto record = ContinuingJourney();
+        record.LivingRole.MovementPurpose = purpose;
+        REQUIRE_FALSE(DirectedPurpose(purpose));
+        REQUIRE_FALSE(CanWake(record, JourneyArrival(record)));
+        record.LivingRole.MoveArrivalPending = true;
+        record.ActiveActionState.reset();
+        REQUIRE_FALSE(Ready(record));
+    }
+}
+
+TEST_CASE("Stale or foreign movement completions cannot wake local travel", "[AIWorld][LivingRole][TravelContinuation]")
+{
+    using namespace LivingTravelContinuation;
+    auto record = ContinuingJourney();
+    auto completion = JourneyArrival(record);
+    REQUIRE(CanWake(record, completion));
+    SECTION("foreign actor") { completion.Actor = {411}; }
+    SECTION("wrong completed action") { completion.Type = ActionType::Ambient; }
+    SECTION("foreign source") { completion.SourceGoal = GoalType::GoHome; }
+    SECTION("stale completion goal") { --completion.GoalStartedAtMs; }
+    SECTION("failed movement") { completion.Status = ActionCompletionStatus::Failed; }
+    SECTION("cancelled movement") { completion.Status = ActionCompletionStatus::Cancelled; }
+    SECTION("incomplete destination") { completion.Reason = ActionCompletionReason::DestinationNotReached; }
+    SECTION("interrupted goal") { completion.Reason = ActionCompletionReason::GoalInterrupted; }
+    SECTION("no active action") { record.ActiveActionState.reset(); }
+    SECTION("replacement action") { record.ActiveActionState->Type = ActionType::Flee; }
+    SECTION("replacement action source") { record.ActiveActionState->SourceGoal = GoalType::FleeDanger; }
+    SECTION("stale action start") { --record.ActiveActionState->StartedAtMs; }
+    SECTION("stale action owner") { --record.ActiveActionState->GoalStartedAtMs; }
+    SECTION("missing destination") { record.ActiveActionState->Destination.reset(); }
+    SECTION("changed endpoint") { record.ActiveActionState->Destination->X += 0.01f; }
+    SECTION("even a rounded replacement endpoint")
+    { record.ActiveActionState->Destination->X = std::nextafter(record.LivingRole.Destination.X, 100.0f); }
+    SECTION("changed floor") { record.ActiveActionState->Destination->Z += 1; }
+    SECTION("changed endpoint map") { record.ActiveActionState->Destination->MapId = 1; }
+    REQUIRE_FALSE(CanWake(record, completion));
+}
+
+TEST_CASE("Continuation readiness retains the same controlled materialized journey owner", "[AIWorld][LivingRole][TravelContinuation]")
+{
+    using namespace LivingTravelContinuation;
+    auto record = ContinuingJourney();
+    auto completion = JourneyArrival(record);
+    record.LivingRole.MoveArrivalPending = true;
+    SECTION("empty agent identity") { record.Id = {}; }
+    SECTION("observe only") { record.ControlMode = AgentControlMode::ObserveOnly; }
+    SECTION("abstract actor") { record.WorldState = AgentWorldState::Abstract; }
+    SECTION("unbound incarnation") { record.RuntimeGuid.Clear(); }
+    SECTION("missing role incarnation") { record.LivingRole.RuntimeGuid.Clear(); }
+    SECTION("different role incarnation") { record.LivingRole.RuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(116, 8); }
+    SECTION("idle role") { record.LivingRole.CurrentPhase = LivingRoleState::Phase::Idle; }
+    SECTION("activity instead of travel") { record.LivingRole.CurrentPhase = LivingRoleState::Phase::Acting; }
+    SECTION("escaping role") { record.LivingRole.CurrentPhase = LivingRoleState::Phase::Fleeing; }
+    SECTION("foreign role owner") { record.LivingRole.SourceGoal = GoalType::SeekSafety; }
+    SECTION("zero role start") { record.LivingRole.StartedAtMs = 0; }
+    SECTION("missing active goal") { record.ActiveGoalState.reset(); }
+    SECTION("foreign active goal") { record.ActiveGoalState->Type = GoalType::GoToWork; }
+    SECTION("stale goal start") { --record.ActiveGoalState->StartedAtMs; }
+    SECTION("foreign destination map") { record.LivingRole.Destination.MapId = 1; }
+    SECTION("nonfinite destination")
+    {
+        record.LivingRole.Destination.X = std::numeric_limits<float>::infinity();
+        record.ActiveActionState->Destination = record.LivingRole.Destination;
+    }
+    REQUIRE_FALSE(CanWake(record, completion));
+    record.ActiveActionState.reset();
+    REQUIRE_FALSE(Ready(record));
+}
+
+TEST_CASE("A pending arrival alone never grants planning readiness", "[AIWorld][LivingRole][TravelContinuation]")
+{
+    auto record = ContinuingJourney();
+    record.ActiveActionState.reset();
+    REQUIRE_FALSE(LivingTravelContinuation::Ready(record));
+    record.LivingRole.MoveArrivalPending = true;
+    REQUIRE(LivingTravelContinuation::Ready(record));
+    record.LivingRole.MoveArrivalPending = false;
+    REQUIRE_FALSE(LivingTravelContinuation::Ready(record));
 }

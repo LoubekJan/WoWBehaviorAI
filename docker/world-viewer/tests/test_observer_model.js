@@ -201,3 +201,103 @@ test("raid facts retain attempt identity and share village and camp stock observ
   assert.deepEqual(model.raidFacts({ ...raider, position: { ...base.position, source: "spawn" } }), []);
   assert.deepEqual(model.raidFacts(base), []);
 });
+
+function viewerPollingHarness() {
+  const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
+  class Element {
+    constructor() { this.children = []; this.style = {}; this.value = ""; }
+    addEventListener() {}
+    replaceChildren(...children) { this.children = children; }
+    append(...children) { this.children.push(...children); }
+    getContext() { return {}; }
+    setAttribute() {}
+  }
+  const elements = new Map(), requests = [], timers = [], intervals = [];
+  let now = 10000;
+  const context = vm.createContext({
+    ObserverModel: model, ObserverMemoryPanel: class { select() {} },
+    document: { getElementById(id) { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); },
+      createElement() { return new Element(); }, createTextNode(text) { return { textContent: text }; } },
+    window: { devicePixelRatio: 1 }, performance: { now: () => now },
+    Option: class { constructor(text, value) { this.textContent = text; this.value = value; } },
+    ResizeObserver: class { observe() {} },
+    setTimeout(callback, delay) { timers.push({ callback, delay }); },
+    setInterval(callback) { intervals.push(callback); },
+    fetch(url, options) { return new Promise((resolve, reject) => requests.push({ url, options, resolve, reject })); },
+  });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/static/viewer.js"), "utf8"), context);
+  // These tests exercise the real asynchronous poll, status and snapshot state;
+  // canvas painting and the unrelated detail panel have separate model tests.
+  vm.runInContext("filterAgents = () => {}; showDetail = () => {};", context);
+  return { context, elements, requests, timers, intervals,
+    advance(milliseconds) { now += milliseconds; },
+    snapshot() { return JSON.parse(vm.runInContext("JSON.stringify(snapshot)", context)); },
+    poll() { return vm.runInContext("poll()", context); },
+    next() { const timer = timers.shift(); timer.callback(); return timer.delay; },
+  };
+}
+
+const flushPoll = () => new Promise(resolve => setImmediate(resolve));
+function livePollSnapshot(x = 1, overrides = {}) {
+  return { configured: true, stale: false, age_ms: 0, received_at_ms: 10000,
+    agents: [{ ...base, type: "GUARD", world_faction: 1, position: { ...base.position, x, y: 2, z: 0 } }], ...overrides };
+}
+
+test("viewer polls fresh positions after 250ms without overlapping slow requests", async () => {
+  const h = viewerPollingHarness();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.timers.length, 0); // A slow fetch cannot enqueue another poll.
+  h.advance(1500);
+  await h.poll(); await h.poll();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.timers.length, 0);
+  h.requests[0].resolve({ ok: true, json: async () => livePollSnapshot(10.125) });
+  await flushPoll();
+  assert.equal(h.timers.length, 1);
+  assert.equal(h.timers[0].delay, 250);
+  assert.equal(h.snapshot().agents[0].position.x, 10.125);
+  assert.equal(h.next(), 250);
+  await h.poll();
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.timers.length, 0);
+  h.requests[1].resolve({ ok: true, json: async () => livePollSnapshot(11.375) });
+  await flushPoll();
+  assert.equal(h.snapshot().agents[0].position.x, 11.375);
+  assert.equal(h.timers.length, 1);
+  assert.equal(h.timers[0].delay, 250);
+  for (const request of h.requests) {
+    assert.equal(request.url, "/api/state");
+    assert.equal(request.options.cache, "no-store");
+  }
+});
+
+test("viewer backs off on HTTP, network and stale data and retains the five-second stale indicator", async () => {
+  const h = viewerPollingHarness();
+  h.requests[0].resolve({ ok: false, status: 503 });
+  await flushPoll();
+  assert.match(h.elements.get("status-text").textContent, /přerušeno/);
+  assert.equal(h.next(), 1000);
+  h.requests[1].resolve({ ok: true, json: async () => livePollSnapshot(7) });
+  await flushPoll();
+  assert.equal(h.elements.get("status-dot").className, "status-dot live");
+  assert.equal(h.next(), 250);
+  h.requests[2].reject(new Error("offline"));
+  await flushPoll();
+  assert.match(h.elements.get("status-text").textContent, /přerušeno/);
+  assert.equal(h.snapshot().agents[0].position.x, 7);
+  assert.equal(h.next(), 1000);
+  h.requests[3].resolve({ ok: true, json: async () => livePollSnapshot(8, { stale: true, age_ms: 6000 }) });
+  await flushPoll();
+  assert.equal(h.elements.get("status-dot").className, "status-dot stale");
+  assert.equal(h.next(), 1000);
+  h.requests[4].resolve({ ok: true, json: async () => livePollSnapshot(9) });
+  await flushPoll();
+  assert.equal(h.elements.get("status-dot").className, "status-dot live");
+  assert.equal(h.next(), 250);
+  h.advance(5000);
+  h.intervals[0]();
+  assert.equal(h.elements.get("status-dot").className, "status-dot stale");
+  await h.poll();
+  assert.equal(h.requests.length, 6); // The pending request remains the only one.
+  assert.equal(h.timers.length, 0);
+});

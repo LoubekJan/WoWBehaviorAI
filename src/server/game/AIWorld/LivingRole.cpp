@@ -16,6 +16,7 @@
  */
 
 #include "AIWorldMgr.h"
+#include "Agent/LivingTravelContinuation.h"
 #include "Agent/LivingForagePolicy.h"
 #include "Scheduler/PlanningWorkBudget.h"
 #include "Agent/LivingHuntPolicy.h"
@@ -627,6 +628,7 @@ void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
             record.ActiveGoalState.reset();
     }
     state.CurrentPhase = Phase::Idle;
+    state.MoveArrivalPending = false;
     state.TargetGuid.Clear();
     state.Activity = Activity::None;
     state.OwnedStandState = 0;
@@ -635,7 +637,8 @@ void AIWorldMgr::StopLivingRole(AgentRecord& record, Creature& creature)
     state.MovementPurpose = "NONE";
 }
 
-// World thread, at the existing needs cadence. This owns only controlled,
+// World thread, on periodic needs passes or a verified travel-arrival wake.
+// This owns only controlled,
 // classified permanent simulation NPCs; the proven wolf pack retains its own cycle.
 bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint64 nowMs)
 {
@@ -1535,6 +1538,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             return true;
         bool returningHome = std::string_view(state.MovementPurpose) == "RETURN_HOME";
         bool foraging = std::string_view(state.MovementPurpose) == "FORAGE_SEARCH";
+        bool continueTravel = LivingTravelContinuation::Ready(record) && creature.IsStopped() &&
+            creature.GetExactDist(state.Destination.X, state.Destination.Y, state.Destination.Z) <= 2.0f;
         bool progressed = creature.GetExactDist(state.MoveStart.X, state.MoveStart.Y, state.MoveStart.Z) > 1.0f;
         StopLivingRole(record, creature);
         if (returningHome)
@@ -1561,9 +1566,9 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         // for this actor's scheduled update and its planning permit.
         bool continueSurface = returningHome && progressed && state.ReturnRoute.SurfaceCorridor &&
             !state.ReturnRoute.Planned.empty();
-        state.NextDecisionAtMs = continueSurface ? nowMs : nowMs + (returningHome || foraging ? 1000 :
+        state.NextDecisionAtMs = continueTravel || continueSurface ? nowMs : nowMs + (returningHome || foraging ? 1000 :
             LivingRolePolicy::PauseMs(record.Id.Value, state.Cycle, 4000, 8000));
-        return true;
+        if (!continueTravel) return true;
     }
     if (state.CurrentPhase == Phase::Acting)
     {

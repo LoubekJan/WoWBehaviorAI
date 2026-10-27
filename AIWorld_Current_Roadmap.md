@@ -101,6 +101,17 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    Případné nové body trasy musí zachovat pozorované rohy a znovu projít
    stejnými kontrolami kolizí; zkratka přes ně zatím ověřená není.
 
+5. **Navazování cílených přesunů.** Zásobovací NPC slučují přímé nativní
+   body cesty; ověřený příchod probudí další běžné vyhodnocení bez vložené
+   sekundové pauzy. Rohy, kolize, rozpočet plánování a časování potřeb
+   zůstávají zachované. Stejné probuzení používá návrat domů a hledání
+   potravy, nikoli běžná procházka nebo odpočinek. Přehled načítá již
+   existující telemetrii po 250 ms. Regresní testy kontrolují vlastnictví
+   příchozí události, zachování periodické fáze a součet času potřeb;
+   živá zkouška porovnává mezery mezi úseky, odděleně od práce a hledání
+   skutečně zablokované trasy. První důkaz přepadů výše patří revizi
+   `44a83af87236`; úprava časování pohybu má vlastní cílené ověření.
+
 **Provozní TODO:** CI má před C++ testy explicitně sestavit vývojový Docker
 obraz a předat nasazení jeho neměnné image ID spolu s hashem Dockerfile a
 build argumenty. CI nyní může použít existující tag, zatímco deploy obraz

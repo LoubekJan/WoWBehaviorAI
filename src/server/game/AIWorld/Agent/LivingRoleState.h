@@ -42,6 +42,9 @@ struct LivingRoleState
     ActionPosition Destination;
     uint64 StartedAtMs = 0;
     uint64 NextDecisionAtMs = 0;
+    // A verified owned directed leg may resume at the next world update.
+    // Ordinary strolls and activity pauses retain their existing cadence.
+    bool MoveArrivalPending = false;
     uint64 NextSenseAtMs = 0;
     uint64 Cycle = 0;
     uint64 DefenseCooldownUntilMs = 0;

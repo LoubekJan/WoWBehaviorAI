@@ -195,6 +195,25 @@ Výsledek je vázaný na konkrétní běžící verzi a uzavřené soubory; zdra
 služby samy nepotvrzují přepad. Pravidla a známé omezení zpáteční objížďky
 strážného popisují [RealmLab](doc/RealmLab.md) a [roadmapa](AIWorld_Current_Roadmap.md).
 
+## Navazování cílených přesunů
+
+Dokončení vlastního přesunu ke skladu, na loviště, při přepadu, návratu
+domů nebo hledání potravy může probudit další vyhodnocení na následujícím
+world update. Pravidelná fáze potřeb a skutečně uplynulý čas zůstávají
+zachované. Pokračování používá původní plánovací rozpočet a znovu kontroluje
+kolize; nevzniká pohyb přímo v callbacku `MovementInform`.
+
+Lovci a spotřebitelé také slučují přesně přímé body nativní cesty do
+ověřovaných úseků do 14 yardů. Rohy, výškové zlomy a krátké povrchové
+objížďky zůstávají zachované. Mezi úseky rozpracované cesty není vložená
+sekundová pauza. Běžné procházky, práce, jídlo, odpočinek a čekání při
+neúspěšném hledání si ponechávají vlastní pravidla.
+
+Přehled na portu 9091 obnovuje čerstvé souřadnice po 250 ms plus době
+požadavku a vykreslení; chyby a zastaralá data mají sekundový interval.
+Zobrazení nevymýšlí mezilehlé pozice a požadavky se nepřekrývají. Po
+nasazení změny skriptu obnov otevřenou stránku, aby načetla novou verzi.
+
 ## Příprava zásobování lovem — předchozí profily
 
 Navazující profil `consumers-v8` přidává ke třem lovcům dva pracovníky

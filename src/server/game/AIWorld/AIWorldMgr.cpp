@@ -52,6 +52,7 @@
 #include "Reconciliation/CreatureSpawnZoneFilter.h"
 #include "Reconciliation/SpawnReconciliationPlan.h"
 #include "Scheduler/PlanningWorkBudget.h"
+#include "Agent/LivingTravelContinuation.h"
 #include "StringConvert.h"
 #include <algorithm>
 #include <chrono>
@@ -11630,7 +11631,11 @@ void AIWorldMgr::ScanNearbyEntities()
     }
 }
 
-// World thread only, staggered ~1s per-agent cadence (_needsUpdateIntervalMs),
+// World thread only, staggered ~1s per-agent cadence (_needsUpdateIntervalMs).
+// Verified travel arrivals can wake an early pass without shifting that
+// periodic phase or charging elapsed needs time twice. All work remains in
+// the same bounded frame and planning-admission pipeline.
+//
 // independent of the decision scheduler's cadence - Milestone
 // 2.6A/2.6B1/2.6B2. Only
 // Materialized agents drift; Abstract agents are frozen rather than
@@ -11656,8 +11661,8 @@ void AIWorldMgr::UpdateNeeds()
             _livingRolesEnabled && !IsLivingWolf(*record) &&
             record->ControlMode == AgentControlMode::AIWorldControlled &&
             !record->GroupCoordinationGoalState;
-        if (eligible && record->LivingRole.CurrentPhase == LivingRoleState::Phase::Idle &&
-            nowMs >= record->LivingRole.NextDecisionAtMs)
+        if (eligible && ((record->LivingRole.CurrentPhase == LivingRoleState::Phase::Idle &&
+            nowMs >= record->LivingRole.NextDecisionAtMs) || LivingTravelContinuation::Ready(*record)))
         {
             _planningWork.Request(id, nowMs);
             ready.push_back(id); readyIds.insert(id.Value);
@@ -12913,10 +12918,18 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
 // NeedsSystem::SatisfyHunger()) may do that.
 void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion)
 {
+    bool const continueTravel = _livingRolesEnabled && !IsLivingWolf(record) &&
+        LivingTravelContinuation::CanWake(record, completion);
     uint64 startedAtMs = record.ActiveActionState ? record.ActiveActionState->StartedAtMs : completion.CompletedAtMs;
     std::optional<ActionPosition> completedDestination = record.ActiveActionState ? record.ActiveActionState->Destination : std::nullopt;
 
     record.ActiveActionState.reset();
+    record.LivingRole.MoveArrivalPending = continueTravel;
+    if (continueTravel)
+        // Only queue value work here. Motion is planned under the ordinary
+        // admission/query budgets on a later world update, never reentrantly
+        // in MovementInform. Wake preserves elapsed needs time and phase.
+        _needsUpdates.Wake(record.Id, completion.CompletedAtMs + 1);
 
     TC_LOG_DEBUG("ai.world", "AI action completion agent={} type={} status={} reason={} sourceGoal={} durationMs={}",
         record.Id.Value, ToString(completion.Type), ToString(completion.Status), ToString(completion.Reason),

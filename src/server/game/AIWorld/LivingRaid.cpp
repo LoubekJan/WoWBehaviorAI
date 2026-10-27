@@ -182,8 +182,8 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
         if (arrived && actor.Travel.Pending && RecoveryMovement::SamePoint(actor.Travel.Pending->Destination, state.Destination))
         { if (!actor.Travel.ObserveSource(reached, true)) actor.Travel = {}; }
         else actor.Travel.RejectPending();
-        finish(arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 250 : 10000);
-        return true;
+        finish(arrived ? "ARRIVED" : "MOVE_FAILED", arrived ? 0 : 10000);
+        if (!arrived) return true;
     }
     // Guard meals retain the existing physical depot consumer chain.
     if (guard)
@@ -290,9 +290,15 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
     uint32 cargo = _supplyLedger.GetCargo(record.SpawnId);
     if (cargo || raid.Returning)
     {
-        auto destination = raid.Leg ? LivingRaid::ToSource[raid.Leg-1] : LivingRaid::Camp;
-        if (!Near(creature, destination)) return travel(destination, cargo ? "TO_CAMP" : "RETURNING_EMPTY", cargo ? "RAID_CAMP" : "RAID_EMPTY_RETURN");
-        if (raid.Leg) { --raid.Leg; actor.Travel = {}; actor.NextAtMs = nowMs; return true; }
+        // Consume only physically reached anchors. The fixed route bounds the
+        // administrative pass; at most one new movement is launched below.
+        for (size_t reached = 0; reached <= LivingRaid::ToSource.size(); ++reached)
+        {
+            auto destination = raid.Leg ? LivingRaid::ToSource[raid.Leg-1] : LivingRaid::Camp;
+            if (!Near(creature, destination)) return travel(destination, cargo ? "TO_CAMP" : "RETURNING_EMPTY", cargo ? "RAID_CAMP" : "RAID_EMPTY_RETURN");
+            if (!raid.Leg) break;
+            --raid.Leg; actor.Travel = {}; actor.NextAtMs = nowMs;
+        }
         if (cargo)
         {
             auto depot = _supplyLedger.GetDepot(LivingRaid::CampDepot);
@@ -323,8 +329,12 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
         ++raid.AttemptId; raid.Active = true; raid.Leg = 0; raid.StartedAtMs = nowMs;
         raid.StolenAtStart = actor.Stolen; raid.Outcome = "STARTED";
     }
-    auto const& destination = LivingRaid::ToSource[std::min<size_t>(raid.Leg, LivingRaid::ToSource.size()-1)];
-    if (!Near(creature, destination)) return travel(destination,"TO_SOURCE","RAID_SOURCE");
-    if (raid.Leg+1 < LivingRaid::ToSource.size()) { ++raid.Leg; actor.Travel = {}; actor.NextAtMs = nowMs; return true; }
+    for (size_t reached = 0; reached < LivingRaid::ToSource.size(); ++reached)
+    {
+        auto const& destination = LivingRaid::ToSource[std::min<size_t>(raid.Leg, LivingRaid::ToSource.size()-1)];
+        if (!Near(creature, destination)) return travel(destination,"TO_SOURCE","RAID_SOURCE");
+        if (raid.Leg+1 >= LivingRaid::ToSource.size()) break;
+        ++raid.Leg; actor.Travel = {}; actor.NextAtMs = nowMs;
+    }
     return activity(Activity::Work,"STEALING","RAID_THEFT");
 }
