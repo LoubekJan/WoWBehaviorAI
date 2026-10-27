@@ -82,7 +82,8 @@ bool AIWorldMgr::UpdateLivingFieldWorker(AgentRecord& record, Creature& creature
     };
     auto at = [&](ActionPosition const& position)
     {
-        return inScope(position) && creature.GetExactDist(position.X, position.Y, position.Z) <= 3.0f &&
+        return inScope(position) && creature.GetExactDist(position.X, position.Y, position.Z) <=
+            LivingFields::ArrivalRadius(*worker, position, home) &&
             creature.IsWithinLOS(position.X, position.Y, position.Z);
     };
     auto clearActivity = [&]()

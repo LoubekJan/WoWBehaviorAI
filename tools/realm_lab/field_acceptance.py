@@ -341,7 +341,12 @@ class _Evaluator:
                 track.meal_return["home_travel_yards"] += step
             if delta["harvested"]:
                 valid = self.owned_event(sid, "work", old, row, 15000)
-                if delta["harvested"] != 1 or old["supply"]["field_remaining"] <= 0:
+                # Regrowth can run between captures, including inside
+                # HarvestField's Expire() before its atomic crop debit. The
+                # entire field's reconciled flow establishes availability;
+                # an earlier zero snapshot alone cannot reject a harvest.
+                flow = row.get("field_flow") or {}
+                if delta["harvested"] != 1 or flow.get("available") is not True:
                     self.violation("field_harvest_not_one_available_portion", sid); valid = False
                 if valid and chain and "FIELD_ARRIVED" in chain["covered"]:
                     chain["covered"] = list(dict.fromkeys(chain["covered"]+["HARVESTED", "CARGO"]))
@@ -436,8 +441,14 @@ class _Evaluator:
                 if accounting[key]-self.previous_accounting[key] != sum(value[key] for value in changes.values()):
                     self.violation("global_food_counter_change_not_reconciled")
             for key, members in population.FIELD_WORKERS.items():
-                regrown = crops[key][0]-self.previous_crops[key][0]+sum(changes[sid]["harvested"] for sid in members)
-                if not 0 <= regrown <= 1: self.violation("field_potential_not_debited_or_unbounded_regrowth", key)
+                harvested = sum(changes[sid]["harvested"] for sid in members)
+                before, after = self.previous_crops[key][0], crops[key][0]
+                regrown = after-before+harvested
+                available = 0 <= regrown <= 1 and 0 <= harvested <= before+regrown
+                if not available: self.violation("field_potential_not_debited_or_unbounded_regrowth", key)
+                for sid in members:
+                    rows[sid]["field_flow"] = dict(before=before, after=after, harvested=harvested,
+                        inferred_regrown=regrown, available=available)
         for row in rows.values(): row["epoch"] = self.epoch
         self.complete += 1
         epoch = self.epochs.setdefault(self.epoch, dict(first_capture=capture, last_capture=capture, frames=0))
@@ -461,6 +472,7 @@ class _Evaluator:
             observed_seconds=seconds, minimum_observation_seconds=self.minimum_seconds, max_gap_seconds=self.max_gap,
             maximum_action_start_capture_lag_ms=START_LAG_MS, chains=chains,
             criterion="linked_production_return_and_later_meal_return",
+            crop_availability_evidence="aggregate_field_harvest_reconciled_with_remaining_and_at_most_one_regrown_portion_per_bounded_capture_interval",
             workers={str(sid): dict(chain_count=len(track.chains), partial_chain=track.chain or track.best_partial,
                 production_return=track.production_return, pending_meal_return=track.meal_return,
                 censored_evidence=dict(track.censored)) for sid, track in self.tracks.items()},

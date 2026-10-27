@@ -471,3 +471,87 @@ TEST_CASE("Hungry warehouse planning respects own stock and retries the field wh
     REQUIRE(needs.Hunger == Approx(0.8f));
     FieldConserved(ledger);
 }
+
+TEST_CASE("Farmer anchor arrival rejects the observed left-village collision-edge standoff", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    auto field = LivingFields::Field(worker->Field);
+    REQUIRE(field);
+    ActionPosition const home = field->DepotPoint;
+    ActionPosition const stalled{725, 44.43344f, 857.5293f, 0.0f};
+    float radius = LivingFields::ArrivalRadius(*worker, home, home);
+    REQUIRE(radius == Approx(1.25f));
+    REQUIRE(LivingReturnPolicy::Distance(stalled, home) < 3.0f);
+    REQUIRE(LivingReturnPolicy::Distance(stalled, home) > radius);
+    // The tight request removes the old two-yard ring targets responsible
+    // for accepting this location as the completed home/warehouse approach.
+    auto targets = LivingReturnPolicy::HomeTargets(home, radius);
+    REQUIRE(targets.size() == 1);
+    REQUIRE(LivingReturnPolicy::SamePosition(targets.front(), home));
+    REQUIRE_FALSE(LivingReturnPolicy::HomeEndpointMatches(home, radius, stalled, stalled));
+    REQUIRE(LivingReturnPolicy::UsefulStep(stalled, home));
+    auto shortApproach = home;
+    shortApproach.X += 1.1f;
+    REQUIRE(LivingReturnPolicy::Distance(shortApproach, home) < radius);
+    // Every point outside this anchor radius is beyond the existing useful
+    // movement threshold; tightening does not introduce a dead annulus.
+    auto outside = home;
+    outside.X += radius + 0.01f;
+    REQUIRE(LivingReturnPolicy::UsefulStep(outside, home));
+}
+
+TEST_CASE("Anchor precision is limited to the registered worker's exact home and own warehouse", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901023);
+    REQUIRE(worker);
+    auto field = LivingFields::Field(worker->Field);
+    REQUIRE(field);
+    ActionPosition const home{725, 43.0f, 865.0f, 0.15f};
+    REQUIRE(LivingFields::ArrivalRadius(*worker, home, home) == Approx(1.25f));
+    REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, home) == Approx(1.25f));
+    for (auto const& point : field->WorkPoints)
+        REQUIRE(LivingFields::ArrivalRadius(*worker, point, home) == Approx(3.0f));
+    for (auto const& foreign : LivingFields::Fields)
+        if (foreign.Id != field->Id)
+            REQUIRE(LivingFields::ArrivalRadius(*worker, foreign.DepotPoint, home) == Approx(3.0f));
+    auto moved = field->DepotPoint;
+    moved.X += 0.01f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, moved, home) == Approx(3.0f));
+    moved = field->DepotPoint;
+    moved.MapId = 0;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, moved, home) == Approx(3.0f));
+    moved = field->DepotPoint;
+    moved.Z += 1.0f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, moved, home) == Approx(3.0f));
+    for (LivingFields::WorkerSpec forged : {LivingFields::WorkerSpec{901063, 5, 5, 1},
+        LivingFields::WorkerSpec{901023, 6, 6, 1}, LivingFields::WorkerSpec{901023, 5, 5, 0}})
+        REQUIRE(LivingFields::ArrivalRadius(forged, home, home) == Approx(3.0f));
+}
+
+TEST_CASE("Tight farmer anchor approach accepts supported terrain without ignoring three-dimensional distance", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    ActionPosition const home = LivingFields::Field(worker->Field)->DepotPoint;
+    float radius = LivingFields::ArrivalRadius(*worker, home, home);
+    auto ground = LivingReturnPolicy::GroundHomeTarget(home, home,
+        [](ActionPosition const&) -> std::optional<float> { return 0.0f; },
+        [](ActionPosition const&, ActionPosition const&) { return true; });
+    REQUIRE(ground.has_value());
+    REQUIRE(ground->Z == 0.0f);
+    REQUIRE(LivingReturnPolicy::Distance(*ground, home) < radius);
+    REQUIRE(LivingReturnPolicy::HomeEndpointMatches(home, radius, *ground, ground));
+    auto elevated = *ground;
+    elevated.Z = home.Z + 2.0f;
+    REQUIRE(LivingReturnPolicy::Distance(elevated, home) > radius);
+    REQUIRE_FALSE(LivingReturnPolicy::HomeEndpointMatches(home, radius, elevated, ground));
+    // Search ownership includes the requested precision. A suspended ordinary
+    // three-yard search cannot be resumed as proof of the tighter arrival.
+    LivingReturnPolicy::HomeCorridorSearch search;
+    ActionPosition const from{725, 32.25859f, 857.0308f, 0.0f};
+    search.Begin(from, home, 3.0f, 384.0f, nullptr, 8.0f, true);
+    REQUIRE_FALSE(search.Matches(from, home, radius, 384.0f, nullptr, 8.0f, true));
+    search.Begin(from, home, radius, 384.0f, nullptr, 8.0f, true);
+    REQUIRE(search.Matches(from, home, radius, 384.0f, nullptr, 8.0f, true));
+}

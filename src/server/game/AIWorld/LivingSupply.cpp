@@ -497,6 +497,10 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         destination = *next;
     }
     float homeRadius = IsSupplyRaider(record) ? LivingRaid::RaiderHomeRadius : 384.0f;
+    bool fieldWorker = IsFieldWorker(record);
+    float arrivalRadius = 3.0f;
+    if (fieldWorker)
+        arrivalRadius = LivingFields::ArrivalRadius(*LivingFields::Worker(record.SpawnId), destination, home);
     auto inBounds = [&](ActionPosition const& point)
     {
         return Finite(point) && point.MapId == from.MapId &&
@@ -540,13 +544,13 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         if (travel.Route.Planned.empty())
         {
             auto* rememberedDanger = danger ? &*danger : nullptr;
-            if (!travel.Search.Matches(from, destination, 3.0f, 384.0f, rememberedDanger, clearance, true))
-                travel.Search.Begin(from, destination, 3.0f, 384.0f, rememberedDanger, clearance, true);
+            if (!travel.Search.Matches(from, destination, arrivalRadius, 384.0f, rememberedDanger, clearance, true))
+                travel.Search.Begin(from, destination, arrivalRadius, 384.0f, rememberedDanger, clearance, true);
             // The caller's real arrival predicate includes 3D distance and
             // LOS. Being near an endpoint in XY cannot complete this trip.
             travel.Search.ArrivalChecked = true;
             uint64 started = PlanningWorkBudget::StartedOperations();
-            auto corridor = LivingRecoveryPath::HomeCorridor(creature, from, destination, 3.0f, 384.0f,
+            auto corridor = LivingRecoveryPath::HomeCorridor(creature, from, destination, arrivalRadius, 384.0f,
                 rememberedDanger, clearance, &state.ReturnDiagnostics, &travel.Search, true);
             if (PlanningWorkBudget::StartedOperations() != started) state.Planning.MarkProgress(nowMs);
             if (state.ReturnDiagnostics.Deferred) return defer();
@@ -578,7 +582,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         state.Planning.MarkProgress(nowMs);
         auto const& endpoint = travel.Route.Planned.back();
         float lift = std::max(0.5f, creature.GetCollisionHeight());
-        bool endpointReachable = Distance(endpoint, destination) <= 3.0f &&
+        bool endpointReachable = Distance(endpoint, destination) <= arrivalRadius &&
             creature.GetMap()->isInLineOfSight(endpoint.X, endpoint.Y, endpoint.Z + lift,
                 destination.X, destination.Y, destination.Z + lift, creature.GetPhaseMask(),
                 LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing);
@@ -598,6 +602,18 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
             continue;
         }
         auto const& end = points.back();
+        // A complete final leg can normalize its endpoint during grounding.
+        // Recheck the actual endpoint against the same farmer arrival rule;
+        // a loose build tolerance must not strand the next anchor departure.
+        if (fieldWorker && SamePosition(query, endpoint) &&
+            (Distance({from.MapId, end.x, end.y, end.z}, destination) > arrivalRadius ||
+                !creature.GetMap()->isInLineOfSight(end.x, end.y, end.z + lift,
+                    destination.X, destination.Y, destination.Z + lift, creature.GetPhaseMask(),
+                    LINEOFSIGHT_ALL_CHECKS, VMAP::ModelIgnoreFlags::Nothing)))
+        {
+            travel.RejectCandidate(from, query);
+            continue;
+        }
         request.Destination = {from.MapId, end.x, end.y, end.z};
         request.QueryDestination = query;
         travel.Pending = request;

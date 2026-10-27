@@ -193,6 +193,47 @@ def separate_trip_samples(source):
     return rows
 
 
+def zero_crop_regrowth_samples(awards):
+    """Synthetic empty-field race; opening stocks/counters are unproved history.
+
+    A complete fifteen-second job crosses a regrowth tick. The source can
+    regrow and consume one potential portion between adjacent captures, so
+    both visible remaining snapshots can be zero.
+    """
+    initial = deepcopy(happy_samples(end=0)[0]["state"])
+    for current in initial["agents"]:
+        sid = current["spawn_id"]
+        if sid not in WORKERS: continue
+        current.update(action=None, action_source_goal=None, action_started_at_ms=None, goal=None, goal_owner="")
+        current["living_role"].update(phase="IDLE", activity="NONE", started_at_ms=0, movement_purpose="NONE")
+        current["needs"]["hunger"] = .2
+        move(current, current["home"])
+        current["supply"].update(phase="WAITING", cargo=0)
+        if sid in fields.FIELD_WORKERS[4]:
+            current["supply"].update(harvested="6", delivered="6", field_remaining=0)
+            current["supply"]["depot"].update(stock=24, delivered="24")
+        if sid in awards:
+            move(current, current["supply"]["field_workpoint"])
+    rows = []
+    for t in range(17):
+        state = deepcopy(initial)
+        state["captured_at_ms"] = BASE+t*1000
+        grant = sum(awards.values()) if t == 16 else 0
+        accounting = dict(initial_food="0", harvested=str(24+grant), in_depots="24", in_cargo=str(grant), consumed="0", lost="0", conserved=True)
+        for current in state["agents"]:
+            supplied = current.get("supply")
+            if supplied: supplied["accounting"] = deepcopy(accounting)
+            sid = current["spawn_id"]
+            if sid not in awards: continue
+            if 1 <= t <= 15: owned(current, "WORKING_FIELD", "WORK", 1)
+            if t == 16:
+                supplied.update(phase="HARVESTED_FIELD", last_result="HARVESTED_FIELD",
+                    harvested=str(6+awards[sid]), cargo=awards[sid])
+        rows.append(dict(sequence=t+1, elapsed_seconds=t, session_id="SYNTHETIC-zero-crop-race",
+            synthetic_test_fixture=True, status="fresh", state=state))
+    return rows
+
+
 class FieldAcceptanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls): cls.good = happy_samples()
@@ -344,6 +385,26 @@ class FieldAcceptanceTests(unittest.TestCase):
                 current["supply"]["field_workpoint"] = {key: DEFINITIONS[4]["work_points"][4][key] for key in ("map_id", "x", "y", "z")}
             report = acceptance.evaluate_samples(rows)
             with self.subTest(mutation=mutation): self.assertEqual(report["status"], "FAIL", report)
+
+    def test_zero_crop_can_regrow_one_portion_and_commit_one_owned_harvest_between_captures(self):
+        rows = zero_crop_regrowth_samples({901018: 1})
+        before, after = actor(rows[-2], 901018)["supply"], actor(rows[-1], 901018)["supply"]
+        self.assertEqual((before["field_remaining"], after["field_remaining"]), (0, 0))
+        self.assertEqual(int(after["harvested"])-int(before["harvested"]), 1)
+        self.assertEqual(after["cargo"]-before["cargo"], 1)
+        report = acceptance.evaluate_samples(rows, minimum_seconds=1)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["violations"], [])
+        # This short synthetic case never claims the separate journey/meal
+        # receipts; it establishes only the legitimate zero/regrow/harvest race.
+        self.assertEqual(report["completed_farmers"], [])
+
+    def test_zero_crop_cannot_fund_two_harvests_from_one_bounded_regrowth_tick(self):
+        for awards in ({901018: 1, 901019: 1}, {901018: 2}):
+            report = acceptance.evaluate_samples(zero_crop_regrowth_samples(awards), minimum_seconds=1)
+            with self.subTest(awards=awards):
+                self.assertEqual(report["status"], "FAIL", report)
+                self.assertTrue(any(v["code"] == "field_potential_not_debited_or_unbounded_regrowth" for v in report["violations"]))
 
     def test_cli_reads_closed_gzip_and_recorder_parts_without_modifying_inputs(self):
         with tempfile.TemporaryDirectory() as directory:

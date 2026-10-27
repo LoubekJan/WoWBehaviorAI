@@ -183,7 +183,9 @@ Pole a 36 pracovních bodů pocházejí ze skutečného pokrytí texturou
 a [navigační důkaz](data/realm_lab/aiworldlab/preview-v8/field-nav-probe.json)
 obsahují přiřazení pracovníků, sklady a 132 směrovaných spojení. Tento
 důkaz potvrzuje nativní navigační síť; skutečný průchod a činnosti se měří
-samostatně. Každý pohyb nadále kontroluje aktuální kolize a nebezpečí.
+samostatně. Každý pohyb nadále kontroluje aktuální kolize a nebezpečí. Příchod
+ke vlastnímu skladu a domovu používá u zemědělců toleranci 1,25 yd,
+aby nezastavili na hraně blízké budovy; práce na poli zachovává 3 yd.
 
 Dělník pracuje na vlastním poli nejméně 15 sekund. Dokončená sklizeň
 převede jednu dostupnou porci úrody do nákladu, nejvýše dvě na dělníka.

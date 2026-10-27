@@ -94,5 +94,24 @@ namespace LivingFields
             return nullptr;
         return &field->WorkPoints[worker.Ordinal + 4 * (cycle % 3)];
     }
+
+    // A warehouse/home arrival beside a building can be close enough to
+    // interact yet leave the next departure on its collision edge. Approach
+    // these fixed anchors closely; field work keeps its ordinary three yards.
+    // This changes neither the immutable home nor any movement proof.
+    inline float ArrivalRadius(WorkerSpec const& worker, ActionPosition const& destination,
+        ActionPosition const& immutableHome)
+    {
+        auto registered = Worker(worker.Spawn);
+        auto field = Field(worker.Field);
+        if (!registered || !field || registered->Field != worker.Field || registered->Depot != worker.Depot ||
+            registered->Ordinal != worker.Ordinal || field->Depot != worker.Depot)
+            return 3.0f;
+        auto same = [](ActionPosition const& a, ActionPosition const& b)
+        { return a.MapId == b.MapId && a.X == b.X && a.Y == b.Y && a.Z == b.Z; };
+        // Stay above the existing one-yard useful-step floor so a stopped
+        // actor cannot be outside arrival range yet too close to approach.
+        return same(destination, immutableHome) || same(destination, field->DepotPoint) ? 1.25f : 3.0f;
+    }
 }
 #endif
