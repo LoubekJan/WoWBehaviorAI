@@ -43,9 +43,13 @@ stávajícího `AI_TASK_MODEL_*`. Zapnutí NPC nezapíná generování úkolů a
 advice. `AIWorld.RemoteInferenceEnabled` zůstává v labu `0`; nový endpoint
 `/npc-agent` má samostatný limit rozpracovaných požadavků.
 
-Při ručním spuštění Compose načtěte oba soubory prostředí:
+Po checkoutu této větve nejprve sestavte nativní worldserver a vygenerujte
+konfiguraci z upraveného `.env`. Pak při spuštění Compose načtěte i soubor
+modelu. Samotné sestavení obrazu `ai-server` nenahradí nativní build:
 
 ```sh
+make build
+make config
 docker compose --env-file .env --env-file runtime/llm-npc-agent/model.env -f compose.yml up -d --build ai-server worldserver
 ```
 
