@@ -372,6 +372,10 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     if (_restrictAgentsToSimulationScope && _simulationScope.SpawnIds.empty())
         throw std::runtime_error("AIWorld.ScopeRestrictAgents requires explicit ScopeSpawnIds");
     _remoteInferenceEnabled = sConfigMgr->GetBoolDefault("AIWorld.RemoteInferenceEnabled", true);
+    _npcAgentEnabled = sConfigMgr->GetBoolDefault("AIWorld.NpcAgentEnabled", false);
+    _npcAgentIntervalMs = uint32(std::clamp(sConfigMgr->GetIntDefault("AIWorld.NpcAgentDecisionIntervalMs", 8000), 2000, 60000));
+    _npcAgentMaxInFlight = uint32(std::clamp(sConfigMgr->GetIntDefault("AIWorld.NpcAgentMaxInFlight", 2), 1, 4));
+    _npcAgentTimeoutMs = uint32(std::clamp(sConfigMgr->GetIntDefault("AIWorld.NpcAgentTimeoutMs", 15000), 1000, 35000));
     _livingNeedEvolutionEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingNeedEvolutionEnabled", true);
     _groupCoarseSimulationEnabled = sConfigMgr->GetBoolDefault("AIWorld.GroupCoarseSimulationEnabled", true);
     TC_LOG_INFO("ai.world", "AI simulation scope: map={} zones={} bounded={} selectedSpawns={} restricted={} remoteInference={} livingNeedEvolution={} groupCoarseSimulation={}",
@@ -1522,7 +1526,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     uint32 dynamicTaskSlots = _dynamicTaskEnabled ? _dynamicTaskMaxInFlight : 0;
 
     _aiClient = std::make_unique<AIClient>(ioContext, aiHost, aiPort, uint32(requestTimeoutMs), _decisionMaxInFlight,
-        dynamicTaskSlots, _recoveryAdviceEnabled ? 2 : 0);
+        dynamicTaskSlots, _recoveryAdviceEnabled ? 2 : 0, _npcAgentEnabled ? _npcAgentMaxInFlight : 0, _npcAgentTimeoutMs);
 
     TC_LOG_INFO("ai.world", "AIWorld enabled");
 
@@ -1583,6 +1587,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // invariant (Excluded/VanillaOnly must never be AIWorld-owned) must not
     // depend on an optional data-reconciliation feature flag.
     ApplyParticipationControlPolicy();
+    InitializeNpcAgents();
 
     // Milestone 2.12F4B2 (STATIC review): gated behind
     // AIWorld.EnableSpawnReconciliation (default false = disabled), unlike
@@ -7413,7 +7418,7 @@ void AIWorldMgr::DispatchGroupMemberActionProposal(GroupMemberActionProposal con
     // from group coordination dispatch the same way it is from every
     // other action-proposing path - group intent/observation collection
     // upstream of this call still tracks it as an ordinary member.
-    if (record->ControlMode != AgentControlMode::AIWorldControlled)
+    if (record->ControlMode != AgentControlMode::AIWorldControlled || IsNpcAgent(*record))
         return;
 
     // Re-confirms SourceGroup/membership fresh - never trusts that either
@@ -7681,7 +7686,7 @@ void AIWorldMgr::DispatchHuntProposal(HuntProposal const& proposal)
         return;
     }
 
-    if (!InSimulationMembership(record->MapId, record->SpawnId) || record->ControlMode != AgentControlMode::AIWorldControlled)
+    if (!InSimulationMembership(record->MapId, record->SpawnId) || record->ControlMode != AgentControlMode::AIWorldControlled || IsNpcAgent(*record))
     {
         logDispatchRejected("CONTROL_MODE");
         return;
@@ -8079,7 +8084,7 @@ void AIWorldMgr::DispatchHuntAttack(AgentId member, GroupId sourceGroup)
         return;
     }
 
-    if (record->ControlMode != AgentControlMode::AIWorldControlled)
+    if (record->ControlMode != AgentControlMode::AIWorldControlled || IsNpcAgent(*record))
     {
         logAttackRejected("CONTROL_MODE");
         return;
@@ -8693,6 +8698,8 @@ void AIWorldMgr::Update(uint32 diff)
         return;
     }
 
+    DrainNpcPlayerSpeech();
+
     auto const updateStart = std::chrono::steady_clock::now();
     auto elapsedSince = [](auto start)
     { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); };
@@ -8891,7 +8898,7 @@ void AIWorldMgr::Update(uint32 diff)
     _updateTiming.NeedsLateMs = std::max(_updateTiming.NeedsLateMs, _needsUpdates.OldestLateMs(updateNowMs));
 
     _healthTimer += diff;
-    if (_remoteInferenceEnabled && _aiClient && _healthTimer >= _healthIntervalMs)
+    if ((_remoteInferenceEnabled || _npcAgentEnabled) && _aiClient && _healthTimer >= _healthIntervalMs)
     {
         _healthTimer = 0;
         _aiClient->SubmitHealthCheck();
@@ -8927,6 +8934,11 @@ void AIWorldMgr::Update(uint32 diff)
     while (_aiClient && drainedResponses < _aiResponseDrainMaxPerTick && _aiClient->TryPopResponse(response))
     {
         ++drainedResponses;
+        if (response.Type == AIRequestType::NpcAgent)
+        {
+            if (_npcAgentEnabled) HandleNpcAgentResponse(response);
+            continue;
+        }
         if (!_remoteInferenceEnabled)
             continue;
 
@@ -9452,7 +9464,7 @@ void AIWorldMgr::RunDecisionScheduler()
     for (AgentId id : _registry.GetAgents())
     {
         AgentRecord* record = _registry.Find(id);
-        if (!record || !InSimulationMembership(record->MapId, record->SpawnId))
+        if (!record || !InSimulationMembership(record->MapId, record->SpawnId) || IsNpcAgent(*record))
             continue;
 
         Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
@@ -9522,7 +9534,7 @@ void AIWorldMgr::RunDecisionScheduler()
         // an ObserveOnly agent is never scheduled for a remote /decision
         // call, which could never lead anywhere but a request
         // ActionSystem would reject anyway.
-        if (_remoteInferenceEnabled && _aiClient && record->ControlMode == AgentControlMode::AIWorldControlled)
+        if (_remoteInferenceEnabled && _aiClient && record->ControlMode == AgentControlMode::AIWorldControlled && !IsNpcAgent(*record))
             candidates.push_back({ id, cadenceClass });
     }
 
@@ -11660,6 +11672,7 @@ void AIWorldMgr::UpdateNeeds()
         AgentRecord const* record = _registry.Find(id);
         bool eligible = record && InSimulationMembership(record->MapId, record->SpawnId) &&
             _livingRolesEnabled && !IsLivingWolf(*record) &&
+            !IsNpcAgent(*record) &&
             record->ControlMode == AgentControlMode::AIWorldControlled &&
             !record->GroupCoordinationGoalState;
         if (eligible && ((record->LivingRole.CurrentPhase == LivingRoleState::Phase::Idle &&
@@ -11703,6 +11716,11 @@ void AIWorldMgr::UpdateNeeds()
 
         if (!creature)
         {
+            if (IsNpcAgent(*record))
+            {
+                auto& npc = _npcAgentStates[record->Id.Value];
+                npc.InvalidatePending(); npc.Status = "UNLOADED"; npc.Active = "NONE"; npc.ActionAt = npc.ActionUntil = 0;
+            }
             _planningWork.Cancel(id);
             // Milestone 2.8F: whatever engine movement ActiveActionState
             // claims is running went away along with the Creature - clear
@@ -11833,6 +11851,11 @@ void AIWorldMgr::UpdateNeeds()
         // through the normal retention check.
         if (!context.Alive)
         {
+            if (IsNpcAgent(*record))
+            {
+                auto& npc = _npcAgentStates[record->Id.Value];
+                npc.InvalidatePending(); npc.Status = "DEAD"; npc.Active = "NONE"; npc.ActionAt = npc.ActionUntil = 0;
+            }
             _planningWork.Cancel(id);
             record->WolfActionRuntimeGuid.Clear();
             record->LivingRole = {};
@@ -11888,6 +11911,12 @@ void AIWorldMgr::UpdateNeeds()
             continue;
         }
 
+        if (IsNpcAgent(*record))
+        {
+            _planningWork.Cancel(id);
+            UpdateNpcAgent(*record, *creature, nowMs);
+            continue; // No deterministic role, needs goal or routine fallback.
+        }
         bool livingRoleHandled;
         {
             PlanningWorkBudget::ActorScope planningActor(_planningWork, id, std::chrono::microseconds(500), 4);
@@ -12928,6 +12957,7 @@ void AIWorldMgr::ProcessActionEngineEvent(ActionEngineEvent const& event)
 // NeedsSystem::SatisfyHunger()) may do that.
 void AIWorldMgr::HandleActionCompletion(AgentRecord& record, ActionCompletion const& completion)
 {
+    NpcAgentActionCompleted(record, completion);
     bool const continueTravel = _livingRolesEnabled && !IsLivingWolf(record) &&
         LivingTravelContinuation::CanWake(record, completion);
     uint64 startedAtMs = record.ActiveActionState ? record.ActiveActionState->StartedAtMs : completion.CompletedAtMs;

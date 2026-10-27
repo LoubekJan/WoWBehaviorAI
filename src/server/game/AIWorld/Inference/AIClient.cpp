@@ -17,6 +17,7 @@
 
 #include "AIClient.h"
 #include "DynamicTaskJsonCodec.h"
+#include "NpcAgentJsonCodec.h"
 #include "IoContext.h"
 #include "Log.h"
 #include "Metric.h"
@@ -769,25 +770,31 @@ namespace
                   _responseQueue(responseQueue), _inFlightCount(inFlightCount),
                   _startTime(std::chrono::steady_clock::now())
             {
-                _parser.body_limit(DynamicTaskResponseBodyLimit);
+                _parser.body_limit(_request.Type == AIRequestType::NpcAgent ? NpcAgentResponseBodyLimit : DynamicTaskResponseBodyLimit);
+                if (_request.Type == AIRequestType::NpcAgent)
+                    _startTime = _request.SubmittedAt;
             }
 
             void Run()
             {
                 _httpRequest.version(11);
                 _httpRequest.method(http::verb::post);
-                _httpRequest.target(_request.Type == AIRequestType::Recovery ? "/recovery" : DynamicTaskEndpoint);
+                _httpRequest.target(_request.Type == AIRequestType::NpcAgent ? "/npc-agent" :
+                    _request.Type == AIRequestType::Recovery ? "/recovery" : DynamicTaskEndpoint);
                 _httpRequest.set(http::field::host, _host + ":" + _port);
                 _httpRequest.set(http::field::user_agent, "TrinityCore-AIWorld");
                 _httpRequest.set(http::field::content_type, "application/json");
-                _httpRequest.body() = _request.Type == AIRequestType::Recovery ? SerializeRecoveryAdvice(_request.Recovery) : SerializeDynamicTaskRequest(_request.DynamicTask);
+                _httpRequest.body() = _request.Type == AIRequestType::NpcAgent ? SerializeNpcAgentRequest(_request.NpcAgent) :
+                    _request.Type == AIRequestType::Recovery ? SerializeRecoveryAdvice(_request.Recovery) : SerializeDynamicTaskRequest(_request.DynamicTask);
                 _httpRequest.prepare_payload();
 
                 TC_LOG_INFO("ai.world", "AI structured request id={} endpoint={} agent={} submitted",
-                    _request.RequestId, _request.Type == AIRequestType::Recovery ? "recovery" : "dynamic-task",
-                    _request.Type == AIRequestType::Recovery ? _request.Recovery.Agent.Value : _request.DynamicTask.Context.Agent.Value);
+                    _request.RequestId, EndpointName(), RequestAgent().Value);
 
-                _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
+                if (_request.Type == AIRequestType::NpcAgent)
+                    _resolveTimer.expires_at(_startTime + std::chrono::milliseconds(_timeoutMs));
+                else
+                    _resolveTimer.expires_after(std::chrono::milliseconds(_timeoutMs));
                 _resolveTimer.async_wait(
                     beast::bind_front_handler(&DynamicTaskSession::OnResolveTimeout, shared_from_this()));
 
@@ -796,6 +803,19 @@ namespace
             }
 
         private:
+            AgentId RequestAgent() const
+            {
+                if (_request.Type == AIRequestType::NpcAgent) return _request.NpcAgent.Agent;
+                if (_request.Type == AIRequestType::Recovery) return _request.Recovery.Agent;
+                return _request.DynamicTask.Context.Agent;
+            }
+
+            char const* EndpointName() const
+            {
+                if (_request.Type == AIRequestType::NpcAgent) return "npc-agent";
+                return _request.Type == AIRequestType::Recovery ? "recovery" : "dynamic-task";
+            }
+
             void OnResolveTimeout(beast::error_code ec)
             {
                 if (ec == net::error::operation_aborted)
@@ -807,7 +827,7 @@ namespace
 
             void OnResolve(beast::error_code ec, tcp::resolver::results_type results)
             {
-                if (_request.Type != AIRequestType::Recovery) _resolveTimer.cancel();
+                if (_request.Type != AIRequestType::Recovery && _request.Type != AIRequestType::NpcAgent) _resolveTimer.cancel();
 
                 if (ec)
                     return Complete(false, 0, ec, std::nullopt, std::string(), false);
@@ -849,6 +869,15 @@ namespace
                 http::response<http::string_body> const& httpResponse = _parser.get();
                 uint32 statusCode = httpResponse.result_int();
                 bool success = statusCode >= 200 && statusCode < 300;
+
+                if (_request.Type == AIRequestType::NpcAgent)
+                {
+                    NpcAgentResponse candidate;
+                    success = success && ParseNpcAgentResponse(httpResponse.body(), candidate) &&
+                        MatchesNpcAgentResponse(_request.NpcAgent, candidate);
+                    return Complete(success, statusCode, ec, std::nullopt, success ? "" : "npc-agent response rejected", false,
+                        std::nullopt, success ? std::optional<NpcAgentResponse>(std::move(candidate)) : std::nullopt);
+                }
 
                 if (_request.Type == AIRequestType::Recovery)
                 {
@@ -902,7 +931,8 @@ namespace
             // as there. `parsed` is only set once success, well-formed
             // parse, AND envelope match all held - see OnRead().
             void Complete(bool success, uint32 statusCode, beast::error_code ec, std::optional<DynamicTaskResponse> parsed, std::string const& rejectReason, bool protocolMismatch,
-                std::optional<RecoveryAdviceResponse> recovery = std::nullopt)
+                std::optional<RecoveryAdviceResponse> recovery = std::nullopt,
+                std::optional<NpcAgentResponse> npcAgent = std::nullopt)
             {
                 if (_completed.exchange(true, std::memory_order_acq_rel))
                     return;
@@ -916,7 +946,7 @@ namespace
                 uint32 latencyMs = uint32(std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now() - _startTime).count());
 
-                AgentId requestAgent = _request.Type == AIRequestType::Recovery ? _request.Recovery.Agent : _request.DynamicTask.Context.Agent;
+                AgentId requestAgent = RequestAgent();
 
                 if (ec == beast::error::timeout)
                     TC_LOG_WARN("ai.world", "AI structured request id={} agent={} timed out after {}ms",
@@ -933,7 +963,7 @@ namespace
                 else
                     TC_LOG_INFO("ai.world", "AI structured response id={} agent={} endpoint={} latency={}ms",
                         _request.RequestId, requestAgent.Value,
-                        _request.Type == AIRequestType::Recovery ? "recovery" : "dynamic-task", latencyMs);
+                        EndpointName(), latencyMs);
 
                 (void)protocolMismatch; // reserved for a future metrics pass, same as DecisionSession's own tag
 
@@ -941,8 +971,11 @@ namespace
                 response->RequestId = _request.RequestId;
                 response->Type = _request.Type;
                 response->Recovery = std::move(recovery);
+                response->NpcAgent = std::move(npcAgent);
+                response->NpcProvenance = _request.NpcProvenance;
                 response->Agent = requestAgent;
-                response->SnapshotSequence = _request.DynamicTask.Context.SnapshotSequence;
+                response->SnapshotSequence = _request.Type == AIRequestType::NpcAgent ?
+                    _request.NpcAgent.SnapshotSequence : _request.DynamicTask.Context.SnapshotSequence;
 
                 // Always the request's own echo, regardless of outcome -
                 // see AIResponse.h.
@@ -976,9 +1009,10 @@ namespace
 
 struct AIClient::Impl
 {
-    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight, uint32 maxRecoveryInFlight)
+    Impl(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight, uint32 maxRecoveryInFlight, uint32 maxNpcInFlight, uint32 npcRequestTimeoutMs)
         : IoContextRef(ioContext), Host(std::move(host)), Port(std::move(port)), RequestTimeoutMs(requestTimeoutMs),
-          MaxDecisionsInFlight(maxDecisionsInFlight), MaxDynamicTasksInFlight(maxDynamicTasksInFlight), MaxRecoveryInFlight(maxRecoveryInFlight)
+          MaxDecisionsInFlight(maxDecisionsInFlight), MaxDynamicTasksInFlight(maxDynamicTasksInFlight), MaxRecoveryInFlight(maxRecoveryInFlight),
+          MaxNpcInFlight(maxNpcInFlight), NpcRequestTimeoutMs(npcRequestTimeoutMs ? npcRequestTimeoutMs : 12000)
     {
     }
 
@@ -989,6 +1023,9 @@ struct AIClient::Impl
     uint32 MaxDecisionsInFlight;
     uint32 MaxDynamicTasksInFlight;
     uint32 MaxRecoveryInFlight;
+    uint32 MaxNpcInFlight;
+    uint32 NpcRequestTimeoutMs;
+    std::atomic<uint32> NpcInFlight { 0 };
     std::atomic<uint32> RecoveryInFlight { 0 };
     std::atomic<uint64> NextRequestId { 1 };
     MPSCQueue<AIResponse> ResponseQueue;
@@ -1017,8 +1054,8 @@ struct AIClient::Impl
     std::atomic<uint32> DynamicTasksInFlight { 0 };
 };
 
-AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight, uint32 maxRecoveryInFlight)
-    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs, maxDecisionsInFlight, maxDynamicTasksInFlight, maxRecoveryInFlight))
+AIClient::AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight, uint32 maxRecoveryInFlight, uint32 maxNpcInFlight, uint32 npcRequestTimeoutMs)
+    : _impl(std::make_unique<Impl>(ioContext, std::move(host), std::move(port), requestTimeoutMs, maxDecisionsInFlight, maxDynamicTasksInFlight, maxRecoveryInFlight, maxNpcInFlight, npcRequestTimeoutMs))
 {
 }
 
@@ -1205,6 +1242,38 @@ uint64 AIClient::SubmitRecovery(AIRequest request)
     net::post(context, [&context, host, port, request, queue, count]()
     {
         std::make_shared<DynamicTaskSession>(context, host, port, 10000, request, queue, count)->Run();
+    });
+    return request.RequestId;
+}
+
+uint64 AIClient::SubmitNpcAgent(AIRequest request)
+{
+    uint32 current = _impl->NpcInFlight.load(std::memory_order_acquire);
+    do
+    {
+        if (current >= _impl->MaxNpcInFlight) return 0;
+    }
+    while (!_impl->NpcInFlight.compare_exchange_weak(current, current + 1, std::memory_order_acq_rel));
+
+    request.RequestId = _impl->NextRequestId.fetch_add(1, std::memory_order_relaxed);
+    request.Type = AIRequestType::NpcAgent;
+    request.NpcAgent.ProtocolVersion = 1;
+    request.NpcAgent.RequestId = request.RequestId;
+    if (SerializeNpcAgentRequest(request.NpcAgent).empty())
+    {
+        _impl->NpcInFlight.fetch_sub(1, std::memory_order_acq_rel);
+        TC_LOG_WARN("ai.world", "AI npc-agent request rejected locally: invalid or oversized context");
+        return 0;
+    }
+    request.SubmittedAt = std::chrono::steady_clock::now();
+    net::io_context& context = _impl->IoContextRef;
+    auto* queue = &_impl->ResponseQueue;
+    auto* count = &_impl->NpcInFlight;
+    auto host = _impl->Host, port = _impl->Port;
+    uint32 timeoutMs = _impl->NpcRequestTimeoutMs;
+    net::post(context, [&context, host, port, timeoutMs, request, queue, count]()
+    {
+        std::make_shared<DynamicTaskSession>(context, host, port, timeoutMs, request, queue, count)->Run();
     });
     return request.RequestId;
 }

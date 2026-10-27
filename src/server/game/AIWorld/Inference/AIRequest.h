@@ -23,6 +23,7 @@
 #include "DynamicTaskRequest.h"
 #include "QuestRequestProvenance.h"
 #include "RecoveryAdvice.h"
+#include "NpcAgent.h"
 #include <chrono>
 
 enum class AIRequestType : uint8
@@ -30,7 +31,8 @@ enum class AIRequestType : uint8
     Health = 0,
     Decision = 1,
     DynamicTask = 2,
-    Recovery = 3
+    Recovery = 3,
+    NpcAgent = 4
 };
 
 // Plain data handed to AIClient::SubmitDecision()/SubmitDynamicTask().
@@ -63,6 +65,8 @@ struct AIRequest
     // Milestone 2.13A3: the /dynamic-task counterpart to Decision above.
     DynamicTaskRequest DynamicTask;
     RecoveryAdviceRequest Recovery;
+    NpcAgentRequest NpcAgent;
+    NpcAgentProvenance NpcProvenance;
 
     // Milestone 2.13A3: the world thread's own record of what this
     // DynamicTask request is actually about - RuntimeGuid, goal attempt,

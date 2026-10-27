@@ -76,6 +76,10 @@ class Settings:
     ai_profile: str = "disabled"
     soap_enabled: bool = False
     wildlife_enabled: bool = True
+    npc_agents_enabled: bool = False
+    npc_agents_decision_interval_ms: int = 8000
+    npc_agents_max_in_flight: int = 2
+    npc_agents_timeout_ms: int = 15000
 
     @classmethod
     def load(cls, env: Mapping[str, str]) -> Settings:
@@ -95,6 +99,9 @@ class Settings:
             raise SetupError("Unknown reviewed LAB_AI_PROFILE")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
+        npc_agents_enabled = bool(number(env, "LAB_NPC_AGENTS_ENABLED", "0", 0, 1))
+        if npc_agents_enabled and profile not in (consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE):
+            raise SetupError("LAB_NPC_AGENTS_ENABLED requires consumers-v8, raids-v8 or fields-v8")
         return cls(
             number(env, "LAB_REALM_ID", "2", 2, 255), name,
             address(env, "LAB_REALM_ADDRESS"), address(env, "LAB_REALM_LOCAL_ADDRESS"),
@@ -107,10 +114,16 @@ class Settings:
             profile,
             bool(number(env, "LAB_SOAP_ENABLED", "0", 0, 1)),
             bool(number(env, "LAB_WILDLIFE_ENABLED", "1", 0, 1)),
+            npc_agents_enabled,
+            number(env, "LAB_NPC_AGENTS_DECISION_INTERVAL_MS", "8000", 2000, 2**32 - 1),
+            number(env, "LAB_NPC_AGENTS_MAX_IN_FLIGHT", "2", 1, 4),
+            number(env, "LAB_NPC_AGENTS_TIMEOUT_MS", "15000", 1000, 35000),
         )
 
 
 def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | raid_population.Population | field_population.Population | None = None) -> dict[str, str]:
+    if settings.npc_agents_enabled and settings.ai_profile not in (consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE):
+        raise SetupError("NPC agents require consumers-v8, raids-v8 or fields-v8")
     auth = f"{settings.auth_host};{settings.auth_port};{settings.auth_user};{settings.auth_password};auth"
     local = f"lab-mysql;3306;{settings.db_user};{settings.db_password}"
     result = {
@@ -162,6 +175,11 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.ScopeRestrictAgents": "0",
         "AIWorld.ScopeAlwaysActive": "0",
         "AIWorld.RemoteInferenceEnabled": "0",
+        "AIWorld.NpcAgentEnabled": "0",
+        "AIWorld.NpcAgentProfilesDirectory": '"/workspace/data/npc_agents"',
+        "AIWorld.NpcAgentDecisionIntervalMs": str(settings.npc_agents_decision_interval_ms),
+        "AIWorld.NpcAgentMaxInFlight": str(settings.npc_agents_max_in_flight),
+        "AIWorld.NpcAgentTimeoutMs": str(settings.npc_agents_timeout_ms),
         "AIWorld.LivingNeedEvolutionEnabled": "0",
         "AIWorld.GroupCoarseSimulationEnabled": "0",
         "SOAP.Enabled": str(int(settings.soap_enabled)),
@@ -221,6 +239,8 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         result.update({"AIWorld.TelemetryEnabled": "1",
                        "AIWorld.TelemetryNativeCreaturesEnabled": "1",
                        "AIWorld.TelemetryHost": "world-viewer", "AIWorld.TelemetryPort": "8000"})
+    if settings.npc_agents_enabled and settings.wildlife_enabled:
+        result["AIWorld.NpcAgentEnabled"] = "1"
     return result
 
 

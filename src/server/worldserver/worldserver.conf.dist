@@ -5792,3 +5792,16 @@ AIWorld.RecoveryAdviceEnabled = 0
 # With AllAgents=0, only RecoveryAdviceAgents are eligible; empty means none.
 AIWorld.RecoveryAdviceAllAgents = 0
 AIWorld.RecoveryAdviceAgents = ""
+
+# Authored LLM NPC ownership. Only registered AI-controlled agents with a valid
+# per-agent JSON profile in this directory are eligible. This feature uses the
+# existing AIHost/AIPort bridge with an independent request budget; legacy
+# RemoteInferenceEnabled may remain disabled. Failed inference leaves the NPC
+# waiting for its next decision instead of selecting a deterministic goal.
+AIWorld.NpcAgentEnabled = 0
+AIWorld.NpcAgentProfilesDirectory = "data/npc_agents"
+# Minimum decision interval: 2000 ms. At most four requests may be in flight.
+AIWorld.NpcAgentDecisionIntervalMs = 8000
+AIWorld.NpcAgentMaxInFlight = 2
+# Transport deadline, capped at 35000 ms; keep above the backend model timeout.
+AIWorld.NpcAgentTimeoutMs = 15000

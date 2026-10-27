@@ -133,10 +133,22 @@ test("native details hide AI sections, retain observed state, and restore AI det
   assert.match(elements.get("supply-facts").textContent, /6 \/ 6 porcí/);
   assert.match(elements.get("supply-facts").textContent, /Jižní vesnice/);
   assert.match(elements.get("supply-facts").textContent, /4 \/ 24 porcí/);
+  context.testNpc = { name: "Matěj", status: "THINKING", active_action: "MOVE_TO", last_action_result: "ARRIVED",
+    request_id: "18446744073709551615", next_think_ms: 2000, dialogue_count: 12,
+    last_speech: "<img src=x onerror=alert(1)>" };
+  vm.runInContext("snapshot.agents[0].llm_agent = testNpc; showDetail();", context);
+  assert.equal(elements.get("npc-agent-section").hidden, false);
+  assert.equal(elements.get("detail-name").textContent, "Matěj");
+  assert.match(elements.get("npc-agent-facts").textContent, /THINKING/);
+  assert.match(elements.get("npc-agent-facts").textContent, /18446744073709551615/);
+  assert.equal(elements.get("npc-agent-speech").textContent, "<img src=x onerror=alert(1)>");
   context.testSnapshot = native;
   vm.runInContext("snapshot = testSnapshot; selectedId = 901000; showDetail();", context);
   assert.equal(elements.get("supply-section").hidden, true);
   assert.equal(elements.get("supply-facts").textContent, "");
+  assert.equal(elements.get("npc-agent-section").hidden, true);
+  assert.equal(elements.get("npc-agent-facts").textContent, "");
+  assert.equal(elements.get("npc-agent-speech").textContent, "—");
 });
 
 test("supply facts preserve exact counters and disappear without current controlled evidence", () => {

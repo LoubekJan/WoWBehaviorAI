@@ -56,9 +56,11 @@ from .model_provider import (
 )
 
 from .recovery import router as recovery_router, get_recovery_config
+from .npc_agent import router as npc_agent_router, get_npc_config
 
 app = FastAPI(title="ai-server", version="0.1.0")
 app.include_router(recovery_router)
+app.include_router(npc_agent_router)
 
 CURRENT_PROTOCOL_VERSION = 2
 
@@ -85,6 +87,8 @@ def health(config: ModelProviderConfig = Depends(get_task_model_config)) -> dict
         "task_model_configured": config.configured,
         "recovery_model_enabled": get_recovery_config().enabled,
         "recovery_model_configured": get_recovery_config().configured,
+        "npc_model_enabled": get_npc_config().enabled,
+        "npc_model_configured": get_npc_config().configured,
     }
 
 

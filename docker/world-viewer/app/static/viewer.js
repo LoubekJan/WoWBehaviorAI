@@ -217,6 +217,9 @@ function facts(id, rows) {
 function showDiagnostics(agent) {
   const role = agent.living_role, movement = agent.movement;
   const recovery = role?.return_recovery;
+  $("npc-agent-section").hidden = !ObserverModel.npcAgentSupported(agent);
+  facts("npc-agent-facts", ObserverModel.npcAgentFacts(agent));
+  text("npc-agent-speech", ObserverModel.npcAgentSupported(agent) ? agent.llm_agent.last_speech : null);
   $("supply-section").hidden = !ObserverModel.supplySupported(agent);
   facts("supply-facts", ObserverModel.supplyFacts(agent));
   $("raid-section").hidden = !ObserverModel.raidSupported(agent);
@@ -309,8 +312,8 @@ function showDetail() {
   const aiSupported = ObserverModel.aiDetailsSupported(agent);
   for (const id of ["memory-section", "needs-section", "decision-section", "role-section", "hunt-section", "economy-section"])
     $(id).hidden = !aiSupported;
-  text("detail-type", agent.native_creature ? `${agent.type} · běžné NPC` : agent.type);
-  text("detail-name", agent.name || `Agent ${agent.agent_id}`);
+  text("detail-type", agent.native_creature ? `${agent.type} · běžné NPC` : ObserverModel.npcAgentSupported(agent) ? `${agent.type} · LLM NPC` : agent.type);
+  text("detail-name", (ObserverModel.npcAgentSupported(agent) ? agent.llm_agent.name : agent.name) || `Agent ${agent.agent_id}`);
   text("detail-source", agent.position.source === "live" ? "● Live Creature position" : agent.position.source === "spawn" ? "○ Background · spawn position (non-live)" : "○ Background · last known position (non-live)");
   text("detail-id", agent.agent_id);
   text("detail-spawn", agent.spawn_id);
