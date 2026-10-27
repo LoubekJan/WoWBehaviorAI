@@ -206,6 +206,8 @@ Starší profil tyto rozšířené rezervace automaticky nepřebírá.
 
 Fyzický test vyžaduje u všech 12 dělníků doloženou práci, náklad,
 odevzdání, skutečné jídlo a návrat domů ve stejném životním cyklu:
+ověřuje pracovní návrat i pozdější návrat po jídle. Dělník nemusí
+jíst bezprostředně po odevzdání; sklad slouží společně jeho vesnici.
 
 ```bash
 python3 -m tools.realm_lab.field_acceptance runtime/lab/recordings/aiworld-SESSION --output runtime/lab/validation/field-acceptance.json

@@ -41,6 +41,7 @@ def owned(current, phase, activity, started, *, moving=False, purpose="NONE"):
 
 
 def happy_samples(*, end=300):
+    """Synthetic test fixture; never a live recording or acceptance receipt."""
     initial = frame()
     for current in initial["agents"]:
         spec = ACTORS[current["spawn_id"]]
@@ -116,8 +117,80 @@ def happy_samples(*, end=300):
                 supplied["field_workpoint_index"] = spec.worker_ordinal+4
                 supplied["field_workpoint"] = {key: definition["work_points"][spec.worker_ordinal+4][key] for key in ("map_id", "x", "y", "z")}
                 supplied["last_result"] = "RESTED_HOME"
-        result.append(dict(sequence=t+1, elapsed_seconds=t, session_id="field-test", status="fresh", state=state))
+        result.append(dict(sequence=t+1, elapsed_seconds=t, session_id="SYNTHETIC-field-test", synthetic_test_fixture=True, status="fresh", state=state))
     return result
+
+
+def separate_trip_samples(source):
+    """Synthetic full-stock schedule: production/home, maintenance, meal/home.
+
+    Nonzero opening counter balances are deliberately unproved prehistory.
+    Only new owned, timed actions in this fixture can supply positive evidence.
+    """
+    rows = deepcopy(source)
+    for t, row in enumerate(rows):
+        harvested, delivered, consumed = int(t >= 56), int(t >= 102), int(t >= 245)
+        accounting = dict(initial_food="0", harvested=str(78+12*harvested), in_cargo=str(12*(harvested-delivered)),
+            in_depots=str(78+12*(delivered-consumed)), consumed=str(12*consumed), lost="0", conserved=True)
+        for current in row["state"]["agents"]:
+            supplied = current.get("supply")
+            if supplied: supplied["accounting"] = deepcopy(accounting)
+            sid = current["spawn_id"]
+            if sid not in WORKERS: continue
+            spec, definition = WORKERS[sid], DEFINITIONS[WORKERS[sid].field_id]
+            initial, second = definition["work_points"][spec.worker_ordinal], definition["work_points"][spec.worker_ordinal+4]
+            index = spec.worker_ordinal + (0 if t < 133 or t >= 276 else 4 if t < 219 else 8)
+            seed = 6 if spec.worker_ordinal < 2 else 7
+            supplied.update(phase="WAITING", harvested=str(seed+harvested), delivered=str(seed+delivered), consumed=str(consumed),
+                cargo=harvested-delivered, field_remaining=24-4*harvested, field_workpoint_index=index,
+                field_workpoint={key: definition["work_points"][index][key] for key in ("map_id", "x", "y", "z")}, last_result="READY")
+            supplied["depot"].update(stock=26+4*(delivered-consumed), delivered=str(26+4*delivered), consumed=str(4*consumed))
+            current.update(action=None, action_source_goal=None, action_started_at_ms=None, goal=None, goal_owner="")
+            current["living_role"].update(phase="IDLE", activity="NONE", started_at_ms=0, movement_purpose="NONE")
+            current["needs"]["hunger"] = .05+.003*t if t < 245 else .003*(t-245)
+            home, depot = current["home"], DEPOTS[spec.depot_id]
+            move(current, home)
+            if t <= 40:
+                move(current, blend(home, initial, t/40), t < 40)
+                owned(current, "TO_FIELD", "NONE", 0, moving=True, purpose="FARM_FIELD")
+            elif t <= 55:
+                move(current, initial); owned(current, "WORKING_FIELD", "WORK", 41)
+            elif t == 56: move(current, initial)
+            elif t <= 96:
+                move(current, blend(initial, depot, (t-57)/39), t < 96)
+                owned(current, "TO_WAREHOUSE", "NONE", 57, moving=True, purpose="FARM_DEPOT")
+            elif t <= 101:
+                move(current, depot); owned(current, "DELIVERING", "WORK", 97)
+            elif t == 102: move(current, depot)
+            elif t <= 122:
+                move(current, blend(depot, home, (t-103)/19), t < 122)
+                owned(current, "RETURNING_HOME", "NONE", 103, moving=True, purpose="FARM_HOME")
+            elif t <= 132:
+                owned(current, "RESTING_HOME", "REST", 123)
+            elif t == 133: supplied["last_result"] = "RESTED_HOME"
+            elif t <= 173:
+                move(current, blend(home, second, (t-134)/39), t < 173)
+                owned(current, "TO_FIELD", "NONE", 134, moving=True, purpose="FARM_FIELD")
+            elif t <= 188:
+                move(current, second); owned(current, "WORKING_FIELD", "WORK", 174)
+            elif t <= 208:
+                move(current, blend(second, home, (t-189)/19), t < 208)
+                owned(current, "RETURNING_HOME", "NONE", 189, moving=True, purpose="FARM_HOME")
+                supplied["last_result"] = "FIELD_MAINTENANCE"
+            elif t <= 218: owned(current, "RESTING_HOME", "REST", 209)
+            elif t == 219: supplied["last_result"] = "RESTED_HOME"
+            elif t <= 239:
+                move(current, blend(home, depot, (t-220)/19), t < 239)
+                owned(current, "TO_WAREHOUSE", "NONE", 220, moving=True, purpose="FARM_DEPOT")
+            elif t <= 244:
+                move(current, depot); owned(current, "EATING_DEPOT", "EAT", 240)
+            elif t == 245: move(current, depot)
+            elif t <= 265:
+                move(current, blend(depot, home, (t-246)/19), t < 265)
+                owned(current, "RETURNING_HOME", "NONE", 246, moving=True, purpose="FARM_HOME")
+            elif t <= 275: owned(current, "RESTING_HOME", "REST", 266)
+            elif t == 276: supplied["last_result"] = "RESTED_HOME"
+    return rows
 
 
 class FieldAcceptanceTests(unittest.TestCase):
@@ -131,9 +204,41 @@ class FieldAcceptanceTests(unittest.TestCase):
         self.assertEqual((report["expected_owned"], report["expected_native"], len(report["chains"])), (40, 60, 12))
         self.assertEqual(report["observed_seconds"], 300)
         for chain in report["chains"]:
-            self.assertEqual(chain["covered"], ["TO_FIELD", "FIELD_ARRIVED", "HARVESTED", "CARGO", "DELIVERED", "MEAL", "HOME_REST"])
-            self.assertGreaterEqual(chain["field_travel_yards"], 2)
-            self.assertGreaterEqual(chain["warehouse_travel_yards"], 2)
+            production, meal = chain["production_return"], chain["meal_return"]
+            self.assertEqual(production["covered"], ["TO_FIELD", "FIELD_ARRIVED", "HARVESTED", "CARGO", "DELIVERED", "PRODUCTION_HOME_REST"])
+            self.assertGreaterEqual(production["field_travel_yards"], 2)
+            self.assertGreaterEqual(production["warehouse_travel_yards"], 2)
+            self.assertEqual(production["returned_seconds"], 139)
+            self.assertEqual(meal["returned_seconds"], 139)
+            for receipt in (production["home_rest_receipt"], meal["home_rest_receipt"]):
+                self.assertGreaterEqual(receipt["completion_capture_ms"]-receipt["started_at_ms"], 10000)
+
+    def test_production_home_rest_survives_full_stock_maintenance_until_later_meal_return(self):
+        rows = separate_trip_samples(self.good)
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["criterion"], "linked_production_return_and_later_meal_return")
+        self.assertEqual(report["completed_farmers"], sorted(fields.RECRUIT_IDS))
+        for chain in report["chains"]:
+            production, meal = chain["production_return"], chain["meal_return"]
+            self.assertEqual((production["returned_seconds"], meal["meal_seconds"], meal["returned_seconds"]), (133, 245, 276))
+            self.assertEqual(production["runtime_guid"], meal["runtime_guid"])
+            self.assertEqual(production["lifetime_ms"], meal["lifetime_ms"])
+            self.assertEqual(production["epoch"], meal["epoch"])
+        self.assertEqual(acceptance.evaluate_samples(rows[:271], minimum_seconds=100)["status"], "INCONCLUSIVE")
+        for mutation in ("no_production", "no_meal_return", "stale_between_receipts", "new_life_between_receipts"):
+            candidate = deepcopy(rows)
+            if mutation == "no_production": candidate = candidate[120:]
+            elif mutation == "no_meal_return":
+                for row in candidate[266:]:
+                    current = actor(row, 901016)
+                    current["supply"].update(phase="WAITING", field_workpoint_index=8,
+                        field_workpoint={key: DEFINITIONS[4]["work_points"][8][key] for key in ("map_id", "x", "y", "z")})
+            elif mutation == "stale_between_receipts": candidate[200]["status"] = "stale"
+            else:
+                for row in candidate[200:]: actor(row, 901016)["living_role"]["lifetime_ms"] = BASE+200000
+            result = acceptance.evaluate_samples(candidate, minimum_seconds=100)
+            with self.subTest(mutation=mutation): self.assertEqual(result["status"], "INCONCLUSIVE", result)
 
     def test_action_source_duration_workpoint_and_free_rewards_are_real_violations(self):
         for mutation in ("work_owner", "work_duration", "work_away", "delivery_owner", "meal_owner", "foreign_field", "foreign_depot", "personal_food", "free_hunger", "crop_creation", "home", "teleport"):
@@ -190,6 +295,7 @@ class FieldAcceptanceTests(unittest.TestCase):
 
     def test_partial_observation_never_passes_and_same_capture_replay_never_adds_duration(self):
         self.assertEqual(acceptance.evaluate_samples(self.good[:150])["status"], "INCONCLUSIVE")
+        self.assertEqual(acceptance.evaluate_samples(self.good[:135], minimum_seconds=100)["status"], "INCONCLUSIVE")
         frozen = [deepcopy(self.good[0]["state"]) for _ in range(350)]
         report = acceptance.evaluate_samples(frozen)
         self.assertEqual(report["status"], "INCONCLUSIVE")

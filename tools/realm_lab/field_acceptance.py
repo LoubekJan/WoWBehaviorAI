@@ -1,7 +1,8 @@
 """Read-only physical farmer acceptance for fields-v8 recordings.
 
-Each farmer needs one continuous observed field work, cargo, own-warehouse
-delivery, meal and home-rest chain in a shared fresh ledger epoch. This gate
+Each farmer needs linked production-return and later meal-return receipts in
+a shared fresh ledger epoch. Ordinary home rest may separate the two trips.
+Both returns need continuously observed owned ten-second rest completion. This gate
 does not certify the older hunter/raid behavior gates or client animation pixels.
 """
 from __future__ import annotations
@@ -34,6 +35,8 @@ MAX_CHAINS_PER_WORKER = 4
 class Track:
     previous: dict | None = None
     chain: dict | None = None
+    production_return: dict | None = None
+    meal_return: dict | None = None
     attempts: dict = field(default_factory=dict)
     closed_stamps: set = field(default_factory=set)
     best_partial: dict | None = None
@@ -74,6 +77,7 @@ class _Evaluator:
                 track.best_partial = partial
         track.censored[reason] += 1
         track.previous = track.chain = None
+        track.production_return = track.meal_return = None
         track.attempts.clear()
         track.closed_stamps.clear()
 
@@ -265,7 +269,7 @@ class _Evaluator:
 
     def owned_event(self, sid, kind, old, row, duration):
         track = self.tracks[sid]
-        anchor = "field_distance" if kind == "work" else "depot_distance"
+        anchor = "field_distance" if kind == "work" else "home_distance" if kind == "rest" else "depot_distance"
         if (not self.activity(old, kind) or old[anchor] > RADIUS or row[anchor] > RADIUS or
             row["agent"].get("in_combat") is not False or row["capture"]-old["role"].get("started_at_ms", row["capture"]) < duration):
             self.violation(kind + "_without_owned_action_position_or_duration", sid); return False
@@ -274,6 +278,37 @@ class _Evaluator:
             old["capture"] != attempt["last_capture"] or row["capture"]-attempt["last_capture"] > self.max_gap*1000):
             track.censored[kind + "_start_or_continuity_not_observed"] += 1; return False
         return True
+
+    def event_receipt(self, sid, kind, old, row, duration):
+        attempt = self.tracks[sid].attempts[kind]
+        return dict(started_at_ms=attempt["started"], first_capture_ms=attempt["first_capture"],
+            last_active_capture_ms=attempt["last_capture"], completion_capture_ms=row["capture"],
+            minimum_duration_ms=duration, position_before=list(old["position"]), position_after=list(row["position"]))
+
+    def finish_returns(self, sid, old, row):
+        track, spec = self.tracks[sid], self.workers[sid]
+        chain, meal = track.chain, track.meal_return
+        if not ((chain and "DELIVERED" in chain["covered"]) or (meal and "returned_seconds" not in meal)):
+            return
+        if not self.owned_event(sid, "rest", old, row, 10000): return
+        coincident = dist3(row["home"], point(self.depots[spec.depot_id])) <= RADIUS
+        rest = self.event_receipt(sid, "rest", old, row, 10000)
+        if chain and "DELIVERED" in chain["covered"] and (chain["home_travel_yards"] >= 2 or coincident):
+            chain["covered"] += ["PRODUCTION_HOME_REST"]
+            chain["returned_seconds"], chain["home_rest_receipt"] = row["t"], rest
+            chain["home_distance_yards"] = row["home_distance"]
+            track.production_return, track.chain = chain, None
+        if meal and "returned_seconds" not in meal and (meal["home_travel_yards"] >= 2 or coincident):
+            meal["returned_seconds"], meal["home_rest_receipt"] = row["t"], rest
+            meal["home_distance_yards"] = row["home_distance"]
+        production = track.production_return
+        if production and meal and "returned_seconds" in meal:
+            # Stock is shared and fungible: the two receipts establish this
+            # worker's production and later consumption, never portion identity.
+            track.chains.append(dict(epoch=self.epoch, spawn_id=sid, runtime_guid=row["guid"], lifetime_ms=row["life"],
+                field_id=spec.field_id, depot_id=spec.depot_id, production_return=production, meal_return=meal))
+            del track.chains[:-MAX_CHAINS_PER_WORKER]
+            track.production_return = track.meal_return = None
 
     def update_worker(self, sid, row, flows):
         track, spec = self.tracks[sid], self.workers[sid]
@@ -295,10 +330,15 @@ class _Evaluator:
                 expected = spec.worker_ordinal + 4 * (((old["index"]-spec.worker_ordinal)//4+1) % 3)
                 if row["index"] != expected or not self.activity(old, "rest") or old["home_distance"] > RADIUS or row["capture"]-old["role"].get("started_at_ms", row["capture"]) < 10000:
                     self.violation("workpoint_rotation_without_owned_home_rest", sid)
+                else:
+                    self.finish_returns(sid, old, row)
             chain = track.chain
             if chain and (self.moving(old, "FARM_FIELD") or self.moving(row, "FARM_FIELD")): chain["field_travel_yards"] += step
             if chain and (self.moving(old, "FARM_DEPOT") or self.moving(row, "FARM_DEPOT")): chain["warehouse_travel_yards"] += step
             if chain and (self.moving(old, "FARM_HOME") or self.moving(row, "FARM_HOME")): chain["home_travel_yards"] += step
+            if track.meal_return and "returned_seconds" not in track.meal_return and (
+                self.moving(old, "FARM_HOME") or self.moving(row, "FARM_HOME")):
+                track.meal_return["home_travel_yards"] += step
             if delta["harvested"]:
                 valid = self.owned_event(sid, "work", old, row, 15000)
                 if delta["harvested"] != 1 or old["supply"]["field_remaining"] <= 0:
@@ -306,6 +346,9 @@ class _Evaluator:
                 if valid and chain and "FIELD_ARRIVED" in chain["covered"]:
                     chain["covered"] = list(dict.fromkeys(chain["covered"]+["HARVESTED", "CARGO"]))
                     chain["harvested_seconds"] = row["t"]
+                    chain["work_receipt"] = self.event_receipt(sid, "work", old, row, 15000)
+                    chain["work_receipt"].update(portions=1, cargo_before=old["cargo"], cargo_after=row["cargo"],
+                        field_remaining_before=old["supply"]["field_remaining"], field_remaining_after=row["supply"]["field_remaining"])
             if delta["delivered"]:
                 valid = self.owned_event(sid, "delivery", old, row, 5000)
                 if not 0 < delta["delivered"] <= old["cargo"] <= 2 or flows[spec.depot_id]["delivered"] < delta["delivered"]:
@@ -313,15 +356,24 @@ class _Evaluator:
                 if valid and chain and "CARGO" in chain["covered"] and chain["warehouse_travel_yards"] >= 2:
                     chain["covered"] = list(dict.fromkeys(chain["covered"]+["DELIVERED"]))
                     chain["delivered_seconds"] = row["t"]
+                    chain["delivery_receipt"] = {**self.event_receipt(sid, "delivery", old, row, 5000),
+                        "portions": delta["delivered"], "cargo_before": old["cargo"], "cargo_after": row["cargo"]}
             if delta["consumed"]:
                 valid = self.owned_event(sid, "meal", old, row, 5000)
                 if (delta["consumed"] != 1 or old["hunger"]-row["hunger"] < .1 or
                     flows[spec.depot_id]["consumed"] < 1 or counter(row["supply"]["accounting"]["consumed"])-counter(old["supply"]["accounting"]["consumed"]) < 1):
                     self.violation("meal_without_hunger_relief_and_reconciled_debit", sid); valid = False
-                if valid and chain and "DELIVERED" in chain["covered"]:
-                    chain["covered"] = list(dict.fromkeys(chain["covered"]+["MEAL"]))
-                    chain["meal_seconds"] = row["t"]
-        if self.moving(row, "FARM_FIELD") and row["field_distance"] > RADIUS and track.chain is None:
+                production = track.production_return or (chain if chain and "DELIVERED" in chain["covered"] else None)
+                if valid and production and row["t"] > production["delivered_seconds"] and track.meal_return is None:
+                    track.meal_return = dict(epoch=self.epoch, spawn_id=sid, runtime_guid=row["guid"], lifetime_ms=row["life"],
+                        field_id=spec.field_id, depot_id=spec.depot_id, meal_seconds=row["t"], home_travel_yards=0,
+                        meal_receipt={**self.event_receipt(sid, "meal", old, row, 5000), "portions": 1,
+                            "hunger_before": old["hunger"], "hunger_after": row["hunger"],
+                            "stock_before": old["supply"]["depot"]["stock"], "stock_after": row["supply"]["depot"]["stock"],
+                            "global_consumed_before": old["supply"]["accounting"]["consumed"],
+                            "global_consumed_after": row["supply"]["accounting"]["consumed"],
+                            "aggregate_delivered": flows[spec.depot_id]["delivered"], "aggregate_consumed": flows[spec.depot_id]["consumed"]})
+        if self.moving(row, "FARM_FIELD") and row["field_distance"] > RADIUS and track.chain is None and track.production_return is None:
             track.chain = dict(epoch=self.epoch, spawn_id=sid, runtime_guid=row["guid"], lifetime_ms=row["life"],
                 field_id=spec.field_id, depot_id=spec.depot_id, workpoint_index=row["index"],
                 departure_seconds=row["t"], covered=["TO_FIELD"], field_travel_yards=0, warehouse_travel_yards=0, home_travel_yards=0)
@@ -339,15 +391,6 @@ class _Evaluator:
                 else: attempt["last_capture"] = row["capture"]
                 if kind == "work" and chain and chain["field_travel_yards"] >= 2:
                     chain["covered"] = list(dict.fromkeys(chain["covered"]+["FIELD_ARRIVED"]))
-                if kind == "rest" and chain and "DELIVERED" in chain["covered"]:
-                    if "MEAL" in chain["covered"] and (chain["home_travel_yards"] >= 2 or dist3(row["home"], point(self.depots[spec.depot_id])) <= RADIUS):
-                        chain["covered"] += ["HOME_REST"]
-                        chain["returned_seconds"], chain["home_distance_yards"] = row["t"], row["home_distance"]
-                        track.chains.append(chain)
-                        del track.chains[:-MAX_CHAINS_PER_WORKER]
-                        track.chain = None
-                    elif "MEAL" not in chain["covered"]:
-                        self.censor_track(sid, "returned_home_before_a_depot_meal")
             elif attempt:
                 track.closed_stamps.add((kind, attempt["started"]))
                 del track.attempts[kind]
@@ -408,7 +451,7 @@ class _Evaluator:
             self.epochs[epoch]["last_capture"]-self.epochs[epoch]["first_capture"]), default=None)
         completed = {chain["spawn_id"] for chain in chains if chain["epoch"] == selected}
         seconds = (self.epochs[selected]["last_capture"]-self.epochs[selected]["first_capture"])/1000 if selected is not None else 0
-        missing = [f"field_cargo_delivery_meal_home_chain_{sid}" for sid in sorted(self.workers.keys()-completed)]
+        missing = [f"production_return_and_later_meal_return_{sid}" for sid in sorted(self.workers.keys()-completed)]
         if seconds < self.minimum_seconds: missing.append("shared_continuous_fresh_observation_window")
         violations = list(self.violations.values())
         status = "FAIL" if violations else "INCONCLUSIVE" if missing else "PASS"
@@ -417,11 +460,14 @@ class _Evaluator:
             expected_farmers=12, completed_farmers=sorted(completed), selected_epoch=selected,
             observed_seconds=seconds, minimum_observation_seconds=self.minimum_seconds, max_gap_seconds=self.max_gap,
             maximum_action_start_capture_lag_ms=START_LAG_MS, chains=chains,
+            criterion="linked_production_return_and_later_meal_return",
             workers={str(sid): dict(chain_count=len(track.chains), partial_chain=track.chain or track.best_partial,
+                production_return=track.production_return, pending_meal_return=track.meal_return,
                 censored_evidence=dict(track.censored)) for sid, track in self.tracks.items()},
             quality=dict(self.quality), violations=violations, missing_evidence=missing,
             limitations=["Action/position snapshots and source-validated work-emote dispatch do not prove client animation pixels or independently measure collision and line of sight.",
-                "A completion capture must follow the exact owned start by 15/5/5 seconds; the first capture may lag by at most one second and each intervening gap is bounded by max_gap_seconds. The completion falls between the last active and completion captures.",
+                "Work/delivery/meal completions require 15/5/5 seconds from their exact owned start; both home returns require ten-second owned rest completion. The first capture may lag by at most one second and intervening gaps are bounded by max_gap_seconds.",
+                "Production and later consumption may occupy separate trips separated by ordinary home rest, maintenance work and point rotation. Both receipts share one uninterrupted GUID/lifetime/ledger epoch; shared warehouse stock is fungible and no own-portion consumption is claimed.",
                 "Home and warehouse intentionally coincide for each village's first worker, so owned home rest there does not require a fictitious return walk.",
                 "Crop regrowth and harvest can share a producer tick; remaining potential is checked with at most one regrown portion per bounded capture interval.",
                 "This field gate does not replace the separate hunter, consumer or raid physical acceptance gates."])
