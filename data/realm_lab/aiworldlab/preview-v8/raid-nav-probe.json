@@ -3,7 +3,7 @@
   "profile": "raids-v8",
   "source_revision": "preview-v8",
   "map_id": 725,
-  "captured_at_utc": "2026-10-26T23:42:12.745368+00:00",
+  "captured_at_utc": "2026-10-27T00:13:56.384239+00:00",
   "status": "PASS",
   "ok": true,
   "scope": "native_detour_ground_connectivity_only",
@@ -12,7 +12,7 @@
   "new_server_deployment_performed": false,
   "all_authored_homes_preserved": true,
   "anchors_changed": false,
-  "method": "Existing MSVC x64 executable linked to repository native DT_POLYREF64 Detour sources. Validated mmap/tile ABI and complete native payload sizes, loaded all four tiles and queried small local ground-only projections plus full findPath/findStraightPath in both directions. Independent receipt checks reject partial/status-detail flags, non-ground corridor polygons and endpoint errors, verify the seven anchors against the pinned raid manifest and native terrain, and require all twelve intended directed routes.",
+  "method": "Existing MSVC x64 executable linked to repository native DT_POLYREF64 Detour sources. Validated mmap/tile ABI and complete native payload sizes, loaded all four tiles and queried small local ground-only projections plus full findPath/findStraightPath in both directions. Independent receipt checks reject partial/status-detail flags, non-ground corridor polygons and endpoint errors, verify the ten anchors against the pinned raid manifest and native terrain, and require all eighteen intended directed routes.",
   "parameters": {
     "poly_ref_bits": 64,
     "query_node_capacity": 8192,
@@ -138,14 +138,15 @@
     }
   ],
   "limitations": [
-    "This proves native ground-navmesh connectivity at seven selected anchors and twelve directed paths. It does not prove physical NPC movement, bridge/body clearance, an actual theft, interception or delivery.",
+    "This proves native ground-navmesh connectivity at ten selected anchors and eighteen directed paths. It does not prove physical NPC movement, bridge/body clearance, an actual theft, interception or delivery.",
     "Runtime must resolve each waypoint from the current physical floor and independently validate collisions, route and map bounds, dynamic occupants, real LOS, attackability and action completion.",
-    "No live world was activated or changed by this receipt. Static ground hints are not authored spawn/home changes or permission to project an actor to another floor."
+    "No live world was activated or changed by this receipt. Static ground hints are not authored spawn/home changes or permission to project an actor to another floor.",
+    "The authored route now passes north through the Stranglechasmbridge M2 bounds. Native mesh connectivity and the model bounding box do not verify its current physical deck/body support or an NPC crossing it; runtime floor, collision and movement completion checks remain required."
   ],
   "population_manifest": {
     "path": "data/realm_lab/aiworldlab/preview-v8/raid-population.json",
-    "bytes": 3708,
-    "sha256": "cfed6036db12532449cc9285496962ab6542e860f1df5574432e71f2f2627e37"
+    "bytes": 4010,
+    "sha256": "35cb4d3d36e512d1ae2e827ae4769615f49fa12706af9f3a0f2c9ce8a4468d32"
   },
   "baseline_pins": {
     "consumer_manifest_sha256": "338e7e9325883308de6c5c90bc04a52451d13c3da07c9478b40e27b9b778bc84",
@@ -463,24 +464,24 @@
   ],
   "private_probe_artifacts": [
     {
-      "path": "runtime/lab-validation/raids-v8/prepare-nav.py",
-      "bytes": 1038,
-      "sha256": "c212e2a3511a8303c33d670e452a967d2b2a919882a4dc2c24fd9850941a8186"
+      "path": "runtime/lab-validation/raids-v8/ford-route-v2/prepare-nav.py",
+      "bytes": 1681,
+      "sha256": "f3ad96418892cc2806643bc0500316cd5c159391a39d51cad35f764693d13a1b"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/points.tsv",
-      "bytes": 269,
-      "sha256": "4fd6e117d193bc64328693b4618d3b007cc4f1cab45176f31380d9d44419e288"
+      "path": "runtime/lab-validation/raids-v8/ford-route-v2/points.tsv",
+      "bytes": 452,
+      "sha256": "953dc9fcccb48e1b3c459148281d4619d2fc93278d76812d8c497eb4510be662"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/routes.tsv",
-      "bytes": 178,
-      "sha256": "2cde19717f012c45a347fd6e3158c7f3324b5ed95dbf372a2e3abe4d827886a3"
+      "path": "runtime/lab-validation/raids-v8/ford-route-v2/routes.tsv",
+      "bytes": 282,
+      "sha256": "66719fcd69315064c6cd5010d9be55b7018e050d7c201e8dd711bd5d576010f1"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/nav-raw.json",
-      "bytes": 11086,
-      "sha256": "d737b4cdd46a8ef57c518f423c338b246e79ad98f09c5a37a4180f33d7be4d61"
+      "path": "runtime/lab-validation/raids-v8/ford-route-v2/nav-raw.json",
+      "bytes": 14821,
+      "sha256": "92b810b1c9980439eda229f1a27c400c6fafbd0adca3943d54602e86c3ce8ea6"
     },
     {
       "path": "runtime/lab-validation/supply-v8/supply_nav_probe.cpp",
@@ -514,15 +515,15 @@
       "xy": 1,
       "z": 2
     },
-    "valid_projections": 7,
-    "required_paths": 12,
-    "complete_paths": 12,
+    "valid_projections": 10,
+    "required_paths": 18,
+    "complete_paths": 18,
     "projections": [
       {
         "id": "camp",
         "input": {
-          "x": 58.6867446881,
-          "y": 971.2687759381,
+          "x": 58.686744688134524,
+          "y": 971.2687759381346,
           "z": 0.15
         },
         "status": {
@@ -541,7 +542,7 @@
           "y": 971.268798828125,
           "z": 0.5681513547897339
         },
-        "xy_delta": 2.2890025053527333e-05,
+        "xy_delta": 2.2889990489977398e-05,
         "z_delta": 0.41815135478973386,
         "terrain": {
           "ground_z": 0.0,
@@ -593,6 +594,123 @@
             32
           ],
           "anchor_height_delta": 0.15,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "approach",
+        "input": {
+          "x": -160,
+          "y": 860,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503603922338771",
+        "valid": true,
+        "projected": {
+          "x": -160,
+          "y": 860,
+          "z": 0.1447639763355255
+        },
+        "xy_delta": 0,
+        "z_delta": -0.005236023664474482,
+        "terrain": {
+          "ground_z": -0.21414936457966743,
+          "triangle_slope_degrees": 6.2825851029706286,
+          "square_row": 38,
+          "square_col": 49,
+          "triangle": 1,
+          "tile": [
+            30,
+            32
+          ],
+          "anchor_height_delta": 0.3641493645796674,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "ford_w",
+        "input": {
+          "x": -201.60006713867188,
+          "y": 861.0665283203125,
+          "z": -2.2201099395751953
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503603922338620",
+        "valid": true,
+        "projected": {
+          "x": -201.60006713867188,
+          "y": 861.0665283203125,
+          "z": -2.2201099395751953
+        },
+        "xy_delta": 0,
+        "z_delta": 0,
+        "terrain": {
+          "ground_z": -3.982284604547253,
+          "triangle_slope_degrees": 38.76137074968544,
+          "square_row": 48,
+          "square_col": 49,
+          "triangle": 0,
+          "tile": [
+            30,
+            32
+          ],
+          "anchor_height_delta": 1.7621746649720578,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "west_bank",
+        "input": {
+          "x": -235,
+          "y": 790,
+          "z": -0.62
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503603922338452",
+        "valid": true,
+        "projected": {
+          "x": -235,
+          "y": 790,
+          "z": -0.645107626914978
+        },
+        "xy_delta": 0,
+        "z_delta": -0.025107626914978032,
+        "terrain": {
+          "ground_z": -0.7335857987387551,
+          "triangle_slope_degrees": 2.7468633942949574,
+          "square_row": 56,
+          "square_col": 66,
+          "triangle": 0,
+          "tile": [
+            30,
+            32
+          ],
+          "anchor_height_delta": 0.11358579873875507,
           "terrain_hole": false
         }
       },
@@ -716,8 +834,8 @@
       {
         "id": "source",
         "input": {
-          "x": -372.4611532703,
-          "y": 492.6821677284,
+          "x": -372.4611532703225,
+          "y": 492.68216772838707,
           "z": 0.15
         },
         "status": {
@@ -736,7 +854,7 @@
           "y": 492.6821594238281,
           "z": 0.39979493618011475
         },
-        "xy_delta": 8.57768089161065e-06,
+        "xy_delta": 8.577674033963261e-06,
         "z_delta": 0.24979493618011475,
         "terrain": {
           "ground_z": 0.0,
@@ -885,10 +1003,10 @@
       },
       {
         "from": "upper",
-        "to": "bridge_n",
+        "to": "approach",
         "complete": true,
         "attempted": true,
-        "polygons": 24,
+        "polygons": 6,
         "status": {
           "value": 1073741824,
           "succeeded": true,
@@ -916,49 +1034,284 @@
             "z": 0.17988967895507812
           },
           {
-            "x": -168.80007934570312,
-            "y": 860.2665405273438,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -170.666748046875,
-            "y": 860.533203125,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -173.33340454101562,
-            "y": 860.7999267578125,
-            "z": -1.686777114868164
-          },
-          {
-            "x": -198.40008544921875,
-            "y": 861.0665283203125,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -201.60006713867188,
-            "y": 861.0665283203125,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -234.66671752929688,
-            "y": 789.333251953125,
-            "z": -0.6201114654541016
-          },
-          {
-            "x": -235,
-            "y": 725,
-            "z": 0.16609978675842285
+            "x": -160,
+            "y": 860,
+            "z": 0.1447639763355255
           }
         ],
-        "straight_path_length_yards": 267.3497906601216
+        "straight_path_length_yards": 82.46211999345508
       },
       {
-        "from": "bridge_n",
+        "from": "approach",
         "to": "upper",
         "complete": true,
         "attempted": true,
-        "polygons": 30,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -160,
+            "y": 860,
+            "z": 0.1447639763355255
+          },
+          {
+            "x": -80,
+            "y": 840,
+            "z": 0.17988967895507812
+          }
+        ],
+        "straight_path_length_yards": 82.46211999345508
+      },
+      {
+        "from": "approach",
+        "to": "ford_w",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -160,
+            "y": 860,
+            "z": 0.1447639763355255
+          },
+          {
+            "x": -173.33340454101562,
+            "y": 860.7999267578125,
+            "z": -1.686777114868164
+          },
+          {
+            "x": -198.40008544921875,
+            "y": 861.0665283203125,
+            "z": -2.2201099395751953
+          },
+          {
+            "x": -201.60006713867188,
+            "y": 861.0665283203125,
+            "z": -2.2201099395751953
+          }
+        ],
+        "straight_path_length_yards": 41.756115721766385
+      },
+      {
+        "from": "ford_w",
+        "to": "approach",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -201.60006713867188,
+            "y": 861.0665283203125,
+            "z": -2.2201099395751953
+          },
+          {
+            "x": -198.40008544921875,
+            "y": 861.0665283203125,
+            "z": -2.2201099395751953
+          },
+          {
+            "x": -173.33340454101562,
+            "y": 860.7999267578125,
+            "z": -1.686777114868164
+          },
+          {
+            "x": -160,
+            "y": 860,
+            "z": 0.1447639763355255
+          }
+        ],
+        "straight_path_length_yards": 41.756115721766385
+      },
+      {
+        "from": "ford_w",
+        "to": "west_bank",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -201.60006713867188,
+            "y": 861.0665283203125,
+            "z": -2.2201099395751953
+          },
+          {
+            "x": -235,
+            "y": 790,
+            "z": -0.645107626914978
+          }
+        ],
+        "straight_path_length_yards": 78.53971985516557
+      },
+      {
+        "from": "west_bank",
+        "to": "ford_w",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -235,
+            "y": 790,
+            "z": -0.645107626914978
+          },
+          {
+            "x": -213.33340454101562,
+            "y": 831.9998779296875,
+            "z": 0.17988967895507812
+          },
+          {
+            "x": -201.60006713867188,
+            "y": 861.0665283203125,
+            "z": -2.2201099395751953
+          }
+        ],
+        "straight_path_length_yards": 78.70365192617092
+      },
+      {
+        "from": "west_bank",
+        "to": "bridge_n",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -235,
+            "y": 790,
+            "z": -0.645107626914978
+          },
+          {
+            "x": -235,
+            "y": 725,
+            "z": 0.16609978675842285
+          }
+        ],
+        "straight_path_length_yards": 65.00506178343343
+      },
+      {
+        "from": "bridge_n",
+        "to": "west_bank",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
         "status": {
           "value": 1073741824,
           "succeeded": true,
@@ -986,52 +1339,12 @@
             "z": 0.16609978675842285
           },
           {
-            "x": -234.66671752929688,
-            "y": 725.333251953125,
-            "z": 0.17988967895507812
-          },
-          {
-            "x": -213.33340454101562,
-            "y": 746.6665649414062,
-            "z": -0.35344505310058594
-          },
-          {
-            "x": -201.60006713867188,
-            "y": 861.0665283203125,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -198.40008544921875,
-            "y": 861.0665283203125,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -173.33340454101562,
-            "y": 860.7999267578125,
-            "z": -1.686777114868164
-          },
-          {
-            "x": -170.666748046875,
-            "y": 860.533203125,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -168.80007934570312,
-            "y": 860.2665405273438,
-            "z": -2.2201099395751953
-          },
-          {
-            "x": -128.00009155273438,
-            "y": 853.333251953125,
-            "z": 0.17988967895507812
-          },
-          {
-            "x": -80,
-            "y": 840,
-            "z": 0.17988967895507812
+            "x": -235,
+            "y": 790,
+            "z": -0.645107626914978
           }
         ],
-        "straight_path_length_yards": 269.8251609227643
+        "straight_path_length_yards": 65.00506178343343
       },
       {
         "from": "bridge_n",
@@ -1399,5 +1712,28 @@
         "straight_path_length_yards": 36.26632209232032
       }
     ]
+  },
+  "route_revision": "northern-bridge-v2",
+  "previous_native_receipt_sha256": "5cad1b0f8498fc7db4d944ce116f3741c0bc90045385b7b72f626791a57d800e",
+  "route_authoring_context": {
+    "reason": "Three explicit northern approach, bridge-west-edge and west-bank targets replace the former single upper-to-bridge_n leg, which allowed a water shortcut during its first live raid.",
+    "bridge_geometry_receipt": {
+      "path": "runtime/lab-validation/map-preview-v8/server-fixed-data-verification.json",
+      "bytes": 236837,
+      "sha256": "6b1dbb77844c4ab59eb5a69723afffcd9531aa5c48df76f277ca9bbf1b4100dc"
+    },
+    "bridge_model": {
+      "spawn_id": 698302,
+      "name": "Stranglechasmbridge.m2",
+      "server_bounds": {
+        "min_x": -205.001953125,
+        "max_x": -166.34765625,
+        "min_y": 857.048828125,
+        "max_y": 874.4990234375,
+        "min_z": -29.869647979736328,
+        "max_z": -0.9551162719726562
+      }
+    },
+    "physical_bridge_support_verified": false
   }
 }

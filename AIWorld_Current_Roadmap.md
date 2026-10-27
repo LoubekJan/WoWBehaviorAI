@@ -5,9 +5,10 @@ Aktivní svět je vlastní mapa **725 / oblast 4988**, realm **2**, větev
 správu účtů a telemetrii. Původní Elwynn realm je vyřazený směr; jeho
 níže uvedený plán a dosažené milníky jsou historický podklad.
 Aktuální provozní postup je v [README_DEV.md](README_DEV.md) a
-[doc/RealmLab.md](doc/RealmLab.md). Aktivní profil `consumers-v8` řídí
-20 zvířat, tři lovce a tři spotřebitele; zbývajících 74 NPC používá
-nativní chování. Fyzické přijetí všech tří spotřebitelů prošlo na revizi
+[doc/RealmLab.md](doc/RealmLab.md). Profil `raids-v8` rozšiřuje původních
+20 zvířat, tři lovce a tři spotřebitele o jednoho Defiase a jednoho
+strážného; zbývajících 72 NPC používá nativní chování. Fyzické přijetí
+všech tří spotřebitelů v předchozím profilu prošlo na revizi
 `28ce11753874`; [důkaz](data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json)
 obsahuje konkrétní záznam, hashe a omezení.
 První fyzický řetězec lov–odběr–náklad–doručení–jídlo prošel na revizi
@@ -76,6 +77,11 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    potvrzuje spojení, nikoli skutečný průchod. Fyzický gate musí doložit
    úspěšnou krádež a návrat, zastavený pokus před odečtením a pokračování
    původního lovu i spotřeby. Obsazování vesnic a skupinové přepady následují.
+   První nasazení `eacd941bf4c7` prošlo CI i kontrolou 28/72 NPC, ale při
+   cestě ke skladu zkrátilo přístup k mostu přes hluboké koryto. Uzavřený
+   záznam má 884 čerstvých vzorků bez porušení bilance a neprokazuje
+   dokončený přepad. Přístupové body nyní vedou přes severní most;
+   navazující fyzické ověření zůstává povinné.
 
 **Perzistence individuálních potřeb je odložená.** Podle rozhodnutí z
 26. října 2026 se ukládání hladu, únavy a resource pressure přes restart

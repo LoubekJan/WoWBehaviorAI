@@ -226,7 +226,17 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         if (IsSupplyRaider(record) || IsRaidGuard(record))
         {
             auto& raid = IsSupplyRaider(record) ? _raidRaider : _raidGuard;
-            if (!live && raid.Active && actor.Stolen == raid.StolenAtStart) ++raid.Prevented;
+            if (matches && !live && raid.Active && actor.Stolen == raid.StolenAtStart)
+            {
+                ++raid.Prevented;
+                // A lethal hit can precede the thief's next needs tick. Keep
+                // the already launched, owned guard interception observable
+                // without claiming which unit dealt the killing blow.
+                if (IsSupplyRaider(record) && raid.AttemptId &&
+                    _raidGuard.AttemptId == raid.AttemptId &&
+                    _raidGuard.LastInterceptionAttempt == raid.AttemptId)
+                    raid.Outcome = "INTERCEPTED";
+            }
             raid.Active = raid.Returning = false; raid.Leg = 0;
             // A loaded corpse retains the observed attempt for honest death
             // diagnostics; unloading cannot create a new incarnation.
