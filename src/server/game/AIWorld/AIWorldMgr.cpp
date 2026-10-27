@@ -852,6 +852,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _livingSupplyEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingSupplyEnabled", false);
     _livingConsumersEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingConsumersEnabled", false);
     _livingRaidsEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingRaidsEnabled", false);
+    _livingFieldsEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingFieldsEnabled", false);
     InitializeLivingSupply();
     _livingRecoverySpawnId = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("AIWorld.LocalRecoverySpawnId", 0)));
     _recoveryAdviceEnabled = sConfigMgr->GetBoolDefault("AIWorld.RecoveryAdviceEnabled", false);
@@ -11899,7 +11900,7 @@ void AIWorldMgr::UpdateNeeds()
         // scheduling only when a query first yields would miss that case.
         // This queues ordinary bounded work, never executes a query here.
         if (livingRoleHandled && _livingRolesEnabled && _livingSupplyEnabled && !IsLivingWolf(*record) &&
-            (IsSupplyHunter(*record) || IsSupplyConsumer(*record) || IsSupplyRaider(*record)) &&
+            (IsSupplyHunter(*record) || IsSupplyConsumer(*record) || IsSupplyRaider(*record) || IsFieldWorker(*record)) &&
             creature->IsStopped() && !creature->IsInCombat())
             if (auto retryAt = LivingTravelContinuation::PlanningRetryAt(*record, nowMs))
                 _needsUpdates.Wake(id, *retryAt);

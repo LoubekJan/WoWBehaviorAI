@@ -127,6 +127,28 @@ namespace LivingSupply
         }
     };
 
+    enum class FieldStage : uint8 { Field, Warehouse, Home };
+    enum class FieldActivity : uint8 { None, Work, Deliver, Eat, Rest };
+
+    inline FieldStage FieldStageAfterWork(uint32 cargo, bool hungry, uint32 depotStock,
+        uint32 depotCapacity, bool producedPortion)
+    {
+        if (cargo && (cargo >= 2 || hungry) && (depotStock < depotCapacity || hungry))
+            return FieldStage::Warehouse;
+        if (!producedPortion)
+            return hungry && depotStock ? FieldStage::Warehouse : FieldStage::Home;
+        return FieldStage::Field;
+    }
+
+    inline FieldStage FieldStageAfterWarehouse(uint32 cargo, bool hungry, uint32 depotStock, uint32 depotCapacity)
+    {
+        if ((cargo && depotStock < depotCapacity) || (hungry && depotStock))
+            return FieldStage::Warehouse;
+        if (hungry && !depotStock && !cargo)
+            return FieldStage::Field;
+        return FieldStage::Home;
+    }
+
     struct ActorRuntime
     {
         ObjectGuid Guid;
@@ -138,6 +160,14 @@ namespace LivingSupply
         std::optional<ActionPosition> PendingSearch;
         bool PendingSearchCount = false;
         bool Trip = false, AtGround = false, Live = false, ReturningToHome = false;
+        // Field intent survives a safety interruption. An interrupted activity
+        // must acquire a fresh action stamp before it can commit any food.
+        FieldStage FarmingStage = FieldStage::Field;
+        FieldActivity FarmingActivity = FieldActivity::None;
+        uint32 FieldCycle = 0;
+        uint64 FieldActionStartedAtMs = 0;
+        uint64 FieldNextWorkEmoteAtMs = 0;
+        ActionPosition FieldActionPoint;
         char const* Phase = "IDLE";
         std::string LastResult = "READY";
         TravelContext Travel;

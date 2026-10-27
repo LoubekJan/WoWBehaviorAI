@@ -343,9 +343,12 @@ TEST_CASE("Supply registration and operations reject foreign or invalid particip
     REQUIRE_FALSE(ledger.ConfigureDepot(1, 3));
     REQUIRE(ledger.ConfigureDepot(2));
     REQUIRE(ledger.ConfigureDepot(3));
-    REQUIRE_FALSE(ledger.ConfigureDepot(4));
+    REQUIRE(ledger.ConfigureDepot(4));
+    REQUIRE(ledger.ConfigureDepot(5));
+    REQUIRE(ledger.ConfigureDepot(6));
+    REQUIRE_FALSE(ledger.ConfigureDepot(7));
     REQUIRE_FALSE(ledger.RegisterActor(0, 1));
-    REQUIRE_FALSE(ledger.RegisterActor(101, 4));
+    REQUIRE_FALSE(ledger.RegisterActor(101, 7));
     REQUIRE_FALSE(ledger.RegisterActor(101, 1, 7));
     REQUIRE_FALSE(ledger.RegisterActor(201, 1, 0, true));
     REQUIRE_FALSE(ledger.RegisterActor(201, 0, 6, true));
@@ -371,7 +374,7 @@ TEST_CASE("Supply registration and operations reject foreign or invalid particip
     REQUIRE_FALSE(ledger.Deliver(101, 0, 1, 1, true).Success);
     REQUIRE_FALSE(ledger.EatDepot(201, 1, 1, 1, true).Success);
     REQUIRE(ledger.GetCargo(999) == 0);
-    REQUIRE(ledger.GetDepot(4) == nullptr);
+    REQUIRE(ledger.GetDepot(7) == nullptr);
     REQUIRE(ledger.GetCarcass({999, 1}) == nullptr);
     Conserved(ledger);
 }
@@ -684,7 +687,7 @@ TEST_CASE("Raider theft requires a separate exact source home and bounded cargo 
     auto ledger = SupplyFixture(6);
     REQUIRE_FALSE(ledger.RegisterRaider(301)); // Its home warehouse is absent.
     REQUIRE(ledger.ConfigureDepot(3));
-    REQUIRE_FALSE(ledger.ConfigureDepot(4));
+    REQUIRE(ledger.ConfigureDepot(4));
     REQUIRE_FALSE(ledger.RegisterRaider(0));
     REQUIRE_FALSE(ledger.RegisterRaider(301, 2, 1));
     REQUIRE_FALSE(ledger.RegisterRaider(301, 3, 2));

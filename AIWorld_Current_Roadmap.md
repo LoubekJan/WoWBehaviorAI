@@ -1,5 +1,14 @@
 # Aktuální směr — 27. října 2026
 
+Navazující profil `fields-v8` přidává 12 stávajících dělníků na skutečně
+namalovaná pole horní, levé a pravé vesnice. Každá má vlastní sklad
+(4/5/6); jižní sklad 1 zůstává zachovaný. Celkem jde o 40 řízených a
+60 nativních NPC. Sklizeň, náklad, odevzdání a jídlo používají společnou
+bilanci potravy; práce bez dokončení ani údržba jídlo netvoří.
+Geometrie a domovy se nemění, stav úrody a skladů se přes restart neukládá.
+Nativní důkaz obsahuje 51 bodů a 132 spojení; fyzický pracovní cyklus
+se ověřuje samostatně. Postup je v [README_DEV.md](README_DEV.md).
+
 Aktivní svět je vlastní mapa **725 / oblast 4988**, realm **2**, větev
 `AI-World-lab`. Výchozí Docker Compose spravuje přihlášení, vlastní svět,
 správu účtů a telemetrii. Původní Elwynn realm je vyřazený směr; jeho

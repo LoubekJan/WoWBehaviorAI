@@ -164,6 +164,7 @@ function drawConnections() {
   if (ObserverModel.supplySupported(agent)) {
     connect(agent.supply.hunting_ground, "Loviště", "#cdb67f", true);
     connect(agent.supply.depot?.position, agent.supply.depot?.name || "Zásobárna", "#a5d281", true);
+    if (agent.supply.role === "FARMER") connect(agent.supply.field_workpoint, "Pracovní místo na poli", "#e9bf72", true);
   }
   if (ObserverModel.raidSupported(agent)) {
     connect(agent.raid.source_depot?.position, "Zásobárna vesnice", "#d39d76", true);

@@ -19,6 +19,9 @@ namespace LivingSupply
     constexpr uint32 PredatorMealPortions = 3;
     constexpr uint32 HunterCargoCapacity = 6;
     constexpr uint32 RaiderCargoCapacity = 2;
+    constexpr uint32 FarmerCargoCapacity = 2;
+    constexpr uint32 FieldCapacity = 24;
+    constexpr uint64 FieldRegrowMs = 30000;
     constexpr uint32 DepotCapacity = 30;
     constexpr uint32 DepotTarget = 12;
     constexpr uint32 DepotLow = 4;
@@ -60,6 +63,17 @@ namespace LivingSupply
         uint64 ExpiresAtMs = 0;
         bool Active = false;
     };
+    struct Field
+    {
+        uint32 Id = 0;
+        uint32 DepotId = 0;
+        uint32 Remaining = 0;
+        uint32 Capacity = 0;
+        uint64 RegrowMs = 0;
+        uint64 LastGrowthAtMs = 0;
+        uint64 HarvestedTotal = 0;
+        uint64 RegrownTotal = 0;
+    };
     struct Counters
     {
         uint64 InitialFood = 0;
@@ -88,11 +102,30 @@ namespace LivingSupply
             if (auto current = GetDepot(id))
                 return current->Capacity == capacity && current->Target == target && current->Low == low &&
                     _initialDepotStock.at(id) == initial;
-            if (_depots.size() >= 3)
+            if (_depots.size() >= 6)
                 return false;
             _depots.emplace(id, Depot{id, initial, capacity, target, low});
             _initialDepotStock.emplace(id, initial);
             _counters.InitialFood += initial;
+            return true;
+        }
+
+        // The reviewed three crop sources each belong to their same-numbered
+        // village depot. Crops are potential, not carried or stored food.
+        bool ConfigureField(uint32 id, uint64 nowMs, uint32 initial = FieldCapacity,
+            uint32 capacity = FieldCapacity, uint64 regrowMs = FieldRegrowMs)
+        {
+            if (id < 4 || id > 6 || !GetDepot(id) || !capacity || capacity > FieldCapacity ||
+                initial > capacity || regrowMs < FieldRegrowMs)
+                return false;
+            if (auto current = GetField(id))
+                return current->Capacity == capacity && current->RegrowMs == regrowMs &&
+                    _initialFieldCrops.at(id) == initial;
+            if (_fields.size() >= 3)
+                return false;
+            _fields.emplace(id, Field{id, id, initial, capacity, regrowMs, nowMs});
+            _initialFieldCrops.emplace(id, initial);
+            _counters.PotentialCreated += initial;
             return true;
         }
 
@@ -107,10 +140,30 @@ namespace LivingSupply
             if (current != _actors.end())
                 return current->second.DepotId == depotId && current->second.Capacity == cargoCapacity &&
                     current->second.Predator == predator && current->second.Consumer == consumer &&
-                    !current->second.RaidSourceDepotId;
+                    !current->second.RaidSourceDepotId && !current->second.FieldId;
             if (_actors.size() >= 128)
                 return false;
             _actors.emplace(actor, Actor{depotId, cargoCapacity, predator, consumer});
+            return true;
+        }
+
+        bool RegisterFarmer(uint64 actor, uint32 depotId, uint32 fieldId,
+            uint32 cargoCapacity = FarmerCargoCapacity)
+        {
+            auto field = GetField(fieldId);
+            if (!actor || !field || field->DepotId != depotId || !GetDepot(depotId) ||
+                !cargoCapacity || cargoCapacity > FarmerCargoCapacity)
+                return false;
+            auto current = _actors.find(actor);
+            if (current != _actors.end())
+                return current->second.DepotId == depotId && current->second.Capacity == cargoCapacity &&
+                    current->second.FieldId == fieldId && !current->second.RaidSourceDepotId &&
+                    !current->second.Predator && !current->second.Consumer;
+            if (_actors.size() >= 128)
+                return false;
+            Actor farmer{depotId, cargoCapacity, false, false};
+            farmer.FieldId = fieldId;
+            _actors.emplace(actor, std::move(farmer));
             return true;
         }
 
@@ -126,7 +179,8 @@ namespace LivingSupply
             auto current = _actors.find(actor);
             if (current != _actors.end())
                 return current->second.DepotId == ownDepotId && current->second.Capacity == cargoCapacity &&
-                    current->second.RaidSourceDepotId == sourceDepotId && !current->second.Predator && !current->second.Consumer;
+                    current->second.RaidSourceDepotId == sourceDepotId && !current->second.Predator &&
+                    !current->second.Consumer && !current->second.FieldId;
             if (_actors.size() >= 128) return false;
             _actors.emplace(actor, Actor{ownDepotId, cargoCapacity, false, false, sourceDepotId});
             return true;
@@ -164,7 +218,7 @@ namespace LivingSupply
                 (kind != ClaimKind::Harvest && kind != ClaimKind::PredatorMeal))
                 return std::nullopt;
             auto& owner = actor->second;
-            if (owner.Consumer || owner.RaidSourceDepotId || owner.Predator != (kind == ClaimKind::PredatorMeal) ||
+            if (owner.Consumer || owner.RaidSourceDepotId || owner.FieldId || owner.Predator != (kind == ClaimKind::PredatorMeal) ||
                 requested > (owner.Predator ? PredatorMealPortions : owner.Capacity))
                 return std::nullopt;
             if (owner.Pending)
@@ -257,6 +311,8 @@ namespace LivingSupply
 
         void Expire(uint64 nowMs)
         {
+            for (auto& [_, field] : _fields)
+                Regrow(field, nowMs);
             for (auto& [_, actor] : _actors)
                 if (actor.Pending && nowMs >= actor.Pending->ExpiresAtMs)
                 {
@@ -268,8 +324,35 @@ namespace LivingSupply
                     CloseCarcass(carcass.Key);
         }
 
+        // Only an owned, physically completed work action can turn this
+        // farmer's crop potential into cargo. Arrival alone does not harvest.
+        Result HarvestField(uint64 actorId, uint64 eventSerial, uint32 fieldId,
+            uint32 requested, uint64 nowMs, bool physicallyCompleted)
+        {
+            Expire(nowMs);
+            auto actor = _actors.find(actorId);
+            if (actor == _actors.end())
+                return Rejected("UNKNOWN_ACTOR");
+            auto& owner = actor->second;
+            if (auto replay = ReplayEvent(owner, eventSerial, EventKind::FieldHarvest, fieldId, requested))
+                return *replay;
+            auto field = _fields.find(fieldId);
+            if (!physicallyCompleted || !eventSerial || !requested || requested > owner.Capacity ||
+                !owner.FieldId || owner.FieldId != fieldId || field == _fields.end() ||
+                field->second.DepotId != owner.DepotId || owner.Predator || owner.Consumer || owner.RaidSourceDepotId)
+                return Rejected("FIELD_HARVEST_NOT_AUTHORIZED");
+            uint32 amount = std::min({requested, owner.Capacity - owner.Cargo, field->second.Remaining});
+            if (!amount)
+                return Rejected(owner.Cargo == owner.Capacity ? "CARGO_FULL" : "FIELD_EMPTY");
+            field->second.Remaining -= amount;
+            field->second.HarvestedTotal += amount;
+            owner.Cargo += amount;
+            _counters.HarvestedTotal += amount;
+            return SaveEvent(owner, eventSerial, EventKind::FieldHarvest, fieldId, requested, amount);
+        }
+
         // eventSerial is an owned completed-action identity, monotonically
-        // increasing per actor across delivery, theft and meals. Exact latest repeats
+        // increasing per actor across harvest, delivery, theft and meals. Exact latest repeats
         // report the original receipt; altered or older repeats cannot mutate.
         Result Steal(uint64 actorId, uint64 eventSerial, uint32 sourceDepotId,
             uint32 requested, bool physicallyCompleted)
@@ -349,6 +432,7 @@ namespace LivingSupply
             _counters.LostTotal += amount;
             owner.Cargo = 0;
             // A new materialization cannot accept a previous life's receipt.
+            // Keep LastEventSerial so an old harvest can never mint new cargo.
             owner.LastCommitted.reset();
             owner.LastEvent.reset();
             return amount;
@@ -360,13 +444,20 @@ namespace LivingSupply
         { auto found = _depots.find(id); return found == _depots.end() ? nullptr : &found->second; }
         Carcass const* GetCarcass(CarcassKey key) const
         { auto found = _carcasses.find(key.Source); return found == _carcasses.end() || !(found->second.Key == key) ? nullptr : &found->second; }
+        Field const* GetField(uint32 id) const
+        { auto found = _fields.find(id); return found == _fields.end() ? nullptr : &found->second; }
         Counters const& GetCounters() const { return _counters; }
         uint64 DepotFood() const
         { uint64 sum = 0; for (auto const& [_, depot] : _depots) sum += depot.Stock; return sum; }
         uint64 CargoFood() const
         { uint64 sum = 0; for (auto const& [_, actor] : _actors) sum += actor.Cargo; return sum; }
         uint64 RemainingPotential() const
-        { uint64 sum = 0; for (auto const& [_, carcass] : _carcasses) sum += carcass.Remaining; return sum; }
+        {
+            uint64 sum = 0;
+            for (auto const& [_, carcass] : _carcasses) sum += carcass.Remaining;
+            for (auto const& [_, field] : _fields) sum += field.Remaining;
+            return sum;
+        }
         bool Conserved() const
         { return _counters.InitialFood + _counters.HarvestedTotal == DepotFood() + CargoFood() + _counters.ConsumedTotal + _counters.LostTotal; }
         bool PotentialConserved() const
@@ -382,7 +473,7 @@ namespace LivingSupply
             uint32 Amount;
             uint64 ExpiresAtMs;
         };
-        enum class EventKind : uint8 { Delivery, Meal, Theft };
+        enum class EventKind : uint8 { Delivery, Meal, Theft, FieldHarvest };
         struct Event
         {
             uint64 Serial;
@@ -398,6 +489,7 @@ namespace LivingSupply
             bool Predator;
             bool Consumer;
             uint32 RaidSourceDepotId = 0;
+            uint32 FieldId = 0;
             uint32 Cargo = 0;
             std::optional<Claim> Pending;
             std::optional<std::pair<Token, Result>> LastCommitted;
@@ -426,6 +518,27 @@ namespace LivingSupply
         }
         Carcass* FindCarcass(CarcassKey key)
         { auto found = _carcasses.find(key.Source); return found == _carcasses.end() || !(found->second.Key == key) ? nullptr : &found->second; }
+        void Regrow(Field& field, uint64 nowMs)
+        {
+            // A backwards clock never rewinds the growth anchor. Time spent
+            // full cannot be banked and redeemed by a later harvest.
+            if (nowMs <= field.LastGrowthAtMs)
+                return;
+            if (field.Remaining == field.Capacity)
+            {
+                field.LastGrowthAtMs = nowMs;
+                return;
+            }
+            uint32 growth = uint32(std::min<uint64>((nowMs - field.LastGrowthAtMs) / field.RegrowMs,
+                field.Capacity - field.Remaining));
+            if (!growth)
+                return;
+            field.Remaining += growth;
+            field.RegrownTotal += growth;
+            _counters.PotentialCreated += growth;
+            field.LastGrowthAtMs = field.Remaining == field.Capacity ? nowMs :
+                field.LastGrowthAtMs + uint64(growth) * field.RegrowMs;
+        }
         void Release(Claim const& claim)
         {
             if (auto carcass = FindCarcass(claim.Key))
@@ -433,6 +546,8 @@ namespace LivingSupply
         }
         std::map<uint32, Depot> _depots;
         std::map<uint32, uint32> _initialDepotStock;
+        std::map<uint32, Field> _fields;
+        std::map<uint32, uint32> _initialFieldCrops;
         std::map<uint64, Actor> _actors;
         std::map<uint64, Carcass> _carcasses;
         uint64 _nextClaimSerial = 0;

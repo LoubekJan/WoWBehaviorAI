@@ -2,8 +2,8 @@
 
 Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
 herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
-**4988**. Aktivní nasazení používá profil `raids-v8`: AIWorld řídí 28 ze
-100 NPC, ostatních 72 používá běžné chování TrinityCore. Výchozí
+**4988**. Profil `fields-v8` rozšiřuje přepady o práci na třech polích:
+AIWorld řídí 40 ze 100 NPC, ostatních 60 používá běžné chování TrinityCore. Výchozí
 `.env.example` zůstává konzervativním profilem `settlement-v8`.
 
 ## Služby a data
@@ -171,7 +171,51 @@ python3 tools/realm_lab/wildlife_acceptance.py runtime/lab/recordings/aiworld-SE
 Výsledky jsou `PASS`, `FAIL` nebo `INCONCLUSIVE` (exit 0, 3, 2). Zdravá
 služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
 
-## Přepady zásob — aktivní raids-v8
+## Pole a vlastní vesnické sklady — fields-v8
+
+Profil zachovává všech 28 aktérů `raids-v8` a přidává 12 stávajících
+dělníků horní, levé a pravé vesnice. Každá dostává svůj sklad: ID 4, 5
+a 6. Jižní vesnice si ponechává sklad 1; sklady gnollů a Defias zůstávají
+oddělené. Domovy, 100 spawnů a mapová data se nemění.
+
+Pole a 36 pracovních bodů pocházejí ze skutečného pokrytí texturou
+`elwynncrop92.blp`. [Manifest](data/realm_lab/aiworldlab/preview-v8/field-population.json)
+a [navigační důkaz](data/realm_lab/aiworldlab/preview-v8/field-nav-probe.json)
+obsahují přiřazení pracovníků, sklady a 132 směrovaných spojení. Tento
+důkaz potvrzuje nativní navigační síť; skutečný průchod a činnosti se měří
+samostatně. Každý pohyb nadále kontroluje aktuální kolize a nebezpečí.
+
+Dělník pracuje na vlastním poli nejméně 15 sekund. Dokončená sklizeň
+převede jednu dostupnou porci úrody do nákladu, nejvýše dvě na dělníka.
+Pětisekundové odevzdání ji přesune do vlastního skladu. Jídlo trvá pět
+sekund a hlad sníží až po skutečném odečtení porce z tohoto skladu.
+Následuje návrat domů, odpočinek a další pracovní místo. Plný sklad
+vede k údržbě pole; přerušená práce, údržba a samotný příchod jídlo netvoří.
+
+Sklady začínají prázdné a mají kapacitu 30 porcí. Každé pole má nejvýše
+24 zralých porcí; jedna dorůstá za 30 sekund. Úroda se započítá jako
+potrava až dokončenou sklizní. Celková bilance zahrnuje původní maso i
+novou úrodu. Zásoby, úroda, náklad a potřeby zůstávají pouze stavem běhu.
+
+Pro nasazení nastav `LAB_AI_PROFILE=fields-v8` a `LAB_WILDLIFE_ENABLED=1`.
+Použij běžné `make setup-world` a `make start`; připravenost a doplnění
+identit vyžadují zastavený worldserver. Pro pauzu ponech profil a nastav
+`LAB_WILDLIFE_ENABLED=0`. `deactivate-fields-v8` také umí při zastaveném
+světě přepnout všech 40 rezervovaných identit do Observe bez mazání paměti.
+Starší profil tyto rozšířené rezervace automaticky nepřebírá.
+
+Fyzický test vyžaduje u všech 12 dělníků doloženou práci, náklad,
+odevzdání, skutečné jídlo a návrat domů ve stejném životním cyklu:
+
+```bash
+python3 -m tools.realm_lab.field_acceptance runtime/lab/recordings/aiworld-SESSION --output runtime/lab/validation/field-acceptance.json
+```
+
+Výsledky `PASS`, `FAIL` a `INCONCLUSIVE` oddělují dokončené řetězce,
+porušení pravidel a chybějící důkaz. Zdravé služby samy pracovní cyklus
+nepotvrzují. Tento test neopakuje úplný předchozí test přepadů.
+
+## Přepady zásob — základ raids-v8
 
 Profil přidává ke zvěři, lovcům a třem spotřebitelům Defiase 901055 a
 strážného 901039. Přepad používá skutečné zásoby, náklad, fyzickou cestu

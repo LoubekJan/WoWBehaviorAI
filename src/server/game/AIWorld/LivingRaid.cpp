@@ -5,6 +5,7 @@
 #include "Map.h"
 #include "MotionMaster.h"
 #include "PointMovementGenerator.h"
+#include "Agent/LivingFieldRuntime.h"
 #include <algorithm>
 #include <limits>
 #include <string_view>
@@ -65,17 +66,20 @@ std::optional<FoodDepotTelemetry> AIWorldMgr::DescribeFoodDepot(uint32 id) const
 {
     auto depot = _supplyLedger.GetDepot(id);
     auto location = LivingSupply::DepotLocation(id);
-    if (!depot || (!location && (id != LivingRaid::CampDepot || !_livingRaidsEnabled))) return std::nullopt;
+    auto field = _livingFieldsEnabled ? LivingFields::Field(id) : nullptr;
+    if (!depot || (!location && !field && (id != LivingRaid::CampDepot || !_livingRaidsEnabled))) return std::nullopt;
     FoodDepotTelemetry result;
     result.Id = id;
-    result.Name = location ? location->Name : "Defias camp";
-    result.Position = location ? location->Point : LivingRaid::Camp;
+    result.Name = location ? location->Name : field ? field->Name : "Defias camp";
+    result.Position = location ? location->Point : field ? field->DepotPoint : LivingRaid::Camp;
     result.Stock = depot->Stock; result.Capacity = depot->Capacity; result.LowThreshold = depot->Low;
     for (auto const& [spawn, actor] : _supplyActors)
     {
         auto hunter = LivingSupply::Hunter(spawn);
         auto consumer = LivingSupply::Consumer(spawn);
+        auto farmer = _livingFieldsEnabled ? LivingFields::Worker(spawn) : nullptr;
         uint32 owner = hunter ? hunter->Depot : consumer ? consumer->Depot :
+            farmer ? farmer->Depot :
             spawn == LivingRaid::GuardSpawn ? LivingRaid::SourceDepot :
             spawn == LivingRaid::RaiderSpawn ? LivingRaid::CampDepot : 0;
         if (owner == id) { result.Delivered += actor.Delivered; result.Consumed += actor.Consumed; }

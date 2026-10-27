@@ -38,7 +38,7 @@ if [ -n "$world_id" ]; then
 fi
 test -z "$("${lab_compose[@]}" ps --all -q worldserver)"
 run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
-if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ]; then
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
     /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
   receipt="/workspace/runtime/lab/receipts/start-policy-deploy-$(date -u +%Y%m%dT%H%M%SZ)-${expected_revision:0:12}.json"
@@ -69,7 +69,7 @@ wait_healthy() {
 for service in auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web; do
   wait_healthy "$service"
 done
-if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ]; then
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ]; then
   "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
     python3 tools/realm_lab/manage.py "preflight-$lab_profile" /runtime/data
 fi
@@ -86,16 +86,16 @@ template = Path("/etc/trinitycore/worldserver.conf").read_text(encoding="utf-8")
 assert config == render_config(template, settings)
 assert "Updates.EnableDatabases = 6" in config
 expected_enable = "1" if settings.ai_profile in ("single-return", "hunt-cycle", "hunt-100", "hunt-terrain-100") else "0"
-if settings.ai_profile in ("wildlife-v8", "supply-v8", "consumers-v8", "raids-v8"):
+if settings.ai_profile in ("wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8"):
     expected_enable = str(int(settings.wildlife_enabled))
 assert f"AIWorld.Enable = {expected_enable}\n" in config
-if settings.ai_profile in ("settlement-v8", "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8"):
+if settings.ai_profile in ("settlement-v8", "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8"):
     assert "AIWorld.TelemetryEnabled = 1\n" in config
     assert "AIWorld.TelemetryNativeCreaturesEnabled = 1\n" in config
 assert f"RealmID = {settings.realm_id}\n" in config
 print("Lab realm ID, shared-auth migration exclusion and rendered AI profile verified:", settings.ai_profile)
 '
-if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ]; then
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ]; then
   "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
     python3 tools/realm_lab/telemetry_contract.py
 fi

@@ -23,7 +23,8 @@ namespace LivingTravelContinuation
         return value == "DELIVER_FOOD" || value == "GET_DEPOT_FOOD" || value == "RETURN_DEPOT" ||
             value == "TO_HUNTING_GROUND" || value == "SUPPLY_SEARCH" || value == "RETURN_CONSUMER_HOME" ||
             value == "RAID_SOURCE" || value == "RAID_CAMP" || value == "RAID_EMPTY_RETURN" ||
-            value == "GUARD_HOME" || value == "GUARD_POST" || value == "RETURN_HOME" || value == "FORAGE_SEARCH";
+            value == "GUARD_HOME" || value == "GUARD_POST" || value == "RETURN_HOME" || value == "FORAGE_SEARCH" ||
+            value == "FARM_FIELD" || value == "FARM_DEPOT" || value == "FARM_HOME";
     }
 
     namespace Detail

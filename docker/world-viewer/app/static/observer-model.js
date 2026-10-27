@@ -75,15 +75,19 @@ const ObserverModel = (() => {
       FEEDING: "Krmení z kořisti", FED: "Nakrmený", RESTING: "Odpočinek", NO_ROUTE: "Cesta nedostupná",
       RETURNING_HOME: "Návrat k běžné činnosti", RETURN_HOME: "Návrat k běžné činnosti",
       ORDINARY: "Běžná činnost", NORMAL: "Běžná činnost", NO_FOOD: "Čeká na jídlo", WAITING_FOR_FOOD: "Čeká na jídlo",
-      ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený" };
-    const consumer = supply.role === "CONSUMER", raider = supply.role === "RAIDER";
-    const rows = [["Zásobování", consumer ? "Spotřebitel" : raider ? "Nájezdník" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
+      ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený", TO_FIELD: "Cesta na pole", WORKING_FIELD: "Práce na poli",
+      HARVESTED_FIELD: "Sklizeň", FIELD_MAINTENANCE: "Péče o pole", READY_FOR_FIELD: "Připraven na pole",
+      RESTING_HOME: "Odpočinek doma", TO_WAREHOUSE: "Cesta do vlastního skladu" };
+    const consumer = supply.role === "CONSUMER", raider = supply.role === "RAIDER", farmer = supply.role === "FARMER";
+    const rows = [["Zásobování", consumer ? "Spotřebitel" : raider ? "Nájezdník" : farmer ? "Zemědělec" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
       ["Právě dělá", phases[supply.phase] || supply.phase],
       ["Náklad", consumer ? null : `${supply.cargo} / ${supply.capacity} porcí`],
       ["Zbývá v kořisti", supply.carcass_remaining == null ? null : `${supply.carcass_remaining} porcí`],
-      ["Získáno z kořisti", consumer || raider ? null : supply.harvested],
+      [farmer ? "Sklizeno na poli" : "Získáno z kořisti", consumer || raider ? null : supply.harvested],
       ["Odcizené jídlo", raider ? supply.stolen : null], ["Doručeno", consumer ? null : supply.delivered],
       ["Snědeno", supply.consumed], ["Ztracený náklad", consumer ? null : supply.lost]];
+    if (farmer) rows.push(["Pole", supply.field_id], ["Pracovní místo", supply.field_workpoint_index == null ? null : supply.field_workpoint_index + 1],
+      ["Zralá úroda", supply.field_remaining == null ? null : `${supply.field_remaining} / ${supply.field_capacity} porcí`]);
     if (depot) rows.push(["Zásobárna", depot.name], ["Zásoba jídla", `${depot.stock} / ${depot.capacity} porcí`],
       ["Stav zásob", depot.stock === 0 ? "Prázdná" : depot.stock <= depot.low_threshold ? "Nízká zásoba" : "Dostatek"],
       ["Do skladu doručeno", depot.delivered], ["Ze skladu snědeno", depot.consumed],

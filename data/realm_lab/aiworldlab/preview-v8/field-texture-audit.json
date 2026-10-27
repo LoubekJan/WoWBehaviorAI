@@ -1,0 +1,594 @@
+{
+  "map_id": 725,
+  "source_revision": "preview-v8",
+  "read_only_map_and_gameplay": true,
+  "method": "Direct MTEX / MCLY / uncompressed 64x64 8-bit MCAL crop alpha, cell-center coordinates.",
+  "coordinate_system": "WoW server x,y in yards; local Cartesian, not longitude/latitude.",
+  "pixel_size_yards": 0.5208333134651184,
+  "crop_texture": "tileset/elwynn/elwynncrop92.blp",
+  "tiles": [
+    {
+      "path": "runtime/lab/map-project/world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "sha256": "682d4f9bc94a03d396065468ef72d934295247b2ea5779662b61d4d484e71b64",
+      "textures": [
+        "tileset/elwynn/elwynncobblestonedock.blp",
+        "tileset/elwynn/elwynncobblestonedockdirt.blp",
+        "tileset/elwynn/elwynncrop92.blp",
+        "tileset/elwynn/elwynngrassbase.blp"
+      ],
+      "crop_chunks": [
+        {
+          "ix": 14,
+          "iy": 3,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 298
+        },
+        {
+          "ix": 15,
+          "iy": 3,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 221
+        },
+        {
+          "ix": 14,
+          "iy": 4,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 2627
+        },
+        {
+          "ix": 15,
+          "iy": 4,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 2511
+        },
+        {
+          "ix": 14,
+          "iy": 5,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 1039
+        },
+        {
+          "ix": 15,
+          "iy": 5,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 1397
+        },
+        {
+          "ix": 7,
+          "iy": 14,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 1596
+        },
+        {
+          "ix": 8,
+          "iy": 14,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 2552
+        },
+        {
+          "ix": 7,
+          "iy": 15,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 1208
+        },
+        {
+          "ix": 8,
+          "iy": 15,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 1587
+        }
+      ],
+      "layer_flags": [
+        0,
+        256
+      ],
+      "matches_preview_v8_source_pin": true,
+      "deployed_adt_sha256": "118a18f6943ed2889eade67b949bf43ae2f6ce50812a9cb3e32beb6c828a4941",
+      "deployed_adt_matches_packaged_pin": true
+    },
+    {
+      "path": "runtime/lab/map-project/world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "sha256": "e41199ef0e262eb01134b022e86eda40d7d28fe944c0ed0cc11f3b85209abfc9",
+      "textures": [
+        "tileset/elwynn/elwynncobblestonedock.blp",
+        "tileset/elwynn/elwynncobblestonedockdirt.blp",
+        "tileset/elwynn/elwynngrassbase.blp"
+      ],
+      "crop_chunks": [],
+      "layer_flags": [
+        0,
+        256
+      ],
+      "matches_preview_v8_source_pin": true,
+      "deployed_adt_sha256": "7541520bac4900fb299d46f9cf58800871b2321e3541e70d60130fe216f205cd",
+      "deployed_adt_matches_packaged_pin": true
+    },
+    {
+      "path": "runtime/lab/map-project/world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "sha256": "cfa103986475f0b3c4b741cd6b2e0e8b4c585cf58cef82e3849823a7ebc94972",
+      "textures": [
+        "tileset/elwynn/elwynncobblestonedock.blp",
+        "tileset/elwynn/elwynncobblestonedockdirt.blp",
+        "tileset/elwynn/elwynncrop92.blp",
+        "tileset/elwynn/elwynngrassbase.blp"
+      ],
+      "crop_chunks": [
+        {
+          "ix": 4,
+          "iy": 10,
+          "alpha_max": 212,
+          "pixels_alpha_ge_128": 44
+        },
+        {
+          "ix": 5,
+          "iy": 10,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 2115
+        },
+        {
+          "ix": 6,
+          "iy": 10,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 467
+        },
+        {
+          "ix": 4,
+          "iy": 11,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 472
+        },
+        {
+          "ix": 5,
+          "iy": 11,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 4096
+        },
+        {
+          "ix": 6,
+          "iy": 11,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 1088
+        },
+        {
+          "ix": 4,
+          "iy": 12,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 145
+        },
+        {
+          "ix": 5,
+          "iy": 12,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 1198
+        },
+        {
+          "ix": 6,
+          "iy": 12,
+          "alpha_max": 255,
+          "pixels_alpha_ge_128": 276
+        }
+      ],
+      "layer_flags": [
+        0,
+        256
+      ],
+      "matches_preview_v8_source_pin": true,
+      "deployed_adt_sha256": "872ec89ade393592ceeef6303b40651f9562e4b18c685dbbe422f81bb7f68974",
+      "deployed_adt_matches_packaged_pin": true
+    },
+    {
+      "path": "runtime/lab/map-project/world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "sha256": "c2fe4a4a654e04029ed6b45dfb5e6c5d4d729d92197fa85a3b35fd85a214af1c",
+      "textures": [
+        "tileset/elwynn/elwynncobblestonedockdirt.blp",
+        "tileset/elwynn/elwynngrassbase.blp"
+      ],
+      "crop_chunks": [],
+      "layer_flags": [
+        0,
+        256
+      ],
+      "matches_preview_v8_source_pin": true,
+      "deployed_adt_sha256": "50d6b40405c88a012302ed987bd7867bec3922ff21c50a37eb0251669d09829b",
+      "deployed_adt_matches_packaged_pin": true
+    }
+  ],
+  "textures": [
+    {
+      "name": "tileset/elwynn/elwynncobblestonedock.blp",
+      "archive": "common.MPQ",
+      "bytes": 44876,
+      "sha256": "4b1617e972e9ece32fc34b879a1ba5d89046cc7a47455b7b7f72b2d9edb86774",
+      "image_size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "tileset/elwynn/elwynncobblestonedockdirt.blp",
+      "archive": "common.MPQ",
+      "bytes": 44876,
+      "sha256": "2ba8183e09fb9088a55396b7ec3be11cb44f7a11b1e26629fce9d28e247b2d3b",
+      "image_size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "tileset/elwynn/elwynncrop92.blp",
+      "archive": "common.MPQ",
+      "bytes": 44876,
+      "sha256": "021a82116cdd4e609aaaf548dde7b2f330ec87bb6461f042b1be987b1423fb1b",
+      "image_size": [
+        256,
+        256
+      ]
+    },
+    {
+      "name": "tileset/elwynn/elwynngrassbase.blp",
+      "archive": "common.MPQ",
+      "bytes": 44876,
+      "sha256": "3485fce068e7c53f005c49889d3a5896e6fdda04903c231c658d69e2e8abdd8a",
+      "image_size": [
+        256,
+        256
+      ]
+    }
+  ],
+  "plots": [
+    {
+      "id": "villageTop-painted-field",
+      "nearest_village": "villageTop",
+      "pixel_count_alpha_ge_128": 8093,
+      "area_square_yards": 2195.3665859790344,
+      "alpha_ge_128_bounds": {
+        "min_x": 347.395820081234,
+        "max_x": 405.2083178758621,
+        "min_y": 544.7916458845139,
+        "max_y": 589.583310842514
+      },
+      "centroid": {
+        "x": 376.9864309525241,
+        "y": 566.4853863045435
+      },
+      "centroid_distance_to_design_village": 41.11257885789289,
+      "candidates": [
+        {
+          "x": 383.5937353670597,
+          "y": 566.9270617067814,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 21.354165852069855
+        },
+        {
+          "x": 375.2604023516178,
+          "y": 566.9270617067814,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 20.833332538604736
+        },
+        {
+          "x": 367.96873596310616,
+          "y": 563.2812285125256,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 253,
+          "paint_mask_boundary_clearance_yards": 17.815240337576522
+        },
+        {
+          "x": 368.4895692765713,
+          "y": 571.6145615279675,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 16.14583271741867
+        },
+        {
+          "x": 389.322901815176,
+          "y": 572.6562281548977,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 15.624999403953552
+        },
+        {
+          "x": 389.322901815176,
+          "y": 561.1978952586651,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 14.914396371973776
+        },
+        {
+          "x": 379.9479021728039,
+          "y": 574.218728095293,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 14.072141219551119
+        },
+        {
+          "x": 379.9479021728039,
+          "y": 559.6353953182697,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 14.062499463558197
+        },
+        {
+          "x": 361.71873620152473,
+          "y": 558.0728953778744,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 13.02083283662796
+        },
+        {
+          "x": 371.614569157362,
+          "y": 555.9895621240139,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 10.429678974275133
+        },
+        {
+          "x": 361.1979028880596,
+          "y": 567.9687283337116,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 10.232751018187189
+        },
+        {
+          "x": 363.2812361419201,
+          "y": 577.8645612895489,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 10.112753697014254
+        }
+      ]
+    },
+    {
+      "id": "villageRight-painted-field",
+      "nearest_village": "villageRight",
+      "pixel_count_alpha_ge_128": 9901,
+      "area_square_yards": 2685.8179374494525,
+      "alpha_ge_128_bounds": {
+        "min_x": 122.39582866430283,
+        "max_x": 185.93749290704727,
+        "min_y": 323.43748766183853,
+        "max_y": 371.87498581409454
+      },
+      "centroid": {
+        "x": 153.05332105606874,
+        "y": 347.2512902833605
+      },
+      "centroid_distance_to_design_village": 87.94864161816129,
+      "candidates": [
+        {
+          "x": 150.78124424815178,
+          "y": 347.65623673796654,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 22.9403278181722
+        },
+        {
+          "x": 162.23957714438438,
+          "y": 347.1354034245014,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 22.39583247900009
+        },
+        {
+          "x": 143.48957785964012,
+          "y": 351.30206993222237,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 252,
+          "paint_mask_boundary_clearance_yards": 19.298965215520482
+        },
+        {
+          "x": 142.968744546175,
+          "y": 342.9687369167805,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 18.699294152320427
+        },
+        {
+          "x": 155.98957738280296,
+          "y": 341.4062369763851,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 16.86888971140045
+        },
+        {
+          "x": 167.9687435925007,
+          "y": 341.4062369763851,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 16.66666603088379
+        },
+        {
+          "x": 168.4895769059658,
+          "y": 352.3437365591526,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 15.659683130102252
+        },
+        {
+          "x": 150.26041093468666,
+          "y": 355.98956975340843,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 226,
+          "paint_mask_boundary_clearance_yards": 14.666799274181741
+        },
+        {
+          "x": 158.59374395012856,
+          "y": 355.4687364399433,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 226,
+          "paint_mask_boundary_clearance_yards": 14.527422030178384
+        },
+        {
+          "x": 137.76041141152382,
+          "y": 357.03123638033867,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 13.789793531121235
+        },
+        {
+          "x": 137.2395780980587,
+          "y": 337.23957046866417,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 13.278696143439133
+        },
+        {
+          "x": 148.6979109942913,
+          "y": 337.23957046866417,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 12.510845511774427
+        }
+      ]
+    },
+    {
+      "id": "villageLeft-painted-field",
+      "nearest_village": "villageLeft",
+      "pixel_count_alpha_ge_128": 6943,
+      "area_square_yards": 1883.409144501722,
+      "alpha_ge_128_bounds": {
+        "min_x": 14.583332777023315,
+        "max_x": 59.89583104848862,
+        "min_y": 771.8749705553055,
+        "max_y": 819.7916353940964
+      },
+      "centroid": {
+        "x": 37.25631039164159,
+        "y": 795.957416285536
+      },
+      "centroid_distance_to_design_village": 47.94459265233943,
+      "candidates": [
+        {
+          "x": 37.239581912755966,
+          "y": 794.010386377573,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 21.663159947663313
+        },
+        {
+          "x": 35.15624865889549,
+          "y": 801.8228860795498,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 17.738943454486318
+        },
+        {
+          "x": 43.48958167433739,
+          "y": 788.8020532429218,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 15.633677549251294
+        },
+        {
+          "x": 33.59374871850014,
+          "y": 786.7187199890614,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 15.48548768773228
+        },
+        {
+          "x": 42.96874836087227,
+          "y": 799.7395528256893,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 15.327019175281182
+        },
+        {
+          "x": 28.90624889731407,
+          "y": 794.010386377573,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 14.023866150278044
+        },
+        {
+          "x": 40.885415107011795,
+          "y": 807.5520525276661,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 11.979166209697723
+        },
+        {
+          "x": 28.90624889731407,
+          "y": 807.031219214201,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 11.876826891717679
+        },
+        {
+          "x": 49.73958143591881,
+          "y": 783.5937201082706,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 10.546070811926699
+        },
+        {
+          "x": 49.21874812245369,
+          "y": 794.5312196910381,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 9.89583295583725
+        },
+        {
+          "x": 39.84374848008156,
+          "y": 781.5103868544102,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 8.915230268569113
+        },
+        {
+          "x": 48.69791480898857,
+          "y": 805.4687192738056,
+          "terrain_z": 0.0,
+          "terrain_slope_degrees": 0.0,
+          "crop_alpha": 255,
+          "paint_mask_boundary_clearance_yards": 8.589803059028466
+        }
+      ]
+    }
+  ],
+  "installed_patch_sha256": "cd4141f22999c22cf1cc6f680cee0c14ff90e3a3f0dc9c9bbb6c90598a70adba",
+  "installed_patch_matches_server_manifest": true,
+  "wdt_mphd_flags": 14,
+  "connected_components_alpha_ge_128_including_tiny": 3,
+  "candidate_limitations": [
+    "Terrain ground only; collision/model envelopes, water and native NAV route checks remain required.",
+    "Raster mask boundaries are approximate to one alpha texel (0.521 yards).",
+    "A painted crop texture does not prove a runtime resource/work point exists."
+  ]
+}

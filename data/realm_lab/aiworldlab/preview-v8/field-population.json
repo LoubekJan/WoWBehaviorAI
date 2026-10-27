@@ -1,0 +1,829 @@
+{
+  "schema_version": 1,
+  "profile": "fields-v8",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v8",
+  "raid_manifest_sha256": "df27cb62d694b39263cea6d9dd9e1781974d6afdf3b5613a78f9268aa2e7df8b",
+  "texture_audit_sha256": "b0b18a1d8e354c11029b8d8432c99b77c4d0eb09d946c598175abc26b15eb7fe",
+  "assignment_proposal_sha256": "af083a8b7d37d680ca122cc05fed5eea9925185a537c95a575ba125d05528c75",
+  "native_geometry_files_verified": 61,
+  "owned_spawn_ids": [
+    901016,
+    901017,
+    901018,
+    901019,
+    901022,
+    901023,
+    901024,
+    901025,
+    901028,
+    901029,
+    901030,
+    901031,
+    901034,
+    901035,
+    901036,
+    901039,
+    901055,
+    901061,
+    901062,
+    901063,
+    901072,
+    901073,
+    901074,
+    901075,
+    901076,
+    901077,
+    901078,
+    901079,
+    901080,
+    901081,
+    901082,
+    901083,
+    901084,
+    901085,
+    901086,
+    901087,
+    901088,
+    901089,
+    901090,
+    901091
+  ],
+  "native_spawn_ids": [
+    901000,
+    901001,
+    901002,
+    901003,
+    901004,
+    901005,
+    901006,
+    901007,
+    901008,
+    901009,
+    901010,
+    901011,
+    901012,
+    901013,
+    901014,
+    901015,
+    901020,
+    901021,
+    901026,
+    901027,
+    901032,
+    901033,
+    901037,
+    901038,
+    901040,
+    901041,
+    901042,
+    901043,
+    901044,
+    901045,
+    901046,
+    901047,
+    901048,
+    901049,
+    901050,
+    901051,
+    901052,
+    901053,
+    901054,
+    901056,
+    901057,
+    901058,
+    901059,
+    901060,
+    901064,
+    901065,
+    901066,
+    901067,
+    901068,
+    901069,
+    901070,
+    901071,
+    901092,
+    901093,
+    901094,
+    901095,
+    901096,
+    901097,
+    901098,
+    901099
+  ],
+  "recruit_spawn_ids": [
+    901016,
+    901017,
+    901018,
+    901019,
+    901022,
+    901023,
+    901024,
+    901025,
+    901028,
+    901029,
+    901030,
+    901031
+  ],
+  "runtime_food_state_only": true,
+  "all_authored_homes_preserved": true,
+  "navigation_proof_file": "field-nav-probe.json",
+  "harvest_work_ms": 15000,
+  "harvest_amount": 1,
+  "delivery_work_ms": 5000,
+  "meal_work_ms": 5000,
+  "work_point_rotation": "worker_ordinal + 4 * (cycle % 3)",
+  "fields": [
+    {
+      "id": 4,
+      "name": "villageTop-painted-field",
+      "village": "villageTop",
+      "centroid": {
+        "map_id": 725,
+        "x": 376.9864309525241,
+        "y": 566.4853863045435,
+        "z": 0.0
+      },
+      "warehouse": {
+        "id": 4,
+        "name": "villageTop warehouse",
+        "world_faction_id": 1,
+        "position": {
+          "map_id": 725,
+          "x": 378.03635207966687,
+          "y": 626.4014701827371,
+          "z": 0.15
+        },
+        "capacity": 30,
+        "target_stock": 12,
+        "low_threshold": 4,
+        "initial_stock": 0,
+        "source_spawn_id": 901016
+      },
+      "work_points": [
+        {
+          "map_id": 725,
+          "x": 383.5937353670597,
+          "y": 566.9270617067814,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 21.354165852069855
+        },
+        {
+          "map_id": 725,
+          "x": 375.2604023516178,
+          "y": 566.9270617067814,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 20.833332538604736
+        },
+        {
+          "map_id": 725,
+          "x": 367.96873596310616,
+          "y": 563.2812285125256,
+          "z": 0.0,
+          "crop_alpha": 253,
+          "crop_boundary_clearance_yards": 17.815240337576522
+        },
+        {
+          "map_id": 725,
+          "x": 368.4895692765713,
+          "y": 571.6145615279675,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 16.14583271741867
+        },
+        {
+          "map_id": 725,
+          "x": 389.322901815176,
+          "y": 572.6562281548977,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 15.624999403953552
+        },
+        {
+          "map_id": 725,
+          "x": 389.322901815176,
+          "y": 561.1978952586651,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 14.914396371973776
+        },
+        {
+          "map_id": 725,
+          "x": 379.9479021728039,
+          "y": 574.218728095293,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 14.072141219551119
+        },
+        {
+          "map_id": 725,
+          "x": 379.9479021728039,
+          "y": 559.6353953182697,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 14.062499463558197
+        },
+        {
+          "map_id": 725,
+          "x": 361.71873620152473,
+          "y": 558.0728953778744,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 13.02083283662796
+        },
+        {
+          "map_id": 725,
+          "x": 371.614569157362,
+          "y": 555.9895621240139,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 10.429678974275133
+        },
+        {
+          "map_id": 725,
+          "x": 361.1979028880596,
+          "y": 567.9687283337116,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 10.232751018187189
+        },
+        {
+          "map_id": 725,
+          "x": 363.2812361419201,
+          "y": 577.8645612895489,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 10.112753697014254
+        }
+      ],
+      "crop_capacity": 24,
+      "initial_crop_potential": 24,
+      "regrow_amount": 1,
+      "regrow_interval_ms": 30000
+    },
+    {
+      "id": 5,
+      "name": "villageLeft-painted-field",
+      "village": "villageLeft",
+      "centroid": {
+        "map_id": 725,
+        "x": 37.25631039164159,
+        "y": 795.957416285536,
+        "z": 0.0
+      },
+      "warehouse": {
+        "id": 5,
+        "name": "villageLeft warehouse",
+        "world_faction_id": 1,
+        "position": {
+          "map_id": 725,
+          "x": 44.97056274847714,
+          "y": 859.9705627484772,
+          "z": 0.15
+        },
+        "capacity": 30,
+        "target_stock": 12,
+        "low_threshold": 4,
+        "initial_stock": 0,
+        "source_spawn_id": 901022
+      },
+      "work_points": [
+        {
+          "map_id": 725,
+          "x": 37.239581912755966,
+          "y": 794.010386377573,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 21.663159947663313
+        },
+        {
+          "map_id": 725,
+          "x": 35.15624865889549,
+          "y": 801.8228860795498,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 17.738943454486318
+        },
+        {
+          "map_id": 725,
+          "x": 43.48958167433739,
+          "y": 788.8020532429218,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 15.633677549251294
+        },
+        {
+          "map_id": 725,
+          "x": 33.59374871850014,
+          "y": 786.7187199890614,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 15.48548768773228
+        },
+        {
+          "map_id": 725,
+          "x": 42.96874836087227,
+          "y": 799.7395528256893,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 15.327019175281182
+        },
+        {
+          "map_id": 725,
+          "x": 28.90624889731407,
+          "y": 794.010386377573,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 14.023866150278044
+        },
+        {
+          "map_id": 725,
+          "x": 40.885415107011795,
+          "y": 807.5520525276661,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 11.979166209697723
+        },
+        {
+          "map_id": 725,
+          "x": 28.90624889731407,
+          "y": 807.031219214201,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 11.876826891717679
+        },
+        {
+          "map_id": 725,
+          "x": 49.73958143591881,
+          "y": 783.5937201082706,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 10.546070811926699
+        },
+        {
+          "map_id": 725,
+          "x": 49.21874812245369,
+          "y": 794.5312196910381,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 9.89583295583725
+        },
+        {
+          "map_id": 725,
+          "x": 39.84374848008156,
+          "y": 781.5103868544102,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 8.915230268569113
+        },
+        {
+          "map_id": 725,
+          "x": 48.69791480898857,
+          "y": 805.4687192738056,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 8.589803059028466
+        }
+      ],
+      "crop_capacity": 24,
+      "initial_crop_potential": 24,
+      "regrow_amount": 1,
+      "regrow_interval_ms": 30000
+    },
+    {
+      "id": 6,
+      "name": "villageRight-painted-field",
+      "village": "villageRight",
+      "centroid": {
+        "map_id": 725,
+        "x": 153.05332105606874,
+        "y": 347.2512902833605,
+        "z": 0.0
+      },
+      "warehouse": {
+        "id": 6,
+        "name": "villageRight warehouse",
+        "world_faction_id": 1,
+        "position": {
+          "map_id": 725,
+          "x": 151.18440237676216,
+          "y": 282.17310878027087,
+          "z": 0.15
+        },
+        "capacity": 30,
+        "target_stock": 12,
+        "low_threshold": 4,
+        "initial_stock": 0,
+        "source_spawn_id": 901028
+      },
+      "work_points": [
+        {
+          "map_id": 725,
+          "x": 150.78124424815178,
+          "y": 347.65623673796654,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 22.9403278181722
+        },
+        {
+          "map_id": 725,
+          "x": 162.23957714438438,
+          "y": 347.1354034245014,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 22.39583247900009
+        },
+        {
+          "map_id": 725,
+          "x": 143.48957785964012,
+          "y": 351.30206993222237,
+          "z": 0.0,
+          "crop_alpha": 252,
+          "crop_boundary_clearance_yards": 19.298965215520482
+        },
+        {
+          "map_id": 725,
+          "x": 142.968744546175,
+          "y": 342.9687369167805,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 18.699294152320427
+        },
+        {
+          "map_id": 725,
+          "x": 155.98957738280296,
+          "y": 341.4062369763851,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 16.86888971140045
+        },
+        {
+          "map_id": 725,
+          "x": 167.9687435925007,
+          "y": 341.4062369763851,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 16.66666603088379
+        },
+        {
+          "map_id": 725,
+          "x": 168.4895769059658,
+          "y": 352.3437365591526,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 15.659683130102252
+        },
+        {
+          "map_id": 725,
+          "x": 150.26041093468666,
+          "y": 355.98956975340843,
+          "z": 0.0,
+          "crop_alpha": 226,
+          "crop_boundary_clearance_yards": 14.666799274181741
+        },
+        {
+          "map_id": 725,
+          "x": 158.59374395012856,
+          "y": 355.4687364399433,
+          "z": 0.0,
+          "crop_alpha": 226,
+          "crop_boundary_clearance_yards": 14.527422030178384
+        },
+        {
+          "map_id": 725,
+          "x": 137.76041141152382,
+          "y": 357.03123638033867,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 13.789793531121235
+        },
+        {
+          "map_id": 725,
+          "x": 137.2395780980587,
+          "y": 337.23957046866417,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 13.278696143439133
+        },
+        {
+          "map_id": 725,
+          "x": 148.6979109942913,
+          "y": 337.23957046866417,
+          "z": 0.0,
+          "crop_alpha": 255,
+          "crop_boundary_clearance_yards": 12.510845511774427
+        }
+      ],
+      "crop_capacity": 24,
+      "initial_crop_potential": 24,
+      "regrow_amount": 1,
+      "regrow_interval_ms": 30000
+    }
+  ],
+  "recruits": [
+    {
+      "spawn_id": 901016,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901016",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 4,
+      "depot_id": 4,
+      "worker_ordinal": 0,
+      "work_point_indices": [
+        0,
+        4,
+        8
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 378.03635207966687,
+        "y": 626.4014701827371,
+        "z": 0.15,
+        "o": 4.319689898685967
+      }
+    },
+    {
+      "spawn_id": 901017,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901017",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 4,
+      "depot_id": 4,
+      "worker_ordinal": 1,
+      "work_point_indices": [
+        1,
+        5,
+        9
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 358.68629150101526,
+        "y": 618.3137084989847,
+        "z": 0.15,
+        "o": 5.497787143782138
+      }
+    },
+    {
+      "spawn_id": 901018,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901018",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 4,
+      "depot_id": 4,
+      "worker_ordinal": 2,
+      "work_point_indices": [
+        2,
+        6,
+        10
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 365.5554381358432,
+        "y": 600.3482431015797,
+        "z": 0.15,
+        "o": 0.981747704246809
+      }
+    },
+    {
+      "spawn_id": 901019,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901019",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 4,
+      "depot_id": 4,
+      "worker_ordinal": 3,
+      "work_point_indices": [
+        3,
+        7,
+        11
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 381.31370849898474,
+        "y": 595.6862915010153,
+        "z": 0.15,
+        "o": 2.356194490192345
+      }
+    },
+    {
+      "spawn_id": 901022,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901022",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 5,
+      "depot_id": 5,
+      "worker_ordinal": 0,
+      "work_point_indices": [
+        0,
+        4,
+        8
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 44.97056274847714,
+        "y": 859.9705627484772,
+        "z": 0.15,
+        "o": 3.926990816987242
+      }
+    },
+    {
+      "spawn_id": 901023,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901023",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 5,
+      "depot_id": 5,
+      "worker_ordinal": 1,
+      "work_point_indices": [
+        1,
+        5,
+        9
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 19.11087627168637,
+        "y": 856.3035137968408,
+        "z": 0.15,
+        "o": 5.301437602932774
+      }
+    },
+    {
+      "spawn_id": 901024,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901024",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 5,
+      "depot_id": 5,
+      "worker_ordinal": 2,
+      "work_point_indices": [
+        2,
+        6,
+        10
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 11.029437251522857,
+        "y": 826.0294372515228,
+        "z": 0.15,
+        "o": 0.785398163397449
+      }
+    },
+    {
+      "spawn_id": 901025,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901025",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 5,
+      "depot_id": 5,
+      "worker_ordinal": 3,
+      "work_point_indices": [
+        3,
+        7,
+        11
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 36.88912372831363,
+        "y": 829.6964862031592,
+        "z": 0.15,
+        "o": 2.1598449493429808
+      }
+    },
+    {
+      "spawn_id": 901028,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901028",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 6,
+      "depot_id": 6,
+      "worker_ordinal": 0,
+      "work_point_indices": [
+        0,
+        4,
+        8
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 151.18440237676216,
+        "y": 282.17310878027087,
+        "z": 0.15,
+        "o": 4.319689898685965
+      }
+    },
+    {
+      "spawn_id": 901029,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901029",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 6,
+      "depot_id": 6,
+      "worker_ordinal": 1,
+      "work_point_indices": [
+        1,
+        5,
+        9
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 130.68629150101523,
+        "y": 271.31370849898474,
+        "z": 0.15,
+        "o": 5.497787143782139
+      }
+    },
+    {
+      "spawn_id": 901030,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901030",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 6,
+      "depot_id": 6,
+      "worker_ordinal": 2,
+      "work_point_indices": [
+        2,
+        6,
+        10
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 128.66631440752954,
+        "y": 240.04472930473892,
+        "z": 0.15,
+        "o": 0.98174770424681
+      }
+    },
+    {
+      "spawn_id": 901031,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901031",
+      "role": "worker",
+      "capability": "farmer",
+      "living_role": "FARMER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "field_id": 6,
+      "depot_id": 6,
+      "worker_ordinal": 3,
+      "work_point_indices": [
+        3,
+        7,
+        11
+      ],
+      "cargo_capacity": 2,
+      "home": {
+        "x": 153.31370849898477,
+        "y": 248.68629150101523,
+        "z": 0.15,
+        "o": 2.356194490192345
+      }
+    }
+  ]
+}

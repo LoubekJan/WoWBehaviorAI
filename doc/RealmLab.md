@@ -1,5 +1,16 @@
 # Vlastní svět jako jediný realm
 
+Profil `fields-v8` přidává nad nezměněné přepady tři pole a vlastní
+sklady horní, levé a pravé vesnice. Řídí 40 ze 100 původních NPC;
+12 nových pracovníků má přesná přiřazení v
+[manifestu polí](../data/realm_lab/aiworldlab/preview-v8/field-population.json).
+Sklady 4/5/6 začínají prázdné, přijímají sklizeň pouze svých pracovníků
+a poskytují jim skutečně odečítaná jídla. Jižní sklad 1 i původní
+sklady 2/3 zůstávají zachované. Domovy a geometrie se nemění.
+Podrobný cyklus a spuštění popisuje [README_DEV](../README_DEV.md#pole-a-vlastní-vesnické-sklady--fields-v8).
+Nativní důkaz 51 bodů a 132 spojení je oddělený od fyzického testu
+sklizně, doručení, jídla a návratu.
+
 Nové rozšíření k 27. říjnu 2026: profil `raids-v8` navazuje na
 `consumers-v8` a řídí 28 ze stávajících 100 NPC. Přidává pouze Defiase
 901055 a strážného 901039; ostatních 72 NPC zůstává nativních. Nasazení
@@ -48,7 +59,7 @@ healthchecks a čerstvá telemetrie.
 | --- | --- |
 | Realm | AI World Lab, ID 2 |
 | Mapa / oblast | 725 / 4988 |
-| Aktivní profil | `raids-v8` |
+| Aktivní profil | `fields-v8` |
 | Nasazovací checkout | `/home/voslik/WoWBehaviorAI-lab` |
 | Compose projekt / síť | `aitc-lab` / `aitc-lab_default` |
 | Auth / svět / viewer / registrace | 3724 / 9086 / 9091 / 9088 |

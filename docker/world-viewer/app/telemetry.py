@@ -90,7 +90,7 @@ class FoodAccounting(ProtocolModel):
 
 class LivingSupply(ProtocolModel):
     enabled: bool = Field(strict=True)
-    role: Literal["HUNTER", "PREDATOR", "CONSUMER", "RAIDER"]
+    role: Literal["HUNTER", "PREDATOR", "CONSUMER", "RAIDER", "FARMER"]
     phase: str = Field(min_length=1, max_length=80, strict=True)
     depot_id: Quantity32
     cargo: Quantity32
@@ -107,11 +107,30 @@ class LivingSupply(ProtocolModel):
     last_result: str = Field(max_length=100, strict=True)
     depot: FoodDepot | None = None
     accounting: FoodAccounting | None = None
+    field_id: Quantity32 | None = None
+    field_workpoint_index: int | None = Field(default=None, ge=0, le=11, strict=True)
+    field_workpoint: Point | None = None
+    field_remaining: Quantity32 | None = None
+    field_capacity: Quantity32 | None = None
 
     @model_validator(mode="after")
     def consistent_cargo_and_depot(self):
         if self.cargo > self.capacity:
             raise ValueError("Cargo exceeds carrying capacity")
+        field_values = (self.field_id, self.field_workpoint_index, self.field_workpoint,
+                        self.field_remaining, self.field_capacity)
+        if self.role == "FARMER":
+            if (any(value is None for value in field_values) or self.field_id not in (4, 5, 6) or
+                self.depot_id != self.field_id or self.capacity != 2 or self.depot is None or
+                self.depot.capacity != 30 or self.depot.low_threshold != 4 or
+                self.field_capacity != 24 or self.field_remaining > self.field_capacity or
+                self.hunting_ground is not None or self.carcass_remaining is not None or
+                self.carcass_spawn_id is not None or self.carcass_life is not None):
+                raise ValueError("Farmers require a bounded crop field, own warehouse and at most two carried portions")
+            if self.field_workpoint.map_id != self.depot.position.map_id:
+                raise ValueError("Farmer field and warehouse must remain on the same map")
+        elif any(value is not None for value in field_values):
+            raise ValueError("Only farmers may expose crop field observations")
         if self.role != "RAIDER" and int(self.stolen) != 0:
             raise ValueError("Only raiders can withdraw stolen food")
         if self.role == "RAIDER" and (self.capacity != 2 or int(self.harvested) != 0 or
@@ -446,7 +465,8 @@ class Agent(ProtocolModel):
         if self.supply is not None:
             if self.control_mode != "AI_WORLD_CONTROLLED":
                 raise ValueError("Supply observations require an AI-controlled actor")
-            for point in (self.supply.hunting_ground, self.supply.depot.position if self.supply.depot else None):
+            for point in (self.supply.hunting_ground, self.supply.field_workpoint,
+                          self.supply.depot.position if self.supply.depot else None):
                 if point is not None and point.map_id != self.position.map_id:
                     raise ValueError("Supply observations must remain on the actor's map")
         if self.raid is not None:
@@ -526,9 +546,15 @@ class TelemetryBatch(ProtocolModel):
     @model_validator(mode="after")
     def supply_copies_share_one_ledger_snapshot(self):
         depots = {}
+        fields = {}
         accounting = None
         for agent in self.agents:
             copies = []
+            if agent.supply is not None and agent.supply.field_id is not None:
+                current_field = (agent.supply.field_remaining, agent.supply.field_capacity)
+                if agent.supply.field_id in fields and fields[agent.supply.field_id] != current_field:
+                    raise ValueError("Conflicting copies of the same crop field")
+                fields[agent.supply.field_id] = current_field
             if agent.supply is not None and agent.supply.depot is not None:
                 copies.append(agent.supply.depot)
             if agent.raid is not None:

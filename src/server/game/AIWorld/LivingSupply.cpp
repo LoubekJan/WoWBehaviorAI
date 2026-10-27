@@ -7,6 +7,7 @@
 #include "MotionMaster.h"
 #include "PointMovementGenerator.h"
 #include "Agent/LivingRecoveryPath.h"
+#include "Agent/LivingFieldRuntime.h"
 #include "Scheduler/PlanningWorkBudget.h"
 #include <algorithm>
 #include <cmath>
@@ -18,13 +19,14 @@ namespace
     using Phase = LivingRoleState::Phase;
     using Activity = LivingRolePolicy::Activity;
 
-    bool SupplyIdentity(AgentRecord const& record, bool consumersEnabled = false, bool raidsEnabled = false)
+    bool SupplyIdentity(AgentRecord const& record, bool consumersEnabled = false, bool raidsEnabled = false, bool fieldsEnabled = false)
     {
         return record.MapId == 725 && record.Id.Value == record.SpawnId &&
             record.ControlMode == AgentControlMode::AIWorldControlled &&
             ((LivingSupply::Predator(record.SpawnId) && record.Type == AgentType::Predator) ||
                 LivingSupply::HunterCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, true) ||
                 LivingSupply::ConsumerCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, consumersEnabled) ||
+                LivingFields::Capability(record.SpawnId, record.MapId, record.Type, record.ControlMode, fieldsEnabled) ||
                 (raidsEnabled && ((record.SpawnId == LivingRaid::RaiderSpawn && record.Type == AgentType::Combatant) ||
                     (record.SpawnId == LivingRaid::GuardSpawn && record.Type == AgentType::Guard))));
     }
@@ -82,6 +84,7 @@ void AIWorldMgr::InitializeLivingSupply()
             TC_LOG_ERROR("ai.world", "Living depot consumers require living supply; disabled");
         _livingConsumersEnabled = false;
         _livingRaidsEnabled = false;
+        _livingFieldsEnabled = false;
         return;
     }
     auto const& scope = GetSimulationScope();
@@ -95,6 +98,7 @@ void AIWorldMgr::InitializeLivingSupply()
         _livingSupplyEnabled = false;
         _livingConsumersEnabled = false;
         _livingRaidsEnabled = false;
+        _livingFieldsEnabled = false;
         TC_LOG_ERROR("ai.world", "Living supply requires the explicit bounded map-725 authored population and enabled living roles/extensions; disabled");
         return;
     }
@@ -124,11 +128,27 @@ void AIWorldMgr::InitializeLivingSupply()
         _supplyActors.emplace(LivingRaid::RaiderSpawn, LivingSupply::ActorRuntime{});
         _supplyActors.emplace(LivingRaid::GuardSpawn, LivingSupply::ActorRuntime{});
     }
+    if (_livingFieldsEnabled)
+    {
+        // This profile extends the complete reviewed supply/consumer/raid
+        // setup. It cannot silently turn an incomplete parent profile on.
+        valid = _livingConsumersEnabled && _livingRaidsEnabled && valid;
+        uint64 nowMs = GetCurrentTimeMs();
+        for (auto const& field : LivingFields::Fields)
+            valid = _supplyLedger.ConfigureDepot(field.Depot) &&
+                _supplyLedger.ConfigureField(field.Id, nowMs, 24, 24, 30000) && valid;
+        for (auto const& worker : LivingFields::Workers)
+        {
+            valid = _supplyLedger.RegisterFarmer(worker.Spawn, worker.Depot, worker.Field, 2) && valid;
+            _supplyActors.emplace(worker.Spawn, LivingSupply::ActorRuntime{});
+        }
+    }
     if (!valid)
     {
         _livingSupplyEnabled = false;
         _livingConsumersEnabled = false;
         _livingRaidsEnabled = false;
+        _livingFieldsEnabled = false;
         _supplyLedger = {};
         _supplyActors.clear();
         TC_LOG_ERROR("ai.world", "Living supply could not register its fixed runtime depots and participants; disabled");
@@ -205,7 +225,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         }
         return;
     }
-    if (!SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled)) return;
+    if (!SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled, _livingFieldsEnabled)) return;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end()) return;
     auto& actor = found->second;
@@ -217,6 +237,12 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         actor.Corpse = {};
         actor.Trip = actor.AtGround = false;
         actor.ReturningToHome = false;
+        actor.FarmingStage = LivingSupply::FieldStage::Field;
+        actor.FarmingActivity = LivingSupply::FieldActivity::None;
+        actor.FieldCycle = 0;
+        actor.FieldActionStartedAtMs = 0;
+        actor.FieldNextWorkEmoteAtMs = 0;
+        actor.FieldActionPoint = {};
         actor.Travel = {};
         LivingSupply::ClearHunterSearch(actor);
         actor.EmptySearches = actor.SearchLeg = 0;
@@ -372,24 +398,25 @@ bool AIWorldMgr::SupplyWantsHunt(AgentRecord const& record) const
 
 std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const
 {
-    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled) || creature.GetMapId() != 725 ||
+    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled, _livingFieldsEnabled) || creature.GetMapId() != 725 ||
         creature.GetSpawnId() != record.SpawnId || record.WorldState != AgentWorldState::Materialized ||
-        record.RuntimeGuid != creature.GetGUID()) return std::nullopt;
+        record.RuntimeGuid != creature.GetGUID() || !GetSimulationScope().ContainsActor(record.MapId, record.SpawnId)) return std::nullopt;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end() || found->second.Guid != creature.GetGUID()) return std::nullopt;
     auto const& actor = found->second;
     bool hunter = IsSupplyHunter(record);
     bool consumer = IsSupplyConsumer(record);
     bool raider = IsSupplyRaider(record);
+    bool farmer = IsFieldWorker(record);
     LivingSupplyTelemetry info;
     info.Enabled = true;
-    info.Role = hunter ? "HUNTER" : raider ? "RAIDER" : consumer ? "CONSUMER" : "PREDATOR";
+    info.Role = hunter ? "HUNTER" : raider ? "RAIDER" : farmer ? "FARMER" : consumer ? "CONSUMER" : "PREDATOR";
     info.Phase = actor.Phase;
     info.LastResult = actor.LastResult;
     if (creature.IsAlive() && record.LivingRole.CurrentPhase == Phase::Hunting) info.Phase = "HUNTING";
     if (creature.IsAlive() && record.LivingRole.CurrentPhase == Phase::Feeding) info.Phase = hunter ? "HARVESTING" : "FEEDING";
     info.Cargo = _supplyLedger.GetCargo(record.SpawnId);
-    info.Capacity = hunter ? LivingSupply::HunterCargoCapacity : raider ? LivingRaid::Portions : 0;
+    info.Capacity = hunter ? LivingSupply::HunterCargoCapacity : raider ? LivingRaid::Portions : farmer ? 2 : 0;
     info.Harvested = actor.Harvested;
     info.Delivered = actor.Delivered;
     info.Consumed = actor.Consumed;
@@ -407,12 +434,23 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
             info.CarcassLife = actor.Corpse.Life;
         }
     }
-    if (hunter || consumer || raider)
+    if (hunter || consumer || raider || farmer)
     {
-        uint32 depotId = hunter ? LivingSupply::Hunter(record.SpawnId)->Depot : raider ? LivingRaid::CampDepot : SupplyConsumerSpec(record)->Depot;
+        uint32 depotId = hunter ? LivingSupply::Hunter(record.SpawnId)->Depot : raider ? LivingRaid::CampDepot :
+            farmer ? LivingFields::Worker(record.SpawnId)->Depot : SupplyConsumerSpec(record)->Depot;
         info.DepotId = depotId;
         if (hunter) info.HuntingGround = LivingSupply::Hunter(record.SpawnId)->Ground;
         info.Depot = DescribeFoodDepot(depotId);
+        if (farmer)
+        {
+            auto worker = LivingFields::Worker(record.SpawnId);
+            auto field = LivingFields::Field(worker->Field);
+            info.FieldId = worker->Field;
+            info.FieldWorkpointIndex = worker->Ordinal + 4 * (actor.FieldCycle % 3);
+            info.FieldWorkpoint = field->WorkPoints[*info.FieldWorkpointIndex];
+            if (auto crop = _supplyLedger.GetField(worker->Field))
+            { info.FieldRemaining = crop->Remaining; info.FieldCapacity = crop->Capacity; }
+        }
     }
     auto const& counts = _supplyLedger.GetCounters();
     FoodAccountingTelemetry accounting;
@@ -429,7 +467,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
 {
     using namespace LivingReturnPolicy;
     approved.reset();
-    if ((!IsSupplyHunter(record) && !IsSupplyConsumer(record) && !IsSupplyRaider(record)) || !BoundActor(record, creature))
+    if ((!IsSupplyHunter(record) && !IsSupplyConsumer(record) && !IsSupplyRaider(record) && !IsFieldWorker(record)) || !BoundActor(record, creature))
         return std::nullopt;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end()) return std::nullopt;

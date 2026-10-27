@@ -8,8 +8,9 @@ import time
 import urllib.request
 
 try:
-    from . import raid_population as raids, consumer_population as consumers, settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
+    from . import field_population as fields, raid_population as raids, consumer_population as consumers, settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
 except ImportError:
+    import field_population as fields
     import consumer_population as consumers
     import raid_population as raids
     import settlement_population as settlement
@@ -19,7 +20,7 @@ except ImportError:
 
 def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) -> dict[str, int]:
     require = settlement.require
-    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE), "Unknown authored-world telemetry profile")
+    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE, fields.PROFILE), "Unknown authored-world telemetry profile")
     require(isinstance(state, dict) and state.get("stale") is False and state.get("version") == 4,
             "Authored-world telemetry must be a fresh version-4 snapshot")
     require(type(state.get("captured_at_ms")) is int and state["captured_at_ms"] > 0,
@@ -31,13 +32,18 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
     require(all(type(identity) is int for identity in ids) and set(ids) == settlement.SPAWN_IDS,
             "Telemetry population differs from the reviewed 100 spawns")
     active = {wildlife.PROFILE: wildlife.SPAWN_IDS, supply.PROFILE: supply.SPAWN_IDS,
-              consumers.PROFILE: consumers.SPAWN_IDS, raids.PROFILE: raids.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
+              consumers.PROFILE: consumers.SPAWN_IDS, raids.PROFILE: raids.SPAWN_IDS,
+              fields.PROFILE: fields.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
+    field_population = fields.Population.load() if profile == fields.PROFILE and wildlife_enabled else None
+    field_actors = {actor.spawn_id: actor for actor in field_population.recruits} if field_population else {}
+    field_definitions = {field["id"]: field for field in field_population.fields} if field_population else {}
+    accounting_snapshot, field_snapshots, warehouse_snapshots = None, {}, {}
     live_roles = 0
     for actor in actors:
         identity = actor["spawn_id"]
         require(actor.get("agent_id") == identity and (actor.get("position") or {}).get("map_id") == 725,
                 "Telemetry actor identity or map differs")
-        if profile != raids.PROFILE or identity not in raids.RECRUIT_IDS or not wildlife_enabled:
+        if profile not in (raids.PROFILE, fields.PROFILE) or identity not in raids.RECRUIT_IDS or not wildlife_enabled:
             require(actor.get("raid") is None, "Unselected actor acquired a raid role")
         if identity not in active:
             require(actor.get("native_creature") is True and actor.get("control_mode") == "OBSERVE_ONLY" and
@@ -53,7 +59,7 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 "Controlled wildlife needs are unavailable or invalid")
         role = actor.get("living_role")
         if actor.get("alive") is True and (actor.get("position") or {}).get("source") == "live":
-            expected_role = raids.RECRUIT_ROLES.get(identity) or consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
+            expected_role = ("FARMER" if identity in field_actors else raids.RECRUIT_ROLES.get(identity)) or consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
                 "PREDATOR" if identity in wildlife.PREDATOR_IDS else "PREY")
             require(isinstance(role, dict) and role.get("enabled") is True and role.get("extensions_enabled") is True and
                     role.get("role") == expected_role,
@@ -81,7 +87,48 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                             type(depot.get("stock")) is int and type(depot.get("capacity")) is int and
                             0 <= depot["stock"] <= depot["capacity"] == 30,
                             "Raid depot coordinates, stock or capacity changed")
-            if identity in raids.RAIDER_IDS:
+            if identity in field_actors:
+                farmer = field_actors[identity]
+                definition = field_definitions[farmer.field_id]
+                supplied = actor.get("supply")
+                require(actor.get("type") == "CIVILIAN" and type(actor.get("world_faction")) is int and
+                        actor["world_faction"] == 1 and isinstance(supplied, dict) and
+                        supplied.get("enabled") is True and supplied.get("role") == "FARMER" and
+                        type(supplied.get("field_id")) is int and supplied["field_id"] == farmer.field_id and
+                        type(supplied.get("depot_id")) is int and supplied["depot_id"] == farmer.depot_id and
+                        type(supplied.get("cargo")) is int and type(supplied.get("capacity")) is int and
+                        0 <= supplied["cargo"] <= supplied["capacity"] == 2 and
+                        all(supplied.get(key) is None for key in
+                            ("hunting_ground", "carcass_remaining", "carcass_spawn_id", "carcass_life")),
+                        "Farmer type, faction, field assignment, cargo or non-hunting capability changed")
+                point = supplied.get("field_workpoint_index")
+                require(type(point) is int and point in tuple(farmer.worker_ordinal + 4*c for c in range(3)) and
+                        isinstance(supplied.get("field_workpoint"), dict) and
+                        all(type(supplied["field_workpoint"].get(key)) in (int, float) and
+                            math.isfinite(supplied["field_workpoint"][key]) and
+                            abs(supplied["field_workpoint"][key] - definition["work_points"][point][key]) <= .001
+                            for key in ("map_id", "x", "y", "z")) and
+                        type(supplied.get("field_remaining")) is int and type(supplied.get("field_capacity")) is int and
+                        0 <= supplied["field_remaining"] <= supplied["field_capacity"] == 24,
+                        "Farmer work point rotation or bounded crop potential changed")
+                depot = supplied.get("depot")
+                require(isinstance(depot, dict) and depot.get("id") == farmer.depot_id and
+                        isinstance(depot.get("position"), dict) and
+                        all(type(depot["position"].get(key)) in (int, float) and math.isfinite(depot["position"][key]) and
+                            abs(depot["position"][key] - expected) <= .001
+                            for key, expected in definition["warehouse"]["position"].items()) and
+                        type(depot.get("stock")) is int and type(depot.get("capacity")) is int and
+                        type(depot.get("low_threshold")) is int and depot["low_threshold"] == 4 and
+                        0 <= depot["stock"] <= depot["capacity"] == 30 and
+                        isinstance(supplied.get("accounting"), dict) and supplied["accounting"].get("conserved") is True,
+                        "Farmer own warehouse, stock or food conservation changed")
+                field_snapshot = (supplied["field_remaining"], supplied["field_capacity"])
+                require(farmer.field_id not in field_snapshots or field_snapshots[farmer.field_id] == field_snapshot,
+                        "Conflicting copies of the same crop field")
+                require(farmer.depot_id not in warehouse_snapshots or warehouse_snapshots[farmer.depot_id] == depot,
+                        "Conflicting copies of the same farmer warehouse")
+                field_snapshots[farmer.field_id], warehouse_snapshots[farmer.depot_id] = field_snapshot, depot
+            elif identity in raids.RAIDER_IDS:
                 supplied = actor.get("supply")
                 require(isinstance(supplied, dict) and supplied.get("enabled") is True and
                         supplied.get("role") == "RAIDER" and supplied.get("depot_id") == 3 and
@@ -135,6 +182,19 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                         supplied["accounting"].get("conserved") is True,
                         "Consumer food conservation invariant failed or is unavailable")
             live_roles += 1
+            if field_population and isinstance(actor.get("supply"), dict):
+                accounting = actor["supply"].get("accounting")
+                counter_fields = ("initial_food", "harvested", "in_depots", "in_cargo", "consumed", "lost")
+                require(isinstance(accounting, dict) and all(isinstance(accounting.get(key), str) and
+                        0 < len(accounting[key]) <= 20 and accounting[key].isascii() and accounting[key].isdigit() and
+                        str(int(accounting[key])) == accounting[key] and 0 <= int(accounting[key]) < 2**64
+                        for key in counter_fields) and accounting.get("conserved") is True and
+                        int(accounting["initial_food"]) + int(accounting["harvested"]) == sum(
+                            int(accounting[key]) for key in ("in_depots", "in_cargo", "consumed", "lost")),
+                        "Field profile food accounting is missing, invalid or not conserved")
+                require(accounting_snapshot is None or accounting_snapshot == accounting,
+                        "Field profile supply roles do not share one food accounting snapshot")
+                accounting_snapshot = accounting
     require(not active or live_roles > 0, "No living controlled wildlife role is observable")
     return {"total": 100, "managed": len(active), "native": 100 - len(active), "live_roles": live_roles}
 

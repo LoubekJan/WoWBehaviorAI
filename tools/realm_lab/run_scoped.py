@@ -7,10 +7,10 @@ import sys
 
 try:
     from .single_return import ProfileError, Scope
-    from . import raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
+    from . import field_population, raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
 except ImportError:
     from single_return import ProfileError, Scope
-    import raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
+    import field_population, raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
 
 
 def main() -> None:
@@ -18,9 +18,11 @@ def main() -> None:
         raise SystemExit("run_scoped.py requires a command")
     try:
         profile = os.environ.get("LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE):
+        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE):
             raise ProfileError("Unknown reviewed observer lab profile")
-        if profile == raid_population.PROFILE:
+        if profile == field_population.PROFILE:
+            scope = field_population.Population.load()
+        elif profile == raid_population.PROFILE:
             scope = raid_population.Population.load()
         elif profile == consumer_population.PROFILE:
             scope = consumer_population.Population.load()

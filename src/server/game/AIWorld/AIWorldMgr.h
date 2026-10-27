@@ -2913,6 +2913,7 @@ class TC_GAME_API AIWorldMgr
         bool _livingSupplyEnabled = false;
         bool _livingConsumersEnabled = false;
         bool _livingRaidsEnabled = false;
+        bool _livingFieldsEnabled = false;
         uint64 _raidStartedAtMs = 0;
         LivingRaid::State _raidRaider, _raidGuard;
         LivingSupply::Ledger _supplyLedger;
@@ -2920,6 +2921,7 @@ class TC_GAME_API AIWorldMgr
         std::unordered_map<uint64, LivingSupply::SourceRuntime> _supplySources;
         void InitializeLivingSupply();
         bool IsSupplyHunter(AgentRecord const& record) const;
+        bool IsFieldWorker(AgentRecord const& record) const;
         bool IsSupplyConsumer(AgentRecord const& record) const;
         bool IsSupplyRaider(AgentRecord const& record) const;
         bool IsRaidGuard(AgentRecord const& record) const;
@@ -2942,6 +2944,9 @@ class TC_GAME_API AIWorldMgr
             std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step,
             bool searchOnly = false);
         bool UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creature, uint64 nowMs,
+            std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
+            std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step);
+        bool UpdateLivingFieldWorker(AgentRecord& record, Creature& creature, uint64 nowMs,
             std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
             std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step);
         uint32 _livingRecoverySpawnId = 0;

@@ -1,0 +1,266 @@
+{
+  "status": "field_detection_verified_work_assignment_proposal",
+  "map_id": 725,
+  "source_revision": "preview-v8",
+  "source_texture": "tileset/elwynn/elwynncrop92.blp",
+  "audit_sha256": "b0b18a1d8e354c11029b8d8432c99b77c4d0eb09d946c598175abc26b15eb7fe",
+  "field_count": 3,
+  "assignments": [
+    {
+      "spawn_id": 901016,
+      "village": "villageTop",
+      "field_id": "villageTop-painted-field",
+      "unchanged_home": {
+        "x": 378.03635207966687,
+        "y": 626.4014701827371,
+        "z": 0.15,
+        "o": 4.319689898685967
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 371.614569157362,
+        "y": 555.9895621240139,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 10.429678974275133,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901017,
+      "village": "villageTop",
+      "field_id": "villageTop-painted-field",
+      "unchanged_home": {
+        "x": 358.68629150101526,
+        "y": 618.3137084989847,
+        "z": 0.15,
+        "o": 5.497787143782138
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 361.71873620152473,
+        "y": 558.0728953778744,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 13.02083283662796,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901018,
+      "village": "villageTop",
+      "field_id": "villageTop-painted-field",
+      "unchanged_home": {
+        "x": 365.5554381358432,
+        "y": 600.3482431015797,
+        "z": 0.15,
+        "o": 0.981747704246809
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 363.2812361419201,
+        "y": 577.8645612895489,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 10.112753697014254,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901019,
+      "village": "villageTop",
+      "field_id": "villageTop-painted-field",
+      "unchanged_home": {
+        "x": 381.31370849898474,
+        "y": 595.6862915010153,
+        "z": 0.15,
+        "o": 2.356194490192345
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 383.5937353670597,
+        "y": 566.9270617067814,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 21.354165852069855,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901028,
+      "village": "villageRight",
+      "field_id": "villageRight-painted-field",
+      "unchanged_home": {
+        "x": 151.18440237676216,
+        "y": 282.17310878027087,
+        "z": 0.15,
+        "o": 4.319689898685965
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 150.78124424815178,
+        "y": 347.65623673796654,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 22.9403278181722,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901029,
+      "village": "villageRight",
+      "field_id": "villageRight-painted-field",
+      "unchanged_home": {
+        "x": 130.68629150101523,
+        "y": 271.31370849898474,
+        "z": 0.15,
+        "o": 5.497787143782139
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 137.76041141152382,
+        "y": 357.03123638033867,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 13.789793531121235,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901030,
+      "village": "villageRight",
+      "field_id": "villageRight-painted-field",
+      "unchanged_home": {
+        "x": 128.66631440752954,
+        "y": 240.04472930473892,
+        "z": 0.15,
+        "o": 0.98174770424681
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 137.2395780980587,
+        "y": 337.23957046866417,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 13.278696143439133,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901031,
+      "village": "villageRight",
+      "field_id": "villageRight-painted-field",
+      "unchanged_home": {
+        "x": 153.31370849898477,
+        "y": 248.68629150101523,
+        "z": 0.15,
+        "o": 2.356194490192345
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 168.4895769059658,
+        "y": 352.3437365591526,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 15.659683130102252,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901022,
+      "village": "villageLeft",
+      "field_id": "villageLeft-painted-field",
+      "unchanged_home": {
+        "x": 44.97056274847714,
+        "y": 859.9705627484772,
+        "z": 0.15,
+        "o": 3.926990816987242
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 48.69791480898857,
+        "y": 805.4687192738056,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 8.589803059028466,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901023,
+      "village": "villageLeft",
+      "field_id": "villageLeft-painted-field",
+      "unchanged_home": {
+        "x": 19.11087627168637,
+        "y": 856.3035137968408,
+        "z": 0.15,
+        "o": 5.301437602932774
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 37.239581912755966,
+        "y": 794.010386377573,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 21.663159947663313,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901024,
+      "village": "villageLeft",
+      "field_id": "villageLeft-painted-field",
+      "unchanged_home": {
+        "x": 11.029437251522857,
+        "y": 826.0294372515228,
+        "z": 0.15,
+        "o": 0.785398163397449
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 28.90624889731407,
+        "y": 807.031219214201,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 11.876826891717679,
+      "navigation_verified": false
+    },
+    {
+      "spawn_id": 901025,
+      "village": "villageLeft",
+      "field_id": "villageLeft-painted-field",
+      "unchanged_home": {
+        "x": 36.88912372831363,
+        "y": 829.6964862031592,
+        "z": 0.15,
+        "o": 2.1598449493429808
+      },
+      "proposed_work_point": {
+        "map_id": 725,
+        "x": 49.73958143591881,
+        "y": 783.5937201082706,
+        "z": 0.0
+      },
+      "crop_alpha": 255,
+      "crop_boundary_clearance_yards": 10.546070811926699,
+      "navigation_verified": false
+    }
+  ],
+  "planned_cycle": [
+    "commute_to_owned_field",
+    "work_animation_and_finite_work_period",
+    "select_another_verified_point_inside_same_field",
+    "return_home_when_done_or_interrupted"
+  ],
+  "unchanged_homes": true,
+  "no_new_creatures": true,
+  "gameplay_deployed": false,
+  "requires_implementation": [
+    "explicit field worker ownership profile (12 existing workers; total40 AI and60 native with current raid population)",
+    "bounded travel and live collision/navigation checks",
+    "dedicated field work branch respecting combat and hunger",
+    "no generic free food reward or hunger satisfaction from work"
+  ],
+  "manual_map_coordinates_required": false
+}

@@ -486,7 +486,7 @@ AIWorldMgr::LivingRoleDebugInfo AIWorldMgr::DescribeLivingRole(Creature const& c
     LivingRoleDebugInfo info;
     info.Enabled = _livingRolesEnabled;
     info.ControlMode = record->ControlMode;
-    info.Role = LivingRolePolicy::ToString(role);
+    info.Role = IsFieldWorker(*record) ? "FARMER" : LivingRolePolicy::ToString(role);
     info.Hunger = record->Needs.Hunger;
     info.Phase = PhaseName(record->LivingRole.CurrentPhase);
     info.Activity = LivingRolePolicy::ToString(record->LivingRole.Activity);
@@ -651,7 +651,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     bool supplyHunter = IsSupplyHunter(record);
     bool supplyConsumer = IsSupplyConsumer(record);
     bool supplyRaider = IsSupplyRaider(record);
-    bool sharedFood = supplyConsumer || supplyRaider;
+    bool fieldWorker = IsFieldWorker(record);
+    bool sharedFood = supplyConsumer || supplyRaider || fieldWorker;
     if (!scoped || role == Role::None || IsLivingWolf(record) || creature.IsPet() ||
         !creature.GetCharmerOrOwnerGUID().IsEmpty() || creature.IsControlledByPlayer())
     {
@@ -1398,6 +1399,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     auto supplyStep = [&](ActionPosition const& destination)
     { return PlanLivingSupplyStep(record, creature, destination, nowMs, approvedSupplyRecovery); };
+    if (fieldWorker && UpdateLivingFieldWorker(record, creature, nowMs, start, supplyStep))
+        return true;
     if ((supplyRaider || IsRaidGuard(record)) && UpdateLivingRaid(record, creature, nowMs, start, supplyStep))
         return true;
     if (supplyConsumer && UpdateLivingSupplyConsumer(record, creature, nowMs, start, supplyStep))

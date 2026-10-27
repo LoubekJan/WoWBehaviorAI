@@ -292,6 +292,11 @@ namespace
         out << ",\"carcass_life\":";
         if (supply.CarcassLife) WriteString(out, std::to_string(*supply.CarcassLife)); else out << "null";
         WriteJsonField(out, "hunting_ground", supply.HuntingGround);
+        WriteJsonField(out, "field_id", supply.FieldId);
+        WriteJsonField(out, "field_workpoint_index", supply.FieldWorkpointIndex);
+        WriteJsonField(out, "field_workpoint", supply.FieldWorkpoint);
+        WriteJsonField(out, "field_remaining", supply.FieldRemaining);
+        WriteJsonField(out, "field_capacity", supply.FieldCapacity);
         WriteJsonField(out, "harvested", std::to_string(supply.Harvested));
         WriteJsonField(out, "delivered", std::to_string(supply.Delivered));
         WriteJsonField(out, "consumed", std::to_string(supply.Consumed));

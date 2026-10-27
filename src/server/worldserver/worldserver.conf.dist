@@ -4354,6 +4354,7 @@ AIWorld.LivingSupplyEnabled = 0
 AIWorld.LivingConsumersEnabled = 0
 # Explicit two-actor authored-world raid prototype.
 AIWorld.LivingRaidsEnabled = 0
+AIWorld.LivingFieldsEnabled = 0
 
 # Early danger awareness, refuges/alarms, local herds, risk memory and work stocks.
 # Requires LivingRolesEnabled. Scope remains controlled permanent NPC roles.

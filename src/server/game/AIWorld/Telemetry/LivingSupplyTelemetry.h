@@ -33,6 +33,8 @@ struct LivingSupplyTelemetry
     std::optional<uint32> CarcassRemaining;
     std::optional<uint64> CarcassSpawnId, CarcassLife;
     std::optional<ActionPosition> HuntingGround;
+    std::optional<uint32> FieldId, FieldWorkpointIndex, FieldRemaining, FieldCapacity;
+    std::optional<ActionPosition> FieldWorkpoint;
     std::optional<FoodDepotTelemetry> Depot;
     std::optional<FoodAccountingTelemetry> Accounting;
     uint64 Harvested = 0, Delivered = 0, Consumed = 0, Lost = 0, Stolen = 0;

@@ -1,0 +1,7046 @@
+{
+  "schema_version": 1,
+  "profile": "fields-v8",
+  "source_revision": "preview-v8",
+  "map_id": 725,
+  "captured_at_utc": "2026-10-27T21:59:26.016348+00:00",
+  "status": "PASS",
+  "ok": true,
+  "scope": "native_detour_ground_connectivity_only",
+  "physical_movement_verified": false,
+  "native_collision_queries_verified": false,
+  "new_server_deployment_performed": false,
+  "all_authored_homes_preserved": true,
+  "method": "Existing MSVC x64 native DT_POLYREF64 Detour probe, all four reviewed tiles, ground-only complete directed findPath/findStraightPath; all51 anchors and132 directed routes independently checked. This is native connectivity evidence, not live body/LOS proof.",
+  "population_manifest": {
+    "path": "data/realm_lab/aiworldlab/preview-v8/field-population.json",
+    "bytes": 19381,
+    "sha256": "304188555819914d88307dd45d1b2fd6d57fc7995b6f457005948600ccbd2430"
+  },
+  "native_geometry_files_verified": 61,
+  "native_navigation_inputs": [
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253130.mmtile",
+      "bytes": 212700,
+      "sha256": "512a86fb6e5b5df4a69e1187ccc7a68916b82352fc6b54c6d5859dc6b1b3f6b1"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253131.mmtile",
+      "bytes": 143024,
+      "sha256": "4cec41414980ba65e5440f4957db63c5091ed531a91518f8b48e61e33aab4bd3"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253230.mmtile",
+      "bytes": 239812,
+      "sha256": "d7715e200461de32442937eff865c60dc6da6ce4bdbfffa8dc69ec70feb23b62"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253231.mmtile",
+      "bytes": 507252,
+      "sha256": "535cceace6af01373488c2421451737de80ff744982281f65ddbfd2370c5ff5b"
+    }
+  ],
+  "native_terrain_inputs": [
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253130.map",
+      "bytes": 136144,
+      "sha256": "4bbb5f60de676ce3f03dbf15b07cfb17369b1a0aad6b7eb38416056313f3322f"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253131.map",
+      "bytes": 142756,
+      "sha256": "f77c30855a6870307ec6e4af7b47ff5f487206c8ce04496d42fa65c3e42865eb"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253230.map",
+      "bytes": 199516,
+      "sha256": "22081fd67ab1506114610bc635ae4d3978013e401763022747d288f7d2d39172"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253231.map",
+      "bytes": 172164,
+      "sha256": "549c381a2f0f215346b06af5e9eb05201f038caeff4727c2d3b6e0b86b9f0a73"
+    }
+  ],
+  "verifier_sources": [
+    {
+      "path": "src/common/Collision/Maps/MapDefines.h",
+      "bytes": 4272,
+      "sha256": "32901637d8bee0a3a43ae18f060a22b51446148ab95cf9363ec056abbaba78c0"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Include/DetourNavMesh.h",
+      "bytes": 32815,
+      "sha256": "7b5b5d72550b6c4257d050e81689be484c150e57ae3d423bfc66c3d864a52cf5"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Include/DetourNavMeshQuery.h",
+      "bytes": 30489,
+      "sha256": "53e904270ff67f5e2237030a26356682eae356344725ee523c3e704402abc0fc"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourAlloc.cpp",
+      "bytes": 1565,
+      "sha256": "2d021a2982f55b4f1406fa2e214104e4a1a645d4dffc7c3720d6ffaf95b6dde9"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourAssert.cpp",
+      "bytes": 1229,
+      "sha256": "071fd42170f3cc4960c2b897eb4643995e08a7b9b24dfc3048e1f0fb8c3ae2e7"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourCommon.cpp",
+      "bytes": 10220,
+      "sha256": "3e6b26a41c2f2d754472df5d4045619ea924e338dce1a263ed08434943b270d4"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNavMesh.cpp",
+      "bytes": 46670,
+      "sha256": "123a373cb3dfc2439108a3895dc8c26c69d6a2da03e639ade221c60f5a285970"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNavMeshBuilder.cpp",
+      "bytes": 25014,
+      "sha256": "defd67990ddeaeca13c55f02cb92997eefd839ddeb4188ac323c37cb817e765a"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNavMeshQuery.cpp",
+      "bytes": 107707,
+      "sha256": "d85a2f19448a07d6d9be780297a34fc4d4c7092bcd5f28a7d87e160ac750adad"
+    },
+    {
+      "path": "dep/recastnavigation/Detour/Source/DetourNode.cpp",
+      "bytes": 5084,
+      "sha256": "464b86a04dbd55138fdcb909e57d52c0575603f2a21fc6495ff40c572e06c1c8"
+    }
+  ],
+  "private_probe_artifacts": [
+    {
+      "path": "runtime/lab-validation/fields-v8-20261027/points.tsv",
+      "bytes": 3371,
+      "sha256": "a20a3d2caae9031d009adb1d56d230f85986e4a4aeb4f70928bfcfe8cfe78f9c"
+    },
+    {
+      "path": "runtime/lab-validation/fields-v8-20261027/routes.tsv",
+      "bytes": 3909,
+      "sha256": "594ee1f6297ceaf4c069f764846672c585ae6866718a5f4b6d991721a2311342"
+    },
+    {
+      "path": "runtime/lab-validation/fields-v8-20261027/nav-raw.json",
+      "bytes": 104711,
+      "sha256": "83174eee8b8ca1c19f7c07baa937cc04be1b61b4372548657d6b68dea539ee21"
+    },
+    {
+      "path": "runtime/lab-validation/fields-v8-20261027/prepare-nav.py",
+      "bytes": 1595,
+      "sha256": "e1b6a6ce2710835212c219e862e1bf52af25b6552bd5b2d5d45185c263375be6"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/supply_nav_probe.cpp",
+      "bytes": 20773,
+      "sha256": "7de74630a9e6a0ef10c72093590549ddd8ffd416d7e819ed989f27d0120989e4"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/supply_nav_probe.exe",
+      "bytes": 582144,
+      "sha256": "675e9dd3bff08bb3eb96e751463becf360469de74f45e8f2b476c2205cd0370b"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/nav-probe.rsp",
+      "bytes": 604,
+      "sha256": "473132a268f1190ce53a969c8dd16882e52d070685acdc2575ac91dd13093f8a"
+    },
+    {
+      "path": "runtime/lab-validation/supply-v8/nav-probe.cmd",
+      "bytes": 470,
+      "sha256": "95a71ca7c615972d8dcead54fb005f38835083d1ce12d05c09f4035aaf7e7bd5"
+    }
+  ],
+  "results": {
+    "ok": true,
+    "map_id": 725,
+    "poly_ref_bits": 64,
+    "tiles": 4,
+    "include_flags": 1,
+    "exclude_flags": 65534,
+    "projection_limits": {
+      "xy": 1,
+      "z": 2
+    },
+    "valid_projections": 51,
+    "required_paths": 132,
+    "complete_paths": 132,
+    "projections": [
+      {
+        "id": "field_4_point_0",
+        "input": {
+          "x": 383.5937353670597,
+          "y": 566.9270617067814,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371308",
+        "valid": true,
+        "projected": {
+          "x": 383.59375,
+          "y": 566.9270629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.4688947664749556e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_1",
+        "input": {
+          "x": 375.2604023516178,
+          "y": 566.9270617067814,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371308",
+        "valid": true,
+        "projected": {
+          "x": 375.2604064941406,
+          "y": 566.9270629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 4.336212303964331e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_10",
+        "input": {
+          "x": 361.1979028880596,
+          "y": 567.9687283337116,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371252",
+        "valid": true,
+        "projected": {
+          "x": 361.1979064941406,
+          "y": 567.96875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 2.1964331818394046e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_11",
+        "input": {
+          "x": 363.2812361419201,
+          "y": 577.8645612895489,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371309",
+        "valid": true,
+        "projected": {
+          "x": 363.28125,
+          "y": 577.8645629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.3961807565113669e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_2",
+        "input": {
+          "x": 367.96873596310616,
+          "y": 563.2812285125256,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371308",
+        "valid": true,
+        "projected": {
+          "x": 367.96875,
+          "y": 563.28125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 2.5666046572856294e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_3",
+        "input": {
+          "x": 368.4895692765713,
+          "y": 571.6145615279675,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371308",
+        "valid": true,
+        "projected": {
+          "x": 368.48956298828125,
+          "y": 571.6145629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 6.455626058653744e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_4",
+        "input": {
+          "x": 389.322901815176,
+          "y": 572.6562281548977,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371348",
+        "valid": true,
+        "projected": {
+          "x": 389.3229064941406,
+          "y": 572.65625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 2.234057306358655e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_5",
+        "input": {
+          "x": 389.322901815176,
+          "y": 561.1978952586651,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371348",
+        "valid": true,
+        "projected": {
+          "x": 389.3229064941406,
+          "y": 561.1978759765625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.9841678103412477e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_6",
+        "input": {
+          "x": 379.9479021728039,
+          "y": 574.218728095293,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371308",
+        "valid": true,
+        "projected": {
+          "x": 379.9479064941406,
+          "y": 574.21875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 2.2326892709391858e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_7",
+        "input": {
+          "x": 379.9479021728039,
+          "y": 559.6353953182697,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371308",
+        "valid": true,
+        "projected": {
+          "x": 379.9479064941406,
+          "y": 559.6353759765625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.9818566795565908e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_8",
+        "input": {
+          "x": 361.71873620152473,
+          "y": 558.0728953778744,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371252",
+        "valid": true,
+        "projected": {
+          "x": 361.71875,
+          "y": 558.0728759765625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 2.3807747102572072e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_4_point_9",
+        "input": {
+          "x": 371.614569157362,
+          "y": 555.9895621240139,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371308",
+        "valid": true,
+        "projected": {
+          "x": 371.61456298828125,
+          "y": 555.9895629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 6.229327022776897e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_0",
+        "input": {
+          "x": 37.239581912755966,
+          "y": 794.010386377573,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370621",
+        "valid": true,
+        "projected": {
+          "x": 37.23958206176758,
+          "y": 794.0103759765625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.0402077876962249e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_1",
+        "input": {
+          "x": 35.15624865889549,
+          "y": 801.8228860795498,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370621",
+        "valid": true,
+        "projected": {
+          "x": 35.15625,
+          "y": 801.8228759765625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.0191609954774116e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_10",
+        "input": {
+          "x": 39.84374848008156,
+          "y": 781.5103868544102,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370620",
+        "valid": true,
+        "projected": {
+          "x": 39.84375,
+          "y": 781.5103759765625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.0983520475429961e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_11",
+        "input": {
+          "x": 48.69791480898857,
+          "y": 805.4687192738056,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370743",
+        "valid": true,
+        "projected": {
+          "x": 48.697914123535156,
+          "y": 805.4686889648438,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 3.0316711825612688e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_2",
+        "input": {
+          "x": 43.48958167433739,
+          "y": 788.8020532429218,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370742",
+        "valid": true,
+        "projected": {
+          "x": 43.48958206176758,
+          "y": 788.8020629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 9.753057592008981e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_3",
+        "input": {
+          "x": 33.59374871850014,
+          "y": 786.7187199890614,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370620",
+        "valid": true,
+        "projected": {
+          "x": 33.59375,
+          "y": 786.71875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 3.0038286905489762e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_4",
+        "input": {
+          "x": 42.96874836087227,
+          "y": 799.7395528256893,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370743",
+        "valid": true,
+        "projected": {
+          "x": 42.96875,
+          "y": 799.7395629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.0293930956672633e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_5",
+        "input": {
+          "x": 28.90624889731407,
+          "y": 794.010386377573,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370621",
+        "valid": true,
+        "projected": {
+          "x": 28.906248092651367,
+          "y": 794.0103759765625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.0432089999892463e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_6",
+        "input": {
+          "x": 40.885415107011795,
+          "y": 807.5520525276661,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370621",
+        "valid": true,
+        "projected": {
+          "x": 40.885414123535156,
+          "y": 807.5520629882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.0506745251719419e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_7",
+        "input": {
+          "x": 28.90624889731407,
+          "y": 807.031219214201,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370621",
+        "valid": true,
+        "projected": {
+          "x": 28.906248092651367,
+          "y": 807.0311889648438,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 3.0260057741245685e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_8",
+        "input": {
+          "x": 49.73958143591881,
+          "y": 783.5937201082706,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370742",
+        "valid": true,
+        "projected": {
+          "x": 49.73958206176758,
+          "y": 783.59375,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 2.9898280393815145e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_5_point_9",
+        "input": {
+          "x": 49.21874812245369,
+          "y": 794.5312196910381,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370743",
+        "valid": true,
+        "projected": {
+          "x": 49.21875,
+          "y": 794.53125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 3.036706027393848e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_0",
+        "input": {
+          "x": 150.78124424815178,
+          "y": 347.65623673796654,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854514",
+        "valid": true,
+        "projected": {
+          "x": 150.78125,
+          "y": 347.65625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.445563175777964e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_1",
+        "input": {
+          "x": 162.23957714438438,
+          "y": 347.1354034245014,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854514",
+        "valid": true,
+        "projected": {
+          "x": 162.2395782470703,
+          "y": 347.1354064941406,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 3.2616868505679847e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_10",
+        "input": {
+          "x": 137.2395780980587,
+          "y": 337.23957046866417,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854456",
+        "valid": true,
+        "projected": {
+          "x": 137.2395782470703,
+          "y": 337.23956298828125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 7.481866951504824e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_11",
+        "input": {
+          "x": 148.6979109942913,
+          "y": 337.23957046866417,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854456",
+        "valid": true,
+        "projected": {
+          "x": 148.69790649414062,
+          "y": 337.23956298828125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 8.729689843694914e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_2",
+        "input": {
+          "x": 143.48957785964012,
+          "y": 351.30206993222237,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854457",
+        "valid": true,
+        "projected": {
+          "x": 143.4895782470703,
+          "y": 351.30206298828125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 6.954740856425164e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_3",
+        "input": {
+          "x": 142.968744546175,
+          "y": 342.9687369167805,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854457",
+        "valid": true,
+        "projected": {
+          "x": 142.96875,
+          "y": 342.96875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.417444321024164e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_4",
+        "input": {
+          "x": 155.98957738280296,
+          "y": 341.4062369763851,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854514",
+        "valid": true,
+        "projected": {
+          "x": 155.9895782470703,
+          "y": 341.40625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.3052260443412896e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_5",
+        "input": {
+          "x": 167.9687435925007,
+          "y": 341.4062369763851,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854514",
+        "valid": true,
+        "projected": {
+          "x": 167.96875,
+          "y": 341.40625,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.4514495929323605e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_6",
+        "input": {
+          "x": 168.4895769059658,
+          "y": 352.3437365591526,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854514",
+        "valid": true,
+        "projected": {
+          "x": 168.4895782470703,
+          "y": 352.34375,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.3507588239405209e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_7",
+        "input": {
+          "x": 150.26041093468666,
+          "y": 355.98956975340843,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854514",
+        "valid": true,
+        "projected": {
+          "x": 150.26040649414062,
+          "y": 355.98956298828125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 8.092304670765321e-06,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_8",
+        "input": {
+          "x": 158.59374395012856,
+          "y": 355.4687364399433,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854514",
+        "valid": true,
+        "projected": {
+          "x": 158.59375,
+          "y": 355.46875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.484843701659676e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "field_6_point_9",
+        "input": {
+          "x": 137.76041141152382,
+          "y": 357.03123638033867,
+          "z": 0
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854457",
+        "valid": true,
+        "projected": {
+          "x": 137.76040649414062,
+          "y": 357.03125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.4480187576557404e-05,
+        "z_delta": 0.21655654907226562
+      },
+      {
+        "id": "home_901016",
+        "input": {
+          "x": 378.03635207966687,
+          "y": 626.4014701827371,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371325",
+        "valid": true,
+        "projected": {
+          "x": 378.0363464355469,
+          "y": 626.4014892578125,
+          "z": 0.3144400715827942
+        },
+        "xy_delta": 1.989257634542287e-05,
+        "z_delta": 0.1644400715827942
+      },
+      {
+        "id": "home_901017",
+        "input": {
+          "x": 358.68629150101526,
+          "y": 618.3137084989847,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371273",
+        "valid": true,
+        "projected": {
+          "x": 358.686279296875,
+          "y": 618.313720703125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.7259260675523304e-05,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "home_901018",
+        "input": {
+          "x": 365.5554381358432,
+          "y": 600.3482431015797,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371323",
+        "valid": true,
+        "projected": {
+          "x": 365.5554504394531,
+          "y": 600.3482666015625,
+          "z": 0.2767871916294098
+        },
+        "xy_delta": 2.6525987455479473e-05,
+        "z_delta": 0.1267871916294098
+      },
+      {
+        "id": "home_901019",
+        "input": {
+          "x": 381.31370849898474,
+          "y": 595.6862915010153,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371309",
+        "valid": true,
+        "projected": {
+          "x": 381.313720703125,
+          "y": 595.686279296875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.7259260675523304e-05,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "home_901022",
+        "input": {
+          "x": 44.97056274847714,
+          "y": 859.9705627484772,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370763",
+        "valid": true,
+        "projected": {
+          "x": 44.97056198120117,
+          "y": 859.9705810546875,
+          "z": 0.4609951078891754
+        },
+        "xy_delta": 1.832228286221458e-05,
+        "z_delta": 0.3109951078891754
+      },
+      {
+        "id": "home_901023",
+        "input": {
+          "x": 19.11087627168637,
+          "y": 856.3035137968408,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370566",
+        "valid": true,
+        "projected": {
+          "x": 19.110876083374023,
+          "y": 856.3035278320312,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.4036453725956221e-05,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "home_901024",
+        "input": {
+          "x": 11.029437251522857,
+          "y": 826.0294372515228,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370527",
+        "valid": true,
+        "projected": {
+          "x": 11.029437065124512,
+          "y": 826.0294189453125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.8307159288402946e-05,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "home_901025",
+        "input": {
+          "x": 36.88912372831363,
+          "y": 829.6964862031592,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370622",
+        "valid": true,
+        "projected": {
+          "x": 36.889122009277344,
+          "y": 829.6964721679688,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.4140072751127973e-05,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "home_901028",
+        "input": {
+          "x": 151.18440237676216,
+          "y": 282.17310878027087,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854511",
+        "valid": true,
+        "projected": {
+          "x": 151.1844024658203,
+          "y": 282.173095703125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.3077449114693066e-05,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "home_901029",
+        "input": {
+          "x": 130.68629150101523,
+          "y": 271.31370849898474,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854443",
+        "valid": true,
+        "projected": {
+          "x": 130.68629455566406,
+          "y": 271.313720703125,
+          "z": 0.3417208790779114
+        },
+        "xy_delta": 1.2580616797331522e-05,
+        "z_delta": 0.19172087907791138
+      },
+      {
+        "id": "home_901030",
+        "input": {
+          "x": 128.66631440752954,
+          "y": 240.04472930473892,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854435",
+        "valid": true,
+        "projected": {
+          "x": 128.66632080078125,
+          "y": 240.0447235107422,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 8.628097448606912e-06,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "home_901031",
+        "input": {
+          "x": 153.31370849898477,
+          "y": 248.68629150101523,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854477",
+        "valid": true,
+        "projected": {
+          "x": 153.31370544433594,
+          "y": 248.68629455566406,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 4.319925802248806e-06,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "warehouse_4",
+        "input": {
+          "x": 378.03635207966687,
+          "y": 626.4014701827371,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371325",
+        "valid": true,
+        "projected": {
+          "x": 378.0363464355469,
+          "y": 626.4014892578125,
+          "z": 0.3144400715827942
+        },
+        "xy_delta": 1.989257634542287e-05,
+        "z_delta": 0.1644400715827942
+      },
+      {
+        "id": "warehouse_5",
+        "input": {
+          "x": 44.97056274847714,
+          "y": 859.9705627484772,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370763",
+        "valid": true,
+        "projected": {
+          "x": 44.97056198120117,
+          "y": 859.9705810546875,
+          "z": 0.4609951078891754
+        },
+        "xy_delta": 1.832228286221458e-05,
+        "z_delta": 0.3109951078891754
+      },
+      {
+        "id": "warehouse_6",
+        "input": {
+          "x": 151.18440237676216,
+          "y": 282.17310878027087,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854511",
+        "valid": true,
+        "projected": {
+          "x": 151.1844024658203,
+          "y": 282.173095703125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.3077449114693066e-05,
+        "z_delta": 0.06655654907226563
+      }
+    ],
+    "paths": [
+      {
+        "from": "field_4_point_0",
+        "to": "field_4_point_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 383.59375,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 389.3229064941406,
+            "y": 572.65625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_0",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 383.59375,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_1",
+        "to": "field_4_point_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 375.2604064941406,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 389.3229064941406,
+            "y": 561.1978759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_1",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 375.2604064941406,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_10",
+        "to": "field_4_point_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 361.1979064941406,
+            "y": 567.96875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 367.96875,
+            "y": 563.28125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_10",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 361.1979064941406,
+            "y": 567.96875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 362.66656494140625,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_11",
+        "to": "field_4_point_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 363.28125,
+            "y": 577.8645629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 368.48956298828125,
+            "y": 571.6145629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_11",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 363.28125,
+            "y": 577.8645629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_2",
+        "to": "field_4_point_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 367.96875,
+            "y": 563.28125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 379.9479064941406,
+            "y": 574.21875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_2",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 367.96875,
+            "y": 563.28125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_3",
+        "to": "field_4_point_7",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 368.48956298828125,
+            "y": 571.6145629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 379.9479064941406,
+            "y": 559.6353759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_3",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 368.48956298828125,
+            "y": 571.6145629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_4",
+        "to": "field_4_point_8",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 389.3229064941406,
+            "y": 572.65625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 361.71875,
+            "y": 558.0728759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_4",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 389.3229064941406,
+            "y": 572.65625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.9332275390625,
+            "y": 606.13330078125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_5",
+        "to": "field_4_point_9",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 389.3229064941406,
+            "y": 561.1978759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 371.61456298828125,
+            "y": 555.9895629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_5",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 389.3229064941406,
+            "y": 561.1978759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 383.9998779296875,
+            "y": 576,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.9332275390625,
+            "y": 606.13330078125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_6",
+        "to": "field_4_point_10",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 379.9479064941406,
+            "y": 574.21875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 361.1979064941406,
+            "y": 567.96875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_6",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 379.9479064941406,
+            "y": 574.21875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_7",
+        "to": "field_4_point_11",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 379.9479064941406,
+            "y": 559.6353759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 363.28125,
+            "y": 577.8645629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_7",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 379.9479064941406,
+            "y": 559.6353759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_8",
+        "to": "field_4_point_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 361.71875,
+            "y": 558.0728759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 383.59375,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_8",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 361.71875,
+            "y": 558.0728759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_9",
+        "to": "field_4_point_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 371.61456298828125,
+            "y": 555.9895629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 375.2604064941406,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_4_point_9",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 371.61456298828125,
+            "y": 555.9895629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_0",
+        "to": "field_5_point_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 37.23958206176758,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 42.96875,
+            "y": 799.7395629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_0",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 37.23958206176758,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_1",
+        "to": "field_5_point_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 35.15625,
+            "y": 801.8228759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 28.906248092651367,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_1",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 35.15625,
+            "y": 801.8228759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_10",
+        "to": "field_5_point_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 39.84375,
+            "y": 781.5103759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 43.48958206176758,
+            "y": 788.8020629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_10",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 39.84375,
+            "y": 781.5103759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_11",
+        "to": "field_5_point_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 48.697914123535156,
+            "y": 805.4686889648438,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 33.59375,
+            "y": 786.71875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_11",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 48.697914123535156,
+            "y": 805.4686889648438,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_2",
+        "to": "field_5_point_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 43.48958206176758,
+            "y": 788.8020629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 40.885414123535156,
+            "y": 807.5520629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_2",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 11,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 43.48958206176758,
+            "y": 788.8020629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_3",
+        "to": "field_5_point_7",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 33.59375,
+            "y": 786.71875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 28.906248092651367,
+            "y": 807.0311889648438,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_3",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 33.59375,
+            "y": 786.71875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_4",
+        "to": "field_5_point_8",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 42.96875,
+            "y": 799.7395629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 49.73958206176758,
+            "y": 783.59375,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_4",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 42.96875,
+            "y": 799.7395629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_5",
+        "to": "field_5_point_9",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 28.906248092651367,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 49.21875,
+            "y": 794.53125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_5",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 28.906248092651367,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_6",
+        "to": "field_5_point_10",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 40.885414123535156,
+            "y": 807.5520629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 39.84375,
+            "y": 781.5103759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_6",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 40.885414123535156,
+            "y": 807.5520629882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_7",
+        "to": "field_5_point_11",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 28.906248092651367,
+            "y": 807.0311889648438,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 48.697914123535156,
+            "y": 805.4686889648438,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_7",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 28.906248092651367,
+            "y": 807.0311889648438,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_8",
+        "to": "field_5_point_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 49.73958206176758,
+            "y": 783.59375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 37.23958206176758,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_8",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 11,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 49.73958206176758,
+            "y": 783.59375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_9",
+        "to": "field_5_point_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 49.21875,
+            "y": 794.53125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 35.15625,
+            "y": 801.8228759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_5_point_9",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 49.21875,
+            "y": 794.53125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_0",
+        "to": "field_6_point_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 150.78125,
+            "y": 347.65625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 155.9895782470703,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_0",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 150.78125,
+            "y": 347.65625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_1",
+        "to": "field_6_point_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 162.2395782470703,
+            "y": 347.1354064941406,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 167.96875,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_1",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 162.2395782470703,
+            "y": 347.1354064941406,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_10",
+        "to": "field_6_point_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 137.2395782470703,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 143.4895782470703,
+            "y": 351.30206298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_10",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 137.2395782470703,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_11",
+        "to": "field_6_point_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 148.69790649414062,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 142.96875,
+            "y": 342.96875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_11",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 148.69790649414062,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_2",
+        "to": "field_6_point_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 143.4895782470703,
+            "y": 351.30206298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 168.4895782470703,
+            "y": 352.34375,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_2",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 143.4895782470703,
+            "y": 351.30206298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 319.9999084472656,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_3",
+        "to": "field_6_point_7",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 142.96875,
+            "y": 342.96875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 150.26040649414062,
+            "y": 355.98956298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_3",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 142.96875,
+            "y": 342.96875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 319.9999084472656,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_4",
+        "to": "field_6_point_8",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 155.9895782470703,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 158.59375,
+            "y": 355.46875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_4",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 155.9895782470703,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_5",
+        "to": "field_6_point_9",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 167.96875,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 137.76040649414062,
+            "y": 357.03125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_5",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 167.96875,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_6",
+        "to": "field_6_point_10",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 168.4895782470703,
+            "y": 352.34375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 341.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 137.2395782470703,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_6",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 168.4895782470703,
+            "y": 352.34375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_7",
+        "to": "field_6_point_11",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 150.26040649414062,
+            "y": 355.98956298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 148.69790649414062,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_7",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 150.26040649414062,
+            "y": 355.98956298828125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_8",
+        "to": "field_6_point_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 158.59375,
+            "y": 355.46875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 150.78125,
+            "y": 347.65625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_8",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 158.59375,
+            "y": 355.46875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_9",
+        "to": "field_6_point_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 137.76040649414062,
+            "y": 357.03125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 162.2395782470703,
+            "y": 347.1354064941406,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "field_6_point_9",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 137.76040649414062,
+            "y": 357.03125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "home_901016",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "home_901017",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 358.686279296875,
+            "y": 618.313720703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "home_901018",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 365.5554504394531,
+            "y": 600.3482666015625,
+            "z": 0.2767871916294098
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "home_901019",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 381.313720703125,
+            "y": 595.686279296875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.9332275390625,
+            "y": 606.13330078125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "home_901022",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "home_901023",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 19.110876083374023,
+            "y": 856.3035278320312,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "home_901024",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 12,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 11.029437065124512,
+            "y": 826.0294189453125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "home_901025",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 36.889122009277344,
+            "y": 829.6964721679688,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "home_901028",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "home_901029",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 130.68629455566406,
+            "y": 271.313720703125,
+            "z": 0.3417208790779114
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "home_901030",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 128.66632080078125,
+            "y": 240.0447235107422,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 277.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "home_901031",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 153.31370544433594,
+            "y": 248.68629455566406,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 148.53329467773438,
+            "y": 264.7999267578125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 383.59375,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 375.2604064941406,
+            "y": 566.9270629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_10",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 362.66656494140625,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 361.1979064941406,
+            "y": 567.96875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_11",
+        "complete": true,
+        "attempted": true,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 363.28125,
+            "y": 577.8645629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 367.96875,
+            "y": 563.28125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 368.48956298828125,
+            "y": 571.6145629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.9332275390625,
+            "y": 606.13330078125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 389.3229064941406,
+            "y": 572.65625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.9332275390625,
+            "y": 606.13330078125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 389.3229064941406,
+            "y": 561.1978759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 379.9479064941406,
+            "y": 574.21875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_7",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 379.9479064941406,
+            "y": 559.6353759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_8",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 362.66656494140625,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 361.71875,
+            "y": 558.0728759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "field_4_point_9",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 371.61456298828125,
+            "y": 555.9895629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "home_901016",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "home_901017",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 358.686279296875,
+            "y": 618.313720703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "home_901018",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 365.5554504394531,
+            "y": 600.3482666015625,
+            "z": 0.2767871916294098
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "home_901019",
+        "complete": true,
+        "attempted": true,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 378.66656494140625,
+            "y": 607.7332763671875,
+            "z": 0.7498893737792969
+          },
+          {
+            "x": 378.9332275390625,
+            "y": 606.13330078125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 381.313720703125,
+            "y": 595.686279296875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 37.23958206176758,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 35.15625,
+            "y": 801.8228759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_10",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 39.84375,
+            "y": 781.5103759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_11",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 48.697914123535156,
+            "y": 805.4686889648438,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 11,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 43.48958206176758,
+            "y": 788.8020629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 33.59375,
+            "y": 786.71875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 42.666656494140625,
+            "y": 810.6665649414062,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 42.96875,
+            "y": 799.7395629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 28.906248092651367,
+            "y": 794.0103759765625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 40.885414123535156,
+            "y": 807.5520629882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_7",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 28.906248092651367,
+            "y": 807.0311889648438,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_8",
+        "complete": true,
+        "attempted": true,
+        "polygons": 11,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 49.73958206176758,
+            "y": 783.59375,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "field_5_point_9",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 51.19998550415039,
+            "y": 847.466552734375,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.333316802978516,
+            "y": 841.599853515625,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 49.21875,
+            "y": 794.53125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "home_901022",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "home_901023",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 19.110876083374023,
+            "y": 856.3035278320312,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "home_901024",
+        "complete": true,
+        "attempted": true,
+        "polygons": 12,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 11.029437065124512,
+            "y": 826.0294189453125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "home_901025",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 34.666656494140625,
+            "y": 848.7999267578125,
+            "z": 1.2832231521606445
+          },
+          {
+            "x": 34.39999008178711,
+            "y": 847.466552734375,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 36.889122009277344,
+            "y": 829.6964721679688,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 150.78125,
+            "y": 347.65625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 162.2395782470703,
+            "y": 347.1354064941406,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_10",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 137.2395782470703,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_11",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 298.6665954589844,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 148.69790649414062,
+            "y": 337.23956298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 298.6665954589844,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 143.4895782470703,
+            "y": 351.30206298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 142.96875,
+            "y": 342.96875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 155.9895782470703,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 167.96875,
+            "y": 341.40625,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 168.4895782470703,
+            "y": 352.34375,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_7",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 150.26040649414062,
+            "y": 355.98956298828125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_8",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 158.59375,
+            "y": 355.46875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "field_6_point_9",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 137.76040649414062,
+            "y": 357.03125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "home_901028",
+        "complete": true,
+        "attempted": true,
+        "polygons": 1,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "home_901029",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 130.68629455566406,
+            "y": 271.313720703125,
+            "z": 0.3417208790779114
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "home_901030",
+        "complete": true,
+        "attempted": true,
+        "polygons": 6,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 128.66632080078125,
+            "y": 240.0447235107422,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "home_901031",
+        "complete": true,
+        "attempted": true,
+        "polygons": 7,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 277.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 148.53329467773438,
+            "y": 264.7999267578125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 255.9999237060547,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 153.31370544433594,
+            "y": 248.68629455566406,
+            "z": 0.21655654907226562
+          }
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "Live per-leg collision/body, LOS and actual work/haul/meal completion remain required.",
+    "No resource production or actor activation was performed by this read-only native connectivity test."
+  ]
+}
