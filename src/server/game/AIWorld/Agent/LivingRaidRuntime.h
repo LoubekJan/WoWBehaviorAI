@@ -22,12 +22,15 @@ namespace LivingRaid
     inline constexpr ActionPosition GuardPost = Source;
     // Reviewed transit anchors split the long journey into bounded searches.
     // Every actual leg is still grounded and checked against live collisions.
-    inline constexpr std::array<ActionPosition, 8> ToSource{{
+    inline constexpr std::array<ActionPosition, 9> ToSource{{
         {725, -80.0f, 840.0f, 0.15f},
         // Follow the northern crossing. A direct approach from the camp
         // toward the bridge can select deep water on a swim-capable mesh.
         {725, -160.0f, 860.0f, 0.15f},
         {725, -201.6000671387f, 861.0665283203f, -2.2201099396f},
+        // Leave the west ramp before turning south; a diagonal departure
+        // from the deck crosses its steep side instead of the landing.
+        {725, -214.0f, 861.0665283203f, 0.15f},
         {725, -235.0f, 790.0f, -0.62f},
         {725, -235.0f, 725.0f, 0.15f},
         {725, -264.0f, 680.0f, 0.15f},

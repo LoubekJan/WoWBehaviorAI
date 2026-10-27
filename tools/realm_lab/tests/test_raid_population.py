@@ -79,10 +79,11 @@ class PublishedRaidTests(unittest.TestCase):
             self.assertEqual(tuple(getattr(actor, field) for field in ("entry", "label", "role", "x", "y", "z", "orientation")),
                              tuple(getattr(before[actor.spawn_id], field) for field in ("entry", "label", "role", "x", "y", "z", "orientation")))
         self.assertEqual([(a.spawn_id, a.agent_type, a.world_faction) for a in population.recruits], [(901039, 1, 1), (901055, 5, 2)])
-        self.assertEqual(len(raids.TRANSIT_WAYPOINTS), 8)
-        self.assertEqual([(point["x"], point["y"], point["z"]) for point in raids.TRANSIT_WAYPOINTS[1:4]],
+        self.assertEqual(len(raids.TRANSIT_WAYPOINTS), 9)
+        self.assertEqual([(point["x"], point["y"], point["z"]) for point in raids.TRANSIT_WAYPOINTS[1:5]],
                          [(-160.0, 860.0, 0.15),
                           (-201.60006713867188, 861.0665283203125, -2.2201099395751953),
+                          (-214.0, 861.0665283203125, 0.15),
                           (-235.0, 790.0, -0.62)])
 
     def test_profile_opt_in_shared_pause_and_setup_roster(self):

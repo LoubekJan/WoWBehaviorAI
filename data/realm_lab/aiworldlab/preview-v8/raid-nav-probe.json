@@ -3,7 +3,7 @@
   "profile": "raids-v8",
   "source_revision": "preview-v8",
   "map_id": 725,
-  "captured_at_utc": "2026-10-27T00:13:56.384239+00:00",
+  "captured_at_utc": "2026-10-27T00:32:51.687199+00:00",
   "status": "PASS",
   "ok": true,
   "scope": "native_detour_ground_connectivity_only",
@@ -12,7 +12,7 @@
   "new_server_deployment_performed": false,
   "all_authored_homes_preserved": true,
   "anchors_changed": false,
-  "method": "Existing MSVC x64 executable linked to repository native DT_POLYREF64 Detour sources. Validated mmap/tile ABI and complete native payload sizes, loaded all four tiles and queried small local ground-only projections plus full findPath/findStraightPath in both directions. Independent receipt checks reject partial/status-detail flags, non-ground corridor polygons and endpoint errors, verify the ten anchors against the pinned raid manifest and native terrain, and require all eighteen intended directed routes.",
+  "method": "Existing MSVC x64 executable linked to repository native DT_POLYREF64 Detour sources. Validated mmap/tile ABI and complete native payload sizes, loaded all four tiles and queried small local ground-only projections plus full findPath/findStraightPath in both directions. Independent receipt checks reject partial/status-detail flags, non-ground corridor polygons and endpoint errors, verify the eleven anchors against the pinned raid manifest and native terrain, and require all twenty intended directed routes.",
   "parameters": {
     "poly_ref_bits": 64,
     "query_node_capacity": 8192,
@@ -138,15 +138,16 @@
     }
   ],
   "limitations": [
-    "This proves native ground-navmesh connectivity at ten selected anchors and eighteen directed paths. It does not prove physical NPC movement, bridge/body clearance, an actual theft, interception or delivery.",
+    "This proves native ground-navmesh connectivity at eleven selected anchors and twenty directed paths. It does not prove physical NPC movement, bridge/body clearance, an actual theft, interception or delivery.",
     "Runtime must resolve each waypoint from the current physical floor and independently validate collisions, route and map bounds, dynamic occupants, real LOS, attackability and action completion.",
     "No live world was activated or changed by this receipt. Static ground hints are not authored spawn/home changes or permission to project an actor to another floor.",
-    "The authored route now passes north through the Stranglechasmbridge M2 bounds. Native mesh connectivity and the model bounding box do not verify its current physical deck/body support or an NPC crossing it; runtime floor, collision and movement completion checks remain required."
+    "The authored route now passes north through the Stranglechasmbridge M2 bounds. Native mesh connectivity and the model bounding box do not verify its current physical deck/body support or an NPC crossing it; runtime floor, collision and movement completion checks remain required.",
+    "The extra west_landing target forces travel west of the bridge before turning south-west. Half-yard native MAPS sampling proves only the underlying terrain change; it omits M2/WMO deck support, dynamic collision and actor body clearance, so physical movement remains a separate test."
   ],
   "population_manifest": {
     "path": "data/realm_lab/aiworldlab/preview-v8/raid-population.json",
-    "bytes": 4010,
-    "sha256": "35cb4d3d36e512d1ae2e827ae4769615f49fa12706af9f3a0f2c9ce8a4468d32"
+    "bytes": 4109,
+    "sha256": "8704486d3d2cbf653bb73db868dc454b65ab382181d0c481b4f5e12cecd1c522"
   },
   "baseline_pins": {
     "consumer_manifest_sha256": "338e7e9325883308de6c5c90bc04a52451d13c3da07c9478b40e27b9b778bc84",
@@ -464,24 +465,29 @@
   ],
   "private_probe_artifacts": [
     {
-      "path": "runtime/lab-validation/raids-v8/ford-route-v2/prepare-nav.py",
-      "bytes": 1681,
-      "sha256": "f3ad96418892cc2806643bc0500316cd5c159391a39d51cad35f764693d13a1b"
+      "path": "runtime/lab-validation/raids-v8/west-exit-v3/prepare-nav.py",
+      "bytes": 1697,
+      "sha256": "3aec60ca29bfcd546a569c0b7d9c500a90076520894aa44a127eb9a4b272250a"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/ford-route-v2/points.tsv",
-      "bytes": 452,
-      "sha256": "953dc9fcccb48e1b3c459148281d4619d2fc93278d76812d8c497eb4510be662"
+      "path": "runtime/lab-validation/raids-v8/west-exit-v3/points.tsv",
+      "bytes": 504,
+      "sha256": "ebad237d6c270fcaf4eb40327a2ad03e2a16a0636d53f796078a707c73c878f1"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/ford-route-v2/routes.tsv",
-      "bytes": 282,
-      "sha256": "66719fcd69315064c6cd5010d9be55b7018e050d7c201e8dd711bd5d576010f1"
+      "path": "runtime/lab-validation/raids-v8/west-exit-v3/routes.tsv",
+      "bytes": 334,
+      "sha256": "aca135ae3e60e07b43cdac0b319bdd7004fd1a4163440aa64a0e2b6334b2c102"
     },
     {
-      "path": "runtime/lab-validation/raids-v8/ford-route-v2/nav-raw.json",
-      "bytes": 14821,
-      "sha256": "92b810b1c9980439eda229f1a27c400c6fafbd0adca3943d54602e86c3ce8ea6"
+      "path": "runtime/lab-validation/raids-v8/west-exit-v3/nav-raw.json",
+      "bytes": 16336,
+      "sha256": "8a7ace25d7621174d589ab3db688bc2d07714ad3a11060a3c0fe1bef5e8d5370"
+    },
+    {
+      "path": "runtime/lab-validation/raids-v8/west-exit-v3/terrain-exit-samples.json",
+      "bytes": 36479,
+      "sha256": "03d72af6d07314a8e3bc03be655363a9a5a21e58f5e1d771beb489e582df2a52"
     },
     {
       "path": "runtime/lab-validation/supply-v8/supply_nav_probe.cpp",
@@ -515,9 +521,9 @@
       "xy": 1,
       "z": 2
     },
-    "valid_projections": 10,
-    "required_paths": 18,
-    "complete_paths": 18,
+    "valid_projections": 11,
+    "required_paths": 20,
+    "complete_paths": 20,
     "projections": [
       {
         "id": "camp",
@@ -672,6 +678,45 @@
             32
           ],
           "anchor_height_delta": 1.7621746649720578,
+          "terrain_hole": false
+        }
+      },
+      {
+        "id": "west_landing",
+        "input": {
+          "x": -214,
+          "y": 861.0665283203125,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503603922338525",
+        "valid": true,
+        "projected": {
+          "x": -214,
+          "y": 861.0665283203125,
+          "z": 0.17988967895507812
+        },
+        "xy_delta": 0,
+        "z_delta": 0.02988967895507813,
+        "terrain": {
+          "ground_z": 0.0,
+          "triangle_slope_degrees": 0.0,
+          "square_row": 51,
+          "square_col": 49,
+          "triangle": 0,
+          "tile": [
+            30,
+            32
+          ],
+          "anchor_height_delta": 0.15,
           "terrain_hole": false
         }
       },
@@ -1183,10 +1228,10 @@
       },
       {
         "from": "ford_w",
-        "to": "west_bank",
+        "to": "west_landing",
         "complete": true,
         "attempted": true,
-        "polygons": 7,
+        "polygons": 2,
         "status": {
           "value": 1073741824,
           "succeeded": true,
@@ -1214,19 +1259,19 @@
             "z": -2.2201099395751953
           },
           {
-            "x": -235,
-            "y": 790,
-            "z": -0.645107626914978
+            "x": -214,
+            "y": 861.0665283203125,
+            "z": 0.17988967895507812
           }
         ],
-        "straight_path_length_yards": 78.53971985516557
+        "straight_path_length_yards": 12.630056735200778
       },
       {
-        "from": "west_bank",
+        "from": "west_landing",
         "to": "ford_w",
         "complete": true,
         "attempted": true,
-        "polygons": 8,
+        "polygons": 2,
         "status": {
           "value": 1073741824,
           "succeeded": true,
@@ -1249,13 +1294,8 @@
         "all_corridor_flags_ground_only": true,
         "straight_path": [
           {
-            "x": -235,
-            "y": 790,
-            "z": -0.645107626914978
-          },
-          {
-            "x": -213.33340454101562,
-            "y": 831.9998779296875,
+            "x": -214,
+            "y": 861.0665283203125,
             "z": 0.17988967895507812
           },
           {
@@ -1264,7 +1304,92 @@
             "z": -2.2201099395751953
           }
         ],
-        "straight_path_length_yards": 78.70365192617092
+        "straight_path_length_yards": 12.630056735200778
+      },
+      {
+        "from": "west_landing",
+        "to": "west_bank",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -214,
+            "y": 861.0665283203125,
+            "z": 0.17988967895507812
+          },
+          {
+            "x": -234.66671752929688,
+            "y": 831.9998779296875,
+            "z": -0.35344505310058594
+          },
+          {
+            "x": -235,
+            "y": 790,
+            "z": -0.645107626914978
+          }
+        ],
+        "straight_path_length_yards": 77.67107643522331
+      },
+      {
+        "from": "west_bank",
+        "to": "west_landing",
+        "complete": true,
+        "attempted": true,
+        "polygons": 5,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": -235,
+            "y": 790,
+            "z": -0.645107626914978
+          },
+          {
+            "x": -214,
+            "y": 861.0665283203125,
+            "z": 0.17988967895507812
+          }
+        ],
+        "straight_path_length_yards": 74.10892030016677
       },
       {
         "from": "west_bank",
@@ -1713,10 +1838,10 @@
       }
     ]
   },
-  "route_revision": "northern-bridge-v2",
-  "previous_native_receipt_sha256": "5cad1b0f8498fc7db4d944ce116f3741c0bc90045385b7b72f626791a57d800e",
+  "route_revision": "west-bridge-exit-v3",
+  "previous_native_receipt_sha256": "f50cce8db8a58cb3d54e21426f4c946638f6abae48f95a5eb843d8e1bef5b7ca",
   "route_authoring_context": {
-    "reason": "Three explicit northern approach, bridge-west-edge and west-bank targets replace the former single upper-to-bridge_n leg, which allowed a water shortcut during its first live raid.",
+    "reason": "An explicit west_landing point beyond the bridge model western X bound keeps the route on the western exit before its south-west turn to west_bank.",
     "bridge_geometry_receipt": {
       "path": "runtime/lab-validation/map-preview-v8/server-fixed-data-verification.json",
       "bytes": 236837,
@@ -1734,6 +1859,41 @@
         "max_z": -0.9551162719726562
       }
     },
-    "physical_bridge_support_verified": false
+    "physical_bridge_support_verified": false,
+    "previous_reason": "Three explicit northern approach, bridge-west-edge and west-bank targets replace the former single upper-to-bridge_n leg, which allowed a water shortcut during its first live raid.",
+    "west_landing": {
+      "map_id": 725,
+      "x": -214.0,
+      "y": 861.0665283203125,
+      "z": 0.15
+    },
+    "west_landing_outside_bridge_x_bounds": true
+  },
+  "terrain_exit_checks": [
+    {
+      "source": "ford_w",
+      "target": "west_landing",
+      "sample_count": 26,
+      "sample_spacing_yards": 0.495997314453125,
+      "maximum_consecutive_terrain_height_change_yards": 0.3955801620642396,
+      "terrain_cliff_threshold_yards": 0.75,
+      "terrain_only": true,
+      "physical_model_deck_or_body_clearance_verified": false
+    },
+    {
+      "source": "west_landing",
+      "target": "west_bank",
+      "sample_count": 150,
+      "sample_spacing_yards": 0.4973444840895704,
+      "maximum_consecutive_terrain_height_change_yards": 0.008792510082664462,
+      "terrain_cliff_threshold_yards": 0.75,
+      "terrain_only": true,
+      "physical_model_deck_or_body_clearance_verified": false
+    }
+  ],
+  "terrain_exit_samples": {
+    "path": "runtime/lab-validation/raids-v8/west-exit-v3/terrain-exit-samples.json",
+    "bytes": 36479,
+    "sha256": "03d72af6d07314a8e3bc03be655363a9a5a21e58f5e1d771beb489e582df2a52"
   }
 }
