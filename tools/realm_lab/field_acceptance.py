@@ -285,6 +285,20 @@ class _Evaluator:
             last_active_capture_ms=attempt["last_capture"], completion_capture_ms=row["capture"],
             minimum_duration_ms=duration, position_before=list(old["position"]), position_after=list(row["position"]))
 
+    @staticmethod
+    def explicit_rest_completion(old, row):
+        actor, role, supplied = row["agent"], row["role"], row["supply"]
+        # A meal-only trip now resumes the same field point. Its successful
+        # rest still has an explicit source completion marker and preserves
+        # the prior owned action stamp; index movement is not the receipt.
+        return (old["supply"].get("phase") == "RESTING_HOME" and old["role"].get("phase") == "ACTING" and
+            old["role"].get("activity") == "REST" and
+            supplied.get("phase") == "READY_FOR_FIELD" and supplied.get("last_result") == "RESTED_HOME" and
+            role.get("phase") == "IDLE" and role.get("activity") == "NONE" and
+            supply.positive_int(old["role"].get("started_at_ms")) and
+            role.get("started_at_ms") == old["role"]["started_at_ms"] and
+            all(key in actor and actor[key] is None for key in ("action", "action_source_goal", "action_started_at_ms", "goal")))
+
     def finish_returns(self, sid, old, row):
         track, spec = self.tracks[sid], self.workers[sid]
         chain, meal = track.chain, track.meal_return
@@ -332,6 +346,8 @@ class _Evaluator:
                     self.violation("workpoint_rotation_without_owned_home_rest", sid)
                 else:
                     self.finish_returns(sid, old, row)
+            elif self.explicit_rest_completion(old, row):
+                self.finish_returns(sid, old, row)
             chain = track.chain
             if chain and (self.moving(old, "FARM_FIELD") or self.moving(row, "FARM_FIELD")): chain["field_travel_yards"] += step
             if chain and (self.moving(old, "FARM_DEPOT") or self.moving(row, "FARM_DEPOT")): chain["warehouse_travel_yards"] += step
@@ -479,6 +495,7 @@ class _Evaluator:
             quality=dict(self.quality), violations=violations, missing_evidence=missing,
             limitations=["Action/position snapshots and source-validated work-emote dispatch do not prove client animation pixels or independently measure collision and line of sight.",
                 "Work/delivery/meal completions require 15/5/5 seconds from their exact owned start; both home returns require ten-second owned rest completion. The first capture may lag by at most one second and intervening gaps are bounded by max_gap_seconds.",
+                "A completed meal-only home rest may resume the same field point. It needs the explicit RESTED_HOME/READY_FOR_FIELD source transition with the same action stamp and cleared active action/goal; the full owned ten-second rest proof still applies.",
                 "Production and later consumption may occupy separate trips separated by ordinary home rest, maintenance work and point rotation. Both receipts share one uninterrupted GUID/lifetime/ledger epoch; shared warehouse stock is fungible and no own-portion consumption is claimed.",
                 "Home and warehouse intentionally coincide for each village's first worker, so owned home rest there does not require a fictitious return walk.",
                 "Crop regrowth and harvest can share a producer tick; remaining potential is checked with at most one regrown portion per bounded capture interval.",

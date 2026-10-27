@@ -606,3 +606,161 @@ TEST_CASE("Ordinary farmer home arrival covers the observed nearest nodes withou
         REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, fixture.Home) == Approx(1.9f));
     }
 }
+
+TEST_CASE("Canonical warehouse workers retain warehouse precision for their exact normalized immutable home", "[AIWorld][LivingFields][Arrival]")
+{
+    for (uint64 spawn : {901016ull, 901022ull, 901028ull})
+    {
+        auto worker = LivingFields::Worker(spawn);
+        REQUIRE(worker);
+        REQUIRE(worker->Ordinal == 0);
+        auto field = LivingFields::Field(worker->Field);
+        REQUIRE(field);
+        auto actualHome = field->DepotPoint;
+        actualHome.X = std::nextafter(actualHome.X, std::numeric_limits<float>::infinity());
+        actualHome.Y = std::nextafter(actualHome.Y, -std::numeric_limits<float>::infinity());
+        actualHome.Z = 0.0f;
+        REQUIRE(LivingFields::ArrivalRadius(*worker, actualHome, actualHome) == Approx(1.9f));
+        REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, actualHome) == Approx(1.9f));
+        REQUIRE(LivingReturnPolicy::Distance(actualHome, field->DepotPoint) < 0.5f);
+        // A nearby requested point cannot borrow immutable-home identity.
+        auto nearHome = actualHome;
+        nearHome.X += 0.001f;
+        REQUIRE(LivingFields::ArrivalRadius(*worker, nearHome, actualHome) == Approx(3.0f));
+        // Ground projection of an arbitrary warehouse request is not an exact
+        // immutable-home request when the real home still has authored Z.
+        REQUIRE(LivingFields::ArrivalRadius(*worker, actualHome, field->DepotPoint) == Approx(3.0f));
+    }
+}
+
+TEST_CASE("Normalized-home precision cannot be borrowed by foreign anchors floors maps or worker ordinals", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    auto field = LivingFields::Field(worker->Field);
+    REQUIRE(field);
+    auto actualHome = field->DepotPoint;
+    actualHome.Z = 0.0f;
+    auto wrong = actualHome;
+    wrong.MapId = 0;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    wrong = actualHome;
+    wrong.X += 0.011f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    wrong = actualHome;
+    wrong.Y -= 0.011f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    wrong = actualHome;
+    wrong.Z = field->DepotPoint.Z + 0.6f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    for (auto const& foreign : LivingFields::Fields)
+        if (foreign.Id != field->Id)
+        {
+            auto foreignHome = foreign.DepotPoint;
+            foreignHome.Z = 0.0f;
+            REQUIRE(LivingFields::ArrivalRadius(*worker, foreignHome, foreignHome) == Approx(3.0f));
+        }
+    auto otherOrdinal = LivingFields::Worker(901023);
+    REQUIRE(otherOrdinal);
+    REQUIRE(LivingFields::ArrivalRadius(*otherOrdinal, actualHome, actualHome) == Approx(3.0f));
+    auto forged = *worker;
+    forged.Ordinal = 1;
+    REQUIRE(LivingFields::ArrivalRadius(forged, actualHome, actualHome) == Approx(3.0f));
+    // Exact own warehouse precision remains available independently of the
+    // ordinary worker's home; it grants no foreign warehouse permission.
+    REQUIRE(LivingFields::ArrivalRadius(*otherOrdinal, field->DepotPoint, actualHome) == Approx(1.9f));
+}
+
+TEST_CASE("Meal-only home rests preserve the farmer's unworked field point", "[AIWorld][LivingFields][RuntimePolicy]")
+{
+    auto ledger = FieldFixture(2);
+    ActorRuntime actor;
+    auto worker = LivingFields::Worker(901016);
+    REQUIRE(worker);
+    auto original = LivingFields::WorkPoint(*worker, actor.FieldCycle);
+    REQUIRE(original);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    for (uint64 meal = 1; meal <= 2; ++meal)
+    {
+        actor.FarmingActivity = FieldActivity::Eat;
+        actor.FarmingStage = FieldStage::Warehouse;
+        REQUIRE(ledger.EatDepot(worker->Spawn, meal, worker->Depot, 1, true).Success);
+        actor.FarmingActivity = FieldActivity::Rest;
+        FinishFieldHomeRest(actor);
+        REQUIRE(actor.FieldCycle == 0);
+        REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+        REQUIRE(actor.FarmingStage == FieldStage::Field);
+        REQUIRE(LivingFields::WorkPoint(*worker, actor.FieldCycle) == original);
+    }
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 2);
+    REQUIRE(ledger.GetField(worker->Field)->Remaining == FieldCapacity);
+    FieldConserved(ledger);
+}
+
+TEST_CASE("A completed field work visit authorizes one home-rest rotation through meals and interruptions", "[AIWorld][LivingFields][RuntimePolicy]")
+{
+    auto ledger = FieldFixture();
+    ActorRuntime actor;
+    actor.FieldCycle = 2;
+    auto worker = LivingFields::Worker(901016);
+    REQUIRE(worker);
+    auto workedPoint = LivingFields::WorkPoint(*worker, actor.FieldCycle);
+    REQUIRE(workedPoint);
+    actor.FarmingActivity = FieldActivity::Work;
+    REQUIRE_FALSE(ledger.HarvestField(worker->Spawn, 1, worker->Field, 1, 15100, false).Success);
+    actor.FarmingActivity = FieldActivity::None;
+    FinishFieldHomeRest(actor);
+    REQUIRE(actor.FieldCycle == 2);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    REQUIRE(ledger.HarvestField(worker->Spawn, 1, worker->Field, 1, 15100, true).Success);
+    // Live runtime sets this receipt only after its owned 15-second work
+    // completion. Clearing an interrupted activity must preserve that receipt.
+    actor.FieldWorkedThisCycle = true;
+    actor.FarmingActivity = FieldActivity::None;
+    REQUIRE(actor.FieldWorkedThisCycle);
+    REQUIRE(ledger.Deliver(worker->Spawn, 2, worker->Depot, 1, true).Success);
+    REQUIRE(ledger.EatDepot(worker->Spawn, 3, worker->Depot, 1, true).Success);
+    REQUIRE(actor.FieldWorkedThisCycle);
+    actor.FarmingActivity = FieldActivity::Rest;
+    FinishFieldHomeRest(actor);
+    REQUIRE(actor.FieldCycle == 0);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    REQUIRE(actor.FarmingStage == FieldStage::Field);
+    REQUIRE(LivingFields::WorkPoint(*worker, actor.FieldCycle) != workedPoint);
+    auto nextPoint = LivingFields::WorkPoint(*worker, actor.FieldCycle);
+    // A later rest without another completed work action cannot redeem the
+    // previous visit a second time or skip this next assigned point.
+    FinishFieldHomeRest(actor);
+    REQUIRE(actor.FieldCycle == 0);
+    REQUIRE(LivingFields::WorkPoint(*worker, actor.FieldCycle) == nextPoint);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 1);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    FieldConserved(ledger);
+}
+
+TEST_CASE("Completed maintenance or empty-field work rotates once without creating food", "[AIWorld][LivingFields][RuntimePolicy]")
+{
+    for (bool fullWarehouse : {false, true})
+    {
+        auto ledger = FieldFixture(fullWarehouse ? 30 : 0, fullWarehouse ? FieldCapacity : 0);
+        ActorRuntime actor;
+        actor.FieldCycle = 1;
+        if (!fullWarehouse)
+            REQUIRE_FALSE(ledger.HarvestField(901016, 1, 4, 1, 15100, true).Success);
+        // Both paths completed the same owned work interval. Storage and
+        // crop availability decide food production, independently of rotation.
+        actor.FieldWorkedThisCycle = true;
+        FinishFieldHomeRest(actor);
+        REQUIRE(actor.FieldCycle == 2);
+        REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+        REQUIRE(actor.FarmingStage == FieldStage::Field);
+        REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+        REQUIRE(ledger.GetCargo(901016) == 0);
+        REQUIRE(ledger.GetField(4)->Remaining == (fullWarehouse ? FieldCapacity : 0));
+        REQUIRE(ledger.GetDepot(4)->Stock == (fullWarehouse ? 30 : 0));
+        FieldConserved(ledger);
+    }
+}

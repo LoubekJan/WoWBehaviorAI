@@ -165,6 +165,7 @@ namespace LivingSupply
         FieldStage FarmingStage = FieldStage::Field;
         FieldActivity FarmingActivity = FieldActivity::None;
         uint32 FieldCycle = 0;
+        bool FieldWorkedThisCycle = false;
         uint64 FieldActionStartedAtMs = 0;
         uint64 FieldNextWorkEmoteAtMs = 0;
         ActionPosition FieldActionPoint;
@@ -172,6 +173,15 @@ namespace LivingSupply
         std::string LastResult = "READY";
         TravelContext Travel;
     };
+    inline void FinishFieldHomeRest(ActorRuntime& actor)
+    {
+        // A stock-meal detour does not complete the field point that the
+        // worker was still approaching. Resume it after this home rest.
+        if (actor.FieldWorkedThisCycle)
+            actor.FieldCycle = (actor.FieldCycle + 1) % 3;
+        actor.FieldWorkedThisCycle = false;
+        actor.FarmingStage = FieldStage::Field;
+    }
     // Preparing a candidate is administrative. Budget refusal must preserve
     // the same candidate and consume none of the eight real search attempts.
     inline ActionPosition const& PrepareHunterSearch(ActorRuntime& actor, ActionPosition const& ground)

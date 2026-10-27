@@ -234,6 +234,25 @@ def zero_crop_regrowth_samples(awards):
     return rows
 
 
+def meal_return_without_rotation_samples(source):
+    """Synthetic meal-only return resumes its point after owned Rest succeeds."""
+    rows = separate_trip_samples(source)
+    for row in rows[276:]:
+        for current in row["state"]["agents"]:
+            sid = current["spawn_id"]
+            if sid not in WORKERS: continue
+            spec = WORKERS[sid]
+            index = spec.worker_ordinal+8
+            definition = DEFINITIONS[spec.field_id]
+            current["supply"].update(field_workpoint_index=index,
+                field_workpoint={key: definition["work_points"][index][key] for key in ("map_id", "x", "y", "z")})
+            if row["elapsed_seconds"] == 276:
+                current["supply"].update(phase="READY_FOR_FIELD", last_result="RESTED_HOME")
+                current["living_role"].update(phase="IDLE", activity="NONE", started_at_ms=BASE+266000)
+                current.update(action=None, action_source_goal=None, action_started_at_ms=None, goal=None)
+    return rows
+
+
 class FieldAcceptanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls): cls.good = happy_samples()
@@ -280,6 +299,39 @@ class FieldAcceptanceTests(unittest.TestCase):
                 for row in candidate[200:]: actor(row, 901016)["living_role"]["lifetime_ms"] = BASE+200000
             result = acceptance.evaluate_samples(candidate, minimum_seconds=100)
             with self.subTest(mutation=mutation): self.assertEqual(result["status"], "INCONCLUSIVE", result)
+
+    def test_meal_only_home_return_closes_owned_rest_without_advancing_the_workpoint(self):
+        rows = meal_return_without_rotation_samples(self.good)
+        before, after = actor(rows[275], 901031), actor(rows[276], 901031)
+        self.assertEqual(before["supply"]["field_workpoint_index"], after["supply"]["field_workpoint_index"])
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["completed_farmers"], sorted(fields.RECRUIT_IDS))
+        for chain in report["chains"]:
+            rest = chain["meal_return"]["home_rest_receipt"]
+            self.assertEqual((rest["started_at_ms"], rest["completion_capture_ms"]), (BASE+266000, BASE+276000))
+
+    def test_unchanged_workpoint_cannot_close_an_interrupted_unowned_or_short_rest(self):
+        good = meal_return_without_rotation_samples(self.good)
+        for mutation in ("interrupted", "unowned", "short", "changed_stamp", "missing_action_observation"):
+            rows = deepcopy(good)
+            completion = actor(rows[276], 901031)
+            if mutation == "interrupted": completion["supply"]["last_result"] = "ACTIVITY_INTERRUPTED"
+            elif mutation == "unowned": actor(rows[275], 901031)["action_source_goal"] = "FEED"
+            elif mutation == "changed_stamp": completion["living_role"]["started_at_ms"] += 1
+            elif mutation == "missing_action_observation": completion.pop("action_started_at_ms")
+            else:
+                for row in rows[266:270]:
+                    current = actor(row, 901031)
+                    current["supply"]["phase"] = "WAITING"
+                    current["living_role"].update(phase="IDLE", activity="NONE", started_at_ms=0)
+                    current.update(action=None, action_source_goal=None, action_started_at_ms=None, goal=None)
+                for row in rows[270:276]: owned(actor(row, 901031), "RESTING_HOME", "REST", 270)
+                completion["living_role"]["started_at_ms"] = BASE+270000
+            report = acceptance.evaluate_samples(rows)
+            with self.subTest(mutation=mutation):
+                self.assertNotEqual(report["status"], "PASS", report)
+                self.assertNotIn(901031, report["completed_farmers"])
 
     def test_action_source_duration_workpoint_and_free_rewards_are_real_violations(self):
         for mutation in ("work_owner", "work_duration", "work_away", "delivery_owner", "meal_owner", "foreign_field", "foreign_depot", "personal_food", "free_hunger", "crop_creation", "home", "teleport"):

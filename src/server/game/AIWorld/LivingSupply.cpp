@@ -240,6 +240,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         actor.FarmingStage = LivingSupply::FieldStage::Field;
         actor.FarmingActivity = LivingSupply::FieldActivity::None;
         actor.FieldCycle = 0;
+        actor.FieldWorkedThisCycle = false;
         actor.FieldActionStartedAtMs = 0;
         actor.FieldNextWorkEmoteAtMs = 0;
         actor.FieldActionPoint = {};

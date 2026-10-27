@@ -187,7 +187,8 @@ samostatně. Každý pohyb nadále kontroluje aktuální kolize a nebezpečí. P
 ke vlastnímu skladu používá u zemědělců toleranci 1,9 yd, aby nezastavili
 na hraně blízké budovy. Tento dosah odpovídá rozlišení navigační sítě;
 běžné domovy a práce na poli zachovávají 3 yd. Domov shodný se skladem
-používá stejný přesnější příchod jako sklad.
+používá stejný přesnější příchod jako sklad. Rozpoznání zachová i
+normalizovanou výšku skutečného domova, aniž by se měnily uložené souřadnice.
 
 Dělník pracuje na vlastním poli nejméně 15 sekund. Dokončená sklizeň
 převede jednu dostupnou porci úrody do nákladu, nejvýše dvě na dělníka.
@@ -195,6 +196,8 @@ Pětisekundové odevzdání ji přesune do vlastního skladu. Jídlo trvá pět
 sekund a hlad sníží až po skutečném odečtení porce z tohoto skladu.
 Následuje návrat domů, odpočinek a další pracovní místo. Plný sklad
 vede k údržbě pole; přerušená práce, údržba a samotný příchod jídlo netvoří.
+Po jídle bez dokončené práce dělník pokračuje na rozpracovaném bodě.
+Na další bod přejde po dokončené práci a návratu s odpočinkem doma.
 
 Sklady začínají prázdné a mají kapacitu 30 porcí. Každé pole má nejvýše
 24 zralých porcí; jedna dorůstá za 30 sekund. Úroda se započítá jako

@@ -166,11 +166,14 @@ bool AIWorldMgr::UpdateLivingFieldWorker(AgentRecord& record, Creature& creature
         if (rest)
         {
             record.Needs.Fatigue = 0.0f;
-            actor.FieldCycle = (actor.FieldCycle + 1) % 3;
-            actor.FarmingStage = FieldStage::Field;
+            LivingSupply::FinishFieldHomeRest(actor);
             finish("READY_FOR_FIELD", "RESTED_HOME", 0);
             return true;
         }
+        // Only this completed, still-owned fifteen-second field action
+        // permits point rotation after the next home rest. Maintenance also
+        // completes the job; meals and delivery never set this flag.
+        if (work) actor.FieldWorkedThisCycle = true;
         if (actor.EventSerial == std::numeric_limits<uint64>::max())
         {
             finish("WAITING", "EVENT_ID_EXHAUSTED", 60000);
