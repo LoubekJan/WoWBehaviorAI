@@ -11632,9 +11632,9 @@ void AIWorldMgr::ScanNearbyEntities()
 }
 
 // World thread only, staggered ~1s per-agent cadence (_needsUpdateIntervalMs).
-// Verified travel arrivals can wake an early pass without shifting that
-// periodic phase or charging elapsed needs time twice. All work remains in
-// the same bounded frame and planning-admission pipeline.
+// Verified travel arrivals and suspended supply searches can wake an early
+// pass without shifting that periodic phase or charging elapsed needs time
+// twice. All work remains in the same bounded frame/planning pipeline.
 //
 // independent of the decision scheduler's cadence - Milestone
 // 2.6A/2.6B1/2.6B2. Only
@@ -11894,6 +11894,15 @@ void AIWorldMgr::UpdateNeeds()
             if (!record->LivingRole.Planning.Deferred)
                 _planningWork.Cancel(id);
         }
+        // A suspended supply graph asks for a 100ms retry. Honour its exact
+        // deadline even if a periodic needs pass ran before that deadline;
+        // scheduling only when a query first yields would miss that case.
+        // This queues ordinary bounded work, never executes a query here.
+        if (livingRoleHandled && _livingRolesEnabled && _livingSupplyEnabled && !IsLivingWolf(*record) &&
+            (IsSupplyHunter(*record) || IsSupplyConsumer(*record) || IsSupplyRaider(*record)) &&
+            creature->IsStopped() && !creature->IsInCombat())
+            if (auto retryAt = LivingTravelContinuation::PlanningRetryAt(*record, nowMs))
+                _needsUpdates.Wake(id, *retryAt);
         if (livingRoleHandled)
             continue;
 

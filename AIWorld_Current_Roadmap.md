@@ -111,6 +111,10 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    živá zkouška porovnává mezery mezi úseky, odděleně od práce a hledání
    skutečně zablokované trasy. První důkaz přepadů výše patří revizi
    `44a83af87236`; úprava časování pohybu má vlastní cílené ověření.
+   Rozpracovaný zásobovací výpočet po vyčerpání rozpočtu navazuje za
+   požadovaných 100 ms také při dřívější pravidelné aktualizaci potřeb.
+   Zůstávají původní limity práce, spravedlivé pořadí i kontroly překážek;
+   tato oprava nezaručuje okamžitou objížďku libovolné překážky.
 
 **Provozní TODO:** CI má před C++ testy explicitně sestavit vývojový Docker
 obraz a předat nasazení jeho neměnné image ID spolu s hashem Dockerfile a

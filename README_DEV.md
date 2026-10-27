@@ -209,6 +209,13 @@ objížďky zůstávají zachované. Mezi úseky rozpracované cesty není vlož
 sekundová pauza. Běžné procházky, práce, jídlo, odpočinek a čekání při
 neúspěšném hledání si ponechávají vlastní pravidla.
 
+Rozpracované hledání zásobovací cesty po vyčerpání plánovacího rozpočtu
+pokračuje v požadovaném termínu, obvykle za 100 ms. Stejný termín se znovu
+naplánuje i tehdy, když mu předchází pravidelná aktualizace potřeb.
+Hledání tak nečeká na další celou sekundu. Pořadí čekajících, limity práce,
+kontroly překážek a skutečně uplynulý čas potřeb zůstávají zachované;
+hotové neúspěšné hledání si ponechává původní pomalejší opakování.
+
 Přehled na portu 9091 obnovuje čerstvé souřadnice po 250 ms plus době
 požadavku a vykreslení; chyby a zastaralá data mají sekundový interval.
 Zobrazení nevymýšlí mezilehlé pozice a požadavky se nepřekrývají. Po

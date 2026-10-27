@@ -6,6 +6,9 @@
 #include "AgentRecord.h"
 #include "Action/ActionCompletion.h"
 #include "Action/RecoveryMovement.h"
+#include <algorithm>
+#include <limits>
+#include <optional>
 #include <string_view>
 
 // Pure ownership checks for waking a continuing local journey. The caller
@@ -58,6 +61,26 @@ namespace LivingTravelContinuation
     inline bool Ready(AgentRecord const& record)
     {
         return Detail::OwnedJourney(record) && record.LivingRole.MoveArrivalPending && !record.ActiveActionState;
+    }
+
+    // Supply searches yield under the ordinary planning budget, then retry at
+    // their requested deadline. The caller checks live scope, supply capability
+    // and peaceful stationary motion; this only queues another bounded pass.
+    inline std::optional<uint64> PlanningRetryAt(AgentRecord const& record, uint64 nowMs)
+    {
+        auto const& state = record.LivingRole;
+        if (!record.Id || record.WorldState != AgentWorldState::Materialized ||
+            record.ControlMode != AgentControlMode::AIWorldControlled || record.RuntimeGuid.IsEmpty() ||
+            record.RuntimeGuid != state.RuntimeGuid || state.CurrentPhase != LivingRoleState::Phase::Idle ||
+            !state.Planning.Deferred || !state.Planning.Reason || !state.Planning.Stage || !state.MovementPurpose ||
+            std::string_view(state.Planning.Reason) != "WORK_BUDGET" ||
+            std::string_view(state.Planning.Stage) != "SUPPLY_CORRIDOR" ||
+            std::string_view(state.MovementPurpose) != "SUPPLY_PLANNING_DEFERRED" ||
+            record.ActiveActionState || record.GroupCoordinationGoalState ||
+            (record.ActiveGoalState && record.ActiveGoalState->Type != GoalType::LocalActivity) ||
+            nowMs == std::numeric_limits<uint64>::max())
+            return std::nullopt;
+        return std::max(nowMs + 1, state.NextDecisionAtMs);
     }
 }
 #endif

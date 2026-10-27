@@ -8,9 +8,35 @@
 
 #include "tc_catch2.h"
 #include "Scheduler/AgentUpdateScheduler.h"
+#include "Scheduler/PlanningWorkBudget.h"
 #include "Agent/LivingRolePolicy.h"
+#include "Agent/LivingTravelContinuation.h"
 #include <array>
+#include <limits>
 #include <set>
+
+namespace
+{
+    AgentRecord WaitingSupplyPlan(AgentId id, uint64 nowMs)
+    {
+        AgentRecord record;
+        record.Id = id;
+        record.MapId = 725;
+        record.ControlMode = AgentControlMode::AIWorldControlled;
+        record.WorldState = AgentWorldState::Materialized;
+        record.RuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(116, id.Value);
+        auto& role = record.LivingRole;
+        role.RuntimeGuid = record.RuntimeGuid;
+        role.CurrentPhase = LivingRoleState::Phase::Idle;
+        role.MovementPurpose = "SUPPLY_PLANNING_DEFERRED";
+        role.NextDecisionAtMs = nowMs;
+        role.Planning.MarkDeferred(nowMs, "WORK_BUDGET", "SUPPLY_CORRIDOR");
+        return record;
+    }
+
+    PlanningWorkBudget::TimePoint SupplyQueryTime(uint64 microseconds)
+    { return PlanningWorkBudget::TimePoint(std::chrono::microseconds(microseconds)); }
+}
 
 TEST_CASE("Adjacent NPCs spread updates across a second without losing needs time", "[AIWorld][AgentUpdateScheduler]")
 {
@@ -252,4 +278,187 @@ TEST_CASE("Many early wakes conserve actual elapsed time across delayed bounded 
         REQUIRE(elapsed[actor.Value] == last[actor.Value] - 1000);
         REQUIRE(last[actor.Value] >= 5900);
     }
+}
+
+TEST_CASE("A periodic pass before a supply retry rearms its requested deadline", "[AIWorld][AgentUpdateScheduler][SupplyPlanning]")
+{
+    AgentId id{901034};
+    uint64 start = 1000, salt = 0x4e454544;
+    uint64 periodic = start + 1 + StableAgentHash(id.Value ^ salt) % 1000;
+    REQUIRE(periodic > start + 50);
+    uint64 first = periodic - 50, retryAt = first + 100;
+    AgentUpdateScheduler needs;
+    needs.Sync({id}, start, 1000, salt);
+    REQUIRE(needs.Wake(id, first));
+    auto initial = needs.PopDueAgent(id, first);
+    REQUIRE(initial.has_value());
+
+    PlanningWorkScheduler planner;
+    planner.Request(id, first);
+    planner.BeginFrame(first, {id});
+    {
+        PlanningWorkBudget budget(std::chrono::microseconds(2000), 16);
+        PlanningWorkBudget::Scope scope(budget);
+        PlanningWorkBudget::ActorScope actor(planner, id);
+        auto work = PlanningWorkBudget::TryAcquire(SupplyQueryTime(0));
+        REQUIRE(bool(work));
+        work.Finish(SupplyQueryTime(500));
+        REQUIRE_FALSE(bool(PlanningWorkBudget::TryAcquire(SupplyQueryTime(500))));
+    }
+    auto record = WaitingSupplyPlan(id, retryAt);
+    record.LivingRole.Planning.ProgressAt = first;
+    auto retry = LivingTravelContinuation::PlanningRetryAt(record, first);
+    REQUIRE(retry == std::optional<uint64>{retryAt});
+    REQUIRE_FALSE(needs.Wake(id, *retry)); // The earlier periodic pass remains first.
+    auto regular = needs.PopDueAgent(id, periodic);
+    REQUIRE(regular.has_value());
+    REQUIRE(periodic < record.LivingRole.NextDecisionAtMs);
+    REQUIRE(record.LivingRole.Planning.ProgressAt == first);
+    // Even the no-query periodic pass runs the retry-scheduling epilogue.
+    retry = LivingTravelContinuation::PlanningRetryAt(record, periodic);
+    REQUIRE(retry == std::optional<uint64>{retryAt});
+    REQUIRE(needs.Wake(id, *retry));
+    REQUIRE_FALSE(needs.PopDueAgent(id, retryAt - 1).has_value());
+    auto resumed = needs.PopDueAgent(id, retryAt);
+    REQUIRE(resumed.has_value());
+    planner.BeginFrame(retryAt, {id});
+    {
+        PlanningWorkBudget budget(std::chrono::microseconds(2000), 16);
+        PlanningWorkBudget::Scope scope(budget);
+        PlanningWorkBudget::ActorScope actor(planner, id);
+        auto work = PlanningWorkBudget::TryAcquire(SupplyQueryTime(0));
+        REQUIRE(bool(work));
+        work.Finish(SupplyQueryTime(100));
+        REQUIRE(actor.StartedOperations() == 1);
+    }
+    REQUIRE(uint64(initial->ElapsedMs) + regular->ElapsedMs + resumed->ElapsedMs == retryAt - start);
+    REQUIRE_FALSE(needs.PopDueAgent(id, periodic + 999).has_value());
+    auto nextPeriodic = needs.PopDueAgent(id, periodic + 1000);
+    REQUIRE(nextPeriodic.has_value());
+    REQUIRE(nextPeriodic->ElapsedMs == periodic + 1000 - retryAt);
+}
+
+TEST_CASE("Supply retries advance retained graphs fairly within unchanged frame and actor budgets", "[AIWorld][AgentUpdateScheduler][SupplyPlanning][PlanningWorkScheduler]")
+{
+    struct Pending
+    {
+        AgentRecord Record;
+        LivingSurfaceDetour::Search Graph;
+        uint64 Elapsed = 0, LastNeeds = 0, LastWork = 0, FinishedAt = 0, Operations = 0;
+        uint64 PeriodicAt = 0;
+        unsigned PeriodicVisits = 0;
+    };
+    std::vector<AgentId> ids;
+    std::unordered_map<uint64, Pending> actors;
+    uint64 salt = 0x4e454544;
+    for (uint64 value = 901034; value < 901040; ++value)
+    {
+        AgentId id{value};
+        ids.push_back(id);
+        auto& pending = actors[value];
+        pending.Record = WaitingSupplyPlan(id, 1);
+        pending.PeriodicAt = 1 + StableAgentHash(value ^ salt) % 1000;
+    }
+    AgentUpdateScheduler needs;
+    PlanningWorkScheduler planner;
+    needs.Sync(ids, 0, 1000, salt);
+    for (AgentId id : ids) needs.Wake(id, 1);
+    ActionPosition from{725, 0, 0, 0}, home{725, 20, 0, 0};
+    unsigned refusals = 0;
+    uint64 maxWorkGap = 0;
+    for (uint64 now = 1; now <= 5000; ++now)
+    {
+        auto cohort = needs.DueAgents(now);
+        std::vector<AgentId> ready;
+        for (AgentId id : cohort)
+        {
+            auto const& role = actors.at(id.Value).Record.LivingRole;
+            if (role.Planning.Deferred)
+            {
+                planner.Request(id, now);
+                if (now >= role.NextDecisionAtMs) ready.push_back(id);
+            }
+        }
+        planner.BeginFrame(now, ready);
+        auto priority = [&](AgentId id)
+        {
+            return std::find(ready.begin(), ready.end(), id) != ready.end() ? planner.Priority(id) :
+                std::numeric_limits<uint64>::max();
+        };
+        std::stable_sort(cohort.begin(), cohort.end(), [&](AgentId a, AgentId b) { return priority(a) < priority(b); });
+        PlanningWorkBudget budget(std::chrono::microseconds(2000), 16);
+        PlanningWorkBudget::Scope scope(budget);
+        uint64 usedUs = 0;
+        for (AgentId id : cohort)
+        {
+            auto update = needs.PopDueAgent(id, now);
+            REQUIRE(update.has_value());
+            auto& pending = actors.at(id.Value);
+            auto& role = pending.Record.LivingRole;
+            pending.Elapsed += update->ElapsedMs;
+            pending.LastNeeds = now;
+            if (now >= pending.PeriodicAt && (now - pending.PeriodicAt) % 1000 == 0)
+                ++pending.PeriodicVisits;
+            {
+                PlanningWorkBudget::ActorScope actor(planner, id, std::chrono::microseconds(500), 4);
+                if (role.Planning.Deferred && now >= role.NextDecisionAtMs)
+                {
+                    role.Planning.ResumeWork(now);
+                    while (pending.Graph.State == LivingSurfaceDetour::Status::Pending)
+                    {
+                        auto work = PlanningWorkBudget::TryAcquire(SupplyQueryTime(now * 1000 + usedUs));
+                        if (!work)
+                        {
+                            ++refusals;
+                            role.Planning.MarkDeferred(now, "WORK_BUDGET", "SUPPLY_CORRIDOR");
+                            role.NextDecisionAtMs = now + 100;
+                            break;
+                        }
+                        unsigned heights = 0;
+                        LivingSurfaceDetour::Advance(pending.Graph, from, home, 1, 96,
+                            [&](ActionPosition const&) -> std::optional<float> { ++heights; return 0; },
+                            [](ActionPosition const&, ActionPosition const&) { return true; },
+                            [](ActionPosition const&) { return true; },
+                            [&](ActionPosition const& p) { return LivingReturnPolicy::Distance(p, home) <= 1; }, 8, 1);
+                        REQUIRE(heights <= 8);
+                        usedUs += 200;
+                        work.Finish(SupplyQueryTime(now * 1000 + usedUs));
+                        ++pending.Operations;
+                        maxWorkGap = std::max(maxWorkGap, pending.LastWork ? now - pending.LastWork : now);
+                        pending.LastWork = now;
+                        role.Planning.MarkProgress(now);
+                    }
+                    if (!role.Planning.Deferred)
+                    {
+                        REQUIRE(pending.Graph.State == LivingSurfaceDetour::Status::Complete);
+                        REQUIRE_FALSE(pending.Graph.Route.empty());
+                        pending.FinishedAt = now;
+                        planner.Cancel(id);
+                    }
+                }
+                REQUIRE(actor.StartedOperations() <= 4);
+                // One indivisible 200 us operation may cross the 500 us slice.
+                REQUIRE(actor.OperationUs() <= 600);
+            }
+            // This also runs when an earlier periodic pass did no query work.
+            if (auto retry = LivingTravelContinuation::PlanningRetryAt(pending.Record, now))
+                needs.Wake(id, *retry);
+        }
+        REQUIRE(budget.GetStatistics().Started <= 16);
+        REQUIRE(budget.GetStatistics().OperationUs <= 2000);
+    }
+    REQUIRE(refusals > 0);
+    REQUIRE(maxWorkGap <= 200);
+    for (AgentId id : ids)
+    {
+        auto const& pending = actors.at(id.Value);
+        CAPTURE(id.Value, pending.Operations, pending.FinishedAt);
+        REQUIRE(pending.Operations >= 40);
+        REQUIRE(pending.FinishedAt > 100);
+        REQUIRE(pending.FinishedAt < 4000);
+        REQUIRE(pending.Elapsed == pending.LastNeeds);
+        REQUIRE(pending.PeriodicVisits == 5);
+    }
+    // A complete graph is only a proof awaiting ordinary live execution.
+    REQUIRE(LivingReturnPolicy::SamePosition(from, {725, 0, 0, 0}));
 }

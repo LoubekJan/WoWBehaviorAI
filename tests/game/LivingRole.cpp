@@ -1268,6 +1268,20 @@ namespace
         completion.CompletedAtMs = 200;
         return completion;
     }
+
+    AgentRecord DeferredSupplyJourney()
+    {
+        auto record = ContinuingJourney();
+        record.ActiveActionState.reset();
+        auto& state = record.LivingRole;
+        state.CurrentPhase = LivingRoleState::Phase::Idle;
+        state.MovementPurpose = "SUPPLY_PLANNING_DEFERRED";
+        state.NextDecisionAtMs = 300;
+        // Supply owns a separate geometric query; ordinary-role planning
+        // Origin/Home/StartedAt need not have been initialized for it.
+        state.Planning.MarkDeferred(200, "WORK_BUDGET", "SUPPLY_CORRIDOR");
+        return record;
+    }
 }
 
 TEST_CASE("Only directed local journeys wake on their owned arrival", "[AIWorld][LivingRole][TravelContinuation]")
@@ -1379,4 +1393,60 @@ TEST_CASE("A pending arrival alone never grants planning readiness", "[AIWorld][
     REQUIRE(LivingTravelContinuation::Ready(record));
     record.LivingRole.MoveArrivalPending = false;
     REQUIRE_FALSE(LivingTravelContinuation::Ready(record));
+}
+
+TEST_CASE("An idle supply budget deferral requests its deadline without renewing the search", "[AIWorld][LivingRole][TravelContinuation][SupplyPlanning]")
+{
+    auto record = DeferredSupplyJourney();
+    SECTION("local goal retained") { REQUIRE(record.ActiveGoalState.has_value()); }
+    SECTION("completed goal released") { record.ActiveGoalState.reset(); }
+    auto const& planning = record.LivingRole.Planning;
+    REQUIRE(planning.StartedAt == 0);
+    REQUIRE(LivingTravelContinuation::PlanningRetryAt(record, 200) == std::optional<uint64>{300});
+    REQUIRE(LivingTravelContinuation::PlanningRetryAt(record, 250) == std::optional<uint64>{300});
+    REQUIRE(LivingTravelContinuation::PlanningRetryAt(record, 300) == std::optional<uint64>{301});
+    REQUIRE(planning.Deferred);
+    REQUIRE(planning.DeferredAt == 200);
+    REQUIRE(planning.ProgressAt == 0);
+    REQUIRE(planning.StartedAt == 0);
+}
+
+TEST_CASE("Supply planning retries reject other owners activities and deferral stages", "[AIWorld][LivingRole][TravelContinuation][SupplyPlanning]")
+{
+    auto record = DeferredSupplyJourney();
+    auto& state = record.LivingRole;
+    REQUIRE(LivingTravelContinuation::PlanningRetryAt(record, 200).has_value());
+    SECTION("empty agent identity") { record.Id = {}; }
+    SECTION("observe only") { record.ControlMode = AgentControlMode::ObserveOnly; }
+    SECTION("abstract actor") { record.WorldState = AgentWorldState::Abstract; }
+    SECTION("unbound incarnation") { record.RuntimeGuid.Clear(); }
+    SECTION("missing role incarnation") { state.RuntimeGuid.Clear(); }
+    SECTION("replacement incarnation") { state.RuntimeGuid = ObjectGuid::Create<HighGuid::Unit>(116, 8); }
+    SECTION("running move") { state.CurrentPhase = LivingRoleState::Phase::Moving; }
+    SECTION("stationary activity") { state.CurrentPhase = LivingRoleState::Phase::Acting; }
+    SECTION("emergency escape") { state.CurrentPhase = LivingRoleState::Phase::Fleeing; }
+    SECTION("active action") { record.ActiveActionState = ActiveAction{}; }
+    SECTION("group coordination") { record.GroupCoordinationGoalState = GroupCoordinationGoal{}; }
+    SECTION("foreign goal") { record.ActiveGoalState->Type = GoalType::GoToWork; }
+    SECTION("search completed") { state.Planning.Deferred = false; }
+    SECTION("different reason") { state.Planning.Reason = "ADMISSION"; }
+    SECTION("missing reason") { state.Planning.Reason = nullptr; }
+    SECTION("different stage") { state.Planning.Stage = "HOME"; }
+    SECTION("missing stage") { state.Planning.Stage = nullptr; }
+    SECTION("care purpose") { state.MovementPurpose = "RETURN_NEEDS_BREAK"; }
+    SECTION("missing purpose") { state.MovementPurpose = nullptr; }
+    SECTION("similar purpose") { state.MovementPurpose = "SUPPLY_PLANNING_DEFERRED_EXTRA"; }
+    REQUIRE_FALSE(LivingTravelContinuation::PlanningRetryAt(record, 200).has_value());
+}
+
+TEST_CASE("Supply planning retry deadlines cannot wrap the clock", "[AIWorld][LivingRole][TravelContinuation][SupplyPlanning]")
+{
+    auto record = DeferredSupplyJourney();
+    uint64 maximum = std::numeric_limits<uint64>::max();
+    record.LivingRole.NextDecisionAtMs = maximum;
+    REQUIRE(LivingTravelContinuation::PlanningRetryAt(record, 200) == std::optional<uint64>{maximum});
+    REQUIRE(LivingTravelContinuation::PlanningRetryAt(record, maximum - 1) == std::optional<uint64>{maximum});
+    REQUIRE_FALSE(LivingTravelContinuation::PlanningRetryAt(record, maximum).has_value());
+    record.LivingRole.NextDecisionAtMs = 0;
+    REQUIRE(LivingTravelContinuation::PlanningRetryAt(record, maximum - 1) == std::optional<uint64>{maximum});
 }
