@@ -66,7 +66,7 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    Záznam obsahuje i čekání u prázdných skladů bez uspokojení hladu.
    Nezávislé přehrání přesně odpovídá uloženému výsledku. Důkaz nepotvrzuje
    dlouhodobou rovnováhu, perzistenci ani patnáctiminutový gate nehybnosti.
-4. **První přepad zásob — nasazeno, zásah strážného se ještě ověřuje.** Opt-in profil
+4. **První přepad zásob — nasazeno, fyzický gate PASS.** Opt-in profil
    `raids-v8` přebírá spotřebitele a přidává Defiase 901055 a strážného
    901039 (28 řízených / 72 nativních NPC). Hladový Defias zkouší ukrást
    dvě skutečné porce z jižního skladu a donést je do táborové zásobárny;
@@ -74,20 +74,38 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    Strážný střídá domov a sklad po čtyřech minutách a reaguje na skutečně
    viděného útočníka. Boj může přepad přerušit; smrt ztrácí nesený náklad.
    [Navigační důkaz](data/realm_lab/aiworldlab/preview-v8/raid-nav-probe.json)
-   potvrzuje spojení, nikoli skutečný průchod. Fyzický gate musí doložit
-   úspěšnou krádež a návrat, zastavený pokus před odečtením a pokračování
-   původního lovu i spotřeby. Obsazování vesnic a skupinové přepady následují.
-   První nasazení `eacd941bf4c7` prošlo CI i kontrolou 28/72 NPC, ale při
-   cestě ke skladu zkrátilo přístup k mostu přes hluboké koryto. Uzavřený
-   záznam má 884 čerstvých vzorků bez porušení bilance a neprokazuje
-   dokončený přepad. Přístupové body nyní vedou přes severní most. Na revizi
-   `46e0a0f9ff28` hodinový záznam doložil dvě úplné krádeže po dvou porcích,
-   skutečný návrat přes oba mosty, předání i jídlo v táboře. Původní lovci
-   a spotřebitelé pokračovali bez porušení bilance. Zásah strážného v něm
-   doložen není: přímá cesta mezi domovem a skladem jej blokovala u budovy.
-   Nová cesta strážného vede přes původní domov pracovníka 901035 pro
-   hlídku, jídlo i návrat. Nativní test ověřil čtyři směrované úseky této
-   obcházky; fyzický průchod a přerušení přepadu musí potvrdit nový záznam.
+   potvrzuje spojení. Samostatný
+   [fyzický důkaz](data/realm_lab/aiworldlab/preview-v8/raid-first-chain-acceptance.json)
+   na revizi `44a83af872369d26e5369e57c5634bb3e14b79db` prošel za
+   4 941,329 sekundy: 19 766 přijatých čerstvých snímků, z nich 19 730
+   unikátních. Pokusy 1 a 2 dokončily krádež, přepravu a předání po dvou
+   porcích. Ve třetím pokusu strážný útočníka zpozoroval a skutečně zahájil
+   vlastní `ATTACK/DEFEND`; přepad skončil bez další krádeže a s nulovým
+   nákladem. Zpozorování a útok jsou zachycené v čase 3 451,75 s,
+   uzavření přerušeného pokusu v čase 3 466,75 s, se stejnými identitami
+   a životními cykly obou NPC.
+   Všichni tři lovci i původní tři spotřebitelé dokončili své řetězce;
+   strážný má navíc deset úplných cyklů jídlo–návrat. Bilance je
+   `0 + 396 = 24 + 14 + 358 + 0` porcí, bez porušení. Uzavřené gzip
+   soubory prošly nezávislým přehráním s přesně shodným výsledkem.
+   Strážný při službě, jídle i návratu používá průchozí bod u původního
+   domova pracovníka 901035; jeho vlastní domov ani geometrie se nemění.
+   Opakované snímky a neprůkazné akce se do pozitivního důkazu nepočítají.
+   Rozpracované další přepady nejsou další dokončené cykly. Test nepotvrzuje
+   dlouhodobou rovnováhu, perzistenci ani samostatně dokončený patnáctiminutový
+   gate nehybnosti. Obsazování vesnic a skupinové přepady jsou navazující práce.
+   Samostatné provozní TODO: zkrátit opakované hledání zpáteční objížďky
+   z jižního skladu. Nativní pokračování u `(-384.4092,491.567)` odmítá
+   fyzická kontrola překážky; navazující hledání našlo skutečně průchozí
+   cestu po 50,75 sekundy. Oba první návraty domů skončily úspěšně.
+   Případné nové body trasy musí zachovat pozorované rohy a znovu projít
+   stejnými kontrolami kolizí; zkratka přes ně zatím ověřená není.
+
+**Provozní TODO:** CI má před C++ testy explicitně sestavit vývojový Docker
+obraz a předat nasazení jeho neměnné image ID spolu s hashem Dockerfile a
+build argumenty. CI nyní může použít existující tag, zatímco deploy obraz
+znovu sestavuje; stejný tag sám nezaručuje stejné prostředí. Oddělené build
+volumes, C++ testy i kontrola skutečně běžícího serveru zůstávají povinné.
 
 **Perzistence individuálních potřeb je odložená.** Podle rozhodnutí z
 26. října 2026 se ukládání hladu, únavy a resource pressure přes restart

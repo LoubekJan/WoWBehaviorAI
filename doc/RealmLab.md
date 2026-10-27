@@ -26,10 +26,19 @@ kontrolami kolizí. Přijímací nástroj je
 `python -m tools.realm_lab.raid_acceptance <recording-directory>`;
 vyžaduje i původní lovecké a spotřebitelské řetězce ve stejném záznamu.
 
-Verzovaný provozní model k **26. říjnu 2026**. Aktivní větev zůstává
+První [fyzický důkaz přepadů](../data/realm_lab/aiworldlab/preview-v8/raid-first-chain-acceptance.json)
+prošel na revizi `44a83af87236`: uzavřený záznam 82 minut a 21 sekund
+obsahuje dvě úplné krádeže s doručením a třetí pokus zastavený skutečným
+útokem strážného před krádeží. Pokračovali i všichni tři lovci a původní
+tři spotřebitelé. Bilance zůstala zachovaná a nezávislé přehrání se přesně
+shoduje. Důkaz uvádí hashe, identitu běžící binárky i omezení měření;
+neprokazuje dlouhodobou rovnováhu ani perzistenci. Při návratu strážného
+zbývá zkrátit pozorované 50,75sekundové hledání bezpečné objížďky.
+
+Verzovaný provozní model k **27. říjnu 2026**. Aktivní větev zůstává
 `AI-World-lab`; hlavním vstupem jsou root `compose.yml`, `.env` a
-`Makefile`. Původní Elwynn realm 1 je určen k vyřazení. Přihlášení a
-existující účty se převedou do samostatné auth služby tohoto stacku.
+`Makefile`. Původní Elwynn realm 1 je vyřazený. Přihlášení a
+existující účty zajišťuje samostatná auth služba tohoto stacku.
 Výsledek konkrétního nasazení potvrzují jeho privátní migrační receipts,
 healthchecks a čerstvá telemetrie.
 
@@ -39,7 +48,7 @@ healthchecks a čerstvá telemetrie.
 | --- | --- |
 | Realm | AI World Lab, ID 2 |
 | Mapa / oblast | 725 / 4988 |
-| Profil | `settlement-v8` |
+| Aktivní profil | `raids-v8` |
 | Nasazovací checkout | `/home/voslik/WoWBehaviorAI-lab` |
 | Compose projekt / síť | `aitc-lab` / `aitc-lab_default` |
 | Auth / svět / viewer / registrace | 3724 / 9086 / 9091 / 9088 |

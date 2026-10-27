@@ -1,9 +1,10 @@
 # Vývoj a provoz vlastního světa
 
 Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
-herní realm **AI World Lab**, ID **2**, s vlastní mapou **725**, oblastí
-**4988** a profilem `settlement-v8`. Sto NPC používá běžné chování
-TrinityCore; živá telemetrie běží bez převzetí řízení NPC systémem AIWorld.
+herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
+**4988**. Aktivní nasazení používá profil `raids-v8`: AIWorld řídí 28 ze
+100 NPC, ostatních 72 používá běžné chování TrinityCore. Výchozí
+`.env.example` zůstává konzervativním profilem `settlement-v8`.
 
 ## Služby a data
 
@@ -170,7 +171,31 @@ python3 tools/realm_lab/wildlife_acceptance.py runtime/lab/recordings/aiworld-SE
 Výsledky jsou `PASS`, `FAIL` nebo `INCONCLUSIVE` (exit 0, 3, 2). Zdravá
 služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
 
-## Příprava zásobování lovem
+## Přepady zásob — aktivní raids-v8
+
+Profil přidává ke zvěři, lovcům a třem spotřebitelům Defiase 901055 a
+strážného 901039. Přepad používá skutečné zásoby, náklad, fyzickou cestu
+tam i zpět a pětisekundovou práci při krádeži i předání. Strážný může
+viditelného útočníka zastavit a hráč může zasáhnout běžným bojem.
+[První fyzický důkaz](data/realm_lab/aiworldlab/preview-v8/raid-first-chain-acceptance.json)
+na revizi `44a83af87236` obsahuje dva úspěšné přepady a třetí pokus
+zastavený strážným; pokračovalo původní zásobování i spotřeba.
+
+Aktivní konfigurace je `LAB_AI_PROFILE=raids-v8` a
+`LAB_WILDLIFE_ENABLED=1`. Pro pauzu ponech tento profil a nastav
+`LAB_WILDLIFE_ENABLED=0`; standardní znovuvytvoření worldserveru pozastaví
+všech 28 řízených aktérů. Potřeby, potrava, náklad a přepady se přes restart
+zatím neukládají. Přijímací test uzavřeného záznamu:
+
+```bash
+python3 -m tools.realm_lab.raid_acceptance runtime/lab/recordings/aiworld-SESSION --output runtime/lab/validation/raid-acceptance.json
+```
+
+Výsledek je vázaný na konkrétní běžící verzi a uzavřené soubory; zdravé
+služby samy nepotvrzují přepad. Pravidla a známé omezení zpáteční objížďky
+strážného popisují [RealmLab](doc/RealmLab.md) a [roadmapa](AIWorld_Current_Roadmap.md).
+
+## Příprava zásobování lovem — předchozí profily
 
 Navazující profil `consumers-v8` přidává ke třem lovcům dva pracovníky
 jižní vesnice (901035/901036) a gnolla 901063 jako spotřebitele jejich
@@ -196,7 +221,8 @@ Po sestavení verze se zásobováním a před první aktivací použij `make bac
 V privátním `.env` nastav `LAB_AI_PROFILE=consumers-v8` a
 `LAB_WILDLIFE_ENABLED=1`, potom spusť `make setup-world` a `make start`.
 CI/CD používá stejnou přípravu pod deploy zámkem. Výchozí `.env.example`
-zůstává u `settlement-v8`; současný realm používá `consumers-v8`.
+zůstává u `settlement-v8`; současný realm už používá navazující `raids-v8`
+popsaný výše. Tento postup je pro první aktivaci etapy `consumers-v8`.
 
 Nové zásoby, náklad a rezervace kořisti jsou pouze stav aktuálního běhu;
 při restartu se resetují a sklady začínají prázdné. Jejich ukládání je
@@ -204,7 +230,8 @@ odložené podle zadání. Z identity ani starých osobních zásob se nové jí
 nevytváří. Ze skladů jedí tři lovci a tři vybraní spotřebitelé;
 spotřeba celé vesnice zatím zapnutá není.
 
-Pro pauzu ponech profil `consumers-v8`, nastav `LAB_WILDLIFE_ENABLED=0` a
+V samotném profilu `consumers-v8` při pauze ponech tento profil,
+nastav `LAB_WILDLIFE_ENABLED=0` a
 znovu vytvoř worldserver. Přepínač pozastaví všech 26 řízených aktérů.
 Po založení nových vazeb se prosté přepnutí na starší profil
 odmítne; jejich identity a paměť se při pauze nemažou. Pravidla, limity,
