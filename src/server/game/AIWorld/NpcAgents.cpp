@@ -211,10 +211,15 @@ bool AIWorldMgr::ExecuteNpcAgentAction(AgentRecord& record, Creature& creature,
     }
     else if (binding.Type == "MOVE_TO")
     {
-        request.Destination = binding.Destination;
         auto const& home = creature.GetHomePosition();
-        request.Recovery = RecoveryMovement{binding.Destination,
-            {creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()}, 384.0f, std::nullopt, false};
+        ActionPosition homePoint{creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()};
+        NavigationDiagnostics navigation;
+        // Resolve a short leg along the complete route to the model's chosen
+        // destination. A straight-line midpoint may lie inside an obstacle.
+        auto leg = LivingRecoveryPath::Toward(creature, binding.Destination, homePoint, 384.0f, &navigation);
+        if (!leg) return reject(navigation.Failure);
+        request.Destination = *leg;
+        request.Recovery = RecoveryMovement{*leg, homePoint, 384.0f, std::nullopt, false};
         request.Recovery->DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
         context.ApprovedRecovery = request.Recovery;
     }
@@ -350,8 +355,6 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
         auto addMove = [&](ActionPosition point, std::string label)
         {
             float distance = creature.GetExactDist(point.X, point.Y, point.Z);
-            if (distance > 24) { float scale = 12 / distance; point.X = creature.GetPositionX() + (point.X-creature.GetPositionX())*scale;
-                point.Y = creature.GetPositionY() + (point.Y-creature.GetPositionY())*scale; point.Z = creature.GetPositionZ() + (point.Z-creature.GetPositionZ())*scale; }
             if (distance > 2 && GetSimulationScope().ContainsPosition(point.MapId, point.X, point.Y, point.Z)) offer("MOVE_TO", std::move(label), point);
         };
         if (IsSupplyConsumer(record))
