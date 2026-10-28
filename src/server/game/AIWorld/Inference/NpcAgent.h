@@ -7,6 +7,7 @@
 #include "Define.h"
 #include "Needs/NeedsState.h"
 #include "ObjectGuid.h"
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,20 @@ struct NpcAgentAction
     std::string Type, Description; // WAIT, MOVE_TO, EAT, REST, STOP or FLEE
 };
 
+struct NpcAgentSpeechTurn
+{
+    uint64 Id = 0;
+    std::string Speaker;
+    uint32 RecipientToken = 0;
+    std::string Text;
+};
+
+struct NpcAgentSpeechContext
+{
+    std::string Mode = "SILENT"; // SILENT, PLAYER_REPLY, NPC_REPLY or INITIATE
+    std::optional<NpcAgentSpeechTurn> Turn;
+};
+
 struct NpcAgentContext
 {
     NpcAgentProfileContext Profile;
@@ -52,6 +67,8 @@ struct NpcAgentContext
     std::vector<NpcAgentAction> Actions;
     std::vector<std::string> Emotes;
     std::vector<uint32> SpeechTargets;
+    // Absent for legacy callers; the world controller always supplies a grant.
+    std::optional<NpcAgentSpeechContext> Speech;
 };
 
 struct NpcAgentRequest
@@ -85,6 +102,8 @@ struct NpcAgentProvenance
 {
     ObjectGuid RuntimeGuid;
     uint64 ContextRevision = 0;
+    uint64 DialogueTurnId = 0;
+    ObjectGuid DialoguePartnerGuid;
 };
 
 #endif

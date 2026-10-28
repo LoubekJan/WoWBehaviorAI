@@ -269,6 +269,25 @@ namespace
             if (!*it || std::find(context.SpeechTargets.begin(), it, *it) != it ||
                 std::none_of(context.Nearby.begin(), context.Nearby.end(), [&](auto const& entity) { return entity.Token == *it; }))
                 return false;
+        if (context.Speech)
+        {
+            auto const& speech = *context.Speech;
+            if (!OneOf(speech.Mode, {"SILENT", "PLAYER_REPLY", "NPC_REPLY", "INITIATE"})) return false;
+            bool reply = speech.Mode == "PLAYER_REPLY" || speech.Mode == "NPC_REPLY";
+            if (reply != speech.Turn.has_value()) return false;
+            if (speech.Turn)
+            {
+                auto const& turn = *speech.Turn;
+                if (!turn.Id || turn.Speaker.empty() || turn.Text.empty() ||
+                    !Text(turn.Speaker, 80, 32, true) || !Text(turn.Text, 768, 256, true) ||
+                    std::find(context.SpeechTargets.begin(), context.SpeechTargets.end(), turn.RecipientToken) == context.SpeechTargets.end())
+                    return false;
+                auto entity = std::find_if(context.Nearby.begin(), context.Nearby.end(),
+                    [&](auto const& nearby) { return nearby.Token == turn.RecipientToken; });
+                if (entity == context.Nearby.end() || entity->Name != turn.Speaker ||
+                    entity->Kind != (speech.Mode == "PLAYER_REPLY" ? "PLAYER" : "NPC")) return false;
+            }
+        }
         return true;
     }
 }
@@ -319,7 +338,22 @@ std::string SerializeNpcAgentRequest(NpcAgentRequest const& request)
     for (std::size_t i = 0; i < c.Emotes.size(); ++i) { if (i) out << ','; Quote(out, c.Emotes[i]); }
     out << "],\"speech_targets\":[";
     for (std::size_t i = 0; i < c.SpeechTargets.size(); ++i) { if (i) out << ','; out << c.SpeechTargets[i]; }
-    out << "]}}";
+    out << ']';
+    if (c.Speech)
+    {
+        out << ",\"speech\":{\"mode\":"; Quote(out, c.Speech->Mode);
+        out << ",\"turn\":";
+        if (c.Speech->Turn)
+        {
+            auto const& turn = *c.Speech->Turn;
+            out << "{\"id\":" << turn.Id << ",\"speaker\":"; Quote(out, turn.Speaker);
+            out << ",\"recipient_token\":" << turn.RecipientToken << ",\"text\":"; Quote(out, turn.Text);
+            out << '}';
+        }
+        else out << "null";
+        out << '}';
+    }
+    out << "}}";
     auto result = out.str();
     return result.size() <= NpcAgentRequestBodyLimit ? result : std::string();
 }
