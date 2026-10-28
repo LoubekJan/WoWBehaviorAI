@@ -93,3 +93,25 @@ Mimo lab lze nastavit přímo `AIWorld.NpcAgentEnabled`,
 `AIWorld.NpcAgentProfilesDirectory`, `AIWorld.NpcAgentDecisionIntervalMs`,
 `AIWorld.NpcAgentMaxInFlight` a `AIWorld.NpcAgentTimeoutMs` ve worldserver.conf.
 Profil sám o sobě nemění řízení ani oprávnění jiné postavy.
+
+## Současné charakterové karty
+
+- [Matěj](../data/npc_agents/901035.json) je zdrženlivý a pečlivý soused se suchým
+  humorem. Z minulých drobných oprav si odnesl vztah k poctivé práci a obtížně
+  přiznává vlastní nejistotu.
+- [Běla](../data/npc_agents/901036.json) je otevřená, praktická a někdy příliš
+  přímočará. Záleží jí na jasné domluvě a umí uznat, že někoho odbyla neprávem.
+
+Oba si pamatují dávný déšť, při kterém společně přenesli ohrožené zásoby do sucha.
+Tato společná minulost je napsaná v kartách a zůstává součástí jejich identity
+po restartu. Nové rozhovory používají krátkou paměť popsanou výše. Jejich vztah
+umožňuje sousedský respekt, drobné neshody i samostatné jednání.
+
+Při psaní karet oddělujte minulost a přání od aktuálního stavu světa. Model dostává
+potřeby na škále 0–1 a současný stav má přednost před starými výroky o hladu či
+únavě. Odpočinek může být i dobrovolnou zálibou, jeho důvod má odpovídat stavu.
+Úspěch přesunu, jídla či jiné akce potvrzuje engine. Model může nechat probíhající
+činnost pokračovat a po dokončeném rozhovoru zůstat potichu. Zamítnutá cesta je
+zpětná vazba pro zvážení jiné nabídnuté možnosti. Zpětná vazba obsahuje výsledek
+i popis zvolené činnosti, aby model mohl rozpoznat konkrétní zamítnutý cíl.
+Pořadí činností stále vybírá LLM.

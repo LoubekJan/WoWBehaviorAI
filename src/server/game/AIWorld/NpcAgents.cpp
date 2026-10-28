@@ -173,9 +173,8 @@ bool AIWorldMgr::ExecuteNpcAgentAction(AgentRecord& record, Creature& creature,
     NpcAgentActionBinding const& binding, uint64 now)
 {
     auto& state = _npcAgentStates[record.Id.Value];
-    if (binding.Type != "WAIT") state.LastChoice = binding.Type;
-    if (binding.Type == "MOVE_TO")
-        state.LastChoice += " x=" + std::to_string(binding.Destination.X) + " y=" + std::to_string(binding.Destination.Y);
+    if (binding.Type != "WAIT")
+        state.LastChoice = binding.Type + (binding.Label.empty() ? "" : ": " + binding.Label);
     auto reject = [&](std::string const& reason) { state.LastResult = reason; return false; };
     if (!IsNpcAgent(record) || state.Guid != creature.GetGUID() || !NpcAvailable(creature, GetSimulationScope())) return reject("ACTOR_UNAVAILABLE");
     if (binding.Type == "WAIT") return true;
@@ -333,14 +332,14 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
     context.Profile = {profile->Name, profile->Backstory, profile->Personality}; context.Needs = record.Needs;
     context.Self = {creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ(), creature.GetOrientation(),
         creature.GetHealth(), creature.GetMaxHealth(), creature.IsAlive(), creature.IsInCombat(), state.Active, state.LastResult};
-    if (!state.LastChoice.empty() && state.LastResult.size() + state.LastChoice.size() + 3 <= 128)
-        context.Self.LastActionResult += " [" + state.LastChoice + "]";
+    context.Self.LastActionResult = NpcAgentActionFeedback(state.LastResult, state.LastChoice);
     for (auto const& line : state.Dialogue.Lines()) context.RecentDialogue.push_back({line.SpeakerName, line.Text, line.Kind});
     state.Actions.clear(); state.Recipients.clear();
     auto offer = [&](std::string type, std::string description, ActionPosition point = {}, uint32 depot = 0)
     {
         uint32 token = uint32(context.Actions.size() + 1);
-        context.Actions.push_back({token, type, std::move(description)}); state.Actions.emplace(token, NpcAgentActionBinding{std::move(type), point, depot});
+        state.Actions.emplace(token, NpcAgentActionBinding{type, point, depot, description});
+        context.Actions.push_back({token, std::move(type), std::move(description)});
     };
     offer("WAIT", "Pokračuj v současné činnosti nebo chvíli počkej.");
     if (state.ActionAt) offer("STOP", "Přeruš vlastní probíhající činnost nebo přesun.");
