@@ -15,6 +15,7 @@ struct NpcAgentActionBinding
     std::string Type;
     ActionPosition Destination;
     uint32 Depot = 0;
+    std::string Label;
 };
 struct NpcAgentRecipientBinding
 {
@@ -42,6 +43,33 @@ struct NpcAgentRuntime
         Pending.reset(); Actions.clear(); Recipients.clear();
     }
 };
+
+// Keep the engine outcome and the chosen destination/activity together. Labels
+// may be longer than the feedback field, so truncate only at scalar boundaries
+// instead of dropping the entire choice. The conservative byte bound also
+// satisfies the wire's 128-character / 256-byte feedback limits.
+inline std::string NpcAgentActionFeedback(std::string_view outcome, std::string_view choice)
+{
+    constexpr std::size_t maxBytes = 128;
+    auto safe = [](std::string_view value)
+    { return ValidateNpcAgentPlainText(value, value.size(), value.size()); };
+    if (!safe(outcome)) outcome = "UNKNOWN_RESULT";
+    if (!choice.empty() && !safe(choice)) choice = "UNKNOWN_CHOICE";
+    auto shorten = [](std::string_view value, std::size_t budget)
+    {
+        if (value.size() <= budget) return std::string(value);
+        std::size_t end = budget - 3; // Both callers leave room for the marker.
+        while (end && (static_cast<unsigned char>(value[end]) & 0xC0) == 0x80) --end;
+        return std::string(value.substr(0, end)) + "...";
+    };
+    if (choice.empty()) return shorten(outcome, maxBytes);
+    // Actual engine reason identifiers are short. Reserving half the field
+    // also keeps a malformed/oversized outcome from hiding the chosen action.
+    std::string result = shorten(outcome, maxBytes / 2);
+    std::size_t choiceBudget = maxBytes - result.size() - 3; // Space and brackets.
+    result += " [" + shorten(choice, choiceBudget) + "]";
+    return result;
+}
 
 // A pending slot remains occupied when new input advances Revision. Its old
 // reply must terminate that slot, but cannot act on the newer context or a

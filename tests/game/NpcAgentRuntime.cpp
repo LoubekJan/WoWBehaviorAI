@@ -87,3 +87,53 @@ TEST_CASE("Interrupted or unowned NPC animations cannot complete a meal or rest"
     CHECK_FALSE(NpcAgentActivityCanComplete("EAT", started, now, alive, inCombat, stopped, posture, owned));
     CHECK_FALSE(NpcAgentActivityCanComplete("REST", started, now, alive, inCombat, stopped, posture, owned));
 }
+
+TEST_CASE("NPC feedback preserves the engine outcome and descriptive action identity", "[AIWorld][NpcAgentRuntime]")
+{
+    CHECK(NpcAgentActionFeedback("ENDPOINT_MISMATCH", "MOVE_TO: Jdi směrem k místní zásobárně jídla (zásoby: 6).") ==
+        "ENDPOINT_MISMATCH [MOVE_TO: Jdi směrem k místní zásobárně jídla (zásoby: 6).]");
+    CHECK(NpcAgentActionFeedback("COMPLETED", "REST: Odpočívej 20 sekund.") ==
+        "COMPLETED [REST: Odpočívej 20 sekund.]");
+    CHECK(NpcAgentActionFeedback("READY", "") == "READY");
+    CHECK(NpcAgentActionFeedback("FOOD_UNAVAILABLE", "EAT: Sněz porci ze zásob.").find("FOOD_UNAVAILABLE [EAT:") == 0);
+}
+
+TEST_CASE("NPC feedback keeps a long chosen label instead of dropping it", "[AIWorld][NpcAgentRuntime]")
+{
+    std::string choice = "MOVE_TO: warehouse ";
+    choice.append(256, 'x');
+    auto feedback = NpcAgentActionFeedback("ENDPOINT_MISMATCH", choice);
+    CHECK(feedback.size() <= 128);
+    CHECK(feedback.find("ENDPOINT_MISMATCH [MOVE_TO: warehouse ") == 0);
+    CHECK(feedback.ends_with("...]"));
+    CHECK(ValidateNpcAgentPlainText(feedback, 256, 128));
+}
+
+TEST_CASE("NPC feedback truncates multi-byte Czech and supplementary Unicode at scalar boundaries", "[AIWorld][NpcAgentRuntime]")
+{
+    std::string choice = "MOVE_TO: ";
+    SECTION("two-byte letters")
+    {
+        for (unsigned i = 0; i < 100; ++i) choice += "ř";
+    }
+    SECTION("four-byte scalars")
+    {
+        for (unsigned i = 0; i < 100; ++i) choice += "\xF0\x9F\x8D\x9E";
+    }
+    auto feedback = NpcAgentActionFeedback("NO_COMPLETE_PATH", choice);
+    CHECK(feedback.starts_with("NO_COMPLETE_PATH [MOVE_TO: "));
+    CHECK(feedback.ends_with("...]"));
+    CHECK(feedback.size() <= 128);
+    CHECK(ValidateNpcAgentPlainText(feedback, 256, 128));
+}
+
+TEST_CASE("NPC feedback bounds oversized outcomes without hiding both identities", "[AIWorld][NpcAgentRuntime]")
+{
+    auto feedback = NpcAgentActionFeedback(std::string(200, 'O'), "REST: quiet rest");
+    CHECK(feedback.size() <= 128);
+    CHECK(feedback.starts_with(std::string(61, 'O') + "... [REST:"));
+    CHECK(feedback.ends_with("quiet rest]"));
+    CHECK(ValidateNpcAgentPlainText(feedback, 256, 128));
+    CHECK(NpcAgentActionFeedback("COMPLETED", std::string("MOVE_TO: \xC0\xAF", 11)) == "COMPLETED [UNKNOWN_CHOICE]");
+    CHECK(NpcAgentActionFeedback(std::string("\xED\xA0\x80", 3), "REST") == "UNKNOWN_RESULT [REST]");
+}
