@@ -5,6 +5,7 @@
 #include "Action/ActionPosition.h"
 #include "Inference/NpcAgent.h"
 #include "NpcAgentDialogue.h"
+#include "NpcAgentSpeechState.h"
 #include <optional>
 #include <string_view>
 #include <unordered_map>
@@ -35,12 +36,14 @@ struct NpcAgentRuntime
     std::unordered_map<uint32, NpcAgentActionBinding> Actions;
     std::unordered_map<uint32, NpcAgentRecipientBinding> Recipients;
     NpcAgentDialogueHistory Dialogue;
+    NpcAgentSpeechState Speech;
 
     void InvalidatePending()
     {
         ++Revision;
         RequestId = RequestAt = 0;
         Pending.reset(); Actions.clear(); Recipients.clear();
+        Speech.PlayerTurn.reset(); Speech.NpcTurn.reset();
     }
 };
 

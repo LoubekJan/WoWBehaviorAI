@@ -67,6 +67,20 @@ položek; historie rozhovoru se nyní neukládá a restart ji vymaže.
 Zprávy s řídicími znaky nebo WoW značkami, například odkazy na předměty,
 se do rozhovoru NPC nepředávají. Běžné zobrazení hráčovy řeči zůstává zachováno.
 
+Hráčova nová otázka má vlastní čekající tah svázaný s původním hráčem a vybraným
+NPC. Při odpovědi model dostává přesné znění otázky a soukromou historii tohoto
+hráče. Okolní NPC tuto otázku nepřepisují. Tah se uzavře až po odeslání odpovědi;
+nově položená stejná otázka je nový tah. Nezodpovězený tah vyprší po 60 sekundách.
+
+Běžné rozhodování o pohybu může probíhat s režimem řeči `SILENT`. Samovolný
+rozhovor vyžaduje novou situaci nebo čerstvý vstup od NPC, nejméně 60 sekund od
+poslední úspěšné řeči a neopakovaný text v okně 120 sekund. Přímé hráčské odpovědi
+mají vlastní pravidla a tyto samovolné limity je neblokují. Povolení řeči nepřikazuje
+modelu mluvit a odmítnutí řeči nezahazuje jinak platné rozhodnutí o pohybu.
+
+Zprávy NPC nesou v chatu jejich autorské jméno, například Matěj nebo Běla.
+Jméno na štítku vybrané bytosti nadále vychází ze společné herní šablony.
+
 ## Vlastní životopis
 
 Každá postava má samostatný JSON v [data/npc_agents](../data/npc_agents).

@@ -2,6 +2,7 @@
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "AIWorldMgr.h"
 #include "Agent/LivingRecoveryPath.h"
+#include "Agent/NpcAgentChat.h"
 #include "Inference/NpcAgentJsonCodec.h"
 #include "Config.h"
 #include "Creature.h"
@@ -56,6 +57,29 @@ namespace
         auto* point = dynamic_cast<PointMovementGenerator<Creature>*>(
             creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE));
         return point && point->GetId() == ActionExecutor::MovePointId;
+    }
+    void ExpireNpcSpeechTurns(NpcAgentRuntime& state, uint64 now)
+    {
+        bool connected = !state.Speech.PlayerTurn || ObjectAccessor::FindConnectedPlayer(state.Speech.PlayerTurn->Partner);
+        if (state.Speech.Expire(now, connected))
+        { state.Conversation = 0; state.Hop = 0; state.NextThinkAt = std::min(state.NextThinkAt, now); }
+    }
+    uint64 NpcSpeechScene(NpcAgentRuntime const& state, NpcAgentContext const& context)
+    {
+        uint64 hash = 1469598103934665603ull;
+        auto mix = [&](uint64 value) { hash ^= value; hash *= 1099511628211ull; };
+        // A new visible audience, another part of the scene or a substantial
+        // need change can justify an invitation to speak. Ordinary ticks cannot.
+        mix(uint64(int64(std::floor(context.Self.X / 16.0f))));
+        mix(uint64(int64(std::floor(context.Self.Y / 16.0f))));
+        for (float need : {context.Needs.HealthPressure, context.Needs.Hunger, context.Needs.Fatigue,
+            context.Needs.SafetyPressure, context.Needs.ResourcePressure})
+            mix(std::isfinite(need) ? uint64(std::clamp(need, 0.0f, 1.0f) * 4.0f) : 0);
+        std::vector<uint64> audience;
+        for (auto const& [token, recipient] : state.Recipients) { (void)token; audience.push_back(recipient.Guid.GetRawValue()); }
+        std::sort(audience.begin(), audience.end());
+        for (uint64 guid : audience) mix(guid);
+        return hash;
     }
 }
 
@@ -121,12 +145,10 @@ void AIWorldMgr::DrainNpcPlayerSpeech()
         if (!record->LivingRole.Advice.LifetimeAt) record->LivingRole.Advice.LifetimeAt = now;
         // A terminal response still releases its occupied slot. New chat only
         // changes the revision; it cannot create parallel requests per NPC.
-        NpcAgentSpeech line;
-        line.ConversationId = line.UtteranceId = ++_npcAgentUtterance;
-        line.Kind = "PLAYER"; line.SpeakerName = player->GetName(); line.Text = input.Text; line.AtMs = now;
-        if (state.Dialogue.Remember(line))
+        uint64 turnId = ++_npcAgentUtterance;
+        if (state.Speech.PinPlayer({turnId, player->GetGUID(), player->GetName(), input.Text, now}))
         {
-            state.Conversation = line.ConversationId; state.Hop = 0; ++state.Revision;
+            state.Conversation = turnId; state.Hop = 0; ++state.Revision;
             state.NextThinkAt = now;
             _needsUpdates.Wake(record->Id, now + 1);
         }
@@ -277,6 +299,7 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
     if (!record.LivingRole.Advice.LifetimeAt) record.LivingRole.Advice.LifetimeAt = now;
     if (!NpcAvailable(creature, GetSimulationScope()))
     { StopNpcAgentAction(record, creature, "UNAVAILABLE"); state.InvalidatePending(); return; }
+    ExpireNpcSpeechTurns(state, now);
     if (state.ActionAt)
     {
         bool owned = OwnNpcAction(record, state);
@@ -333,7 +356,10 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
     context.Self = {creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ(), creature.GetOrientation(),
         creature.GetHealth(), creature.GetMaxHealth(), creature.IsAlive(), creature.IsInCombat(), state.Active, state.LastResult};
     context.Self.LastActionResult = NpcAgentActionFeedback(state.LastResult, state.LastChoice);
-    for (auto const& line : state.Dialogue.Lines()) context.RecentDialogue.push_back({line.SpeakerName, line.Text, line.Kind});
+    NpcAgentDialogueHistory const* history = &state.Dialogue;
+    if (state.Speech.PlayerTurn) history = state.Speech.PrivateHistory(state.Speech.PlayerTurn->Partner);
+    if (history)
+        for (auto const& line : history->Lines()) context.RecentDialogue.push_back({line.SpeakerName, line.Text, line.Kind});
     state.Actions.clear(); state.Recipients.clear();
     auto offer = [&](std::string type, std::string description, ActionPosition point = {}, uint32 depot = 0)
     {
@@ -374,6 +400,8 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
     auto recipient = [&](Unit& unit, bool player)
     {
         if (context.Nearby.size() >= 16 || !VisiblePartner(creature, unit)) return;
+        for (auto const& [token, existing] : state.Recipients)
+        { (void)token; if (existing.Guid == unit.GetGUID()) return; }
         std::string name = unit.GetName();
         if (!player)
             if (Creature* npc = unit.ToCreature())
@@ -399,6 +427,10 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
                 offer("MOVE_TO", "Přibliž se k postavě " + context.Nearby.back().Name + ".", point);
         }
     };
+    if (state.Speech.PlayerTurn)
+        if (Player* player = ObjectAccessor::FindConnectedPlayer(state.Speech.PlayerTurn->Partner)) recipient(*player, true);
+    if (!state.Speech.PlayerTurn && state.Speech.NpcTurn)
+        if (Unit* npc = ObjectAccessor::GetUnit(creature, state.Speech.NpcTurn->Partner)) recipient(*npc, false);
     std::vector<Player*> players; creature.GetPlayerListInGrid(players, 25);
     std::sort(players.begin(), players.end(), [&](Player* a, Player* b) { return creature.GetExactDistSq(a) < creature.GetExactDistSq(b); });
     for (Player* player : players) recipient(*player, true);
@@ -407,44 +439,67 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
             if (auto* otherRecord = _registry.Find(AgentId{id}); otherRecord && IsNpcAgent(*otherRecord))
                 if (auto* npc = creature.GetMap()->GetCreature(other.Guid)) recipient(*npc, false);
     context.Emotes = {"NONE", "WAVE", "TALK", "NOD", "LAUGH", "POINT", "CHEER", "NO"};
-    AIRequest transport; transport.NpcAgent = request; transport.NpcProvenance = {state.Guid, state.Revision};
+    context.Speech.emplace(); // An explicit grant; history alone never authorizes a reply.
+    uint64 scene = NpcSpeechScene(state, context);
+    NpcAgentPendingTurn const* turn = state.Speech.PlayerTurn ? &*state.Speech.PlayerTurn :
+        state.Speech.NpcTurn ? &*state.Speech.NpcTurn : nullptr;
+    if (turn)
+    {
+        uint32 token = 0;
+        for (auto const& [candidate, binding] : state.Recipients) if (binding.Guid == turn->Partner) { token = candidate; break; }
+        if (token && (state.Speech.PlayerTurn || state.Speech.CanAmbient(now)))
+        {
+            context.Speech->Mode = state.Speech.PlayerTurn ? "PLAYER_REPLY" : "NPC_REPLY";
+            context.Speech->Turn = NpcAgentSpeechTurn{turn->Id, turn->Name, token, turn->Text};
+        }
+    }
+    else if (state.Speech.CanInitiate(scene, !context.Nearby.empty(), now)) context.Speech->Mode = "INITIATE";
+    AIRequest transport; transport.NpcAgent = request;
+    transport.NpcProvenance = {state.Guid, state.Revision, turn ? turn->Id : 0, turn ? turn->Partner : ObjectGuid::Empty};
     uint64 submitted = _aiClient->SubmitNpcAgent(std::move(transport));
     if (!submitted) { state.Status = "WAITING_MODEL_SLOT"; state.NextThinkAt = now + 1000; return; }
     request.RequestId = submitted; state.Pending = std::move(request); state.RequestId = submitted; state.RequestAt = now;
+    if (state.Pending->Context.Speech->Mode == "INITIATE") state.Speech.SubmittedInitiation(scene);
     state.Status = "THINKING"; state.NextThinkAt = now + _npcAgentIntervalMs;
 }
 
-void AIWorldMgr::EmitNpcAgentSpeech(AgentRecord& record, Creature& creature, NpcAgentRuntime& state,
+bool AIWorldMgr::EmitNpcAgentSpeech(AgentRecord& record, Creature& creature, NpcAgentRuntime& state,
     std::string const& text, std::optional<NpcAgentRecipientBinding> const& recipient, uint64 now)
 {
-    if (!ValidateNpcAgentSpeechText(text)) return;
-    // Incoming conversation metadata is transient. Reaching the hop limit
-    // cannot permanently silence this individual after that exchange expires.
-    uint64 lastIncomingAt = 0;
-    for (auto line = state.Dialogue.Lines().rbegin(); line != state.Dialogue.Lines().rend(); ++line)
-        if (line->Kind == "PLAYER" || line->Kind == "NPC") { lastIncomingAt = line->AtMs; break; }
-    if (!lastIncomingAt || now < lastIncomingAt || now - lastIncomingAt >= NpcAgentDialogueLimits::ConversationTtlMs)
-    { state.Conversation = 0; state.Hop = 0; }
+    if (!ValidateNpcAgentSpeechText(text) || !NpcAvailable(creature, GetSimulationScope())) return false;
+    ExpireNpcSpeechTurns(state, now);
+    bool playerReply = recipient && recipient->Player && state.Speech.PlayerTurn &&
+        state.Speech.PlayerTurn->Partner == recipient->Guid;
+    bool npcReply = !playerReply && recipient && !recipient->Player && state.Speech.NpcTurn &&
+        state.Speech.NpcTurn->Partner == recipient->Guid;
+    std::string_view mode = playerReply ? "PLAYER_REPLY" : npcReply ? "NPC_REPLY" : "INITIATE";
+    uint64 turnId = playerReply ? state.Speech.PlayerTurn->Id : npcReply ? state.Speech.NpcTurn->Id : 0;
+    ObjectGuid partner = playerReply || npcReply ? recipient->Guid : ObjectGuid::Empty;
+    if ((recipient && recipient->Player && !playerReply) || !state.Speech.CanSend(mode, turnId, partner, text, now)) return false;
     NpcAgentSpeech speech; speech.Speaker = record.Id; speech.SpeakerName = _npcAgentProfiles.Get(record.Id)->Name;
     speech.Text = text; speech.AtMs = now; speech.Kind = "NPC"; speech.UtteranceId = ++_npcAgentUtterance;
-    speech.ConversationId = state.Conversation ? state.Conversation : speech.UtteranceId; speech.Hop = state.Hop + 1;
+    speech.ConversationId = playerReply ? turnId : npcReply && state.Conversation ? state.Conversation : speech.UtteranceId;
+    speech.Hop = playerReply ? 0 : npcReply ? state.Hop + 1 : 1;
     Unit* target = recipient ? ObjectAccessor::GetUnit(creature, recipient->Guid) : nullptr;
-    if (recipient && (!target || !VisiblePartner(creature, *target))) return;
-    if (!_npcAgentConversationGuard.Admit(speech, now)) return;
-    if (recipient && recipient->Player)
-    { if (Player* player = target->ToPlayer()) creature.Whisper(text, LANG_UNIVERSAL, player); else return; }
-    else creature.Say(text, LANG_UNIVERSAL, target);
+    if (recipient && (!target || !VisiblePartner(creature, *target) || (playerReply && !target->ToPlayer()))) return false;
+    if (!playerReply && !_npcAgentConversationGuard.Admit(speech, now)) return false;
+    if (!SendNpcAgentChat(creature, target, speech.SpeakerName, text, playerReply)) return false;
+    if (!state.Speech.CommitSent(mode, turnId, partner, speech, now)) return false;
+    if (playerReply) { ++state.Revision; return true; }
     auto ownLine = speech; ownLine.Kind = "SELF"; state.Dialogue.Remember(ownLine);
-    if (recipient && recipient->Player) return;
     for (auto& [id, other] : _npcAgentStates)
     {
         if (id == record.Id.Value || (recipient && other.Guid != recipient->Guid)) continue;
+        ExpireNpcSpeechTurns(other, now);
+        if (other.Speech.PlayerTurn || !other.Speech.CanAmbient(now)) continue;
         AgentRecord* receiverRecord = _registry.Find(AgentId{id});
         Creature* receiver = receiverRecord && IsNpcAgent(*receiverRecord) ? creature.GetMap()->GetCreature(other.Guid) : nullptr;
-        if (!receiver || !NpcAvailable(*receiver, GetSimulationScope()) || !VisiblePartner(*receiver, creature) || !other.Dialogue.Remember(speech)) continue;
+        if (!receiver || !NpcAvailable(*receiver, GetSimulationScope()) || !VisiblePartner(*receiver, creature) ||
+            !other.Dialogue.Remember(speech) || !other.Speech.PinNpc({speech.UtteranceId, creature.GetGUID(), speech.SpeakerName, text, now}, now)) continue;
         other.Conversation = speech.ConversationId; other.Hop = speech.Hop; ++other.Revision;
         other.NextThinkAt = std::min(other.NextThinkAt, now + 2000);
     }
+    return true;
 }
 
 void AIWorldMgr::HandleNpcAgentResponse(AIResponse const& response)
@@ -455,6 +510,7 @@ void AIWorldMgr::HandleNpcAgentResponse(AIResponse const& response)
     auto& state = found->second;
     if (state.RequestId != response.RequestId) return;
     uint64 now = GetCurrentTimeMs();
+    ExpireNpcSpeechTurns(state, now);
     Map* map = sMapMgr->FindBaseNonInstanceMap(record->MapId);
     Creature* creature = map ? map->GetCreature(record->RuntimeGuid) : nullptr;
     bool fresh = creature && NpcAvailable(*creature, GetSimulationScope()) &&
@@ -480,8 +536,27 @@ void AIWorldMgr::HandleNpcAgentResponse(AIResponse const& response)
     if (!decision.Speech.empty())
     {
         std::optional<NpcAgentRecipientBinding> target;
-        if (decision.SpeechTarget) { auto it = recipients.find(decision.SpeechTarget); if (it != recipients.end()) target = it->second; else return; }
-        EmitNpcAgentSpeech(*record, *creature, state, decision.Speech, target, now);
+        bool permitted = false;
+        auto const& grant = pending->Context.Speech;
+        if (grant && (grant->Mode == "PLAYER_REPLY" || grant->Mode == "NPC_REPLY") && grant->Turn)
+        {
+            auto const& turn = grant->Mode == "PLAYER_REPLY" ? state.Speech.PlayerTurn : state.Speech.NpcTurn;
+            if (turn && turn->Id == grant->Turn->Id && response.NpcProvenance.DialogueTurnId == turn->Id &&
+                response.NpcProvenance.DialoguePartnerGuid == turn->Partner)
+            { target = NpcAgentRecipientBinding{turn->Partner, grant->Mode == "PLAYER_REPLY"}; permitted = true; }
+        }
+        else if (grant && grant->Mode == "INITIATE" && !state.Speech.PlayerTurn && !state.Speech.NpcTurn &&
+            !response.NpcProvenance.DialogueTurnId && response.NpcProvenance.DialoguePartnerGuid.IsEmpty())
+        {
+            permitted = true;
+            if (decision.SpeechTarget)
+            {
+                auto it = recipients.find(decision.SpeechTarget);
+                if (it == recipients.end() || it->second.Player) permitted = false;
+                else target = it->second;
+            }
+        }
+        if (permitted) EmitNpcAgentSpeech(*record, *creature, state, decision.Speech, target, now);
     }
     if (decision.Emote != "NONE")
     {

@@ -156,3 +156,64 @@ TEST_CASE("NPC agent response metadata is request local and zero target is nearb
     SECTION("version") { ++response.ProtocolVersion; }
     CHECK_FALSE(MatchesNpcAgentResponse(request, response));
 }
+
+TEST_CASE("NPC speech grants serialize an exact pending player turn independently of old chatter", "[AIWorld][NpcAgent]")
+{
+    auto request = Request();
+    request.Context.RecentDialogue = {{"Other", "Old NPC chatter.", "NPC"}};
+    request.Context.Speech = NpcAgentSpeechContext{"PLAYER_REPLY",
+        NpcAgentSpeechTurn{std::numeric_limits<uint64>::max(), "Visitor", 8, "Where is \"the orchard\"?"}};
+    auto json = SerializeNpcAgentRequest(request);
+    REQUIRE_FALSE(json.empty());
+    CHECK(json.find("\"speech\":{\"mode\":\"PLAYER_REPLY\",\"turn\":{\"id\":18446744073709551615") != std::string::npos);
+    CHECK(json.find("\"recipient_token\":8,\"text\":\"Where is \\\"the orchard\\\"?\"") != std::string::npos);
+    CHECK(json.find("DialoguePartnerGuid") == std::string::npos);
+    CHECK(json.find("DialogueTurnId") == std::string::npos);
+    request.Context.Speech.reset();
+    CHECK(SerializeNpcAgentRequest(request).find("\"mode\"") == std::string::npos);
+}
+
+TEST_CASE("NPC speech grants bind reply kind name and offered token", "[AIWorld][NpcAgent]")
+{
+    auto request = Request();
+    request.Context.Speech = NpcAgentSpeechContext{"PLAYER_REPLY", NpcAgentSpeechTurn{10, "Visitor", 8, "Hello?"}};
+    REQUIRE_FALSE(SerializeNpcAgentRequest(request).empty());
+    SECTION("no turn") { request.Context.Speech->Turn.reset(); }
+    SECTION("zero id") { request.Context.Speech->Turn->Id = 0; }
+    SECTION("unknown token") { request.Context.Speech->Turn->RecipientToken = 99; }
+    SECTION("not offered") { request.Context.SpeechTargets.clear(); }
+    SECTION("wrong name") { request.Context.Speech->Turn->Speaker = "Another player"; }
+    SECTION("wrong kind") { request.Context.Nearby.front().Kind = "NPC"; }
+    SECTION("empty speaker") { request.Context.Speech->Turn->Speaker.clear(); }
+    SECTION("long speaker") { request.Context.Speech->Turn->Speaker.assign(33, 'n'); }
+    SECTION("empty text") { request.Context.Speech->Turn->Text.clear(); }
+    SECTION("unsafe text") { request.Context.Speech->Turn->Text = "hello\nforged"; }
+    SECTION("oversized text") { request.Context.Speech->Turn->Text.assign(257, 't'); }
+    SECTION("unknown mode") { request.Context.Speech->Mode = "ARBITRARY_CHAT"; }
+    SECTION("unsolicited turn") { request.Context.Speech->Mode = "INITIATE"; }
+    SECTION("silent turn") { request.Context.Speech->Mode = "SILENT"; }
+    CHECK(SerializeNpcAgentRequest(request).empty());
+}
+
+TEST_CASE("NPC turnless speech modes and NPC reply retain structural movement validation", "[AIWorld][NpcAgent]")
+{
+    auto request = Request();
+    for (std::string mode : {"SILENT", "INITIATE"})
+    {
+        request.Context.Speech = NpcAgentSpeechContext{mode, std::nullopt};
+        auto json = SerializeNpcAgentRequest(request);
+        REQUIRE_FALSE(json.empty());
+        CHECK(json.find("\"turn\":null") != std::string::npos);
+    }
+    request.Context.Nearby.front().Kind = "NPC";
+    request.Context.Speech = NpcAgentSpeechContext{"NPC_REPLY", NpcAgentSpeechTurn{11, "Visitor", 8, "A question."}};
+    REQUIRE_FALSE(SerializeNpcAgentRequest(request).empty());
+    request.Context.Speech = NpcAgentSpeechContext{"SILENT", std::nullopt};
+    NpcAgentResponse response;
+    REQUIRE(ParseNpcAgentResponse(Body("Unsolicited text", "3", "0", "NONE"), response));
+    // Speech permission is applied independently by the controller: a denied
+    // chat proposal must not discard the otherwise valid movement choice.
+    CHECK(MatchesNpcAgentResponse(request, response));
+    response.Decision.ActionToken = 99;
+    CHECK_FALSE(MatchesNpcAgentResponse(request, response));
+}

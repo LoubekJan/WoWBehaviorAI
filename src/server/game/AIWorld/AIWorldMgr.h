@@ -383,7 +383,7 @@ class TC_GAME_API AIWorldMgr
         void StopNpcAgentAction(AgentRecord& record, Creature& creature, char const* result);
         void NpcAgentActionCompleted(AgentRecord& record, ActionCompletion const& completion);
         bool ExecuteNpcAgentAction(AgentRecord& record, Creature& creature, NpcAgentActionBinding const& binding, uint64 nowMs);
-        void EmitNpcAgentSpeech(AgentRecord& record, Creature& creature, NpcAgentRuntime& state,
+        bool EmitNpcAgentSpeech(AgentRecord& record, Creature& creature, NpcAgentRuntime& state,
             std::string const& text, std::optional<NpcAgentRecipientBinding> const& recipient, uint64 nowMs);
         std::optional<NpcAgentTelemetry> DescribeNpcAgent(Creature const& creature, AgentRecord const& record) const;
         bool _npcAgentEnabled = false;

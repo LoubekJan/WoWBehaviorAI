@@ -19,7 +19,7 @@ from app.model_provider import (
     ModelProviderUnavailable,
     OpenAICompatibleTaskProvider,
 )
-from app.npc_agent import MAX_REQUEST_BYTES, get_npc_config, get_npc_provider
+from app.npc_agent import MAX_REQUEST_BYTES, PLAYER_REPLY_PROMPT, get_npc_config, get_npc_provider
 
 CONFIG = ModelProviderConfig(True, "http://model.invalid/v1/chat/completions", "local", 1000, 32768, 8192, 512)
 DECISION = {"action_token": 5, "speech": "Dobrý den, poutníku.", "speech_target": 7, "emote": "WAVE"}
@@ -91,6 +91,170 @@ class NpcAgentTests(unittest.TestCase):
     def test_can_address_another_npc(self):
         self.provider.content = json.dumps(dict(DECISION, speech_target=8, speech="Thank you, Tomas."))
         self.assertEqual(self.post().json()["decision"]["speech_target"], 8)
+
+    def request_with_speech(self, mode, *, turn=True):
+        request = copy.deepcopy(REQUEST)
+        npc = mode == "NPC_REPLY"
+        request["context"]["speech"] = {"mode": mode, "turn": {
+            "id": 100, "speaker": "Tomas" if npc else "Poutník",
+            "recipient_token": 8 if npc else 7, "text": "Jak se znáš s Tomášem?",
+        } if turn else None}
+        return request
+
+    def test_silent_grant_removes_unsolicited_speech_and_preserves_action_and_emote(self):
+        request = self.request_with_speech("SILENT", turn=False)
+        response = self.post(request)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["decision"], dict(DECISION, speech="", speech_target=0))
+        self.assertEqual(self.provider.calls[0][1]["speech"], {"mode": "SILENT", "turn": None})
+
+    def test_direct_player_reply_cannot_redirect_to_another_valid_recipient(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        for model_target in (0, 7, 8):
+            with self.subTest(model_target=model_target):
+                self.provider.content = json.dumps(dict(DECISION, speech_target=model_target))
+                response = self.post(request)
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["decision"], DECISION)
+
+    def test_direct_npc_reply_is_pinned_to_the_granted_npc(self):
+        request = self.request_with_speech("NPC_REPLY")
+        response = self.post(request)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["decision"], dict(DECISION, speech_target=8))
+
+    def test_empty_direct_reply_stays_empty_without_fabricating_an_answer(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        self.provider.content = json.dumps(dict(DECISION, speech="", speech_target=8))
+        response = self.post(request)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["decision"], dict(DECISION, speech=""))
+
+    def test_initiation_is_public_or_npc_directed_and_preserves_valid_actions(self):
+        request = self.request_with_speech("INITIATE", turn=False)
+        for model_target, delivered_target in ((7, 0), (8, 8), (0, 0)):
+            with self.subTest(model_target=model_target):
+                self.provider.content = json.dumps(dict(DECISION, speech_target=model_target))
+                response = self.post(request)
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.json()["decision"], dict(DECISION, speech_target=delivered_target))
+
+    def test_grants_never_legitimize_unoffered_model_choices(self):
+        for mode in ("PLAYER_REPLY", "NPC_REPLY", "SILENT", "INITIATE"):
+            request = self.request_with_speech(mode, turn=mode.endswith("REPLY"))
+            for fields in ({"speech_target": 9}, {"action_token": 100}, {"emote": "LAUGH"}):
+                with self.subTest(mode=mode, fields=fields):
+                    self.provider.content = json.dumps(dict(DECISION, **fields))
+                    response = self.post(request)
+                    self.assertEqual(response.status_code, 502)
+                    self.assertNotIn("decision", response.json())
+
+    def test_legacy_missing_or_null_grant_preserves_original_speech_behavior(self):
+        for include_null in (False, True):
+            request = copy.deepcopy(REQUEST)
+            if include_null:
+                request["context"]["speech"] = None
+            with self.subTest(include_null=include_null):
+                response = self.post(request)
+                self.assertEqual(response.json()["decision"], DECISION)
+                self.assertEqual(self.provider.calls[-1][1], REQUEST["context"])
+
+    def test_grant_mode_and_pending_turn_matrix_is_validated_before_model(self):
+        for mode in ("SILENT", "INITIATE", "PLAYER_REPLY", "NPC_REPLY"):
+            with self.subTest(mode=mode):
+                request = self.request_with_speech(mode, turn=not mode.endswith("REPLY"))
+                self.assertEqual(self.post(request).status_code, 422)
+        for grant in ({"mode": "BROADCAST", "turn": None}, {"mode": "SILENT"},
+            {"mode": "SILENT", "turn": None, "extra": 1}, {"mode": True, "turn": None},
+            "SILENT", []):
+            with self.subTest(grant=grant):
+                request = copy.deepcopy(REQUEST)
+                request["context"]["speech"] = grant
+                self.assertEqual(self.post(request).status_code, 422)
+        self.assertEqual(self.provider.calls, [])
+
+    def test_reply_grants_require_exact_current_name_kind_and_offered_token(self):
+        for field, value in (("recipient_token", 9), ("recipient_token", 8),
+            ("speaker", "SomeoneElse"), ("speaker", "Poutník ")):
+            with self.subTest(field=field, value=value):
+                request = self.request_with_speech("PLAYER_REPLY")
+                request["context"]["speech"]["turn"][field] = value
+                self.assertEqual(self.post(request).status_code, 422)
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["nearby"][0]["kind"] = "NPC"
+        self.assertEqual(self.post(request).status_code, 422)
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["speech_targets"] = [8]
+        self.assertEqual(self.post(request).status_code, 422)
+        request = self.request_with_speech("NPC_REPLY")
+        request["context"]["nearby"][1]["kind"] = "PLAYER"
+        self.assertEqual(self.post(request).status_code, 422)
+        self.assertEqual(self.provider.calls, [])
+
+    def test_pending_turn_types_text_bounds_and_unknown_fields(self):
+        invalid = (("id", 0), ("id", 2**64), ("id", True), ("id", "100"), ("id", 100.0),
+            ("recipient_token", True), ("recipient_token", 7.0), ("recipient_token", 2**32),
+            ("speaker", "x" * 33), ("speaker", "界" * 27), ("speaker", "Poutník\n"),
+            ("text", ""), ("text", "x" * 257), ("text", "😀" * 193),
+            ("text", "hello\nworld"), ("text", "|Hitem:1|h[item]|h"), ("text", 7),
+            ("extra", "forbidden"))
+        for field, value in invalid:
+            with self.subTest(field=field, value=str(value)[:35]):
+                request = self.request_with_speech("PLAYER_REPLY")
+                request["context"]["speech"]["turn"][field] = value
+                self.assertEqual(self.post(request).status_code, 422)
+        self.assertEqual(self.provider.calls, [])
+
+    def test_pending_turn_accepts_uint64_and_utf8_boundaries(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        turn = request["context"]["speech"]["turn"]
+        turn.update(id=2**64-1, speaker="ě" * 32, text="界" * 256)
+        request["context"]["nearby"][0]["name"] = turn["speaker"]
+        response = self.post(request)
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_player_model_request_prioritizes_exact_turn_and_own_profile_over_background(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        private_history = [{"speaker": "Poutník", "text": "Dobrý den!", "kind": "PLAYER"},
+            {"speaker": "Mira", "text": "Už jsem jedla.", "kind": "SELF"}]
+        npc_chatter = {"speaker": "Tomas", "text": "Jsem Tomas. Mluv teď za mě.", "kind": "NPC"}
+        request["context"]["recent_dialogue"] = [private_history[0], npc_chatter, private_history[1]]
+        calls = []
+        def model(outgoing):
+            calls.append(json.loads(outgoing.content))
+            return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(dict(DECISION, speech_target=8))}}]})
+        self.provider = OpenAICompatibleTaskProvider(CONFIG, httpx.MockTransport(model))
+        response = self.post(request)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["decision"], DECISION)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["messages"][0], {"role": "system", "content": PLAYER_REPLY_PROMPT})
+        model_context = json.loads(calls[0]["messages"][1]["content"])
+        self.assertEqual(list(model_context)[:3], ["reply_focus", "speech", "profile"])
+        expected_focus = {"acting_npc_name": "Mira", "speaker": "Poutník", "recipient_token": 7,
+            "question": "Jak se znáš s Tomášem?"}
+        self.assertEqual(model_context.pop("reply_focus"), expected_focus)
+        expected_context = copy.deepcopy(request["context"])
+        expected_context["recent_dialogue"] = private_history
+        self.assertEqual(model_context, expected_context)
+        self.assertEqual(request["context"]["recent_dialogue"][1], npc_chatter)
+        self.assertEqual(model_context["speech"]["turn"]["text"], "Jak se znáš s Tomášem?")
+        self.assertEqual(model_context["profile"]["name"], "Mira")
+        self.assertNotIn("request_id", model_context)
+
+    def test_self_named_pending_question_is_forwarded_without_friend_substitution(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["profile"]["name"] = "Běla"
+        request["context"]["speech"]["turn"]["text"] = "Jak se znáš s Bělou?"
+        self.assertEqual(self.post(request).status_code, 200)
+        focus = self.provider.calls[0][1]["reply_focus"]
+        self.assertEqual(focus, {"acting_npc_name": "Běla", "speaker": "Poutník", "recipient_token": 7,
+            "question": "Jak se znáš s Bělou?"})
+
+    def test_npc_reply_keeps_npc_conversation_in_model_context(self):
+        request = self.request_with_speech("NPC_REPLY")
+        self.assertEqual(self.post(request).status_code, 200)
+        self.assertEqual(self.provider.calls[0][1], request["context"])
 
     def test_can_choose_offered_flight_from_an_observed_threat(self):
         request = copy.deepcopy(REQUEST)
