@@ -1,5 +1,9 @@
 # Vývoj a provoz vlastního světa
 
+Vývoj volitelných NPC řízených LLM, samostatné životopisy a přímý herní chat
+popisuje [NpcAgents.md](doc/NpcAgents.md). Režim se zapíná zvlášť a výchozí
+provozní profily ho nechávají vypnutý.
+
 Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
 herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
 **4988**. Profil `fields-v8` rozšiřuje přepady o práci na třech polích:

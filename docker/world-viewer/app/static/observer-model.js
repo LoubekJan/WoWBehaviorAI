@@ -53,7 +53,7 @@ const ObserverModel = (() => {
     // Keep escaped points on this map visible; bounds govern simulation and
     // viewport size, not whether the observer retains the diagnostic.
     return agent.position.map_id === scope.map_id &&
-      (!f.query || `${agent.name || ""} ${agent.agent_id} ${agent.spawn_id}`.toLocaleLowerCase("cs").includes(f.query)) &&
+      (!f.query || `${agent.name || ""} ${agent.llm_agent?.name || ""} ${agent.agent_id} ${agent.spawn_id}`.toLocaleLowerCase("cs").includes(f.query)) &&
       (!f.type || agent.type === f.type) && (!f.faction || String(agent.world_faction) === f.faction) &&
       (!f.role || (!agent.native_creature && (agent.living_wolf ? "WOLF_PACK" : agent.living_role?.role) === f.role)) &&
       (!f.phase || phase(agent) === f.phase) && (!f.group || groupIds(agent).includes(f.group)) &&
@@ -62,6 +62,16 @@ const ObserverModel = (() => {
       (!f.alert || alert(agent)) && (!f.blocked || blocked(agent));
   }
   function aiDetailsSupported(agent) { return agent.native_creature !== true; }
+  function npcAgentSupported(agent) {
+    return agent.native_creature !== true && agent.position.source === "live" && Boolean(agent.llm_agent);
+  }
+  function npcAgentFacts(agent) {
+    if (!npcAgentSupported(agent)) return [];
+    const npc = agent.llm_agent;
+    return [["Jméno", npc.name], ["Stav rozhodování", npc.status], ["Probíhající činnost", npc.active_action],
+      ["Poslední výsledek", npc.last_action_result], ["Požadavek", npc.request_id === "0" ? null : npc.request_id],
+      ["Další rozhodnutí", `${npc.next_think_ms} ms`], ["Zapamatované repliky", `${npc.dialogue_count} / 12`]];
+  }
   function supplySupported(agent) {
     return agent.native_creature !== true && agent.position.source === "live" && agent.supply?.enabled === true;
   }
@@ -130,6 +140,7 @@ const ObserverModel = (() => {
     return [...depots.values()].sort((a, b) => a.id - b.id);
   }
   return { goal, phase, groupIds, alert, blocked, matches, viewport, project, phaseColors, aiDetailsSupported,
+    npcAgentSupported, npcAgentFacts,
     supplySupported, supplyFacts, raidSupported, raidFacts, foodDepots };
 })();
 if (typeof module !== "undefined") module.exports = ObserverModel;

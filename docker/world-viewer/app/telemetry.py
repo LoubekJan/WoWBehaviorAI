@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 MAX_AGENTS = 10_000
 # Full Elwynn snapshots with v4 recovery diagnostics exceed the former 8 MiB.
@@ -377,6 +377,38 @@ class LivingRole(ProtocolModel):
     move_remaining: float | None = Field(default=None, ge=0)
 
 
+class NpcAgent(ProtocolModel):
+    """Public live cognition metadata; authored lore stays in worldserver."""
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    name: str = Field(min_length=1, max_length=32)
+    status: str = Field(max_length=80)
+    last_action_result: str = Field(max_length=128)
+    active_action: str = Field(max_length=32)
+    request_id: Counter64
+    next_think_ms: int = Field(ge=0, le=2**64 - 1)
+    dialogue_count: int = Field(ge=0, le=12)
+    last_speech: str = Field(max_length=256)
+
+    @field_validator("name", "status", "last_action_result", "active_action", "last_speech")
+    @classmethod
+    def plain_bounded_text(cls, value, info):
+        for char in value:
+            scalar = ord(char)
+            if (scalar < 0x20 or 0x7F <= scalar <= 0x9F or char == '|'
+                    or 0x200B <= scalar <= 0x200F or 0x2028 <= scalar <= 0x202E
+                    or 0x2060 <= scalar <= 0x206F or scalar == 0xFEFF):
+                raise ValueError("NPC metadata requires plain text")
+        limits = {"name": 80, "status": 80, "last_action_result": 128, "active_action": 32, "last_speech": 768}
+        try:
+            if len(value.encode("utf-8")) > limits[info.field_name]:
+                raise ValueError("NPC metadata exceeds UTF-8 byte limit")
+        except UnicodeEncodeError as exc:
+            raise ValueError("NPC metadata requires valid UTF-8") from exc
+        if info.field_name == "name" and not any(char not in (' ', '\u00a0') for char in value):
+            raise ValueError("NPC name must be visible")
+        return value
+
+
 class Movement(ProtocolModel):
     moving: bool
     blocked: bool
@@ -435,6 +467,7 @@ class Agent(ProtocolModel):
     living_role: LivingRole | None = None
     supply: LivingSupply | None = None
     raid: LivingRaid | None = None
+    llm_agent: NpcAgent | None = None
     movement: Movement | None = None
     living_wolf: bool = False
     meal_target_spawn_id: int | None = Field(default=None, ge=0)
@@ -454,7 +487,7 @@ class Agent(ProtocolModel):
         if self.native_creature:
             if self.control_mode != "OBSERVE_ONLY":
                 raise ValueError("Native creatures must remain observation-only")
-            if self.needs is not None or self.economy is not None or self.living_role is not None or self.living_wolf or self.supply is not None or self.raid is not None:
+            if self.needs is not None or self.economy is not None or self.living_role is not None or self.living_wolf or self.supply is not None or self.raid is not None or self.llm_agent is not None:
                 raise ValueError("Native creatures do not have AI needs, economy or living-role state")
             if self.position.source != "live" and any(value is not None for value in (
                 self.health, self.max_health, self.alive, self.in_combat,
@@ -462,6 +495,8 @@ class Agent(ProtocolModel):
                 raise ValueError("Unloaded native creatures do not have live observations")
         elif self.needs is None:
             raise ValueError("AI agents require needs")
+        if self.llm_agent is not None and self.control_mode != "AI_WORLD_CONTROLLED":
+            raise ValueError("NPC cognition requires an AI-controlled actor")
         if self.supply is not None:
             if self.control_mode != "AI_WORLD_CONTROLLED":
                 raise ValueError("Supply observations require an AI-controlled actor")
@@ -479,7 +514,7 @@ class Agent(ProtocolModel):
                     raise ValueError("Raid depots must remain on the actor's map")
         if self.position.source != "live" and any((
             self.living_role, self.movement, self.target, self.destination, self.living_wolf,
-            self.supply, self.raid,
+            self.supply, self.raid, self.llm_agent,
             self.meal_target_spawn_id is not None,
             self.faction_template_id is not None,
             self.runtime_guid is not None,

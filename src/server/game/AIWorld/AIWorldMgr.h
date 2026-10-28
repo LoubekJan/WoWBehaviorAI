@@ -37,6 +37,8 @@
 #include "Agent/LivingAdviceBudget.h"
 #include "Agent/LivingSupplyRuntime.h"
 #include "Agent/LivingRaidRuntime.h"
+#include "Agent/NpcAgentProfile.h"
+#include "Agent/NpcAgentRuntime.h"
 #include "Telemetry/LivingRaidTelemetry.h"
 #include "Telemetry/LivingSupplyTelemetry.h"
 #include "Agent/AgentRegistry.h"
@@ -96,6 +98,8 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <mutex>
+#include <deque>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -155,6 +159,8 @@ class TC_GAME_API AIWorldMgr
         void Shutdown();
 
         bool IsEnabled() const { return _enabled; }
+        // Chat callbacks may originate in map/session updates: ingress only.
+        void HandleNpcPlayerSpeech(Player* player, std::string const& text, uint32 language);
         SimulationScope const& GetSimulationScope() const { return _simulationScope; }
         bool InSimulationMembership(uint32 mapId, uint64 spawnId) const
         {
@@ -369,6 +375,25 @@ class TC_GAME_API AIWorldMgr
         void PublishDynamicQuestKillEvent(DynamicQuestKillEvent event);
 
     private:
+        void InitializeNpcAgents();
+        bool IsNpcAgent(AgentRecord const& record) const;
+        void UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 nowMs);
+        void HandleNpcAgentResponse(AIResponse const& response);
+        void DrainNpcPlayerSpeech();
+        void StopNpcAgentAction(AgentRecord& record, Creature& creature, char const* result);
+        void NpcAgentActionCompleted(AgentRecord& record, ActionCompletion const& completion);
+        bool ExecuteNpcAgentAction(AgentRecord& record, Creature& creature, NpcAgentActionBinding const& binding, uint64 nowMs);
+        void EmitNpcAgentSpeech(AgentRecord& record, Creature& creature, NpcAgentRuntime& state,
+            std::string const& text, std::optional<NpcAgentRecipientBinding> const& recipient, uint64 nowMs);
+        std::optional<NpcAgentTelemetry> DescribeNpcAgent(Creature const& creature, AgentRecord const& record) const;
+        bool _npcAgentEnabled = false;
+        uint32 _npcAgentIntervalMs = 8000, _npcAgentMaxInFlight = 2, _npcAgentTimeoutMs = 15000;
+        uint64 _npcAgentUtterance = 0;
+        NpcAgentProfileCatalog _npcAgentProfiles;
+        std::unordered_map<uint64, NpcAgentRuntime> _npcAgentStates;
+        NpcAgentConversationGuard _npcAgentConversationGuard;
+        std::mutex _npcAgentSpeechMutex;
+        std::deque<NpcAgentPlayerSpeech> _npcAgentPlayerSpeech;
         AIWorldMgr() = default;
         ~AIWorldMgr() = default;
         AIWorldMgr(AIWorldMgr const&) = delete;

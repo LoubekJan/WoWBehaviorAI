@@ -57,7 +57,7 @@ class TC_GAME_API AIClient
         // that only knows about /decision keeps compiling and behaving
         // exactly as before; AIWorldMgr passes a real configured value
         // once it actually starts calling SubmitDynamicTask() (2.13A3B).
-        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight = 0, uint32 maxRecoveryInFlight = 0);
+        AIClient(Trinity::Asio::IoContext& ioContext, std::string host, std::string port, uint32 requestTimeoutMs, uint32 maxDecisionsInFlight, uint32 maxDynamicTasksInFlight = 0, uint32 maxRecoveryInFlight = 0, uint32 maxNpcInFlight = 0, uint32 npcRequestTimeoutMs = 12000);
         ~AIClient();
 
         AIClient(AIClient const&) = delete;
@@ -117,6 +117,11 @@ class TC_GAME_API AIClient
         // vice versa.
         uint64 SubmitDynamicTask(AIRequest request);
         uint64 SubmitRecovery(AIRequest request);
+        // Independent bounded admission. Stamps request IDs and protocol version;
+        // carries only DTOs to workers and always returns one terminal response
+        // for each admitted ID. Invalid/oversized requests or a full cap return 0.
+        // The configured timeout is one total deadline, including worker queueing.
+        uint64 SubmitNpcAgent(AIRequest request);
 
         // Non-blocking pop of one completed response. Returns false if none
         // is queued yet.

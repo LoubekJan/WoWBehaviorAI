@@ -331,6 +331,19 @@ namespace
         out << '}';
     }
 
+    void WriteValue(std::ostream& out, NpcAgentTelemetry const& agent)
+    {
+        out << "{\"name\":"; WriteValue(out, agent.Name);
+        WriteJsonField(out, "status", agent.Status);
+        WriteJsonField(out, "last_action_result", agent.LastActionResult);
+        WriteJsonField(out, "active_action", agent.ActiveAction);
+        WriteJsonField(out, "request_id", std::to_string(agent.RequestId));
+        WriteJsonField(out, "next_think_ms", agent.NextThinkMs);
+        WriteJsonField(out, "dialogue_count", agent.DialogueCount);
+        WriteJsonField(out, "last_speech", agent.LastSpeech);
+        out << '}';
+    }
+
     // Overloads must be declared before the optional template instantiates for
     // nested DTOs (ordinary lookup in templates is fixed at definition time).
     template<typename T> void OptionalObject(std::ostream& out, char const* key, std::optional<T> const& value)
@@ -505,6 +518,8 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
         OptionalObject(out, "living_role", item.Live ? item.LivingRole : std::nullopt);
         OptionalObject(out, "supply", item.Live && !item.NativeCreature ? item.Supply : std::nullopt);
         OptionalObject(out, "raid", item.Live && !item.NativeCreature ? item.Raid : std::nullopt);
+        OptionalObject(out, "llm_agent", item.Live && !item.NativeCreature
+            && item.ControlMode == AgentControlMode::AIWorldControlled ? item.NpcAgent : std::nullopt);
         OptionalObject(out, "movement", item.Live ? item.Movement : std::nullopt);
         OptionalObject(out, "target", item.Live ? item.Target : std::nullopt);
         out << ",\"groups\":[";

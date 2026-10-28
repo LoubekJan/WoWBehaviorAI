@@ -66,6 +66,9 @@ struct AIResponse
     QuestRequestProvenance QuestProvenance;
     std::optional<DynamicTaskResponse> DynamicTask;
     std::optional<RecoveryAdviceResponse> Recovery;
+    std::optional<NpcAgentResponse> NpcAgent;
+    // Always the caller's local echo, including failure and timeout responses.
+    NpcAgentProvenance NpcProvenance;
 };
 
 #endif // AIWORLD_AIRESPONSE_H
