@@ -471,3 +471,296 @@ TEST_CASE("Hungry warehouse planning respects own stock and retries the field wh
     REQUIRE(needs.Hunger == Approx(0.8f));
     FieldConserved(ledger);
 }
+
+TEST_CASE("Farmer warehouse arrival rejects the observed left-village collision-edge standoff", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    auto field = LivingFields::Field(worker->Field);
+    REQUIRE(field);
+    ActionPosition const home = field->DepotPoint;
+    ActionPosition const stalled{725, 44.43344f, 857.5293f, 0.0f};
+    float radius = LivingFields::ArrivalRadius(*worker, home, home);
+    REQUIRE(radius == Approx(1.9f));
+    REQUIRE(LivingReturnPolicy::Distance(stalled, home) < 3.0f);
+    REQUIRE(LivingReturnPolicy::Distance(stalled, home) > radius);
+    // The tight request removes the old two-yard ring targets responsible
+    // for accepting this location as the completed warehouse approach.
+    auto targets = LivingReturnPolicy::HomeTargets(home, radius);
+    REQUIRE(targets.size() == 1);
+    REQUIRE(LivingReturnPolicy::SamePosition(targets.front(), home));
+    REQUIRE_FALSE(LivingReturnPolicy::HomeEndpointMatches(home, radius, stalled, stalled));
+    REQUIRE(LivingReturnPolicy::UsefulStep(stalled, home));
+    auto shortApproach = home;
+    shortApproach.X += 1.1f;
+    REQUIRE(LivingReturnPolicy::Distance(shortApproach, home) < radius);
+    // Every point outside this anchor radius is beyond the existing useful
+    // movement threshold; tightening does not introduce a dead annulus.
+    auto outside = home;
+    outside.X += radius + 0.01f;
+    REQUIRE(LivingReturnPolicy::UsefulStep(outside, home));
+}
+
+TEST_CASE("Warehouse precision is limited to the registered worker's exact own warehouse", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901023);
+    REQUIRE(worker);
+    auto field = LivingFields::Field(worker->Field);
+    REQUIRE(field);
+    ActionPosition const home{725, 43.0f, 865.0f, 0.15f};
+    REQUIRE(LivingFields::ArrivalRadius(*worker, home, home) == Approx(3.0f));
+    REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, home) == Approx(1.9f));
+    REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, field->DepotPoint) == Approx(1.9f));
+    for (auto const& point : field->WorkPoints)
+        REQUIRE(LivingFields::ArrivalRadius(*worker, point, home) == Approx(3.0f));
+    for (auto const& foreign : LivingFields::Fields)
+        if (foreign.Id != field->Id)
+            REQUIRE(LivingFields::ArrivalRadius(*worker, foreign.DepotPoint, home) == Approx(3.0f));
+    auto moved = field->DepotPoint;
+    moved.X += 0.01f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, moved, home) == Approx(3.0f));
+    moved = field->DepotPoint;
+    moved.MapId = 0;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, moved, home) == Approx(3.0f));
+    moved = field->DepotPoint;
+    moved.Z += 1.0f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, moved, home) == Approx(3.0f));
+    for (LivingFields::WorkerSpec forged : {LivingFields::WorkerSpec{901063, 5, 5, 1},
+        LivingFields::WorkerSpec{901023, 6, 6, 1}, LivingFields::WorkerSpec{901023, 5, 5, 0}})
+        REQUIRE(LivingFields::ArrivalRadius(forged, field->DepotPoint, home) == Approx(3.0f));
+}
+
+TEST_CASE("Farmer warehouse approach accepts supported terrain without ignoring three-dimensional distance", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    ActionPosition const home = LivingFields::Field(worker->Field)->DepotPoint;
+    float radius = LivingFields::ArrivalRadius(*worker, home, home);
+    auto ground = LivingReturnPolicy::GroundHomeTarget(home, home,
+        [](ActionPosition const&) -> std::optional<float> { return 0.0f; },
+        [](ActionPosition const&, ActionPosition const&) { return true; });
+    REQUIRE(ground.has_value());
+    REQUIRE(ground->Z == 0.0f);
+    REQUIRE(LivingReturnPolicy::Distance(*ground, home) < radius);
+    REQUIRE(LivingReturnPolicy::HomeEndpointMatches(home, radius, *ground, ground));
+    auto elevated = *ground;
+    elevated.Z = home.Z + 2.0f;
+    REQUIRE(LivingReturnPolicy::Distance(elevated, home) > radius);
+    REQUIRE_FALSE(LivingReturnPolicy::HomeEndpointMatches(home, radius, elevated, ground));
+    // Search ownership includes the requested precision. A suspended ordinary
+    // three-yard search cannot be resumed as proof of the tighter arrival.
+    LivingReturnPolicy::HomeCorridorSearch search;
+    ActionPosition const from{725, 32.25859f, 857.0308f, 0.0f};
+    search.Begin(from, home, 3.0f, 384.0f, nullptr, 8.0f, true);
+    REQUIRE_FALSE(search.Matches(from, home, radius, 384.0f, nullptr, 8.0f, true));
+    search.Begin(from, home, radius, 384.0f, nullptr, 8.0f, true);
+    REQUIRE(search.Matches(from, home, radius, 384.0f, nullptr, 8.0f, true));
+}
+
+TEST_CASE("Warehouse arrival covers the coarse detour grid cell including authored ground offset", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    ActionPosition const warehouse = LivingFields::Field(worker->Field)->DepotPoint;
+    float radius = LivingFields::ArrivalRadius(*worker, warehouse, warehouse);
+    float halfCell = LivingSurfaceDetour::GridStep / 2.0f;
+    // A goal at a flat grid-cell center is farthest from every surrounding
+    // node. Include the real 0.15-yard authored-home versus terrain offset.
+    float worstDistance = std::hypot(halfCell, halfCell, warehouse.Z);
+    REQUIRE(worstDistance == Approx(1.7741195f));
+    REQUIRE(worstDistance > 1.25f);
+    REQUIRE(worstDistance < radius);
+    REQUIRE(radius == Approx(1.9f));
+    auto nearest = warehouse;
+    nearest.X += halfCell;
+    nearest.Y += halfCell;
+    nearest.Z = 0.0f;
+    REQUIRE(LivingReturnPolicy::Distance(nearest, warehouse) < radius);
+    REQUIRE(LivingReturnPolicy::HomeEndpointMatches(warehouse, radius, nearest, nearest));
+}
+
+TEST_CASE("Ordinary farmer home arrival covers the observed nearest nodes without changing warehouse precision", "[AIWorld][LivingFields][Arrival]")
+{
+    struct Fixture { uint64 Spawn; ActionPosition From; ActionPosition Home; };
+    Fixture const fixtures[]{
+        {901019, {725, 378.4412f, 614.4083f, 0.0f}, {725, 381.3137f, 595.6863f, 0.15f}},
+        {901025, {725, 36.27481f, 850.8182f, 0.0f}, {725, 36.88912f, 829.6965f, 0.15f}}
+    };
+    for (auto const& fixture : fixtures)
+    {
+        auto worker = LivingFields::Worker(fixture.Spawn);
+        REQUIRE(worker);
+        auto field = LivingFields::Field(worker->Field);
+        REQUIRE(field);
+        float spacing = LivingSurfaceDetour::GridStep;
+        ActionPosition nearest{725,
+            fixture.From.X + spacing * std::round((fixture.Home.X - fixture.From.X) / spacing),
+            fixture.From.Y + spacing * std::round((fixture.Home.Y - fixture.From.Y) / spacing), 0.0f};
+        float distance = LivingReturnPolicy::Distance(nearest, fixture.Home);
+        REQUIRE(distance > 1.25f);
+        REQUIRE(distance < 1.30f);
+        float radius = LivingFields::ArrivalRadius(*worker, fixture.Home, fixture.Home);
+        REQUIRE(radius == Approx(3.0f));
+        REQUIRE(distance < radius);
+        REQUIRE(LivingReturnPolicy::HomeEndpointMatches(fixture.Home, radius, nearest, nearest));
+        REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, fixture.Home) == Approx(1.9f));
+    }
+}
+
+TEST_CASE("Canonical warehouse workers retain warehouse precision for their exact normalized immutable home", "[AIWorld][LivingFields][Arrival]")
+{
+    for (uint64 spawn : {901016ull, 901022ull, 901028ull})
+    {
+        auto worker = LivingFields::Worker(spawn);
+        REQUIRE(worker);
+        REQUIRE(worker->Ordinal == 0);
+        auto field = LivingFields::Field(worker->Field);
+        REQUIRE(field);
+        auto actualHome = field->DepotPoint;
+        actualHome.X = std::nextafter(actualHome.X, std::numeric_limits<float>::infinity());
+        actualHome.Y = std::nextafter(actualHome.Y, -std::numeric_limits<float>::infinity());
+        actualHome.Z = 0.0f;
+        REQUIRE(LivingFields::ArrivalRadius(*worker, actualHome, actualHome) == Approx(1.9f));
+        REQUIRE(LivingFields::ArrivalRadius(*worker, field->DepotPoint, actualHome) == Approx(1.9f));
+        REQUIRE(LivingReturnPolicy::Distance(actualHome, field->DepotPoint) < 0.5f);
+        // A nearby requested point cannot borrow immutable-home identity.
+        auto nearHome = actualHome;
+        nearHome.X += 0.001f;
+        REQUIRE(LivingFields::ArrivalRadius(*worker, nearHome, actualHome) == Approx(3.0f));
+        // Ground projection of an arbitrary warehouse request is not an exact
+        // immutable-home request when the real home still has authored Z.
+        REQUIRE(LivingFields::ArrivalRadius(*worker, actualHome, field->DepotPoint) == Approx(3.0f));
+    }
+}
+
+TEST_CASE("Normalized-home precision cannot be borrowed by foreign anchors floors maps or worker ordinals", "[AIWorld][LivingFields][Arrival]")
+{
+    auto worker = LivingFields::Worker(901022);
+    REQUIRE(worker);
+    auto field = LivingFields::Field(worker->Field);
+    REQUIRE(field);
+    auto actualHome = field->DepotPoint;
+    actualHome.Z = 0.0f;
+    auto wrong = actualHome;
+    wrong.MapId = 0;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    wrong = actualHome;
+    wrong.X += 0.011f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    wrong = actualHome;
+    wrong.Y -= 0.011f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    wrong = actualHome;
+    wrong.Z = field->DepotPoint.Z + 0.6f;
+    REQUIRE(LivingFields::ArrivalRadius(*worker, wrong, wrong) == Approx(3.0f));
+    for (auto const& foreign : LivingFields::Fields)
+        if (foreign.Id != field->Id)
+        {
+            auto foreignHome = foreign.DepotPoint;
+            foreignHome.Z = 0.0f;
+            REQUIRE(LivingFields::ArrivalRadius(*worker, foreignHome, foreignHome) == Approx(3.0f));
+        }
+    auto otherOrdinal = LivingFields::Worker(901023);
+    REQUIRE(otherOrdinal);
+    REQUIRE(LivingFields::ArrivalRadius(*otherOrdinal, actualHome, actualHome) == Approx(3.0f));
+    auto forged = *worker;
+    forged.Ordinal = 1;
+    REQUIRE(LivingFields::ArrivalRadius(forged, actualHome, actualHome) == Approx(3.0f));
+    // Exact own warehouse precision remains available independently of the
+    // ordinary worker's home; it grants no foreign warehouse permission.
+    REQUIRE(LivingFields::ArrivalRadius(*otherOrdinal, field->DepotPoint, actualHome) == Approx(1.9f));
+}
+
+TEST_CASE("Meal-only home rests preserve the farmer's unworked field point", "[AIWorld][LivingFields][RuntimePolicy]")
+{
+    auto ledger = FieldFixture(2);
+    ActorRuntime actor;
+    auto worker = LivingFields::Worker(901016);
+    REQUIRE(worker);
+    auto original = LivingFields::WorkPoint(*worker, actor.FieldCycle);
+    REQUIRE(original);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    for (uint64 meal = 1; meal <= 2; ++meal)
+    {
+        actor.FarmingActivity = FieldActivity::Eat;
+        actor.FarmingStage = FieldStage::Warehouse;
+        REQUIRE(ledger.EatDepot(worker->Spawn, meal, worker->Depot, 1, true).Success);
+        actor.FarmingActivity = FieldActivity::Rest;
+        FinishFieldHomeRest(actor);
+        REQUIRE(actor.FieldCycle == 0);
+        REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+        REQUIRE(actor.FarmingStage == FieldStage::Field);
+        REQUIRE(LivingFields::WorkPoint(*worker, actor.FieldCycle) == original);
+    }
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 2);
+    REQUIRE(ledger.GetField(worker->Field)->Remaining == FieldCapacity);
+    FieldConserved(ledger);
+}
+
+TEST_CASE("A completed field work visit authorizes one home-rest rotation through meals and interruptions", "[AIWorld][LivingFields][RuntimePolicy]")
+{
+    auto ledger = FieldFixture();
+    ActorRuntime actor;
+    actor.FieldCycle = 2;
+    auto worker = LivingFields::Worker(901016);
+    REQUIRE(worker);
+    auto workedPoint = LivingFields::WorkPoint(*worker, actor.FieldCycle);
+    REQUIRE(workedPoint);
+    actor.FarmingActivity = FieldActivity::Work;
+    REQUIRE_FALSE(ledger.HarvestField(worker->Spawn, 1, worker->Field, 1, 15100, false).Success);
+    actor.FarmingActivity = FieldActivity::None;
+    FinishFieldHomeRest(actor);
+    REQUIRE(actor.FieldCycle == 2);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    REQUIRE(ledger.HarvestField(worker->Spawn, 1, worker->Field, 1, 15100, true).Success);
+    // Live runtime sets this receipt only after its owned 15-second work
+    // completion. Clearing an interrupted activity must preserve that receipt.
+    actor.FieldWorkedThisCycle = true;
+    actor.FarmingActivity = FieldActivity::None;
+    REQUIRE(actor.FieldWorkedThisCycle);
+    REQUIRE(ledger.Deliver(worker->Spawn, 2, worker->Depot, 1, true).Success);
+    REQUIRE(ledger.EatDepot(worker->Spawn, 3, worker->Depot, 1, true).Success);
+    REQUIRE(actor.FieldWorkedThisCycle);
+    actor.FarmingActivity = FieldActivity::Rest;
+    FinishFieldHomeRest(actor);
+    REQUIRE(actor.FieldCycle == 0);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    REQUIRE(actor.FarmingStage == FieldStage::Field);
+    REQUIRE(LivingFields::WorkPoint(*worker, actor.FieldCycle) != workedPoint);
+    auto nextPoint = LivingFields::WorkPoint(*worker, actor.FieldCycle);
+    // A later rest without another completed work action cannot redeem the
+    // previous visit a second time or skip this next assigned point.
+    FinishFieldHomeRest(actor);
+    REQUIRE(actor.FieldCycle == 0);
+    REQUIRE(LivingFields::WorkPoint(*worker, actor.FieldCycle) == nextPoint);
+    REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 1);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 1);
+    FieldConserved(ledger);
+}
+
+TEST_CASE("Completed maintenance or empty-field work rotates once without creating food", "[AIWorld][LivingFields][RuntimePolicy]")
+{
+    for (bool fullWarehouse : {false, true})
+    {
+        auto ledger = FieldFixture(fullWarehouse ? 30 : 0, fullWarehouse ? FieldCapacity : 0);
+        ActorRuntime actor;
+        actor.FieldCycle = 1;
+        if (!fullWarehouse)
+            REQUIRE_FALSE(ledger.HarvestField(901016, 1, 4, 1, 15100, true).Success);
+        // Both paths completed the same owned work interval. Storage and
+        // crop availability decide food production, independently of rotation.
+        actor.FieldWorkedThisCycle = true;
+        FinishFieldHomeRest(actor);
+        REQUIRE(actor.FieldCycle == 2);
+        REQUIRE_FALSE(actor.FieldWorkedThisCycle);
+        REQUIRE(actor.FarmingStage == FieldStage::Field);
+        REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+        REQUIRE(ledger.GetCargo(901016) == 0);
+        REQUIRE(ledger.GetField(4)->Remaining == (fullWarehouse ? FieldCapacity : 0));
+        REQUIRE(ledger.GetDepot(4)->Stock == (fullWarehouse ? 30 : 0));
+        FieldConserved(ledger);
+    }
+}

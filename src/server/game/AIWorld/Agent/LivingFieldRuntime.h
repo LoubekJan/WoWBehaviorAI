@@ -6,6 +6,7 @@
 #include "AgentType.h"
 #include "Action/ActionPosition.h"
 #include <array>
+#include <cmath>
 
 namespace LivingFields
 {
@@ -93,6 +94,32 @@ namespace LivingFields
         if (!field || field->Depot != worker.Depot || worker.Ordinal >= 4)
             return nullptr;
         return &field->WorkPoints[worker.Ordinal + 4 * (cycle % 3)];
+    }
+
+    // A warehouse arrival beside a building can leave the next departure on
+    // its collision edge. Approach only the exact own warehouse more closely;
+    // ordinary homes and field work keep their existing three-yard targets.
+    // The first worker's coincident home keeps warehouse precision after the
+    // engine normalizes its ground height or rounds its stored coordinates.
+    // The radius exceeds the coarse detour grid's coverage distance, while
+    // every actual movement still needs its complete floor/body/LOS proof.
+    inline float ArrivalRadius(WorkerSpec const& worker, ActionPosition const& destination,
+        ActionPosition const& immutableHome)
+    {
+        auto registered = Worker(worker.Spawn);
+        auto field = Field(worker.Field);
+        if (!registered || !field || registered->Field != worker.Field || registered->Depot != worker.Depot ||
+            registered->Ordinal != worker.Ordinal || field->Depot != worker.Depot)
+            return 3.0f;
+        auto same = [](ActionPosition const& a, ActionPosition const& b)
+        { return a.MapId == b.MapId && a.X == b.X && a.Y == b.Y && a.Z == b.Z; };
+        bool coincidentHome = worker.Ordinal == 0 && same(destination, immutableHome) &&
+            immutableHome.MapId == field->DepotPoint.MapId &&
+            std::hypot(immutableHome.X-field->DepotPoint.X, immutableHome.Y-field->DepotPoint.Y) <= 0.01f &&
+            std::abs(immutableHome.Z-field->DepotPoint.Z) <= 0.5f;
+        // Stay above both the one-yard useful-step floor and the 2.5-yard
+        // lattice's worst horizontal corner distance (sqrt(2)*1.25 yards).
+        return same(destination, field->DepotPoint) || coincidentHome ? 1.9f : 3.0f;
     }
 }
 #endif

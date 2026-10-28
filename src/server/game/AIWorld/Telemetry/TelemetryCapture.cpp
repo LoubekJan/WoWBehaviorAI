@@ -250,7 +250,8 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
                 auto const& recovery = record->LivingRole;
                 role.Planning = CaptureLivingPlanningTelemetry(recovery.Planning, nowMs);
                 if (recovery.Forage.ScannedAtMs || recovery.Forage.SearchAtMs) role.Forage = recovery.Forage;
-                if (recovery.ReturningHome || recovery.ReturnFailures || IsSupplyHunter(*record) || IsSupplyConsumer(*record) || IsSupplyRaider(*record))
+                if (recovery.ReturningHome || recovery.ReturnFailures || IsSupplyHunter(*record) || IsSupplyConsumer(*record) ||
+                    IsSupplyRaider(*record) || IsFieldWorker(*record))
                 {
                     ReturnRecoveryTelemetry diagnostic;
                     diagnostic.Failures = recovery.ReturnFailures;

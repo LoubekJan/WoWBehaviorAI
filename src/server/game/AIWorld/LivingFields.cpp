@@ -82,7 +82,8 @@ bool AIWorldMgr::UpdateLivingFieldWorker(AgentRecord& record, Creature& creature
     };
     auto at = [&](ActionPosition const& position)
     {
-        return inScope(position) && creature.GetExactDist(position.X, position.Y, position.Z) <= 3.0f &&
+        return inScope(position) && creature.GetExactDist(position.X, position.Y, position.Z) <=
+            LivingFields::ArrivalRadius(*worker, position, home) &&
             creature.IsWithinLOS(position.X, position.Y, position.Z);
     };
     auto clearActivity = [&]()
@@ -165,11 +166,14 @@ bool AIWorldMgr::UpdateLivingFieldWorker(AgentRecord& record, Creature& creature
         if (rest)
         {
             record.Needs.Fatigue = 0.0f;
-            actor.FieldCycle = (actor.FieldCycle + 1) % 3;
-            actor.FarmingStage = FieldStage::Field;
+            LivingSupply::FinishFieldHomeRest(actor);
             finish("READY_FOR_FIELD", "RESTED_HOME", 0);
             return true;
         }
+        // Only this completed, still-owned fifteen-second field action
+        // permits point rotation after the next home rest. Maintenance also
+        // completes the job; meals and delivery never set this flag.
+        if (work) actor.FieldWorkedThisCycle = true;
         if (actor.EventSerial == std::numeric_limits<uint64>::max())
         {
             finish("WAITING", "EVENT_ID_EXHAUSTED", 60000);
