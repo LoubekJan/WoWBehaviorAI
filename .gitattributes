@@ -24,6 +24,8 @@ data/realm_lab/aiworldlab/preview-v8/wildlife-population.json text eol=lf
 data/realm_lab/aiworldlab/preview-v8/supply-population.json text eol=lf
 data/realm_lab/aiworldlab/preview-v8/consumer-population.json text eol=lf
 data/realm_lab/aiworldlab/preview-v8/raid-population.json text eol=lf
+data/realm_lab/aiworldlab/preview-v8/defias-population.json text eol=lf
+data/realm_lab/aiworldlab/preview-v8/full-population.json text eol=lf
 data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json text eol=lf
 # Preserve verbatim source audits and the exact bytes pinned by field receipts.
 data/realm_lab/aiworldlab/preview-v8/field-*.json -text
