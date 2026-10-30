@@ -61,7 +61,8 @@ preflight:
 	$(RUN) tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
 start: preflight
-	$(COMPOSE) up -d --wait auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web
+	@mkdir -p runtime/lab/character-models
+	$(COMPOSE) up -d --wait auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web character-studio
 
 # No command here removes database or build volumes.
 stop:

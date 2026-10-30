@@ -1,6 +1,9 @@
 /* This file is part of the TrinityCore Project. See AUTHORS file for Copyright information.
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "NpcAgentAppearance.h"
+#include "ObjectGuid.h"
+#include "Opcodes.h"
+#include "WorldPacket.h"
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -199,4 +202,20 @@ NpcAgentAppearance const* NpcAgentAppearanceCatalog::Get(uint64 spawnId) const
 {
     auto found = _appearances.find(spawnId);
     return found == _appearances.end() ? nullptr : &found->second;
+}
+
+// Keep the pure wire codec with the parser/catalog translation unit. Tests
+// can link it without pulling the Creature/Player integration and its stores.
+bool BuildNpcAgentMirrorImageData(WorldPacket& packet, ObjectGuid guid, uint32 baseDisplay,
+    NpcAgentAppearance const& appearance)
+{
+    if (!guid.IsCreatureOrVehicle() || !baseDisplay || appearance.Gender > 1 || appearance.Class != 1 ||
+        !((appearance.Race >= 1 && appearance.Race <= 8) || appearance.Race == 10 || appearance.Race == 11)) return false;
+    packet.Initialize(SMSG_MIRRORIMAGE_DATA, 68);
+    packet << guid << uint32(baseDisplay) << uint8(appearance.Race) << uint8(appearance.Gender) << uint8(appearance.Class);
+    packet << uint8(appearance.Skin) << uint8(appearance.Face) << uint8(appearance.HairStyle)
+           << uint8(appearance.HairColor) << uint8(appearance.FacialHair) << uint32(0); // no guild crest
+    for (std::size_t slot = 0; slot < std::size_t(NpcAppearanceSlot::MainHand); ++slot)
+        packet << uint32(appearance.Equipment[slot].DisplayId);
+    return true;
 }

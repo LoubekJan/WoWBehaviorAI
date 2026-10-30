@@ -83,6 +83,10 @@ Jméno na štítku vybrané bytosti nadále vychází ze společné herní šabl
 
 ## Vlastní životopis
 
+Karty a vlastní humanoidní vzhled lze připravit také ve webovém
+[Ateliéru postav](CharacterStudio.md) na portu 9092. Návrhy zůstávají oddělené
+od běžícího světa; editor nabízí ověřený export karty a vzhledu.
+
 Každá postava má samostatný JSON v [data/npc_agents](../data/npc_agents).
 Identitu a polohu registrace ponechte podle skutečného agenta:
 

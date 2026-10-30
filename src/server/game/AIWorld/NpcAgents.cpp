@@ -14,6 +14,7 @@
 #include "Player.h"
 #include "PointMovementGenerator.h"
 #include "SharedDefines.h"
+#include "SpellAuraDefines.h"
 #include "ThreatManager.h"
 #include "WorldPacket.h"
 #include <algorithm>
@@ -136,6 +137,8 @@ bool AIWorldMgr::SendNpcAgentAppearance(Player& observer, Creature const& creatu
     auto const* record = _registry.FindBySpawn(creature.GetMapId(), creature.GetSpawnId());
     if (!appearance || appearance->MapId != creature.GetMapId() || !record || !IsNpcAgent(*record) ||
         record->RuntimeGuid != creature.GetGUID() || !creature.HasUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE)) return false;
+    if (creature.HasAuraType(SPELL_AURA_TRANSFORM) || creature.HasAuraType(SPELL_AURA_MOD_SHAPESHIFT) ||
+        creature.HasAuraType(SPELL_AURA_CLONE_CASTER)) return false;
     uint32 display = NativeNpcAgentAppearanceDisplay(*appearance);
     if (creature.GetDisplayId() != display) return false; // respect another active transformation
     WorldPacket packet;

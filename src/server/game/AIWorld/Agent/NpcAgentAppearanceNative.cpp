@@ -3,11 +3,8 @@
 #include "NpcAgentAppearance.h"
 #include "Creature.h"
 #include "DBCStores.h"
-#include "ObjectGuid.h"
-#include "Opcodes.h"
 #include "Player.h"
 #include "SpellAuraDefines.h"
-#include "WorldPacket.h"
 
 uint32 NativeNpcAgentAppearanceDisplay(NpcAgentAppearance const& appearance)
 {
@@ -51,19 +48,5 @@ bool ApplyNpcAgentAppearance(Creature& creature, NpcAgentAppearance const& appea
     for (std::size_t slot = 0; slot < 3; ++slot)
         creature.SetVirtualItem(uint32(slot), appearance.Equipment[std::size_t(NpcAppearanceSlot::MainHand) + slot].ItemId);
     creature.SetUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
-    return true;
-}
-
-bool BuildNpcAgentMirrorImageData(WorldPacket& packet, ObjectGuid guid, uint32 baseDisplay,
-    NpcAgentAppearance const& appearance)
-{
-    if (!guid.IsCreatureOrVehicle() || !baseDisplay || appearance.Gender > 1 || appearance.Class != 1 ||
-        !((appearance.Race >= 1 && appearance.Race <= 8) || appearance.Race == 10 || appearance.Race == 11)) return false;
-    packet.Initialize(SMSG_MIRRORIMAGE_DATA, 68);
-    packet << guid << uint32(baseDisplay) << uint8(appearance.Race) << uint8(appearance.Gender) << uint8(appearance.Class);
-    packet << uint8(appearance.Skin) << uint8(appearance.Face) << uint8(appearance.HairStyle)
-           << uint8(appearance.HairColor) << uint8(appearance.FacialHair) << uint32(0); // no guild crest
-    for (std::size_t slot = 0; slot < std::size_t(NpcAppearanceSlot::MainHand); ++slot)
-        packet << uint32(appearance.Equipment[slot].DisplayId);
     return true;
 }

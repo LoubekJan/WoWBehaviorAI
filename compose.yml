@@ -140,6 +140,7 @@ services:
       - ./tools/realm_lab:/workspace/tools/realm_lab:ro
       - ./data/realm_lab:/workspace/data/realm_lab:ro
       - ./data/npc_agents:/workspace/data/npc_agents:ro
+      - ./data/npc_appearances:/workspace/data/npc_appearances:ro
       - ./sql:/workspace/sql:ro
       - ./runtime/lab/data:/runtime/data:ro
       - ./runtime/lab/logs:/runtime/logs
@@ -180,12 +181,38 @@ services:
     environment:
       WORLD_VIEWER_TELEMETRY_TOKEN: ${WORLD_VIEWER_TELEMETRY_TOKEN:?Set a separate lab token}
       LAB_AI_PROFILE: ${LAB_AI_PROFILE:-settlement-v8}
+      CHARACTER_STUDIO_PORT: ${CHARACTER_STUDIO_PORT:-9092}
     command: [python, /workspace/tools/realm_lab/run_scoped.py, uvicorn, app.main:app, --host, "0.0.0.0", --port, "8000"]
     volumes:
       - ./tools/realm_lab:/workspace/tools/realm_lab:ro
       - ./data/realm_lab:/workspace/data/realm_lab:ro
     ports:
       - "${LAB_VIEWER_PORT:-9091}:8000"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  character-studio:
+    build: {context: docker/character-studio}
+    restart: unless-stopped
+    environment:
+      CHARACTER_STUDIO_DATA_DIR: /data
+      CHARACTER_STUDIO_SOURCE_DIR: /source-profiles
+      CHARACTER_STUDIO_APPEARANCE_DIR: /source-appearances
+      CHARACTER_STUDIO_CATALOG: /catalog/catalog.json
+      CHARACTER_STUDIO_MODEL_DATA_DIR: /model-data
+      CHARACTER_STUDIO_AI_URL: http://ai-server:8000
+      CHARACTER_STUDIO_PASSWORD: ${CHARACTER_STUDIO_PASSWORD:-}
+    volumes:
+      - character-studio-data:/data
+      - ./data/npc_agents:/source-profiles:ro
+      - ./data/npc_appearances:/source-appearances:ro
+      - ./data/character_studio:/catalog:ro
+      - ./runtime/lab/character-models:/model-data:ro
+    ports:
+      - "${CHARACTER_STUDIO_PORT:-9092}:8000"
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -240,3 +267,5 @@ volumes:
     name: aitc_lab_build-data
   ccache-data:
     name: aitc_lab_ccache-data
+  character-studio-data:
+    name: aitc_lab_character-studio-data
