@@ -21,6 +21,8 @@ TEST_CASE("NPC telemetry exports public runtime metadata with exact request IDs"
     npc.RequestId = std::numeric_limits<uint64>::max();
     npc.NextThinkMs = 2000;
     npc.DialogueCount = 12;
+    npc.MemoryRecords = 96;
+    npc.MemoryRecalled = 6;
     npc.LastSpeech = "Ahoj, \"sousede\".";
     auto json = SerializeAgentTelemetry({row}, 1000);
     CHECK(json.find("\"version\":4") != std::string::npos);
@@ -31,9 +33,25 @@ TEST_CASE("NPC telemetry exports public runtime metadata with exact request IDs"
     CHECK(json.find("\"request_id\":\"18446744073709551615\"") != std::string::npos);
     CHECK(json.find("\"next_think_ms\":2000") != std::string::npos);
     CHECK(json.find("\"dialogue_count\":12") != std::string::npos);
+    CHECK(json.find("\"memory_records\":96") != std::string::npos);
+    CHECK(json.find("\"memory_recalled\":6") != std::string::npos);
     CHECK(json.find("\"last_speech\":\"Ahoj, \\\"sousede\\\".\"") != std::string::npos);
     CHECK(json.find("backstory") == std::string::npos);
     CHECK(json.find("personality") == std::string::npos);
+}
+
+TEST_CASE("NPC memory telemetry defaults to empty counts without memory contents", "[AIWorld][Telemetry][NpcAgent]")
+{
+    AgentTelemetrySnapshot row;
+    row.ControlMode = AgentControlMode::AIWorldControlled;
+    row.Live.emplace();
+    row.NpcAgent.emplace();
+    auto json = SerializeAgentTelemetry({row}, 1);
+    CHECK(json.find("\"memory_records\":0") != std::string::npos);
+    CHECK(json.find("\"memory_recalled\":0") != std::string::npos);
+    CHECK(json.find("\"memories\"") == std::string::npos);
+    CHECK(json.find("\"relationships\"") == std::string::npos);
+    CHECK(json.find("\"private_history\"") == std::string::npos);
 }
 
 TEST_CASE("NPC telemetry remains absent for legacy native and unloaded rows", "[AIWorld][Telemetry][NpcAgent]")

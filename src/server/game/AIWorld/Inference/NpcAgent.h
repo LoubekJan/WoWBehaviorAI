@@ -57,6 +57,15 @@ struct NpcAgentSpeechContext
     std::optional<NpcAgentSpeechTurn> Turn;
 };
 
+// Source-attributed recalled episodes, never instructions or saved tool tokens.
+// PLAYER_DIALOGUE is retrieved only for the exact locally bound player GUID.
+struct NpcAgentMemory
+{
+    uint64 Id = 0, AgeMs = 0;
+    std::string Kind, Speaker, Text, Response;
+    uint32 Relevance = 0; // Local retrieval rank, never serialized.
+};
+
 struct NpcAgentContext
 {
     NpcAgentProfileContext Profile;
@@ -69,6 +78,7 @@ struct NpcAgentContext
     std::vector<uint32> SpeechTargets;
     // Absent for legacy callers; the world controller always supplies a grant.
     std::optional<NpcAgentSpeechContext> Speech;
+    std::vector<NpcAgentMemory> Memories;
 };
 
 struct NpcAgentRequest

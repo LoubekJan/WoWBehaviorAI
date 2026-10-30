@@ -340,6 +340,8 @@ namespace
         WriteJsonField(out, "request_id", std::to_string(agent.RequestId));
         WriteJsonField(out, "next_think_ms", agent.NextThinkMs);
         WriteJsonField(out, "dialogue_count", agent.DialogueCount);
+        WriteJsonField(out, "memory_records", agent.MemoryRecords);
+        WriteJsonField(out, "memory_recalled", agent.MemoryRecalled);
         WriteJsonField(out, "last_speech", agent.LastSpeech);
         out << '}';
     }
