@@ -180,7 +180,7 @@ namespace LivingRaid
         // interruption/return so theft receipts and the reverse route agree.
         uint32 SelectedSourceDepot = SourceDepot, PreviousSourceDepot = 0;
         uint32 SelectedRouteId = 1;
-        uint64 LastStockObservationAtMs = 0;
+        uint64 LastStockObservationAtMs = 0, LastSurveyAtMs = 0, LastGuardObservationAtMs = 0;
         float MemoryRisk = 0;
         std::string PlanningReason = "NOT_EVALUATED";
         bool Active = false, Returning = false, DutyAtPost = false, CombatNoted = false;

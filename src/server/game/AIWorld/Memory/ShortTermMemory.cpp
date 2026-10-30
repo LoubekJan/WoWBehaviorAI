@@ -18,6 +18,19 @@
 #include "ShortTermMemory.h"
 #include "Log.h"
 #include <algorithm>
+#include <cmath>
+
+namespace
+{
+    bool SameCheckedGuardLocation(WorldEventLocation const& a, WorldEventLocation const& b)
+    {
+        if (a.MapId != b.MapId || !std::isfinite(a.X) || !std::isfinite(a.Y) || !std::isfinite(a.Z) ||
+            !std::isfinite(b.X) || !std::isfinite(b.Y) || !std::isfinite(b.Z))
+            return false;
+        double dx = double(a.X) - double(b.X), dy = double(a.Y) - double(b.Y), dz = double(a.Z) - double(b.Z);
+        return dx * dx + dy * dy + dz * dz <= 1.0;
+    }
+}
 
 MemoryRecord* ShortTermMemory::FindEquivalent(std::vector<MemoryRecord>& records, Observation const& observation) const
 {
@@ -31,8 +44,11 @@ MemoryRecord* ShortTermMemory::FindEquivalent(std::vector<MemoryRecord>& records
             case ObservationType::RaidExperience:
                 if (record.Raid && observation.Raid && SameRaidExperience(*record.Raid, *observation.Raid) &&
                     record.Location.MapId == observation.Location.MapId &&
-                    (observation.Raid->Kind != RaidExperienceKind::GuardEncounter ||
-                        record.Target.SpawnId == observation.Target.SpawnId))
+                    ((observation.Raid->Kind != RaidExperienceKind::GuardEncounter &&
+                        observation.Raid->Kind != RaidExperienceKind::GuardPositionChecked) ||
+                        record.Target.SpawnId == observation.Target.SpawnId) &&
+                    (observation.Raid->Kind != RaidExperienceKind::GuardPositionChecked ||
+                        (observation.Target.SpawnId && SameCheckedGuardLocation(record.Location, observation.Location))))
                     return &record;
                 break;
             case ObservationType::WorldEvent:

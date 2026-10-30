@@ -352,6 +352,7 @@ namespace
             auto const& plan = *raid.Planning;
             out << "{\"reason\":"; WriteValue(out, plan.Reason);
             WriteJsonField(out, "memory_records", plan.MemoryRecords);
+            WriteJsonField(out, "checked_positions", plan.CheckedPositions);
             WriteJsonField(out, "route_id", plan.RouteId);
             out << ",\"known_stock\":";
             if (plan.KnownStock) WriteValue(out, *plan.KnownStock); else out << "null";
@@ -365,6 +366,14 @@ namespace
                 out << "{\"position\":"; WriteValue(out, *plan.Danger);
                 WriteJsonField(out, "guard_spawn_id", std::to_string(plan.DangerGuardSpawnId));
                 WriteJsonField(out, "age_ms", plan.DangerAgeMs); out << '}';
+            }
+            else out << "null";
+            out << ",\"last_check\":";
+            if (plan.LastCheckedPosition)
+            {
+                out << "{\"position\":"; WriteValue(out, *plan.LastCheckedPosition);
+                WriteJsonField(out, "guard_spawn_id", std::to_string(plan.LastCheckedGuardSpawnId));
+                WriteJsonField(out, "age_ms", plan.LastCheckedAgeMs); out << '}';
             }
             else out << "null";
             out << '}';

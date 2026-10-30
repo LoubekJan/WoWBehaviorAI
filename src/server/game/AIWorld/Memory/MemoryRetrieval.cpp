@@ -19,6 +19,18 @@
 #include <algorithm>
 #include <cmath>
 
+namespace
+{
+    bool SameCheckedGuardLocation(WorldEventLocation const& a, WorldEventLocation const& b)
+    {
+        if (a.MapId != b.MapId || !std::isfinite(a.X) || !std::isfinite(a.Y) || !std::isfinite(a.Z) ||
+            !std::isfinite(b.X) || !std::isfinite(b.Y) || !std::isfinite(b.Z))
+            return false;
+        double dx = double(a.X) - double(b.X), dy = double(a.Y) - double(b.Y), dz = double(a.Z) - double(b.Z);
+        return dx * dx + dy * dy + dz * dz <= 1.0;
+    }
+}
+
 float MemoryRetrieval::ScoreLocality(MemoryQueryContext const& context, WorldEventLocation const& location) const
 {
     if (location.MapId != context.MapId)
@@ -74,7 +86,10 @@ bool MemoryRetrieval::IsSameMemory(RetrievedMemory const& a, RetrievedMemory con
         case ObservationType::RaidExperience:
             return a.Raid && b.Raid && a.Owner == b.Owner &&
                 a.Location.MapId == b.Location.MapId && SameRaidExperience(*a.Raid, *b.Raid) &&
-                (a.Raid->Kind != RaidExperienceKind::GuardEncounter || a.Target.SpawnId == b.Target.SpawnId);
+                ((a.Raid->Kind != RaidExperienceKind::GuardEncounter && a.Raid->Kind != RaidExperienceKind::GuardPositionChecked) ||
+                    a.Target.SpawnId == b.Target.SpawnId) &&
+                (a.Raid->Kind != RaidExperienceKind::GuardPositionChecked ||
+                    (a.Target.SpawnId && SameCheckedGuardLocation(a.Location, b.Location)));
         case ObservationType::WorldEvent:
             // Not just SourceEventId: EventBus's ids restart from 1 every
             // process lifetime, so a bare id could otherwise match an

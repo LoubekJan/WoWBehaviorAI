@@ -29,7 +29,8 @@ namespace LivingRaidMemory
         {
             case RaidExperienceKind::StockObserved:
             case RaidExperienceKind::SourceEmpty: return StockTtlMs;
-            case RaidExperienceKind::GuardEncounter: return GuardTtlMs;
+            case RaidExperienceKind::GuardEncounter:
+            case RaidExperienceKind::GuardPositionChecked: return GuardTtlMs;
             case RaidExperienceKind::RouteBlocked: return BlockedTtlMs;
             case RaidExperienceKind::Theft:
             case RaidExperienceKind::Delivered: return OutcomeTtlMs;
@@ -69,6 +70,8 @@ namespace LivingRaidMemory
             !std::isfinite(memory.Relevance) || memory.Relevance<0 || memory.Relevance>1) return false;
         auto const& fact=*memory.Raid;
         if ((fact.Kind==RaidExperienceKind::GuardEncounter && !memory.Target.SpawnId) ||
+            (fact.Kind==RaidExperienceKind::GuardPositionChecked &&
+                (!memory.Target.SpawnId || fact.Quantity || (fact.RouteId!=1 && fact.RouteId!=2))) ||
             (fact.Kind==RaidExperienceKind::StockObserved && fact.Quantity>30) ||
             ((fact.Kind==RaidExperienceKind::Theft || fact.Kind==RaidExperienceKind::Delivered) &&
                 (!fact.Quantity || fact.Quantity>2 || !fact.AttemptId))) return false;
@@ -85,6 +88,36 @@ namespace LivingRaidMemory
     {
         return Active(memory,owner,map,now) && memory.Raid->Kind==RaidExperienceKind::GuardEncounter &&
             now-memory.LastObservedAtMs<=GuardHardAvoidMs;
+    }
+    // Only a newer self-observed check of this precise old guard position
+    // supersedes its danger. No position of a remotely resolved guard enters
+    // this decision. Equality in time fails closed: a simultaneous sighting
+    // remains dangerous, and any later real encounter reactivates avoidance.
+    inline bool IsSupersededGuard(RetrievedMemory const& guard, std::vector<RetrievedMemory> const& memories,
+        AgentId owner, uint32 map, uint64 now)
+    {
+        if (!Active(guard,owner,map,now) || guard.Raid->Kind!=RaidExperienceKind::GuardEncounter) return false;
+        for (auto const& checked : memories)
+        {
+            if (!Active(checked,owner,map,now) || checked.Raid->Kind!=RaidExperienceKind::GuardPositionChecked ||
+                checked.LastObservedAtMs<=guard.LastObservedAtMs || checked.Target.SpawnId!=guard.Target.SpawnId ||
+                checked.Raid->DepotId!=guard.Raid->DepotId || checked.Raid->RouteId!=guard.Raid->RouteId) continue;
+            double dx=double(checked.Location.X)-guard.Location.X, dy=double(checked.Location.Y)-guard.Location.Y,
+                dz=double(checked.Location.Z)-guard.Location.Z;
+            if (dx*dx+dy*dy+dz*dz<=1.0) return true;
+        }
+        return false;
+    }
+    inline std::vector<RetrievedMemory> FilterSupersededGuards(std::vector<RetrievedMemory> const& memories,
+        AgentId owner, uint32 map, uint64 now)
+    {
+        std::vector<RetrievedMemory> result;
+        result.reserve(memories.size());
+        for (auto const& memory : memories)
+            if (!IsSupersededGuard(memory,memories,owner,map,now)) result.push_back(memory);
+        // This is a resolved runtime view. The caller's original memories and
+        // their STM history remain unchanged, including the old encounter.
+        return result;
     }
     inline float SegmentDistance(ActionPosition const& point, ActionPosition const& from, ActionPosition const& to)
     {
@@ -133,7 +166,8 @@ namespace LivingRaidMemory
         { result.Reason="INVALID_CONTEXT"; return result; }
         std::vector<RetrievedMemory const*> recalled;
         for (auto const& memory : memories)
-            if (Active(memory,owner,here.MapId,now)) recalled.push_back(&memory);
+            if (Active(memory,owner,here.MapId,now) && !IsSupersededGuard(memory,memories,owner,here.MapId,now))
+                recalled.push_back(&memory);
         result.RecallCount=uint32(recalled.size());
         bool risky=false, empty=false;
         float best=-std::numeric_limits<float>::max(), strongestRisk=0;

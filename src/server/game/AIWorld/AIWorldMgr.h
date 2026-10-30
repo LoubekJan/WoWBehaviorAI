@@ -2966,6 +2966,7 @@ class TC_GAME_API AIWorldMgr
         LivingSupply::ConsumerSpec const* SupplyConsumerSpec(AgentRecord const& record) const;
         std::optional<FoodDepotTelemetry> DescribeFoodDepot(uint32 depotId) const;
         Unit* LivingRaidThreat(AgentRecord& record, Creature& creature, uint64 nowMs);
+        void SurveyLivingRaidMemory(AgentRecord const& record, Creature const& creature, uint64 nowMs);
         std::vector<RetrievedMemory> RecallLivingRaid(AgentRecord const& record, Creature const& creature, uint64 nowMs) const;
         void RememberLivingRaid(AgentRecord const& record, Creature const& creature, uint64 nowMs,
             RaidExperienceKind kind, uint32 quantity = 0, Unit const* threat = nullptr);
