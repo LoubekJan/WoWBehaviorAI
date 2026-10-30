@@ -1,5 +1,14 @@
 # Vlastní svět jako jediný realm
 
+Aktuální rozšíření: `full-v8` přebírá **všech 100 vytvořených NPC** pod
+AIWorld. Nad původních 55 přidává 45 běžných rolí: 21 strážných, 7 služeb,
+4 pracovníky a 13 bojovníků. Převzetí neinstaluje LLM karty; ty se zapínají
+samostatně pro konkrétní postavy. Profil zachovává šablony, domovy, služby,
+frakce a dosavadní specializované role původních 55 NPC. Obecné těžařské a
+rybářské postavy zatím nemají novou mechaniku těžby nebo rybolovu. Původní
+autonomní SmartAI skripty převzatých postav nahrazuje AIWorld.
+[Provoz, pauza a kontroly](../README_DEV.md#všechna-vytvořená-npc--full-v8).
+
 Rozšíření k **30. říjnu 2026**: nový profil `defias-v8` řídí všech
 16 Defias, celkem **55 řízených / 45 nativních NPC**. Přidává 15 rezervací
 nad nezměněný `fields-v8`; domovy, frakce, běžné typy a mapová geometrie
@@ -12,7 +21,7 @@ samostatné. Čekání na členy, ústup, smrt a dokončení návratů se vyhodn
 za každého účastníka. Krádež i odevzdání zůstávají skutečnou pětisekundovou
 prací a náklad má kapacitu dvě porce na banditu.
 
-Nasazení používá `LAB_AI_PROFILE=defias-v8`; žádné nové potravní nebo
+Tento předchozí profil používá `LAB_AI_PROFILE=defias-v8`; žádné nové potravní nebo
 skupinové stavy se neukládají přes restart. Nový
 `python -m tools.realm_lab.defias_group_acceptance <recording-directory>`
 vyžaduje alespoň 300 sekund čerstvého záznamu a propojenou fyzickou

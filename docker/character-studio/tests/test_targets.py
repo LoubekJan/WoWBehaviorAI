@@ -46,6 +46,27 @@ class ReviewedTargetRegistryTests(unittest.TestCase):
         self.assertFalse(current.validate("901014", "901014", 725)["eligible"])
         self.assertEqual(current.validate("901048", "901048", 725)["target"]["name"], "Zásobovač · Defias")
 
+    def test_full_population_admits_every_reviewed_actor_without_inventing_new_targets(self):
+        previous = TargetRegistry.load(ROOT, "defias-v8")
+        current = TargetRegistry.load(ROOT, "full-v8")
+        self.assertTrue(current.available, current.reason)
+        self.assertEqual({row.spawn_id for row in current.targets}, set(range(901000, 901100)))
+        self.assertTrue(all(row.eligible and row.control_mode == "AI_WORLD_CONTROLLED" for row in current.targets))
+        self.assertEqual(sum(row.eligible for row in current.targets), 100)
+        self.assertEqual(sum(row.eligible for row in previous.targets), 55)
+        for spawn in range(901000, 901100):
+            with self.subTest(spawn=spawn):
+                verified = current.validate(str(spawn), str(spawn), 725)
+                self.assertTrue(verified["eligible"])
+                self.assertNotEqual(verified["target"]["living_role"], "NONE")
+        self.assertFalse(previous.validate("901014", "901014", 725)["eligible"])
+        self.assertEqual(current.validate("901014", "901014", 725)["target"]["entry"],
+                         previous.validate("901014", "901014", 725)["target"]["entry"])
+        for identity in ("900999", "901100", "18446744073709551615"):
+            self.assertFalse(current.validate(identity, identity, 725)["eligible"])
+        self.assertFalse(current.validate("901014", "901014", 0)["eligible"])
+        self.assertFalse(current.validate("901014", "901015", 725)["eligible"])
+
     def test_unknown_identity_and_wrong_map_are_not_verified_by_numeric_syntax(self):
         registry = TargetRegistry.load(ROOT, "fields-v8")
         self.assertFalse(registry.validate("18446744073709551615", "18446744073709551615", 725)["eligible"])

@@ -1,11 +1,17 @@
 """Synthetic group evidence cannot replace owned movement or food accounting."""
+from contextlib import redirect_stdout
 from copy import deepcopy
 from functools import lru_cache
+import io
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from tools.realm_lab import defias_group_acceptance as acceptance, defias_population as population
-from tools.realm_lab import field_acceptance
+from tools.realm_lab import field_acceptance, full_population as full
 from tools.realm_lab.tests import test_field_acceptance as fields
+from tools.realm_lab.tests.test_full_telemetry import frame as full_frame
 
 PARTY = tuple(range(901050, 901055))
 
@@ -135,7 +141,57 @@ def respawn_samples(*, witnessed_death=True, dropped_cargo=False):
     return result
 
 
+@lru_cache(maxsize=1)
+def full_samples():
+    """Same synthetic party evidence, plus the reviewed ordinary full cohort."""
+    result = deepcopy(samples())
+    ordinary = {actor['spawn_id']: actor for actor in full_frame()['agents']
+                if actor['spawn_id'] in full.RECRUIT_IDS}
+    for record in result:
+        for actor in record['state']['agents']:
+            binding = ordinary.get(actor['spawn_id'])
+            if binding is not None:
+                location = actor['position']
+                actor.update(deepcopy(binding))
+                actor['position'] = {**location, **binding['position']}
+    return result
+
+
 class DefiasGroupAcceptanceTests(unittest.TestCase):
+    def test_explicit_full_profile_accepts_the_same_party_with_all_100_owned_actors(self):
+        report = acceptance.evaluate_samples(full_samples(), minimum_seconds=120, profile=full.PROFILE)
+        self.assertEqual(report['status'], 'PASS', report)
+        self.assertEqual((report['profile'], report['expected_owned'], report['expected_native']), (full.PROFILE, 100, 0))
+        self.assertEqual(set(report['receipts'][0]['joint_travel_members']), set(PARTY))
+        self.assertFalse(report['receipts'][0]['theft_success_certified'])
+        # Profile is an operator choice, never inferred from telemetry labels.
+        self.assertEqual(acceptance.evaluate_samples(full_samples(), minimum_seconds=120)['status'], 'FAIL')
+        with self.assertRaises(ValueError):
+            acceptance.evaluate_samples([], profile='unknown-v8')
+
+    def test_full_profile_cannot_hide_falsified_generic_roles_behind_a_valid_party_trip(self):
+        for identity, field, value in ((901014, 'living_role', dict(enabled=True, extensions_enabled=True, role='PREY', lifetime_ms=1)),
+                                      (901008, 'type', 'CIVILIAN'), (901097, 'supply', dict(enabled=True))):
+            rows = deepcopy(full_samples())
+            fields.actor(rows[10], identity)[field] = value
+            with self.subTest(identity=identity, field=field):
+                report = acceptance.evaluate_samples(rows, minimum_seconds=120, profile=full.PROFILE)
+                self.assertEqual(report['status'], 'FAIL', report)
+                self.assertIn('full_population_runtime_contract_changed', [v['code'] for v in report['violations']])
+
+    def test_explicit_full_profile_remains_in_inconclusive_reports_and_cli_errors(self):
+        report = acceptance.evaluate_samples([], profile=full.PROFILE)
+        self.assertEqual((report['status'], report['profile']), ('INCONCLUSIVE', full.PROFILE))
+        self.assertEqual((report['expected_owned'], report['expected_native']), (100, 0))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'report.json'
+            with redirect_stdout(io.StringIO()):
+                code = acceptance.main([str(Path(directory) / 'missing.jsonl'), '--profile', full.PROFILE,
+                                        '--output', str(output)])
+            saved = json.loads(output.read_text(encoding='utf-8'))
+            self.assertEqual((code, saved['status'], saved['profile']), (2, 'INCONCLUSIVE', full.PROFILE))
+            self.assertIn('readable_closed_recording', saved['missing_evidence'])
+
     def test_witnessed_dead_member_can_respawn_before_the_survivors_return(self):
         report = acceptance.evaluate_samples(respawn_samples())
         self.assertEqual(report["status"], "PASS", report)
@@ -223,6 +279,7 @@ class DefiasGroupAcceptanceTests(unittest.TestCase):
     def test_shared_warehouse_trip_preserves_individual_identity_and_all_roster_returns(self):
         report = acceptance.evaluate_samples(samples(), minimum_seconds=120)
         self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["profile"], population.PROFILE)
         self.assertEqual((report["expected_owned"], report["expected_native"]), (55, 45))
         receipt = report["receipts"][0]
         self.assertEqual(set(receipt["joint_travel_members"]), set(PARTY))

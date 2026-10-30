@@ -1,0 +1,888 @@
+{
+  "schema_version": 1,
+  "profile": "full-v8",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v8",
+  "defias_manifest_sha256": "c48b32da6d37f71017524ba537dea5e740ad10b671ddc9f178a45413de350a82",
+  "native_geometry_files_verified": 61,
+  "owned_spawn_ids": [
+    901000,
+    901001,
+    901002,
+    901003,
+    901004,
+    901005,
+    901006,
+    901007,
+    901008,
+    901009,
+    901010,
+    901011,
+    901012,
+    901013,
+    901014,
+    901015,
+    901016,
+    901017,
+    901018,
+    901019,
+    901020,
+    901021,
+    901022,
+    901023,
+    901024,
+    901025,
+    901026,
+    901027,
+    901028,
+    901029,
+    901030,
+    901031,
+    901032,
+    901033,
+    901034,
+    901035,
+    901036,
+    901037,
+    901038,
+    901039,
+    901040,
+    901041,
+    901042,
+    901043,
+    901044,
+    901045,
+    901046,
+    901047,
+    901048,
+    901049,
+    901050,
+    901051,
+    901052,
+    901053,
+    901054,
+    901055,
+    901056,
+    901057,
+    901058,
+    901059,
+    901060,
+    901061,
+    901062,
+    901063,
+    901064,
+    901065,
+    901066,
+    901067,
+    901068,
+    901069,
+    901070,
+    901071,
+    901072,
+    901073,
+    901074,
+    901075,
+    901076,
+    901077,
+    901078,
+    901079,
+    901080,
+    901081,
+    901082,
+    901083,
+    901084,
+    901085,
+    901086,
+    901087,
+    901088,
+    901089,
+    901090,
+    901091,
+    901092,
+    901093,
+    901094,
+    901095,
+    901096,
+    901097,
+    901098,
+    901099
+  ],
+  "native_spawn_ids": [],
+  "recruit_spawn_ids": [
+    901000,
+    901001,
+    901002,
+    901003,
+    901004,
+    901005,
+    901006,
+    901007,
+    901008,
+    901009,
+    901010,
+    901011,
+    901012,
+    901013,
+    901014,
+    901015,
+    901020,
+    901021,
+    901026,
+    901027,
+    901032,
+    901033,
+    901037,
+    901038,
+    901040,
+    901041,
+    901042,
+    901043,
+    901060,
+    901064,
+    901065,
+    901066,
+    901067,
+    901068,
+    901069,
+    901070,
+    901071,
+    901092,
+    901093,
+    901094,
+    901095,
+    901096,
+    901097,
+    901098,
+    901099
+  ],
+  "immutable_spawn_homes": true,
+  "runtime_food_state_only": true,
+  "runtime_raid_memory_only": true,
+  "runtime_raid_groups_only": true,
+  "llm_cards_explicit_opt_in": true,
+  "ordinary_roles_only": true,
+  "actors": [
+    {
+      "spawn_id": 901000,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901000",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 78.84711682419382,
+        "y": 591.7054193209677,
+        "z": 0.15,
+        "o": 3.337942194439156
+      }
+    },
+    {
+      "spawn_id": 901001,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901001",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 61.57348061512726,
+        "y": 607.7785116509801,
+        "z": 0.15,
+        "o": 3.7306412761378795
+      }
+    },
+    {
+      "spawn_id": 901002,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901002",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 20.000000000000004,
+        "y": 640.0,
+        "z": 0.15,
+        "o": 4.71238898038469
+      }
+    },
+    {
+      "spawn_id": 901003,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901003",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -2.961005941905384,
+        "y": 635.4327719506772,
+        "z": 0.15,
+        "o": 5.105088062083414
+      }
+    },
+    {
+      "spawn_id": 901004,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901004",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -38.847116824193826,
+        "y": 568.2945806790323,
+        "z": 0.15,
+        "o": 0.1963495408493627
+      }
+    },
+    {
+      "spawn_id": 901005,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901005",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -21.573480615127274,
+        "y": 552.2214883490199,
+        "z": 0.15,
+        "o": 0.5890486225480865
+      }
+    },
+    {
+      "spawn_id": 901006,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901006",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 7.754130164317109,
+        "y": 550.4358549596388,
+        "z": 0.15,
+        "o": 1.1780972450961718
+      }
+    },
+    {
+      "spawn_id": 901007,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901007",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 19.999999999999996,
+        "y": 556.0,
+        "z": 0.15,
+        "o": 1.5707963267948966
+      }
+    },
+    {
+      "spawn_id": 901008,
+      "entry": 295,
+      "label": "aiworld_lab_settlement_v8_901008",
+      "role": "innkeeper",
+      "living_role": "SERVICE",
+      "agent_type": 2,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 49.564145040361176,
+        "y": 592.2458698356829,
+        "z": 0.15,
+        "o": 3.5342917352885186
+      }
+    },
+    {
+      "spawn_id": 901009,
+      "entry": 514,
+      "label": "aiworld_lab_settlement_v8_901009",
+      "role": "blacksmith",
+      "living_role": "SERVICE",
+      "agent_type": 2,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 29.184402376762158,
+        "y": 602.1731087802709,
+        "z": 0.15,
+        "o": 4.319689898685966
+      }
+    },
+    {
+      "spawn_id": 901010,
+      "entry": 54,
+      "label": "aiworld_lab_settlement_v8_901010",
+      "role": "weapons_vendor",
+      "living_role": "SERVICE",
+      "agent_type": 2,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 10.815597623237846,
+        "y": 602.1731087802709,
+        "z": 0.15,
+        "o": 5.105088062083413
+      }
+    },
+    {
+      "spawn_id": 901011,
+      "entry": 74,
+      "label": "aiworld_lab_settlement_v8_901011",
+      "role": "armor_vendor",
+      "living_role": "SERVICE",
+      "agent_type": 2,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -2.17310878027088,
+        "y": 589.1844023767621,
+        "z": 0.15,
+        "o": 5.8904862254808625
+      }
+    },
+    {
+      "spawn_id": 901012,
+      "entry": 66,
+      "label": "aiworld_lab_settlement_v8_901012",
+      "role": "trade_vendor",
+      "living_role": "SERVICE",
+      "agent_type": 2,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -9.56414504036118,
+        "y": 567.7541301643171,
+        "z": 0.15,
+        "o": 0.39269908169872564
+      }
+    },
+    {
+      "spawn_id": 901013,
+      "entry": 151,
+      "label": "aiworld_lab_settlement_v8_901013",
+      "role": "general_vendor",
+      "living_role": "SERVICE",
+      "agent_type": 2,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 10.815597623237831,
+        "y": 557.8268912197291,
+        "z": 0.15,
+        "o": 1.1780972450961726
+      }
+    },
+    {
+      "spawn_id": 901014,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901014",
+      "role": "resident",
+      "living_role": "WORKER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 23.121445152258055,
+        "y": 564.3074355135483,
+        "z": 0.15,
+        "o": 1.7671458676442584
+      }
+    },
+    {
+      "spawn_id": 901015,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901015",
+      "role": "resident",
+      "living_role": "WORKER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 43.53884672967753,
+        "y": 584.6821677283871,
+        "z": 0.15,
+        "o": 3.337942194439155
+      }
+    },
+    {
+      "spawn_id": 901020,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901020",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 376.2428903045161,
+        "y": 638.3851289729034,
+        "z": 0.15,
+        "o": 4.516039439535328
+      }
+    },
+    {
+      "spawn_id": 901021,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901021",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 363.7571096954839,
+        "y": 575.6148710270967,
+        "z": 0.15,
+        "o": 1.3744467859455345
+      }
+    },
+    {
+      "spawn_id": 901026,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901026",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 40.245869835682875,
+        "y": 872.5641450403612,
+        "z": 0.15,
+        "o": 4.319689898685965
+      }
+    },
+    {
+      "spawn_id": 901027,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901027",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 15.75413016431711,
+        "y": 813.4358549596388,
+        "z": 0.15,
+        "o": 1.1780972450961718
+      }
+    },
+    {
+      "spawn_id": 901032,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901032",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 129.75413016431713,
+        "y": 289.56414504036115,
+        "z": 0.15,
+        "o": 5.105088062083414
+      }
+    },
+    {
+      "spawn_id": 901033,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901033",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 154.24586983568287,
+        "y": 230.43585495963882,
+        "z": 0.15,
+        "o": 1.9634954084936205
+      }
+    },
+    {
+      "spawn_id": 901037,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901037",
+      "role": "worker",
+      "living_role": "WORKER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -384.68629150101526,
+        "y": 476.68629150101526,
+        "z": 0.15,
+        "o": 2.356194490192345
+      }
+    },
+    {
+      "spawn_id": 901038,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901038",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -396.0,
+        "y": 456.0,
+        "z": 0.14999998251654295,
+        "o": 1.5707963267948966
+      }
+    },
+    {
+      "spawn_id": 901040,
+      "entry": 66,
+      "label": "aiworld_lab_settlement_v8_901040",
+      "role": "trader",
+      "living_role": "SERVICE",
+      "agent_type": 2,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 202.0,
+        "y": 603.0,
+        "z": 0.15,
+        "o": 0.0
+      }
+    },
+    {
+      "spawn_id": 901041,
+      "entry": 11328,
+      "label": "aiworld_lab_settlement_v8_901041",
+      "role": "driver",
+      "living_role": "WORKER",
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 218.0,
+        "y": 603.0,
+        "z": 0.15,
+        "o": 3.141592653589793
+      }
+    },
+    {
+      "spawn_id": 901042,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901042",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 210.0,
+        "y": 594.0,
+        "z": 0.15,
+        "o": 1.5707963267948966
+      }
+    },
+    {
+      "spawn_id": 901043,
+      "entry": 1423,
+      "label": "aiworld_lab_settlement_v8_901043",
+      "role": "guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 1,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 210.0,
+        "y": 612.0,
+        "z": 0.15,
+        "o": 4.71238898038469
+      }
+    },
+    {
+      "spawn_id": 901060,
+      "entry": 448,
+      "label": "aiworld_lab_settlement_v8_901060",
+      "role": "leader",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 3,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 463.99765625,
+        "y": 972.5791015625,
+        "z": 13.096685538770844,
+        "o": 0.0
+      }
+    },
+    {
+      "spawn_id": 901064,
+      "entry": 97,
+      "label": "aiworld_lab_settlement_v8_901064",
+      "role": "gatherer",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 3,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 447.99765625,
+        "y": 972.5791015625,
+        "z": 15.633231815945,
+        "o": 0.0
+      }
+    },
+    {
+      "spawn_id": 901065,
+      "entry": 97,
+      "label": "aiworld_lab_settlement_v8_901065",
+      "role": "camp_guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 3,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": 471.810546875,
+        "y": 981.58203125,
+        "z": 13.971383025233973,
+        "o": 3.9976420440164193
+      }
+    },
+    {
+      "spawn_id": 901066,
+      "entry": 285,
+      "label": "aiworld_lab_settlement_v8_901066",
+      "role": "fisher",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 4,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -407.7805875513491,
+        "y": 947.1586656123872,
+        "z": -2.775858205966627,
+        "o": 6.044855105219195
+      }
+    },
+    {
+      "spawn_id": 901067,
+      "entry": 285,
+      "label": "aiworld_lab_settlement_v8_901067",
+      "role": "fisher",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 4,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -394.6041438526982,
+        "y": 946.9120577872743,
+        "z": -3.1763244830828157,
+        "o": 4.976216813385595
+      }
+    },
+    {
+      "spawn_id": 901068,
+      "entry": 285,
+      "label": "aiworld_lab_settlement_v8_901068",
+      "role": "fisher",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 4,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -388.4668357822018,
+        "y": 946.1789451572018,
+        "z": -3.405102974340506,
+        "o": 3.572533366615672
+      }
+    },
+    {
+      "spawn_id": 901069,
+      "entry": 285,
+      "label": "aiworld_lab_settlement_v8_901069",
+      "role": "fisher",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 4,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -382.7109375,
+        "y": 949.9599609375,
+        "z": -2.577826120936253,
+        "o": 3.6540187726642133
+      }
+    },
+    {
+      "spawn_id": 901070,
+      "entry": 732,
+      "label": "aiworld_lab_settlement_v8_901070",
+      "role": "camp_guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 4,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -394.39126977161294,
+        "y": 980.3243936046775,
+        "z": -0.24784199814606592,
+        "o": 4.516039439535327
+      }
+    },
+    {
+      "spawn_id": 901071,
+      "entry": 732,
+      "label": "aiworld_lab_settlement_v8_901071",
+      "role": "camp_guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 4,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -420.73540315022575,
+        "y": 973.0433170848017,
+        "z": -0.43206131594821173,
+        "o": 5.639350543864079
+      }
+    },
+    {
+      "spawn_id": 901092,
+      "entry": 40,
+      "label": "aiworld_lab_settlement_v8_901092",
+      "role": "miner",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -393.78751069454785,
+        "y": 316.14631062604855,
+        "z": 3.41127448496061,
+        "o": 1.8530552369010385
+      }
+    },
+    {
+      "spawn_id": 901093,
+      "entry": 40,
+      "label": "aiworld_lab_settlement_v8_901093",
+      "role": "miner",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -411.2883143765226,
+        "y": 291.8185888842281,
+        "z": 2.477664404120377,
+        "o": 1.4459896976551518
+      }
+    },
+    {
+      "spawn_id": 901094,
+      "entry": 40,
+      "label": "aiworld_lab_settlement_v8_901094",
+      "role": "miner",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -399.2389691181197,
+        "y": 276.7974478480769,
+        "z": 6.455697265360601,
+        "o": 1.6332309800155893
+      }
+    },
+    {
+      "spawn_id": 901095,
+      "entry": 40,
+      "label": "aiworld_lab_settlement_v8_901095",
+      "role": "miner",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -408.3622472084723,
+        "y": 272.8204952508079,
+        "z": 6.139651441557221,
+        "o": 1.5133817926418192
+      }
+    },
+    {
+      "spawn_id": 901096,
+      "entry": 40,
+      "label": "aiworld_lab_settlement_v8_901096",
+      "role": "miner",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -424.9730352031409,
+        "y": 232.39811229724296,
+        "z": -0.580260689759886,
+        "o": 1.3946215794518217
+      }
+    },
+    {
+      "spawn_id": 901097,
+      "entry": 40,
+      "label": "aiworld_lab_settlement_v8_901097",
+      "role": "entrance_guard",
+      "living_role": "GUARD",
+      "agent_type": 1,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -405.0,
+        "y": 401.0,
+        "z": 3.0990019207623263,
+        "o": 4.7348899601219365
+      }
+    },
+    {
+      "spawn_id": 901098,
+      "entry": 257,
+      "label": "aiworld_lab_settlement_v8_901098",
+      "role": "forager",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -335.0,
+        "y": 365.0,
+        "z": 4.344324669189539,
+        "o": 3.343194768765213
+      }
+    },
+    {
+      "spawn_id": 901099,
+      "entry": 257,
+      "label": "aiworld_lab_settlement_v8_901099",
+      "role": "forager",
+      "living_role": "COMBATANT",
+      "agent_type": 5,
+      "world_faction_id": 5,
+      "capability": "ordinary_living_role",
+      "home": {
+        "x": -340.65685424949237,
+        "y": 359.34314575050763,
+        "z": 6.151841444247012,
+        "o": 3.2739964047263035
+      }
+    }
+  ]
+}
