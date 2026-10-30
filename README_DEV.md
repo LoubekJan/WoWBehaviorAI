@@ -228,6 +228,37 @@ Výsledky `PASS`, `FAIL` a `INCONCLUSIVE` oddělují dokončené řetězce,
 porušení pravidel a chybějící důkaz. Zdravé služby samy pracovní cyklus
 nepotvrzují. Tento test neopakuje úplný předchozí test přepadů.
 
+### Defias a všechny vesnické sklady
+
+V profilu `fields-v8` může Defias 901055 krást ze skladu jižní (1), horní
+(4), levé (5) i pravé (6) vesnice. Hlad a prázdný tábor nadále spouštějí
+výpravu; kandidát musí mít alespoň šest porcí. Zásobené vesnice se při
+dalších pokusech střídají. Sklady gnollů a samotných Defias nejsou cíle.
+
+Vybraný sklad se během výpravy, krádeže a zpáteční cesty nemění.
+Defias musí ke skladu skutečně dojít, pět sekund pracovat a nejvýše dvě
+porce odnést zpět do svého tábora. Každý sklad má vlastní stav zásob
+i počet ukradených porcí; přesun jídlo nevytváří. Strážný 901039 nadále
+chrání jižní sklad. Ostatní vesnice zatím nemají nově přidané stráže.
+Observer ukazuje jméno cílového skladu a odcizené porce tohoto skladu.
+
+Nové cesty používají vlastní průchozí body a stávající kontroly terénu,
+kolizí a viditelnosti. Domovy a klientská mapa zůstávají stejné. Starší
+profil `raids-v8` ponechává původní přepady pouze jižního skladu.
+[Nativní navigační důkaz](data/realm_lab/aiworldlab/preview-v8/warehouse-raid-nav-probe.json)
+ověřuje 28 směrovaných úseků nových cest; skutečné provedení přepadů
+se ověřuje samostatně.
+
+```bash
+python3 -m tools.realm_lab.warehouse_raid_acceptance runtime/lab/recordings/aiworld-SESSION --output runtime/lab/validation/warehouse-raid-acceptance.json
+```
+
+Výchozí fyzický test vyžaduje propojenou krádež, přepravu a předání ze
+všech čtyř skladů v jednom souvislém záznamu. Přepínač `--required-source`
+lze opakovat pro užší test; výsledek výslovně uvádí nepozorované sklady.
+Test kontroluje všech šest zásobáren a bilanci všech 40 řízených aktérů;
+nenahrazuje samostatný důkaz obrany strážným nebo celý test zemědělců.
+
 ## Přepady zásob — základ raids-v8
 
 Profil přidává ke zvěři, lovcům a třem spotřebitelům Defiase 901055 a

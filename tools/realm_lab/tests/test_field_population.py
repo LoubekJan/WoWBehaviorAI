@@ -132,6 +132,31 @@ class PublishedFieldTests(unittest.TestCase):
             next(actor for actor in candidate["agents"] if actor["spawn_id"] == 901016)["supply"]["accounting"][key] = value
             with self.subTest(key=key), self.assertRaises(fields.ProfileError): telemetry_contract.validate_snapshot(candidate, fields.PROFILE)
 
+    def test_only_fields_profile_raider_can_select_each_village_warehouse(self):
+        population = fields.Population.load()
+        warehouses = {field["id"]: field["warehouse"] for field in population.fields}
+        for source_id in warehouses:
+            candidate = frame()
+            raider = next(actor for actor in candidate["agents"] if actor["spawn_id"] == 901055)
+            source = next(actor["supply"]["depot"] for actor in candidate["agents"]
+                          if (actor.get("supply") or {}).get("depot_id") == source_id)
+            raider["raid"].update(source_depot_id=source_id, source_depot=copy.deepcopy(source))
+            counts = telemetry_contract.validate_snapshot(candidate, fields.PROFILE)
+            self.assertEqual(counts["managed"], 40)
+            raider["raid"]["source_depot"]["stock"] += 1
+            with self.assertRaises(fields.ProfileError):
+                telemetry_contract.validate_snapshot(candidate, fields.PROFILE)
+        for source_id in (True, 0, 2, 3, 7):
+            candidate = frame()
+            next(actor for actor in candidate["agents"] if actor["spawn_id"] == 901055)["raid"]["source_depot_id"] = source_id
+            with self.subTest(source_id=source_id), self.assertRaises(fields.ProfileError):
+                telemetry_contract.validate_snapshot(candidate, fields.PROFILE)
+        candidate = frame()
+        guard = next(actor for actor in candidate["agents"] if actor["spawn_id"] == 901039)
+        guard["raid"]["source_depot_id"] = 4
+        with self.assertRaises(fields.ProfileError):
+            telemetry_contract.validate_snapshot(candidate, fields.PROFILE)
+
 
 class FieldPopulationTests(unittest.TestCase):
     def setUp(self):

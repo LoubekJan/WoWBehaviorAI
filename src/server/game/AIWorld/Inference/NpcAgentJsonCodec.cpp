@@ -1,6 +1,7 @@
 /* This file is part of the TrinityCore Project. See AUTHORS file for Copyright information.
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "NpcAgentJsonCodec.h"
+#include "Agent/NpcAgentDialogue.h"
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -288,6 +289,26 @@ namespace
                     entity->Kind != (speech.Mode == "PLAYER_REPLY" ? "PLAYER" : "NPC")) return false;
             }
         }
+        if (context.Memories.size() > 6) return false;
+        std::size_t memoryBytes = 0;
+        for (auto it = context.Memories.begin(); it != context.Memories.end(); ++it)
+        {
+            auto const& memory = *it;
+            if (!memory.Id || !OneOf(memory.Kind, {"PLAYER_DIALOGUE", "NPC_DIALOGUE", "ACTION_RESULT"}) ||
+                !ValidateNpcAgentPlainText(memory.Speaker, 80, 32) ||
+                !ValidateNpcAgentPlainText(memory.Text) ||
+                (!memory.Response.empty() && !ValidateNpcAgentPlainText(memory.Response)) ||
+                (memory.Kind == "ACTION_RESULT" && !memory.Response.empty()) ||
+                std::any_of(context.Memories.begin(), it, [&](auto const& other) { return other.Id == memory.Id; }))
+                return false;
+            // Native retrieval binds the player by GUID; the wire verifies the
+            // grant/name too, without disclosing that private entity identity.
+            if (memory.Kind == "PLAYER_DIALOGUE" && (!context.Speech ||
+                context.Speech->Mode != "PLAYER_REPLY" || !context.Speech->Turn ||
+                context.Speech->Turn->Speaker != memory.Speaker)) return false;
+            memoryBytes += memory.Speaker.size() + memory.Text.size() + memory.Response.size();
+            if (memoryBytes > 3072) return false;
+        }
         return true;
     }
 }
@@ -353,9 +374,33 @@ std::string SerializeNpcAgentRequest(NpcAgentRequest const& request)
         else out << "null";
         out << '}';
     }
+    if (!c.Memories.empty())
+    {
+        out << ",\"memories\":[";
+        for (std::size_t i = 0; i < c.Memories.size(); ++i)
+        {
+            if (i) out << ',';
+            auto const& memory = c.Memories[i];
+            out << "{\"id\":" << memory.Id << ",\"age_ms\":" << memory.AgeMs << ",\"kind\":";
+            Quote(out, memory.Kind); out << ",\"speaker\":"; Quote(out, memory.Speaker);
+            out << ",\"text\":"; Quote(out, memory.Text);
+            out << ",\"response\":"; Quote(out, memory.Response); out << '}';
+        }
+        out << ']';
+    }
     out << "}}";
     auto result = out.str();
-    return result.size() <= NpcAgentRequestBodyLimit ? result : std::string();
+    if (result.size() <= NpcAgentRequestBodyLimit) return result;
+    if (c.Memories.empty()) return {};
+    // Escaping can expand an otherwise bounded UTF-8 episode. Do not let a
+    // recalled quote disable a valid action request: shed the least relevant
+    // episode, oldest first on ties. Never mutate the world-owned snapshot.
+    NpcAgentRequest smaller = request;
+    auto least = std::min_element(smaller.Context.Memories.begin(), smaller.Context.Memories.end(),
+        [](auto const& a, auto const& b)
+        { return a.Relevance != b.Relevance ? a.Relevance < b.Relevance : a.Id < b.Id; });
+    smaller.Context.Memories.erase(least);
+    return SerializeNpcAgentRequest(smaller);
 }
 
 bool ParseNpcAgentResponse(std::string_view json, NpcAgentResponse& response)

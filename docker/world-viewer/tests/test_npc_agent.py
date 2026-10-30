@@ -13,7 +13,8 @@ from app.telemetry import Agent, NpcAgent
 def metadata():
     return dict(name='Matěj', status='THINKING', last_action_result='ARRIVED',
                 active_action='MOVE_TO', request_id='18446744073709551615',
-                next_think_ms=2000, dialogue_count=12, last_speech='Mám hlad, zajdu do skladu.')
+                next_think_ms=2000, dialogue_count=12, memory_records=0, memory_recalled=0,
+                last_speech='Mám hlad, zajdu do skladu.')
 
 
 def payload():
@@ -41,6 +42,17 @@ class NpcAgentTelemetryTests(unittest.TestCase):
         self.assertNotIn('backstory', parsed.model_dump())
         self.assertNotIn('personality', parsed.model_dump())
 
+    def test_older_npc_metadata_defaults_memory_counts_without_exposing_contents(self):
+        legacy = metadata()
+        del legacy['memory_records']
+        del legacy['memory_recalled']
+        self.assertEqual(NpcAgent.model_validate(legacy).model_dump(), metadata())
+        maximum = NpcAgent.model_validate({**metadata(), 'memory_records': 96, 'memory_recalled': 6})
+        self.assertEqual(maximum.memory_records, 96)
+        self.assertEqual(maximum.memory_recalled, 6)
+        self.assertNotIn('memories', maximum.model_dump())
+        self.assertNotIn('relationships', maximum.model_dump())
+
     def test_ids_numeric_bounds_and_fields_are_strict(self):
         for field, invalid in (
             ('request_id', 1), ('request_id', '01'), ('request_id', '-1'),
@@ -48,10 +60,15 @@ class NpcAgentTelemetryTests(unittest.TestCase):
             ('next_think_ms', True), ('next_think_ms', '1000'),
             ('next_think_ms', 18446744073709551616), ('dialogue_count', -1),
             ('dialogue_count', 13), ('dialogue_count', True), ('dialogue_count', '1'),
+            ('memory_records', -1), ('memory_records', 97), ('memory_records', True),
+            ('memory_records', '1'), ('memory_records', 1.0), ('memory_records', None),
+            ('memory_recalled', -1), ('memory_recalled', 7), ('memory_recalled', True),
+            ('memory_recalled', '1'), ('memory_recalled', 1.0), ('memory_recalled', None),
             ('name', ''), ('name', '  '), ('name', 'x' * 33),
             ('status', 'x' * 81), ('last_action_result', 'x' * 129),
             ('active_action', 'x' * 33), ('last_speech', 'x' * 257),
             ('backstory', 'Private background'), ('model_api_key', 'private'),
+            ('memories', [{'text': 'Private player quote'}]), ('relationships', ['Private player']),
         ):
             with self.subTest(field=field, invalid=invalid), self.assertRaises(ValidationError):
                 NpcAgent.model_validate({**metadata(), field: invalid})
@@ -101,10 +118,13 @@ class NpcAgentTelemetryTests(unittest.TestCase):
             observed = client.get('/api/state').json()
             self.assertEqual(observed['agents'][0]['llm_agent'], metadata())
             self.assertEqual(len(observed['agents']), len(batch['agents']))
-            invalid = copy.deepcopy(batch)
-            invalid['agents'][0]['llm_agent']['dialogue_count'] = 13
-            self.assertEqual(client.post('/internal/telemetry', headers=headers, json=invalid).status_code, 422)
-            self.assertEqual(client.get('/api/state').json()['agents'][0]['llm_agent'], metadata())
+            for field, value in (('dialogue_count', 13), ('memory_records', 97), ('memory_recalled', 7),
+                                 ('memories', [{'text': 'Private player quote'}])):
+                invalid = copy.deepcopy(batch)
+                invalid['agents'][0]['llm_agent'][field] = value
+                with self.subTest(field=field):
+                    self.assertEqual(client.post('/internal/telemetry', headers=headers, json=invalid).status_code, 422)
+                    self.assertEqual(client.get('/api/state').json()['agents'][0]['llm_agent'], metadata())
 
 
 if __name__ == '__main__':

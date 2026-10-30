@@ -70,7 +70,8 @@ const ObserverModel = (() => {
     const npc = agent.llm_agent;
     return [["Jméno", npc.name], ["Stav rozhodování", npc.status], ["Probíhající činnost", npc.active_action],
       ["Poslední výsledek", npc.last_action_result], ["Požadavek", npc.request_id === "0" ? null : npc.request_id],
-      ["Další rozhodnutí", `${npc.next_think_ms} ms`], ["Zapamatované repliky", `${npc.dialogue_count} / 12`]];
+      ["Další rozhodnutí", `${npc.next_think_ms} ms`], ["Zapamatované repliky", `${npc.dialogue_count} / 12`],
+      ["Vzpomínky", `${npc.memory_records ?? 0} / 96`], ["Vybavené vzpomínky", `${npc.memory_recalled ?? 0} / 6`]];
   }
   function supplySupported(agent) {
     return agent.native_creature !== true && agent.position.source === "live" && agent.supply?.enabled === true;
@@ -126,7 +127,8 @@ const ObserverModel = (() => {
       ["Výsledek", raid.outcome], ["Protějšek NPC", raid.target_spawn_id],
       ["Zpozorování", raid.noticed], ["Zásahy stráže", raid.interceptions],
       ["Dokončené krádeže", raid.thefts], ["Doručení do tábora", raid.delivered], ["Zmařené pokusy", raid.prevented],
-      ["Zásobárna vesnice", raid.source_depot?.name], ["Jídlo ve vesnici", raid.source_depot?.stock],
+      [raid.role === "RAIDER" ? "Cílový sklad" : "Střežený sklad", raid.source_depot?.name],
+      ["Jídlo ve vesnici", raid.source_depot?.stock], ["Z tohoto skladu odcizeno", raid.source_depot?.stolen || "0"],
       ["Tábor", raid.camp_depot?.name], ["Jídlo v táboře", raid.camp_depot?.stock]];
   }
   function foodDepots(agents, mapId) {

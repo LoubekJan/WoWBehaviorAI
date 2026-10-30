@@ -43,6 +43,107 @@ TEST_CASE("NPC agent protocol escapes genuine lore and serializes bounded token 
     CHECK(body.find("RuntimeGuid") == std::string::npos);
 }
 
+TEST_CASE("NPC memory serializes source evidence without local ranks or identities", "[AIWorld][NpcAgent][Memory]")
+{
+    auto request = Request();
+    request.Context.Speech = NpcAgentSpeechContext{"PLAYER_REPLY", NpcAgentSpeechTurn{400, "Visitor", 8, "What do I prefer?"}};
+    request.Context.Memories = {{std::numeric_limits<uint64>::max(), 12345, "PLAYER_DIALOGUE", "Visitor",
+        "I prefer \"blue\" by the \\ river.", "You told me that.", 37}};
+    auto body = SerializeNpcAgentRequest(request);
+    REQUIRE_FALSE(body.empty());
+    CHECK(body.find("\"memories\":[{\"id\":18446744073709551615,\"age_ms\":12345") != std::string::npos);
+    CHECK(body.find("I prefer \\\"blue\\\" by the \\\\ river.") != std::string::npos);
+    CHECK(body.find("\"response\":\"You told me that.\"") != std::string::npos);
+    CHECK(body.find("Relevance") == std::string::npos);
+    CHECK(body.find("relevance") == std::string::npos);
+    CHECK(body.find("Guid") == std::string::npos);
+    CHECK(body.find("recipient_token\":8") != std::string::npos); // The current grant only.
+}
+
+TEST_CASE("NPC recalled memories enforce source and private reply boundaries", "[AIWorld][NpcAgent][Memory]")
+{
+    auto request = Request();
+    request.Context.Speech = NpcAgentSpeechContext{"PLAYER_REPLY", NpcAgentSpeechTurn{400, "Visitor", 8, "What do I prefer?"}};
+    request.Context.Memories = {{1, 1000, "PLAYER_DIALOGUE", "Visitor", "I prefer blue.", "I will remember."}};
+    REQUIRE_FALSE(SerializeNpcAgentRequest(request).empty());
+    SECTION("private memory without grant") { request.Context.Speech.reset(); }
+    SECTION("private memory during silence") { request.Context.Speech = NpcAgentSpeechContext{"SILENT", std::nullopt}; }
+    SECTION("private memory during initiation") { request.Context.Speech = NpcAgentSpeechContext{"INITIATE", std::nullopt}; }
+    SECTION("another player's private quote") { request.Context.Memories[0].Speaker = "Someone else"; }
+    SECTION("duplicate id") { request.Context.Memories.push_back(request.Context.Memories.front()); }
+    SECTION("zero id") { request.Context.Memories[0].Id = 0; }
+    SECTION("unknown source") { request.Context.Memories[0].Kind = "VERIFIED_MODEL_FACT"; }
+    SECTION("empty speaker") { request.Context.Memories[0].Speaker.clear(); }
+    SECTION("empty evidence") { request.Context.Memories[0].Text.clear(); }
+    SECTION("whitespace evidence") { request.Context.Memories[0].Text = "   "; }
+    SECTION("control in quote") { request.Context.Memories[0].Text = "old\nline"; }
+    SECTION("markup in response") { request.Context.Memories[0].Response = "|Hitem:1"; }
+    SECTION("formatting in speaker") { request.Context.Memories[0].Speaker = "\xE2\x80\xAE"; }
+    SECTION("too long quote") { request.Context.Memories[0].Text.assign(257, 'a'); }
+    SECTION("too many entries")
+    {
+        for (uint64 id = 2; id <= 7; ++id)
+        { auto memory = request.Context.Memories.front(); memory.Id = id; request.Context.Memories.push_back(memory); }
+    }
+    SECTION("total evidence UTF-8 budget")
+    {
+        request.Context.Memories.clear();
+        for (uint64 id = 1; id <= 6; ++id)
+            request.Context.Memories.push_back({id, 100, "NPC_DIALOGUE", "Bela", std::string(256, 'a'), std::string(256, 'b')});
+    }
+    SECTION("engine outcome cannot contain invented reply")
+    { request.Context.Memories[0].Kind = "ACTION_RESULT"; }
+    CHECK(SerializeNpcAgentRequest(request).empty());
+}
+
+TEST_CASE("NPC world memories need no speech grant and legacy requests omit empty memory", "[AIWorld][NpcAgent][Memory]")
+{
+    auto request = Request();
+    CHECK(SerializeNpcAgentRequest(request).find("\"memories\"") == std::string::npos);
+    request.Context.Memories = {{1, 1000, "NPC_DIALOGUE", "Bela", "The river is quiet.", ""},
+        {2, 500, "ACTION_RESULT", "Alda", "ARRIVED [MOVE_TO: a short route leg]", ""}};
+    auto body = SerializeNpcAgentRequest(request);
+    REQUIRE_FALSE(body.empty());
+    CHECK(body.find("\"kind\":\"ACTION_RESULT\"") != std::string::npos);
+    CHECK(body.find("\"response\":\"\"") != std::string::npos);
+}
+
+TEST_CASE("NPC memory expansion sheds least relevant evidence before disabling an action request", "[AIWorld][NpcAgent][Memory]")
+{
+    auto request = Request();
+    request.Context.Profile.Backstory.assign(8192, '"');
+    request.Context.Profile.Personality.assign(2048, '"');
+    request.Context.Actions.clear();
+    for (uint32 token = 1; token <= 32; ++token)
+        request.Context.Actions.push_back({token, "WAIT", std::string(256, 'a')});
+    std::string base = SerializeNpcAgentRequest(request);
+    REQUIRE_FALSE(base.empty());
+    // Get close to the encoded body cap using genuine JSON escaping, without
+    // increasing any typed field's byte or character budget.
+    for (auto& action : request.Context.Actions)
+    {
+        for (char& c : action.Description)
+        {
+            if (base.size() >= NpcAgentRequestBodyLimit - 300) break;
+            c = '"'; base = SerializeNpcAgentRequest(request);
+            REQUIRE_FALSE(base.empty());
+        }
+        if (base.size() >= NpcAgentRequestBodyLimit - 300) break;
+    }
+    REQUIRE(base.size() >= NpcAgentRequestBodyLimit - 300);
+    request.Context.Memories = {{1, 100, "NPC_DIALOGUE", "Bela", std::string(256, '"'), "", 0},
+        {2, 50, "NPC_DIALOGUE", "Bela", "HIGH_RELEVANCE", "", 20}};
+    auto pruned = SerializeNpcAgentRequest(request);
+    REQUIRE_FALSE(pruned.empty());
+    CHECK(pruned.size() <= NpcAgentRequestBodyLimit);
+    CHECK(pruned.find("\"id\":1,\"age_ms\":100") == std::string::npos);
+    CHECK(pruned.find("HIGH_RELEVANCE") != std::string::npos);
+    // The original world-owned snapshot is never mutated.
+    CHECK(request.Context.Memories.size() == 2);
+    CHECK(pruned.find("\"actions\":[") != std::string::npos);
+    CHECK(pruned.find("\"speech_targets\":[8]") != std::string::npos);
+}
+
 TEST_CASE("NPC agent protocol rejects malformed or oversized typed requests", "[AIWorld][NpcAgent]")
 {
     auto request = Request();

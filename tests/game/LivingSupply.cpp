@@ -766,6 +766,55 @@ TEST_CASE("Only completed theft transfers stock and its receipt shares the deliv
     Conserved(ledger);
 }
 
+TEST_CASE("Explicit village raider authority transfers every village independently and never camps", "[AIWorld][LivingSupply][Raiders]")
+{
+    auto ledger = SupplyFixture(6);
+    REQUIRE(ledger.ConfigureDepot(3));
+    REQUIRE(ledger.ConfigureDepot(4, 6));
+    REQUIRE_FALSE(ledger.RegisterRaider(301, 3, 1, 2, true));
+    REQUIRE(ledger.ConfigureDepot(5, 6));
+    REQUIRE(ledger.ConfigureDepot(6, 6));
+    REQUIRE(ledger.RegisterRaider(301, 3, 1, 2, true));
+    REQUIRE(ledger.RegisterRaider(301, 3, 1, 2, true));
+    REQUIRE_FALSE(ledger.RegisterRaider(301));
+    REQUIRE(ledger.RegisterRaider(302));
+    REQUIRE_FALSE(ledger.RegisterRaider(302, 3, 1, 2, true));
+    REQUIRE_FALSE(ledger.RegisterRaider(101, 3, 1, 2, true));
+    REQUIRE_FALSE(ledger.RegisterActor(301, 3, 2));
+    uint64 serial = 0;
+    for (uint32 source : {1u, 4u, 5u, 6u})
+    {
+        REQUIRE_FALSE(ledger.Steal(301, serial+1, source, 2, false).Success);
+        REQUIRE(ledger.GetDepot(source)->Stolen == 0);
+        auto theft = ledger.Steal(301, ++serial, source, 2, true);
+        REQUIRE(theft.Success);
+        REQUIRE(theft.Portions == 2);
+        REQUIRE(ledger.GetCargo(301) == 2);
+        REQUIRE(ledger.GetDepot(source)->Stock == 4);
+        REQUIRE(ledger.GetDepot(source)->Stolen == 2);
+        REQUIRE(ledger.Steal(301, serial, source, 2, true).Duplicate);
+        REQUIRE_FALSE(ledger.Steal(301, serial, source == 1 ? 4 : 1, 2, true).Success);
+        for (uint32 other : {1u, 2u, 4u, 5u, 6u})
+            REQUIRE_FALSE(ledger.Deliver(301, serial+1, other, 2, true).Success);
+        REQUIRE(ledger.Deliver(301, ++serial, 3, 2, true).Success);
+        REQUIRE(ledger.GetCargo(301) == 0);
+        Conserved(ledger);
+    }
+    for (uint32 forbidden : {0u, 2u, 3u, 7u})
+        REQUIRE_FALSE(ledger.Steal(301, serial+1, forbidden, 2, true).Success);
+    REQUIRE_FALSE(ledger.Steal(302, 1, 4, 2, true).Success);
+    REQUIRE(ledger.GetDepot(2)->Stolen == 0);
+    REQUIRE(ledger.GetDepot(3)->Stolen == 0);
+    REQUIRE(ledger.GetDepot(3)->Stock == 8);
+    REQUIRE(ledger.GetCounters().StolenTotal == 8);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 0);
+    uint64 sum = 0;
+    for (uint32 id : {1u, 2u, 3u, 4u, 5u, 6u}) sum += ledger.GetDepot(id)->Stolen;
+    REQUIRE(sum == ledger.GetCounters().StolenTotal);
+    Conserved(ledger);
+}
+
 TEST_CASE("A raider cannot exceed two cargo portions even across multiple completed thefts", "[AIWorld][LivingSupply][Raiders]")
 {
     auto ledger = RaidFixture();

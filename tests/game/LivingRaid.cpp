@@ -71,6 +71,75 @@ TEST_CASE("Only the reviewed controlled raider and guard receive raid capabiliti
     REQUIRE_FALSE(GuardCapability(901039, 725, AgentType::Guard, AgentControlMode::AIWorldControlled, false));
 }
 
+TEST_CASE("A hungry raider fairly rotates all stocked village sources without targeting camps", "[AIWorld][LivingRaid]")
+{
+    std::array<uint32, 4> stocks{6, 30, 30, 30};
+    uint32 previous = 0;
+    for (unsigned round = 0; round < 3; ++round)
+        for (uint32 expected : {1u, 4u, 5u, 6u})
+        {
+            auto selected = SelectSource(previous, true, stocks);
+            REQUIRE(selected.has_value());
+            REQUIRE(*selected == expected);
+            previous = *selected;
+        }
+    // Empty/low villages are skipped, including one depleted since the
+    // previous attempt; their eligibility returns when producers restock.
+    stocks = {5, 6, 0, 30};
+    REQUIRE(SelectSource(0, true, stocks) == 4);
+    REQUIRE(SelectSource(4, true, stocks) == 6);
+    REQUIRE(SelectSource(6, true, stocks) == 4);
+    stocks[2] = 6;
+    REQUIRE(SelectSource(4, true, stocks) == 5);
+    stocks = {0, 0, 0, 5};
+    REQUIRE_FALSE(SelectSource(6, true, stocks).has_value());
+    // Legacy raids retain their exact south-only behavior even when the
+    // caller supplies observations for other warehouse identifiers.
+    stocks = {5, 30, 30, 30};
+    REQUIRE_FALSE(SelectSource(0, false, stocks).has_value());
+    stocks[0] = 6;
+    REQUIRE(SelectSource(6, false, stocks) == 1);
+}
+
+TEST_CASE("Each village raid owns a bounded source-specific reversible corridor", "[AIWorld][LivingRaid]")
+{
+    for (auto const& spec : Sources)
+    {
+        REQUIRE(SourceFor(spec.Depot, true) == &spec);
+        REQUIRE((SourceFor(spec.Depot, false) != nullptr) == (spec.Depot == 1));
+        REQUIRE(spec.Count > 0);
+        REQUIRE(spec.Count <= spec.Route.size());
+        ActionPosition previous = Camp;
+        for (uint32 leg = 0; leg < spec.Count; ++leg)
+        {
+            REQUIRE(LivingReturnPolicy::Finite(spec.Route[leg]));
+            REQUIRE(spec.Route[leg].MapId == 725);
+            REQUIRE(Distance(previous, spec.Route[leg]) <= 384);
+            REQUIRE(std::hypot(spec.Route[leg].X-Camp.X, spec.Route[leg].Y-Camp.Y) <= RaiderHomeRadius);
+            previous = spec.Route[leg];
+        }
+        for (uint32 leg = spec.Count-1; leg > 0; --leg)
+            REQUIRE(Distance(spec.Route[leg], spec.Route[leg-1]) <= 384);
+        REQUIRE(SamePosition(spec.Point(), spec.Route[spec.Count-1]));
+        if (spec.Depot == 1) REQUIRE(SamePosition(spec.Point(), Source));
+        else
+        {
+            auto field = LivingFields::Field(spec.Depot);
+            REQUIRE(field != nullptr);
+            REQUIRE(SamePosition(spec.Point(), field->DepotPoint));
+            REQUIRE(ArrivalRadius(spec.Point()) == 1.9f);
+        }
+    }
+    for (uint32 forbidden : {0u, 2u, 3u, 7u, 99u})
+        REQUIRE_FALSE(SourceFor(forbidden, true));
+    REQUIRE(ArrivalRadius(Source) == 3);
+    REQUIRE(ArrivalRadius(Camp) == 3);
+    REQUIRE(ArrivalRadius(LivingFields::Fields[0].WorkPoints[0]) == 3);
+    auto shifted = LivingFields::Fields[0].DepotPoint;
+    shifted.X += 0.01f;
+    REQUIRE(ArrivalRadius(shifted) == 3);
+}
+
 TEST_CASE("Dense straight raid travel coalesces into bounded three-dimensional execution legs", "[AIWorld][LivingRaid]")
 {
     ActionPosition from{725, 0, 0, 0};

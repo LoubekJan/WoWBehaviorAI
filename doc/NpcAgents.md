@@ -2,8 +2,8 @@
 
 Volitelný režim předává výběr činností, řeči a animací modelu přes stávající
 AI bridge a jeho OpenAI-compatible HTTP klient. Model dostává životopis,
-osobnost, aktuální potřeby, výsledek poslední činnosti, blízké postavy a krátký
-rozhovor. Volí mezi nabídnutými pohyby, jídlem, odpočinkem, útěkem před skutečnou
+osobnost, aktuální potřeby, výsledek poslední činnosti, blízké postavy, krátký
+rozhovor a vybrané vlastní vzpomínky. Volí mezi nabídnutými pohyby, jídlem, odpočinkem, útěkem před skutečnou
 hrozbou, čekáním a zastavením. Engine ověřuje dosažitelnost a provádí akce.
 
 Připravené profily patří Matějovi (`901035`) a Běle (`901036`) na mapě 725.
@@ -62,8 +62,9 @@ náhradní činnost nevybírá pevná logika.
 
 Ve hře přijďte k Matějovi nebo Běle, vyberte dané NPC a napište například
 `/say Ahoj, jak se dnes máš?`. Odpověď se objeví jako řeč NPC. Postavy mohou
-oslovovat také blízké NPC a reagovat na jejich řeč. Rozhovor má nejvýše 12
-položek; historie rozhovoru se nyní neukládá a restart ji vymaže.
+oslovovat také blízké NPC a reagovat na jejich řeč. Bezprostřední kontext rozhovoru
+má nejvýše 12 položek; starší události lze vybavit z oddělené paměti popsané níže.
+Obě vrstvy zatím žijí jen v paměti procesu a restart je vymaže.
 Zprávy s řídicími znaky nebo WoW značkami, například odkazy na předměty,
 se do rozhovoru NPC nepředávají. Běžné zobrazení hráčovy řeči zůstává zachováno.
 
@@ -80,6 +81,48 @@ modelu mluvit a odmítnutí řeči nezahazuje jinak platné rozhodnutí o pohybu
 
 Zprávy NPC nesou v chatu jejich autorské jméno, například Matěj nebo Běla.
 Jméno na štítku vybrané bytosti nadále vychází ze společné herní šablony.
+
+## Paměť během běhu světa
+
+Každé LLM NPC má vlastní omezenou epizodickou paměť. Zaznamenává přijaté
+hráčské výroky a odpověď až po jejím skutečném doručení, vlastní veřejné promluvy,
+řeč ostatních NPC, kterou opravdu slyšelo, a výsledky činností potvrzené enginem.
+Nedokončený přesun, zamítnutá cesta či návrh jídla nejsou úspěšnou událostí.
+`ARRIVED` potvrzuje dokončení krátkého úseku cesty; popisek nabídky sám nedokazuje,
+že postava dorazila do celého cíle. Opakující se výsledky stejné činnosti se slučují,
+běžné čekání a každý rozhodovací tick nevytvářejí nové vzpomínky.
+
+Soukromé rozhovory patří dvojici konkrétního NPC a hráče, určeného jeho interním
+GUID. Model je dostane jen při odpovědi tomuto hráči. Hráč se stejným zobrazovaným
+jménem, okolní NPC ani samovolné rozhodování k nim přístup nemají. GUID ani staré
+akční a adresovací tokeny se do vzpomínek pro model neposílají. NPC si tak může
+vybavit například to, co mu hráč řekl o své oblíbené barvě, aniž by tuto informaci
+automaticky znaly ostatní postavy.
+
+Paměť uchovává přesné citace s původem a stářím, nikoli modelové shrnutí vydávané
+za pravdu. Výrok hráče je jeho tvrzení; stará vlastní odpověď NPC může být chybná.
+Aktuální potřeby a stav enginu mají před starými výroky přednost. Vzpomínka není
+pokyn k provedení činnosti ani povolení promluvit. Přesnost toho, jak ji model
+využije v odpovědi, stále závisí na modelu.
+
+Kapacita jednoho NPC je nejvýše 64 soukromých epizod celkem, 32 pro jednoho hráče
+a osm různých hráčů; veřejná paměť má nejvýše 32 položek. Při zaplnění se starší
+záznamy vyřazují. Podle tématu aktuální otázky a stáří se vybere nejvýše šest
+vzpomínek, dohromady do 3072 UTF-8 bajtů textu. Vyhledávání je místní, podle slov
+a jejich jednoduchých tvarů; nepoužívá další LLM požadavek, embeddingový server
+ani databázi. Při překročení celkového limitu HTTP 32 KiB se nejméně relevantní
+vzpomínky odeberou, aby neblokovaly jinak platné rozhodnutí o činnosti.
+
+Paměť stejného registrovaného NPC přežije znovupřivázání herní bytosti po změně
+runtime GUID, ale ne restart worldserveru. Nevytváří soubory ani tabulky v databázi.
+V přehledu NPC jsou jen počty `Vzpomínky` a `Vybavené vzpomínky`; soukromý obsah
+se do veřejné telemetrie ani záznamu světa neexportuje.
+
+Pro ruční ověření vyberte Matěje a napište například
+`/say Moje oblíbená barva je modrá.` Po několika dalších výměnách se zeptejte
+`/say Jaká je moje oblíbená barva?`. Pro ověření starší paměti proveďte alespoň
+sedm dalších výměn, aby první věta vypadla z dvanáctipoložkové historie. Běla tuto
+Matějovu soukromou vzpomínku při stejné otázce nedostane.
 
 ## Vlastní životopis
 

@@ -17,6 +17,9 @@ struct NpcAgentTelemetry
     uint64 RequestId = 0;
     uint64 NextThinkMs = 0; // remaining delay, not an absolute timestamp
     uint32 DialogueCount = 0;
+    // Counts only: private memories and their participants never enter telemetry.
+    uint32 MemoryRecords = 0;
+    uint32 MemoryRecalled = 0;
     std::string LastSpeech;
 };
 

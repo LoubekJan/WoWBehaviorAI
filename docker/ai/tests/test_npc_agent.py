@@ -19,7 +19,10 @@ from app.model_provider import (
     ModelProviderUnavailable,
     OpenAICompatibleTaskProvider,
 )
-from app.npc_agent import MAX_REQUEST_BYTES, PLAYER_REPLY_PROMPT, get_npc_config, get_npc_provider
+from app.npc_agent import (
+    MAX_MEMORY_TEXT_BYTES, MAX_REQUEST_BYTES, MEMORY_PROMPT, PLAYER_REPLY_PROMPT,
+    get_npc_config, get_npc_provider,
+)
 
 CONFIG = ModelProviderConfig(True, "http://model.invalid/v1/chat/completions", "local", 1000, 32768, 8192, 512)
 DECISION = {"action_token": 5, "speech": "Dobrý den, poutníku.", "speech_target": 7, "emote": "WAVE"}
@@ -100,6 +103,154 @@ class NpcAgentTests(unittest.TestCase):
             "recipient_token": 8 if npc else 7, "text": "Jak se znáš s Tomášem?",
         } if turn else None}
         return request
+
+    def memory_episode(self, **fields):
+        return dict({"id": 1, "age_ms": 120000, "kind": "PLAYER_DIALOGUE",
+            "speaker": "Poutník", "text": "Moje oblíbená barva je modrá.",
+            "response": "Budu si to pamatovat."}, **fields)
+
+    def test_recalled_player_episode_reaches_focused_provider_beyond_recent_history(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["speech"]["turn"]["text"] = "Jaká je moje oblíbená barva?"
+        request["context"]["recent_dialogue"] = [
+            {"speaker": "Poutník", "text": f"Nesouvisející zpráva {i}.", "kind": "PLAYER"}
+            for i in range(12)]
+        request["context"]["memories"] = [self.memory_episode()]
+        calls = []
+        def model(outgoing):
+            calls.append(json.loads(outgoing.content))
+            return httpx.Response(200, json={"choices": [{"message": {
+                "content": json.dumps(dict(DECISION, speech="Říkal jsi mi, že máš rád modrou."))}}]})
+        self.provider = OpenAICompatibleTaskProvider(CONFIG, httpx.MockTransport(model))
+        response = self.post(request)
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = json.loads(calls[0]["messages"][1]["content"])
+        self.assertEqual(payload["reply_focus"]["question"], "Jaká je moje oblíbená barva?")
+        self.assertEqual(payload["memories"], request["context"]["memories"])
+        self.assertNotIn("modrá", json.dumps(payload["recent_dialogue"], ensure_ascii=False))
+        self.assertEqual(calls[0]["messages"][0]["content"], PLAYER_REPLY_PROMPT + "\n" + MEMORY_PROMPT)
+        self.assertEqual(response.json()["decision"]["speech_target"], 7)
+
+    def test_public_memory_reaches_all_speech_modes_without_granting_speech(self):
+        for mode in (None, "SILENT", "INITIATE", "NPC_REPLY", "PLAYER_REPLY"):
+            with self.subTest(mode=mode):
+                request = copy.deepcopy(REQUEST) if mode is None else self.request_with_speech(
+                    mode, turn=mode.endswith("REPLY"))
+                request["context"]["memories"] = [self.memory_episode(kind="NPC_DIALOGUE", speaker="Tomas",
+                    text="Myslím, že je zásob dost.", response="")]
+                response = self.post(request)
+                self.assertEqual(response.status_code, 200, response.text)
+                prompt, payload = self.provider.calls[-1]
+                self.assertEqual(payload["memories"], request["context"]["memories"])
+                self.assertIn(MEMORY_PROMPT, prompt)
+                if mode == "SILENT":
+                    self.assertEqual(response.json()["decision"], dict(DECISION, speech="", speech_target=0))
+
+    def test_memory_scope_is_exact_direct_player_not_other_players_or_npc_context(self):
+        for mode in (None, "SILENT", "INITIATE", "NPC_REPLY", "PLAYER_REPLY"):
+            with self.subTest(mode=mode):
+                request = copy.deepcopy(REQUEST) if mode is None else self.request_with_speech(
+                    mode, turn=mode.endswith("REPLY"))
+                request["context"]["memories"] = [self.memory_episode(speaker="SomeoneElse" if mode == "PLAYER_REPLY" else "Poutník")]
+                self.assertEqual(self.post(request).status_code, 422)
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["memories"] = [self.memory_episode(speaker="Poutník ")]
+        self.assertEqual(self.post(request).status_code, 422)
+        self.assertEqual(self.provider.calls, [])
+
+    def test_memory_has_strict_required_fields_types_and_safe_bounded_text(self):
+        invalid = (("id", 0), ("id", True), ("id", "1"), ("id", 1.0), ("id", 2**64),
+            ("age_ms", -1), ("age_ms", True), ("age_ms", "2"), ("age_ms", 2**64),
+            ("kind", "FACT"), ("kind", "SELF"), ("kind", 1),
+            ("speaker", ""), ("speaker", " "), ("speaker", "\u00a0"), ("speaker", "x" * 33), ("speaker", "界" * 27),
+            ("speaker", "bad\nname"), ("text", ""), ("text", "  "), ("text", "x" * 257),
+            ("text", "😀" * 193), ("text", "hello\nworld"), ("text", "a|Hitem:1|hitem|h"),
+            ("text", "hello\u202eworld"), ("text", 7), ("response", None),
+            ("response", " "), ("response", "\u00a0"), ("response", "x" * 257),
+            ("response", "😀" * 193), ("response", "a\tresponse"),
+            ("response", "|cfffffffffake|r"), ("extra", "forbidden"),
+            ("recipient_token", 7), ("player_guid", "untrusted-guid"))
+        for field, value in invalid:
+            with self.subTest(field=field, value=str(value)[:35]):
+                request = self.request_with_speech("PLAYER_REPLY")
+                request["context"]["memories"] = [self.memory_episode(**{field: value})]
+                self.assertEqual(self.post(request).status_code, 422)
+        for field in self.memory_episode():
+            with self.subTest(missing=field):
+                request = self.request_with_speech("PLAYER_REPLY")
+                episode = self.memory_episode()
+                del episode[field]
+                request["context"]["memories"] = [episode]
+                self.assertEqual(self.post(request).status_code, 422)
+        self.assertEqual(self.provider.calls, [])
+
+    def test_memory_array_capacity_duplicate_identity_and_engine_provenance(self):
+        for memories in (None, {}, "memories", [False],
+            [self.memory_episode(id=i + 1) for i in range(7)],
+            [self.memory_episode(), self.memory_episode(text="Different episode, same identity.")],
+            [self.memory_episode(kind="ACTION_RESULT", response="I claim the meal finished.")]):
+            with self.subTest(memories=str(memories)[:60]):
+                request = self.request_with_speech("PLAYER_REPLY")
+                request["context"]["memories"] = memories
+                self.assertEqual(self.post(request).status_code, 422)
+        self.assertEqual(self.provider.calls, [])
+
+    def test_memory_accepts_uint64_and_unicode_scalar_byte_boundaries(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["speech"]["turn"]["speaker"] = "ě" * 32
+        request["context"]["nearby"][0]["name"] = "ě" * 32
+        request["context"]["memories"] = [self.memory_episode(
+            id=2**64-1, age_ms=2**64-1, speaker="ě" * 32, text="界" * 256, response="界" * 256)]
+        response = self.post(request)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.provider.calls[-1][1]["memories"], request["context"]["memories"])
+
+    def test_memory_aggregate_utf8_budget_accepts_exact_boundary_rejects_one_byte_more(self):
+        request = self.request_with_speech("SILENT", turn=False)
+        request["context"]["memories"] = [
+            self.memory_episode(kind="NPC_DIALOGUE", speaker="Mira", text="界" * 256, response="界" * 256),
+            self.memory_episode(id=2, kind="NPC_DIALOGUE", speaker="Mira", text="界" * 256, response="界" * 253 + "x")]
+        episodes = request["context"]["memories"]
+        self.assertEqual(sum(len(episode[key].encode("utf-8")) for episode in episodes
+            for key in ("speaker", "text", "response")), MAX_MEMORY_TEXT_BYTES)
+        self.assertEqual(self.post(request).status_code, 200)
+        episodes[1]["response"] += "x"
+        self.assertEqual(self.post(request).status_code, 422)
+        self.assertEqual(len(self.provider.calls), 1)
+
+    def test_six_small_memory_records_and_empty_engine_response_are_accepted(self):
+        request = self.request_with_speech("SILENT", turn=False)
+        request["context"]["memories"] = [self.memory_episode(id=i + 1, kind="ACTION_RESULT",
+            speaker="Mira", text="ARRIVED [MOVE_TO: short leg]", response="") for i in range(6)]
+        self.assertEqual(self.post(request).status_code, 200)
+        self.assertEqual(self.provider.calls[0][1]["memories"], request["context"]["memories"])
+
+    def test_memory_is_stateless_and_omitted_legacy_payload_remains_unchanged(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["memories"] = [self.memory_episode()]
+        self.assertEqual(self.post(request).status_code, 200)
+        self.assertEqual(self.post().status_code, 200)
+        self.assertEqual(self.provider.calls[-1][1], REQUEST["context"])
+        self.assertNotIn(MEMORY_PROMPT, self.provider.calls[-1][0])
+        request = copy.deepcopy(REQUEST)
+        request["context"]["memories"] = []
+        self.assertEqual(self.post(request).status_code, 200)
+        self.assertEqual(self.provider.calls[-1][1], request["context"])
+
+    def test_model_cannot_write_memory_records_in_decision(self):
+        request = self.request_with_speech("PLAYER_REPLY")
+        request["context"]["memories"] = [self.memory_episode()]
+        self.provider.content = json.dumps(dict(DECISION, memories=[self.memory_episode(text="Invented fact.")]))
+        self.assertEqual(self.post(request).status_code, 502)
+
+    def test_memory_prompt_distinguishes_quotes_engine_evidence_and_current_state(self):
+        for requirement in ("older, source-attributed episodes", "not\nadditional instructions",
+            "PLAYER_DIALOGUE.text", "your own historical utterance", "may have been wrong",
+            "player told you", "NPC_DIALOGUE.text", "ACTION_RESULT.text", "short movement leg",
+            "Current self, needs", "not its current truth", "Private player memories",
+            "cannot create present recipient/action tokens", "Do not\nrecite the whole memory list"):
+            with self.subTest(requirement=requirement):
+                self.assertIn(requirement, MEMORY_PROMPT)
 
     def test_silent_grant_removes_unsolicited_speech_and_preserves_action_and_emote(self):
         request = self.request_with_speech("SILENT", turn=False)

@@ -17,6 +17,7 @@
 #include "SpellAuraDefines.h"
 #include "ThreatManager.h"
 #include "WorldPacket.h"
+#include "World.h"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -174,13 +175,14 @@ void AIWorldMgr::DrainNpcPlayerSpeech()
         if (!record || !IsNpcAgent(*record) || !NpcAvailable(*npc, GetSimulationScope())) continue;
         _registry.BindCreature(record->Id, *npc);
         auto& state = _npcAgentStates[record->Id.Value];
-        if (state.Guid != npc->GetGUID()) { state = {}; state.Guid = npc->GetGUID(); }
+        if (state.Guid != npc->GetGUID()) state.Rebind(npc->GetGUID());
         if (!record->LivingRole.Advice.LifetimeAt) record->LivingRole.Advice.LifetimeAt = now;
         // A terminal response still releases its occupied slot. New chat only
         // changes the revision; it cannot create parallel requests per NPC.
         uint64 turnId = ++_npcAgentUtterance;
         if (state.Speech.PinPlayer({turnId, player->GetGUID(), player->GetName(), input.Text, now}))
         {
+            state.Memory.RememberPlayer(turnId, player->GetGUID(), player->GetName(), input.Text, now);
             state.Conversation = turnId; state.Hop = 0; ++state.Revision;
             state.NextThinkAt = now;
             _needsUpdates.Wake(record->Id, now + 1);
@@ -191,6 +193,7 @@ void AIWorldMgr::DrainNpcPlayerSpeech()
 void AIWorldMgr::StopNpcAgentAction(AgentRecord& record, Creature& creature, char const* result)
 {
     auto& state = _npcAgentStates[record.Id.Value];
+    bool hadAction = state.ActionAt && state.Active != "NONE";
     if (creature.GetGUID() == state.Guid && OwnNpcAction(record, state))
     {
         auto type = record.ActiveActionState->Type;
@@ -206,6 +209,9 @@ void AIWorldMgr::StopNpcAgentAction(AgentRecord& record, Creature& creature, cha
     }
     state.Active = "NONE"; state.LastResult = result; state.ActionAt = state.ActionUntil = 0;
     state.MealDepot = 0; ++state.Revision; state.NextThinkAt = GetCurrentTimeMs();
+    if (hadAction)
+        if (auto const* profile = _npcAgentProfiles.Get(record.Id))
+            state.Memory.RememberAction(profile->Name, NpcAgentActionFeedback(result, state.LastChoice), state.NextThinkAt);
 }
 
 void AIWorldMgr::NpcAgentActionCompleted(AgentRecord& record, ActionCompletion const& completion)
@@ -217,6 +223,8 @@ void AIWorldMgr::NpcAgentActionCompleted(AgentRecord& record, ActionCompletion c
         completion.SourceGoal != record.ActiveActionState->SourceGoal) return;
     auto& state = found->second;
     state.LastResult = completion.Status == ActionCompletionStatus::Succeeded && completion.Reason == ActionCompletionReason::Arrived ? "ARRIVED" : "MOVE_FAILED";
+    if (auto const* profile = _npcAgentProfiles.Get(record.Id))
+        state.Memory.RememberAction(profile->Name, NpcAgentActionFeedback(state.LastResult, state.LastChoice), GetCurrentTimeMs());
     state.Active = "NONE"; state.ActionAt = state.ActionUntil = 0; ++state.Revision;
     state.NextThinkAt = completion.CompletedAtMs;
     record.ActiveGoalState.reset(); record.LivingRole.CurrentPhase = Phase::Idle;
@@ -230,7 +238,15 @@ bool AIWorldMgr::ExecuteNpcAgentAction(AgentRecord& record, Creature& creature,
     auto& state = _npcAgentStates[record.Id.Value];
     if (binding.Type != "WAIT")
         state.LastChoice = binding.Type + (binding.Label.empty() ? "" : ": " + binding.Label);
-    auto reject = [&](std::string const& reason) { state.LastResult = reason; return false; };
+    auto reject = [&](std::string const& reason)
+    {
+        state.LastResult = reason;
+        if (binding.Type != "WAIT" && reason != "ACTOR_UNAVAILABLE" && reason != "OWN_ACTION_BUSY" &&
+            reason != "ENGINE_ACTION_BUSY" && reason != "ALREADY_FLEEING")
+            if (auto const* profile = _npcAgentProfiles.Get(record.Id))
+                state.Memory.RememberAction(profile->Name, NpcAgentActionFeedback(reason, state.LastChoice), now);
+        return false;
+    };
     if (!IsNpcAgent(record) || state.Guid != creature.GetGUID() || !NpcAvailable(creature, GetSimulationScope())) return reject("ACTOR_UNAVAILABLE");
     if (binding.Type == "WAIT") return true;
     if (binding.Type == "STOP") { StopNpcAgentAction(record, creature, "STOPPED_BY_MODEL"); return true; }
@@ -292,7 +308,7 @@ bool AIWorldMgr::ExecuteNpcAgentAction(AgentRecord& record, Creature& creature,
     }
     else if (binding.Type != "REST") return reject("UNKNOWN_ACTION");
     auto validation = _actionSystem.Validate(request, context);
-    if (!validation.Allowed) { state.LastResult = ToString(validation.Reason); return false; }
+    if (!validation.Allowed) return reject(ToString(validation.Reason));
     ActionResult result = request.Type == ActionType::MoveTo ? _actionExecutor.ExecuteMoveTo(request, creature) :
         request.Type == ActionType::Flee ? _actionExecutor.ExecuteFlee(request, creature, *threat, 0, &GetSimulationScope()) :
         _actionExecutor.ExecuteAmbient(request, creature);
@@ -325,7 +341,7 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
         // Registry binding already releases the previous incarnation's proven
         // leases. Initializing this controller must not erase another current
         // engine owner's action without performing its own ownership checks.
-        state = {}; state.Guid = creature.GetGUID();
+        state.Rebind(creature.GetGUID());
     }
     if (!state.ActionAt && !record.ActiveGoalState && !record.ActiveActionState)
         record.LivingRole.RuntimeGuid = state.Guid;
@@ -492,6 +508,15 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
         }
     }
     else if (state.Speech.CanInitiate(scene, !context.Nearby.empty(), now)) context.Speech->Mode = "INITIATE";
+    // Only the exact pending player can retrieve private evidence. Ambient and
+    // NPC exchanges receive public observations and the NPC's own engine events.
+    ObjectGuid memoryPlayer = context.Speech->Mode == "PLAYER_REPLY" && state.Speech.PlayerTurn ?
+        state.Speech.PlayerTurn->Partner : ObjectGuid::Empty;
+    std::string memoryQuery = turn ? turn->Text : state.LastChoice;
+    context.Memories = state.Memory.Retrieve(now, memoryQuery, memoryPlayer,
+        memoryPlayer.IsEmpty() ? 0 : state.Speech.PlayerTurn->Id,
+        memoryPlayer.IsEmpty() ? std::string{} : state.Speech.PlayerTurn->Name);
+    state.MemoryRecalled = uint32(context.Memories.size());
     AIRequest transport; transport.NpcAgent = request;
     transport.NpcProvenance = {state.Guid, state.Revision, turn ? turn->Id : 0, turn ? turn->Partner : ObjectGuid::Empty};
     uint64 submitted = _aiClient->SubmitNpcAgent(std::move(transport));
@@ -523,17 +548,27 @@ bool AIWorldMgr::EmitNpcAgentSpeech(AgentRecord& record, Creature& creature, Npc
     if (!playerReply && !_npcAgentConversationGuard.Admit(speech, now)) return false;
     if (!SendNpcAgentChat(creature, target, speech.SpeakerName, text, playerReply)) return false;
     if (!state.Speech.CommitSent(mode, turnId, partner, speech, now)) return false;
-    if (playerReply) { ++state.Revision; return true; }
+    if (playerReply)
+    {
+        state.Memory.RememberPlayerReply(turnId, partner, text, now);
+        ++state.Revision; return true;
+    }
+    state.Memory.RememberNpc(speech.UtteranceId, speech.SpeakerName, text, now);
     auto ownLine = speech; ownLine.Kind = "SELF"; state.Dialogue.Remember(ownLine);
     for (auto& [id, other] : _npcAgentStates)
     {
-        if (id == record.Id.Value || (recipient && other.Guid != recipient->Guid)) continue;
-        ExpireNpcSpeechTurns(other, now);
-        if (other.Speech.PlayerTurn || !other.Speech.CanAmbient(now)) continue;
+        if (id == record.Id.Value) continue;
         AgentRecord* receiverRecord = _registry.Find(AgentId{id});
         Creature* receiver = receiverRecord && IsNpcAgent(*receiverRecord) ? creature.GetMap()->GetCreature(other.Guid) : nullptr;
         if (!receiver || !NpcAvailable(*receiver, GetSimulationScope()) || !VisiblePartner(*receiver, creature) ||
-            !other.Dialogue.Remember(speech) || !other.Speech.PinNpc({speech.UtteranceId, creature.GetGUID(), speech.SpeakerName, text, now}, now)) continue;
+            !receiver->InSamePhase(&creature) || !receiver->IsWithinDistInMap(&creature, sWorld->getFloatConfig(CONFIG_LISTEN_RANGE_SAY))) continue;
+        // Hearing is evidence, not a request to speak. It must not replace or
+        // invalidate a pending private player turn, nor bypass speech budgets.
+        other.Memory.RememberNpc(speech.UtteranceId, speech.SpeakerName, text, now);
+        if (recipient && other.Guid != recipient->Guid) continue;
+        ExpireNpcSpeechTurns(other, now);
+        if (other.Speech.PlayerTurn || !other.Speech.CanAmbient(now) || !other.Dialogue.Remember(speech) ||
+            !other.Speech.PinNpc({speech.UtteranceId, creature.GetGUID(), speech.SpeakerName, text, now}, now)) continue;
         other.Conversation = speech.ConversationId; other.Hop = speech.Hop; ++other.Revision;
         other.NextThinkAt = std::min(other.NextThinkAt, now + 2000);
     }
@@ -614,6 +649,8 @@ std::optional<NpcAgentTelemetry> AIWorldMgr::DescribeNpcAgent(Creature const& cr
     telemetry.LastActionResult = state.LastResult; telemetry.ActiveAction = state.Active; telemetry.RequestId = state.RequestId;
     uint64 now = GetCurrentTimeMs(); telemetry.NextThinkMs = state.NextThinkAt > now ? state.NextThinkAt-now : 0;
     telemetry.DialogueCount = uint32(state.Dialogue.Lines().size());
+    telemetry.MemoryRecords = uint32(state.Memory.Size());
+    telemetry.MemoryRecalled = state.MemoryRecalled;
     for (auto line = state.Dialogue.Lines().rbegin(); line != state.Dialogue.Lines().rend(); ++line)
         if (line->Kind == "SELF") { telemetry.LastSpeech = line->Text; break; }
     return telemetry;

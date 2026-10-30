@@ -41,6 +41,7 @@ class _Evaluator(consumers._Evaluator):
     def __init__(self, minimum_seconds=900, max_gap_seconds=5):
         super().__init__(minimum_seconds, max_gap_seconds, consumers=CONSUMERS, raiders=RAIDERS,
                          depots={3: population.DEPOT["position"]})
+        self.raid_source_depot_ids = frozenset((1,))
         self.raid_track = RaidTrack()
         self.previous_guard = None
 
@@ -71,6 +72,9 @@ class _Evaluator(consumers._Evaluator):
             track.blocked_work.add(track.work["key"])
         track.work = None
 
+    def work_radius(self, row, phase):
+        return 3.01
+
     def observe_work(self, track, row):
         phase = row["raid"]["phase"]
         if phase not in ("STEALING", "DELIVERING"):
@@ -81,7 +85,7 @@ class _Evaluator(consumers._Evaluator):
             self.break_work(track)
         distance_key = "source_distance" if phase == "STEALING" else "camp_distance"
         started = row["role"].get("started_at_ms")
-        valid = (row["alive"] and self.owned_work(row, phase) and row[distance_key] <= 3.01 and
+        valid = (row["alive"] and self.owned_work(row, phase) and row[distance_key] <= self.work_radius(row, phase) and
                  supply.positive_int(started) and started >= row["life"])
         if not valid:
             track.blocked_work.add(key)
@@ -148,14 +152,16 @@ class _Evaluator(consumers._Evaluator):
         expected_role, peer = ("RAIDER", GUARD) if sid == RAIDER else ("GUARD", RAIDER)
         counts = {key: supply.counter(raid.get(key)) for key in RAID_COUNTERS}
         attempt = supply.counter(raid.get("attempt_id"))
+        source_id = raid.get("source_depot_id")
+        allowed_sources = self.raid_source_depot_ids if sid == RAIDER else (1,)
         if (raid.get("role") != expected_role or supply.counter(raid.get("target_spawn_id")) != peer or
             attempt is None or any(value is None for value in counts.values()) or
             not isinstance(raid.get("phase"), str) or not 0 < len(raid["phase"]) <= 80 or
             not isinstance(raid.get("outcome"), str) or len(raid["outcome"]) > 100 or
-            (raid.get("source_depot_id"), raid.get("camp_depot_id")) != (1, 3)):
+            type(source_id) is not int or source_id not in allowed_sources or raid.get("camp_depot_id") != 3):
             self.violation("invalid_raid_capability_attempt_or_counter", sid)
             return None
-        for key, depot_id in (("source_depot", 1), ("camp_depot", 3)):
+        for key, depot_id in (("source_depot", source_id), ("camp_depot", 3)):
             depot = raid.get(key)
             if not isinstance(depot, dict) or supply.point(depot.get("position")) is None:
                 self.quality["missing_raid_depot"] += 1
@@ -168,7 +174,7 @@ class _Evaluator(consumers._Evaluator):
                 self.violation("invalid_or_moved_raid_depot", sid)
                 return None
         row.update(raid=raid, raid_counts=counts, attempt_id=attempt,
-                   source_distance=supply.dist3(row["position"], supply.point(self.depots[1])),
+                   source_distance=supply.dist3(row["position"], supply.point(self.depots[source_id])),
                    camp_distance=supply.dist3(row["position"], supply.point(self.depots[3])))
         return row
 
@@ -203,10 +209,14 @@ class _Evaluator(consumers._Evaluator):
             if track.attempt is None or track.attempt["attempt_id"] != row["attempt_id"]:
                 if row["cargo"] == 0 and self.owned_action(row, "MOVE_TO", "LOCAL_ACTIVITY"):
                     track.attempt = dict(epoch=self.epoch, attempt_id=row["attempt_id"], raider_spawn_id=RAIDER,
-                        runtime_guid=row["guid"], lifetime_ms=row["life"], started_seconds=row["t"],
+                        runtime_guid=row["guid"], lifetime_ms=row["life"], source_depot_id=row["raid"]["source_depot_id"], started_seconds=row["t"],
                         starting_stolen=row["counters"]["stolen"], starting_thefts=row["raid_counts"]["thefts"],
                         covered=["TO_SOURCE"], times={"TO_SOURCE": row["t"]}, carry_travel_yards=0)
         if old:
+            if (old["attempt_id"] == row["attempt_id"] and row["attempt_id"] and
+                old["raid"]["source_depot_id"] != row["raid"]["source_depot_id"]):
+                self.violation("raid_source_changed_within_attempt", RAIDER)
+                track.attempt = track.work = None
             if old["alive"] and row["alive"] and row["attempt_id"] < old["attempt_id"]:
                 self.violation("raid_attempt_identity_reused_or_reset", RAIDER)
             delta = {key: row["counters"][key] - old["counters"][key] for key in (*supply.COUNTERS, "stolen")}
@@ -231,11 +241,11 @@ class _Evaluator(consumers._Evaluator):
 
     def transitions(self, track, old, row, guard, delta, event_delta):
         attempt = track.attempt
-        for portions, depot_id, phase in ((delta["stolen"], 1, "STEALING"), (delta["delivered"], 3, "DELIVERING")):
+        for portions, depot_id, phase in ((delta["stolen"], row["raid"]["source_depot_id"], "STEALING"), (delta["delivered"], 3, "DELIVERING")):
             if portions:
                 physical = (portions == 2 and old["attempt_id"] == row["attempt_id"] and self.owned_work(old, phase) and
-                    old["source_distance" if depot_id == 1 else "camp_distance"] <= 3.01 and
-                    row["source_distance" if depot_id == 1 else "camp_distance"] <= 3.01 and
+                    old["source_distance" if phase == "STEALING" else "camp_distance"] <= self.work_radius(old, phase) and
+                    row["source_distance" if phase == "STEALING" else "camp_distance"] <= self.work_radius(row, phase) and
                     row["movement"].get("moving") is False and row["agent"].get("in_combat") is False and
                     row["capture"] - old["role"]["started_at_ms"] >= WORK_MINIMUM_AGE_MS)
                 if not physical:
@@ -254,8 +264,9 @@ class _Evaluator(consumers._Evaluator):
                     self.quality["raid_approach_not_observed"] += 1
                     continue
                 if phase == "STEALING":
-                    village_now = next((r for r in (guard, row) if r and r.get("depot", {}).get("id") == 1 and "depot_flow" in r), None)
-                    if village_now is None or village_now["depot_flow"]["stolen"] < portions:
+                    village_now = next((r for r in (guard, row) if r and r.get("depot", {}).get("id") == depot_id and "depot_flow" in r), None)
+                    source_flow = row.get("source_depot_flow") or (village_now or {}).get("depot_flow")
+                    if source_flow is None or source_flow["stolen"] < portions:
                         self.quality["raid_source_debit_not_reconciled"] += 1
                         continue
                     attempt.update(stolen_portions=portions, source_stock_before=old["raid"]["source_depot"]["stock"],
