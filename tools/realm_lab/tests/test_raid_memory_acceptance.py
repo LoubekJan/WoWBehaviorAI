@@ -50,6 +50,42 @@ def samples():
     return rows
 
 
+def local_stock_races():
+    """Synthetic local observations bracket real fixture delivery/meal flows.
+
+    The raider walks to warehouse6 before the twelve farmers deliver at102s,
+    then leaves after their meals at108s. No teleport, invented transfer or
+    successful theft is needed to exercise the observation/capture ordering.
+    """
+    rows = fields.happy_samples()
+    camp, warehouse = fields.DEPOTS[3], fields.DEPOTS[6]
+    for record in rows:
+        t = record["elapsed_seconds"]
+        raider = fields.actor(record, RAIDER)
+        supplied = next(actor["supply"]["depot"] for actor in record["state"]["agents"]
+                        if (actor.get("supply") or {}).get("depot_id") == 6)
+        raider["raid"].update(source_depot_id=6, source_depot=deepcopy(supplied), phase="WAITING_SUPPLY", attempt_id="1")
+        remembered = None if t < 102 else 0 if t < 108 else 4
+        observed = None if t < 102 else 102 if t < 108 else 108
+        raider["raid"]["planning"] = dict(reason="EXPLORE_UNKNOWN_STOCK" if remembered is None else "REMEMBERED_SUPPLY",
+            memory_records=int(t >= 102), route_id=1, known_stock=remembered,
+            stock_age_ms=None if observed is None else (t-observed)*1000,
+            risk=0.0, retry_remaining_ms=0, danger=None)
+        raider.update(action=None, action_source_goal=None, action_started_at_ms=None, goal=None, goal_owner="")
+        raider["living_role"].update(phase="IDLE", activity="NONE", started_at_ms=0)
+        if t < 101:
+            fields.move(raider, fields.blend(camp, warehouse, t/101), moving=True)
+            fields.owned(raider, "TO_SOURCE", "NONE", 0, moving=True, purpose="RAID_SOURCE")
+        elif t <= 108:
+            fields.move(raider, warehouse)
+        elif t < 250:
+            fields.move(raider, fields.blend(warehouse, camp, (t-108)/142), moving=True)
+            fields.owned(raider, "RETURNING_EMPTY", "NONE", 109, moving=True, purpose="RAID_EMPTY_RETURN")
+        else:
+            fields.move(raider, camp)
+    return rows
+
+
 class RaidMemoryAcceptanceTests(unittest.TestCase):
     def test_legacy_recording_without_planning_remains_inconclusive(self):
         report = acceptance.evaluate_samples(fields.happy_samples())
@@ -108,6 +144,30 @@ class RaidMemoryAcceptanceTests(unittest.TestCase):
         rows = deepcopy(samples())
         record = rows[250]
         fields.actor(record, RAIDER)["raid"]["planning"].update(known_stock=30, stock_age_ms=0)
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "FAIL", report)
+        self.assertIn("raid_stock_memory_without_matching_local_observation", [v["code"] for v in report["violations"]])
+
+    def test_local_stock_quantity_can_precede_verified_delivery_or_meal_in_capture_interval(self):
+        rows = local_stock_races()
+        after_delivery = fields.actor(rows[102], RAIDER)["raid"]
+        self.assertEqual((after_delivery["planning"]["known_stock"], after_delivery["source_depot"]["stock"]), (0, 4))
+        after_meal = fields.actor(rows[108], RAIDER)["raid"]
+        self.assertEqual((after_meal["planning"]["known_stock"], after_meal["source_depot"]["stock"]), (4, 0))
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["violations"], [], report)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["decisions"], [])
+
+    def test_local_stock_race_cannot_exceed_verified_flows_or_appear_on_remote_actor(self):
+        rows = local_stock_races()
+        fields.actor(rows[102], RAIDER)["raid"]["planning"]["known_stock"] = 30
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "FAIL", report)
+        self.assertIn("raid_stock_memory_without_matching_local_observation", [v["code"] for v in report["violations"]])
+        rows = local_stock_races()
+        for record in rows:
+            fields.move(fields.actor(record, RAIDER), fields.DEPOTS[3])
         report = acceptance.evaluate_samples(rows)
         self.assertEqual(report["status"], "FAIL", report)
         self.assertIn("raid_stock_memory_without_matching_local_observation", [v["code"] for v in report["violations"]])

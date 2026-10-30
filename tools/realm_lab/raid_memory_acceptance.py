@@ -106,14 +106,22 @@ class _Evaluator:
         source_point = fields.point(self.field_gate.depots[source])
         source_stock = (raid.get("source_depot") or {}).get("stock")
         if fields.dist3(position, source_point) <= (1.91 if source in (4, 5, 6) else 3.01) and integer(source_stock, 30):
-            self.stock_sights.append(dict(binding=binding, capture=capture, source=source, stock=source_stock))
+            flow = (self.field_gate.last_flows or {}).get(source, dict(delivered=0, consumed=0, stolen=0))
+            # The actual observation can occur before a delivery/meal in this
+            # capture interval. The shared field gate independently reconciles
+            # these flows. Admit only quantities possible under their ordering,
+            # never a generic rounding allowance or a remote stock snapshot.
+            lower = max(0, source_stock-flow["delivered"])
+            upper = min(30, source_stock+flow["consumed"]+flow["stolen"])
+            self.stock_sights.append(dict(binding=binding, capture=capture, source=source,
+                                         minimum_stock=lower, maximum_stock=upper))
         if plan["known_stock"] is not None:
             observed_stock_at = capture-plan["stock_age_ms"]
             window = self.field_gate.epochs.get(self.field_gate.epoch)
             if window and observed_stock_at >= window["first_capture"]+OBSERVATION_TIME_TOLERANCE_MS:
                 nearby = [sight for sight in self.stock_sights if sight["binding"] == binding and sight["source"] == source and
                           abs(sight["capture"]-observed_stock_at) <= OBSERVATION_TIME_TOLERANCE_MS]
-                if not nearby or not any(sight["stock"] == plan["known_stock"] for sight in nearby):
+                if not nearby or not any(sight["minimum_stock"] <= plan["known_stock"] <= sight["maximum_stock"] for sight in nearby):
                     self.violation("raid_stock_memory_without_matching_local_observation")
         if (fields.dist3(position, camp) <= 3.01 and (actor.get("supply") or {}).get("cargo") == 0 and
             actor.get("in_combat") is False):
@@ -188,6 +196,7 @@ class _Evaluator:
                 "PASS proves a witnessed guard encounter, later nonlocal recall after camp return and changed owned departure or actual defer. It does not independently prove the planner's counterfactual ranking.",
                 "A remembered guard location is bound to its observed place, independently of the currently selected warehouse. Successful theft, arrival at a warehouse, group combat and LOS rays are not certified.",
                 "All forty identities and six-depot food flows use the unchanged field ledger checks; complete farmer meal-return cycles are not required here.",
+                "Remembered stock requires a local observation at the matching age. Its quantity may lie within the range justified by verified deliveries, consumption and theft in that same capture interval.",
                 "Snapshot timing bounds recollection age. Evidence from before the recorded epoch, another incarnation or a missing observed attacker cannot qualify."])
 
 
