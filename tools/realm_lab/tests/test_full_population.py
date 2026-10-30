@@ -33,6 +33,17 @@ def snapshot(population, control=1, *, selected=None):
 
 
 class PublishedFullPopulationTests(unittest.TestCase):
+    def test_published_full_profile_loads_with_canonical_lf_bytes_and_no_fixture_hash_overrides(self):
+        defias_bytes = (full.METADATA / defias.MANIFEST).read_bytes()
+        full_bytes = (full.METADATA / full.MANIFEST).read_bytes()
+        self.assertNotIn(b"\r\n", defias_bytes)
+        self.assertNotIn(b"\r\n", full_bytes)
+        canonical_sha = hashlib.sha256(defias_bytes).hexdigest()
+        self.assertEqual(full.BASE_DEFIAS_SHA256, canonical_sha)
+        self.assertEqual(single_return.load_json(full.METADATA / full.MANIFEST)["defias_manifest_sha256"], canonical_sha)
+        population = full.Population.load()
+        self.assertEqual((population.profile, len(population.actors)), ("full-v8", 100))
+
     def test_all_hundred_keep_authored_geometry_services_and_existing_specialized_roles(self):
         population = full.Population.load()
         self.assertEqual(population.defias_population, defias.Population.load())
