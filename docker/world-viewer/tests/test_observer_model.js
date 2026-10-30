@@ -4,6 +4,60 @@ const assert = require("node:assert/strict");
 const model = require("../app/static/observer-model.js");
 const base = { position: { source: "live", map_id: 0 }, needs: { hunger: 0.8 }, agent_id: 1, spawn_id: 10 };
 
+function caravanFixture() {
+  const city = { id: 7, name: "Městský sklad", position: { map_id: 725, x: 80, y: 590, z: .15 }, stock: 16, capacity: 120, exported: "0" };
+  const village = { id: 4, name: "Horní vesnice", position: { map_id: 725, x: 378, y: 626, z: .15 }, stock: 4, capacity: 30,
+    low_threshold: 4, exported: "18446744073709551615" };
+  return { ...base, spawn_id: 901040, position: { source: "live", map_id: 725 }, supply: {
+    enabled: true, role: "CARAVAN_CARRIER", phase: "TO_CITY", cargo: 6, capacity: 6, harvested: "0", delivered: "12", lost: "0", depot: city,
+    caravan: { id: 1, leader_spawn_id: "901040", member_spawn_ids: ["901040", "901042"], source_depot_id: 4, destination_depot_id: 7,
+      stage: "TO_CITY", trip: "18446744073709551615", waypoint: 3, member_ready: false,
+      loaded: "18446744073709551615", completed_trips: "2", source_depot: village, destination_depot: city } } };
+}
+
+test("caravan facts show common route and roster with personal exact cargo counters", () => {
+  const carrier = caravanFixture();
+  const facts = Object.fromEntries(model.supplyFacts(carrier));
+  assert.equal(facts["Zásobování"], "Dopravce karavany");
+  assert.equal(facts["Náklad"], "6 / 6 porcí");
+  assert.equal(facts["Naloženo celkem"], "18446744073709551615");
+  assert.equal(facts["Fáze karavany"], "Cesta do města");
+  assert.equal(facts["Nakládací sklad"], "Horní vesnice");
+  assert.equal(facts["Cílový sklad"], "Městský sklad");
+  assert.equal(facts["Rezerva pro místní"], "4 porcí");
+  assert.equal(facts["Sestava karavany"], "901040, 901042");
+  const escort = structuredClone(carrier);
+  escort.spawn_id = 901042; Object.assign(escort.supply, { role: "CARAVAN_ESCORT", cargo: 0, capacity: 0 });
+  assert.equal(Object.fromEntries(model.supplyFacts(escort))["Zásobování"], "Doprovod karavany");
+  assert.equal(Object.fromEntries(model.supplyFacts(escort))["Náklad"], null);
+  assert.deepEqual(model.groupIds(carrier), ["caravan:1"]);
+  assert(model.matches(escort, { group: "caravan:1" }, { map_id: 725 }));
+  assert(!model.matches(escort, { group: "caravan:2" }, { map_id: 725 }));
+});
+
+test("caravan source and capital warehouses deduplicate beside all six existing depots", () => {
+  const carrier = caravanFixture();
+  const existing = Array.from({ length: 6 }, (_, i) => ({ ...base, position: { source: "live", map_id: 725 },
+    supply: { enabled: true, role: "CONSUMER", depot: { ...carrier.supply.caravan.source_depot, id: i + 1 } } }));
+  assert.deepEqual(model.foodDepots([carrier, ...existing], 725).map(d => d.id), [1, 2, 3, 4, 5, 6, 7]);
+  assert.equal(model.foodDepots([carrier, carrier], 725).length, 2);
+  assert.equal(model.foodDepots([carrier], 0).length, 0);
+  carrier.position.source = "spawn";
+  assert.equal(model.foodDepots([carrier], 725).length, 0);
+  assert.deepEqual(model.groupIds(carrier), []);
+  assert.deepEqual(model.supplyFacts(carrier), []);
+});
+
+test("ordinary city consumers retain no fictitious caravan or carried food", () => {
+  const citizen = caravanFixture();
+  Object.assign(citizen.supply, { role: "CITY_CONSUMER", cargo: 0, capacity: 0, caravan: null });
+  const facts = Object.fromEntries(model.supplyFacts(citizen));
+  assert.equal(facts["Zásobování"], "Obyvatel města");
+  assert.equal(facts["Náklad"], null);
+  assert.equal(facts["Karavana"], undefined);
+  assert.deepEqual(model.groupIds(citizen), []);
+});
+
 test("raid details distinguish a party's common objective from personal cargo and camp members", () => {
   const member = { ...base, supply: { enabled: true, role: "RAIDER", cargo: 0, capacity: 2 }, raid: {
     enabled: true, role: "RAIDER", phase: "RETURNING_EMPTY", source_depot: { name: "Pravá vesnice", stock: 7 },
@@ -153,6 +207,18 @@ test("native details hide AI sections, retain observed state, and restore AI det
   assert.match(elements.get("supply-facts").textContent, /6 \/ 6 porcí/);
   assert.match(elements.get("supply-facts").textContent, /Jižní vesnice/);
   assert.match(elements.get("supply-facts").textContent, /4 \/ 24 porcí/);
+  context.testSupply = { enabled: true, role: "CARAVAN_CARRIER", phase: "LOADING", cargo: 0, capacity: 6,
+    harvested: "0", delivered: "0", consumed: "0", lost: "0", depot: { id: 7, name: "Městský sklad", stock: 0, capacity: 120 },
+    caravan: { id: 1, leader_spawn_id: "901040", member_spawn_ids: ["901040", "901042"], source_depot_id: 4,
+      destination_depot_id: 7, stage: "LOADING", trip: "2", waypoint: 3, member_ready: true, loaded: "6", completed_trips: "1",
+      source_depot: { name: "Horní vesnice", stock: 10, capacity: 30, low_threshold: 4 },
+      destination_depot: { name: "Městský sklad" } } };
+  vm.runInContext("snapshot.agents[0].supply = testSupply; showDetail();", context);
+  assert.match(elements.get("supply-facts").textContent, /Nakládání zásob/);
+  assert.match(elements.get("supply-facts").textContent, /Horní vesnice/);
+  assert.match(elements.get("group-cards").textContent, /Karavana 1/);
+  assert.match(elements.get("group-cards").textContent, /901040, 901042/);
+  assert.match(elements.get("group-cards").textContent, /Městský sklad/);
   context.testNpc = { name: "Matěj", status: "THINKING", active_action: "MOVE_TO", last_action_result: "ARRIVED",
     request_id: "18446744073709551615", next_think_ms: 2000, dialogue_count: 12,
     last_speech: "<img src=x onerror=alert(1)>" };

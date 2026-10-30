@@ -12,6 +12,7 @@ from tools.realm_lab import defias_group_acceptance as acceptance, defias_popula
 from tools.realm_lab import field_acceptance, full_population as full
 from tools.realm_lab.tests import test_field_acceptance as fields
 from tools.realm_lab.tests.test_full_telemetry import frame as full_frame
+from tools.realm_lab.tests.test_full_telemetry import refresh_caravan_ledger_copies
 
 PARTY = tuple(range(901050, 901055))
 
@@ -142,10 +143,22 @@ def respawn_samples(*, witnessed_death=True, dropped_cargo=False):
 
 
 @lru_cache(maxsize=1)
+def legacy_full_frame():
+    """Closed pre-caravan full-world fixture with six ordinary recruits."""
+    state = full_frame()
+    for actor in state['agents']:
+        if actor['spawn_id'] in full.SUPPLY_RECRUIT_IDS:
+            actor['supply'] = None
+            actor['living_role']['role'] = {0: 'WORKER', 1: 'GUARD', 2: 'SERVICE', 5: 'COMBATANT'}[
+                full.RECRUIT_TYPES[actor['spawn_id']]]
+    return state
+
+
+@lru_cache(maxsize=1)
 def full_samples():
-    """Same synthetic party evidence, plus the reviewed ordinary full cohort."""
+    """Historic synthetic party evidence before physical caravans existed."""
     result = deepcopy(samples())
-    ordinary = {actor['spawn_id']: actor for actor in full_frame()['agents']
+    ordinary = {actor['spawn_id']: actor for actor in legacy_full_frame()['agents']
                 if actor['spawn_id'] in full.RECRUIT_IDS}
     for record in result:
         for actor in record['state']['agents']:
@@ -206,7 +219,7 @@ class DefiasGroupAcceptanceTests(unittest.TestCase):
 
     def test_full_profile_keeps_all_hundred_owners_while_a_known_dead_camp_guard_is_unloaded(self):
         rows = remove_corpse(camp_death_samples(), 901044, 17, 45)
-        ordinary = {actor["spawn_id"]: actor for actor in full_frame()["agents"] if actor["spawn_id"] in full.RECRUIT_IDS}
+        ordinary = {actor["spawn_id"]: actor for actor in legacy_full_frame()["agents"] if actor["spawn_id"] in full.RECRUIT_IDS}
         for record in rows:
             for actor in record["state"]["agents"]:
                 if (binding := ordinary.get(actor["spawn_id"])) is not None:
@@ -263,6 +276,34 @@ class DefiasGroupAcceptanceTests(unittest.TestCase):
         self.assertEqual(acceptance.evaluate_samples(full_samples(), minimum_seconds=120)['status'], 'FAIL')
         with self.assertRaises(ValueError):
             acceptance.evaluate_samples([], profile='unknown-v8')
+
+    def test_current_caravan_food_participants_make_the_old_gate_explicitly_inconclusive(self):
+        rows = deepcopy(full_samples())
+        current = {actor['spawn_id']: actor for actor in full_frame()['agents']
+                   if actor['spawn_id'] in full.SUPPLY_RECRUIT_IDS}
+        for record in rows:
+            for actor in record['state']['agents']:
+                if actor['spawn_id'] in current:
+                    actor.update(deepcopy(current[actor['spawn_id']]))
+            refresh_caravan_ledger_copies(record['state'])
+        report = acceptance.evaluate_samples(rows, minimum_seconds=120, profile=full.PROFILE)
+        self.assertEqual(report['status'], 'INCONCLUSIVE', report)
+        self.assertEqual(report['exit_code'], 2)
+        self.assertEqual(report['violations'], [])
+        self.assertEqual(report['receipts'], [])
+        self.assertEqual(report['qualifying_receipts'], 0)
+        self.assertEqual(report['complete_population_frames'], 0)
+        self.assertIn('unsupported_seven_depot_caravan_economy_use_caravan_acceptance', report['missing_evidence'])
+
+    def test_late_caravan_packet_cannot_reuse_an_earlier_six_depot_pass(self):
+        rows = deepcopy(full_samples())
+        fields.actor(rows[-1], 901014)['living_role']['role'] = 'CITY_CONSUMER'
+        report = acceptance.evaluate_samples(rows, minimum_seconds=100, profile=full.PROFILE)
+        self.assertEqual(report['status'], 'INCONCLUSIVE', report)
+        self.assertEqual(report['violations'], [])
+        self.assertEqual(report['receipts'], [])
+        self.assertEqual(report['qualifying_receipts'], 0)
+        self.assertIn('unsupported_seven_depot_caravan_economy_use_caravan_acceptance', report['missing_evidence'])
 
     def test_full_profile_cannot_hide_falsified_generic_roles_behind_a_valid_party_trip(self):
         for identity, field, value in ((901014, 'living_role', dict(enabled=True, extensions_enabled=True, role='PREY', lifetime_ms=1)),

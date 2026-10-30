@@ -203,19 +203,22 @@ std::optional<FoodDepotTelemetry> AIWorldMgr::DescribeFoodDepot(uint32 id) const
     auto depot = _supplyLedger.GetDepot(id);
     auto location = LivingSupply::DepotLocation(id);
     auto field = _livingFieldsEnabled ? LivingFields::Field(id) : nullptr;
-    if (!depot || (!location && !field && (id != LivingRaid::CampDepot || !_livingRaidsEnabled))) return std::nullopt;
+    bool city = _livingCaravansEnabled && id == LivingCaravan::CityDepot;
+    if (!depot || (!location && !field && !city && (id != LivingRaid::CampDepot || !_livingRaidsEnabled))) return std::nullopt;
     FoodDepotTelemetry result;
     result.Id = id;
-    result.Name = location ? location->Name : field ? field->Name : "Defias camp";
-    result.Position = location ? location->Point : field ? field->DepotPoint : LivingRaid::Camp;
+    result.Name = city ? "Stormwind city" : location ? location->Name : field ? field->Name : "Defias camp";
+    result.Position = city ? LivingCaravan::CityPoint : location ? location->Point : field ? field->DepotPoint : LivingRaid::Camp;
     result.Stock = depot->Stock; result.Capacity = depot->Capacity; result.LowThreshold = depot->Low;
     result.Stolen = depot->Stolen;
+    result.Exported = depot->Exported;
     for (auto const& [spawn, actor] : _supplyActors)
     {
         auto hunter = LivingSupply::Hunter(spawn);
         auto consumer = LivingSupply::Consumer(spawn);
         auto farmer = _livingFieldsEnabled ? LivingFields::Worker(spawn) : nullptr;
-        uint32 owner = hunter ? hunter->Depot : consumer ? consumer->Depot :
+        uint32 owner = _livingCaravansEnabled && (LivingCaravan::FindBySpawn(spawn) || LivingCaravan::CityConsumer(spawn)) ?
+            LivingCaravan::CityDepot : hunter ? hunter->Depot : consumer ? consumer->Depot :
             farmer ? farmer->Depot :
             spawn == LivingRaid::GuardSpawn ? LivingRaid::SourceDepot :
             _raidRaiders.contains(spawn) || (_livingDefiasEnabled && LivingRaid::CampResident(spawn)) ? LivingRaid::CampDepot : 0;

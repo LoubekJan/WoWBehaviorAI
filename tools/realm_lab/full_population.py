@@ -1,9 +1,9 @@
 """Explicit AIWorld ownership of every authored preview-v8 NPC.
 
-The remaining forty-five actors gain ordinary living roles, not invented
-mining, fishing, trading or LLM capabilities. Existing specialized behavior,
-native service flags, templates, authored homes and runtime-only ledgers stay
-unchanged. Character cards remain an independent explicit opt-in.
+The remaining forty-five actors retain their authored identities and ordinary
+types. Four form two physical food caravans and two city residents consume
+the delivered food. Existing roles, service flags, templates, authored homes
+and runtime-only ledgers stay unchanged. Character cards are a separate opt-in.
 """
 from __future__ import annotations
 
@@ -39,6 +39,24 @@ RECRUIT_FACTIONS = {identity: 1 if identity <= 901043 else 3 if identity <= 9010
 # labels (resident, driver, fisher, miner...). All new civilians use entry11328.
 RECRUIT_ROLES = {identity: {0: "WORKER", 1: "GUARD", 2: "SERVICE", 5: "COMBATANT"}[kind]
                  for identity, kind in RECRUIT_TYPES.items()}
+CARAVAN_PAIRS = (
+    {"id": 1, "carrier_spawn_id": 901040, "escort_spawn_id": 901042, "source_depot_ids": [4, 5]},
+    {"id": 2, "carrier_spawn_id": 901041, "escort_spawn_id": 901043, "source_depot_ids": [6, 1]},
+)
+CARRIER_IDS = frozenset(pair["carrier_spawn_id"] for pair in CARAVAN_PAIRS)
+ESCORT_IDS = frozenset(pair["escort_spawn_id"] for pair in CARAVAN_PAIRS)
+CITY_CONSUMER_IDS = frozenset((901014, 901015))
+CARAVAN_IDS = CARRIER_IDS | ESCORT_IDS
+SUPPLY_RECRUIT_IDS = CARAVAN_IDS | CITY_CONSUMER_IDS
+RECRUIT_CAPABILITIES = {identity: "caravan_carrier" if identity in CARRIER_IDS else
+    "caravan_escort" if identity in ESCORT_IDS else "city_consumer" if identity in CITY_CONSUMER_IDS else
+    "ordinary_living_role" for identity in RECRUIT_IDS}
+RECRUIT_ROLES.update({identity: "CARAVAN_CARRIER" if identity in CARRIER_IDS else
+    "CARAVAN_ESCORT" if identity in ESCORT_IDS else "CITY_CONSUMER" for identity in SUPPLY_RECRUIT_IDS})
+CITY_DEPOT = {"id": 7, "name": "Stormwind city", "world_faction_id": 1,
+    "position": {"map_id": 725, "x": 78.84711682419382, "y": 591.7054193209677, "z": .15},
+    "capacity": 120, "target_stock": 60, "low_threshold": 12, "initial_stock": 0,
+    "source_spawn_id": 901000}
 WORK_FIELDS = defias.WORK_FIELDS
 FIELDS = {**defias.FIELDS, "full_work": WORK_FIELDS}
 ProfileError, require, parse_snapshot = base.ProfileError, base.require, base.parse_snapshot
@@ -70,11 +88,16 @@ def manifest_document(population: defias.Population) -> dict:
         native_geometry_files_verified=61, owned_spawn_ids=sorted(SPAWN_IDS), native_spawn_ids=[],
         recruit_spawn_ids=sorted(RECRUIT_IDS), immutable_spawn_homes=True,
         runtime_food_state_only=True, runtime_raid_memory_only=True, runtime_raid_groups_only=True,
-        llm_cards_explicit_opt_in=True, ordinary_roles_only=True,
+        runtime_caravans_only=True, llm_cards_explicit_opt_in=True, ordinary_roles_only=False,
+        caravans={"enabled_config": "AIWorld.LivingCaravans.Enabled", "pairs": CARAVAN_PAIRS,
+            "city_depot": CITY_DEPOT, "city_consumer_spawn_ids": sorted(CITY_CONSUMER_IDS),
+            "source_depot_ids": [1, 4, 5, 6], "carrier_capacity": 6, "source_reserve": 4,
+            "load_work_ms": 5000, "unload_work_ms": 5000, "rest_ms": 45000,
+            "immutable_homes": True, "physical_food_only": True},
         actors=[dict(spawn_id=identity, entry=actors[identity].entry,
             label=actors[identity].label, role=actors[identity].role,
             living_role=RECRUIT_ROLES[identity], agent_type=RECRUIT_TYPES[identity],
-            world_faction_id=RECRUIT_FACTIONS[identity], capability="ordinary_living_role",
+            world_faction_id=RECRUIT_FACTIONS[identity], capability=RECRUIT_CAPABILITIES[identity],
             home=dict(x=actors[identity].x, y=actors[identity].y, z=actors[identity].z, o=actors[identity].orientation))
             for identity in sorted(RECRUIT_IDS)])
 
@@ -95,7 +118,7 @@ class Population:
         population = defias.Population.load(metadata)
         document = base.load_json(metadata / MANIFEST)
         require(settlement.digest(document) == settlement.digest(manifest_document(population)),
-                "Full identities, ordinary roles, factions or immutable homes changed")
+                "Full identities, roles, caravan capabilities, factions or immutable homes changed")
         originals = {actor.spawn_id: actor for actor in population.settlement.actors}
         recruits = tuple(Recruit(identity, originals[identity].entry, originals[identity].label,
             originals[identity].x, originals[identity].y, originals[identity].z, originals[identity].orientation,
@@ -126,7 +149,7 @@ class Population:
     def respawn_seconds(self): return self.settlement.respawn_seconds
 
     def config(self) -> dict[str, str]:
-        return self.defias_population.config()
+        return {**self.defias_population.config(), "AIWorld.LivingCaravans.Enabled": "1"}
 
     def observer_environment(self) -> dict[str, str]:
         return self.settlement.observer_environment()

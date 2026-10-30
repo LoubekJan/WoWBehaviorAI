@@ -20,6 +20,8 @@ namespace LivingSupply
     constexpr uint32 HunterCargoCapacity = 6;
     constexpr uint32 RaiderCargoCapacity = 2;
     constexpr uint32 FarmerCargoCapacity = 2;
+    constexpr uint32 CarrierCargoCapacity = 6;
+    constexpr uint32 CityDepotId = 7;
     constexpr uint32 FieldCapacity = 24;
     constexpr uint64 FieldRegrowMs = 30000;
     constexpr uint32 DepotCapacity = 30;
@@ -55,6 +57,7 @@ namespace LivingSupply
         uint32 Target = 0;
         uint32 Low = 0;
         uint64 Stolen = 0;
+        uint64 Exported = 0;
     };
     struct Carcass
     {
@@ -86,6 +89,7 @@ namespace LivingSupply
         uint64 DeliveredTotal = 0;
         // A transfer of existing accounted food, never a new food source.
         uint64 StolenTotal = 0;
+        uint64 LoadedTotal = 0;
         uint64 PredatorConsumed = 0;
         uint64 DepotConsumed = 0;
         uint64 PotentialCreated = 0;
@@ -103,7 +107,7 @@ namespace LivingSupply
             if (auto current = GetDepot(id))
                 return current->Capacity == capacity && current->Target == target && current->Low == low &&
                     _initialDepotStock.at(id) == initial;
-            if (_depots.size() >= 6)
+            if (_depots.size() >= 7)
                 return false;
             _depots.emplace(id, Depot{id, initial, capacity, target, low});
             _initialDepotStock.emplace(id, initial);
@@ -141,7 +145,7 @@ namespace LivingSupply
             if (current != _actors.end())
                 return current->second.DepotId == depotId && current->second.Capacity == cargoCapacity &&
                     current->second.Predator == predator && current->second.Consumer == consumer &&
-                    !current->second.RaidSourceDepotId && !current->second.FieldId;
+                    !current->second.RaidSourceDepotId && !current->second.FieldId && !current->second.Carrier;
             if (_actors.size() >= 128)
                 return false;
             _actors.emplace(actor, Actor{depotId, cargoCapacity, predator, consumer});
@@ -159,7 +163,7 @@ namespace LivingSupply
             if (current != _actors.end())
                 return current->second.DepotId == depotId && current->second.Capacity == cargoCapacity &&
                     current->second.FieldId == fieldId && !current->second.RaidSourceDepotId &&
-                    !current->second.Predator && !current->second.Consumer;
+                    !current->second.Predator && !current->second.Consumer && !current->second.Carrier;
             if (_actors.size() >= 128)
                 return false;
             Actor farmer{depotId, cargoCapacity, false, false};
@@ -184,11 +188,32 @@ namespace LivingSupply
                 return current->second.DepotId == ownDepotId && current->second.Capacity == cargoCapacity &&
                     current->second.RaidSourceDepotId == sourceDepotId && !current->second.Predator &&
                     !current->second.Consumer && !current->second.FieldId &&
-                    current->second.AllVillageRaidSources == allVillageSources;
+                    current->second.AllVillageRaidSources == allVillageSources && !current->second.Carrier;
             if (_actors.size() >= 128) return false;
             Actor raider{ownDepotId, cargoCapacity, false, false, sourceDepotId};
             raider.AllVillageRaidSources = allVillageSources;
             _actors.emplace(actor, std::move(raider));
+            return true;
+        }
+
+        // Friendly hauling is a separate capability from harvesting or theft.
+        // The reviewed four village sources may supply only the city depot;
+        // registration cannot replace any existing participant's permissions.
+        bool RegisterCarrier(uint64 actor, uint32 ownDepotId = CityDepotId,
+            uint32 cargoCapacity = CarrierCargoCapacity)
+        {
+            if (!actor || ownDepotId != CityDepotId || cargoCapacity != CarrierCargoCapacity ||
+                !GetDepot(ownDepotId) || !GetDepot(1) || !GetDepot(4) || !GetDepot(5) || !GetDepot(6))
+                return false;
+            auto current = _actors.find(actor);
+            if (current != _actors.end())
+                return current->second.Carrier && current->second.DepotId == ownDepotId &&
+                    current->second.Capacity == cargoCapacity && !current->second.Predator &&
+                    !current->second.Consumer && !current->second.RaidSourceDepotId && !current->second.FieldId;
+            if (_actors.size() >= 128) return false;
+            Actor carrier{ownDepotId, cargoCapacity, false, false};
+            carrier.Carrier = true;
+            _actors.emplace(actor, std::move(carrier));
             return true;
         }
 
@@ -224,7 +249,7 @@ namespace LivingSupply
                 (kind != ClaimKind::Harvest && kind != ClaimKind::PredatorMeal))
                 return std::nullopt;
             auto& owner = actor->second;
-            if (owner.Consumer || owner.RaidSourceDepotId || owner.FieldId || owner.Predator != (kind == ClaimKind::PredatorMeal) ||
+            if (owner.Consumer || owner.Carrier || owner.RaidSourceDepotId || owner.FieldId || owner.Predator != (kind == ClaimKind::PredatorMeal) ||
                 requested > (owner.Predator ? PredatorMealPortions : owner.Capacity))
                 return std::nullopt;
             if (owner.Pending)
@@ -345,7 +370,7 @@ namespace LivingSupply
             auto field = _fields.find(fieldId);
             if (!physicallyCompleted || !eventSerial || !requested || requested > owner.Capacity ||
                 !owner.FieldId || owner.FieldId != fieldId || field == _fields.end() ||
-                field->second.DepotId != owner.DepotId || owner.Predator || owner.Consumer || owner.RaidSourceDepotId)
+                field->second.DepotId != owner.DepotId || owner.Predator || owner.Consumer || owner.Carrier || owner.RaidSourceDepotId)
                 return Rejected("FIELD_HARVEST_NOT_AUTHORIZED");
             uint32 amount = std::min({requested, owner.Capacity - owner.Cargo, field->second.Remaining});
             if (!amount)
@@ -358,7 +383,7 @@ namespace LivingSupply
         }
 
         // eventSerial is an owned completed-action identity, monotonically
-        // increasing per actor across harvest, delivery, theft and meals. Exact latest repeats
+        // increasing per actor across harvest, delivery, loading, theft and meals. Exact latest repeats
         // report the original receipt; altered or older repeats cannot mutate.
         Result Steal(uint64 actorId, uint64 eventSerial, uint32 sourceDepotId,
             uint32 requested, bool physicallyCompleted)
@@ -370,7 +395,7 @@ namespace LivingSupply
                 return *replay;
             auto source = _depots.find(sourceDepotId);
             if (!physicallyCompleted || !eventSerial || !requested || requested > RaiderCargoCapacity ||
-                owner.Predator || owner.Consumer || !owner.RaidSourceDepotId ||
+                owner.Predator || owner.Consumer || owner.Carrier || !owner.RaidSourceDepotId ||
                 (owner.RaidSourceDepotId != sourceDepotId && !(owner.AllVillageRaidSources &&
                     sourceDepotId >= 4 && sourceDepotId <= 6)) ||
                 source == _depots.end())
@@ -385,6 +410,34 @@ namespace LivingSupply
             owner.Cargo += amount;
             _counters.StolenTotal += amount;
             return SaveEvent(owner, eventSerial, EventKind::Theft, sourceDepotId, requested, amount);
+        }
+
+        Result Load(uint64 actorId, uint64 eventSerial, uint32 sourceDepotId,
+            uint32 requested, bool physicallyCompleted)
+        {
+            auto actor = _actors.find(actorId);
+            if (actor == _actors.end()) return Rejected("UNKNOWN_ACTOR");
+            auto& owner = actor->second;
+            if (auto replay = ReplayEvent(owner, eventSerial, EventKind::Loading, sourceDepotId, requested))
+                return *replay;
+            auto source = _depots.find(sourceDepotId);
+            if (!physicallyCompleted || !eventSerial || !requested || requested > CarrierCargoCapacity ||
+                !owner.Carrier || owner.DepotId != CityDepotId || owner.Predator || owner.Consumer ||
+                owner.RaidSourceDepotId || owner.FieldId || source == _depots.end() ||
+                (sourceDepotId != 1 && sourceDepotId != 4 && sourceDepotId != 5 && sourceDepotId != 6))
+                return Rejected("LOAD_NOT_AUTHORIZED");
+            if (owner.Cargo >= owner.Capacity) return Rejected("CARGO_FULL");
+            // Recheck actual stock after any intervening meal, theft or other
+            // carrier's load. A village always keeps its configured reserve.
+            uint32 available = source->second.Stock > source->second.Low ?
+                source->second.Stock - source->second.Low : 0;
+            uint32 amount = std::min({requested, owner.Capacity - owner.Cargo, available});
+            if (!amount) return Rejected("VILLAGE_RESERVE");
+            source->second.Stock -= amount;
+            source->second.Exported += amount;
+            owner.Cargo += amount;
+            _counters.LoadedTotal += amount;
+            return SaveEvent(owner, eventSerial, EventKind::Loading, sourceDepotId, requested, amount);
         }
 
         Result Deliver(uint64 actorId, uint64 eventSerial, uint32 depotId,
@@ -482,7 +535,7 @@ namespace LivingSupply
             uint32 Amount;
             uint64 ExpiresAtMs;
         };
-        enum class EventKind : uint8 { Delivery, Meal, Theft, FieldHarvest };
+        enum class EventKind : uint8 { Delivery, Meal, Theft, FieldHarvest, Loading };
         struct Event
         {
             uint64 Serial;
@@ -505,6 +558,7 @@ namespace LivingSupply
             uint64 LastEventSerial = 0;
             std::optional<Event> LastEvent;
             bool AllVillageRaidSources = false;
+            bool Carrier = false;
         };
         static Result Rejected(char const* reason) { return {false, false, 0, reason}; }
         static Result Replayed(Result receipt) { receipt.Duplicate = true; return receipt; }

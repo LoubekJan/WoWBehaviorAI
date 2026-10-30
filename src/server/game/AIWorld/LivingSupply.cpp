@@ -20,7 +20,8 @@ namespace
     using Phase = LivingRoleState::Phase;
     using Activity = LivingRolePolicy::Activity;
 
-    bool SupplyIdentity(AgentRecord const& record, bool consumersEnabled = false, bool raidsEnabled = false, bool fieldsEnabled = false, bool defiasEnabled = false)
+    bool SupplyIdentity(AgentRecord const& record, bool consumersEnabled = false, bool raidsEnabled = false,
+        bool fieldsEnabled = false, bool defiasEnabled = false, bool caravansEnabled = false)
     {
         return record.MapId == 725 && record.Id.Value == record.SpawnId &&
             record.ControlMode == AgentControlMode::AIWorldControlled &&
@@ -30,6 +31,10 @@ namespace
                 LivingFields::Capability(record.SpawnId, record.MapId, record.Type, record.ControlMode, fieldsEnabled) ||
                 (LivingRaid::RaiderCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, raidsEnabled, defiasEnabled)) ||
                 LivingRaid::CampResidentCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, defiasEnabled) ||
+                (caravansEnabled && record.WorldFaction.Value == 1 &&
+                    (LivingCaravan::CarrierCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, true) ||
+                     LivingCaravan::EscortCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, true) ||
+                     (LivingCaravan::CityConsumer(record.SpawnId) && record.Type == AgentType::Civilian))) ||
                 (raidsEnabled && record.SpawnId == LivingRaid::GuardSpawn && record.Type == AgentType::Guard));
     }
 
@@ -78,6 +83,7 @@ void AIWorldMgr::InitializeLivingSupply()
     _supplyLedger = {};
     _supplyActors.clear();
     _supplySources.clear();
+    _caravans.clear(); _caravanActors.clear(); _nextCaravanTrip = 0;
     _raidRaiders.clear(); _raidGuard = {};
     _raidParties.clear(); _nextRaidPartyId = 0;
     _raidStartedAtMs = GetCurrentTimeMs();
@@ -89,6 +95,7 @@ void AIWorldMgr::InitializeLivingSupply()
         _livingRaidsEnabled = false;
         _livingFieldsEnabled = false;
         _livingDefiasEnabled = false;
+        _livingCaravansEnabled = false;
         return;
     }
     auto const& scope = GetSimulationScope();
@@ -98,6 +105,7 @@ void AIWorldMgr::InitializeLivingSupply()
     for (uint64 spawn = 901000; valid && spawn < 901100; ++spawn)
         valid = scope.ContainsSpawn(spawn);
     valid = (!_livingDefiasEnabled || (_livingFieldsEnabled && _livingRaidsEnabled && _livingConsumersEnabled)) && valid;
+    valid = (!_livingCaravansEnabled || _livingDefiasEnabled) && valid;
     if (!valid)
     {
         _livingSupplyEnabled = false;
@@ -105,6 +113,7 @@ void AIWorldMgr::InitializeLivingSupply()
         _livingRaidsEnabled = false;
         _livingFieldsEnabled = false;
         _livingDefiasEnabled = false;
+        _livingCaravansEnabled = false;
         TC_LOG_ERROR("ai.world", "Living supply requires the explicit bounded map-725 authored population and enabled living roles/extensions; disabled");
         return;
     }
@@ -167,6 +176,28 @@ void AIWorldMgr::InitializeLivingSupply()
             _supplyActors.emplace(worker.Spawn, LivingSupply::ActorRuntime{});
         }
     }
+    if (_livingCaravansEnabled)
+    {
+        valid = _supplyLedger.ConfigureDepot(LivingCaravan::CityDepot, 0, LivingCaravan::CityCapacity,
+            LivingCaravan::CityTarget, LivingCaravan::CityLow) && valid;
+        for (auto const& pair : LivingCaravan::Pairs)
+        {
+            valid = _supplyLedger.RegisterCarrier(pair.CarrierSpawn) &&
+                _supplyLedger.RegisterActor(pair.EscortSpawn, LivingCaravan::CityDepot, 0, false, true) &&
+                LivingCaravan::ValidRoute(pair.Sources[0]) && LivingCaravan::ValidRoute(pair.Sources[1]) && valid;
+            _caravans.emplace(pair.Id, LivingCaravan::State{});
+            for (uint64 spawn : {pair.CarrierSpawn, pair.EscortSpawn})
+            {
+                _supplyActors.emplace(spawn, LivingSupply::ActorRuntime{});
+                _caravanActors.emplace(spawn, LivingCaravan::ActorState{});
+            }
+        }
+        for (auto const& consumer : LivingCaravan::CityConsumers)
+        {
+            valid = _supplyLedger.RegisterActor(consumer.Spawn, consumer.Depot, 0, false, true) && valid;
+            _supplyActors.emplace(consumer.Spawn, LivingSupply::ActorRuntime{});
+        }
+    }
     valid = (!_livingDefiasEnabled || (_livingFieldsEnabled && _livingRaidsEnabled && _livingConsumersEnabled)) && valid;
     if (!valid)
     {
@@ -175,6 +206,7 @@ void AIWorldMgr::InitializeLivingSupply()
         _livingRaidsEnabled = false;
         _livingFieldsEnabled = false;
         _livingDefiasEnabled = false;
+        _livingCaravansEnabled = false;
         _supplyLedger = {};
         _supplyActors.clear();
         TC_LOG_ERROR("ai.world", "Living supply could not register its fixed runtime depots and participants; disabled");
@@ -190,7 +222,7 @@ bool AIWorldMgr::IsSupplyHunter(AgentRecord const& record) const
 
 bool AIWorldMgr::IsSupplyConsumer(AgentRecord const& record) const
 {
-    return (LivingSupply::ConsumerCapability(record.SpawnId, record.MapId, record.Type,
+    return (IsCityConsumer(record) || LivingSupply::ConsumerCapability(record.SpawnId, record.MapId, record.Type,
         record.ControlMode, _livingSupplyEnabled && _livingConsumersEnabled) || IsRaidGuard(record) ||
         LivingRaid::CampResidentCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode, _livingDefiasEnabled)) && record.Id.Value == record.SpawnId &&
         GetSimulationScope().ContainsActor(record.MapId, record.SpawnId);
@@ -199,12 +231,15 @@ bool AIWorldMgr::IsSupplyConsumer(AgentRecord const& record) const
 LivingSupply::ConsumerSpec const* AIWorldMgr::SupplyConsumerSpec(AgentRecord const& record) const
 {
     static LivingSupply::ConsumerSpec const guard{LivingRaid::GuardSpawn, LivingRaid::SourceDepot, AgentType::Guard};
-    return IsRaidGuard(record) ? &guard : _livingDefiasEnabled && LivingRaid::CampResident(record.SpawnId) ?
+    return IsCityConsumer(record) ? LivingCaravan::CityConsumer(record.SpawnId) :
+        IsRaidGuard(record) ? &guard : _livingDefiasEnabled && LivingRaid::CampResident(record.SpawnId) ?
         LivingRaid::CampResident(record.SpawnId) : LivingSupply::Consumer(record.SpawnId);
 }
 
 LivingRolePolicy::Role AIWorldMgr::ResolveLivingRole(AgentRecord const& record, Creature const& creature) const
 {
+    if (IsCaravanMember(record) && LivingCaravan::IsCarrier(record.SpawnId))
+        return LivingRolePolicy::Role::Worker;
     if (IsSupplyHunter(record))
         return LivingRolePolicy::Role::Hunter;
     if (IsSupplyRaider(record))
@@ -255,7 +290,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         }
         return;
     }
-    if (!SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled, _livingFieldsEnabled, _livingDefiasEnabled)) return;
+    if (!SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled, _livingFieldsEnabled, _livingDefiasEnabled, _livingCaravansEnabled)) return;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end()) return;
     auto& actor = found->second;
@@ -314,6 +349,7 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
             actor.Guid = creature->GetGUID();
             actor.NextAtMs = nowMs + 1000;
         }
+        if (IsCaravanMember(record)) ObserveCaravanLife(record, nowMs);
         // EventSerial and the ledger's replay watermark survive this cleanup.
     }
     if (live && IsRaidGuard(record))
@@ -434,7 +470,7 @@ bool AIWorldMgr::SupplyWantsHunt(AgentRecord const& record) const
 
 std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const
 {
-    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled, _livingFieldsEnabled, _livingDefiasEnabled) || creature.GetMapId() != 725 ||
+    if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled, _livingFieldsEnabled, _livingDefiasEnabled, _livingCaravansEnabled) || creature.GetMapId() != 725 ||
         creature.GetSpawnId() != record.SpawnId || record.WorldState != AgentWorldState::Materialized ||
         record.RuntimeGuid != creature.GetGUID() || !GetSimulationScope().ContainsActor(record.MapId, record.SpawnId)) return std::nullopt;
     auto found = _supplyActors.find(record.SpawnId);
@@ -444,15 +480,18 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
     bool consumer = IsSupplyConsumer(record);
     bool raider = IsSupplyRaider(record);
     bool farmer = IsFieldWorker(record);
+    bool caravan = IsCaravanMember(record);
+    bool carrier = caravan && LivingCaravan::IsCarrier(record.SpawnId);
     LivingSupplyTelemetry info;
     info.Enabled = true;
-    info.Role = hunter ? "HUNTER" : raider ? "RAIDER" : farmer ? "FARMER" : consumer ? "CONSUMER" : "PREDATOR";
+    info.Role = caravan ? carrier ? "CARAVAN_CARRIER" : "CARAVAN_ESCORT" : IsCityConsumer(record) ? "CITY_CONSUMER" :
+        hunter ? "HUNTER" : raider ? "RAIDER" : farmer ? "FARMER" : consumer ? "CONSUMER" : "PREDATOR";
     info.Phase = actor.Phase;
     info.LastResult = actor.LastResult;
     if (creature.IsAlive() && record.LivingRole.CurrentPhase == Phase::Hunting) info.Phase = "HUNTING";
     if (creature.IsAlive() && record.LivingRole.CurrentPhase == Phase::Feeding) info.Phase = hunter ? "HARVESTING" : "FEEDING";
     info.Cargo = _supplyLedger.GetCargo(record.SpawnId);
-    info.Capacity = hunter ? LivingSupply::HunterCargoCapacity : raider ? LivingRaid::Portions : farmer ? 2 : 0;
+    info.Capacity = carrier ? LivingCaravan::CargoCapacity : hunter ? LivingSupply::HunterCargoCapacity : raider ? LivingRaid::Portions : farmer ? 2 : 0;
     info.Harvested = actor.Harvested;
     info.Delivered = actor.Delivered;
     info.Consumed = actor.Consumed;
@@ -470,9 +509,9 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
             info.CarcassLife = actor.Corpse.Life;
         }
     }
-    if (hunter || consumer || raider || farmer)
+    if (hunter || consumer || raider || farmer || caravan)
     {
-        uint32 depotId = hunter ? LivingSupply::Hunter(record.SpawnId)->Depot : raider ? LivingRaid::CampDepot :
+        uint32 depotId = caravan ? LivingCaravan::CityDepot : hunter ? LivingSupply::Hunter(record.SpawnId)->Depot : raider ? LivingRaid::CampDepot :
             farmer ? LivingFields::Worker(record.SpawnId)->Depot : SupplyConsumerSpec(record)->Depot;
         info.DepotId = depotId;
         if (hunter) info.HuntingGround = LivingSupply::Hunter(record.SpawnId)->Ground;
@@ -486,6 +525,27 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
             info.FieldWorkpoint = field->WorkPoints[*info.FieldWorkpointIndex];
             if (auto crop = _supplyLedger.GetField(worker->Field))
             { info.FieldRemaining = crop->Remaining; info.FieldCapacity = crop->Capacity; }
+        }
+    }
+    if (caravan)
+    {
+        auto pair = LivingCaravan::FindBySpawn(record.SpawnId);
+        auto shared = _caravans.find(pair->Id);
+        auto personal = _caravanActors.find(record.SpawnId);
+        if (shared != _caravans.end() && personal != _caravanActors.end())
+        {
+            auto const& trip = shared->second;
+            LivingCaravanTelemetry value;
+            value.Id = pair->Id; value.LeaderSpawnId = pair->CarrierSpawn;
+            value.MemberSpawnIds = {pair->CarrierSpawn, pair->EscortSpawn};
+            value.SourceDepotId = trip.SourceDepotId ? trip.SourceDepotId : pair->Sources[0];
+            value.DestinationDepotId = LivingCaravan::CityDepot;
+            value.Stage = LivingCaravan::ToString(trip.Current); value.Trip = trip.Trip;
+            value.Waypoint = trip.Waypoint; value.MemberReady = trip.Ready[*LivingCaravan::MemberIndex(record.SpawnId)];
+            value.Loaded = personal->second.Loaded; value.CompletedTrips = trip.CompletedTrips;
+            value.SourceDepot = DescribeFoodDepot(value.SourceDepotId);
+            value.DestinationDepot = DescribeFoodDepot(LivingCaravan::CityDepot);
+            info.Caravan = std::move(value);
         }
     }
     auto const& counts = _supplyLedger.GetCounters();
@@ -503,7 +563,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
 {
     using namespace LivingReturnPolicy;
     approved.reset();
-    if ((!IsSupplyHunter(record) && !IsSupplyConsumer(record) && !IsSupplyRaider(record) && !IsFieldWorker(record)) || !BoundActor(record, creature))
+    if ((!IsSupplyHunter(record) && !IsSupplyConsumer(record) && !IsSupplyRaider(record) && !IsFieldWorker(record) && !IsCaravanMember(record)) || !BoundActor(record, creature))
         return std::nullopt;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end()) return std::nullopt;
@@ -532,10 +592,11 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         if (!next) return std::nullopt;
         destination = *next;
     }
-    float homeRadius = IsSupplyRaider(record) ? LivingRaid::RaiderHomeRadius : 384.0f;
+    float homeRadius = IsCaravanMember(record) ? LivingCaravan::HomeRadius : IsSupplyRaider(record) ? LivingRaid::RaiderHomeRadius : 384.0f;
     bool fieldWorker = IsFieldWorker(record);
     float arrivalRadius = 3.0f;
-    if (fieldWorker)
+    if (IsCaravanMember(record)) arrivalRadius = 1.9f;
+    else if (fieldWorker)
         arrivalRadius = LivingFields::ArrivalRadius(*LivingFields::Worker(record.SpawnId), destination, home);
     else if (IsSupplyRaider(record))
         arrivalRadius = LivingRaid::ArrivalRadius(destination);
@@ -689,7 +750,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         // A complete final leg can normalize its endpoint during grounding.
         // Recheck the actual endpoint against the same warehouse arrival rule;
         // a loose build tolerance must not strand the next anchor departure.
-        if ((fieldWorker || IsSupplyRaider(record)) && SamePosition(query, endpoint) &&
+        if ((fieldWorker || IsSupplyRaider(record) || IsCaravanMember(record)) && SamePosition(query, endpoint) &&
             (Distance({from.MapId, end.x, end.y, end.z}, destination) > arrivalRadius ||
                 !creature.GetMap()->isInLineOfSight(end.x, end.y, end.z + lift,
                     destination.X, destination.Y, destination.Z + lift, creature.GetPhaseMask(),
@@ -904,7 +965,9 @@ bool AIWorldMgr::UpdateLivingSupplyConsumer(AgentRecord& record, Creature& creat
     auto& actor = found->second;
     auto& state = record.LivingRole;
     static LivingSupply::DepotSpec const camp{LivingRaid::CampDepot, "Defias camp", LivingRaid::Camp};
-    auto location = spec->Depot == LivingRaid::CampDepot ? &camp : LivingSupply::DepotLocation(spec->Depot);
+    static LivingSupply::DepotSpec const city{LivingCaravan::CityDepot, "Stormwind city", LivingCaravan::CityPoint};
+    auto location = spec->Depot == LivingCaravan::CityDepot && _livingCaravansEnabled ? &city :
+        spec->Depot == LivingRaid::CampDepot ? &camp : LivingSupply::DepotLocation(spec->Depot);
     auto depot = _supplyLedger.GetDepot(spec->Depot);
     if (!location || !depot) return true;
 

@@ -31,6 +31,7 @@ const ObserverModel = (() => {
     const groups = agent.groups?.length ? agent.groups.map(group => String(group.id)) :
       agent.group_id == null ? [] : [String(agent.group_id)];
     if (raidSupported(agent) && agent.raid.party) groups.push(`raid:${agent.raid.party.id}`);
+    if (caravanSupported(agent)) groups.push(`caravan:${agent.supply.caravan.id}`);
     return groups;
   }
   function alert(agent) {
@@ -90,21 +91,38 @@ const ObserverModel = (() => {
       ORDINARY: "Běžná činnost", NORMAL: "Běžná činnost", NO_FOOD: "Čeká na jídlo", WAITING_FOR_FOOD: "Čeká na jídlo",
       ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený", TO_FIELD: "Cesta na pole", WORKING_FIELD: "Práce na poli",
       HARVESTED_FIELD: "Sklizeň", FIELD_MAINTENANCE: "Péče o pole", READY_FOR_FIELD: "Připraven na pole",
-      RESTING_HOME: "Odpočinek doma", TO_WAREHOUSE: "Cesta do vlastního skladu" };
-    const consumer = supply.role === "CONSUMER", raider = supply.role === "RAIDER", farmer = supply.role === "FARMER";
-    const rows = [["Zásobování", consumer ? "Spotřebitel" : raider ? "Nájezdník" : farmer ? "Zemědělec" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
+      RESTING_HOME: "Odpočinek doma", TO_WAREHOUSE: "Cesta do vlastního skladu",
+      RALLY: "Shromažďování karavany", TO_VILLAGE: "Cesta do vesnice", LOADING: "Nakládání zásob",
+      TO_CITY: "Cesta do města", UNLOADING: "Vykládání ve městě", REST: "Odpočinek ve městě",
+      RECOVER: "Obnovování sestavy karavany" };
+    const consumer = ["CONSUMER", "CITY_CONSUMER"].includes(supply.role), raider = supply.role === "RAIDER", farmer = supply.role === "FARMER";
+    const caravan = caravanSupported(agent), escort = supply.role === "CARAVAN_ESCORT";
+    const rows = [["Zásobování", caravan ? (escort ? "Doprovod karavany" : "Dopravce karavany") :
+      supply.role === "CITY_CONSUMER" ? "Obyvatel města" : consumer ? "Spotřebitel" : raider ? "Nájezdník" : farmer ? "Zemědělec" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
       ["Právě dělá", phases[supply.phase] || supply.phase],
-      ["Náklad", consumer ? null : `${supply.cargo} / ${supply.capacity} porcí`],
+      ["Náklad", consumer || escort ? null : `${supply.cargo} / ${supply.capacity} porcí`],
       ["Zbývá v kořisti", supply.carcass_remaining == null ? null : `${supply.carcass_remaining} porcí`],
-      [farmer ? "Sklizeno na poli" : "Získáno z kořisti", consumer || raider ? null : supply.harvested],
+      [farmer ? "Sklizeno na poli" : "Získáno z kořisti", consumer || raider || caravan ? null : supply.harvested],
       ["Odcizené jídlo", raider ? supply.stolen : null], ["Doručeno", consumer ? null : supply.delivered],
       ["Snědeno", supply.consumed], ["Ztracený náklad", consumer ? null : supply.lost]];
     if (farmer) rows.push(["Pole", supply.field_id], ["Pracovní místo", supply.field_workpoint_index == null ? null : supply.field_workpoint_index + 1],
       ["Zralá úroda", supply.field_remaining == null ? null : `${supply.field_remaining} / ${supply.field_capacity} porcí`]);
+    if (caravan) {
+      const trip = supply.caravan;
+      rows.push(["Karavana", trip.id], ["Vůdce karavany", trip.leader_spawn_id],
+        ["Sestava karavany", trip.member_spawn_ids.join(", ")],
+        ["Fáze karavany", phases[trip.stage] || trip.stage], ["Cesta karavany", trip.trip],
+        ["Bod trasy", trip.waypoint], ["Člen na místě", trip.member_ready ? "Ano" : "Ne"],
+        ["Nakládací sklad", trip.source_depot?.name || `Sklad ${trip.source_depot_id}`],
+        ["Zásoby ve vesnici", trip.source_depot ? `${trip.source_depot.stock} / ${trip.source_depot.capacity} porcí` : null],
+        ["Rezerva pro místní", trip.source_depot ? `${trip.source_depot.low_threshold} porcí` : null],
+        ["Cílový sklad", trip.destination_depot?.name || `Sklad ${trip.destination_depot_id}`],
+        ["Naloženo celkem", escort ? null : trip.loaded], ["Dokončené dodávky", trip.completed_trips]);
+    }
     if (depot) rows.push(["Zásobárna", depot.name], ["Zásoba jídla", `${depot.stock} / ${depot.capacity} porcí`],
       ["Stav zásob", depot.stock === 0 ? "Prázdná" : depot.stock <= depot.low_threshold ? "Nízká zásoba" : "Dostatek"],
       ["Do skladu doručeno", depot.delivered], ["Ze skladu snědeno", depot.consumed],
-      ["Ze skladu odcizeno", depot.stolen || "0"]);
+      ["Ze skladu odcizeno", depot.stolen || "0"], ["Odvezeno karavanou", depot.exported || "0"]);
     if (accounting) rows.push(["Bilance potravy", accounting.conserved ? "Souhlasí" : "Nesouhlasí"],
       ["Ve skladech / v nákladech", `${accounting.in_depots} / ${accounting.in_cargo}`]);
     if (supply.last_result) rows.push(["Poslední výsledek", supply.last_result]);
@@ -112,6 +130,9 @@ const ObserverModel = (() => {
   }
   function raidSupported(agent) {
     return supplySupported(agent) && agent.raid?.enabled === true;
+  }
+  function caravanSupported(agent) {
+    return supplySupported(agent) && ["CARAVAN_CARRIER", "CARAVAN_ESCORT"].includes(agent.supply.role) && Boolean(agent.supply.caravan);
   }
   function raidFacts(agent) {
     if (!raidSupported(agent)) return [];
@@ -182,6 +203,7 @@ const ObserverModel = (() => {
     const depots = new Map();
     for (const agent of agents) {
       const copies = supplySupported(agent) ? [agent.supply.depot] : [];
+      if (caravanSupported(agent)) copies.push(agent.supply.caravan.source_depot, agent.supply.caravan.destination_depot);
       if (raidSupported(agent)) copies.push(agent.raid.source_depot, agent.raid.camp_depot);
       for (const depot of copies)
         if (depot?.position?.map_id === mapId && !depots.has(depot.id)) depots.set(depot.id, depot);
@@ -190,6 +212,6 @@ const ObserverModel = (() => {
   }
   return { goal, phase, groupIds, alert, blocked, matches, viewport, project, phaseColors, aiDetailsSupported,
     npcAgentSupported, npcAgentFacts,
-    supplySupported, supplyFacts, raidSupported, raidFacts, foodDepots };
+    supplySupported, supplyFacts, caravanSupported, raidSupported, raidFacts, foodDepots };
 })();
 if (typeof module !== "undefined") module.exports = ObserverModel;

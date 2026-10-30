@@ -309,12 +309,12 @@ bool AIWorldMgr::ExecuteNpcAgentAction(AgentRecord& record, Creature& creature,
     {
         if (binding.Depot)
         {
-            auto location = LivingSupply::DepotLocation(binding.Depot); auto depot = _supplyLedger.GetDepot(binding.Depot);
+            auto location = DescribeFoodDepot(binding.Depot); auto depot = _supplyLedger.GetDepot(binding.Depot);
             auto consumer = SupplyConsumerSpec(record);
             if (!IsSupplyConsumer(record) || !consumer || consumer->Depot != binding.Depot || !location ||
-                location->Point.MapId != creature.GetMapId() || !depot || !depot->Stock ||
-                creature.GetExactDist(location->Point.X, location->Point.Y, location->Point.Z) > 3 ||
-                !creature.IsWithinLOS(location->Point.X, location->Point.Y, location->Point.Z)) return reject("DEPOT_MEAL_UNAVAILABLE");
+                location->Position.MapId != creature.GetMapId() || !depot || !depot->Stock ||
+                creature.GetExactDist(location->Position.X, location->Position.Y, location->Position.Z) > 3 ||
+                !creature.IsWithinLOS(location->Position.X, location->Position.Y, location->Position.Z)) return reject("DEPOT_MEAL_UNAVAILABLE");
         }
         else if (!record.EconomyState.Food) return reject("FOOD_UNAVAILABLE");
     }
@@ -388,14 +388,14 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
             bool completed = state.Active == "REST";
             if (state.Active == "EAT" && state.MealDepot)
             {
-                auto found = _supplyActors.find(record.SpawnId); auto location = LivingSupply::DepotLocation(state.MealDepot);
+                auto found = _supplyActors.find(record.SpawnId); auto location = DescribeFoodDepot(state.MealDepot);
                 auto consumer = SupplyConsumerSpec(record);
                 if (IsSupplyConsumer(record) && consumer && consumer->Depot == state.MealDepot &&
-                    found != _supplyActors.end() && location && location->Point.MapId == creature.GetMapId() &&
+                    found != _supplyActors.end() && location && location->Position.MapId == creature.GetMapId() &&
                     found->second.Guid == creature.GetGUID() &&
                     found->second.EventSerial < std::numeric_limits<uint64>::max() &&
-                    creature.GetExactDist(location->Point.X, location->Point.Y, location->Point.Z) <= 3 &&
-                    creature.IsWithinLOS(location->Point.X, location->Point.Y, location->Point.Z))
+                    creature.GetExactDist(location->Position.X, location->Position.Y, location->Position.Z) <= 3 &&
+                    creature.IsWithinLOS(location->Position.X, location->Position.Y, location->Position.Z))
                 {
                     auto meal = _supplyLedger.EatDepot(record.SpawnId, ++found->second.EventSerial, state.MealDepot, 1, true);
                     completed = meal.Success && !meal.Duplicate;
@@ -450,13 +450,13 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
         };
         if (IsSupplyConsumer(record))
             if (auto spec = SupplyConsumerSpec(record))
-                if (auto location = LivingSupply::DepotLocation(spec->Depot))
+                if (auto location = DescribeFoodDepot(spec->Depot))
                 {
                     auto depot = _supplyLedger.GetDepot(spec->Depot);
-                    if (depot && depot->Stock && creature.GetExactDist(location->Point.X, location->Point.Y, location->Point.Z) <= 3 &&
-                        creature.IsWithinLOS(location->Point.X, location->Point.Y, location->Point.Z))
+                    if (depot && depot->Stock && creature.GetExactDist(location->Position.X, location->Position.Y, location->Position.Z) <= 3 &&
+                        creature.IsWithinLOS(location->Position.X, location->Position.Y, location->Position.Z))
                         offer("EAT", "Sněz jednu porci v místní zásobárně (5 sekund).", {}, spec->Depot);
-                    addMove(location->Point, "Jdi směrem k místní zásobárně jídla (zásoby: " + std::to_string(depot ? depot->Stock : 0) + ").");
+                    addMove(location->Position, "Jdi směrem k místní zásobárně jídla (zásoby: " + std::to_string(depot ? depot->Stock : 0) + ").");
                 }
         auto const home = creature.GetHomePosition(); addMove({creature.GetMapId(), home.GetPositionX(), home.GetPositionY(), home.GetPositionZ()}, "Jdi směrem ke svému domovu.");
         static char const* directions[] = {"východ", "severovýchod", "sever", "severozápad", "západ", "jihozápad", "jih", "jihovýchod"};

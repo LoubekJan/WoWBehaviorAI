@@ -156,6 +156,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.LivingRaidsEnabled": "0",
         "AIWorld.LivingFieldsEnabled": "0",
         "AIWorld.LivingDefias.Enabled": "0",
+        "AIWorld.LivingCaravans.Enabled": "0",
         "AIWorld.CoalitionMaintenance": "0",
         "AIWorld.GroupCoordination": "0",
         "AIWorld.WolfGroupRegroupEnabled": "0",
@@ -228,7 +229,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
             # Pause ownership without deleting identities or long-term memory.
             for key in ("AIWorld.Enable", "AIWorld.LivingRolesEnabled",
                         "AIWorld.LivingRoleExtensionsEnabled", "AIWorld.LivingNeedEvolutionEnabled",
-                        "AIWorld.LivingSupplyEnabled", "AIWorld.LivingConsumersEnabled", "AIWorld.LivingRaidsEnabled", "AIWorld.LivingFieldsEnabled", "AIWorld.LivingDefias.Enabled"):
+                        "AIWorld.LivingSupplyEnabled", "AIWorld.LivingConsumersEnabled", "AIWorld.LivingRaidsEnabled", "AIWorld.LivingFieldsEnabled", "AIWorld.LivingDefias.Enabled", "AIWorld.LivingCaravans.Enabled"):
                 result[key] = "0"
     elif settings.ai_profile == settlement_population.PROFILE:
         if scope is not None and not isinstance(scope, settlement_population.Population):

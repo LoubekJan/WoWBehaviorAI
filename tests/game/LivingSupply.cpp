@@ -346,9 +346,10 @@ TEST_CASE("Supply registration and operations reject foreign or invalid particip
     REQUIRE(ledger.ConfigureDepot(4));
     REQUIRE(ledger.ConfigureDepot(5));
     REQUIRE(ledger.ConfigureDepot(6));
-    REQUIRE_FALSE(ledger.ConfigureDepot(7));
+    REQUIRE(ledger.ConfigureDepot(7));
+    REQUIRE_FALSE(ledger.ConfigureDepot(8));
     REQUIRE_FALSE(ledger.RegisterActor(0, 1));
-    REQUIRE_FALSE(ledger.RegisterActor(101, 7));
+    REQUIRE_FALSE(ledger.RegisterActor(101, 8));
     REQUIRE_FALSE(ledger.RegisterActor(101, 1, 7));
     REQUIRE_FALSE(ledger.RegisterActor(201, 1, 0, true));
     REQUIRE_FALSE(ledger.RegisterActor(201, 0, 6, true));
@@ -374,7 +375,7 @@ TEST_CASE("Supply registration and operations reject foreign or invalid particip
     REQUIRE_FALSE(ledger.Deliver(101, 0, 1, 1, true).Success);
     REQUIRE_FALSE(ledger.EatDepot(201, 1, 1, 1, true).Success);
     REQUIRE(ledger.GetCargo(999) == 0);
-    REQUIRE(ledger.GetDepot(7) == nullptr);
+    REQUIRE(ledger.GetDepot(8) == nullptr);
     REQUIRE(ledger.GetCarcass({999, 1}) == nullptr);
     Conserved(ledger);
 }
@@ -938,4 +939,252 @@ TEST_CASE("A full raider camp preserves stolen cargo until a real meal creates d
     REQUIRE(ledger.DropCargo(301) == 1);
     REQUIRE(ledger.GetCounters().LostTotal == 1);
     Conserved(ledger);
+}
+
+namespace
+{
+    Ledger CarrierFixture(uint32 villageStock = 10, uint32 cityStock = 0)
+    {
+        Ledger ledger;
+        for (uint32 source : {1u, 4u, 5u, 6u})
+            REQUIRE(ledger.ConfigureDepot(source, villageStock));
+        REQUIRE(ledger.ConfigureDepot(CityDepotId, cityStock));
+        REQUIRE(ledger.RegisterCarrier(401));
+        return ledger;
+    }
+}
+
+TEST_CASE("A friendly carrier loads all four villages and physically delivers accounted food to the city", "[AIWorld][LivingSupply][Caravans]")
+{
+    auto ledger = CarrierFixture();
+    REQUIRE(ledger.RegisterActor(402, CityDepotId, 0, false, true));
+    uint64 serial = 0;
+    for (uint32 source : {1u, 4u, 5u, 6u})
+    {
+        REQUIRE_FALSE(ledger.Load(401, serial+1, source, 6, false).Success);
+        REQUIRE(ledger.GetDepot(source)->Stock == 10);
+        auto loaded = ledger.Load(401, ++serial, source, 6, true);
+        REQUIRE(loaded.Success);
+        REQUIRE_FALSE(loaded.Duplicate);
+        REQUIRE(loaded.Portions == CarrierCargoCapacity);
+        REQUIRE(ledger.GetCargo(401) == CarrierCargoCapacity);
+        REQUIRE(ledger.GetDepot(source)->Stock == DepotLow);
+        REQUIRE(ledger.GetDepot(source)->Exported == 6);
+        REQUIRE(ledger.GetDepot(source)->Stolen == 0);
+        REQUIRE_FALSE(ledger.Deliver(401, serial+1, CityDepotId, 6, false).Success);
+        REQUIRE(ledger.Deliver(401, ++serial, CityDepotId, 6, true).Portions == 6);
+        REQUIRE(ledger.GetCargo(401) == 0);
+        Conserved(ledger);
+    }
+    REQUIRE(ledger.GetCounters().LoadedTotal == 24);
+    REQUIRE(ledger.GetCounters().DeliveredTotal == 24);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 0);
+    REQUIRE(ledger.GetCounters().StolenTotal == 0);
+    REQUIRE(ledger.GetDepot(CityDepotId)->Stock == 24);
+    REQUIRE(ledger.EatDepot(402, 1, CityDepotId, 1, true).Success);
+    REQUIRE(ledger.EatDepot(401, ++serial, CityDepotId, 1, true).Success);
+    REQUIRE(ledger.GetDepot(CityDepotId)->Stock == 22);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 2);
+    Conserved(ledger);
+}
+
+TEST_CASE("Friendly loading requires the city and every reviewed source without upgrading existing capabilities", "[AIWorld][LivingSupply][Caravans]")
+{
+    for (uint32 missing : {1u, 4u, 5u, 6u, 7u})
+    {
+        Ledger ledger;
+        for (uint32 depot : {1u, 4u, 5u, 6u, 7u})
+            if (depot != missing) REQUIRE(ledger.ConfigureDepot(depot));
+        REQUIRE_FALSE(ledger.RegisterCarrier(401));
+    }
+    auto ledger = CarrierFixture();
+    REQUIRE(ledger.ConfigureDepot(2));
+    REQUIRE(ledger.ConfigureDepot(3));
+    REQUIRE(ledger.ConfigureField(4, 1));
+    REQUIRE(ledger.RegisterActor(101, CityDepotId));
+    REQUIRE(ledger.RegisterFarmer(201, 4, 4));
+    REQUIRE(ledger.RegisterRaider(301, 3, 1, 2, true));
+    REQUIRE(ledger.RegisterActor(501, CityDepotId, 0, false, true));
+    REQUIRE(ledger.RegisterActor(601, 0, 0, true));
+    REQUIRE_FALSE(ledger.RegisterCarrier(0));
+    for (uint32 depot : {0u, 1u, 2u, 3u, 4u, 5u, 6u, 8u})
+        REQUIRE_FALSE(ledger.RegisterCarrier(402, depot));
+    for (uint32 capacity : {0u, 1u, 5u, 7u})
+        REQUIRE_FALSE(ledger.RegisterCarrier(402, CityDepotId, capacity));
+    for (uint64 actor : {101u, 201u, 301u, 501u, 601u})
+    {
+        REQUIRE_FALSE(ledger.RegisterCarrier(actor));
+        REQUIRE_FALSE(ledger.Load(actor, 1, 1, 1, true).Success);
+    }
+    REQUIRE(ledger.RegisterCarrier(401));
+    REQUIRE_FALSE(ledger.RegisterActor(401, CityDepotId));
+    REQUIRE_FALSE(ledger.RegisterActor(401, CityDepotId, 0, false, true));
+    REQUIRE_FALSE(ledger.RegisterFarmer(401, 4, 4));
+    REQUIRE_FALSE(ledger.RegisterRaider(401, 3, 1, 2, true));
+    REQUIRE(ledger.RegisterCarcass({701, 1}, 1, 10000));
+    REQUIRE_FALSE(ledger.Reserve(401, {701, 1}, ClaimKind::Harvest, 6, 2));
+    REQUIRE_FALSE(ledger.Reserve(401, {701, 1}, ClaimKind::PredatorMeal, 3, 2));
+    REQUIRE_FALSE(ledger.HarvestField(401, 1, 4, 1, 2, true).Success);
+    REQUIRE_FALSE(ledger.Steal(401, 1, 1, 2, true).Success);
+    REQUIRE_FALSE(ledger.Load(999, 1, 1, 1, true).Success);
+    for (uint32 source : {0u, 2u, 3u, 7u, 8u})
+        REQUIRE_FALSE(ledger.Load(401, 1, source, 1, true).Success);
+    REQUIRE_FALSE(ledger.Load(401, 0, 1, 1, true).Success);
+    REQUIRE_FALSE(ledger.Load(401, 1, 1, 0, true).Success);
+    REQUIRE_FALSE(ledger.Load(401, 1, 1, 7, true).Success);
+    REQUIRE(ledger.GetCounters().LoadedTotal == 0);
+    REQUIRE(ledger.GetCargo(401) == 0);
+    Conserved(ledger);
+}
+
+TEST_CASE("Friendly loading atomically preserves the village reserve across consumers thieves and carriers", "[AIWorld][LivingSupply][Caravans]")
+{
+    auto ledger = CarrierFixture();
+    REQUIRE(ledger.ConfigureDepot(3));
+    REQUIRE(ledger.RegisterCarrier(402));
+    REQUIRE(ledger.RegisterActor(501, 1, 0, false, true));
+    REQUIRE(ledger.RegisterRaider(301));
+    REQUIRE(ledger.EatDepot(501, 1, 1, 1, true).Success);
+    REQUIRE(ledger.Load(401, 1, 1, 4, true).Portions == 4);
+    REQUIRE(ledger.Load(402, 1, 1, 6, true).Portions == 1);
+    REQUIRE(ledger.GetDepot(1)->Stock == DepotLow);
+    REQUIRE(ledger.GetDepot(1)->Exported == 5);
+    REQUIRE_FALSE(ledger.Load(402, 2, 1, 6, true).Success);
+    REQUIRE(ledger.Steal(301, 1, 1, 2, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 2);
+    REQUIRE_FALSE(ledger.Load(401, 2, 1, 2, true).Success);
+    REQUIRE(ledger.EatDepot(501, 2, 1, 2, true).Success);
+    REQUIRE(ledger.GetDepot(1)->Stock == 0);
+    auto empty = ledger.Load(401, 2, 1, 2, true);
+    REQUIRE_FALSE(empty.Success);
+    REQUIRE(std::string(empty.Reason) == "VILLAGE_RESERVE");
+    REQUIRE(ledger.GetCounters().LoadedTotal == 5);
+    REQUIRE(ledger.GetCounters().StolenTotal == 2);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 3);
+    Conserved(ledger);
+}
+
+TEST_CASE("Friendly loading respects each configured source reserve and remaining cargo capacity", "[AIWorld][LivingSupply][Caravans]")
+{
+    Ledger ledger;
+    REQUIRE(ledger.ConfigureDepot(1, 15, 30, 12, 8));
+    for (uint32 depot : {4u, 5u, 6u, 7u}) REQUIRE(ledger.ConfigureDepot(depot));
+    REQUIRE(ledger.RegisterCarrier(401));
+    REQUIRE(ledger.Load(401, 1, 1, 4, true).Portions == 4);
+    REQUIRE(ledger.Load(401, 2, 1, 6, true).Portions == 2);
+    REQUIRE(ledger.GetCargo(401) == CarrierCargoCapacity);
+    auto full = ledger.Load(401, 3, 1, 1, true);
+    REQUIRE_FALSE(full.Success);
+    REQUIRE(std::string(full.Reason) == "CARGO_FULL");
+    REQUIRE(ledger.GetDepot(1)->Stock == 9);
+    REQUIRE(ledger.Deliver(401, 3, CityDepotId, 6, true).Portions == 6);
+    REQUIRE(ledger.Load(401, 4, 1, 6, true).Portions == 1);
+    REQUIRE(ledger.GetDepot(1)->Stock == 8);
+    REQUIRE_FALSE(ledger.Load(401, 5, 1, 6, true).Success);
+    REQUIRE(ledger.GetCounters().LoadedTotal == 7);
+    Conserved(ledger);
+}
+
+TEST_CASE("Friendly loading receipts reject changed sources amounts kinds and stale serials", "[AIWorld][LivingSupply][Caravans]")
+{
+    auto ledger = CarrierFixture();
+    REQUIRE(ledger.Load(401, 10, 1, 6, true).Portions == 6);
+    auto replay = ledger.Load(401, 10, 1, 6, true);
+    REQUIRE(replay.Success);
+    REQUIRE(replay.Duplicate);
+    REQUIRE(replay.Portions == 6);
+    REQUIRE_FALSE(ledger.Load(401, 10, 4, 6, true).Success);
+    REQUIRE_FALSE(ledger.Load(401, 10, 1, 5, true).Success);
+    REQUIRE_FALSE(ledger.Load(401, 9, 4, 6, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(401, 10, CityDepotId, 6, true).Success);
+    REQUIRE(ledger.GetCounters().LoadedTotal == 6);
+    REQUIRE(ledger.GetDepot(1)->Exported == 6);
+    REQUIRE(ledger.Deliver(401, 11, CityDepotId, 6, true).Portions == 6);
+    REQUIRE_FALSE(ledger.Load(401, 10, 1, 6, true).Success);
+    REQUIRE_FALSE(ledger.Load(401, 11, 4, 6, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(401, 11, 1, 6, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(401, 11, CityDepotId, 1, true).Success);
+    REQUIRE(ledger.GetCargo(401) == 0);
+    REQUIRE(ledger.GetDepot(CityDepotId)->Stock == 6);
+    Conserved(ledger);
+}
+
+TEST_CASE("A carrier retains partial city delivery cargo and drops it only once across death", "[AIWorld][LivingSupply][Caravans]")
+{
+    auto ledger = CarrierFixture(10, 29);
+    REQUIRE(ledger.Load(401, 1, 1, 6, true).Portions == 6);
+    REQUIRE_FALSE(ledger.Deliver(401, 2, 1, 6, true).Success);
+    REQUIRE_FALSE(ledger.EatDepot(401, 2, 1, 1, true).Success);
+    REQUIRE(ledger.Deliver(401, 2, CityDepotId, 6, true).Portions == 1);
+    REQUIRE(ledger.GetCargo(401) == 5);
+    REQUIRE(ledger.GetDepot(CityDepotId)->Stock == 30);
+    REQUIRE(ledger.Deliver(401, 2, CityDepotId, 6, true).Duplicate);
+    REQUIRE_FALSE(ledger.Deliver(401, 3, CityDepotId, 6, true).Success);
+    REQUIRE(ledger.GetCargo(401) == 5);
+    REQUIRE(ledger.DropCargo(401) == 5);
+    REQUIRE(ledger.DropCargo(401) == 0);
+    REQUIRE(ledger.GetCounters().LostTotal == 5);
+    REQUIRE(ledger.GetCounters().LoadedTotal == 6);
+    REQUIRE(ledger.GetCounters().DeliveredTotal == 1);
+    REQUIRE_FALSE(ledger.Load(401, 1, 1, 6, true).Success);
+    REQUIRE_FALSE(ledger.Deliver(401, 2, CityDepotId, 6, true).Success);
+    REQUIRE(ledger.RegisterCarrier(401));
+    REQUIRE(ledger.Load(401, 3, 4, 6, true).Portions == 6);
+    REQUIRE(ledger.GetCargo(401) == 6);
+    REQUIRE(ledger.GetCounters().LoadedTotal == 12);
+    REQUIRE(ledger.EatDepot(401, 4, CityDepotId, 1, true).Success);
+    REQUIRE(ledger.Deliver(401, 5, CityDepotId, 6, true).Portions == 1);
+    REQUIRE(ledger.GetCounters().LostTotal == 5);
+    Conserved(ledger);
+}
+
+TEST_CASE("Carrier registration obeys the shared actor bound without replacing food participants", "[AIWorld][LivingSupply][Caravans]")
+{
+    Ledger ledger;
+    for (uint32 depot : {1u, 4u, 5u, 6u, 7u}) REQUIRE(ledger.ConfigureDepot(depot));
+    for (uint64 actor = 1; actor <= 127; ++actor) REQUIRE(ledger.RegisterActor(actor, CityDepotId));
+    REQUIRE(ledger.RegisterCarrier(128));
+    REQUIRE(ledger.RegisterCarrier(128));
+    REQUIRE_FALSE(ledger.RegisterCarrier(129));
+    REQUIRE_FALSE(ledger.RegisterActor(129, CityDepotId));
+    REQUIRE_FALSE(ledger.RegisterCarrier(1));
+    REQUIRE(ledger.RegisterActor(1, CityDepotId));
+    Conserved(ledger);
+}
+
+TEST_CASE("Caravans transport actually produced meat and crops without counting a second harvest", "[AIWorld][LivingSupply][Caravans]")
+{
+    auto ledger = CarrierFixture(0);
+    REQUIRE(ledger.RegisterActor(101, 1));
+    Harvest(ledger, 101, {701, 1});
+    REQUIRE(ledger.Deliver(101, 1, 1, 6, true).Portions == 6);
+    for (uint32 source : {4u, 5u, 6u})
+    {
+        REQUIRE(ledger.ConfigureField(source, 1));
+        REQUIRE(ledger.RegisterFarmer(200+source, source, source));
+        for (uint64 serial = 1; serial <= 6; serial += 2)
+        {
+            REQUIRE(ledger.HarvestField(200+source, serial, source, 2, 2, true).Portions == 2);
+            REQUIRE(ledger.Deliver(200+source, serial+1, source, 2, true).Portions == 2);
+        }
+        REQUIRE(ledger.GetDepot(source)->Stock == 6);
+        Conserved(ledger);
+    }
+    REQUIRE(ledger.GetCounters().InitialFood == 0);
+    REQUIRE(ledger.GetCounters().HarvestedTotal == 24);
+    uint64 serial = 0;
+    for (uint32 source : {1u, 4u, 5u, 6u})
+    {
+        REQUIRE(ledger.Load(401, ++serial, source, 6, true).Portions == 2);
+        REQUIRE(ledger.GetDepot(source)->Stock == DepotLow);
+        REQUIRE(ledger.Deliver(401, ++serial, CityDepotId, 6, true).Portions == 2);
+        REQUIRE(ledger.GetCounters().HarvestedTotal == 24);
+        Conserved(ledger);
+    }
+    REQUIRE(ledger.GetCounters().LoadedTotal == 8);
+    REQUIRE(ledger.GetCounters().DeliveredTotal == 32);
+    REQUIRE(ledger.GetCounters().StolenTotal == 0);
+    REQUIRE(ledger.GetDepot(CityDepotId)->Stock == 8);
+    REQUIRE(ledger.GetCounters().ConsumedTotal == 0);
+    REQUIRE(ledger.DepotFood() == 24);
 }

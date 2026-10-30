@@ -62,6 +62,7 @@ class FoodDepot(ProtocolModel):
     delivered: Counter64
     consumed: Counter64
     stolen: Counter64 = "0"
+    exported: Counter64 = "0"
 
     @model_validator(mode="after")
     def bounded_stock(self):
@@ -88,9 +89,38 @@ class FoodAccounting(ProtocolModel):
         return self
 
 
+class LivingCaravan(ProtocolModel):
+    id: int = Field(ge=1, le=2, strict=True)
+    leader_spawn_id: Counter64
+    member_spawn_ids: list[Counter64] = Field(min_length=2, max_length=2)
+    source_depot_id: int = Field(gt=0, le=2**32 - 1, strict=True)
+    destination_depot_id: Literal[7]
+    stage: str = Field(min_length=1, max_length=80, strict=True)
+    trip: Counter64
+    waypoint: Quantity32
+    member_ready: bool = Field(strict=True)
+    loaded: Counter64
+    completed_trips: Counter64
+    source_depot: FoodDepot | None = None
+    destination_depot: FoodDepot | None = None
+
+    @model_validator(mode="after")
+    def authored_pair_and_warehouses(self):
+        leader, guard, villages = ("901040", "901042", (4, 5)) if self.id == 1 else ("901041", "901043", (6, 1))
+        if self.leader_spawn_id != leader or self.member_spawn_ids != [leader, guard]:
+            raise ValueError("Caravan requires its stable authored carrier and escort")
+        if self.source_depot_id not in villages:
+            raise ValueError("Caravan source must belong to its two assigned villages")
+        for depot, identity in ((self.source_depot, self.source_depot_id),
+                                (self.destination_depot, self.destination_depot_id)):
+            if depot is not None and (depot.id != identity or depot.position.map_id != 725):
+                raise ValueError("Caravan warehouses require matching IDs on map 725")
+        return self
+
+
 class LivingSupply(ProtocolModel):
     enabled: bool = Field(strict=True)
-    role: Literal["HUNTER", "PREDATOR", "CONSUMER", "RAIDER", "FARMER"]
+    role: Literal["HUNTER", "PREDATOR", "CONSUMER", "RAIDER", "FARMER", "CARAVAN_CARRIER", "CARAVAN_ESCORT", "CITY_CONSUMER"]
     phase: str = Field(min_length=1, max_length=80, strict=True)
     depot_id: Quantity32
     cargo: Quantity32
@@ -107,6 +137,7 @@ class LivingSupply(ProtocolModel):
     last_result: str = Field(max_length=100, strict=True)
     depot: FoodDepot | None = None
     accounting: FoodAccounting | None = None
+    caravan: LivingCaravan | None = None
     field_id: Quantity32 | None = None
     field_workpoint_index: int | None = Field(default=None, ge=0, le=11, strict=True)
     field_workpoint: Point | None = None
@@ -133,12 +164,26 @@ class LivingSupply(ProtocolModel):
             raise ValueError("Only farmers may expose crop field observations")
         if self.role != "RAIDER" and int(self.stolen) != 0:
             raise ValueError("Only raiders can withdraw stolen food")
+        caravan_role = self.role in ("CARAVAN_CARRIER", "CARAVAN_ESCORT")
+        if caravan_role:
+            carrier = self.role == "CARAVAN_CARRIER"
+            if (self.caravan is None or self.depot_id != 7 or self.depot is None or
+                self.capacity != (6 if carrier else 0) or int(self.harvested) != 0 or
+                self.hunting_ground is not None or self.carcass_remaining is not None or
+                self.carcass_spawn_id is not None or self.carcass_life is not None or
+                (not carrier and any(int(value) != 0 for value in
+                                    (self.delivered, self.lost, self.caravan.loaded)))):
+                raise ValueError("Caravans require their paired transport capability and city warehouse")
+        elif self.caravan is not None:
+            raise ValueError("Only caravan participants may expose caravan coordination")
+        if self.role == "CITY_CONSUMER" and self.depot_id != 7:
+            raise ValueError("City consumers eat only from the city warehouse")
         if self.role == "RAIDER" and (self.capacity != 2 or int(self.harvested) != 0 or
             self.hunting_ground is not None or self.carcass_remaining is not None or
             self.carcass_spawn_id is not None or self.carcass_life is not None or
             self.depot_id == 0 or self.depot is None):
             raise ValueError("Raiders carry at most two stolen portions without hunting capability")
-        if self.role == "CONSUMER" and (self.cargo != 0 or self.capacity != 0 or
+        if self.role in ("CONSUMER", "CITY_CONSUMER") and (self.cargo != 0 or self.capacity != 0 or
             any(int(value) != 0 for value in (self.harvested, self.delivered, self.lost)) or
             self.hunting_ground is not None or self.carcass_remaining is not None or
             self.carcass_spawn_id is not None or self.carcass_life is not None or
@@ -561,6 +606,12 @@ class Agent(ProtocolModel):
                           self.supply.depot.position if self.supply.depot else None):
                 if point is not None and point.map_id != self.position.map_id:
                     raise ValueError("Supply observations must remain on the actor's map")
+            caravan = self.supply.caravan
+            if caravan is not None:
+                if self.position.map_id != 725 or str(self.spawn_id) not in caravan.member_spawn_ids:
+                    raise ValueError("Caravan observation must belong to its live authored participant")
+                if (self.supply.role == "CARAVAN_CARRIER") != (str(self.spawn_id) == caravan.leader_spawn_id):
+                    raise ValueError("Caravan carrying capability must agree with the leader's identity")
         if self.raid is not None:
             if self.control_mode != "AI_WORLD_CONTROLLED" or self.supply is None or not self.supply.enabled:
                 raise ValueError("Raid observations require a controlled actor with current supply observations")
@@ -655,6 +706,9 @@ class TelemetryBatch(ProtocolModel):
                 fields[agent.supply.field_id] = current_field
             if agent.supply is not None and agent.supply.depot is not None:
                 copies.append(agent.supply.depot)
+            if agent.supply is not None and agent.supply.caravan is not None:
+                copies.extend(depot for depot in (agent.supply.caravan.source_depot,
+                                                   agent.supply.caravan.destination_depot) if depot is not None)
             if agent.raid is not None:
                 copies.extend((agent.raid.source_depot, agent.raid.camp_depot))
             for copy in copies:
@@ -683,4 +737,19 @@ class TelemetryBatch(ProtocolModel):
             if party.id in parties and parties[party.id] != shared:
                 raise ValueError("Raid party copies disagree about their roster or common objective")
             parties[party.id] = shared
+        return self
+
+    @model_validator(mode="after")
+    def caravan_copies_share_one_objective(self):
+        caravans = {}
+        for agent in self.agents:
+            caravan = agent.supply.caravan if agent.supply is not None else None
+            if caravan is None:
+                continue
+            shared = (caravan.leader_spawn_id, tuple(caravan.member_spawn_ids), caravan.stage,
+                      caravan.trip, caravan.waypoint, caravan.source_depot_id,
+                      caravan.destination_depot_id, caravan.completed_trips)
+            if caravan.id in caravans and caravans[caravan.id] != shared:
+                raise ValueError("Caravan copies disagree about their roster or common route")
+            caravans[caravan.id] = shared
         return self

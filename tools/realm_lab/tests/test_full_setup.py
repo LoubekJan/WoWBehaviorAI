@@ -26,7 +26,7 @@ class FullSetupTests(unittest.TestCase):
         config = manage.config_overrides(self.settings, self.population)
         for flag in ("Enable", "LivingRolesEnabled", "LivingRoleExtensionsEnabled", "LivingNeedEvolutionEnabled",
                      "LivingSupplyEnabled", "LivingConsumersEnabled", "LivingRaidsEnabled", "LivingFieldsEnabled",
-                     "LivingDefias.Enabled", "NpcAgentEnabled", "ScopeRestrictAgents", "ScopeAlwaysActive"):
+                     "LivingDefias.Enabled", "LivingCaravans.Enabled", "NpcAgentEnabled", "ScopeRestrictAgents", "ScopeAlwaysActive"):
             self.assertEqual(config["AIWorld." + flag], "1", flag)
         self.assertEqual(config["AIWorld.ScopeMapId"], "725")
         scoped = {int(value) for value in config["AIWorld.ScopeSpawnIds"].strip('"').split(",")}
@@ -45,7 +45,7 @@ class FullSetupTests(unittest.TestCase):
         self.assertEqual(paused["AIWorld.TelemetryNativeCreaturesEnabled"], "1")
         for flag in ("Enable", "LivingRolesEnabled", "LivingRoleExtensionsEnabled", "LivingNeedEvolutionEnabled",
                      "LivingSupplyEnabled", "LivingConsumersEnabled", "LivingRaidsEnabled", "LivingFieldsEnabled",
-                     "LivingDefias.Enabled", "NpcAgentEnabled"):
+                     "LivingDefias.Enabled", "LivingCaravans.Enabled", "NpcAgentEnabled"):
             self.assertEqual(paused["AIWorld." + flag], "0", flag)
 
     def test_full_scope_cannot_be_substituted_with_a_partial_or_foreign_profile(self):

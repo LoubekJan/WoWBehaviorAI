@@ -117,7 +117,8 @@ TEST_CASE("Crop configuration is bounded idempotent and creates only potential",
     REQUIRE_FALSE(ledger.ConfigureField(4, 100));
     for (uint32 id = 1; id <= 6; ++id)
         REQUIRE(ledger.ConfigureDepot(id));
-    REQUIRE_FALSE(ledger.ConfigureDepot(7));
+    REQUIRE(ledger.ConfigureDepot(7));
+    REQUIRE_FALSE(ledger.ConfigureDepot(8));
     for (uint32 invalid : {0u, 1u, 2u, 3u, 7u})
         REQUIRE_FALSE(ledger.ConfigureField(invalid, 100));
     REQUIRE_FALSE(ledger.ConfigureField(4, 100, 0, 0));

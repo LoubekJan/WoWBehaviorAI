@@ -63,6 +63,7 @@ class _Evaluator:
         self.frozen_dead_camp_metrics = {}
         self.camp_previous = {}
         self.party_frames = 0
+        self.unsupported_caravans = False
 
     def violation(self, code, sid=0):
         self.field_gate.violation(code, sid)
@@ -279,10 +280,25 @@ class _Evaluator:
             track.closed = True
 
     def observe(self, record):
-        prior_frames, prior_epoch = self.field_gate.complete, self.field_gate.epoch
-        self.current_death_bindings = self.death_bindings(record)
         state = (record if "agents" in record else record.get("state")) if isinstance(record, dict) else None
         raw_agents = state.get("agents") if isinstance(state, dict) else None
+        if self.profile == full.PROFILE and isinstance(raw_agents, list):
+            for actor in raw_agents:
+                if not isinstance(actor, dict): continue
+                supplied, role = actor.get("supply"), actor.get("living_role")
+                if ((isinstance(supplied, dict) and (supplied.get("caravan") is not None or
+                        supplied.get("role") in ("CARAVAN_CARRIER", "CARAVAN_ESCORT", "CITY_CONSUMER") or
+                        supplied.get("depot_id") == 7)) or
+                    isinstance(role, dict) and role.get("role") in ("CARAVAN_CARRIER", "CARAVAN_ESCORT", "CITY_CONSUMER")):
+                    self.unsupported_caravans = True
+                    break
+        if self.unsupported_caravans:
+            # Never strip actual seventh-depot participants to make an older
+            # six-depot ledger pass. A mixed recording is unsupported as well.
+            self.field_gate.quality["unsupported_seven_depot_caravan_economy"] += 1
+            return
+        prior_frames, prior_epoch = self.field_gate.complete, self.field_gate.epoch
+        self.current_death_bindings = self.death_bindings(record)
         raw_actors = {actor.get("spawn_id"): actor for actor in raw_agents if isinstance(actor, dict)} if isinstance(raw_agents, list) else {}
         self.frozen_dead_camp_metrics = {sid: previous for sid, binding in self.retired_bindings.items()
             if fields.dead_camp_absence(raw_actors.get(sid)) and
@@ -304,7 +320,7 @@ class _Evaluator:
                 # The wider cohort must keep its reviewed ordinary roles and
                 # cannot hide unauthorized capability changes behind a valid
                 # trip by the unchanged specialized Defias members.
-                telemetry_contract.validate_snapshot(state, self.profile)
+                telemetry_contract.validate_snapshot(state, self.profile, legacy_ordinary_full=True)
             except (ValueError, TypeError, KeyError, AttributeError):
                 self.violation("full_population_runtime_contract_changed")
         if self.field_gate.complete == prior_frames:
@@ -357,6 +373,9 @@ class _Evaluator:
             (epoch := self.field_gate.epochs.get(receipt["epoch"])) and
             (epoch["last_capture"]-epoch["first_capture"])/1000 >= self.minimum_seconds]
         missing = [] if qualifying else ["assembly_owned_joint_travel_common_objective_and_linked_member_outcomes"]
+        if self.unsupported_caravans:
+            qualifying = []
+            missing.append("unsupported_seven_depot_caravan_economy_use_caravan_acceptance")
         if not any((epoch["last_capture"]-epoch["first_capture"])/1000 >= self.minimum_seconds
                    for epoch in self.field_gate.epochs.values()):
             missing.append("shared_continuous_fresh_observation_window")
@@ -368,12 +387,13 @@ class _Evaluator:
             expected_defias=16, expected_raiders=10, expected_camp_members=6,
             complete_population_frames=self.field_gate.complete, party_frames=self.party_frames,
             minimum_observation_seconds=self.minimum_seconds, max_gap_seconds=self.max_gap,
-            receipts=self.receipts, qualifying_receipts=len(qualifying), quality=ledger["quality"],
+            receipts=[] if self.unsupported_caravans else self.receipts, qualifying_receipts=len(qualifying), quality=ledger["quality"],
             violations=violations, missing_evidence=missing,
             limitations=["PASS proves party movement and a warehouse visit or actual guard interception, including legitimate retreat or death. It never implies a successful theft or delivery.",
                 "Food conservation and each warehouse's delivery, meal and stolen flows include all sixteen Defias and remain independent.",
                 "For a directly witnessed dead camp member subsequently declared ABSTRACT without live observations, zero-cargo actor counters are inferred frozen from its last actual ledger snapshot. No absent position, action or party outcome is fabricated; all six current depot copies and global flows remain required.",
                 "Observed memory counts are descriptive. This gate does not certify causal memory-driven target choice; the separate memory proof is required for that claim.",
+                "Historic full-v8 recordings with only ordinary recruits remain supported. Current seven-depot caravan streams are INCONCLUSIVE here and require caravan_acceptance; no real food participant is removed to fit the old ledger.",
                 "Position and owned-action receipts do not prove client animation pixels or independently measure collision and line of sight."])
 
 

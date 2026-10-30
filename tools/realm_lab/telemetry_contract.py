@@ -20,7 +20,76 @@ except ImportError:
     import wildlife_population as wildlife
 
 
-def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) -> dict[str, int]:
+def _counter(value) -> bool:
+    return (isinstance(value, str) and 0 < len(value) <= 20 and value.isascii() and value.isdigit() and
+            str(int(value)) == value and 0 <= int(value) < 2**64)
+
+
+def _caravan_depot(depot, expected, copies):
+    require = settlement.require
+    require(isinstance(depot, dict) and type(depot.get("id")) is int and depot["id"] == expected["id"] and
+            isinstance(depot.get("position"), dict) and type(depot["position"].get("map_id")) is int and
+            depot["position"]["map_id"] == 725 and
+            all(type(depot["position"].get(key)) in (int, float) and math.isfinite(depot["position"][key]) and
+                abs(depot["position"][key] - value) <= .001 for key, value in expected["position"].items()) and
+            type(depot.get("stock")) is int and type(depot.get("capacity")) is int and
+            0 <= depot["stock"] <= depot["capacity"] == expected.get("capacity", 30) and
+            type(depot.get("low_threshold")) is int and depot["low_threshold"] == expected.get("low_threshold", 4) and
+            all(_counter(depot.get(key)) for key in ("delivered", "consumed", "stolen", "exported")),
+            "Caravan depot position, bounded stock, reserve or transfer counters changed")
+    require(depot["id"] not in copies or copies[depot["id"]] == depot,
+            "Caravans report conflicting copies of the same food depot")
+    copies[depot["id"]] = depot
+
+
+def _caravan_supply(actor, identity, villages, depots, pairs):
+    require = settlement.require
+    supplied = actor.get("supply")
+    carrier, escort = identity in full.CARRIER_IDS, identity in full.ESCORT_IDS
+    role = "CARAVAN_CARRIER" if carrier else "CARAVAN_ESCORT" if escort else "CITY_CONSUMER"
+    require(isinstance(supplied, dict) and supplied.get("enabled") is True and supplied.get("role") == role and
+            type(supplied.get("depot_id")) is int and supplied["depot_id"] == 7 and
+            type(supplied.get("cargo")) is int and type(supplied.get("capacity")) is int and
+            0 <= supplied["cargo"] <= supplied["capacity"] == (6 if carrier else 0) and
+            all(supplied.get(key) is None for key in ("hunting_ground", "carcass_remaining", "carcass_spawn_id",
+                "carcass_life", "field_id", "field_workpoint_index", "field_workpoint", "field_remaining", "field_capacity")),
+            "Caravan or city-consumer food capability, cargo or non-hunting identity changed")
+    require(actor.get("raid") is None, "Caravan or city consumer acquired a raid capability")
+    _caravan_depot(supplied.get("depot"), full.CITY_DEPOT, depots)
+    caravan = supplied.get("caravan")
+    if not (carrier or escort):
+        require(caravan is None, "City consumer acquired caravan coordination")
+        return
+    pair = next(pair for pair in full.CARAVAN_PAIRS if identity in (pair["carrier_spawn_id"], pair["escort_spawn_id"]))
+    require(isinstance(caravan, dict) and type(caravan.get("id")) is int and caravan["id"] == pair["id"] and
+            caravan.get("leader_spawn_id") == str(pair["carrier_spawn_id"]) and
+            caravan.get("member_spawn_ids") == list(map(str, (pair["carrier_spawn_id"], pair["escort_spawn_id"]))) and
+            type(caravan.get("destination_depot_id")) is int and caravan["destination_depot_id"] == 7 and
+            caravan.get("stage") in ("RALLY", "TO_VILLAGE", "LOADING", "TO_CITY", "UNLOADING", "REST", "RECOVER") and
+            all(_counter(caravan.get(key)) for key in ("trip", "loaded", "completed_trips")) and
+            type(caravan.get("waypoint")) is int and 0 <= caravan["waypoint"] < 20 and
+            type(caravan.get("member_ready")) is bool and
+            int(caravan["completed_trips"]) <= int(caravan["trip"]) and
+            (not escort or caravan["loaded"] == "0") and int(caravan["loaded"]) >= supplied["cargo"],
+            "Caravan pair, leader, role, route progress or session counters changed")
+    source = caravan.get("source_depot_id")
+    require(type(source) is int and (source in pair["source_depot_ids"] or
+            (source == 0 and caravan["trip"] == "0" and caravan["stage"] in ("RALLY", "RECOVER") and supplied["cargo"] == 0)),
+            "Caravan selected a source outside its assigned villages")
+    if source:
+        _caravan_depot(caravan.get("source_depot"), villages[source], depots)
+    else:
+        require(caravan.get("source_depot") is None, "Unstarted caravan reported an invented source depot")
+    _caravan_depot(caravan.get("destination_depot"), full.CITY_DEPOT, depots)
+    shared = {key: caravan[key] for key in ("id", "leader_spawn_id", "member_spawn_ids", "source_depot_id",
+        "destination_depot_id", "stage", "trip", "waypoint", "completed_trips")}
+    require(pair["id"] not in pairs or pairs[pair["id"]] == shared,
+            "Members disagree about their shared caravan trip")
+    pairs[pair["id"]] = shared
+
+
+def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True, *,
+                      legacy_ordinary_full: bool = False) -> dict[str, int]:
     require = settlement.require
     require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE, fields.PROFILE, defias.PROFILE, full.PROFILE), "Unknown authored-world telemetry profile")
     require(isinstance(state, dict) and state.get("stale") is False and state.get("version") == 4,
@@ -38,6 +107,8 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
               fields.PROFILE: fields.SPAWN_IDS, defias.PROFILE: defias.SPAWN_IDS,
               full.PROFILE: full.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
     full_enabled = profile == full.PROFILE and wildlife_enabled
+    require(type(legacy_ordinary_full) is bool and (not legacy_ordinary_full or full_enabled),
+            "Historic ordinary-role validation requires the full profile")
     defias_enabled = profile in (defias.PROFILE, full.PROFILE) and wildlife_enabled
     field_population = fields.Population.load() if profile in (fields.PROFILE, defias.PROFILE, full.PROFILE) and wildlife_enabled else None
     field_actors = {actor.spawn_id: actor for actor in field_population.recruits} if field_population else {}
@@ -48,11 +119,15 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
     village_warehouses = {1: supply.DEPOTS[0], **{key: value["warehouse"] for key, value in field_definitions.items()}}
     accounting_snapshot, field_snapshots, warehouse_snapshots = None, {}, {}
     raid_warehouse_snapshots, camp_snapshot = {}, None
+    caravan_depots, caravan_pairs = {}, {}
     live_roles = 0
     for actor in actors:
         identity = actor["spawn_id"]
         require(actor.get("agent_id") == identity and (actor.get("position") or {}).get("map_id") == 725,
                 "Telemetry actor identity or map differs")
+        if not full_enabled or identity not in full.CARAVAN_IDS:
+            require(not isinstance(actor.get("supply"), dict) or actor["supply"].get("caravan") is None,
+                    "Unselected actor acquired caravan coordination")
         if profile not in (raids.PROFILE, fields.PROFILE, defias.PROFILE, full.PROFILE) or identity not in raid_actor_ids or not wildlife_enabled:
             require(actor.get("raid") is None, "Unselected actor acquired a raid role")
         if identity not in active:
@@ -69,7 +144,12 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 "Controlled wildlife needs are unavailable or invalid")
         role = actor.get("living_role")
         if actor.get("alive") is True and (actor.get("position") or {}).get("source") == "live":
-            expected_role = (full.RECRUIT_ROLES.get(identity) if full_enabled else None) or (defias.RECRUIT_ROLES.get(identity) if defias_enabled else None) or ("FARMER" if identity in field_actors else raids.RECRUIT_ROLES.get(identity)) or consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
+            # Closed recordings predating caravans retain their original six
+            # ordinary roles. Deployment always uses the current default.
+            full_role = ({0: "WORKER", 1: "GUARD", 2: "SERVICE", 5: "COMBATANT"}[full.RECRUIT_TYPES[identity]]
+                if legacy_ordinary_full and identity in full.RECRUIT_IDS else
+                full.RECRUIT_ROLES.get(identity) if full_enabled else None)
+            expected_role = full_role or (defias.RECRUIT_ROLES.get(identity) if defias_enabled else None) or ("FARMER" if identity in field_actors else raids.RECRUIT_ROLES.get(identity)) or consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
                 "PREDATOR" if identity in wildlife.PREDATOR_IDS else "PREY")
             require(isinstance(role, dict) and role.get("enabled") is True and role.get("extensions_enabled") is True and
                     role.get("role") == expected_role,
@@ -110,8 +190,11 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 require(actor.get("type") == expected_type and type(actor.get("world_faction")) is int and
                         actor["world_faction"] == full.RECRUIT_FACTIONS[identity],
                         "New full population actor ordinary type or faction changed")
-                require(actor.get("supply") is None and actor.get("raid") is None,
-                        "Generic full population actor acquired an unassigned supply or raid capability")
+                if identity in full.SUPPLY_RECRUIT_IDS and not legacy_ordinary_full:
+                    _caravan_supply(actor, identity, village_warehouses, caravan_depots, caravan_pairs)
+                else:
+                    require(actor.get("supply") is None and actor.get("raid") is None,
+                            "Generic full population actor acquired an unassigned supply or raid capability")
             elif identity in field_actors:
                 farmer = field_actors[identity]
                 definition = field_definitions[farmer.field_id]
@@ -232,6 +315,15 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
     for identity, depot in raid_warehouse_snapshots.items():
         require(identity not in warehouse_snapshots or warehouse_snapshots[identity] == depot,
                 "Raid source copy disagrees with the village warehouse ledger")
+    if full_enabled:
+        for actor in actors:
+            supplied = actor.get("supply")
+            if isinstance(supplied, dict) and isinstance((depot := supplied.get("depot")), dict) and depot.get("id") in caravan_depots:
+                require(caravan_depots[depot["id"]] == depot,
+                        "Caravan source copy disagrees with the current food ledger")
+        for identity, depot in raid_warehouse_snapshots.items():
+            require(identity not in caravan_depots or caravan_depots[identity] == depot,
+                    "Caravan and raid source copies disagree")
     require(not active or live_roles > 0, "No living controlled wildlife role is observable")
     return {"total": 100, "managed": len(active), "native": 100 - len(active), "live_roles": live_roles}
 

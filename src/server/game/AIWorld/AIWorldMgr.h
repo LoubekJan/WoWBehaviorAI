@@ -36,6 +36,7 @@
 #include "Agent/AgentId.h"
 #include "Agent/LivingAdviceBudget.h"
 #include "Agent/LivingSupplyRuntime.h"
+#include "Agent/LivingCaravanRuntime.h"
 #include "Agent/LivingRaidRuntime.h"
 #include "Agent/NpcAgentProfile.h"
 #include "Agent/NpcAgentAppearance.h"
@@ -2944,6 +2945,10 @@ class TC_GAME_API AIWorldMgr
         bool _livingRaidsEnabled = false;
         bool _livingFieldsEnabled = false;
         bool _livingDefiasEnabled = false;
+        bool _livingCaravansEnabled = false;
+        uint64 _nextCaravanTrip = 0;
+        std::unordered_map<uint32, LivingCaravan::State> _caravans;
+        std::unordered_map<uint64, LivingCaravan::ActorState> _caravanActors;
         uint64 _raidStartedAtMs = 0;
         LivingRaid::State _raidGuard;
         std::unordered_map<uint64, LivingRaid::State> _raidRaiders;
@@ -2954,6 +2959,12 @@ class TC_GAME_API AIWorldMgr
         std::unordered_map<uint64, LivingSupply::SourceRuntime> _supplySources;
         void InitializeLivingSupply();
         bool IsSupplyHunter(AgentRecord const& record) const;
+        bool IsCaravanMember(AgentRecord const& record) const;
+        bool IsCityConsumer(AgentRecord const& record) const;
+        void ObserveCaravanLife(AgentRecord const& record, uint64 nowMs);
+        bool UpdateLivingCaravan(AgentRecord& record, Creature& creature, uint64 nowMs,
+            std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
+            std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step);
         bool IsFieldWorker(AgentRecord const& record) const;
         bool IsSupplyConsumer(AgentRecord const& record) const;
         bool IsSupplyRaider(AgentRecord const& record) const;

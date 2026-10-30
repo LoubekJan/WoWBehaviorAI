@@ -161,8 +161,65 @@
   "runtime_food_state_only": true,
   "runtime_raid_memory_only": true,
   "runtime_raid_groups_only": true,
+  "runtime_caravans_only": true,
   "llm_cards_explicit_opt_in": true,
-  "ordinary_roles_only": true,
+  "ordinary_roles_only": false,
+  "caravans": {
+    "enabled_config": "AIWorld.LivingCaravans.Enabled",
+    "pairs": [
+      {
+        "id": 1,
+        "carrier_spawn_id": 901040,
+        "escort_spawn_id": 901042,
+        "source_depot_ids": [
+          4,
+          5
+        ]
+      },
+      {
+        "id": 2,
+        "carrier_spawn_id": 901041,
+        "escort_spawn_id": 901043,
+        "source_depot_ids": [
+          6,
+          1
+        ]
+      }
+    ],
+    "city_depot": {
+      "id": 7,
+      "name": "Stormwind city",
+      "world_faction_id": 1,
+      "position": {
+        "map_id": 725,
+        "x": 78.84711682419382,
+        "y": 591.7054193209677,
+        "z": 0.15
+      },
+      "capacity": 120,
+      "target_stock": 60,
+      "low_threshold": 12,
+      "initial_stock": 0,
+      "source_spawn_id": 901000
+    },
+    "city_consumer_spawn_ids": [
+      901014,
+      901015
+    ],
+    "source_depot_ids": [
+      1,
+      4,
+      5,
+      6
+    ],
+    "carrier_capacity": 6,
+    "source_reserve": 4,
+    "load_work_ms": 5000,
+    "unload_work_ms": 5000,
+    "rest_ms": 45000,
+    "immutable_homes": true,
+    "physical_food_only": true
+  },
   "actors": [
     {
       "spawn_id": 901000,
@@ -393,10 +450,10 @@
       "entry": 11328,
       "label": "aiworld_lab_settlement_v8_901014",
       "role": "resident",
-      "living_role": "WORKER",
+      "living_role": "CITY_CONSUMER",
       "agent_type": 0,
       "world_faction_id": 1,
-      "capability": "ordinary_living_role",
+      "capability": "city_consumer",
       "home": {
         "x": 23.121445152258055,
         "y": 564.3074355135483,
@@ -409,10 +466,10 @@
       "entry": 11328,
       "label": "aiworld_lab_settlement_v8_901015",
       "role": "resident",
-      "living_role": "WORKER",
+      "living_role": "CITY_CONSUMER",
       "agent_type": 0,
       "world_faction_id": 1,
-      "capability": "ordinary_living_role",
+      "capability": "city_consumer",
       "home": {
         "x": 43.53884672967753,
         "y": 584.6821677283871,
@@ -553,10 +610,10 @@
       "entry": 66,
       "label": "aiworld_lab_settlement_v8_901040",
       "role": "trader",
-      "living_role": "SERVICE",
+      "living_role": "CARAVAN_CARRIER",
       "agent_type": 2,
       "world_faction_id": 1,
-      "capability": "ordinary_living_role",
+      "capability": "caravan_carrier",
       "home": {
         "x": 202.0,
         "y": 603.0,
@@ -569,10 +626,10 @@
       "entry": 11328,
       "label": "aiworld_lab_settlement_v8_901041",
       "role": "driver",
-      "living_role": "WORKER",
+      "living_role": "CARAVAN_CARRIER",
       "agent_type": 0,
       "world_faction_id": 1,
-      "capability": "ordinary_living_role",
+      "capability": "caravan_carrier",
       "home": {
         "x": 218.0,
         "y": 603.0,
@@ -585,10 +642,10 @@
       "entry": 1423,
       "label": "aiworld_lab_settlement_v8_901042",
       "role": "guard",
-      "living_role": "GUARD",
+      "living_role": "CARAVAN_ESCORT",
       "agent_type": 1,
       "world_faction_id": 1,
-      "capability": "ordinary_living_role",
+      "capability": "caravan_escort",
       "home": {
         "x": 210.0,
         "y": 594.0,
@@ -601,10 +658,10 @@
       "entry": 1423,
       "label": "aiworld_lab_settlement_v8_901043",
       "role": "guard",
-      "living_role": "GUARD",
+      "living_role": "CARAVAN_ESCORT",
       "agent_type": 1,
       "world_faction_id": 1,
-      "capability": "ordinary_living_role",
+      "capability": "caravan_escort",
       "home": {
         "x": 210.0,
         "y": 612.0,

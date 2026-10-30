@@ -165,6 +165,10 @@ function drawConnections() {
     connect(agent.supply.hunting_ground, "Loviště", "#cdb67f", true);
     connect(agent.supply.depot?.position, agent.supply.depot?.name || "Zásobárna", "#a5d281", true);
     if (agent.supply.role === "FARMER") connect(agent.supply.field_workpoint, "Pracovní místo na poli", "#e9bf72", true);
+    if (ObserverModel.caravanSupported(agent)) {
+      connect(agent.supply.caravan.source_depot?.position, "Nakládka karavany", "#e9bf72", true);
+      connect(agent.supply.caravan.destination_depot?.position, "Městský sklad", "#7fc8ce", true);
+    }
   }
   if (ObserverModel.raidSupported(agent)) {
     connect(agent.raid.source_depot?.position, agent.raid.source_depot?.name || "Zásobárna vesnice", "#d39d76", true);
@@ -312,6 +316,15 @@ function showDiagnostics(agent) {
     line.textContent = `Vůdce ${party.leader_spawn_id === "0" ? "žádný" : party.leader_spawn_id} · členů ${party.member_spawn_ids.length} · cíl ${agent.raid.source_depot.name}`;
     card.append(button, line); groupCards.push(card);
   }
+  if (ObserverModel.caravanSupported(agent)) {
+    const caravan = agent.supply.caravan;
+    const card = document.createElement("div"); card.className = "group-card";
+    const button = document.createElement("button"); button.type = "button"; button.textContent = `Karavana ${caravan.id}`;
+    button.addEventListener("click", () => { $("group-filter").value = `caravan:${caravan.id}`; filterAgents(); });
+    const line = document.createElement("p");
+    line.textContent = `Vůdce ${caravan.leader_spawn_id} · sestava ${caravan.member_spawn_ids.join(", ")} · ${caravan.source_depot?.name || "vesnice"} → ${caravan.destination_depot?.name || "město"}`;
+    card.append(button, line); groupCards.push(card);
+  }
   $("group-cards").replaceChildren(...groupCards);
 }
 
@@ -376,7 +389,7 @@ async function poll() {
     uniqueOptions("role-filter", snapshot.agents.map(agent => agent.living_wolf ? "WOLF_PACK" : agent.living_role?.role).filter(Boolean), "Všechny role");
     uniqueOptions("phase-filter", snapshot.agents.map(ObserverModel.phase), "Všechny činnosti");
     uniqueOptions("group-filter", snapshot.agents.flatMap(ObserverModel.groupIds), "Všechny skupiny",
-      value => value.startsWith("raid:") ? `Výprava ${value.slice(5)}` : `Skupina ${value}`);
+      value => value.startsWith("raid:") ? `Výprava ${value.slice(5)}` : value.startsWith("caravan:") ? `Karavana ${value.slice(8)}` : `Skupina ${value}`);
     text("behavior-summary", `${snapshot.agents.filter(ObserverModel.alert).length} v nebezpečí · ${snapshot.agents.filter(ObserverModel.blocked).length} s blokovaným pohybem`);
     $("capture-time").textContent = snapshot.received_at_ms ? `Přijato ${new Date(snapshot.received_at_ms).toLocaleTimeString("cs-CZ")}` : "Bez snímku";
     showStatus(); filterAgents(); showDetail();

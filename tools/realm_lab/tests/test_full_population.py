@@ -49,7 +49,7 @@ class PublishedFullPopulationTests(unittest.TestCase):
         self.assertEqual(population.defias_population, defias.Population.load())
         self.assertEqual((len(population.actors), len(population.recruits), len(full.NATIVE_IDS)), (100, 45, 0))
         self.assertEqual({actor.spawn_id for actor in population.actors}, set(range(901000, 901100)))
-        self.assertEqual(population.config(), population.defias_population.config())
+        self.assertEqual(population.config(), {**population.defias_population.config(), 'AIWorld.LivingCaravans.Enabled': '1'})
         self.assertEqual(len(population.geometry_files), 61)
         originals = {actor.spawn_id: actor for actor in population.settlement.actors}
         for actor in population.recruits:
@@ -58,7 +58,7 @@ class PublishedFullPopulationTests(unittest.TestCase):
         self.assertEqual(full.SERVICE_IDS, frozenset((*range(901008, 901014), 901040)))
         self.assertEqual({identity for identity, kind in full.RECRUIT_TYPES.items() if kind == 2}, full.SERVICE_IDS)
         self.assertEqual(full.RECRUIT_TYPES[901014], 0)
-        self.assertEqual(full.RECRUIT_ROLES[901014], "WORKER")
+        self.assertEqual(full.RECRUIT_ROLES[901014], "CITY_CONSUMER")
         self.assertEqual({full.RECRUIT_FACTIONS[i] for i in range(901066, 901072)}, {4})
         self.assertEqual({full.RECRUIT_FACTIONS[i] for i in range(901092, 901100)}, {5})
 

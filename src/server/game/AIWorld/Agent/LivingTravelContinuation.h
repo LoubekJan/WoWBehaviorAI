@@ -24,7 +24,8 @@ namespace LivingTravelContinuation
             value == "TO_HUNTING_GROUND" || value == "SUPPLY_SEARCH" || value == "RETURN_CONSUMER_HOME" ||
             value == "RAID_SOURCE" || value == "RAID_CAMP" || value == "RAID_EMPTY_RETURN" ||
             value == "GUARD_HOME" || value == "GUARD_POST" || value == "RETURN_HOME" || value == "FORAGE_SEARCH" ||
-            value == "FARM_FIELD" || value == "FARM_DEPOT" || value == "FARM_HOME";
+            value == "FARM_FIELD" || value == "FARM_DEPOT" || value == "FARM_HOME" ||
+            value == "CARAVAN_RALLY" || value == "CARAVAN_VILLAGE" || value == "CARAVAN_CITY";
     }
 
     namespace Detail

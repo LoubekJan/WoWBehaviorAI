@@ -264,6 +264,7 @@ namespace
         WriteJsonField(out, "delivered", std::to_string(depot.Delivered));
         WriteJsonField(out, "consumed", std::to_string(depot.Consumed));
         WriteJsonField(out, "stolen", std::to_string(depot.Stolen));
+        WriteJsonField(out, "exported", std::to_string(depot.Exported));
         out << '}';
     }
 
@@ -278,6 +279,33 @@ namespace
         WriteJsonField(out, "consumed", std::to_string(accounting.Consumed));
         WriteJsonField(out, "lost", std::to_string(accounting.Lost));
         WriteJsonField(out, "conserved", accounting.Conserved); out << '}';
+    }
+
+    void WriteValue(std::ostream& out, LivingCaravanTelemetry const& caravan)
+    {
+        out << "{\"id\":" << caravan.Id;
+        WriteJsonField(out, "leader_spawn_id", std::to_string(caravan.LeaderSpawnId));
+        out << ",\"member_spawn_ids\":[";
+        bool first = true;
+        for (uint64 member : caravan.MemberSpawnIds)
+        {
+            if (!first) out << ',';
+            first = false; WriteString(out, std::to_string(member));
+        }
+        out << ']';
+        WriteJsonField(out, "source_depot_id", caravan.SourceDepotId);
+        WriteJsonField(out, "destination_depot_id", caravan.DestinationDepotId);
+        WriteJsonField(out, "stage", caravan.Stage);
+        WriteJsonField(out, "trip", std::to_string(caravan.Trip));
+        WriteJsonField(out, "waypoint", caravan.Waypoint);
+        WriteJsonField(out, "member_ready", caravan.MemberReady);
+        WriteJsonField(out, "loaded", std::to_string(caravan.Loaded));
+        WriteJsonField(out, "completed_trips", std::to_string(caravan.CompletedTrips));
+        out << ",\"source_depot\":";
+        if (caravan.SourceDepot) WriteValue(out, *caravan.SourceDepot); else out << "null";
+        out << ",\"destination_depot\":";
+        if (caravan.DestinationDepot) WriteValue(out, *caravan.DestinationDepot); else out << "null";
+        out << '}';
     }
 
     void WriteValue(std::ostream& out, LivingSupplyTelemetry const& supply)
@@ -307,6 +335,8 @@ namespace
         if (supply.Depot) WriteValue(out, *supply.Depot); else out << "null";
         out << ",\"accounting\":";
         if (supply.Accounting) WriteValue(out, *supply.Accounting); else out << "null";
+        out << ",\"caravan\":";
+        if (supply.Caravan) WriteValue(out, *supply.Caravan); else out << "null";
         out << '}';
     }
 

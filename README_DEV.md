@@ -200,8 +200,9 @@ docker compose --profile tools run --rm --no-deps -e LAB_SETTLEMENT_WORLD_ABSENT
 docker compose --profile tools run --rm --no-deps -e LAB_SETTLEMENT_WORLD_ABSENT=1 tc-dev python3 tools/realm_lab/manage.py deactivate-full-v8 /workspace/runtime/lab/data
 ```
 
-Nové postavy používají obecné životní role AIWorld. Skutečná těžba,
-rybolov nebo nová ekonomika tím nevzniká. Původní automatické SmartAI
+Postavy používají životní role AIWorld. Čtyři členové karavany a dva
+městští obyvatelé mají níže popsané fyzické zásobování. Těžba a rybolov
+čekají na vlastní implementaci. Původní automatické SmartAI
 skripty převzatých postav už neběží; zahrnuje to jejich zvláštní bojová
 kouzla a sváteční události. Běžné nabídky obchodníků, trenérů a hostinských
 i obnova zdraví a respawn zůstávají součástí herního jádra.
@@ -213,10 +214,62 @@ Nativní šestipolový profil a samostatný vzhled se nemění.
 
 Kontrola nasazení vyžaduje čerstvou telemetrii všech 100 řízených identit,
 správné běžné typy a role. Původní sklady, pole a přepady se kontrolují
-stejně přísně; nové obecné role nesmějí získat nepřiřazený sklad či přepad.
+stejně přísně; šest zásobovacích rolí má přesná oprávnění a ostatní nové
+role nesmějí získat nepřiřazený sklad, karavanu či přepad.
 Pro fyzický záznam výprav používat
 `python -m tools.realm_lab.defias_group_acceptance <recording-directory> --profile full-v8`.
 Zdraví služeb ani převzetí vlastnictví samo nepotvrzuje dokončenou fyzickou výpravu.
+
+### Karavany se zásobami pro město
+
+`full-v8` zapíná `AIWorld.LivingCaravans.Enabled=1`. Dvě dvojice využívají
+stávající obchodníky a stráže, jejich původní domovy i šablony:
+
+| Dvojice | Přepravce a doprovod | Střídající se vesnické sklady |
+| --- | --- | --- |
+| 1 | obchodník `901040`, strážný `901042` | horní `4`, levý `5` |
+| 2 | vozka `901041`, strážný `901043` | pravý `6`, jižní `1` |
+
+Karavana se shromáždí u městského skladu, společně dojde k příslušné
+vesnici, naloží skutečné jídlo a vrátí se do města. Po dokončeném odpočinku
+střídá svůj druhý zdroj. Přepravce unese šest porcí; nakládka i vykládka
+trvají pět sekund a uspějí pouze u správného skladu po dokončené vlastní
+činnosti. Strážný hlídá a nenese náklad. Odebírá se nejvýše aktuální
+přebytek nad čtyřmi porcemi vesnické rezervy, znovu ověřený při dokončení
+nakládky. V jižní vesnici se odváží maso z lovu, ve zbývajících třech
+sklizeň z polí. Převod nezvyšuje produkci a nepočítá se jako krádež.
+
+Městský sklad `7` stojí na existujícím venkovním bodě
+`(78.84711682419382,591.7054193209677,0.15)` mapy `725`. Má kapacitu 120
+porcí a začíná prázdný. Obyvatelé `901014` a `901015` chodí jíst právě
+sem; pětisekundové jídlo odečte skutečnou porci. Plný sklad zachová
+nedodaný náklad. Smrt či zánik původní inkarnace započítá nesený náklad
+jako ztrátu a nedovolí přehrát příjem z předchozího života.
+
+Telemetrie rozlišuje `CARAVAN_CARRIER`, `CARAVAN_ESCORT` a `CITY_CONSUMER`.
+U dvojice ukazuje aktuální cestu, zdroj, členy, fázi, nesený náklad a
+provedené nakládky; sklad ukazuje i skutečně odvezené porce (`exported`).
+Zásoby i rozpracované cesty jsou pouze v paměti procesu. Pauza přes
+`LAB_WILDLIFE_ENABLED=0` vypíná i karavany. Původní profily včetně
+`defias-v8` mají tento přepínač vypnutý.
+
+Původní skupinový Defias gate podporuje historické záznamy `full-v8`
+s původními obecnými rolemi a šesti sklady. Jakmile záznam obsahuje
+karavany nebo městské konzumenty, vrátí `INCONCLUSIVE` s důvodem
+`unsupported_seven_depot_caravan_economy_use_caravan_acceptance`.
+Skuteční účastníci zásobování se ze záznamu neodstraňují. Fyzický důkaz
+karavan musí zahrnout sedm skladů, oba nosiče a jejich doprovody.
+
+```bash
+python3 -m tools.realm_lab.caravan_acceptance runtime/lab/recordings/aiworld-SESSION --process-proof runtime/lab/validation/caravan-capture.json --minimum-seconds 300 --max-gap-seconds 2 --output runtime/lab/validation/caravan-acceptance.json
+```
+
+Metadata musí potvrdit uzavřený záznam, stejný běžící proces a kontrolní
+součty jeho částí. `PASS` vyžaduje fyzicky doloženou nakládku, společnou
+cestu a vykládku pro všechny čtyři vesnice. Případné úseky s chybějícími
+aktéry se uvedou jako mezera v potravním důkazu; chybějící zásoby se
+nedopočítávají a samostatný stav účetnictví celého záznamu zůstane
+`INCONCLUSIVE`.
 
 ## Celý tábor Defias — defias-v8
 
