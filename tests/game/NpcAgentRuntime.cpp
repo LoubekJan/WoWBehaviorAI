@@ -66,7 +66,9 @@ TEST_CASE("NPC input invalidation preserves admission until the old request term
     REQUIRE(runtime.Pending.has_value());
     CHECK(runtime.Pending->RequestId == 91);
     CHECK_FALSE(NpcAgentReplyIsFresh(runtime, 91, runtime.Guid, runtime.Guid, 8, 2000, 12000));
+    runtime.AppearanceApplied = true;
     runtime.InvalidatePending(); // Lifecycle teardown releases all bindings.
+    CHECK_FALSE(runtime.AppearanceApplied); // Same-GUID respawns must restore their authored outfit.
     CHECK_FALSE(runtime.Pending.has_value());
     CHECK(runtime.RequestId == 0);
     CHECK(runtime.RequestAt == 0);

@@ -16,6 +16,7 @@
  */
 
 #include "WorldSession.h"
+#include "AIWorldMgr.h"
 #include "Common.h"
 #include "Config.h"
 #include "DatabaseEnv.h"
@@ -584,6 +585,12 @@ void WorldSession::HandleMirrorImageDataRequest(WorldPacket& recvData)
     Unit* unit = ObjectAccessor::GetUnit(*_player, guid);
     if (!unit)
         return;
+
+    // Authored humanoid NPCs use the native mirror-image customization packet
+    // without an artificial clone aura or any modification to client DBCs.
+    if (Creature const* creature = unit->ToCreature())
+        if (sAIWorldMgr->SendNpcAgentAppearance(*_player, *creature))
+            return;
 
     if (!unit->HasAuraType(SPELL_AURA_CLONE_CASTER))
         return;

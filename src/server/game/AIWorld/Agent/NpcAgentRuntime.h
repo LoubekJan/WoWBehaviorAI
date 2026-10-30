@@ -37,10 +37,14 @@ struct NpcAgentRuntime
     std::unordered_map<uint32, NpcAgentRecipientBinding> Recipients;
     NpcAgentDialogueHistory Dialogue;
     NpcAgentSpeechState Speech;
+    bool AppearanceApplied = false;
 
     void InvalidatePending()
     {
         ++Revision;
+        // Compatibility respawns may reuse the same Creature GUID. Reapply
+        // the authored outfit once after death/unload/unavailable teardown.
+        AppearanceApplied = false;
         RequestId = RequestAt = 0;
         Pending.reset(); Actions.clear(); Recipients.clear();
         Speech.PlayerTurn.reset(); Speech.NpcTurn.reset();

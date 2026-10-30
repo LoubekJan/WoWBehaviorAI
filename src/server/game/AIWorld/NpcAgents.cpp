@@ -15,8 +15,10 @@
 #include "PointMovementGenerator.h"
 #include "SharedDefines.h"
 #include "ThreatManager.h"
+#include "WorldPacket.h"
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <stdexcept>
 
@@ -97,7 +99,8 @@ void AIWorldMgr::InitializeNpcAgents()
     if (!_npcAgentEnabled) return;
     if (!_enabled || !_livingRolesEnabled || !_livingRoleExtensionsEnabled || !_restrictAgentsToSimulationScope)
         throw std::runtime_error("NPC agents require enabled scoped AIWorld and living role action capabilities");
-    if (!_npcAgentProfiles.Load(sConfigMgr->GetStringDefault("AIWorld.NpcAgentProfilesDirectory", "data/npc_agents")) ||
+    std::string profilesDirectory = sConfigMgr->GetStringDefault("AIWorld.NpcAgentProfilesDirectory", "data/npc_agents");
+    if (!_npcAgentProfiles.Load(profilesDirectory) ||
         !_npcAgentProfiles.Size() || _npcAgentProfiles.Size() > 16)
         throw std::runtime_error("NPC agent profiles must be a valid directory containing 1..16 individual profiles");
     std::size_t accepted = 0;
@@ -110,8 +113,35 @@ void AIWorldMgr::InitializeNpcAgents()
         }
     if (accepted != _npcAgentProfiles.Size())
         throw std::runtime_error("NPC profile references an unregistered or mismatched agent");
-    TC_LOG_INFO("ai.world", "LLM NPC controller enabled: profiles={} intervalMs={} maxInFlight={}",
-        accepted, _npcAgentIntervalMs, _npcAgentMaxInFlight);
+    std::string appearanceDirectory = sConfigMgr->GetStringDefault("AIWorld.NpcAgentAppearancesDirectory",
+        (std::filesystem::path(profilesDirectory).parent_path() / "npc_appearances").string());
+    if (!_npcAgentAppearances.Load(appearanceDirectory))
+        throw std::runtime_error("NPC appearance directory contains an invalid sidecar");
+    for (auto const& [spawn, appearance] : _npcAgentAppearances.Entries())
+    {
+        auto const* profile = _npcAgentProfiles.Get(AgentId{spawn});
+        if (!profile || profile->MapId != appearance.MapId || profile->SpawnId != spawn ||
+            !ValidateNativeNpcAgentAppearance(appearance))
+            throw std::runtime_error("NPC appearance must match an opted-in profile and valid native client data");
+    }
+    TC_LOG_INFO("ai.world", "LLM NPC controller enabled: profiles={} appearances={} intervalMs={} maxInFlight={}",
+        accepted, _npcAgentAppearances.Size(), _npcAgentIntervalMs, _npcAgentMaxInFlight);
+}
+
+bool AIWorldMgr::SendNpcAgentAppearance(Player& observer, Creature const& creature) const
+{
+    if (!_npcAgentEnabled || !observer.IsInWorld() || !creature.IsInWorld() || observer.GetMap() != creature.GetMap() ||
+        !observer.HaveAtClient(&creature) || !observer.CanSeeOrDetect(&creature)) return false;
+    auto const* appearance = _npcAgentAppearances.Get(creature.GetSpawnId());
+    auto const* record = _registry.FindBySpawn(creature.GetMapId(), creature.GetSpawnId());
+    if (!appearance || appearance->MapId != creature.GetMapId() || !record || !IsNpcAgent(*record) ||
+        record->RuntimeGuid != creature.GetGUID() || !creature.HasUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE)) return false;
+    uint32 display = NativeNpcAgentAppearanceDisplay(*appearance);
+    if (creature.GetDisplayId() != display) return false; // respect another active transformation
+    WorldPacket packet;
+    if (!BuildNpcAgentMirrorImageData(packet, creature.GetGUID(), display, *appearance)) return false;
+    observer.SendDirectMessage(&packet);
+    return true;
 }
 
 void AIWorldMgr::HandleNpcPlayerSpeech(Player* player, std::string const& text, uint32 language)
@@ -299,6 +329,11 @@ void AIWorldMgr::UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 
     if (!record.LivingRole.Advice.LifetimeAt) record.LivingRole.Advice.LifetimeAt = now;
     if (!NpcAvailable(creature, GetSimulationScope()))
     { StopNpcAgentAction(record, creature, "UNAVAILABLE"); state.InvalidatePending(); return; }
+    if (!state.AppearanceApplied)
+    {
+        auto const* appearance = _npcAgentAppearances.Get(record.SpawnId);
+        state.AppearanceApplied = !appearance || ApplyNpcAgentAppearance(creature, *appearance);
+    }
     ExpireNpcSpeechTurns(state, now);
     if (state.ActionAt)
     {

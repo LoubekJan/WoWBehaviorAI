@@ -38,6 +38,7 @@
 #include "Agent/LivingSupplyRuntime.h"
 #include "Agent/LivingRaidRuntime.h"
 #include "Agent/NpcAgentProfile.h"
+#include "Agent/NpcAgentAppearance.h"
 #include "Agent/NpcAgentRuntime.h"
 #include "Telemetry/LivingRaidTelemetry.h"
 #include "Telemetry/LivingSupplyTelemetry.h"
@@ -161,6 +162,7 @@ class TC_GAME_API AIWorldMgr
         bool IsEnabled() const { return _enabled; }
         // Chat callbacks may originate in map/session updates: ingress only.
         void HandleNpcPlayerSpeech(Player* player, std::string const& text, uint32 language);
+        bool SendNpcAgentAppearance(Player& observer, Creature const& creature) const;
         SimulationScope const& GetSimulationScope() const { return _simulationScope; }
         bool InSimulationMembership(uint32 mapId, uint64 spawnId) const
         {
@@ -390,6 +392,7 @@ class TC_GAME_API AIWorldMgr
         uint32 _npcAgentIntervalMs = 8000, _npcAgentMaxInFlight = 2, _npcAgentTimeoutMs = 15000;
         uint64 _npcAgentUtterance = 0;
         NpcAgentProfileCatalog _npcAgentProfiles;
+        NpcAgentAppearanceCatalog _npcAgentAppearances;
         std::unordered_map<uint64, NpcAgentRuntime> _npcAgentStates;
         NpcAgentConversationGuard _npcAgentConversationGuard;
         std::mutex _npcAgentSpeechMutex;
