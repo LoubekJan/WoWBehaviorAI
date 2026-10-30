@@ -60,6 +60,7 @@ class _Evaluator:
         self.tracks, self.receipts = {}, []
         self.retired_bindings = {}
         self.current_death_bindings = {}
+        self.frozen_dead_camp_metrics = {}
         self.camp_previous = {}
         self.party_frames = 0
 
@@ -175,6 +176,8 @@ class _Evaluator:
 
     def validate_defias_capabilities(self, actors):
         for sid in population.DEFIAS_IDS:
+            if sid in self.frozen_dead_camp_metrics:
+                continue
             actor = actors[sid]
             supplied, role = actor.get("supply") or {}, actor.get("living_role") or {}
             raider = sid in population.RAIDER_IDS
@@ -278,13 +281,21 @@ class _Evaluator:
     def observe(self, record):
         prior_frames, prior_epoch = self.field_gate.complete, self.field_gate.epoch
         self.current_death_bindings = self.death_bindings(record)
-        self.field_gate.observe(record, witnessed_dead_bindings=self.current_death_bindings)
+        state = (record if "agents" in record else record.get("state")) if isinstance(record, dict) else None
+        raw_agents = state.get("agents") if isinstance(state, dict) else None
+        raw_actors = {actor.get("spawn_id"): actor for actor in raw_agents if isinstance(actor, dict)} if isinstance(raw_agents, list) else {}
+        self.frozen_dead_camp_metrics = {sid: previous for sid, binding in self.retired_bindings.items()
+            if fields.dead_camp_absence(raw_actors.get(sid)) and
+            (previous := (self.field_gate.previous_metrics or {}).get(sid)) is not None and previous["cargo"] == 0 and
+            previous["guid"] == binding[0] and previous["life"] in (0, binding[1])}
+        self.field_gate.observe(record, witnessed_dead_bindings=self.current_death_bindings,
+                                frozen_dead_camp_metrics=self.frozen_dead_camp_metrics)
         if self.field_gate.epoch != prior_epoch:
             self.tracks.clear()
             self.retired_bindings.clear()
             self.current_death_bindings.clear()
+            self.frozen_dead_camp_metrics.clear()
             self.camp_previous.clear()
-        state = (record if "agents" in record else record.get("state")) if isinstance(record, dict) else None
         if (self.profile == full.PROFILE and isinstance(state, dict) and
             state.get("configured") is True and state.get("stale") is False and state.get("version") == 4 and
             fields.supply.positive_int(state.get("captured_at_ms")) and type(state.get("age_ms")) is int and
@@ -361,6 +372,7 @@ class _Evaluator:
             violations=violations, missing_evidence=missing,
             limitations=["PASS proves party movement and a warehouse visit or actual guard interception, including legitimate retreat or death. It never implies a successful theft or delivery.",
                 "Food conservation and each warehouse's delivery, meal and stolen flows include all sixteen Defias and remain independent.",
+                "For a directly witnessed dead camp member subsequently declared ABSTRACT without live observations, zero-cargo actor counters are inferred frozen from its last actual ledger snapshot. No absent position, action or party outcome is fabricated; all six current depot copies and global flows remain required.",
                 "Observed memory counts are descriptive. This gate does not certify causal memory-driven target choice; the separate memory proof is required for that claim.",
                 "Position and owned-action receipts do not prove client animation pixels or independently measure collision and line of sight."])
 

@@ -180,7 +180,79 @@ def camp_death_samples():
     return result
 
 
+def remove_corpse(rows, sid, start, end):
+    for record in rows:
+        if start <= record["elapsed_seconds"] < end:
+            actor = fields.actor(record, sid)
+            actor.update(world_state="ABSTRACT", alive=None, health=None, runtime_guid=None,
+                         supply=None, living_role=None, raid=None, movement=None)
+            actor["position"] = dict(actor["home"], source="spawn")
+    return rows
+
+
 class DefiasGroupAcceptanceTests(unittest.TestCase):
+    def test_witnessed_camp_or_party_corpse_removal_holds_only_zero_cargo_food_metrics(self):
+        for sid, start, end, rows in ((901044, 17, 45, camp_death_samples()),
+                                     (PARTY[-1], 28, 56, respawn_samples(dropped_cargo=True))):
+            report = acceptance.evaluate_samples(remove_corpse(rows, sid, start, end))
+            with self.subTest(spawn_id=sid):
+                self.assertEqual(report["status"], "PASS", report)
+                self.assertEqual(report["quality"]["known_dead_camp_unloaded_metrics_held"], end-start)
+                self.assertEqual(report["violations"], [])
+                if sid in PARTY:
+                    self.assertEqual(report["receipts"][0]["member_outcomes"][sid]["kind"], "DEATH")
+                else:
+                    self.assertNotIn(sid, report["receipts"][0]["member_outcomes"])
+
+    def test_full_profile_keeps_all_hundred_owners_while_a_known_dead_camp_guard_is_unloaded(self):
+        rows = remove_corpse(camp_death_samples(), 901044, 17, 45)
+        ordinary = {actor["spawn_id"]: actor for actor in full_frame()["agents"] if actor["spawn_id"] in full.RECRUIT_IDS}
+        for record in rows:
+            for actor in record["state"]["agents"]:
+                if (binding := ordinary.get(actor["spawn_id"])) is not None:
+                    location = actor["position"]
+                    actor.update(deepcopy(binding))
+                    actor["position"] = {**location, **binding["position"]}
+        report = acceptance.evaluate_samples(rows, profile=full.PROFILE)
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual((report["expected_owned"], report["expected_native"]), (100, 0))
+        self.assertEqual(report["quality"]["known_dead_camp_unloaded_metrics_held"], 28)
+
+    def test_unwitnessed_disappearance_and_changed_identity_cannot_use_frozen_metrics(self):
+        rows = remove_corpse(camp_death_samples(), 901044, 14, 45)
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["receipts"], [])
+        rows = remove_corpse(camp_death_samples(), 901044, 17, 45)
+        fields.actor(rows[20], 901044)["entry"] += 1
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "FAIL", report)
+        self.assertIn("identity_entry_or_ownership_changed", [v["code"] for v in report["violations"]])
+
+    def test_hidden_consumption_while_dead_owner_is_absent_cannot_change_real_food_ledgers(self):
+        rows = remove_corpse(camp_death_samples(), 901044, 17, 45)
+        for record in rows:
+            consumed = int(record["elapsed_seconds"] >= 20)
+            for actor in record["state"]["agents"]:
+                supplied = actor.get("supply")
+                copies = []
+                if supplied:
+                    accounting = supplied["accounting"]
+                    accounting["initial_food"] = "2"
+                    accounting["in_depots"] = str(int(accounting["in_depots"])+2-consumed)
+                    accounting["consumed"] = str(int(accounting["consumed"])+consumed)
+                    copies.append(supplied["depot"])
+                if actor.get("raid"):
+                    copies.extend((actor["raid"]["source_depot"], actor["raid"]["camp_depot"]))
+                for depot in copies:
+                    if depot["id"] == 3:
+                        depot.update(stock=2-consumed, consumed=str(consumed))
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "FAIL", report)
+        codes = {v["code"] for v in report["violations"]}
+        self.assertIn("depot_stock_change_not_reconciled", codes)
+        self.assertIn("global_food_counter_change_not_reconciled", codes)
+
     def test_explicit_full_profile_accepts_the_same_party_with_all_100_owned_actors(self):
         report = acceptance.evaluate_samples(full_samples(), minimum_seconds=120, profile=full.PROFILE)
         self.assertEqual(report['status'], 'PASS', report)

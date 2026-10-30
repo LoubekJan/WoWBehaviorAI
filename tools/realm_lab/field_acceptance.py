@@ -31,6 +31,13 @@ START_LAG_MS = 1000
 MAX_CHAINS_PER_WORKER = 4
 
 
+def dead_camp_absence(actor):
+    """An unloaded record carries no current creature observations."""
+    return (isinstance(actor, dict) and actor.get("world_state") == "ABSTRACT" and
+        isinstance(actor.get("position"), dict) and actor["position"].get("source") in ("spawn", "last_known") and
+        all(actor.get(key) is None for key in ("alive", "health", "runtime_guid", "supply", "living_role", "raid", "movement")))
+
+
 @dataclass
 class Track:
     previous: dict | None = None
@@ -212,7 +219,7 @@ class _Evaluator:
             field_distance=dist3(xyz, point(definition["work_points"][index])),
             depot_distance=dist3(xyz, point(definition["warehouse"]["position"])), home_distance=dist3(xyz, home))
 
-    def ledger(self, actors):
+    def ledger(self, actors, *, frozen_dead_camp_metrics=None, witnessed_dead_bindings=None):
         depots, metrics, accounting, crops = {}, {}, None, {}
         for sid, actor in actors.items():
             supplied, raid = actor.get("supply"), actor.get("raid")
@@ -256,6 +263,19 @@ class _Evaluator:
                     self.violation("food_depot_position_capacity_or_quantity_changed", key); return None
                 if key in depots and depots[key] != depot: self.violation("conflicting_depot_copies", key)
                 depots[key] = depot
+        for sid, frozen in (frozen_dead_camp_metrics or {}).items():
+            previous = (self.previous_metrics or {}).get(sid)
+            binding = (witnessed_dead_bindings or {}).get(sid)
+            if (sid not in self.members[3] or sid in metrics or previous is None or frozen != previous or
+                not isinstance(binding, tuple) or len(binding) != 2 or not isinstance(binding[0], str) or
+                not binding[0].strip() or not supply.positive_int(binding[1]) or
+                previous["guid"] != binding[0] or previous["life"] not in (0, binding[1]) or
+                previous["cargo"] != 0 or not dead_camp_absence(actors.get(sid))):
+                self.violation("invalid_frozen_dead_camp_metrics", sid); return None
+            # Inference, not a fabricated wire observation: an absent dead
+            # owner cannot act. Hold its last actual zero-cargo counters while
+            # requiring real current copies of every depot and global balance.
+            metrics[sid] = dict(previous, counters=dict(previous["counters"]))
         if accounting is None or set(depots) != set(self.depots) or set(crops) != set(self.fields) or not set.union(*self.members.values()).issubset(metrics):
             return None
         if sum(depot["stock"] for depot in depots.values()) != accounting["in_depots"]:
@@ -438,7 +458,7 @@ class _Evaluator:
                 track.closed_stamps = set(sorted(track.closed_stamps, key=lambda item: item[1])[-64:])
         track.previous = row
 
-    def observe(self, record, *, witnessed_dead_bindings=None):
+    def observe(self, record, *, witnessed_dead_bindings=None, frozen_dead_camp_metrics=None):
         usable = self.usable(record)
         if usable is None: return
         state, t, capture = usable
@@ -448,10 +468,13 @@ class _Evaluator:
         rows = {sid: self.worker_row(actors[sid], t, capture) for sid in self.workers}
         if any(row is None for row in rows.values()):
             self.reset("farmer_not_live_or_incomplete"); return
-        ledger = self.ledger(actors)
+        ledger = self.ledger(actors, frozen_dead_camp_metrics=frozen_dead_camp_metrics,
+                             witnessed_dead_bindings=witnessed_dead_bindings)
         if ledger is None:
             self.reset("incomplete_six_depot_ledger"); return
         metrics, depots, crops, accounting = ledger
+        if frozen_dead_camp_metrics:
+            self.quality["known_dead_camp_unloaded_metrics_held"] += len(frozen_dead_camp_metrics)
         if self.previous_metrics:
             same_members = set(metrics) == set(self.previous_metrics)
             changed = {sid for sid in metrics if sid in self.previous_metrics and
