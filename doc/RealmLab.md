@@ -1,5 +1,28 @@
 # Vlastní svět jako jediný realm
 
+Rozšíření k **30. říjnu 2026**: nový profil `defias-v8` řídí všech
+16 Defias, celkem **55 řízených / 45 nativních NPC**. Přidává 15 rezervací
+nad nezměněný `fields-v8`; domovy, frakce, běžné typy a mapová geometrie
+zůstávají zachované. Deset banditů 901050–901059 tvoří výpravy o 2–5
+členech přes existující koalice a formaci, běžně nejvýše dvě současně.
+Šest dalších obyvatel používá vlastní táborový sklad 3 jako spotřebitelé.
+Vedoucí výpravy vybírá podle vlastní krátkodobé paměti; členové sdílí
+cíl, trasu a pokus, ale vlastní zkušenosti, náklad i každou akci mají
+samostatné. Čekání na členy, ústup, smrt a dokončení návratů se vyhodnocují
+za každého účastníka. Krádež i odevzdání zůstávají skutečnou pětisekundovou
+prací a náklad má kapacitu dvě porce na banditu.
+
+Nasazení používá `LAB_AI_PROFILE=defias-v8`; žádné nové potravní nebo
+skupinové stavy se neukládají přes restart. Nový
+`python -m tools.realm_lab.defias_group_acceptance <recording-directory>`
+vyžaduje alespoň 300 sekund čerstvého záznamu a propojenou fyzickou
+výpravu se samostatnými návraty či úmrtími. Ústup může být platným
+výsledkem; `PASS` neznamená úspěšnou krádež ani prokázané použití paměti.
+Živý výsledek tohoto rozšíření zatím vyžaduje vlastní záznam. Podrobný
+[postup nasazení a měření](../README_DEV.md#celý-tábor-defias--defias-v8)
+popisuje také pauzu a offline kontroly. Dřívější důkazy níže zůstávají
+připnuté ke svým profilům a revizím.
+
 Profil `fields-v8` přidává nad nezměněné přepady tři pole a vlastní
 sklady horní, levé a pravé vesnice. Řídí 40 ze 100 původních NPC;
 12 nových pracovníků má přesná přiřazení v
@@ -11,7 +34,7 @@ Podrobný cyklus a spuštění popisuje [README_DEV](../README_DEV.md#pole-a-vla
 Nativní důkaz 51 bodů a 132 spojení je oddělený od fyzického testu
 sklizně, doručení, jídla a návratu.
 
-Rozšíření k **30. říjnu 2026**: Defias 901055 v aktivním `fields-v8`
+Předchozí rozšíření k **30. říjnu 2026**: Defias 901055 v `fields-v8`
 vybírá ze všech čtyř vesnických skladů (1/4/5/6). Při hladu a prázdném
 táboře plánuje podle vlastních zkušeností se zásobami, nebezpečím a cestou.
 Neznámý sklad může prozkoumat; čerstvě zjištěné nedostatečné zásoby odkládá.
@@ -79,7 +102,7 @@ shoduje. Důkaz uvádí hashe, identitu běžící binárky i omezení měření
 neprokazuje dlouhodobou rovnováhu ani perzistenci. Při návratu strážného
 zbývá zkrátit pozorované 50,75sekundové hledání bezpečné objížďky.
 
-Verzovaný provozní model k **27. říjnu 2026**. Aktivní větev zůstává
+Verzovaný provozní model k **30. říjnu 2026**. Aktivní větev zůstává
 `AI-World-lab`; hlavním vstupem jsou root `compose.yml`, `.env` a
 `Makefile`. Původní Elwynn realm 1 je vyřazený. Přihlášení a
 existující účty zajišťuje samostatná auth služba tohoto stacku.
@@ -92,7 +115,7 @@ healthchecks a čerstvá telemetrie.
 | --- | --- |
 | Realm | AI World Lab, ID 2 |
 | Mapa / oblast | 725 / 4988 |
-| Aktivní profil | `fields-v8` |
+| Rozšířený profil | `defias-v8`; živý výsledek se ověřuje samostatně |
 | Nasazovací checkout | `/home/voslik/WoWBehaviorAI-lab` |
 | Compose projekt / síť | `aitc-lab` / `aitc-lab_default` |
 | Auth / svět / viewer / registrace | 3724 / 9086 / 9091 / 9088 |

@@ -293,16 +293,26 @@ function showDiagnostics(agent) {
     ["Suroviny", agent.economy?.resource], ["Rutinní činnost", agent.routine_activity],
     ["Domov", pointText(agent.home)], ["Pracoviště", pointText(agent.work)]]);
   facts("coordination-facts", [["Zdroj cíle", agent.goal_owner], ["Skupinový cíl", agent.coordination_goal],
-    ["Zdrojová skupina", agent.coordination_group_id], ["Fáze skupinového lovu", agent.coordination_phase],
+    ["Zdrojová skupina", agent.coordination_group_id], ["Fáze skupiny", agent.coordination_phase],
     ["Reputační Faction.dbc ID", agent.reputation_faction_id], ["Aktuální FactionTemplate ID", agent.faction_template_id]]);
-  $("group-cards").replaceChildren(...(agent.groups || []).map(group => {
+  const groupCards = (agent.groups || []).map(group => {
     const card = document.createElement("div"); card.className = "group-card";
     const button = document.createElement("button"); button.type = "button"; button.textContent = `Skupina ${group.id} · ${group.profile}`;
     button.addEventListener("click", () => { $("group-filter").value = String(group.id); filterAgents(); });
     const line = document.createElement("p"); line.textContent = `${group.kind} · členů ${group.member_count} · zdroje ${fixed(group.resources)}`;
     const place = document.createElement("p"); place.textContent = `Teritorium ${pointText(group.territory)}`;
     card.append(button, line, place); return card;
-  }));
+  });
+  const party = ObserverModel.raidSupported(agent) ? agent.raid.party : null;
+  if (party) {
+    const card = document.createElement("div"); card.className = "group-card";
+    const button = document.createElement("button"); button.type = "button"; button.textContent = `Výprava ${party.id}`;
+    button.addEventListener("click", () => { $("group-filter").value = `raid:${party.id}`; filterAgents(); });
+    const line = document.createElement("p");
+    line.textContent = `Vůdce ${party.leader_spawn_id === "0" ? "žádný" : party.leader_spawn_id} · členů ${party.member_spawn_ids.length} · cíl ${agent.raid.source_depot.name}`;
+    card.append(button, line); groupCards.push(card);
+  }
+  $("group-cards").replaceChildren(...groupCards);
 }
 
 function showDetail() {
@@ -365,7 +375,8 @@ async function poll() {
     uniqueOptions("faction-filter", snapshot.agents.map(agent => agent.world_faction), "Všechny frakce", factionLabel);
     uniqueOptions("role-filter", snapshot.agents.map(agent => agent.living_wolf ? "WOLF_PACK" : agent.living_role?.role).filter(Boolean), "Všechny role");
     uniqueOptions("phase-filter", snapshot.agents.map(ObserverModel.phase), "Všechny činnosti");
-    uniqueOptions("group-filter", snapshot.agents.flatMap(ObserverModel.groupIds), "Všechny skupiny");
+    uniqueOptions("group-filter", snapshot.agents.flatMap(ObserverModel.groupIds), "Všechny skupiny",
+      value => value.startsWith("raid:") ? `Výprava ${value.slice(5)}` : `Skupina ${value}`);
     text("behavior-summary", `${snapshot.agents.filter(ObserverModel.alert).length} v nebezpečí · ${snapshot.agents.filter(ObserverModel.blocked).length} s blokovaným pohybem`);
     $("capture-time").textContent = snapshot.received_at_ms ? `Přijato ${new Date(snapshot.received_at_ms).toLocaleTimeString("cs-CZ")}` : "Bez snímku";
     showStatus(); filterAgents(); showDetail();

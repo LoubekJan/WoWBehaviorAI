@@ -46,7 +46,7 @@ namespace
     {
         std::string_view p(purpose);
         return p == "RAID_SOURCE" || p == "RAID_CAMP" || p == "RAID_EMPTY_RETURN" ||
-            p == "GUARD_HOME" || p == "GUARD_POST";
+            p == "GUARD_HOME" || p == "GUARD_POST" || p == "RAID_ASSEMBLE";
     }
 }
 
@@ -64,7 +64,7 @@ std::vector<RetrievedMemory> AIWorldMgr::RecallLivingRaid(AgentRecord const& rec
 
 bool AIWorldMgr::IsLivingRaidPathMemorySafe(Creature const& creature, std::vector<ActionPosition> const& path) const
 {
-    if (!_livingFieldsEnabled || creature.GetMapId() != 725 || creature.GetSpawnId() != LivingRaid::RaiderSpawn) return true;
+    if (!_livingFieldsEnabled || creature.GetMapId() != 725 || !(creature.GetSpawnId() == LivingRaid::RaiderSpawn || (_livingDefiasEnabled && creature.GetSpawnId() >= LivingRaid::FirstRaider && creature.GetSpawnId() <= LivingRaid::LastRaider))) return true;
     AgentRecord const* record = _registry.FindBySpawn(creature.GetMapId(), creature.GetSpawnId());
     if (!record || !IsSupplyRaider(*record) || !Bound(*record, creature) || path.size() < 2) return false;
     // World-thread reads during planning, or the existing map-update phase
@@ -94,7 +94,7 @@ void AIWorldMgr::RememberLivingRaid(AgentRecord const& record, Creature const& c
         creature.IsWithinDistInMap(threat, 50.0f) && creature.CanSeeOrDetect(threat) && creature.IsWithinLOSInMap(threat);
     Creature const* seenCreature = visibleThreat ? threat->ToCreature() : nullptr;
     if (kind == RaidExperienceKind::GuardEncounter && (!seenCreature || !seenCreature->GetSpawnId())) return;
-    auto& raid = _raidRaider;
+    auto& raid = _raidRaiders.at(record.SpawnId);
     Observation observation;
     observation.Observer = record.Id;
     observation.Type = ObservationType::RaidExperience;
@@ -125,7 +125,7 @@ void AIWorldMgr::RememberLivingRaid(AgentRecord const& record, Creature const& c
 bool AIWorldMgr::IsSupplyRaider(AgentRecord const& record) const
 {
     return LivingRaid::RaiderCapability(record.SpawnId, record.MapId, record.Type, record.ControlMode,
-        _livingSupplyEnabled && _livingConsumersEnabled && _livingRaidsEnabled) &&
+        _livingSupplyEnabled && _livingConsumersEnabled && _livingRaidsEnabled, _livingDefiasEnabled) &&
         record.Id.Value == record.SpawnId && GetSimulationScope().ContainsActor(record.MapId, record.SpawnId);
 }
 
@@ -156,7 +156,7 @@ std::optional<FoodDepotTelemetry> AIWorldMgr::DescribeFoodDepot(uint32 id) const
         uint32 owner = hunter ? hunter->Depot : consumer ? consumer->Depot :
             farmer ? farmer->Depot :
             spawn == LivingRaid::GuardSpawn ? LivingRaid::SourceDepot :
-            spawn == LivingRaid::RaiderSpawn ? LivingRaid::CampDepot : 0;
+            _raidRaiders.contains(spawn) || (_livingDefiasEnabled && LivingRaid::CampResident(spawn)) ? LivingRaid::CampDepot : 0;
         if (owner == id) { result.Delivered += actor.Delivered; result.Consumed += actor.Consumed; }
     }
     return result;
@@ -166,18 +166,36 @@ std::optional<LivingRaidTelemetry> AIWorldMgr::DescribeLivingRaid(Creature const
 {
     bool raider = IsSupplyRaider(record);
     if ((!raider && !IsRaidGuard(record)) || !Bound(record, creature, false)) return std::nullopt;
-    auto const& raid = raider ? _raidRaider : _raidGuard;
+    auto const& raid = raider ? _raidRaiders.at(record.SpawnId) : _raidGuard;
     if (raid.Guid != creature.GetGUID()) return std::nullopt;
     LivingRaidTelemetry result;
     result.Enabled = true; result.Role = raider ? "RAIDER" : "GUARD";
     result.Phase = raid.Phase; result.Outcome = raid.Outcome;
     result.AttemptId = raid.AttemptId;
-    result.TargetSpawnId = raider ? LivingRaid::GuardSpawn : LivingRaid::RaiderSpawn;
+    result.TargetSpawnId = raider ? LivingRaid::GuardSpawn : _livingDefiasEnabled ? raid.TargetSpawnId : LivingRaid::RaiderSpawn;
     result.Noticed = raid.Noticed; result.Interceptions = raid.Interceptions;
     result.Thefts = raid.Thefts; result.Delivered = raid.Delivered; result.Prevented = raid.Prevented;
     result.SourceDepotId = raider ? raid.SelectedSourceDepot : LivingRaid::SourceDepot;
     result.CampDepotId = LivingRaid::CampDepot;
     result.SourceDepot = DescribeFoodDepot(result.SourceDepotId); result.CampDepot = DescribeFoodDepot(result.CampDepotId);
+    if (raider && _livingDefiasEnabled && raid.PartyId)
+        if (auto group = _raidParties.find(raid.PartyId); group != _raidParties.end())
+        {
+            auto const& party = group->second.Coordination;
+            LivingRaidPartyTelemetry info;
+            info.Id = party.Id; info.LeaderSpawnId = party.LeaderSpawn;
+            for (AgentId id : party.Members) info.MemberSpawnIds.push_back(id.Value);
+            switch (party.Stage)
+            {
+                case LivingRaidParty::Phase::Assembling: info.Phase = "ASSEMBLING"; break;
+                case LivingRaidParty::Phase::Outbound: info.Phase = "OUTBOUND"; break;
+                case LivingRaidParty::Phase::Raiding: info.Phase = "RAIDING"; break;
+                case LivingRaidParty::Phase::Returning: info.Phase = "RETURNING"; break;
+                case LivingRaidParty::Phase::Complete: info.Phase = "COMPLETE"; break;
+            }
+            info.Role = party.LeaderSpawn == record.SpawnId ? "LEADER" : "MEMBER";
+            result.Party = std::move(info);
+        }
     if (raider && _livingFieldsEnabled)
     {
         uint64 nowMs = GetCurrentTimeMs();
@@ -219,19 +237,37 @@ Unit* AIWorldMgr::LivingRaidThreat(AgentRecord& record, Creature& creature, uint
 {
     bool raider = IsSupplyRaider(record), guard = IsRaidGuard(record);
     if ((!raider && !guard) || !Bound(record, creature)) return nullptr;
-    uint64 otherSpawn = raider ? LivingRaid::GuardSpawn : LivingRaid::RaiderSpawn;
-    Creature* other = creature.GetMap()->GetCreatureBySpawnId(otherSpawn);
-    AgentRecord const* peer = _registry.FindBySpawn(725, otherSpawn);
-    bool visible = other && peer && Bound(*peer, *other) &&
-        creature.IsWithinDistInMap(other, guard ? 14.0f : 30.0f) && creature.CanSeeOrDetect(other) &&
-        creature.IsWithinLOSInMap(other) && creature.IsValidAttackTarget(other);
+    if (raider) UpdateLivingRaidParty(record, creature, nowMs);
+    uint64 otherSpawn = raider ? LivingRaid::GuardSpawn : 0;
+    Creature* other = nullptr;
+    AgentRecord const* peer = nullptr;
+    auto visibleActor = [&](uint64 spawn, float radius)
+    {
+        Creature* candidate = creature.GetMap()->GetCreatureBySpawnId(spawn);
+        AgentRecord const* member = _registry.FindBySpawn(725, spawn);
+        return candidate && member && Bound(*member, *candidate) &&
+            creature.IsWithinDistInMap(candidate, radius) && creature.CanSeeOrDetect(candidate) &&
+            creature.IsWithinLOSInMap(candidate) && creature.IsValidAttackTarget(candidate);
+    };
     if (guard)
     {
-        if (!visible || !IsSupplyRaider(*peer) || !_raidRaider.Active ||
-            other->GetExactDist(LivingRaid::Source.X, LivingRaid::Source.Y, LivingRaid::Source.Z) > 45.0f)
-            return nullptr;
+        float nearest = 15.0f;
+        for (auto const& [spawn, state] : _raidRaiders)
+        {
+            if (!state.Active || !visibleActor(spawn, 14.0f)) continue;
+            Creature* candidate = creature.GetMap()->GetCreatureBySpawnId(spawn);
+            if (candidate->GetExactDist(LivingRaid::Source.X, LivingRaid::Source.Y, LivingRaid::Source.Z) > 45.0f) continue;
+            float distance = creature.GetExactDist(candidate);
+            if (distance < nearest || (distance == nearest && spawn < otherSpawn))
+            { nearest = distance; otherSpawn = spawn; }
+        }
+        if (!otherSpawn) return nullptr;
+        other = creature.GetMap()->GetCreatureBySpawnId(otherSpawn);
+        peer = _registry.FindBySpawn(725, otherSpawn);
+        if (!peer || !IsSupplyRaider(*peer)) return nullptr;
         auto& raid = _raidGuard;
-        raid.AttemptId = _raidRaider.AttemptId;
+        raid.TargetSpawnId = otherSpawn;
+        raid.AttemptId = _raidRaiders.at(otherSpawn).AttemptId;
         raid.Phase = "INTERCEPTING";
         if (raid.LastNoticedAttempt != raid.AttemptId)
         {
@@ -241,15 +277,20 @@ Unit* AIWorldMgr::LivingRaidThreat(AgentRecord& record, Creature& creature, uint
         }
         return other;
     }
+    bool visible = visibleActor(otherSpawn, 30.0f);
+    other = visible ? creature.GetMap()->GetCreatureBySpawnId(otherSpawn) : nullptr;
+    peer = visible ? _registry.FindBySpawn(725, otherSpawn) : nullptr;
+    auto& actorRaid = _raidRaiders.at(record.SpawnId);
     // A guard must actually own an attack against this incarnation. Its
     // patrol timer or remote state alone never informs the thief.
-    bool guardAttack = visible && IsRaidGuard(*peer) && _raidGuard.AttemptId == _raidRaider.AttemptId &&
+    bool guardAttack = visible && IsRaidGuard(*peer) && _raidGuard.AttemptId == actorRaid.AttemptId &&
         peer->LivingRole.CurrentPhase == Phase::Defending && peer->LivingRole.TargetGuid == creature.GetGUID() &&
         OwnedAction(*peer, ActionType::Attack) && peer->ActiveActionState->Target &&
         peer->ActiveActionState->Target->Guid == creature.GetGUID();
-    if (_raidRaider.Active && (guardAttack || creature.IsInCombat()))
+    if (!actorRaid.CombatNoted && actorRaid.AttemptId && (actorRaid.Active || actorRaid.Returning) && (guardAttack || creature.IsInCombat()))
     {
-        auto& raid = _raidRaider;
+        auto& raid = _raidRaiders.at(record.SpawnId);
+        raid.CombatNoted = true;
         auto& actor = _supplyActors.at(record.SpawnId);
         bool beforeTheft = actor.Stolen == raid.StolenAtStart;
         // Combat refs identify the actual local attacker. The southern raid
@@ -274,6 +315,7 @@ Unit* AIWorldMgr::LivingRaidThreat(AgentRecord& record, Creature& creature, uint
         raid.Outcome = guardAttack ? beforeTheft ? "INTERCEPTED" : "CAUGHT_WITH_CARGO" : "INTERRUPTED_COMBAT";
         actor.Travel.RejectPending();
         actor.NextAtMs = nowMs;
+        if (raid.PartyId) RetreatLivingRaidParty(raid.PartyId, nowMs, "MEMBER_IN_COMBAT");
         StopLivingRole(record, creature);
     }
     return guardAttack ? other : nullptr;
@@ -289,7 +331,7 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
     if (found == _supplyActors.end()) return false;
     auto& actor = found->second;
     auto& state = record.LivingRole;
-    auto& raid = raider ? _raidRaider : _raidGuard;
+    auto& raid = raider ? _raidRaiders.at(record.SpawnId) : _raidGuard;
     auto source = LivingRaid::SourceFor(raid.SelectedSourceDepot, _livingFieldsEnabled, raid.SelectedRouteId);
     if (raider && !source) return false;
     if (raider && _livingFieldsEnabled && Near(creature, source->Point()) &&
@@ -399,11 +441,22 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
             if (raider && _livingFieldsEnabled && !deferred)
             {
                 RememberLivingRaid(record, creature, nowMs, RaidExperienceKind::RouteBlocked);
+                if (raid.PartyId)
+                    if (auto group = _raidParties.find(raid.PartyId); group != _raidParties.end() &&
+                        group->second.Coordination.Stage == LivingRaidParty::Phase::Returning)
+                    {
+                        // Release the common barrier, retaining every actor's
+                        // physical return and cargo. The individual return
+                        // planner can skip unsafe transit hints independently.
+                        group->second.Coordination.Stage = LivingRaidParty::Phase::Complete;
+                        group->second.Coordination.Reason = "RETURN_ROUTE_UNAVAILABLE";
+                    }
                 if (raid.Active && !raid.Returning)
                 {
                     raid.Active = false; raid.Returning = true;
                     raid.Leg = std::min(raid.Leg, source->Count-1);
                     raid.Outcome = "ROUTE_BLOCKED";
+                    if (raid.PartyId) RetreatLivingRaidParty(raid.PartyId, nowMs, "MEMBER_ROUTE_BLOCKED");
                 }
             }
             actor.LastResult = deferred ? "PLANNING_DEFERRED" : "NO_ROUTE";
@@ -437,6 +490,47 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
         char const* phase = raid.DutyAtPost ? "GUARD_POST" : "GUARD_HOME";
         if (!Near(creature, destination)) return travel(destination, phase, phase);
         return activity(Activity::Look, phase, phase);
+    }
+    if (raider && _livingDefiasEnabled && raid.PartyId)
+    {
+        UpdateLivingRaidParty(record, creature, nowMs);
+        auto party = _raidParties.find(raid.PartyId);
+        if (party != _raidParties.end())
+        {
+            auto const& shared = party->second.Coordination;
+            if (shared.Stage == LivingRaidParty::Phase::Assembling)
+            {
+                auto rally = LivingRaidPartyDestination(record, LivingRaid::Camp, true);
+                if (!Near(creature, rally)) return travel(rally, "ASSEMBLING", "RAID_ASSEMBLE");
+                raid.Phase = actor.Phase = "ASSEMBLING";
+                actor.NextAtMs = nowMs+500;
+                return true;
+            }
+            if (shared.Stage == LivingRaidParty::Phase::Outbound)
+            {
+                raid.Leg = shared.Leg;
+                auto destination = LivingRaidPartyDestination(record, source->Route[std::min(raid.Leg, source->Count-1)], raid.Leg+1 < source->Count);
+                if (!Near(creature, destination)) return travel(destination, "TO_SOURCE", "RAID_SOURCE");
+                raid.Phase = actor.Phase = "WAITING_PARTY";
+                actor.NextAtMs = nowMs+500;
+                return true;
+            }
+            if (shared.Stage == LivingRaidParty::Phase::Raiding && raid.Returning)
+            {
+                raid.Phase = actor.Phase = "WAITING_PARTY";
+                actor.NextAtMs = nowMs+500;
+                return true;
+            }
+            if (shared.Stage == LivingRaidParty::Phase::Returning && shared.Leg)
+            {
+                raid.Leg = shared.Leg;
+                auto destination = LivingRaidPartyDestination(record, source->Route[std::min(shared.Leg, source->Count)-1], true);
+                if (!Near(creature, destination)) return travel(destination, "TO_CAMP", "RAID_CAMP");
+                raid.Phase = actor.Phase = "WAITING_PARTY";
+                actor.NextAtMs = nowMs+500;
+                return true;
+            }
+        }
     }
     uint32 cargo = _supplyLedger.GetCargo(record.SpawnId);
     if (cargo || raid.Returning)
@@ -491,6 +585,10 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
         if (nowMs < raid.NextAtMs || record.Needs.Hunger < 0.65f || (camp && camp->Stock))
         { actor.NextAtMs = nowMs+1000; return true; }
         if (!Near(creature, LivingRaid::Camp)) return travel(LivingRaid::Camp,"TO_CAMP","RAID_CAMP");
+        if (_livingDefiasEnabled && !raid.CampReadyAtMs) raid.CampReadyAtMs = nowMs;
+        auto roster = _livingDefiasEnabled ? LivingRaidPartyRoster(record, creature, nowMs) : std::vector<AgentId>{};
+        if (_livingDefiasEnabled && roster.empty())
+        { raid.Phase = actor.Phase = "WAITING_PARTY"; actor.NextAtMs = nowMs+1000; return true; }
         std::optional<uint32> selected;
         uint32 selectedRoute = 1;
         if (_livingFieldsEnabled)
@@ -533,9 +631,15 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
         raid.SelectedRouteId = selectedRoute;
         source = LivingRaid::SourceFor(*selected, _livingFieldsEnabled, selectedRoute);
         if (!source) { actor.NextAtMs = nowMs+30000; return true; }
-        ++raid.AttemptId; raid.Active = true; raid.Leg = 0; raid.StartedAtMs = nowMs;
+        ++raid.AttemptId; raid.Active = true; raid.Leg = 0; raid.StartedAtMs = nowMs; raid.CombatNoted = false;
         actor.Travel = {};
         raid.StolenAtStart = actor.Stolen; raid.Outcome = "STARTED";
+        if (_livingDefiasEnabled)
+        {
+            if (!CreateLivingRaidParty(record, creature, nowMs, roster))
+            { raid.Active = false; raid.Phase = "WAITING_PARTY"; raid.NextAtMs = nowMs+5000; }
+            return true;
+        }
     }
     for (size_t reached = 0; reached < source->Count; ++reached)
     {

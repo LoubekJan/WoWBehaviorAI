@@ -10,8 +10,10 @@ herního světa nasazují až samostatným exportem.
 
 Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
 herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
-**4988**. Profil `fields-v8` rozšiřuje přepady o práci na třech polích:
-AIWorld řídí 40 ze 100 NPC, ostatních 60 používá běžné chování TrinityCore. Výchozí
+**4988**. Nový profil `defias-v8` rozšiřuje `fields-v8` na celý tábor
+Defias: 55 řízených a 45 nativních NPC. Deset banditů vyráží ve skupinách,
+šest dalších obyvatel tábora jí z vlastního skladu. Nasazení a
+fyzický výsledek se ověřují samostatně. Výchozí
 `.env.example` zůstává konzervativním profilem `settlement-v8`.
 
 ## Služby a data
@@ -179,6 +181,79 @@ python3 tools/realm_lab/wildlife_acceptance.py runtime/lab/recordings/aiworld-SE
 
 Výsledky jsou `PASS`, `FAIL` nebo `INCONCLUSIVE` (exit 0, 3, 2). Zdravá
 služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
+
+## Celý tábor Defias — defias-v8
+
+[Manifest](data/realm_lab/aiworldlab/preview-v8/defias-population.json)
+rozšiřuje nezměněný `fields-v8` o 15 existujících identit. Všech 16 Defias
+901044–901059 je řízených; celkem jde o **55 řízených a 45 nativních NPC**.
+Deset banditů 901050–901059 má schopnost přepadů. Velitel 901044, tři
+stráže 901045–901047 a dodavatelé 901048/901049 zůstávají obyvateli tábora
+a jedí z jeho skladu 3. Zachovávají běžné typy strážce/civilista/bojovník,
+frakci Defias, původní domovy i všech 61 souborů mapové geometrie.
+
+Výpravy používají existující návrh koalice a rozmístění členů do formace.
+Skupina má 2–5 členů; deset banditů běžně vytvoří nejvýše dvě výpravy.
+Sestaví se v táboře a sdílí sklad 1/4/5/6, trasu a číslo pokusu po celou
+výpravu. Vedoucí výpravy, jeden z banditů, volí cíl ze své vlastní
+krátkodobé paměti. Každý člen si dál pamatuje pouze vlastní pozorování
+a výsledky; sdílený cíl mu nepředává
+vzdálené zásoby ani cizí zkušenosti. Mluvící NPC používají svůj dosavadní
+řadič. Skupinové přesuny používají běžné individuální akce s navigací,
+kolizemi a viditelností.
+
+Členové na sebe při shromáždění a na společných úsecích čekají. Boj,
+ztracený velitel, chybějící člen nebo vypršení čekání může ukončit postup
+a zahájit ústup. Každý živý člen se vrací vlastní cestou; smrt ztrácí jeho
+skutečný náklad. Skupinové dokončení nikoho nepřemístí ani nepřipíše jídlo.
+Každý bandita musí sám dokončit pět sekund práce u cílového skladu,
+unese nejvýše dvě porce a po návratu je samostatně pět sekund odevzdává.
+Neúspěšná nebo přerušená práce potravu nevytváří. Všech šest skladů a
+všech 55 řízených aktérů používá stejnou účetní bilanci.
+
+Nasazení používá v soukromém `.env`:
+
+```dotenv
+LAB_AI_PROFILE=defias-v8
+LAB_WILDLIFE_ENABLED=1
+```
+
+Po úspěšném CI proveď běžný build a offline `make setup-world`, potom
+`make start`. Automatické nasazení rozpozná profil a provede jeho
+`bootstrap-defias-v8`; `preflight-defias-v8` ověří přesné identity a
+vlastnictví. Aktivace kontroluje celý předchozí profil i všech 15 nových
+rezervací. `AIWorld.LivingDefias.Enabled` zapíná pouze tento profil;
+obecné Defias autoformation/regroup/roam/hunt přepínače zůstávají na 0,
+protože pohyb řídí konkrétní výprava. Pauza používá
+`LAB_WILDLIFE_ENABLED=0`. Offline `deactivate-defias-v8` pozastaví všech
+55 identit bez smazání jejich dlouhodobé paměti.
+
+Nové zásoby, náklad, potřeby, zkušenosti z přepadů a skupiny se neukládají
+přes restart. Skupiny nevkládají členství do databáze. Původní mapové,
+polní a přepadové receipts zůstávají beze změny a platí pro své původní
+profily a revize.
+
+### Záznam a ověření skupinové výpravy
+
+V `.env` nastav `AIWORLD_RECORD_INTERVAL=0.25`, spusť `make record` a
+poznamenej adresář session z `make record-status`. Sleduj alespoň pět
+minut souvislých čerstvých dat a celou výpravu od shromáždění přes cestu
+ke skladu nebo střet se stráží až po návrat či úmrtí jednotlivých členů.
+Poté ukonči záznam přes `make record-stop`, aby byly gzip soubory uzavřené.
+
+```bash
+mkdir -p runtime/lab/validation
+python3 -m tools.realm_lab.defias_group_acceptance runtime/lab/recordings/aiworld-SESSION --minimum-seconds 300 --output runtime/lab/validation/defias-group-acceptance.json
+```
+
+Výsledky jsou `PASS`, `FAIL`, `INCONCLUSIVE` (exit 0, 3, 2). Gate kontroluje
+55/45 aktérů, sdílenou bilanci a skutečné shromáždění, společnou cestu,
+společný cíl a doložený konec každého člena ve stejném pokusu. Řádný ústup
+nebo smrt mohou být platným výsledkem výpravy. `PASS` sám nepotvrzuje
+úspěšnou krádež, doručení ani příčinné použití paměti. Tyto výsledky je
+nutné doložit samostatně; staré testy jednoho bandity pro `fields-v8`
+a `raids-v8` nenahrazují nový důkaz celé skupiny. Živý výsledek nového
+profilu se zapíše až podle konkrétního záznamu a běžící revize.
 
 ## Pole a vlastní vesnické sklady — fields-v8
 

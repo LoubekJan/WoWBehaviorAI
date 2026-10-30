@@ -36,7 +36,51 @@ def planning():
                             guard_spawn_id="901026", age_ms=120000))
 
 
+def party(*, leader="901055", phase="OUTBOUND", role="LEADER"):
+    return dict(id="18446744073709551615", leader_spawn_id=leader,
+                member_spawn_ids=["901055", "901056"], phase=phase, role=role)
+
+
 class RaidTelemetryTests(unittest.TestCase):
+    def test_party_identity_roster_and_actor_role_roundtrip_without_combining_food(self):
+        first, second = raider(), raider()
+        first["raid"].update(party=party(), planning=planning())
+        second.update(agent_id=901056, spawn_id=901056)
+        second["raid"].update(party=party(role="MEMBER"), planning=planning())
+        second["supply"].update(cargo=0, stolen="0")
+        parsed = TelemetryBatch.model_validate(dict(version=4, captured_at_ms=1000, agents=[first, second]))
+        self.assertEqual(parsed.agents[0].raid.party.id, str(2**64-1))
+        self.assertEqual([actor.supply.cargo for actor in parsed.agents], [2, 0])
+        self.assertEqual(TelemetryBatch.model_validate_json(parsed.model_dump_json()), parsed)
+
+    def test_party_rejects_foreign_members_invalid_leaders_and_conflicting_objectives(self):
+        for mutation in ("zero_id", "duplicate", "zero_member", "outside_leader", "foreign_actor", "role", "guard", "too_many"):
+            bad = raider(); bad["raid"]["party"] = party()
+            current = bad["raid"]["party"]
+            if mutation == "zero_id": current["id"] = "0"
+            elif mutation == "duplicate": current["member_spawn_ids"] = ["901055", "901055"]
+            elif mutation == "zero_member": current["member_spawn_ids"] = ["901055", "0"]
+            elif mutation == "outside_leader": current["leader_spawn_id"] = "901050"
+            elif mutation == "foreign_actor": current["member_spawn_ids"] = ["901056"]
+            elif mutation == "role": current["role"] = "MEMBER"
+            elif mutation == "guard": bad["raid"]["role"] = "GUARD"
+            elif mutation == "too_many": current["member_spawn_ids"] += [str(901057+i) for i in range(4)]
+            with self.subTest(mutation=mutation), self.assertRaises(ValidationError): Agent.model_validate(bad)
+        first, second = raider(), raider()
+        first["raid"].update(party=party(), planning=planning())
+        second.update(agent_id=901056, spawn_id=901056)
+        second["raid"].update(party=party(role="MEMBER"), planning=planning())
+        for mutation in ("source", "attempt", "route", "phase", "leader"):
+            bad = copy.deepcopy(second)
+            if mutation == "source":
+                bad["raid"]["source_depot_id"] = bad["raid"]["source_depot"]["id"] = 4
+            elif mutation == "attempt": bad["raid"]["attempt_id"] = "2"
+            elif mutation == "route": bad["raid"]["planning"]["route_id"] = 1
+            elif mutation == "phase": bad["raid"]["party"]["phase"] = "RETURNING"
+            elif mutation == "leader": bad["raid"]["party"].update(leader_spawn_id="901056", role="LEADER")
+            with self.subTest(mutation=mutation), self.assertRaises(ValidationError):
+                TelemetryBatch.model_validate(dict(version=4, captured_at_ms=1000, agents=[first, bad]))
+
     def test_live_raid_is_optional_and_decimal_attempt_and_event_counters_roundtrip(self):
         self.assertIsNone(Agent.model_validate(agent()).raid)
         current = raider()

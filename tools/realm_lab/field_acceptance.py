@@ -45,19 +45,30 @@ class Track:
 
 
 class _Evaluator:
-    def __init__(self, minimum_seconds=300, max_gap_seconds=2):
+    def __init__(self, minimum_seconds=300, max_gap_seconds=2, *, population_spec=None,
+                 raider_ids=None, camp_members=None, profile=None):
         if not finite(minimum_seconds) or minimum_seconds <= 0 or not finite(max_gap_seconds) or not 0 < max_gap_seconds <= 5:
             raise ValueError("Observation duration must be positive and capture gap must be in (0,5] seconds")
-        self.population = population.Population.load()
+        self.population = population_spec or population.Population.load()
+        # Later population profiles retain the authored fields as a nested
+        # population. Farmer evidence still belongs to those twelve workers.
+        self.field_population = getattr(self.population, "field_population", self.population)
+        self.profile = profile or population.PROFILE
         self.actors = {actor.spawn_id: actor for actor in self.population.settlement.actors}
         self.managed = {actor.spawn_id: actor for actor in self.population.actors}
-        self.workers = {actor.spawn_id: actor for actor in self.population.recruits}
-        self.fields = {definition["id"]: definition for definition in self.population.fields}
+        self.workers = {actor.spawn_id: actor for actor in self.field_population.recruits}
+        self.fields = {definition["id"]: definition for definition in self.field_population.fields}
+        self.raiders = frozenset((901055,) if raider_ids is None else raider_ids)
+        if not self.raiders or not self.raiders.issubset(self.managed):
+            raise ValueError("Raiders must be a nonempty subset of the managed population")
         self.depots = {depot["id"]: depot["position"] for depot in population.raids.consumers.supply.DEPOTS}
         self.depots[3] = population.raids.DEPOT["position"]
         self.depots.update({key: definition["warehouse"]["position"] for key, definition in self.fields.items()})
-        self.members = {1: {901034, 901035, 901036, 901039}, 2: {901061, 901062, 901063}, 3: {901055},
+        self.members = {1: {901034, 901035, 901036, 901039}, 2: {901061, 901062, 901063},
+                        3: set(self.raiders if camp_members is None else camp_members),
                         **{key: set(workers) for key, workers in population.FIELD_WORKERS.items()}}
+        if not self.raiders.issubset(self.members[3]) or not self.members[3].issubset(self.managed):
+            raise ValueError("The camp ledger must include every raider and only managed actors")
         self.tracks = {sid: Track() for sid in sorted(self.workers)}
         self.minimum_seconds, self.max_gap = minimum_seconds, max_gap_seconds
         self.quality, self.violations, self.epochs = Counter(), {}, {}
@@ -141,7 +152,7 @@ class _Evaluator:
             self.reset("incomplete_100_actor_population"); return None
         by_id = {actor["spawn_id"]: actor for actor in agents}
         for sid, actor in by_id.items():
-            expected, owned = self.actors[sid], sid in population.SPAWN_IDS
+            expected, owned = self.actors[sid], sid in self.managed
             if (actor.get("agent_id") != sid or actor.get("entry") != expected.entry or
                 actor.get("native_creature") is not (not owned) or
                 actor.get("control_mode") != ("AI_WORLD_CONTROLLED" if owned else "OBSERVE_ONLY")):
@@ -220,8 +231,10 @@ class _Evaluator:
                 if any(value is None for value in values.values()) or not quantity(supplied.get("cargo")):
                     self.violation("invalid_supply_counter_or_cargo", sid); return None
                 source_id = raid.get("source_depot_id") if isinstance(raid, dict) else None
-                if sid == 901055 and (type(source_id) is not int or source_id not in (1, 4, 5, 6)):
+                if sid in self.raiders and (type(source_id) is not int or source_id not in (1, 4, 5, 6)):
                     self.violation("invalid_raid_source_warehouse", sid); return None
+                if sid not in self.raiders and values["stolen"]:
+                    self.violation("non_raider_acquired_theft_counter", sid)
                 metrics[sid] = dict(counters=values, cargo=supplied["cargo"], guid=actor.get("runtime_guid"),
                     life=role.get("lifetime_ms"), source_depot_id=source_id)
                 if isinstance(supplied.get("depot"), dict): copies.append(supplied["depot"])
@@ -450,13 +463,14 @@ class _Evaluator:
         flows = {key: dict(delivered=0, consumed=0, stolen=0) for key in self.depots}
         if self.previous_metrics:
             changes = {sid: {key: metrics[sid]["counters"][key]-self.previous_metrics[sid]["counters"][key] for key in COUNTERS} for sid in metrics}
-            thief_source = metrics[901055]["source_depot_id"]
-            if changes[901055]["stolen"] and thief_source != self.previous_metrics[901055]["source_depot_id"]:
-                self.violation("raid_source_changed_during_theft", 901055)
+            for sid in self.raiders:
+                if changes[sid]["stolen"] and metrics[sid]["source_depot_id"] != self.previous_metrics[sid]["source_depot_id"]:
+                    self.violation("raid_source_changed_during_theft", sid)
             for key, members in self.members.items():
                 flow = flows[key]
                 for name in ("delivered", "consumed"): flow[name] = sum(changes[sid][name] for sid in members)
-                flow["stolen"] = changes[901055]["stolen"] if key == thief_source else 0
+                flow["stolen"] = sum(changes[sid]["stolen"] for sid in self.raiders
+                                     if metrics[sid]["source_depot_id"] == key)
                 before, after = self.previous_depots[key], depots[key]
                 if (after["stock"]-before["stock"] != flow["delivered"]-flow["consumed"]-flow["stolen"] or
                     any(counter(after.get(name, "0"))-counter(before.get(name, "0")) != flow[name] for name in flow)):
@@ -491,9 +505,10 @@ class _Evaluator:
         if seconds < self.minimum_seconds: missing.append("shared_continuous_fresh_observation_window")
         violations = list(self.violations.values())
         status = "FAIL" if violations else "INCONCLUSIVE" if missing else "PASS"
-        return dict(profile=population.PROFILE, status=status, exit_code=EXIT_CODES[status], samples=self.samples,
-            fresh_samples=self.fresh, complete_population_frames=self.complete, expected_owned=40, expected_native=60,
-            expected_farmers=12, completed_farmers=sorted(completed), selected_epoch=selected,
+        return dict(profile=self.profile, status=status, exit_code=EXIT_CODES[status], samples=self.samples,
+            fresh_samples=self.fresh, complete_population_frames=self.complete,
+            expected_owned=len(self.managed), expected_native=len(self.actors)-len(self.managed),
+            expected_farmers=len(self.workers), completed_farmers=sorted(completed), selected_epoch=selected,
             observed_seconds=seconds, minimum_observation_seconds=self.minimum_seconds, max_gap_seconds=self.max_gap,
             maximum_action_start_capture_lag_ms=START_LAG_MS, chains=chains,
             criterion="linked_production_return_and_later_meal_return",

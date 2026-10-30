@@ -4,6 +4,26 @@ const assert = require("node:assert/strict");
 const model = require("../app/static/observer-model.js");
 const base = { position: { source: "live", map_id: 0 }, needs: { hunger: 0.8 }, agent_id: 1, spawn_id: 10 };
 
+test("raid details distinguish a party's common objective from personal cargo and camp members", () => {
+  const member = { ...base, supply: { enabled: true, role: "RAIDER", cargo: 0, capacity: 2 }, raid: {
+    enabled: true, role: "RAIDER", phase: "RETURNING_EMPTY", source_depot: { name: "Pravá vesnice", stock: 7 },
+    party: { id: "18446744073709551615", leader_spawn_id: "901055", member_spawn_ids: ["901055", "901056"],
+      phase: "RETURNING", role: "MEMBER" } } };
+  const rows = Object.fromEntries(model.raidFacts(member));
+  assert.equal(rows["Výprava skupiny"], "18446744073709551615");
+  assert.equal(rows["Úloha ve výpravě"], "Člen");
+  assert.equal(rows["Fáze výpravy"], "Návrat do tábora");
+  assert.equal(rows["Vůdce výpravy"], "901055");
+  assert.equal(rows["Sestava výpravy"], "901055, 901056");
+  assert.equal(rows["Cílový sklad"], "Pravá vesnice");
+  assert(model.matches(member, { group: "raid:18446744073709551615" }));
+  assert(!model.matches(member, { group: "18446744073709551615" }));
+  assert.equal(Object.fromEntries(model.supplyFacts(member))["Náklad"], "0 / 2 porcí");
+  const campGuard = { ...member, supply: { enabled: true, role: "CONSUMER" }, raid: { enabled: true, role: "GUARD" } };
+  assert.equal(Object.fromEntries(model.raidFacts(campGuard))["Výprava skupiny"], undefined);
+  assert(!model.matches(campGuard, { group: "raid:18446744073709551615" }));
+});
+
 test("a wolf group hunt has a visible goal and hunting phase even without individual goal", () => {
   const wolf = { ...base, living_wolf: true, coordination_goal: "HUNT", goal: null, groups: [{ id: 17 }, { id: 18 }] };
   assert.equal(model.goal(wolf), "HUNT");

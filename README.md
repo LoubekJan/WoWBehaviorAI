@@ -6,12 +6,11 @@ The project extends TrinityCore with long-lived individual agents that can perce
 
 The goal is not to replace TrinityCore AI with a language model. Deterministic systems handle common behavior; external AI/inference is used only where it adds value.
 
-> Active branch: **`AI-World-lab`**. Updated **2026-10-26**.
+> Active branch: **`AI-World-lab`**. Updated **2026-10-30**.
 >
 > The project now runs one authored world: realm **2**, map **725**, area
-> **4988**, with **100 NPCs** (23 AI controlled and 77 native) and live
-> observer telemetry. The
-> original Elwynn runtime is retired through the account-preserving
+> **4988**, with **100 NPCs** and live observer telemetry. The original
+> Elwynn runtime is retired through the account-preserving
 > migration; existing realm-2 characters and world data are retained.
 >
 > Root **`compose.yml`** is the complete stack: dedicated auth and world
@@ -21,16 +20,17 @@ The goal is not to replace TrinityCore AI with a language model. Deterministic s
 
 Use [README_DEV.md](README_DEV.md) for setup and operation and
 [doc/RealmLab.md](doc/RealmLab.md) for the current map, population,
-account migration and deployment model. The active `consumers-v8` profile
-extends the existing 16 deer and 4 bears with one human hunter, two gnoll
-hunters and two shared food depots. Finite carcass portions become cargo,
-physical delivery increases depot stock, and completed meals consume it.
-Two village workers and one gnoll also use their own depot while retaining
-their ordinary roles. New food state is runtime-only and resets on restart.
-The native `settlement-v8` and animal-only `wildlife-v8` baselines remain
-documented separately. Recording acceptance verifies physical behavior
-independently of service health.
-Raids and territory capture remain future work.
+account migration and deployment model. The new opt-in `defias-v8` profile
+extends `fields-v8` to all 16 authored Defias: **55 AI controlled / 45 native**
+NPCs, with unchanged homes and geometry. Ten raiders form parties of 2–5
+using the existing coalition and formation machinery; six camp inhabitants
+consume food from their own store. A party shares a target, route and
+attempt, while each member owns its memory, cargo and physical actions.
+Food, needs, raid memory and parties remain runtime-only. Live deployment
+and group acceptance must be verified separately; the new recording gate
+is documented in [README_DEV.md](README_DEV.md#celý-tábor-defias--defias-v8).
+Earlier profile receipts remain pinned to their original revisions.
+Territory capture remains future work.
 
 The AI subsystem notes below preserve the project's implementation
 history. [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md) records

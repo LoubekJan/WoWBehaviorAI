@@ -2943,8 +2943,12 @@ class TC_GAME_API AIWorldMgr
         bool _livingConsumersEnabled = false;
         bool _livingRaidsEnabled = false;
         bool _livingFieldsEnabled = false;
+        bool _livingDefiasEnabled = false;
         uint64 _raidStartedAtMs = 0;
-        LivingRaid::State _raidRaider, _raidGuard;
+        LivingRaid::State _raidGuard;
+        std::unordered_map<uint64, LivingRaid::State> _raidRaiders;
+        std::unordered_map<uint64, LivingRaid::PartyRuntime> _raidParties;
+        uint64 _nextRaidPartyId = 0;
         LivingSupply::Ledger _supplyLedger;
         std::unordered_map<uint64, LivingSupply::ActorRuntime> _supplyActors;
         std::unordered_map<uint64, LivingSupply::SourceRuntime> _supplySources;
@@ -2954,6 +2958,11 @@ class TC_GAME_API AIWorldMgr
         bool IsSupplyConsumer(AgentRecord const& record) const;
         bool IsSupplyRaider(AgentRecord const& record) const;
         bool IsRaidGuard(AgentRecord const& record) const;
+        std::vector<AgentId> LivingRaidPartyRoster(AgentRecord const& record, Creature const& creature, uint64 nowMs) const;
+        bool CreateLivingRaidParty(AgentRecord& leader, Creature& creature, uint64 nowMs, std::vector<AgentId> const& roster);
+        void UpdateLivingRaidParty(AgentRecord& record, Creature& creature, uint64 nowMs);
+        void RetreatLivingRaidParty(uint64 partyId, uint64 nowMs, char const* reason);
+        ActionPosition LivingRaidPartyDestination(AgentRecord const& record, ActionPosition const& anchor, bool spread) const;
         LivingSupply::ConsumerSpec const* SupplyConsumerSpec(AgentRecord const& record) const;
         std::optional<FoodDepotTelemetry> DescribeFoodDepot(uint32 depotId) const;
         Unit* LivingRaidThreat(AgentRecord& record, Creature& creature, uint64 nowMs);

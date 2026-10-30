@@ -1,6 +1,15 @@
 # AI World Lab — mapový projekt
 
-Aktuální navazující etapa používá uživatelův vlastní členitý terén
+Aktuální populace je definovaná nad verzí `preview-v8`. Nový
+[manifest Defias](preview-v8/defias-population.json) navazuje na nezměněný
+`fields-v8`: 55 řízených / 45 nativních NPC, všech 16 Defias včetně deseti
+banditů ve skupinách a šesti táborových spotřebitelů. Nemění 100 domovů
+ani 61 souborů geometrie. Nasazení a nový fyzický test popisuje
+[provozní postup](../../../README_DEV.md#celý-tábor-defias--defias-v8).
+Původní polní a přepadové receipts platí pro své zaznamenané revize;
+nový profil vyžaduje vlastní živé ověření.
+
+Historická etapa používá uživatelův vlastní členitý terén
 [v3 a profil hunt-terrain-100](terrain-v3/README.md). Níže je zachovaná
 referenční rovná verze v2 a její původní extrakce. [Hodinový záznam
 100 NPC na v2](hunt-100-hour-verification.json) prošel; výsledky v2

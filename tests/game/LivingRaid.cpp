@@ -72,6 +72,53 @@ TEST_CASE("Only the reviewed controlled raider and guard receive raid capabiliti
     REQUIRE_FALSE(GuardCapability(901039, 725, AgentType::Guard, AgentControlMode::AIWorldControlled, false));
 }
 
+TEST_CASE("Defias expansion grants only the ten authored raiders and six camp residents their own capability", "[AIWorld][LivingRaid]")
+{
+    for (uint64 spawn = 901000; spawn < 901100; ++spawn)
+    {
+        bool raider = spawn >= FirstRaider && spawn <= LastRaider;
+        REQUIRE(RaiderCapability(spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true, true) == raider);
+        REQUIRE_FALSE(RaiderCapability(spawn, 725, AgentType::Guard, AgentControlMode::AIWorldControlled, true, true));
+        REQUIRE_FALSE(RaiderCapability(spawn, 725, AgentType::Combatant, AgentControlMode::ObserveOnly, true, true));
+        REQUIRE_FALSE(RaiderCapability(spawn, 0, AgentType::Combatant, AgentControlMode::AIWorldControlled, true, true));
+        REQUIRE_FALSE(RaiderCapability(spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, false, true));
+        REQUIRE(RaiderCapability(spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true, false) == (spawn == RaiderSpawn));
+        REQUIRE(CampResidentCapability(spawn, 725, AgentType::Guard, AgentControlMode::AIWorldControlled, true) == (spawn >= 901044 && spawn <= 901047));
+        REQUIRE(CampResidentCapability(spawn, 725, AgentType::Civilian, AgentControlMode::AIWorldControlled, true) == (spawn == 901048 || spawn == 901049));
+        REQUIRE_FALSE(CampResidentCapability(spawn, 725, AgentType::Combatant, AgentControlMode::AIWorldControlled, true));
+        REQUIRE_FALSE(CampResidentCapability(spawn, 725, AgentType::Civilian, AgentControlMode::ObserveOnly, true));
+        REQUIRE_FALSE(CampResidentCapability(spawn, 0, AgentType::Civilian, AgentControlMode::AIWorldControlled, true));
+        REQUIRE_FALSE(CampResidentCapability(spawn, 725, AgentType::Civilian, AgentControlMode::AIWorldControlled, false));
+    }
+}
+
+TEST_CASE("Several raiders share a source without sharing cargo or replay credits", "[AIWorld][LivingRaid]")
+{
+    LivingSupply::Ledger ledger;
+    REQUIRE(ledger.ConfigureDepot(1, 6)); REQUIRE(ledger.ConfigureDepot(3));
+    for (uint32 id : {4u, 5u, 6u}) REQUIRE(ledger.ConfigureDepot(id));
+    for (uint64 spawn = FirstRaider; spawn <= LastRaider; ++spawn)
+        REQUIRE(ledger.RegisterRaider(spawn, 3, 1, 2, true));
+    uint32 stolen = 0;
+    for (uint64 spawn = FirstRaider; spawn <= LastRaider; ++spawn)
+    {
+        auto result = ledger.Steal(spawn, 1, 1, 2, true);
+        stolen += result.Portions;
+        REQUIRE(ledger.GetCargo(spawn) == result.Portions);
+        REQUIRE(ledger.Steal(spawn, 1, 1, 2, true).Duplicate == result.Success);
+        REQUIRE(ledger.Conserved());
+    }
+    REQUIRE(stolen == 6);
+    for (uint64 spawn = FirstRaider; spawn <= LastRaider; ++spawn)
+    {
+        uint32 held = ledger.GetCargo(spawn);
+        REQUIRE(ledger.DropCargo(spawn) == held);
+        REQUIRE(ledger.GetCargo(spawn) == 0);
+        REQUIRE(ledger.Conserved());
+    }
+    REQUIRE(ledger.GetCounters().LostTotal == stolen);
+}
+
 TEST_CASE("A hungry raider fairly rotates all stocked village sources without targeting camps", "[AIWorld][LivingRaid]")
 {
     std::array<uint32, 4> stocks{6, 30, 30, 30};

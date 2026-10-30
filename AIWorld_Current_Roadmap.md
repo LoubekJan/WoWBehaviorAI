@@ -1,4 +1,18 @@
-# Aktuální směr — 27. října 2026
+# Aktuální směr — 30. října 2026
+
+Nový profil `defias-v8` rozšiřuje nezměněný `fields-v8` na všech 16 Defias:
+**55 řízených / 45 nativních NPC**. Deset banditů tvoří výpravy o 2–5
+členech přes stávající koalice a formaci, běžně nejvýše dvě současně.
+Dalších šest obyvatel zůstává u táborového skladu 3 jako spotřebitelé.
+Vedoucí vybírá sklad z vlastní krátkodobé paměti; skupina drží společný
+cíl, trasu a pokus. Každý účastník dál vlastní své zkušenosti, náklad
+do dvou porcí a fyzickou pětisekundovou krádež i předání. Čekání, ústup,
+smrt a návraty zachovávají samostatné výsledky členů a společnou bilanci.
+Domovy, mapová data a staré receipts zůstávají beze změny. Nové zásoby,
+potřeby, zkušenosti z přepadů a skupiny se přes restart neukládají.
+[Provozní postup](README_DEV.md#celý-tábor-defias--defias-v8) popisuje
+`LAB_AI_PROFILE=defias-v8` a nový fyzický test. Živý výsledek rozšíření se
+zapíše až podle konkrétního nasazení a záznamu.
 
 Navazující profil `fields-v8` přidává 12 stávajících dělníků na skutečně
 namalovaná pole horní, levé a pravé vesnice. Každá má vlastní sklad
@@ -28,6 +42,21 @@ Následující vývoj probíhá nad tímto
 vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout plán.
 
 ## Nejbližší postup ve vlastním světě
+
+Aktuální TODO pro `defias-v8`:
+
+- Ověřit nasazenou revizi, 55/45 aktérů, všechny původní domovy a pokračování
+  práce na polích, lovu a spotřeby ve stejném záznamu.
+- Zaznamenat nejméně pět minut po 250 ms a celou skupinovou výpravu;
+  vyhodnotit `tools.realm_lab.defias_group_acceptance` nad uzavřenými daty.
+  Gate dokládá shromáždění, společný postup a konce jednotlivých členů.
+- Samostatně změřit skutečné krádeže a předání všech deseti banditů,
+  výběr podle vlastní paměti a chování při střetu se stráží, ztrátě
+  vedoucího nebo člena. Skupinový `PASS` tyto výsledky automaticky nedokládá.
+- Po fyzickém ověření sledovat delší bilanci zásob a hladu všech šestnácti
+  Defias. Obsazování vesnic a perzistence zůstávají navazující práce.
+
+Předchozí milníky a jejich samostatné důkazy:
 
 1. **Zvěř, potrava a lov — nasazeno, první fyzický gate PASS 26. října 2026.**
    Profil `wildlife-v8` řídí stávajících 16 jelenů a 4 medvědy; 80 ostatních
@@ -102,7 +131,8 @@ vlastním světem; historické Elwynn milníky níže nejsou aktuální rollout 
    Opakované snímky a neprůkazné akce se do pozitivního důkazu nepočítají.
    Rozpracované další přepady nejsou další dokončené cykly. Test nepotvrzuje
    dlouhodobou rovnováhu, perzistenci ani samostatně dokončený patnáctiminutový
-   gate nehybnosti. Obsazování vesnic a skupinové přepady jsou navazující práce.
+   gate nehybnosti. Obsazování vesnic zůstává navazující práce; nové
+   skupinové přepady mají vlastní ověření v profilu `defias-v8` výše.
    Samostatné provozní TODO: zkrátit opakované hledání zpáteční objížďky
    z jižního skladu. Nativní pokračování u `(-384.4092,491.567)` odmítá
    fyzická kontrola překážky; navazující hledání našlo skutečně průchozí
