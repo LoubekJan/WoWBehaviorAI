@@ -24,7 +24,37 @@
         "name": "Item.dbc",
         "sha256": "d455bc30b59bc368b2a972a913864dd092d50695140b9513582100dc56ed777d"
       }
-    ]
+    ],
+    "item_names": {
+      "kind": "world.item_template",
+      "sha256": "c76b89b3825d3e5e9e3e246bd6cc7bb61925d200663e0c37e1f192815d468812",
+      "matched_item_ids": 141,
+      "missing_item_ids": [
+        41,
+        42,
+        46,
+        50,
+        54,
+        58,
+        86,
+        746,
+        905,
+        906,
+        907,
+        908,
+        909,
+        1022,
+        1023,
+        1026,
+        1046,
+        1047,
+        1216,
+        1272,
+        1354,
+        1371,
+        3557
+      ]
+    }
   },
   "equipment_slots": [
     {
@@ -9059,7 +9089,7 @@
       "item_id": 1020,
       "display_id": 13552,
       "inventory_type": 1,
-      "label": "Hlava #1020",
+      "label": "Leather Helmet D (Test)",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -9069,7 +9099,7 @@
       "item_id": 1021,
       "display_id": 13551,
       "inventory_type": 1,
-      "label": "Hlava #1021",
+      "label": "Leather Helmet A (test)",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -9099,7 +9129,7 @@
       "item_id": 1024,
       "display_id": 15304,
       "inventory_type": 1,
-      "label": "Hlava #1024",
+      "label": "Plate Helmet D2 (test)",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -9109,7 +9139,7 @@
       "item_id": 1025,
       "display_id": 15302,
       "inventory_type": 1,
-      "label": "Hlava #1025",
+      "label": "Plate Helmet D1 (Test)",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -9129,7 +9159,7 @@
       "item_id": 34652,
       "display_id": 51495,
       "inventory_type": 1,
-      "label": "Hlava #34652",
+      "label": "Acherus Knight's Hood",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -9218,7 +9248,7 @@
       "item_id": 34655,
       "display_id": 51501,
       "inventory_type": 3,
-      "label": "Ramena #34655",
+      "label": "Acherus Knight's Pauldrons",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -9237,7 +9267,7 @@
       "item_id": 38,
       "display_id": 9891,
       "inventory_type": 4,
-      "label": "Košile #38",
+      "label": "Recruit's Shirt",
       "sources": [
         "Člověk · bojovník",
         "Trpaslík · bojovník",
@@ -9249,7 +9279,7 @@
       "item_id": 45,
       "display_id": 3265,
       "inventory_type": 4,
-      "label": "Košile #45",
+      "label": "Squire's Shirt",
       "sources": [
         "Člověk · paladin"
       ]
@@ -9259,7 +9289,7 @@
       "item_id": 49,
       "display_id": 9906,
       "inventory_type": 4,
-      "label": "Košile #49",
+      "label": "Footpad's Shirt",
       "sources": [
         "Člověk · rogue",
         "Trpaslík · rogue",
@@ -9272,7 +9302,7 @@
       "item_id": 53,
       "display_id": 9944,
       "inventory_type": 4,
-      "label": "Košile #53",
+      "label": "Neophyte's Shirt",
       "sources": [
         "Člověk · kněz",
         "Trpaslík · kněz",
@@ -9287,7 +9317,7 @@
       "item_id": 127,
       "display_id": 9996,
       "inventory_type": 4,
-      "label": "Košile #127",
+      "label": "Trapper's Shirt",
       "sources": [
         "Ork · lovec",
         "Tauren · lovec",
@@ -9299,7 +9329,7 @@
       "item_id": 148,
       "display_id": 9976,
       "inventory_type": 4,
-      "label": "Košile #148",
+      "label": "Rugged Trapper's Shirt",
       "sources": [
         "Trpaslík · lovec",
         "Noční elf · lovec"
@@ -9310,7 +9340,7 @@
       "item_id": 154,
       "display_id": 10058,
       "inventory_type": 4,
-      "label": "Košile #154",
+      "label": "Primitive Mantle",
       "sources": [
         "Ork · šaman",
         "Tauren · šaman"
@@ -9321,7 +9351,7 @@
       "item_id": 2105,
       "display_id": 10005,
       "inventory_type": 4,
-      "label": "Košile #2105",
+      "label": "Thug Shirt",
       "sources": [
         "Ork · rogue",
         "Nemrtvý · rogue"
@@ -9332,7 +9362,7 @@
       "item_id": 6096,
       "display_id": 2163,
       "inventory_type": 4,
-      "label": "Košile #6096",
+      "label": "Apprentice's Shirt",
       "sources": [
         "Člověk · mág",
         "Trpaslík · mág",
@@ -9347,7 +9377,7 @@
       "item_id": 6097,
       "display_id": 2470,
       "inventory_type": 4,
-      "label": "Košile #6097",
+      "label": "Acolyte's Shirt",
       "sources": [
         "Člověk · černokněžník",
         "Gnóm · černokněžník",
@@ -9360,7 +9390,7 @@
       "item_id": 6117,
       "display_id": 9972,
       "inventory_type": 4,
-      "label": "Košile #6117",
+      "label": "Squire's Shirt",
       "sources": [
         "Trpaslík · paladin"
       ]
@@ -9370,7 +9400,7 @@
       "item_id": 6120,
       "display_id": 9983,
       "inventory_type": 4,
-      "label": "Košile #6120",
+      "label": "Recruit's Shirt",
       "sources": [
         "Noční elf · bojovník"
       ]
@@ -9380,7 +9410,7 @@
       "item_id": 6125,
       "display_id": 9995,
       "inventory_type": 4,
-      "label": "Košile #6125",
+      "label": "Brawler's Harness",
       "sources": [
         "Ork · bojovník",
         "Nemrtvý · bojovník",
@@ -9393,7 +9423,7 @@
       "item_id": 6134,
       "display_id": 10108,
       "inventory_type": 4,
-      "label": "Košile #6134",
+      "label": "Primitive Mantle",
       "sources": [
         "Troll · šaman"
       ]
@@ -9403,7 +9433,7 @@
       "item_id": 6136,
       "display_id": 10112,
       "inventory_type": 4,
-      "label": "Košile #6136",
+      "label": "Thug Shirt",
       "sources": [
         "Troll · rogue"
       ]
@@ -9413,7 +9443,7 @@
       "item_id": 20897,
       "display_id": 33353,
       "inventory_type": 4,
-      "label": "Košile #20897",
+      "label": "Lookout's Tunic",
       "sources": [
         "Krvavý elf · rogue"
       ]
@@ -9423,7 +9453,7 @@
       "item_id": 20901,
       "display_id": 33352,
       "inventory_type": 4,
-      "label": "Košile #20901",
+      "label": "Warder's Shirt",
       "sources": [
         "Krvavý elf · lovec"
       ]
@@ -9433,7 +9463,7 @@
       "item_id": 23345,
       "display_id": 36118,
       "inventory_type": 4,
-      "label": "Košile #23345",
+      "label": "Scout's Shirt",
       "sources": [
         "Draenei · lovec",
         "Draenei · šaman"
@@ -9444,7 +9474,7 @@
       "item_id": 23473,
       "display_id": 36124,
       "inventory_type": 4,
-      "label": "Košile #23473",
+      "label": "Recruit's Shirt",
       "sources": [
         "Draenei · bojovník",
         "Draenei · mág"
@@ -9455,7 +9485,7 @@
       "item_id": 23476,
       "display_id": 36133,
       "inventory_type": 4,
-      "label": "Košile #23476",
+      "label": "Squire's Shirt",
       "sources": [
         "Draenei · paladin"
       ]
@@ -9465,7 +9495,7 @@
       "item_id": 24143,
       "display_id": 36789,
       "inventory_type": 4,
-      "label": "Košile #24143",
+      "label": "Initiate's Shirt",
       "sources": [
         "Krvavý elf · paladin"
       ]
@@ -9475,7 +9505,7 @@
       "item_id": 56,
       "display_id": 12647,
       "inventory_type": 20,
-      "label": "Hruď #56",
+      "label": "Apprentice's Robe",
       "sources": [
         "Člověk · mág",
         "Gnóm · mág"
@@ -9486,7 +9516,7 @@
       "item_id": 57,
       "display_id": 12645,
       "inventory_type": 20,
-      "label": "Hruď #57",
+      "label": "Acolyte's Robe",
       "sources": [
         "Člověk · černokněžník",
         "Gnóm · černokněžník"
@@ -9497,7 +9527,7 @@
       "item_id": 6098,
       "display_id": 12679,
       "inventory_type": 20,
-      "label": "Hruď #6098",
+      "label": "Neophyte's Robe",
       "sources": [
         "Člověk · kněz",
         "Trpaslík · kněz"
@@ -9508,7 +9538,7 @@
       "item_id": 6116,
       "display_id": 12648,
       "inventory_type": 20,
-      "label": "Hruď #6116",
+      "label": "Apprentice's Robe",
       "sources": [
         "Trpaslík · mág"
       ]
@@ -9518,7 +9548,7 @@
       "item_id": 6119,
       "display_id": 12681,
       "inventory_type": 20,
-      "label": "Hruď #6119",
+      "label": "Neophyte's Robe",
       "sources": [
         "Noční elf · kněz"
       ]
@@ -9528,7 +9558,7 @@
       "item_id": 6123,
       "display_id": 12683,
       "inventory_type": 20,
-      "label": "Hruď #6123",
+      "label": "Novice's Robe",
       "sources": [
         "Noční elf · druid"
       ]
@@ -9538,7 +9568,7 @@
       "item_id": 6129,
       "display_id": 12646,
       "inventory_type": 20,
-      "label": "Hruď #6129",
+      "label": "Acolyte's Robe",
       "sources": [
         "Ork · černokněžník",
         "Nemrtvý · černokněžník"
@@ -9549,7 +9579,7 @@
       "item_id": 6139,
       "display_id": 12684,
       "inventory_type": 20,
-      "label": "Hruď #6139",
+      "label": "Novice's Robe",
       "sources": [
         "Tauren · druid"
       ]
@@ -9559,7 +9589,7 @@
       "item_id": 6140,
       "display_id": 12649,
       "inventory_type": 20,
-      "label": "Hruď #6140",
+      "label": "Apprentice's Robe",
       "sources": [
         "Nemrtvý · mág",
         "Troll · mág"
@@ -9570,7 +9600,7 @@
       "item_id": 6144,
       "display_id": 12680,
       "inventory_type": 20,
-      "label": "Hruď #6144",
+      "label": "Neophyte's Robe",
       "sources": [
         "Nemrtvý · kněz",
         "Troll · kněz"
@@ -9581,7 +9611,7 @@
       "item_id": 20891,
       "display_id": 33256,
       "inventory_type": 20,
-      "label": "Hruď #20891",
+      "label": "Neophyte's Robe",
       "sources": [
         "Krvavý elf · kněz"
       ]
@@ -9591,7 +9621,7 @@
       "item_id": 20892,
       "display_id": 33257,
       "inventory_type": 20,
-      "label": "Hruď #20892",
+      "label": "Acolyte's Robe",
       "sources": [
         "Krvavý elf · černokněžník"
       ]
@@ -9601,7 +9631,7 @@
       "item_id": 20893,
       "display_id": 33258,
       "inventory_type": 20,
-      "label": "Hruď #20893",
+      "label": "Apprentice's Robe",
       "sources": [
         "Krvavý elf · mág"
       ]
@@ -9611,7 +9641,7 @@
       "item_id": 23322,
       "display_id": 36138,
       "inventory_type": 20,
-      "label": "Hruď #23322",
+      "label": "Acolyte's Robe",
       "sources": [
         "Draenei · kněz"
       ]
@@ -9621,7 +9651,7 @@
       "item_id": 23479,
       "display_id": 36140,
       "inventory_type": 20,
-      "label": "Hruď #23479",
+      "label": "Recruit's Robe",
       "sources": [
         "Draenei · mág"
       ]
@@ -9631,7 +9661,7 @@
       "item_id": 34650,
       "display_id": 51494,
       "inventory_type": 5,
-      "label": "Hruď #34650",
+      "label": "Acherus Knight's Tunic",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -9720,7 +9750,7 @@
       "item_id": 34651,
       "display_id": 51497,
       "inventory_type": 6,
-      "label": "Pas #34651",
+      "label": "Acherus Knight's Girdle",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -9739,7 +9769,7 @@
       "item_id": 39,
       "display_id": 9892,
       "inventory_type": 7,
-      "label": "Nohy #39",
+      "label": "Recruit's Pants",
       "sources": [
         "Člověk · bojovník",
         "Trpaslík · bojovník",
@@ -9751,7 +9781,7 @@
       "item_id": 44,
       "display_id": 9937,
       "inventory_type": 7,
-      "label": "Nohy #44",
+      "label": "Squire's Pants",
       "sources": [
         "Člověk · paladin"
       ]
@@ -9761,7 +9791,7 @@
       "item_id": 48,
       "display_id": 9913,
       "inventory_type": 7,
-      "label": "Nohy #48",
+      "label": "Footpad's Pants",
       "sources": [
         "Člověk · rogue",
         "Trpaslík · rogue",
@@ -9774,7 +9804,7 @@
       "item_id": 52,
       "display_id": 9945,
       "inventory_type": 7,
-      "label": "Nohy #52",
+      "label": "Neophyte's Pants",
       "sources": [
         "Člověk · kněz",
         "Trpaslík · kněz",
@@ -9789,7 +9819,7 @@
       "item_id": 120,
       "display_id": 10006,
       "inventory_type": 7,
-      "label": "Nohy #120",
+      "label": "Thug Pants",
       "sources": [
         "Ork · rogue",
         "Nemrtvý · rogue"
@@ -9800,7 +9830,7 @@
       "item_id": 139,
       "display_id": 9988,
       "inventory_type": 7,
-      "label": "Nohy #139",
+      "label": "Brawler's Pants",
       "sources": [
         "Ork · bojovník",
         "Nemrtvý · bojovník",
@@ -9813,7 +9843,7 @@
       "item_id": 147,
       "display_id": 9975,
       "inventory_type": 7,
-      "label": "Nohy #147",
+      "label": "Rugged Trapper's Pants",
       "sources": [
         "Trpaslík · lovec",
         "Noční elf · lovec"
@@ -9824,7 +9854,7 @@
       "item_id": 153,
       "display_id": 10050,
       "inventory_type": 7,
-      "label": "Nohy #153",
+      "label": "Primitive Kilt",
       "sources": [
         "Ork · šaman",
         "Tauren · šaman"
@@ -9835,7 +9865,7 @@
       "item_id": 1395,
       "display_id": 9924,
       "inventory_type": 7,
-      "label": "Nohy #1395",
+      "label": "Apprentice's Pants",
       "sources": [
         "Člověk · mág",
         "Trpaslík · mág",
@@ -9849,7 +9879,7 @@
       "item_id": 1396,
       "display_id": 3260,
       "inventory_type": 7,
-      "label": "Nohy #1396",
+      "label": "Acolyte's Pants",
       "sources": [
         "Člověk · černokněžník",
         "Ork · černokněžník",
@@ -9864,7 +9894,7 @@
       "item_id": 6118,
       "display_id": 9974,
       "inventory_type": 7,
-      "label": "Nohy #6118",
+      "label": "Squire's Pants",
       "sources": [
         "Trpaslík · paladin"
       ]
@@ -9874,7 +9904,7 @@
       "item_id": 6121,
       "display_id": 9984,
       "inventory_type": 7,
-      "label": "Nohy #6121",
+      "label": "Recruit's Pants",
       "sources": [
         "Noční elf · bojovník"
       ]
@@ -9884,7 +9914,7 @@
       "item_id": 6124,
       "display_id": 9987,
       "inventory_type": 7,
-      "label": "Nohy #6124",
+      "label": "Novice's Pants",
       "sources": [
         "Noční elf · druid",
         "Tauren · druid"
@@ -9895,7 +9925,7 @@
       "item_id": 6126,
       "display_id": 10002,
       "inventory_type": 7,
-      "label": "Nohy #6126",
+      "label": "Trapper's Pants",
       "sources": [
         "Ork · lovec",
         "Tauren · lovec",
@@ -9907,7 +9937,7 @@
       "item_id": 6135,
       "display_id": 10109,
       "inventory_type": 7,
-      "label": "Nohy #6135",
+      "label": "Primitive Kilt",
       "sources": [
         "Troll · šaman"
       ]
@@ -9917,7 +9947,7 @@
       "item_id": 6137,
       "display_id": 10114,
       "inventory_type": 7,
-      "label": "Nohy #6137",
+      "label": "Thug Pants",
       "sources": [
         "Troll · rogue"
       ]
@@ -9927,7 +9957,7 @@
       "item_id": 20894,
       "display_id": 33259,
       "inventory_type": 7,
-      "label": "Nohy #20894",
+      "label": "Apprentice's Pants",
       "sources": [
         "Krvavý elf · mág"
       ]
@@ -9937,7 +9967,7 @@
       "item_id": 20896,
       "display_id": 33342,
       "inventory_type": 7,
-      "label": "Nohy #20896",
+      "label": "Lookout's Pants",
       "sources": [
         "Krvavý elf · rogue"
       ]
@@ -9947,7 +9977,7 @@
       "item_id": 20899,
       "display_id": 33351,
       "inventory_type": 7,
-      "label": "Nohy #20899",
+      "label": "Warder's Pants",
       "sources": [
         "Krvavý elf · lovec"
       ]
@@ -9957,7 +9987,7 @@
       "item_id": 23344,
       "display_id": 36120,
       "inventory_type": 7,
-      "label": "Nohy #23344",
+      "label": "Scout's Pants",
       "sources": [
         "Draenei · lovec",
         "Draenei · šaman"
@@ -9968,7 +9998,7 @@
       "item_id": 23474,
       "display_id": 36125,
       "inventory_type": 7,
-      "label": "Nohy #23474",
+      "label": "Recruit's Pants",
       "sources": [
         "Draenei · bojovník"
       ]
@@ -9978,7 +10008,7 @@
       "item_id": 23477,
       "display_id": 36134,
       "inventory_type": 7,
-      "label": "Nohy #23477",
+      "label": "Squire's Pants",
       "sources": [
         "Draenei · paladin"
       ]
@@ -9988,7 +10018,7 @@
       "item_id": 23478,
       "display_id": 36125,
       "inventory_type": 7,
-      "label": "Nohy #23478",
+      "label": "Recruit's Pants",
       "sources": [
         "Draenei · mág"
       ]
@@ -9998,7 +10028,7 @@
       "item_id": 24145,
       "display_id": 36790,
       "inventory_type": 7,
-      "label": "Nohy #24145",
+      "label": "Initiate's Pants",
       "sources": [
         "Krvavý elf · paladin"
       ]
@@ -10008,7 +10038,7 @@
       "item_id": 34656,
       "display_id": 51499,
       "inventory_type": 7,
-      "label": "Nohy #34656",
+      "label": "Acherus Knight's Legplates",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -10027,7 +10057,7 @@
       "item_id": 40,
       "display_id": 10141,
       "inventory_type": 8,
-      "label": "Chodidla #40",
+      "label": "Recruit's Boots",
       "sources": [
         "Člověk · bojovník",
         "Trpaslík · bojovník",
@@ -10039,7 +10069,7 @@
       "item_id": 43,
       "display_id": 9938,
       "inventory_type": 8,
-      "label": "Chodidla #43",
+      "label": "Squire's Boots",
       "sources": [
         "Člověk · paladin",
         "Trpaslík · paladin"
@@ -10050,7 +10080,7 @@
       "item_id": 47,
       "display_id": 9915,
       "inventory_type": 8,
-      "label": "Chodidla #47",
+      "label": "Footpad's Shoes",
       "sources": [
         "Člověk · rogue",
         "Trpaslík · rogue",
@@ -10063,7 +10093,7 @@
       "item_id": 51,
       "display_id": 9946,
       "inventory_type": 8,
-      "label": "Chodidla #51",
+      "label": "Neophyte's Boots",
       "sources": [
         "Člověk · kněz",
         "Trpaslík · kněz",
@@ -10077,7 +10107,7 @@
       "item_id": 55,
       "display_id": 9929,
       "inventory_type": 8,
-      "label": "Chodidla #55",
+      "label": "Apprentice's Boots",
       "sources": [
         "Člověk · mág",
         "Trpaslík · mág",
@@ -10091,7 +10121,7 @@
       "item_id": 59,
       "display_id": 3261,
       "inventory_type": 8,
-      "label": "Chodidla #59",
+      "label": "Acolyte's Shoes",
       "sources": [
         "Člověk · černokněžník",
         "Ork · černokněžník",
@@ -10105,7 +10135,7 @@
       "item_id": 121,
       "display_id": 10008,
       "inventory_type": 8,
-      "label": "Chodidla #121",
+      "label": "Thug Boots",
       "sources": [
         "Ork · rogue",
         "Nemrtvý · rogue"
@@ -10116,7 +10146,7 @@
       "item_id": 129,
       "display_id": 9977,
       "inventory_type": 8,
-      "label": "Chodidla #129",
+      "label": "Rugged Trapper's Boots",
       "sources": [
         "Trpaslík · lovec",
         "Noční elf · lovec"
@@ -10127,7 +10157,7 @@
       "item_id": 140,
       "display_id": 9992,
       "inventory_type": 8,
-      "label": "Chodidla #140",
+      "label": "Brawler's Boots",
       "sources": [
         "Ork · bojovník",
         "Nemrtvý · bojovník"
@@ -10138,7 +10168,7 @@
       "item_id": 6122,
       "display_id": 9985,
       "inventory_type": 8,
-      "label": "Chodidla #6122",
+      "label": "Recruit's Boots",
       "sources": [
         "Noční elf · bojovník"
       ]
@@ -10148,7 +10178,7 @@
       "item_id": 6127,
       "display_id": 10003,
       "inventory_type": 8,
-      "label": "Chodidla #6127",
+      "label": "Trapper's Boots",
       "sources": [
         "Ork · lovec"
       ]
@@ -10158,7 +10188,7 @@
       "item_id": 6138,
       "display_id": 10115,
       "inventory_type": 8,
-      "label": "Chodidla #6138",
+      "label": "Thug Boots",
       "sources": [
         "Troll · rogue"
       ]
@@ -10168,7 +10198,7 @@
       "item_id": 20895,
       "display_id": 33260,
       "inventory_type": 8,
-      "label": "Chodidla #20895",
+      "label": "Apprentice's Boots",
       "sources": [
         "Krvavý elf · mág"
       ]
@@ -10178,7 +10208,7 @@
       "item_id": 20898,
       "display_id": 36764,
       "inventory_type": 8,
-      "label": "Chodidla #20898",
+      "label": "Lookout's Shoes",
       "sources": [
         "Krvavý elf · rogue"
       ]
@@ -10188,7 +10218,7 @@
       "item_id": 20900,
       "display_id": 33350,
       "inventory_type": 8,
-      "label": "Chodidla #20900",
+      "label": "Warder's Boots",
       "sources": [
         "Krvavý elf · lovec"
       ]
@@ -10198,7 +10228,7 @@
       "item_id": 23348,
       "display_id": 36122,
       "inventory_type": 8,
-      "label": "Chodidla #23348",
+      "label": "Scout's Boots",
       "sources": [
         "Draenei · lovec",
         "Draenei · šaman"
@@ -10209,7 +10239,7 @@
       "item_id": 23475,
       "display_id": 36126,
       "inventory_type": 8,
-      "label": "Chodidla #23475",
+      "label": "Recruit's Boots",
       "sources": [
         "Draenei · bojovník"
       ]
@@ -10219,7 +10249,7 @@
       "item_id": 24146,
       "display_id": 36793,
       "inventory_type": 8,
-      "label": "Chodidla #24146",
+      "label": "Initiate's Boots",
       "sources": [
         "Krvavý elf · paladin"
       ]
@@ -10229,7 +10259,7 @@
       "item_id": 34648,
       "display_id": 51496,
       "inventory_type": 8,
-      "label": "Chodidla #34648",
+      "label": "Acherus Knight's Greaves",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -10248,7 +10278,7 @@
       "item_id": 710,
       "display_id": 16936,
       "inventory_type": 9,
-      "label": "Zápěstí #710",
+      "label": "Bracers of the People's Militia",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10258,7 +10288,7 @@
       "item_id": 763,
       "display_id": 17007,
       "inventory_type": 9,
-      "label": "Zápěstí #763",
+      "label": "Ice-covered Bracers",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10268,7 +10298,7 @@
       "item_id": 897,
       "display_id": 17011,
       "inventory_type": 9,
-      "label": "Zápěstí #897",
+      "label": "Madwolf Bracers",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10278,7 +10308,7 @@
       "item_id": 1182,
       "display_id": 6852,
       "inventory_type": 9,
-      "label": "Zápěstí #1182",
+      "label": "Brass-studded Bracers",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10288,7 +10318,7 @@
       "item_id": 1183,
       "display_id": 16927,
       "inventory_type": 9,
-      "label": "Zápěstí #1183",
+      "label": "Elastic Wristguards",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10298,7 +10328,7 @@
       "item_id": 1213,
       "display_id": 3613,
       "inventory_type": 9,
-      "label": "Zápěstí #1213",
+      "label": "Gnoll Kindred Bracers",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10318,7 +10348,7 @@
       "item_id": 34653,
       "display_id": 51500,
       "inventory_type": 9,
-      "label": "Zápěstí #34653",
+      "label": "Acherus Knight's Wristguard",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -10337,7 +10367,7 @@
       "item_id": 203,
       "display_id": 16779,
       "inventory_type": 10,
-      "label": "Ruce #203",
+      "label": "Thick Cloth Gloves",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10347,7 +10377,7 @@
       "item_id": 239,
       "display_id": 14475,
       "inventory_type": 10,
-      "label": "Ruce #239",
+      "label": "Cured Leather Gloves",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10357,7 +10387,7 @@
       "item_id": 711,
       "display_id": 16581,
       "inventory_type": 10,
-      "label": "Ruce #711",
+      "label": "Tattered Cloth Gloves",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10367,7 +10397,7 @@
       "item_id": 714,
       "display_id": 14445,
       "inventory_type": 10,
-      "label": "Ruce #714",
+      "label": "Dirty Leather Gloves",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10377,7 +10407,7 @@
       "item_id": 718,
       "display_id": 6986,
       "inventory_type": 10,
-      "label": "Ruce #718",
+      "label": "Scalemail Gloves",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10387,7 +10417,7 @@
       "item_id": 719,
       "display_id": 16970,
       "inventory_type": 10,
-      "label": "Ruce #719",
+      "label": "Rabbit Handler Gloves",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10397,7 +10427,7 @@
       "item_id": 720,
       "display_id": 2368,
       "inventory_type": 10,
-      "label": "Ruce #720",
+      "label": "Brawler Gloves",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10407,7 +10437,7 @@
       "item_id": 34649,
       "display_id": 51498,
       "inventory_type": 10,
-      "label": "Ruce #34649",
+      "label": "Acherus Knight's Gauntlets",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -10426,7 +10456,7 @@
       "item_id": 1190,
       "display_id": 15120,
       "inventory_type": 16,
-      "label": "Plášť #1190",
+      "label": "Overseer's Cloak",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10436,7 +10466,7 @@
       "item_id": 1270,
       "display_id": 23113,
       "inventory_type": 16,
-      "label": "Plášť #1270",
+      "label": "Finely Woven Cloak",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10456,7 +10486,7 @@
       "item_id": 1355,
       "display_id": 23014,
       "inventory_type": 16,
-      "label": "Plášť #1355",
+      "label": "Buckskin Cape",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10466,7 +10496,7 @@
       "item_id": 1372,
       "display_id": 23054,
       "inventory_type": 16,
-      "label": "Plášť #1372",
+      "label": "Ragged Cloak",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10476,7 +10506,7 @@
       "item_id": 1376,
       "display_id": 23090,
       "inventory_type": 16,
-      "label": "Plášť #1376",
+      "label": "Frayed Cloak",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10486,7 +10516,7 @@
       "item_id": 1421,
       "display_id": 23083,
       "inventory_type": 16,
-      "label": "Plášť #1421",
+      "label": "Worn Hide Cloak",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10496,7 +10526,7 @@
       "item_id": 34659,
       "display_id": 49738,
       "inventory_type": 16,
-      "label": "Plášť #34659",
+      "label": "Acherus Knight's Shroud",
       "sources": [
         "Člověk · rytíř smrti",
         "Ork · rytíř smrti",
@@ -10535,7 +10565,7 @@
       "item_id": 5976,
       "display_id": 20621,
       "inventory_type": 19,
-      "label": "Tabard #5976",
+      "label": "Guild Tabard",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10545,7 +10575,7 @@
       "item_id": 7725,
       "display_id": 15817,
       "inventory_type": 19,
-      "label": "Tabard #7725",
+      "label": "Tabard of the Scarlet Crusade DEPRECATED",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10555,7 +10585,7 @@
       "item_id": 11364,
       "display_id": 21338,
       "inventory_type": 19,
-      "label": "Tabard #11364",
+      "label": "Tabard of Stormwind",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10565,7 +10595,7 @@
       "item_id": 15196,
       "display_id": 31254,
       "inventory_type": 19,
-      "label": "Tabard #15196",
+      "label": "Private's Tabard",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10575,7 +10605,7 @@
       "item_id": 15197,
       "display_id": 31255,
       "inventory_type": 19,
-      "label": "Tabard #15197",
+      "label": "Scout's Tabard",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10585,7 +10615,7 @@
       "item_id": 15198,
       "display_id": 31253,
       "inventory_type": 19,
-      "label": "Tabard #15198",
+      "label": "Knight's Colors",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10595,7 +10625,7 @@
       "item_id": 35,
       "display_id": 472,
       "inventory_type": 17,
-      "label": "Pravá ruka #35",
+      "label": "Bent Staff",
       "sources": [
         "Člověk · kněz",
         "Člověk · mág",
@@ -10618,7 +10648,7 @@
       "item_id": 36,
       "display_id": 5194,
       "inventory_type": 21,
-      "label": "Pravá ruka #36",
+      "label": "Worn Mace",
       "sources": [
         "Ork · šaman",
         "Tauren · šaman",
@@ -10631,7 +10661,7 @@
       "item_id": 2092,
       "display_id": 6442,
       "inventory_type": 13,
-      "label": "Pravá ruka #2092",
+      "label": "Worn Dagger",
       "sources": [
         "Člověk · rogue",
         "Ork · rogue",
@@ -10647,7 +10677,7 @@
       "item_id": 2361,
       "display_id": 8690,
       "inventory_type": 17,
-      "label": "Pravá ruka #2361",
+      "label": "Battleworn Hammer",
       "sources": [
         "Člověk · paladin",
         "Trpaslík · paladin",
@@ -10660,7 +10690,7 @@
       "item_id": 3661,
       "display_id": 18530,
       "inventory_type": 17,
-      "label": "Pravá ruka #3661",
+      "label": "Handcrafted Staff",
       "sources": [
         "Noční elf · kněz",
         "Noční elf · druid",
@@ -10673,7 +10703,7 @@
       "item_id": 12282,
       "display_id": 22291,
       "inventory_type": 17,
-      "label": "Pravá ruka #12282",
+      "label": "Worn Battleaxe",
       "sources": [
         "Ork · bojovník",
         "Ork · lovec",
@@ -10691,7 +10721,7 @@
       "item_id": 20978,
       "display_id": 33299,
       "inventory_type": 17,
-      "label": "Pravá ruka #20978",
+      "label": "Apprentice's Staff",
       "sources": [
         "Krvavý elf · kněz",
         "Krvavý elf · mág",
@@ -10703,7 +10733,7 @@
       "item_id": 20982,
       "display_id": 37170,
       "inventory_type": 13,
-      "label": "Pravá ruka #20982",
+      "label": "Sharp Dagger",
       "sources": [
         "Krvavý elf · rogue"
       ]
@@ -10713,7 +10743,7 @@
       "item_id": 23346,
       "display_id": 2380,
       "inventory_type": 17,
-      "label": "Pravá ruka #23346",
+      "label": "Battleworn Claymore",
       "sources": [
         "Krvavý elf · paladin",
         "Draenei · bojovník"
@@ -10724,7 +10754,7 @@
       "item_id": 49778,
       "display_id": 2380,
       "inventory_type": 17,
-      "label": "Pravá ruka #49778",
+      "label": "Worn Greatsword",
       "sources": [
         "Člověk · bojovník",
         "Noční elf · bojovník",
@@ -10738,7 +10768,7 @@
       "item_id": 143,
       "display_id": 2080,
       "inventory_type": 14,
-      "label": "Levá ruka #143",
+      "label": "Monster - Shield, Stormwind Guard",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10748,7 +10778,7 @@
       "item_id": 727,
       "display_id": 26577,
       "inventory_type": 13,
-      "label": "Levá ruka #727",
+      "label": "Notched Shortsword",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10758,7 +10788,7 @@
       "item_id": 753,
       "display_id": 20094,
       "inventory_type": 13,
-      "label": "Levá ruka #753",
+      "label": "Dragonmaw Shortsword",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10768,7 +10798,7 @@
       "item_id": 754,
       "display_id": 20218,
       "inventory_type": 13,
-      "label": "Levá ruka #754",
+      "label": "Shortsword of Vengeance",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10778,7 +10808,7 @@
       "item_id": 776,
       "display_id": 6452,
       "inventory_type": 13,
-      "label": "Levá ruka #776",
+      "label": "Vendetta",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10788,7 +10818,7 @@
       "item_id": 2092,
       "display_id": 6442,
       "inventory_type": 13,
-      "label": "Levá ruka #2092",
+      "label": "Worn Dagger",
       "sources": [
         "Člověk · rogue",
         "Ork · rogue",
@@ -10804,7 +10834,7 @@
       "item_id": 2362,
       "display_id": 18730,
       "inventory_type": 14,
-      "label": "Levá ruka #2362",
+      "label": "Worn Wooden Shield",
       "sources": [
         "Ork · šaman",
         "Tauren · šaman",
@@ -10817,7 +10847,7 @@
       "item_id": 20982,
       "display_id": 37170,
       "inventory_type": 13,
-      "label": "Levá ruka #20982",
+      "label": "Sharp Dagger",
       "sources": [
         "Krvavý elf · rogue"
       ]
@@ -10827,7 +10857,7 @@
       "item_id": 50055,
       "display_id": 6442,
       "inventory_type": 22,
-      "label": "Levá ruka #50055",
+      "label": "Worn Dirk",
       "sources": [
         "Člověk · rogue",
         "Ork · rogue",
@@ -10843,7 +10873,7 @@
       "item_id": 50057,
       "display_id": 37170,
       "inventory_type": 22,
-      "label": "Levá ruka #50057",
+      "label": "Sharp Dirk",
       "sources": [
         "Krvavý elf · rogue"
       ]
@@ -10873,7 +10903,7 @@
       "item_id": 1254,
       "display_id": 24380,
       "inventory_type": 28,
-      "label": "Zbraň na dálku #1254",
+      "label": "Lesser Firestone (DEPRECATED)",
       "sources": [
         "Item.dbc · výběr vzhledů"
       ]
@@ -10883,7 +10913,7 @@
       "item_id": 2504,
       "display_id": 8106,
       "inventory_type": 15,
-      "label": "Zbraň na dálku #2504",
+      "label": "Worn Shortbow",
       "sources": [
         "Ork · lovec",
         "Noční elf · lovec",
@@ -10895,7 +10925,7 @@
       "item_id": 2508,
       "display_id": 6606,
       "inventory_type": 26,
-      "label": "Zbraň na dálku #2508",
+      "label": "Old Blunderbuss",
       "sources": [
         "Trpaslík · lovec",
         "Tauren · lovec"
@@ -10906,7 +10936,7 @@
       "item_id": 20980,
       "display_id": 8106,
       "inventory_type": 15,
-      "label": "Zbraň na dálku #20980",
+      "label": "Warder's Shortbow",
       "sources": [
         "Krvavý elf · lovec"
       ]
@@ -10916,7 +10946,7 @@
       "item_id": 23347,
       "display_id": 10671,
       "inventory_type": 26,
-      "label": "Zbraň na dálku #23347",
+      "label": "Weathered Crossbow",
       "sources": [
         "Draenei · lovec"
       ]
@@ -10926,7 +10956,7 @@
       "item_id": 25861,
       "display_id": 20777,
       "inventory_type": 25,
-      "label": "Zbraň na dálku #25861",
+      "label": "Crude Throwing Axe",
       "sources": [
         "Ork · rogue",
         "Trpaslík · rogue",
@@ -10939,7 +10969,7 @@
       "item_id": 28979,
       "display_id": 40187,
       "inventory_type": 25,
-      "label": "Zbraň na dálku #28979",
+      "label": "Light Throwing Knife",
       "sources": [
         "Člověk · rogue",
         "Noční elf · rogue",

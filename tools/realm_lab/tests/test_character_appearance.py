@@ -4,10 +4,25 @@ import struct
 import tempfile
 import unittest
 
-from tools.realm_lab.character_appearance import RACES, SLOTS, read_dbc
+from tools.realm_lab.character_appearance import RACES, SLOTS, apply_item_names, read_dbc
 
 
 class CharacterAppearanceCatalogTest(unittest.TestCase):
+    def test_item_names_change_only_labels_and_record_missing_ids(self):
+        catalog = {"source": {}, "equipment": [{"slot": "head", "item_id": 12, "display_id": 300, "label": "Hlava #12"},
+                                                  {"slot": "feet", "item_id": 13, "display_id": 301, "label": "Chodidla #13"}]}
+        apply_item_names(catalog, {"12": "Recruit's Hat"})
+        self.assertEqual(catalog["equipment"], [{"slot": "head", "item_id": 12, "display_id": 300, "label": "Recruit's Hat"},
+                                                 {"slot": "feet", "item_id": 13, "display_id": 301, "label": "Chodidla #13"}])
+        self.assertEqual(catalog["source"]["item_names"]["matched_item_ids"], 1)
+        self.assertEqual(catalog["source"]["item_names"]["missing_item_ids"], [13])
+        self.assertRegex(catalog["source"]["item_names"]["sha256"], r"^[a-f0-9]{64}$")
+
+    def test_item_name_metadata_rejects_noncanonical_identity_or_unsafe_name(self):
+        for names in ([], {"01": "Hat"}, {"4294967296": "Hat"}, {"1": "bad\nname"}, {"1": ""}):
+            with self.subTest(names=names), self.assertRaises(ValueError):
+                apply_item_names({"source": {}, "equipment": []}, names)
+
     def test_dbc_reader_rejects_bad_envelopes_before_reading_records(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "test.dbc"

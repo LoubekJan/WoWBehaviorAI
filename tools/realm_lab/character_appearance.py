@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 
 RACES = {1: "Člověk", 2: "Ork", 3: "Trpaslík", 4: "Noční elf", 5: "Nemrtvý",
@@ -128,12 +129,40 @@ def build_catalog(directory: Path) -> dict:
             "races": races, "equipment": gear}
 
 
+def apply_item_names(catalog: dict, names: dict) -> None:
+    """Enrich labels from a read-only item_template export without changing gear."""
+    if not isinstance(names, dict) or len(names) > 100000:
+        raise ValueError("Item names must be an ID-to-name JSON object")
+    for identity, name in names.items():
+        if (not isinstance(identity, str) or not re.fullmatch(r"[1-9][0-9]{0,9}", identity)
+                or int(identity) > 0xFFFFFFFF or not isinstance(name, str) or not name.strip()
+                or len(name.encode("utf-8")) > 512 or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in name)):
+            raise ValueError("Invalid item name metadata")
+    matched = set()
+    missing = set()
+    for row in catalog["equipment"]:
+        name = names.get(str(row["item_id"]))
+        if name is None:
+            missing.add(row["item_id"])
+            continue
+        row["label"] = name
+        matched.add(row["item_id"])
+    canonical = json.dumps(names, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    catalog["source"]["item_names"] = {"kind": "world.item_template", "sha256": hashlib.sha256(canonical).hexdigest(),
+                                        "matched_item_ids": len(matched), "missing_item_ids": sorted(missing)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dbc-directory", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--names-json", type=Path, help="Optional read-only item_template name snapshot: {item_id: name}")
     args = parser.parse_args()
     catalog = build_catalog(args.dbc_directory)
+    if args.names_json is not None:
+        if args.names_json.stat().st_size > 16 * 1024 * 1024:
+            raise ValueError("Item names snapshot too large")
+        apply_item_names(catalog, json.loads(args.names_json.read_text(encoding="utf-8")))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"races": len(catalog["races"]), "equipment": len(catalog["equipment"]),

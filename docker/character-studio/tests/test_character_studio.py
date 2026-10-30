@@ -189,6 +189,9 @@ class CharacterStudioTests(unittest.TestCase):
         saved = self.create(data)
         response = self.client.get(f"/api/characters/{saved['id']}/bundle.zip")
         self.assertEqual(response.status_code, 200)
+        standalone = self.client.get(f"/api/characters/{saved['id']}/appearance")
+        self.assertEqual(standalone.status_code, 200)
+        self.assertEqual(standalone.headers["content-disposition"], 'attachment; filename="901035.json"')
         with zipfile.ZipFile(io.BytesIO(response.content)) as bundle:
             self.assertEqual(set(bundle.namelist()), {"npc_agents/901035.json", "npc_appearances/901035.json", "character-studio-draft.json", "README.txt"})
             self.assertEqual(json.loads(bundle.read("npc_agents/901035.json")), native())

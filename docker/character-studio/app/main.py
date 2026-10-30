@@ -277,7 +277,7 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
     @app.get("/api/characters/{character_id}/appearance")
     def appearance_export(character_id: str):
         _doc, profile, appearance = exports(character_id)
-        return attachment(appearance, f"{profile['spawn_id']}-appearance.json")
+        return attachment(appearance, f"{profile['spawn_id']}.json")
 
     @app.get("/api/characters/{character_id}/bundle")
     @app.get("/api/characters/{character_id}/bundle.zip")
