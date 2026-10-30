@@ -2,6 +2,15 @@
 # Used only by realm-lab CI/CD in its dedicated build volume.
 set -euo pipefail
 install_prefix="${1:-/build}"
+# The CI checkout can belong to the runner rather than the container user.
+# Scope trust to this checkout and inherit it in CMake/Ninja Git subprocesses.
+task_git_config_count="${GIT_CONFIG_COUNT:-0}"
+[[ "$task_git_config_count" =~ ^[0-9]+$ ]]
+task_git_config_count="$((10#$task_git_config_count))"
+export "GIT_CONFIG_KEY_${task_git_config_count}=safe.directory"
+export "GIT_CONFIG_VALUE_${task_git_config_count}=/workspace"
+export GIT_CONFIG_COUNT="$((task_git_config_count + 1))"
+git -C /workspace rev-parse --verify 'HEAD^{commit}' >/dev/null
 cmake -S /workspace -B /build -G Ninja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_INSTALL_PREFIX="$install_prefix" \
