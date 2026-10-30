@@ -12,10 +12,12 @@ import json
 from pathlib import Path
 
 try:
-    from . import defias_population as population, field_acceptance as fields
+    from . import defias_population as population, field_acceptance as fields, full_population as full, telemetry_contract
 except ImportError:
     import defias_population as population
     import field_acceptance as fields
+    import full_population as full
+    import telemetry_contract
 
 PHASES = frozenset(("ASSEMBLING", "OUTBOUND", "RAIDING", "RETURNING", "COMPLETE"))
 SOURCES = frozenset((1, 4, 5, 6))
@@ -23,6 +25,7 @@ ASSEMBLY_RADIUS = 8.01
 JOINT_RADIUS = 60.0
 MINIMUM_TRAVEL = 10.0
 MAX_TRACKS = 64
+PROFILES = (population.PROFILE, full.PROFILE)
 
 
 @dataclass
@@ -45,10 +48,14 @@ class PartyTrack:
 
 
 class _Evaluator:
-    def __init__(self, minimum_seconds=300, max_gap_seconds=2):
+    def __init__(self, minimum_seconds=300, max_gap_seconds=2, *, profile=population.PROFILE):
+        if profile not in PROFILES:
+            raise ValueError("Defias party acceptance requires an explicit defias-v8 or full-v8 profile")
+        self.profile = profile
+        selected = full if profile == full.PROFILE else population
         self.field_gate = fields._Evaluator(minimum_seconds, max_gap_seconds,
-            population_spec=population.Population.load(), raider_ids=population.RAIDER_IDS,
-            camp_members=population.DEFIAS_IDS, profile=population.PROFILE)
+            population_spec=selected.Population.load(), raider_ids=population.RAIDER_IDS,
+            camp_members=population.DEFIAS_IDS, profile=profile)
         self.minimum_seconds, self.max_gap = minimum_seconds, max_gap_seconds
         self.tracks, self.receipts = {}, []
         self.retired_bindings = {}
@@ -269,9 +276,20 @@ class _Evaluator:
             self.tracks.clear()
             self.retired_bindings.clear()
             self.current_death_bindings.clear()
+        state = (record if "agents" in record else record.get("state")) if isinstance(record, dict) else None
+        if (self.profile == full.PROFILE and isinstance(state, dict) and
+            state.get("configured") is True and state.get("stale") is False and state.get("version") == 4 and
+            fields.supply.positive_int(state.get("captured_at_ms")) and type(state.get("age_ms")) is int and
+            0 <= state["age_ms"] < 5000 and ("agents" in record or record.get("status") == "fresh")):
+            try:
+                # The wider cohort must keep its reviewed ordinary roles and
+                # cannot hide unauthorized capability changes behind a valid
+                # trip by the unchanged specialized Defias members.
+                telemetry_contract.validate_snapshot(state, self.profile)
+            except (ValueError, TypeError, KeyError, AttributeError):
+                self.violation("full_population_runtime_contract_changed")
         if self.field_gate.complete == prior_frames:
             return
-        state = record if "agents" in record else record["state"]
         capture = state["captured_at_ms"]
         actors = {actor["spawn_id"]: actor for actor in state["agents"]}
         self.retired_bindings = {sid: binding for sid, binding in self.retired_bindings.items()
@@ -308,8 +326,9 @@ class _Evaluator:
             missing.append("shared_continuous_fresh_observation_window")
         violations = ledger["violations"]
         status = "FAIL" if violations else "INCONCLUSIVE" if missing else "PASS"
-        return dict(profile=population.PROFILE, status=status, exit_code=fields.EXIT_CODES[status],
-            criterion="physical_group_raid_trip_with_individual_member_outcomes", expected_owned=55, expected_native=45,
+        return dict(profile=self.profile, status=status, exit_code=fields.EXIT_CODES[status],
+            criterion="physical_group_raid_trip_with_individual_member_outcomes",
+            expected_owned=len(self.field_gate.managed), expected_native=len(self.field_gate.actors)-len(self.field_gate.managed),
             expected_defias=16, expected_raiders=10, expected_camp_members=6,
             complete_population_frames=self.field_gate.complete, party_frames=self.party_frames,
             minimum_observation_seconds=self.minimum_seconds, max_gap_seconds=self.max_gap,
@@ -321,8 +340,8 @@ class _Evaluator:
                 "Position and owned-action receipts do not prove client animation pixels or independently measure collision and line of sight."])
 
 
-def evaluate_samples(samples, *, minimum_seconds=300, max_gap_seconds=2):
-    evaluator = _Evaluator(minimum_seconds, max_gap_seconds)
+def evaluate_samples(samples, *, minimum_seconds=300, max_gap_seconds=2, profile=population.PROFILE):
+    evaluator = _Evaluator(minimum_seconds, max_gap_seconds, profile=profile)
     for sample in samples:
         evaluator.observe(sample)
     return evaluator.report()
@@ -334,12 +353,13 @@ def main(argv=None):
     parser.add_argument("--output", type=Path)
     parser.add_argument("--minimum-seconds", type=float, default=300)
     parser.add_argument("--max-gap-seconds", type=float, default=2)
+    parser.add_argument("--profile", choices=PROFILES, default=population.PROFILE)
     args = parser.parse_args(argv)
     try:
         report = evaluate_samples(fields.recording_rows(args.path), minimum_seconds=args.minimum_seconds,
-                                  max_gap_seconds=args.max_gap_seconds)
+                                  max_gap_seconds=args.max_gap_seconds, profile=args.profile)
     except (OSError, EOFError, UnicodeError, ValueError, TypeError) as error:
-        report = dict(profile=population.PROFILE, status="INCONCLUSIVE", exit_code=2,
+        report = dict(profile=args.profile, status="INCONCLUSIVE", exit_code=2,
                       missing_evidence=["readable_closed_recording"], error=str(error))
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if args.output:

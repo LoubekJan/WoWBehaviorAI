@@ -8,8 +8,9 @@ import time
 import urllib.request
 
 try:
-    from . import defias_population as defias, field_population as fields, raid_population as raids, consumer_population as consumers, settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
+    from . import full_population as full, defias_population as defias, field_population as fields, raid_population as raids, consumer_population as consumers, settlement_population as settlement, supply_population as supply, wildlife_population as wildlife
 except ImportError:
+    import full_population as full
     import defias_population as defias
     import field_population as fields
     import consumer_population as consumers
@@ -21,7 +22,7 @@ except ImportError:
 
 def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) -> dict[str, int]:
     require = settlement.require
-    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE, fields.PROFILE, defias.PROFILE), "Unknown authored-world telemetry profile")
+    require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE, fields.PROFILE, defias.PROFILE, full.PROFILE), "Unknown authored-world telemetry profile")
     require(isinstance(state, dict) and state.get("stale") is False and state.get("version") == 4,
             "Authored-world telemetry must be a fresh version-4 snapshot")
     require(type(state.get("captured_at_ms")) is int and state["captured_at_ms"] > 0,
@@ -34,9 +35,11 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
             "Telemetry population differs from the reviewed 100 spawns")
     active = {wildlife.PROFILE: wildlife.SPAWN_IDS, supply.PROFILE: supply.SPAWN_IDS,
               consumers.PROFILE: consumers.SPAWN_IDS, raids.PROFILE: raids.SPAWN_IDS,
-              fields.PROFILE: fields.SPAWN_IDS, defias.PROFILE: defias.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
-    defias_enabled = profile == defias.PROFILE and wildlife_enabled
-    field_population = fields.Population.load() if profile in (fields.PROFILE, defias.PROFILE) and wildlife_enabled else None
+              fields.PROFILE: fields.SPAWN_IDS, defias.PROFILE: defias.SPAWN_IDS,
+              full.PROFILE: full.SPAWN_IDS}.get(profile, frozenset()) if wildlife_enabled else frozenset()
+    full_enabled = profile == full.PROFILE and wildlife_enabled
+    defias_enabled = profile in (defias.PROFILE, full.PROFILE) and wildlife_enabled
+    field_population = fields.Population.load() if profile in (fields.PROFILE, defias.PROFILE, full.PROFILE) and wildlife_enabled else None
     field_actors = {actor.spawn_id: actor for actor in field_population.recruits} if field_population else {}
     field_definitions = {field["id"]: field for field in field_population.fields} if field_population else {}
     raider_ids = defias.RAIDER_IDS if defias_enabled else raids.RAIDER_IDS
@@ -50,7 +53,7 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
         identity = actor["spawn_id"]
         require(actor.get("agent_id") == identity and (actor.get("position") or {}).get("map_id") == 725,
                 "Telemetry actor identity or map differs")
-        if profile not in (raids.PROFILE, fields.PROFILE, defias.PROFILE) or identity not in raid_actor_ids or not wildlife_enabled:
+        if profile not in (raids.PROFILE, fields.PROFILE, defias.PROFILE, full.PROFILE) or identity not in raid_actor_ids or not wildlife_enabled:
             require(actor.get("raid") is None, "Unselected actor acquired a raid role")
         if identity not in active:
             require(actor.get("native_creature") is True and actor.get("control_mode") == "OBSERVE_ONLY" and
@@ -66,7 +69,7 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 "Controlled wildlife needs are unavailable or invalid")
         role = actor.get("living_role")
         if actor.get("alive") is True and (actor.get("position") or {}).get("source") == "live":
-            expected_role = (defias.RECRUIT_ROLES.get(identity) if defias_enabled else None) or ("FARMER" if identity in field_actors else raids.RECRUIT_ROLES.get(identity)) or consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
+            expected_role = (full.RECRUIT_ROLES.get(identity) if full_enabled else None) or (defias.RECRUIT_ROLES.get(identity) if defias_enabled else None) or ("FARMER" if identity in field_actors else raids.RECRUIT_ROLES.get(identity)) or consumers.CONSUMER_ROLES.get(identity) or ("HUNTER" if identity in supply.HUNTER_IDS else
                 "PREDATOR" if identity in wildlife.PREDATOR_IDS else "PREY")
             require(isinstance(role, dict) and role.get("enabled") is True and role.get("extensions_enabled") is True and
                     role.get("role") == expected_role,
@@ -102,7 +105,14 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 require(camp_snapshot is None or camp_snapshot == raid["camp_depot"],
                         "Raiders report conflicting copies of the Defias camp")
                 camp_snapshot = raid["camp_depot"]
-            if identity in field_actors:
+            if full_enabled and identity in full.RECRUIT_IDS:
+                expected_type = {0: "CIVILIAN", 1: "GUARD", 2: "MERCHANT", 5: "COMBATANT"}[full.RECRUIT_TYPES[identity]]
+                require(actor.get("type") == expected_type and type(actor.get("world_faction")) is int and
+                        actor["world_faction"] == full.RECRUIT_FACTIONS[identity],
+                        "New full population actor ordinary type or faction changed")
+                require(actor.get("supply") is None and actor.get("raid") is None,
+                        "Generic full population actor acquired an unassigned supply or raid capability")
+            elif identity in field_actors:
                 farmer = field_actors[identity]
                 definition = field_definitions[farmer.field_id]
                 supplied = actor.get("supply")

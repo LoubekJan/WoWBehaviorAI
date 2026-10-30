@@ -17,9 +17,9 @@ import sys
 from typing import Mapping
 
 try:
-    from . import defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    from . import full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 except ImportError:  # Direct script invocation inside the lab container.
-    import defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    import full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 
 
 class SetupError(ValueError):
@@ -95,13 +95,13 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, *hunt_population.PROFILES):
+        if profile not in ("disabled", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE, *hunt_population.PROFILES):
             raise SetupError("Unknown reviewed LAB_AI_PROFILE")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
         npc_agents_enabled = bool(number(env, "LAB_NPC_AGENTS_ENABLED", "0", 0, 1))
-        if npc_agents_enabled and profile not in (consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE):
-            raise SetupError("LAB_NPC_AGENTS_ENABLED requires consumers-v8, raids-v8, fields-v8 or defias-v8")
+        if npc_agents_enabled and profile not in (consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
+            raise SetupError("LAB_NPC_AGENTS_ENABLED requires consumers-v8, raids-v8, fields-v8, defias-v8 or full-v8")
         return cls(
             number(env, "LAB_REALM_ID", "2", 2, 255), name,
             address(env, "LAB_REALM_ADDRESS"), address(env, "LAB_REALM_LOCAL_ADDRESS"),
@@ -121,9 +121,9 @@ class Settings:
         )
 
 
-def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | raid_population.Population | field_population.Population | defias_population.Population | None = None) -> dict[str, str]:
-    if settings.npc_agents_enabled and settings.ai_profile not in (consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE):
-        raise SetupError("NPC agents require consumers-v8, raids-v8, fields-v8 or defias-v8")
+def config_overrides(settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | raid_population.Population | field_population.Population | defias_population.Population | full_population.Population | None = None) -> dict[str, str]:
+    if settings.npc_agents_enabled and settings.ai_profile not in (consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
+        raise SetupError("NPC agents require consumers-v8, raids-v8, fields-v8, defias-v8 or full-v8")
     auth = f"{settings.auth_host};{settings.auth_port};{settings.auth_user};{settings.auth_password};auth"
     local = f"lab-mysql;3306;{settings.db_user};{settings.db_password}"
     result = {
@@ -212,11 +212,11 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
                        "AIWorld.NeedsHungerRatePerSecond": "0.003",
                        "AIWorld.NeedsFatigueRatePerSecond": "0",
                        "AIWorld.NeedsResourcePressureRatePerSecond": "0"})
-    elif settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE):
+    elif settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
         expected = {wildlife_population.PROFILE: wildlife_population.Population,
                     supply_population.PROFILE: supply_population.Population,
                     consumer_population.PROFILE: consumer_population.Population,
-                    raid_population.PROFILE: raid_population.Population, field_population.PROFILE: field_population.Population, defias_population.PROFILE: defias_population.Population}[settings.ai_profile]
+                    raid_population.PROFILE: raid_population.Population, field_population.PROFILE: field_population.Population, defias_population.PROFILE: defias_population.Population, full_population.PROFILE: full_population.Population}[settings.ai_profile]
         if scope is not None and not isinstance(scope, expected):
             raise SetupError("Population does not match the selected wildlife profile")
         population = scope or expected.load()
@@ -245,7 +245,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
     return result
 
 
-def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | raid_population.Population | field_population.Population | defias_population.Population | None = None) -> str:
+def render_config(template: str, settings: Settings, scope: single_return.Scope | hunt_population.Population | settlement_population.Population | wildlife_population.Population | supply_population.Population | consumer_population.Population | raid_population.Population | field_population.Population | defias_population.Population | full_population.Population | None = None) -> str:
     overrides = config_overrides(settings, scope)
     seen: set[str] = set()
     lines: list[str] = []
@@ -602,6 +602,52 @@ def deactivate_defias(data: Path, settings: Settings,
     print("All 55 Defias-profile identities paused in Observe mode; reservations and memory retained.")
 
 
+def full_preflight(data: Path, settings: Settings, *, bootstrap: bool = False,
+                   metadata: Path = settlement_population.METADATA) -> full_population.Population:
+    population = full_population.verify_data(data, metadata)
+    rows = single_return.parse_snapshot(lab_mysql(settings, full_population.snapshot_sql(population)))
+    full_population.validate_snapshot(rows, population, control=None if bootstrap else 1, bootstrap=bootstrap)
+    return population
+
+
+def bootstrap_full(data: Path, settings: Settings,
+                   metadata: Path = settlement_population.METADATA) -> None:
+    if settings.ai_profile != full_population.PROFILE:
+        raise SetupError("Full population setup requires LAB_AI_PROFILE=full-v8 and the worldserver stopped")
+    settlement_population.ensure_world_offline()
+    population = full_preflight(data, settings, bootstrap=True, metadata=metadata)
+    settlement_population.ensure_world_offline()
+    for module, component in ((settlement_population, population.settlement),
+                              (wildlife_population, population.wildlife),
+                              (supply_population, population.supply),
+                              (consumer_population, population.consumers),
+                              (raid_population, population.raids),
+                              (field_population, population.defias_population.field_population),
+                              (defias_population, population.defias_population), (full_population, population)):
+        lab_mysql(settings, module.bootstrap_sql(component))
+    rows = single_return.parse_snapshot(lab_mysql(settings, full_population.snapshot_sql(population)))
+    full_population.validate_snapshot(rows, population, control=None)
+    settlement_population.ensure_world_offline()
+    lab_mysql(settings, full_population.activation_sql(population))
+    full_preflight(data, settings, metadata=metadata)
+    print("Full population ownership verified: all 100 authored NPCs controlled by AIWorld; native templates, services, homes and persistent state preserved. LLM cards opt in separately.")
+
+
+def deactivate_full(data: Path, settings: Settings,
+                    metadata: Path = settlement_population.METADATA) -> None:
+    if settings.ai_profile != full_population.PROFILE:
+        raise SetupError("Full population deactivation requires LAB_AI_PROFILE=full-v8 and the worldserver stopped")
+    settlement_population.ensure_world_offline()
+    population = full_population.verify_data(data, metadata)
+    rows = single_return.parse_snapshot(lab_mysql(settings, full_population.snapshot_sql(population)))
+    full_population.validate_snapshot(rows, population, control=None)
+    settlement_population.ensure_world_offline()
+    lab_mysql(settings, full_population.deactivation_sql(population))
+    rows = single_return.parse_snapshot(lab_mysql(settings, full_population.snapshot_sql(population)))
+    full_population.validate_snapshot(rows, population, control=0)
+    print("All 100 authored identities paused in Observe mode; reservations and memory retained.")
+
+
 def auth_user_sql(settings: Settings) -> str:
     account = f"{sql_literal(settings.auth_user)}@'%'"
     return f"""CREATE USER {account} IDENTIFIED BY {sql_literal(settings.auth_password)};
@@ -673,7 +719,8 @@ def main() -> None:
                     "bootstrap-consumers-v8", "preflight-consumers-v8",
                     "bootstrap-raids-v8", "preflight-raids-v8",
                     "bootstrap-fields-v8", "preflight-fields-v8", "deactivate-fields-v8",
-                    "bootstrap-defias-v8", "preflight-defias-v8", "deactivate-defias-v8"):
+                    "bootstrap-defias-v8", "preflight-defias-v8", "deactivate-defias-v8",
+                    "bootstrap-full-v8", "preflight-full-v8", "deactivate-full-v8"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -686,6 +733,9 @@ def main() -> None:
             elif settings.ai_profile in hunt_population.PROFILES:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = population_preflight(Path("/runtime/data"), settings, control=1, profile=settings.ai_profile)
+            elif settings.ai_profile == full_population.PROFILE:
+                value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
+                scope = full_preflight(Path("/runtime/data"), settings)
             elif settings.ai_profile == defias_population.PROFILE:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = defias_preflight(Path("/runtime/data"), settings)
@@ -766,6 +816,12 @@ def main() -> None:
         elif args.command == "preflight-supply-v8":
             supply_preflight(args.data, settings)
             print("Complete v8 geometry, 20 wildlife plus 3 hunter identities and 77 native NPCs verified; physical supply acceptance is separate.")
+        elif args.command == "bootstrap-full-v8":
+            bootstrap_full(args.data, settings)
+        elif args.command == "preflight-full-v8":
+            full_preflight(args.data, settings)
+        elif args.command == "deactivate-full-v8":
+            deactivate_full(args.data, settings)
         elif args.command == "bootstrap-defias-v8":
             bootstrap_defias(args.data, settings)
         elif args.command == "preflight-defias-v8":

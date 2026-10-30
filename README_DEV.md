@@ -10,8 +10,8 @@ herního světa nasazují až samostatným exportem.
 
 Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
 herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
-**4988**. Nový profil `defias-v8` rozšiřuje `fields-v8` na celý tábor
-Defias: 55 řízených a 45 nativních NPC. Deset banditů vyráží ve skupinách,
+**4988**. Profil `full-v8` přebírá všech 100 vytvořených NPC pod AIWorld.
+Rozšiřuje `defias-v8`, který řídí 55 NPC: deset banditů vyráží ve skupinách,
 šest dalších obyvatel tábora jí z vlastního skladu. Nasazení a
 fyzický výsledek se ověřují samostatně. Výchozí
 `.env.example` zůstává konzervativním profilem `settlement-v8`.
@@ -181,6 +181,42 @@ python3 tools/realm_lab/wildlife_acceptance.py runtime/lab/recordings/aiworld-SE
 
 Výsledky jsou `PASS`, `FAIL` nebo `INCONCLUSIVE` (exit 0, 3, 2). Zdravá
 služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
+
+## Všechna vytvořená NPC — full-v8
+
+Profil přidává zbývajících 45 identit nad nezměněný `defias-v8`:
+21 strážných, 7 poskytovatelů služeb, 4 pracovníky a 13 bojovníků.
+Celkem jde o **100 řízených / 0 nativně řízených NPC**. Mapu, šablony,
+obchodní nabídky, frakce, domovy ani trvalou paměť tento převod nepřepisuje.
+Aktivace je jedna podmíněná transakce po offline ověření všech identit.
+
+V soukromém `.env` nastavit `LAB_AI_PROFILE=full-v8` a ponechat
+`LAB_WILDLIFE_ENABLED=1`. Běžné CI/CD profil připraví i ověří automaticky.
+Ruční offline příprava používá `make setup-world`; zastavení světa a zámek
+zajišťuje společný skript. Přímé kontroly a pauza za zastaveného worldserveru:
+
+```bash
+docker compose --profile tools run --rm --no-deps -e LAB_SETTLEMENT_WORLD_ABSENT=1 tc-dev python3 tools/realm_lab/manage.py preflight-full-v8 /workspace/runtime/lab/data
+docker compose --profile tools run --rm --no-deps -e LAB_SETTLEMENT_WORLD_ABSENT=1 tc-dev python3 tools/realm_lab/manage.py deactivate-full-v8 /workspace/runtime/lab/data
+```
+
+Nové postavy používají obecné životní role AIWorld. Skutečná těžba,
+rybolov nebo nová ekonomika tím nevzniká. Původní automatické SmartAI
+skripty převzatých postav už neběží; zahrnuje to jejich zvláštní bojová
+kouzla a sváteční události. Běžné nabídky obchodníků, trenérů a hostinských
+i obnova zdraví a respawn zůstávají součástí herního jádra.
+
+Vlastní LLM kartu lze nyní přiřadit i `901014`. Registrace všech 100 není
+zapnutí 100 modelových agentů: karty se instalují jednotlivě, současný
+limit je 16 karet a obvyklý limit souběžných požadavků zůstává 2.
+Nativní šestipolový profil a samostatný vzhled se nemění.
+
+Kontrola nasazení vyžaduje čerstvou telemetrii všech 100 řízených identit,
+správné běžné typy a role. Původní sklady, pole a přepady se kontrolují
+stejně přísně; nové obecné role nesmějí získat nepřiřazený sklad či přepad.
+Pro fyzický záznam výprav používat
+`python -m tools.realm_lab.defias_group_acceptance <recording-directory> --profile full-v8`.
+Zdraví služeb ani převzetí vlastnictví samo nepotvrzuje dokončenou fyzickou výpravu.
 
 ## Celý tábor Defias — defias-v8
 

@@ -159,7 +159,7 @@ class _Evaluator:
                 self.violation("identity_entry_or_ownership_changed", sid)
             if owned:
                 binding = self.managed[sid]
-                if (actor.get("type") != {0: "CIVILIAN", 1: "GUARD", 5: "COMBATANT", 6: "PREDATOR", 7: "PREY"}[binding.agent_type] or
+                if (actor.get("type") != {0: "CIVILIAN", 1: "GUARD", 2: "MERCHANT", 5: "COMBATANT", 6: "PREDATOR", 7: "PREY"}[binding.agent_type] or
                     type(actor.get("world_faction")) is not int or actor["world_faction"] != getattr(binding, "world_faction", 0)):
                     self.violation("ordinary_managed_type_or_faction_changed", sid)
             home = point(actor.get("home"))

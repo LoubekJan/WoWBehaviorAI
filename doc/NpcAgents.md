@@ -7,10 +7,15 @@ rozhovor a vybrané vlastní vzpomínky. Volí mezi nabídnutými pohyby, jídle
 hrozbou, čekáním a zastavením. Engine ověřuje dosažitelnost a provádí akce.
 
 Připravené profily patří Matějovi (`901035`) a Běle (`901036`) na mapě 725.
-Režim vyžaduje již připravený `consumers-v8`, `raids-v8`, `fields-v8` nebo
-`defias-v8`, kde jsou oba
+Režim vyžaduje již připravený `consumers-v8`, `raids-v8`, `fields-v8`,
+`defias-v8` nebo `full-v8`, kde jsou oba
 registrováni jako řízená NPC. Samotné zapnutí nemění jejich registraci, nepřidává
 další řízené postavy a neupravuje původní soubory sestavy 100 NPC.
+
+`full-v8` registruje všech 100 vytvořených NPC včetně `901014`. Každému lze
+samostatně přiřadit vlastní kartu; samotná registrace žádný životopis ani
+modelové požadavky nevytvoří. Současný katalog přijímá nejvýše 16 platných
+instalovaných LLM karet; ostatní NPC používají běžné role AIWorld.
 
 ## Zapnutí
 

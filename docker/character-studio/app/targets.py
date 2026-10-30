@@ -15,7 +15,8 @@ import sys
 from .models import decimal_identity
 
 SUPPORTED_PROFILES = {"consumers-v8": "consumer_population", "raids-v8": "raid_population",
-                      "fields-v8": "field_population", "defias-v8": "defias_population"}
+                      "fields-v8": "field_population", "defias-v8": "defias_population",
+                      "full-v8": "full_population"}
 LIVING_ROLES = {0: "CIVILIAN", 1: "GUARD", 2: "SERVICE", 5: "COMBATANT", 6: "PREDATOR", 7: "PREY"}
 ROLE_NAMES = {"resident": "Obyvatel", "worker": "Pracovník", "guard": "Strážný",
               "hunter": "Lovec", "raider": "Nájezdník", "combatant": "Bojovník",

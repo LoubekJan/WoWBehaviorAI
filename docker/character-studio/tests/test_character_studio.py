@@ -179,6 +179,27 @@ class CharacterStudioTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/api/characters/{saved['id']}").json(), saved)
         self.assertEqual(self.client.get(f"/api/characters/{saved['id']}/draft").status_code, 200)
 
+    def test_reviewed_full_population_enables_existing_native_draft_without_reassigning_or_installing_it(self):
+        saved = self.create(draft("901014"))
+        path = f"/api/characters/{saved['id']}"
+        self.assertEqual(self.client.get(path + "/profile").status_code, 422)
+        registry = TargetRegistry.load(Path(__file__).resolve().parents[3], "full-v8")
+        self.assertTrue(registry.available, registry.reason)
+        with TestClient(self.new_app(target_registry=registry)) as client:
+            self.assertEqual(client.get(path).json(), saved)
+            self.assertEqual(client.get(path + "/profile").json(), native(901014))
+            appearance = client.get(path + "/appearance")
+            self.assertEqual(appearance.status_code, 200)
+            self.assertEqual((appearance.json()["spawn_id"], appearance.json()["map_id"]), (901014, 725))
+            bundle = client.get(path + "/bundle.zip")
+            self.assertEqual(bundle.status_code, 200)
+            with zipfile.ZipFile(io.BytesIO(bundle.content)) as archive:
+                self.assertEqual(json.loads(archive.read("npc_agents/901014.json")), native(901014))
+                self.assertEqual(json.loads(archive.read("character-studio-draft.json")), saved)
+            self.assertEqual(client.get(path).json(), saved)
+        self.assertEqual(list(self.sources.iterdir()), [])
+        self.assertEqual(list(self.appearances.iterdir()), [])
+
     def test_target_validation_distinguishes_unknown_wrong_map_and_known_controlled(self):
         cases = (("901014", 725, False), ("900000", 725, False), ("901035", 0, False),
                  ("901035", 725, True), ("901036", 725, True), ("901016", 725, True))

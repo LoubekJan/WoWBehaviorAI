@@ -30,8 +30,10 @@ odmítne místo přepsání novější verze.
 2. Zvolte podobu a výbavu. V části **Charakter** napište motivace a způsob řeči;
    v části **Příběh** vyplňte minulost a vztahy. Návrh AI se automaticky neukládá.
 3. Uložte postavu. V části **Export** vyberte ověřené řízené NPC z aktivního
-   populačního profilu. Pouhé platné číslo Spawn ID nestačí: běžný městský
-   obyvatel s původní AI, neznámé ID ani jiná mapa nejsou platným cílem.
+   populačního profilu. V profilu `full-v8` jsou řízená všechna současná NPC
+   `901000`–`901099`, včetně městského obyvatele `901014`. Pouhé platné číslo
+   Spawn ID nestačí: neznámé ID, jiná mapa ani NPC s původní AI v některém
+   ze starších profilů nejsou platným cílem.
    Agent ID se rovná Spawn ID; velká uint64 ID se v editoru nepřevádějí na
    nepřesná JavaScript čísla. Návrh i jeho editovatelnou zálohu lze uložit
    bez platného cíle, herní export je však zablokovaný až do ověření.
@@ -48,11 +50,15 @@ jen vzhledy existujících NPC zapnutých pro LLM. Současný controller má nad
 svůj původní limit 16 současně registrovaných LLM profilů.
 
 Editor ověřuje cíl proti čtenému, hashově kontrolovanému populačnímu profilu
-`consumers-v8`, `raids-v8`, `fields-v8` nebo `defias-v8`. Před stažením server kontrolu
+`consumers-v8`, `raids-v8`, `fields-v8`, `defias-v8` nebo `full-v8`. Před stažením server kontrolu
 opakuje, takže ji nelze obejít starým otevřeným formulářem. Nepřebírá sám
 běžné NPC do AI řízení, nemění jejich registraci ani nevytváří nové spawny.
 Změna karty již obsazeného cíle znamená nahrazení jeho autorské identity
 při nasazení; editor na existující jméno upozorní.
+
+Převzetí všech 100 NPC profilem `full-v8` samo nevytváří 100 LLM karet.
+AIWorld nadále používá běžné role a LLM řízení se zapíná až nainstalovanou
+platnou kartou konkrétního NPC, v rámci uvedeného limitu controlleru.
 
 Při startu světa se chybný volitelný import izoluje: neplatná nebo neověřená
 karta se nepoužije, vadný vzhled ponechá původní creature model. Ostatní
