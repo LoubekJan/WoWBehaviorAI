@@ -60,6 +60,7 @@ class _Evaluator:
         self.tracks, self.receipts = {}, []
         self.retired_bindings = {}
         self.current_death_bindings = {}
+        self.camp_previous = {}
         self.party_frames = 0
 
     def violation(self, code, sid=0):
@@ -139,7 +140,7 @@ class _Evaluator:
         if not fields.supply.positive_int(capture):
             return result
         for actor in state["agents"]:
-            if (not isinstance(actor, dict) or actor.get("spawn_id") not in population.RAIDER_IDS or
+            if (not isinstance(actor, dict) or actor.get("spawn_id") not in population.DEFIAS_IDS or
                 actor.get("alive") is not False or actor.get("health") != 0 or
                 (actor.get("position") or {}).get("source") != "live" or
                 (actor.get("position") or {}).get("map_id") != 725):
@@ -147,15 +148,21 @@ class _Evaluator:
             sid, position = actor["spawn_id"], fields.point(actor.get("position"))
             if position is None:
                 continue
-            party = self.party(actor)
-            if party is None:
-                continue
-            track = self.tracks.get((self.field_gate.epoch, party["id"], party["attempt"]))
-            if track is None or track.closed or sid not in track.bindings:
-                continue
-            if (track.roster, track.leader, track.source, track.route) != (party["members"], party["leader"], party["source"], party["route"]):
-                continue
-            original, old = track.bindings[sid], track.previous.get(sid)
+            if sid not in population.RAIDER_IDS:
+                old = self.camp_previous.get(sid)
+                if old is None:
+                    continue
+                original = old["binding"]
+            else:
+                party = self.party(actor)
+                if party is None:
+                    continue
+                track = self.tracks.get((self.field_gate.epoch, party["id"], party["attempt"]))
+                if track is None or track.closed or sid not in track.bindings:
+                    continue
+                if (track.roster, track.leader, track.source, track.route) != (party["members"], party["leader"], party["source"], party["route"]):
+                    continue
+                original, old = track.bindings[sid], track.previous.get(sid)
             raw_life = (actor.get("living_role") or {}).get("lifetime_ms")
             if (actor.get("runtime_guid") != original[0] or type(raw_life) is not int or raw_life not in (0, original[1]) or
                 old is None or not old["alive"] or not 0 < capture-old["capture"] <= self.max_gap*1000):
@@ -276,6 +283,7 @@ class _Evaluator:
             self.tracks.clear()
             self.retired_bindings.clear()
             self.current_death_bindings.clear()
+            self.camp_previous.clear()
         state = (record if "agents" in record else record.get("state")) if isinstance(record, dict) else None
         if (self.profile == full.PROFILE and isinstance(state, dict) and
             state.get("configured") is True and state.get("stale") is False and state.get("version") == 4 and
@@ -296,6 +304,23 @@ class _Evaluator:
             if self.field_gate.previous_metrics[sid]["guid"] == binding[0] and
             self.field_gate.previous_metrics[sid]["life"] in (0, binding[1])}
         self.validate_defias_capabilities(actors)
+        # Camp residents contribute to the shared food ledger, but are never
+        # party travelers or party death outcomes. Retire only directly seen
+        # deaths linked to their immediately preceding fresh live binding.
+        for sid in population.DEFIAS_IDS-population.RAIDER_IDS:
+            actor = actors[sid]
+            role, location = actor.get("living_role") or {}, actor.get("position") or {}
+            position, guid, life = fields.point(location), actor.get("runtime_guid"), role.get("lifetime_ms")
+            if actor.get("alive") is False and actor.get("health") == 0 and sid in self.current_death_bindings:
+                self.retired_bindings[sid] = self.current_death_bindings[sid]
+            if (actor.get("alive") is True and type(actor.get("health")) in (int, float) and actor["health"] > 0 and
+                location.get("source") == "live" and location.get("map_id") == 725 and
+                position is not None and isinstance(guid, str) and guid.strip() and
+                fields.supply.positive_int(life) and life <= capture):
+                self.camp_previous[sid] = dict(actor=actor, position=position, capture=capture,
+                                               binding=(guid, life), alive=True)
+            else:
+                self.camp_previous.pop(sid, None)
         parties = {}
         for sid in population.RAIDER_IDS:
             actor = actors[sid]

@@ -157,6 +157,29 @@ def full_samples():
     return result
 
 
+def camp_death_samples():
+    """A nonparty camp guard dies and respawns during a still-running trip."""
+    result = respawn_samples()
+    for record in result:
+        t = record["elapsed_seconds"]
+        # This fixture isolates a camp death: all five party members survive
+        # and return late, while the independent camp guard has already respawned.
+        actor, companion = fields.actor(record, PARTY[-1]), fields.actor(record, PARTY[-2])
+        home, entry, name = deepcopy(actor["home"]), actor["entry"], actor["name"]
+        actor.clear(); actor.update(deepcopy(companion))
+        actor.update(agent_id=PARTY[-1], spawn_id=PARTY[-1], runtime_guid=f"SYNTHETIC-defias-{PARTY[-1]}",
+                     home=home, entry=entry, name=name)
+        fields.move(actor, actor["position"], moving=actor["movement"]["moving"])
+        actor = fields.actor(record, 901044)
+        if 15 <= t < 45:
+            actor.update(alive=False, health=0, in_combat=False)
+            actor["living_role"].update(lifetime_ms=0, phase="IDLE", started_at_ms=0)
+        elif t >= 45:
+            actor["runtime_guid"] = "SYNTHETIC-camp-guard-new-life"
+            actor["living_role"]["lifetime_ms"] = fields.BASE+45000
+    return result
+
+
 class DefiasGroupAcceptanceTests(unittest.TestCase):
     def test_explicit_full_profile_accepts_the_same_party_with_all_100_owned_actors(self):
         report = acceptance.evaluate_samples(full_samples(), minimum_seconds=120, profile=full.PROFILE)
@@ -191,6 +214,58 @@ class DefiasGroupAcceptanceTests(unittest.TestCase):
             saved = json.loads(output.read_text(encoding='utf-8'))
             self.assertEqual((code, saved['status'], saved['profile']), (2, 'INCONCLUSIVE', full.PROFILE))
             self.assertIn('readable_closed_recording', saved['missing_evidence'])
+
+    def test_witnessed_camp_resident_death_and_respawn_do_not_break_a_party_trip(self):
+        report = acceptance.evaluate_samples(camp_death_samples())
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["quality"]["witnessed_dead_camp_member_role_reset_continued"], 1)
+        self.assertEqual(report["quality"]["witnessed_dead_camp_member_incarnation_continued"], 1)
+        self.assertNotIn(901044, report["receipts"][0]["member_outcomes"])
+        self.assertNotIn(901044, report["receipts"][0]["joint_travel_members"])
+
+    def test_camp_retirement_requires_same_guid_and_immediately_preceding_fresh_life(self):
+        for mutation in ("foreign_guid", "death_gap", "unwitnessed_new_life", "foreign_guard"):
+            rows = camp_death_samples()
+            for record in rows:
+                t = record["elapsed_seconds"]
+                actor = fields.actor(record, 901044)
+                if mutation == "foreign_guid" and 15 <= t < 45:
+                    actor["runtime_guid"] = "SYNTHETIC-foreign-camp-corpse"
+                elif mutation == "death_gap" and t == 14:
+                    record["status"] = "stale"
+                elif mutation == "unwitnessed_new_life" and 15 <= t < 45:
+                    actor.update(alive=True, health=100)
+                    actor["living_role"]["lifetime_ms"] = fields.BASE-1000
+                elif mutation == "foreign_guard" and t >= 15:
+                    actor = fields.actor(record, 901039)
+                    actor.update(alive=False, health=0)
+                    actor["living_role"]["lifetime_ms"] = 0
+            report = acceptance.evaluate_samples(rows)
+            with self.subTest(mutation=mutation):
+                self.assertEqual(report["status"], "INCONCLUSIVE", report)
+                self.assertEqual(report["receipts"], [])
+
+    def test_camp_resident_counter_reset_cannot_rebase_the_shared_food_ledger(self):
+        rows = camp_death_samples()
+        for record in rows:
+            t = record["elapsed_seconds"]
+            fields.actor(record, 901044)["supply"]["consumed"] = "1" if t < 45 else "0"
+            for actor in record["state"]["agents"]:
+                supplied = actor.get("supply")
+                copies = []
+                if supplied:
+                    accounting = supplied["accounting"]
+                    accounting["initial_food"] = "1"
+                    accounting["consumed"] = str(int(accounting["consumed"])+1)
+                    copies.append(supplied["depot"])
+                if actor.get("raid"):
+                    copies.extend((actor["raid"]["source_depot"], actor["raid"]["camp_depot"]))
+                for depot in copies:
+                    if depot["id"] == 3:
+                        depot["consumed"] = "1"
+        report = acceptance.evaluate_samples(rows)
+        self.assertNotEqual(report["status"], "PASS", report)
+        self.assertEqual(report["receipts"], [])
 
     def test_witnessed_dead_member_can_respawn_before_the_survivors_return(self):
         report = acceptance.evaluate_samples(respawn_samples())

@@ -457,14 +457,14 @@ class _Evaluator:
             changed = {sid for sid in metrics if sid in self.previous_metrics and
                 (metrics[sid]["guid"], metrics[sid]["life"]) != (self.previous_metrics[sid]["guid"], self.previous_metrics[sid]["life"])}
             # Only the group proof can authorize a previously witnessed dead
-            # raider's retirement. Its new life never inherits the old trip's
+            # camp member's retirement. Its new life never inherits an old trip's
             # actor evidence. Food counters still belong to the spawn ledger:
             # retain and reconcile every flow rather than silently rebasing it.
             retired = witnessed_dead_bindings or {}
-            authorized, role_resets, respawns = bool(changed), 0, 0
+            authorized, role_resets, respawns, camp_role_resets, camp_respawns = bool(changed), 0, 0, 0, 0
             for sid in changed:
                 original = retired.get(sid)
-                if (sid not in self.raiders or not isinstance(original, tuple) or len(original) != 2 or
+                if (sid not in self.members[3] or not isinstance(original, tuple) or len(original) != 2 or
                     not isinstance(original[0], str) or not original[0] or type(original[1]) is not int or original[1] <= 0):
                     authorized = False; break
                 before, after, actor = self.previous_metrics[sid], metrics[sid], actors[sid]
@@ -476,8 +476,12 @@ class _Evaluator:
                     type(after["life"]) is int and old_life < after["life"] <= capture)
                 if not prior_bound or not (dead_reset or new_life):
                     authorized = False; break
-                role_resets += int(dead_reset)
-                respawns += int(new_life)
+                if sid in self.raiders:
+                    role_resets += int(dead_reset)
+                    respawns += int(new_life)
+                else:
+                    camp_role_resets += int(dead_reset)
+                    camp_respawns += int(new_life)
             comparable = same_members and (not changed or authorized)
             reset = (not comparable or any(metrics[sid]["counters"][key] < self.previous_metrics[sid]["counters"][key] for sid in metrics for key in COUNTERS) or
                 accounting["initial_food"] != self.previous_accounting["initial_food"] or
@@ -486,6 +490,8 @@ class _Evaluator:
             elif authorized:
                 if role_resets: self.quality["witnessed_dead_raider_role_reset_continued"] += role_resets
                 if respawns: self.quality["witnessed_dead_raider_incarnation_continued"] += respawns
+                if camp_role_resets: self.quality["witnessed_dead_camp_member_role_reset_continued"] += camp_role_resets
+                if camp_respawns: self.quality["witnessed_dead_camp_member_incarnation_continued"] += camp_respawns
         flows = {key: dict(delivered=0, consumed=0, stolen=0) for key in self.depots}
         if self.previous_metrics:
             changes = {sid: {key: metrics[sid]["counters"][key]-self.previous_metrics[sid]["counters"][key] for key in COUNTERS} for sid in metrics}
