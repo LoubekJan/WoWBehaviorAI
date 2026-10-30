@@ -6,16 +6,35 @@
 #include "AgentType.h"
 #include "Agent/LivingReturnPolicy.h"
 #include "Agent/LivingFieldRuntime.h"
+#include "Agent/LivingSupplyRuntime.h"
+#include "Agent/LivingRaidParty.h"
 #include "ObjectGuid.h"
 #include <array>
 #include <cmath>
 #include <optional>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace LivingRaid
 {
     constexpr uint64 RaiderSpawn = 901055, GuardSpawn = 901039;
+    constexpr uint64 FirstRaider = 901050, LastRaider = 901059;
+    inline constexpr std::array<LivingSupply::ConsumerSpec, 6> CampResidents{{
+        {901044, 3, AgentType::Guard}, {901045, 3, AgentType::Guard},
+        {901046, 3, AgentType::Guard}, {901047, 3, AgentType::Guard},
+        {901048, 3, AgentType::Civilian}, {901049, 3, AgentType::Civilian}
+    }};
+    inline LivingSupply::ConsumerSpec const* CampResident(uint64 spawn)
+    {
+        for (auto const& resident : CampResidents) if (resident.Spawn == spawn) return &resident;
+        return nullptr;
+    }
+    inline bool CampResidentCapability(uint64 spawn, uint32 map, AgentType type, AgentControlMode control, bool enabled)
+    {
+        auto resident = CampResident(spawn);
+        return enabled && map == 725 && control == AgentControlMode::AIWorldControlled && resident && resident->Type == type;
+    }
     constexpr uint32 SourceDepot = 1, CampDepot = 3, Portions = 2, StartStock = 6;
     constexpr float RaiderHomeRadius = 900.0f;
     constexpr uint64 CooldownMs = 120000, DutyMs = 240000;
@@ -142,9 +161,17 @@ namespace LivingRaid
         }
     };
 
+    struct PartyRuntime
+    {
+        LivingRaidParty::Party Coordination;
+        std::unordered_map<uint64, ObjectGuid> Lives;
+        uint64 RallyReadyAtMs = 0;
+    };
+
     struct State
     {
         ObjectGuid Guid;
+        uint64 PartyId = 0, TargetSpawnId = 0, CampReadyAtMs = 0;
         uint64 AttemptId = 0, NextAtMs = 0, StartedAtMs = 0;
         uint64 Noticed = 0, Interceptions = 0, Thefts = 0, Delivered = 0, Prevented = 0;
         uint64 StolenAtStart = 0, LastNoticedAttempt = 0, LastInterceptionAttempt = 0;
@@ -156,15 +183,15 @@ namespace LivingRaid
         uint64 LastStockObservationAtMs = 0;
         float MemoryRisk = 0;
         std::string PlanningReason = "NOT_EVALUATED";
-        bool Active = false, Returning = false, DutyAtPost = false;
+        bool Active = false, Returning = false, DutyAtPost = false, CombatNoted = false;
         std::string Phase = "IDLE", Outcome = "MATERIALIZED";
         GuardTransit Transit;
     };
 
     inline bool RaiderCapability(uint64 spawn, uint32 map, AgentType type,
-        AgentControlMode control, bool enabled)
+        AgentControlMode control, bool enabled, bool allDefias = false)
     {
-        return enabled && spawn == RaiderSpawn && map == 725 && type == AgentType::Combatant &&
+        return enabled && (spawn == RaiderSpawn || (allDefias && spawn >= FirstRaider && spawn <= LastRaider)) && map == 725 && type == AgentType::Combatant &&
             control == AgentControlMode::AIWorldControlled;
     }
 

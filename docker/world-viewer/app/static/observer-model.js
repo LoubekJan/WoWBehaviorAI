@@ -28,8 +28,10 @@ const ObserverModel = (() => {
   }
   function groupIds(agent) {
     if (agent.native_creature) return [];
-    return agent.groups?.length ? agent.groups.map(group => String(group.id)) :
+    const groups = agent.groups?.length ? agent.groups.map(group => String(group.id)) :
       agent.group_id == null ? [] : [String(agent.group_id)];
+    if (raidSupported(agent) && agent.raid.party) groups.push(`raid:${agent.raid.party.id}`);
+    return groups;
   }
   function alert(agent) {
     if (agent.position.source !== "live" || agent.alive === false) return false;
@@ -132,6 +134,16 @@ const ObserverModel = (() => {
       [raid.role === "RAIDER" ? "Cílový sklad" : "Střežený sklad", raid.source_depot?.name],
       ["Skutečné zásoby skladu", raid.source_depot?.stock], ["Z tohoto skladu odcizeno", raid.source_depot?.stolen || "0"],
       ["Tábor", raid.camp_depot?.name], ["Jídlo v táboře", raid.camp_depot?.stock]];
+    const party = raid.role === "RAIDER" ? raid.party : null;
+    if (party) {
+      const phases = { ASSEMBLING: "Shromažďování v táboře", OUTBOUND: "Společná cesta ke skladu",
+        RAIDING: "Nájezd u skladu", RETURNING: "Návrat do tábora", COMPLETE: "Výprava ukončena" };
+      rows.push(["Výprava skupiny", party.id], ["Úloha ve výpravě", party.role === "LEADER" ? "Vůdce" : "Člen"],
+        ["Fáze výpravy", phases[party.phase] || party.phase],
+        ["Vůdce výpravy", party.leader_spawn_id === "0" ? "Bez živého vůdce" : party.leader_spawn_id],
+        ["Sestava výpravy", party.member_spawn_ids.join(", ")],
+        ["Velikost výpravy", `${party.member_spawn_ids.length} členů`]);
+    }
     const plan = raid.role === "RAIDER" ? raid.planning : null;
     if (plan) {
       const reasons = { EXPLORE_UNKNOWN: "Ověřit dosud neznámé zásoby", KNOWN_STOCK: "Poslední zjištěné zásoby",

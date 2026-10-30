@@ -1382,7 +1382,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         {
             if (flee) state.MovementPurpose = "BOUNDED_ESCAPE";
             else if (IsRaidGuard(record) && threat->ToCreature() &&
-                threat->ToCreature()->GetSpawnId() == LivingRaid::RaiderSpawn && _raidGuard.AttemptId &&
+                (_raidRaiders.contains(threat->ToCreature()->GetSpawnId())) && _raidGuard.AttemptId &&
                 _raidGuard.LastInterceptionAttempt != _raidGuard.AttemptId)
             {
                 _raidGuard.LastInterceptionAttempt = _raidGuard.AttemptId;

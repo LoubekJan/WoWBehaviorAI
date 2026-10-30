@@ -545,7 +545,7 @@ namespace LivingRecoveryPath
         // Dispatch and every speed-change/resume rebuild must honor the same
         // freshly recalled raid dangers as planning. This supplements the
         // existing provider's geometry/body/LOS and30yd danger constraints.
-        if (creature.GetMapId() == 725 && creature.GetSpawnId() == LivingRaid::RaiderSpawn)
+        if (creature.GetMapId() == 725 && creature.GetSpawnId() >= LivingRaid::FirstRaider && creature.GetSpawnId() <= LivingRaid::LastRaider)
         {
             std::vector<ActionPosition> raidPath;
             raidPath.reserve(points.size());

@@ -4,6 +4,7 @@
 #define AIWORLD_LIVINGRAIDTELEMETRY_H
 
 #include "LivingSupplyTelemetry.h"
+#include <vector>
 
 struct LivingRaidPlanningTelemetry
 {
@@ -17,6 +18,13 @@ struct LivingRaidPlanningTelemetry
     uint64 DangerGuardSpawnId = 0, DangerAgeMs = 0;
 };
 
+struct LivingRaidPartyTelemetry
+{
+    uint64 Id = 0, LeaderSpawnId = 0;
+    std::vector<uint64> MemberSpawnIds;
+    std::string Phase, Role;
+};
+
 // One actor's current, world-thread raid observation. Attempt identity belongs
 // to this runtime incarnation; event counts are distinct from food portions.
 struct LivingRaidTelemetry
@@ -28,6 +36,7 @@ struct LivingRaidTelemetry
     uint32 SourceDepotId = 0, CampDepotId = 0;
     std::optional<FoodDepotTelemetry> SourceDepot, CampDepot;
     std::optional<LivingRaidPlanningTelemetry> Planning;
+    std::optional<LivingRaidPartyTelemetry> Party;
 };
 
 #endif

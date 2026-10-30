@@ -182,6 +182,22 @@ class RaidPlanning(ProtocolModel):
         return self
 
 
+class RaidParty(ProtocolModel):
+    id: Counter64
+    leader_spawn_id: Counter64
+    member_spawn_ids: list[Counter64] = Field(min_length=1, max_length=5)
+    phase: Literal["ASSEMBLING", "OUTBOUND", "RAIDING", "RETURNING", "COMPLETE"]
+    role: Literal["LEADER", "MEMBER"]
+
+    @model_validator(mode="after")
+    def stable_roster_has_one_leader(self):
+        if (self.id == "0" or "0" in self.member_spawn_ids or
+            len(set(self.member_spawn_ids)) != len(self.member_spawn_ids) or
+            self.leader_spawn_id != "0" and self.leader_spawn_id not in self.member_spawn_ids):
+            raise ValueError("Raid parties need a positive identity and unique roster containing their leader")
+        return self
+
+
 class LivingRaid(ProtocolModel):
     enabled: bool = Field(strict=True)
     role: Literal["RAIDER", "GUARD"]
@@ -199,6 +215,7 @@ class LivingRaid(ProtocolModel):
     source_depot: FoodDepot
     camp_depot: FoodDepot
     planning: RaidPlanning | None = None
+    party: RaidParty | None = None
 
     @model_validator(mode="after")
     def distinct_consistent_depots(self):
@@ -210,6 +227,8 @@ class LivingRaid(ProtocolModel):
                 raise ValueError("Raid planning memory belongs only to the raider")
             if self.planning.danger is not None and self.planning.danger.position.map_id != self.camp_depot.position.map_id:
                 raise ValueError("Remembered danger must remain on the raid map")
+        if self.party is not None and self.role != "RAIDER":
+            raise ValueError("A raid party belongs only to raiders")
         return self
 
 
@@ -547,6 +566,12 @@ class Agent(ProtocolModel):
             for depot in (self.raid.source_depot, self.raid.camp_depot):
                 if depot.position.map_id != self.position.map_id:
                     raise ValueError("Raid depots must remain on the actor's map")
+            party = self.raid.party
+            if party is not None:
+                if str(self.spawn_id) not in party.member_spawn_ids:
+                    raise ValueError("A raider must belong to its party's stable roster")
+                if (party.role == "LEADER") != (party.leader_spawn_id == str(self.spawn_id)):
+                    raise ValueError("Raid party leadership must agree with the actor's identity")
         if self.position.source != "live" and any((
             self.living_role, self.movement, self.target, self.destination, self.living_wolf,
             self.supply, self.raid, self.llm_agent,
@@ -639,4 +664,20 @@ class TelemetryBatch(ProtocolModel):
                 if accounting is not None and accounting != current:
                     raise ValueError("Conflicting copies of the food accounting snapshot")
                 accounting = current
+        return self
+
+    @model_validator(mode="after")
+    def raid_party_copies_share_one_objective(self):
+        parties = {}
+        for agent in self.agents:
+            raid = agent.raid
+            if raid is None or raid.party is None:
+                continue
+            party = raid.party
+            shared = (party.leader_spawn_id, tuple(party.member_spawn_ids), party.phase,
+                      raid.attempt_id, raid.source_depot_id,
+                      raid.planning.route_id if raid.planning is not None else None)
+            if party.id in parties and parties[party.id] != shared:
+                raise ValueError("Raid party copies disagree about their roster or common objective")
+            parties[party.id] = shared
         return self

@@ -328,6 +328,24 @@ namespace
         if (raid.SourceDepot) WriteValue(out, *raid.SourceDepot); else out << "null";
         out << ",\"camp_depot\":";
         if (raid.CampDepot) WriteValue(out, *raid.CampDepot); else out << "null";
+        out << ",\"party\":";
+        if (raid.Party)
+        {
+            auto const& party = *raid.Party;
+            out << "{\"id\":"; WriteValue(out, std::to_string(party.Id));
+            WriteJsonField(out, "leader_spawn_id", std::to_string(party.LeaderSpawnId));
+            out << ",\"member_spawn_ids\":[";
+            bool first = true;
+            for (uint64 member : party.MemberSpawnIds)
+            {
+                if (!first) out << ',';
+                first = false; WriteValue(out, std::to_string(member));
+            }
+            out << ']';
+            WriteJsonField(out, "phase", party.Phase); WriteJsonField(out, "role", party.Role);
+            out << '}';
+        }
+        else out << "null";
         out << ",\"planning\":";
         if (raid.Planning)
         {
