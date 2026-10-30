@@ -198,7 +198,11 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                         supplied["accounting"].get("conserved") is True,
                         "Consumer food conservation invariant failed or is unavailable")
                 if camp_consumer:
-                    require(depot.get("position") == raids.DEPOT["position"] and depot.get("capacity") == 30 and
+                    require(all(type(depot["position"].get(key)) in (int, float) and
+                                math.isfinite(depot["position"][key]) and
+                                abs(depot["position"][key] - expected) <= 0.001
+                                for key, expected in raids.DEPOT["position"].items()) and
+                            depot.get("capacity") == 30 and
                             (camp_snapshot is None or depot == camp_snapshot), "Defias consumer camp snapshot changed or conflicts")
                     camp_snapshot = depot
             live_roles += 1
