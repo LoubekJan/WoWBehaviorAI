@@ -262,3 +262,61 @@ TEST_CASE("A surviving escort can return after carrier death and solo mode affec
     RefreshReturnMode(state,true,true);
     REQUIRE_FALSE(state.ReturningSolo);
 }
+
+TEST_CASE("The same original lives can start a fresh trip after a solo return and real city reunion", "[AIWorld][LivingCaravan]")
+{
+    State state;
+    REQUIRE(Begin(state,Pairs[0],1000,1,Life(1),Life(2)));
+    state.Lives = {3,4};
+    SetPhase(state,Stage::ToCity,2000,"FOOD_ON_BOARD");
+    RefreshReturnMode(state,true,false); // Temporary loss of binding, not a new life.
+    REQUIRE(state.ReturningSolo);
+    state.Ready = {true,false};
+    REQUIRE_FALSE(ReadyForNextTrip(state));
+    RefreshReturnMode(state,true,true);
+    state.Ready = {true,true};
+    REQUIRE(state.ReturningSolo);
+    REQUIRE_FALSE(ReadyBarrier(state));
+    REQUIRE_FALSE(ReadyForNextTrip(state)); // Reunion cannot rejoin the old return mid-route.
+    SetPhase(state,Stage::Rest,3000,"DELIVERY_FINISHED");
+    REQUIRE_FALSE(ReadyForNextTrip(state)); // Reobserve stopped city feet after the phase change.
+    state.Ready = {true,true};
+    REQUIRE(BoundLives(state,{Life(1),Life(2)},{3,4}));
+    REQUIRE(state.ReturningSolo);
+    REQUIRE_FALSE(ReadyBarrier(state));
+    REQUIRE(ReadyForNextTrip(state));
+    REQUIRE(Begin(state,Pairs[0],3000+RestMs,2,Life(1),Life(2)));
+    REQUIRE_FALSE(state.ReturningSolo);
+    REQUIRE(state.Current == Stage::Rally);
+    REQUIRE(state.SourceDepotId == 5);
+    REQUIRE_FALSE(ReadyForNextTrip(state));
+    REQUIRE_FALSE(ReadyBarrier(state));
+}
+
+TEST_CASE("Next-trip admission requires a rested complete bound roster and cannot admit outbound replacements", "[AIWorld][LivingCaravan]")
+{
+    State state;
+    REQUIRE(Begin(state,Pairs[1],1000,1,Life(1),Life(2)));
+    state.Lives = {7,9};
+    state.Ready = {true,true};
+    for (Stage stage : {Stage::Rally,Stage::ToVillage,Stage::Loading,Stage::ToCity,Stage::Unloading,Stage::Recover})
+    {
+        state.Current = stage;
+        REQUIRE_FALSE(ReadyForNextTrip(state));
+    }
+    state.Current = Stage::Rest;
+    REQUIRE(ReadyForNextTrip(state));
+    SECTION("missing or dead escort") { state.Ready[1] = false; }
+    SECTION("missing or dead carrier") { state.Ready[0] = false; }
+    SECTION("escort is a replacement incarnation")
+    {
+        REQUIRE_FALSE(BoundLives(state,{Life(1),Life(2)},{7,10}));
+        state.Ready[1] = false; // Runtime readyAt rejects non-original incarnations.
+    }
+    SECTION("unbound escort") { state.Guids[1] = {}; }
+    SECTION("unbound carrier") { state.Guids[0] = {}; }
+    SECTION("missing escort lifetime") { state.Lives[1] = 0; }
+    SECTION("missing carrier lifetime") { state.Lives[0] = 0; }
+    SECTION("no established trip") { state.Trip = 0; }
+    REQUIRE_FALSE(ReadyForNextTrip(state));
+}

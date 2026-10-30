@@ -449,7 +449,7 @@ bool AIWorldMgr::UpdateLivingCaravan(AgentRecord& record, Creature& creature, ui
             if (city && city->Stock < city->Capacity) return activity(Activity::Unload, LivingCaravan::CityPoint);
             food.LastResult = "CITY_DEPOT_FULL_CARGO_RETAINED";
         }
-        else if (trip.Current == Stage::Rest && nowMs >= trip.NextAtMs && LivingCaravan::ReadyBarrier(trip) &&
+        else if (trip.Current == Stage::Rest && nowMs >= trip.NextAtMs && LivingCaravan::ReadyForNextTrip(trip) &&
             !_supplyLedger.GetCargo(pair->CarrierSpawn) && _nextCaravanTrip != std::numeric_limits<uint64>::max() &&
             LivingCaravan::Begin(trip, *pair, nowMs, ++_nextCaravanTrip, members[0].Npc->GetGUID(), members[1].Npc->GetGUID()))
             trip.Lives = {members[0].Personal->Life, members[1].Personal->Life};

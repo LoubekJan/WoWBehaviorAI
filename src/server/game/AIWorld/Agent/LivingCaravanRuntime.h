@@ -215,6 +215,16 @@ namespace LivingCaravan
     }
     inline bool ReadyBarrier(State const& state)
     { return !state.ReturningSolo && !state.Guids[0].IsEmpty() && !state.Guids[1].IsEmpty() && state.Ready[0] && state.Ready[1]; }
+    inline bool ReadyForNextTrip(State const& state)
+    {
+        // Solo is sticky for the old journey, including its last city return.
+        // A real reunion after that journey's rest may admit a fresh Begin,
+        // which alone binds a new trip and clears the old solo flag. Runtime
+        // readiness still requires both original live bound actors at city.
+        return state.Current == Stage::Rest && state.Trip &&
+            !state.Guids[0].IsEmpty() && !state.Guids[1].IsEmpty() && state.Lives[0] && state.Lives[1] &&
+            state.Ready[0] && state.Ready[1];
+    }
     inline void RefreshReturnMode(State& state, bool carrierOriginal, bool escortOriginal)
     {
         // A missing original member must not hold an already-returning
