@@ -58,8 +58,69 @@ std::vector<RetrievedMemory> AIWorldMgr::RecallLivingRaid(AgentRecord const& rec
         { return memory.Type != ObservationType::RaidExperience || !memory.Raid; });
     // The shared retriever supplies freshness/locality ranking, while the
     // bounded raid slice retains every danger instead of using general Top5.
-    return _memoryRetrieval.Retrieve({record.Id, nowMs, creature.GetMapId(), creature.GetPositionX(),
+    auto recalled = _memoryRetrieval.Retrieve({record.Id, nowMs, creature.GetMapId(), creature.GetPositionX(),
         creature.GetPositionY(), creature.GetPositionZ()}, memories, {}, 128);
+    return LivingRaidMemory::FilterSupersededGuards(recalled, record.Id, creature.GetMapId(), nowMs);
+}
+
+void AIWorldMgr::SurveyLivingRaidMemory(AgentRecord const& record, Creature const& creature, uint64 nowMs)
+{
+    if (!_livingDefiasEnabled || !_livingFieldsEnabled || !IsSupplyRaider(record) || !Bound(record, creature) ||
+        creature.IsInCombat() || creature.IsInEvadeMode() || nowMs < record.LivingRole.DangerUntilMs) return;
+    auto& raid = _raidRaiders.at(record.SpawnId);
+    if (raid.LastSurveyAtMs && (nowMs < raid.LastSurveyAtMs || nowMs-raid.LastSurveyAtMs < 5000)) return;
+    raid.LastSurveyAtMs = nowMs;
+    auto memories = RecallLivingRaid(record, creature, nowMs);
+    bool checkedGuard = std::any_of(memories.begin(), memories.end(), [&](auto const& memory)
+    { return LivingRaidMemory::Active(memory, record.Id, creature.GetMapId(), nowMs) &&
+        memory.Raid->Kind == RaidExperienceKind::GuardPositionChecked; });
+    std::vector<RetrievedMemory const*> candidates;
+    for (auto const& memory : memories)
+        if (LivingRaidMemory::ShouldAvoidGuard(memory, record.Id, creature.GetMapId(), nowMs) &&
+            nowMs >= memory.LastObservedAtMs && nowMs-memory.LastObservedAtMs >= 5000 &&
+            creature.GetExactDist(memory.Location.X, memory.Location.Y, memory.Location.Z) <= 50.0f &&
+            creature.IsWithinLOS(memory.Location.X, memory.Location.Y, memory.Location.Z)) candidates.push_back(&memory);
+    if (candidates.empty() && !checkedGuard) return;
+    // This is the actor's ordinary local sight query, never a lookup of the
+    // remembered guard at a remote spawn. Seeing its last position empty can
+    // retire that stationary-position assumption, not certify the whole area.
+    std::vector<Creature*> nearby;
+    creature.GetCreatureListWithEntryInGrid(nearby, 0, 50.0f);
+    if (nearby.size() > 64) return;
+    // A remembered guard seen again locally is new positive evidence, even
+    // before another blow lands. A past empty-position check cannot erase it.
+    for (Creature const* npc : nearby)
+        if (npc && npc != &creature && npc->IsAlive() && npc->IsInWorld() && npc->GetSpawnId() &&
+            creature.CanSeeOrDetect(npc) && creature.IsWithinLOSInMap(npc) &&
+            creature.IsValidAttackTarget(npc) && (creature.IsHostileTo(npc) || npc->IsHostileTo(&creature)) &&
+            std::any_of(memories.begin(), memories.end(), [&](auto const& memory)
+            { return LivingRaidMemory::Active(memory, record.Id, creature.GetMapId(), nowMs) &&
+                memory.Target.SpawnId == npc->GetSpawnId() && memory.Raid->Kind == RaidExperienceKind::GuardPositionChecked; }))
+            RememberLivingRaid(record, creature, nowMs, RaidExperienceKind::GuardEncounter, 0, npc);
+    for (auto const* memory : candidates)
+    {
+        bool dangerVisible = std::any_of(nearby.begin(), nearby.end(), [&](Creature const* npc)
+        {
+            return npc && npc != &creature && npc->IsAlive() && npc->IsInWorld() &&
+                creature.CanSeeOrDetect(npc) && creature.IsWithinLOSInMap(npc) &&
+                (npc->GetSpawnId() == memory->Target.SpawnId || npc->GetVictim() == &creature ||
+                    (creature.IsValidAttackTarget(npc) && (creature.IsHostileTo(npc) || npc->IsHostileTo(&creature))));
+        });
+        if (dangerVisible) continue;
+        Observation observation;
+        observation.Observer = record.Id;
+        observation.Type = ObservationType::RaidExperience;
+        observation.ObservedAtMs = nowMs;
+        observation.Location = memory->Location;
+        observation.Actor = {creature.GetGUID(), record.SpawnId, creature.GetEntry(), record.Id};
+        observation.Target = memory->Target;
+        observation.Channel = PerceptionChannel::Sight;
+        observation.LineOfSight = true;
+        observation.Distance = creature.GetExactDist(memory->Location.X, memory->Location.Y, memory->Location.Z);
+        observation.Raid = RaidExperience{RaidExperienceKind::GuardPositionChecked,
+            memory->Raid->DepotId, memory->Raid->RouteId, 0, memory->Raid->AttemptId};
+        _shortTermMemory.Remember(observation, LivingRaidMemory::GuardTtlMs, .65f);
+    }
 }
 
 bool AIWorldMgr::IsLivingRaidPathMemorySafe(Creature const& creature, std::vector<ActionPosition> const& path) const
@@ -118,6 +179,7 @@ void AIWorldMgr::RememberLivingRaid(AgentRecord const& record, Creature const& c
     // Deliberately bypass ProcessObservation: raid knowledge is session-only
     // even when an outcome's importance would normally promote it to SQL.
     _shortTermMemory.Remember(observation, LivingRaidMemory::ExperienceTtlMs(kind), LivingRaidMemory::Importance(kind));
+    if (kind == RaidExperienceKind::GuardEncounter) raid.LastGuardObservationAtMs = nowMs;
     if (kind == RaidExperienceKind::StockObserved || kind == RaidExperienceKind::SourceEmpty)
         raid.LastStockObservationAtMs = nowMs;
 }
@@ -206,6 +268,7 @@ std::optional<LivingRaidTelemetry> AIWorldMgr::DescribeLivingRaid(Creature const
         plan.RouteId = raid.SelectedRouteId;
         RetrievedMemory const* stock = nullptr;
         RetrievedMemory const* danger = nullptr;
+        RetrievedMemory const* checked = nullptr;
         for (auto const& memory : memories)
         {
             if (!LivingRaidMemory::Active(memory, record.Id, creature.GetMapId(), nowMs)) continue;
@@ -216,6 +279,11 @@ std::optional<LivingRaidTelemetry> AIWorldMgr::DescribeLivingRaid(Creature const
                     (memory.LastObservedAtMs == stock->LastObservedAtMs && memory.MemoryId > stock->MemoryId))) stock = &memory;
             if (fact.Kind == RaidExperienceKind::GuardEncounter &&
                 (!danger || memory.LastObservedAtMs > danger->LastObservedAtMs)) danger = &memory;
+            if (fact.Kind == RaidExperienceKind::GuardPositionChecked)
+            {
+                ++plan.CheckedPositions;
+                if (!checked || memory.LastObservedAtMs > checked->LastObservedAtMs) checked = &memory;
+            }
         }
         if (stock)
         { plan.KnownStock = stock->Raid->Kind == RaidExperienceKind::SourceEmpty ? 0 : stock->Raid->Quantity;
@@ -228,6 +296,12 @@ std::optional<LivingRaidTelemetry> AIWorldMgr::DescribeLivingRaid(Creature const
             plan.DangerGuardSpawnId = danger->Target.SpawnId;
             plan.DangerAgeMs = nowMs-danger->LastObservedAtMs;
         }
+        if (checked)
+        {
+            plan.LastCheckedPosition = ActionPosition{checked->Location.MapId, checked->Location.X, checked->Location.Y, checked->Location.Z};
+            plan.LastCheckedGuardSpawnId = checked->Target.SpawnId;
+            plan.LastCheckedAgeMs = nowMs-checked->LastObservedAtMs;
+        }
         result.Planning = std::move(plan);
     }
     return result;
@@ -237,7 +311,11 @@ Unit* AIWorldMgr::LivingRaidThreat(AgentRecord& record, Creature& creature, uint
 {
     bool raider = IsSupplyRaider(record), guard = IsRaidGuard(record);
     if ((!raider && !guard) || !Bound(record, creature)) return nullptr;
-    if (raider) UpdateLivingRaidParty(record, creature, nowMs);
+    if (raider)
+    {
+        SurveyLivingRaidMemory(record, creature, nowMs);
+        UpdateLivingRaidParty(record, creature, nowMs);
+    }
     uint64 otherSpawn = raider ? LivingRaid::GuardSpawn : 0;
     Creature* other = nullptr;
     AgentRecord const* peer = nullptr;
@@ -287,10 +365,9 @@ Unit* AIWorldMgr::LivingRaidThreat(AgentRecord& record, Creature& creature, uint
         peer->LivingRole.CurrentPhase == Phase::Defending && peer->LivingRole.TargetGuid == creature.GetGUID() &&
         OwnedAction(*peer, ActionType::Attack) && peer->ActiveActionState->Target &&
         peer->ActiveActionState->Target->Guid == creature.GetGUID();
-    if (!actorRaid.CombatNoted && actorRaid.AttemptId && (actorRaid.Active || actorRaid.Returning) && (guardAttack || creature.IsInCombat()))
+    if (actorRaid.AttemptId && (actorRaid.Active || actorRaid.Returning) && (guardAttack || creature.IsInCombat()))
     {
         auto& raid = _raidRaiders.at(record.SpawnId);
-        raid.CombatNoted = true;
         auto& actor = _supplyActors.at(record.SpawnId);
         bool beforeTheft = actor.Stolen == raid.StolenAtStart;
         // Combat refs identify the actual local attacker. The southern raid
@@ -305,8 +382,12 @@ Unit* AIWorldMgr::LivingRaidThreat(AgentRecord& record, Creature& creature, uint
                 seenAttacker = candidate;
         }
         bool identifiedCreature = seenAttacker && seenAttacker->ToCreature() && seenAttacker->ToCreature()->GetSpawnId();
-        RememberLivingRaid(record, creature, nowMs, identifiedCreature ? RaidExperienceKind::GuardEncounter :
-            RaidExperienceKind::RouteBlocked, 0, seenAttacker);
+        if (!raid.CombatNoted || (identifiedCreature &&
+            (!raid.LastGuardObservationAtMs || (nowMs >= raid.LastGuardObservationAtMs && nowMs-raid.LastGuardObservationAtMs >= 5000))))
+            RememberLivingRaid(record, creature, nowMs, identifiedCreature ? RaidExperienceKind::GuardEncounter :
+                RaidExperienceKind::RouteBlocked, 0, seenAttacker);
+        if (raid.CombatNoted) return guardAttack ? other : nullptr;
+        raid.CombatNoted = true;
         if (beforeTheft) ++raid.Prevented;
         raid.Active = false; raid.Returning = true;
         auto source = LivingRaid::SourceFor(raid.SelectedSourceDepot, _livingFieldsEnabled, raid.SelectedRouteId);

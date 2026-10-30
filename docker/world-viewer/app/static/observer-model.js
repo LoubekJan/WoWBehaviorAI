@@ -157,6 +157,7 @@ const ObserverModel = (() => {
         INVALID_CONTEXT: "Plán nemá platné podklady" };
       const seconds = value => `${(value / 1000).toFixed(1)} s`;
       rows.push(["Důvod plánu", reasons[plan.reason] || plan.reason], ["Vzpomínky na výpravy", plan.memory_records],
+        ["Prověřená místa", plan.checked_positions ?? 0],
         ["Zvolená cesta", ({ 0: "Zatím nevybraná", 1: "Původní cesta", 2: "Obchvat levé vesnice" })[plan.route_id] || plan.route_id],
         ["NPC naposledy zjistilo", plan.known_stock ?? "Zásoby dosud nezná"],
         ["Stáří informace o zásobách", plan.stock_age_ms == null ? null : seconds(plan.stock_age_ms)],
@@ -167,6 +168,12 @@ const ObserverModel = (() => {
         rows.push(["Zapamatovaný útočník", danger.guard_spawn_id === "0" ? "Neznámý" : danger.guard_spawn_id],
           ["Místo nebezpečí", point ? `${point.x.toFixed(1)}, ${point.y.toFixed(1)}, ${point.z.toFixed(1)}` : null],
           ["Stáří nebezpečí", seconds(danger.age_ms)]);
+      }
+      if (plan.last_check) {
+        const check = plan.last_check, point = check.position;
+        rows.push(["Poslední kontrola", point ? `${point.x.toFixed(1)}, ${point.y.toFixed(1)}, ${point.z.toFixed(1)}` : null],
+          ["Prověřovaná stráž", check.guard_spawn_id === "0" ? "Neznámá" : check.guard_spawn_id],
+          ["Od poslední kontroly", seconds(check.age_ms)]);
       }
     }
     return rows;

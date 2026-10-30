@@ -21,6 +21,12 @@ samostatné. Čekání na členy, ústup, smrt a dokončení návratů se vyhodn
 za každého účastníka. Krádež i odevzdání zůstávají skutečnou pětisekundovou
 prací a náklad má kapacitu dvě porce na banditu.
 
+Po pronásledování si bandita může zblízka a s přímým výhledem znovu
+prověřit poslední zapamatované místo stráže. Když místní průzkum nikoho
+nebezpečného neodhalí, novější zkušenost uvolní návrat přes toto místo.
+Další skutečné spatření známé nepřátelské stráže vyhýbání obnoví.
+Přehled uvádí místo a stáří poslední kontroly; tato zkušenost je v RAM.
+
 Tento předchozí profil používá `LAB_AI_PROFILE=defias-v8`; žádné nové potravní nebo
 skupinové stavy se neukládají přes restart. Nový
 `python -m tools.realm_lab.defias_group_acceptance <recording-directory>`

@@ -16,6 +16,9 @@ struct LivingRaidPlanningTelemetry
     uint64 RetryRemainingMs = 0;
     std::optional<ActionPosition> Danger;
     uint64 DangerGuardSpawnId = 0, DangerAgeMs = 0;
+    uint32 CheckedPositions = 0;
+    std::optional<ActionPosition> LastCheckedPosition;
+    uint64 LastCheckedGuardSpawnId = 0, LastCheckedAgeMs = 0;
 };
 
 struct LivingRaidPartyTelemetry

@@ -9,7 +9,10 @@
 // observation identify the actual encounter, not the intended remote depot.
 enum class RaidExperienceKind : uint8
 {
-    StockObserved, GuardEncounter, RouteBlocked, SourceEmpty, Theft, Delivered
+    StockObserved, GuardEncounter, RouteBlocked, SourceEmpty, Theft, Delivered,
+    // A fresh local survey of one old guard position, not global knowledge
+    // of that guard's whereabouts or a declaration that an area is safe.
+    GuardPositionChecked
 };
 
 struct RaidExperience

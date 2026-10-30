@@ -120,6 +120,39 @@ class RaidTelemetryTests(unittest.TestCase):
         self.assertEqual(parsed.raid.planning.known_stock, 7)
         self.assertEqual(parsed.raid.source_depot.stock, 30)
 
+    def test_local_guard_checks_are_optional_bounded_and_separate_from_remembered_danger(self):
+        current = raider(); current["raid"]["planning"] = planning()
+        parsed = Agent.model_validate(current)
+        self.assertEqual(parsed.raid.planning.checked_positions, 0)
+        self.assertIsNone(parsed.raid.planning.last_check)
+        checked = copy.deepcopy(planning()["danger"])
+        checked.update(guard_spawn_id=str(2**64-1), age_ms=2500)
+        current["raid"]["planning"].update(checked_positions=2, last_check=checked)
+        parsed = Agent.model_validate(current)
+        self.assertEqual(parsed.raid.planning.checked_positions, 2)
+        self.assertEqual(parsed.raid.planning.last_check.guard_spawn_id, str(2**64-1))
+        self.assertEqual(parsed.raid.planning.last_check.age_ms, 2500)
+        self.assertEqual(parsed.raid.planning.danger.age_ms, 120000)
+        self.assertEqual(Agent.model_validate_json(parsed.model_dump_json()), parsed)
+
+    def test_local_guard_checks_reject_invalid_counts_locations_and_event_identity(self):
+        for value in (-1, 129, True, 1.5, "1"):
+            bad = raider(); bad["raid"]["planning"] = planning()
+            bad["raid"]["planning"]["checked_positions"] = value
+            with self.subTest(count=value), self.assertRaises(ValidationError): Agent.model_validate(bad)
+        for mutation in ("foreign_map", "nan", "infinity", "numeric_guard", "leading_zero_guard", "negative_age", "boolean_age", "incomplete"):
+            bad = raider(); bad["raid"]["planning"] = planning()
+            checked = copy.deepcopy(planning()["danger"])
+            if mutation == "foreign_map": checked["position"]["map_id"] = 0
+            elif mutation == "nan": checked["position"]["x"] = float("nan")
+            elif mutation == "infinity": checked["position"]["z"] = float("inf")
+            elif mutation == "numeric_guard": checked["guard_spawn_id"] = 901026
+            elif mutation == "leading_zero_guard": checked["guard_spawn_id"] = "0901026"
+            elif mutation == "negative_age": checked["age_ms"] = -1
+            elif mutation == "boolean_age": checked["age_ms"] = True
+            elif mutation == "incomplete": checked.pop("position")
+            bad["raid"]["planning"].update(checked_positions=1, last_check=checked)
+            with self.subTest(mutation=mutation), self.assertRaises(ValidationError): Agent.model_validate(bad)
     def test_planning_rejects_unbounded_or_incomplete_observations_and_guard_ownership(self):
         for field, value in (("memory_records", 129), ("memory_records", True), ("route_id", -1), ("route_id", 3),
                              ("known_stock", 31), ("stock_age_ms", -1), ("risk", float("nan")),

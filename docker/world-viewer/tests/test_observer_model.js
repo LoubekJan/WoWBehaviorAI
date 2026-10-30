@@ -272,6 +272,8 @@ test("raid planning shows remembered route danger without inventing warehouse kn
   assert.equal(facts["Zvolená cesta"], "Obchvat levé vesnice");
   assert.equal(facts["Riziko podle paměti"], "Nižší");
   assert.equal(facts["Stáří nebezpečí"], "120.0 s");
+  assert.equal(facts["Prověřená místa"], 0);
+  assert.equal(facts["Poslední kontrola"], undefined);
   thief.raid.planning.known_stock = 0;
   thief.raid.planning.stock_age_ms = 5000;
   facts = Object.fromEntries(model.raidFacts(thief));
@@ -288,6 +290,21 @@ test("raid planning shows remembered route danger without inventing warehouse kn
   assert.equal(facts["Další plánování za"], "10.0 s");
   delete thief.raid.planning;
   assert.equal(Object.fromEntries(model.raidFacts(thief))["NPC naposledy zjistilo"], undefined);
+});
+
+test("raid planning displays a fresh local recheck without inventing current guard whereabouts", () => {
+  const thief = { ...base, supply: { enabled: true, role: "RAIDER" }, raid: { enabled: true, role: "RAIDER",
+    planning: { reason: "EXPLORE_UNKNOWN_STOCK", memory_records: 3, route_id: 1,
+      known_stock: null, stock_age_ms: null, risk: 0, retry_remaining_ms: 0, danger: null,
+      checked_positions: 2, last_check: { guard_spawn_id: "18446744073709551615", age_ms: 2500,
+        position: { map_id: 725, x: 40.25, y: 872.56, z: 0.15 } } } } };
+  const facts = Object.fromEntries(model.raidFacts(thief));
+  assert.equal(facts["Prověřená místa"], 2);
+  assert.equal(facts["Poslední kontrola"], "40.3, 872.6, 0.1");
+  assert.equal(facts["Prověřovaná stráž"], "18446744073709551615");
+  assert.equal(facts["Od poslední kontroly"], "2.5 s");
+  assert.equal(facts["Místo nebezpečí"], undefined);
+  assert.equal(facts["NPC naposledy zjistilo"], "Zásoby dosud nezná");
 });
 
 function viewerPollingHarness() {

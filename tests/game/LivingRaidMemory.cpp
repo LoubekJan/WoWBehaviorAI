@@ -208,3 +208,119 @@ TEST_CASE("Learned danger checks the whole movement chord and permits only monot
     REQUIRE_FALSE(SafeKnownDangerLeg({0,10,0,0},{0,50,0,0},{0,0,0,0},40));
     REQUIRE_FALSE(SafeKnownDangerLeg({725,10,0,0},{725,50,0,0},danger,std::numeric_limits<float>::quiet_NaN()));
 }
+
+TEST_CASE("A newer local position check supersedes only its exact older guard position", "[AIWorld][LivingRaidMemory]")
+{
+    auto guard=Fact(RaidExperienceKind::GuardEncounter,5,{725,16,0,0},6000,0,1);
+    auto checked=Fact(RaidExperienceKind::GuardPositionChecked,5,{725,16,0,0},0,0,1);
+    std::vector<RetrievedMemory> history{guard,checked};
+    REQUIRE(IsSupersededGuard(guard,history,Owner,725,Now));
+    REQUIRE(ShouldAvoidGuard(guard,Owner,725,Now)); // the retained history is still an encounter
+    auto resolved=FilterSupersededGuards(history,Owner,725,Now);
+    REQUIRE(history.size()==2);
+    REQUIRE(history.front().Raid->Kind==RaidExperienceKind::GuardEncounter);
+    REQUIRE(resolved.size()==1);
+    REQUIRE(resolved.front().Raid->Kind==RaidExperienceKind::GuardPositionChecked);
+    REQUIRE(ExperienceTtlMs(RaidExperienceKind::GuardPositionChecked)==GuardTtlMs);
+    REQUIRE(Choose(Owner,Now,Here,0,{Route(5,1,{725,100,0,0})},{guard}).DepotId==0);
+    REQUIRE(Choose(Owner,Now,Here,0,{Route(5,1,{725,100,0,0})},history).DepotId==5);
+    std::reverse(history.begin(),history.end());
+    REQUIRE(IsSupersededGuard(guard,history,Owner,725,Now));
+}
+
+TEST_CASE("Position check matching rejects foreign invalid old and future evidence", "[AIWorld][LivingRaidMemory]")
+{
+    auto guard=Fact(RaidExperienceKind::GuardEncounter,5,{725,16,0,0},6000,0,1);
+    auto checked=Fact(RaidExperienceKind::GuardPositionChecked,5,{725,16,0,0},0,0,1);
+    for (unsigned change=0;change<14;++change)
+    {
+        auto invalid=checked;
+        switch (change)
+        {
+            case 0:invalid.Owner={901054};break;
+            case 1:invalid.Location.MapId=1;break;
+            case 2:invalid.Target.SpawnId=901027;break;
+            case 3:invalid.Target.SpawnId=0;break;
+            case 4:invalid.Raid->DepotId=6;break;
+            case 5:invalid.Raid->RouteId=2;break;
+            case 6:invalid.Raid->RouteId=0;break;
+            case 7:invalid.Location.X+=1.001f;break;
+            case 8:invalid.LastObservedAtMs=guard.LastObservedAtMs;break;
+            case 9:invalid.LastObservedAtMs=guard.LastObservedAtMs-1;break;
+            case 10:invalid.LastObservedAtMs=Now+1;break;
+            case 11:invalid.LastObservedAtMs=Now-GuardTtlMs;break;
+            case 12:invalid.Raid->Quantity=1;break;
+            case 13:invalid.Location.Z=std::numeric_limits<float>::quiet_NaN();break;
+        }
+        REQUIRE_FALSE(IsSupersededGuard(guard,{guard,invalid},Owner,725,Now));
+        REQUIRE(FilterSupersededGuards({guard,invalid},Owner,725,Now).size()==2);
+    }
+    checked.Location.Z+=1;
+    REQUIRE(IsSupersededGuard(guard,{checked},Owner,725,Now));
+    checked.Location.Z+=.001f;
+    REQUIRE_FALSE(IsSupersededGuard(guard,{checked},Owner,725,Now));
+    REQUIRE_FALSE(IsSupersededGuard(guard,{checked},{123},725,Now));
+    REQUIRE_FALSE(IsSupersededGuard(guard,{checked},Owner,1,Now));
+}
+
+TEST_CASE("A later real guard encounter reactivates avoidance without discarding a check", "[AIWorld][LivingRaidMemory]")
+{
+    auto guard=Fact(RaidExperienceKind::GuardEncounter,5,{725,16,0,0},6000,0,1);
+    auto checked=Fact(RaidExperienceKind::GuardPositionChecked,5,{725,16,0,0},0,0,1);
+    REQUIRE(FilterSupersededGuards({guard,checked},Owner,725,Now).size()==1);
+    guard.LastObservedAtMs=Now+1;
+    REQUIRE_FALSE(IsSupersededGuard(guard,{guard,checked},Owner,725,Now+1));
+    auto resolved=FilterSupersededGuards({guard,checked},Owner,725,Now+1);
+    REQUIRE(resolved.size()==2);
+    REQUIRE(ShouldAvoidGuard(resolved.front(),Owner,725,Now+1));
+    REQUIRE(Choose(Owner,Now+1,Here,0,{Route(5,1,{725,100,0,0})},resolved).DepotId==0);
+}
+
+TEST_CASE("Position checks do not erase stock delivery route failure or another guard", "[AIWorld][LivingRaidMemory]")
+{
+    auto guard=Fact(RaidExperienceKind::GuardEncounter,5,{725,16,0,0},6000,0,1);
+    auto checked=Fact(RaidExperienceKind::GuardPositionChecked,5,{725,16,0,0},0,0,1);
+    auto other=guard; other.Target.SpawnId=901027;
+    auto stock=Fact(RaidExperienceKind::StockObserved,5,{725,100,0,0},0,12,1);
+    auto delivered=Fact(RaidExperienceKind::Delivered,5,{725,0,0,0},0,2,1);
+    auto blocked=Fact(RaidExperienceKind::RouteBlocked,5,{725,10,0,0},0,0,1);
+    auto resolved=FilterSupersededGuards({guard,checked,other,stock,delivered,blocked},Owner,725,Now);
+    REQUIRE(resolved.size()==5);
+    REQUIRE(resolved[0].Raid->Kind==RaidExperienceKind::GuardPositionChecked);
+    REQUIRE(resolved[1].Target.SpawnId==901027);
+    REQUIRE(resolved[2].Raid->Kind==RaidExperienceKind::StockObserved);
+    REQUIRE(resolved[2].Raid->Quantity==12);
+    REQUIRE(resolved[3].Raid->Kind==RaidExperienceKind::Delivered);
+    REQUIRE(resolved[4].Raid->Kind==RaidExperienceKind::RouteBlocked);
+}
+
+TEST_CASE("Checked guard locations stay distinct in actual short-term storage and retrieval", "[AIWorld][LivingRaidMemory]")
+{
+    ShortTermMemory storage;
+    auto checked=Observe(RaidExperienceKind::GuardPositionChecked,5);
+    checked.Raid->RouteId=1;
+    REQUIRE(storage.Remember(checked,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Added);
+    checked.ObservedAtMs+=1; checked.Location.Z+=1;
+    REQUIRE(storage.Remember(checked,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Refreshed);
+    auto far=checked; far.Location.Z+=1.001f;
+    REQUIRE(storage.Remember(far,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Added);
+    auto other=checked; other.Target.SpawnId=901027;
+    REQUIRE(storage.Remember(other,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Added);
+    MemoryRetrieval retrieval;
+    auto retrieved=retrieval.Retrieve({Owner,Now+1,725,0,0,0},storage.GetActiveForAgent(Owner,Now+1),{},128);
+    REQUIRE(retrieved.size()==3);
+    for (auto const& memory : retrieved) REQUIRE(Active(memory,Owner,725,Now+1));
+    LongTermMemory persistent;
+    REQUIRE_FALSE(persistent.Remember(checked,.99f).has_value());
+    REQUIRE(persistent.GetForAgent(Owner).empty());
+
+    // Malformed check targets and nonfinite positions never coalesce into a
+    // valid checked location, nor refresh one another as observed knowledge.
+    auto zero=checked; zero.Target.SpawnId=0;
+    REQUIRE(storage.Remember(zero,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Added);
+    REQUIRE(storage.Remember(zero,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Added);
+    auto invalid=checked; invalid.Location.X=std::numeric_limits<float>::quiet_NaN();
+    REQUIRE(storage.Remember(invalid,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Added);
+    REQUIRE(storage.Remember(invalid,GuardTtlMs,.65f)==ShortTermMemory::RememberResult::Added);
+    REQUIRE(storage.GetActiveForAgent(Owner,Now+1).size()==7);
+}

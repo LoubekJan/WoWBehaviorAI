@@ -172,6 +172,8 @@ class RaidPlanning(ProtocolModel):
     risk: float = Field(ge=0, le=20, strict=True)
     retry_remaining_ms: int = Field(ge=0, le=2**64 - 1, strict=True)
     danger: RaidDangerMemory | None
+    checked_positions: int = Field(default=0, ge=0, le=128, strict=True)
+    last_check: RaidDangerMemory | None = None
 
     @model_validator(mode="after")
     def stock_observation_has_age(self):
@@ -225,8 +227,9 @@ class LivingRaid(ProtocolModel):
         if self.planning is not None:
             if self.role != "RAIDER":
                 raise ValueError("Raid planning memory belongs only to the raider")
-            if self.planning.danger is not None and self.planning.danger.position.map_id != self.camp_depot.position.map_id:
-                raise ValueError("Remembered danger must remain on the raid map")
+            for observation in (self.planning.danger, self.planning.last_check):
+                if observation is not None and observation.position.map_id != self.camp_depot.position.map_id:
+                    raise ValueError("Remembered danger and checked positions must remain on the raid map")
         if self.party is not None and self.role != "RAIDER":
             raise ValueError("A raid party belongs only to raiders")
         return self
