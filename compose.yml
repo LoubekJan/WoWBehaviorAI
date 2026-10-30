@@ -198,6 +198,8 @@ services:
     build: {context: docker/character-studio}
     restart: unless-stopped
     environment:
+      LAB_AI_PROFILE: ${LAB_AI_PROFILE:-settlement-v8}
+      CHARACTER_STUDIO_PROJECT_DIR: /workspace
       CHARACTER_STUDIO_DATA_DIR: /data
       CHARACTER_STUDIO_SOURCE_DIR: /source-profiles
       CHARACTER_STUDIO_APPEARANCE_DIR: /source-appearances
@@ -210,6 +212,8 @@ services:
       - ./data/npc_agents:/source-profiles:ro
       - ./data/npc_appearances:/source-appearances:ro
       - ./data/character_studio:/catalog:ro
+      - ./tools/realm_lab:/workspace/tools/realm_lab:ro
+      - ./data/realm_lab:/workspace/data/realm_lab:ro
       - ./runtime/lab/character-models:/model-data:ro
     ports:
       - "${CHARACTER_STUDIO_PORT:-9092}:8000"

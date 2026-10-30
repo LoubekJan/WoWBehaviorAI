@@ -19,9 +19,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
-from .models import (Appearance, Card, DraftInput, DraftUpdate, GenerationInput, default_appearance,
+from .models import (Appearance, Card, DraftInput, DraftUpdate, GenerationInput, TargetIdentity, default_appearance,
                      import_profile, native_profile, plain, strict_json, validate_appearance)
 from .storage import DraftStore, StoreError
+from .targets import TargetRegistry
 
 APP_DIR = Path(__file__).parent
 # Windows may associate .js with text/plain in its registry. ES modules must
@@ -35,7 +36,9 @@ COOKIE_NAME = "character_studio_session"
 def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None,
                source_dir: Path | None = None, appearance_dir: Path | None = None,
                model_data_dir: Path | None = None, ai_url: str | None = None,
-               ai_transport: httpx.AsyncBaseTransport | None = None, password: str | None = None) -> FastAPI:
+               ai_transport: httpx.AsyncBaseTransport | None = None, password: str | None = None,
+               project_root: Path | None = None, population_profile: str | None = None,
+               target_registry: TargetRegistry | None = None) -> FastAPI:
     app = FastAPI(title="AI World Character Studio", version="1.0.0")
     # Compose explicitly supplies /data. A host-side import/test must not try
     # to create a privileged filesystem-root directory on Linux CI runners.
@@ -48,6 +51,9 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
     app.state.ai_url = ai_url if ai_url is not None else os.getenv("CHARACTER_STUDIO_AI_URL", "http://ai-server:8000")
     app.state.ai_transport = ai_transport
     app.state.password = password if password is not None else os.getenv("CHARACTER_STUDIO_PASSWORD", "")
+    app.state.project_root = project_root or Path(os.getenv("CHARACTER_STUDIO_PROJECT_DIR", str(development_root)))
+    app.state.population_profile = population_profile if population_profile is not None else os.getenv("LAB_AI_PROFILE", "")
+    app.state.target_registry = target_registry
     app.state.csrf_secret = secrets.token_bytes(32)
     app.state.model_data_dir = model_data_dir or Path(os.getenv("CHARACTER_STUDIO_MODEL_DATA_DIR", "/model-data"))
     app.mount("/static", StaticFiles(directory=APP_DIR / "static", check_dir=False), name="static")
@@ -56,6 +62,11 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
 
     def token_for(nonce: str):
         return hmac.new(app.state.csrf_secret, nonce.encode("ascii"), hashlib.sha256).hexdigest()
+
+    def targets():
+        # Revalidate operator metadata on every export/catalog request. A bind
+        # mount changing during a deployment must not authorize stale targets.
+        return app.state.target_registry or TargetRegistry.load(app.state.project_root, app.state.population_profile)
 
     def load_catalog():
         try:
@@ -139,6 +150,9 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
             profile = native_profile(card)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from None
+        binding = targets().validate(card.agent_id, card.spawn_id, card.map_id)
+        if not binding["eligible"]:
+            raise HTTPException(422 if binding["registry_available"] else 503, binding["reason"])
         sidecar = {"schema_version": 1, "spawn_id": profile["spawn_id"], "map_id": profile["map_id"],
                    "appearance": appearance.model_dump()}
         return doc, profile, sidecar
@@ -209,9 +223,21 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
                     available = response.status_code == 200 and isinstance(health, dict) and health.get("npc_model_enabled") is True and health.get("npc_model_configured") is True
             except (httpx.HTTPError, ValueError):
                 pass
-        return {**result, "source_profiles": seeds, "limits": {"name_characters": 32, "name_utf8_bytes": 80,
+        registry = targets()
+        names = {(seed["card"]["spawn_id"], seed["card"]["map_id"]): seed["card"]["name"] for seed in seeds}
+        target_rows = [target.public() for target in registry.targets]
+        for target in target_rows:
+            if (target["spawn_id"], target["map_id"]) in names:
+                target["name"] = names[(target["spawn_id"], target["map_id"])]
+        return {**result, "source_profiles": seeds, "targets": target_rows, "target_registry": registry.metadata(),
+                "limits": {"name_characters": 32, "name_utf8_bytes": 80,
                 "backstory_utf8_bytes": 8192, "personality_utf8_bytes": 2048, "native_profile_bytes": 16384, "max_characters": DraftStore.MAX_DRAFTS},
                 "model": {"available": available}, "preview": {"available": (app.state.model_data_dir / "manifest.json").is_file()}}
+
+    @app.post("/api/validate-target")
+    async def validate_target(request: Request):
+        identity = await payload(request, TargetIdentity)
+        return targets().validate(identity.agent_id, identity.spawn_id, identity.map_id)
 
     @app.get("/api/characters")
     def characters():

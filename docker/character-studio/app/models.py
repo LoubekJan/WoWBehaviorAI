@@ -142,6 +142,17 @@ class DraftUpdate(DraftInput):
     revision: int = Field(ge=1, le=2**31 - 1)
 
 
+class TargetIdentity(StrictModel):
+    agent_id: str = ""
+    spawn_id: str = ""
+    map_id: int = Field(default=725, ge=0, le=UINT32_MAX)
+
+    @field_validator("agent_id", "spawn_id")
+    @classmethod
+    def valid_identity(cls, value):
+        return decimal_identity(value)
+
+
 class GenerationInput(DraftInput):
     instruction: str = ""
 

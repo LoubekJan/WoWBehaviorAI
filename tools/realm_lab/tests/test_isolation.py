@@ -16,6 +16,14 @@ def triggers(workflow):
 
 
 class RealmIsolationTests(unittest.TestCase):
+    def test_studio_checks_the_world_profile_without_mutation_credentials(self):
+        services = document("compose.yml")["services"]
+        studio = services["character-studio"]
+        self.assertEqual(studio["environment"]["LAB_AI_PROFILE"], services["worldserver"]["environment"]["LAB_AI_PROFILE"])
+        self.assertIn("./data/realm_lab:/workspace/data/realm_lab:ro", studio["volumes"])
+        self.assertIn("./tools/realm_lab:/workspace/tools/realm_lab:ro", studio["volumes"])
+        self.assertFalse(any(key.startswith(("TC_DB_", "TC_AUTH_", "TC_SOAP_", "AI_NPC_MODEL_")) for key in studio["environment"]))
+
     def test_auth_and_world_storage_are_distinct_and_preserve_live_world_identity(self):
         world = document("compose.yml")
         self.assertEqual(world["name"], "aitc-lab")

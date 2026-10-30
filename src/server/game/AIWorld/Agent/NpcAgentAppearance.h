@@ -4,7 +4,9 @@
 #define AIWORLD_NPCAGENTAPPEARANCE_H
 
 #include "Define.h"
+#include "NpcAgentCatalogLoading.h"
 #include <array>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -46,6 +48,9 @@ public:
     // An absent/empty optional directory is valid. Any malformed authored file
     // clears the entire appearance catalog; no partial appearance is applied.
     bool Load(std::string const& directory);
+    using RuntimeValidator = std::function<char const*(NpcAgentAppearance const&)>;
+    NpcAgentCatalogIssues LoadRuntime(std::string const& directory, RuntimeValidator const& validator = {});
+    void Clear() { _appearances.clear(); }
     NpcAgentAppearance const* Get(uint64 spawnId) const;
     auto const& Entries() const { return _appearances; }
     std::size_t Size() const { return _appearances.size(); }

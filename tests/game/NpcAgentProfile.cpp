@@ -10,9 +10,9 @@
 
 namespace
 {
-    std::string ProfileJson(uint64 id = 901035)
+    std::string ProfileJson(uint64 id = 901035, uint32 map = 0)
     {
-        return "{\"agent_id\":" + std::to_string(id) + ",\"map_id\":0,\"spawn_id\":" + std::to_string(id)
+        return "{\"agent_id\":" + std::to_string(id) + ",\"map_id\":" + std::to_string(map) + ",\"spawn_id\":" + std::to_string(id)
             + R"(,"name":"Matej","backstory":"Pracuji ve vesnici.","personality":"Jsem klidny."})";
     }
 
@@ -150,4 +150,127 @@ TEST_CASE("NPC profile catalog rejects a bad file or duplicate without retaining
     CHECK(catalog.GetLastError().find(directory.Path.string()) == std::string::npos);
     CHECK_FALSE(catalog.Load((directory.Path / "absent").string()));
     CHECK(catalog.Size() == 0);
+}
+
+TEST_CASE("Runtime profile imports isolate unregistered civilian and malformed cards from healthy agents", "[AIWorld][NpcAgent][Import]")
+{
+    ProfileDirectory directory;
+    REQUIRE(directory.Created);
+    directory.Write("901035.json", ProfileJson(901035, 725));
+    directory.Write("901036.json", ProfileJson(901036, 725));
+    // The real failed import targeted this native city civilian, which has no
+    // registry identity. A syntactically valid card grants it no new authority.
+    directory.Write("901014.json", ProfileJson(901014, 725));
+    directory.Write("901037.json", "{broken}");
+    directory.Write("character-studio-draft.json", R"({"card":{"name":"Draft"}})");
+    directory.Write("901035 (1).json", ProfileJson(901035, 725));
+    NpcAgentProfileCatalog catalog;
+    auto issues = catalog.LoadRuntime(directory.Path.string(), [](NpcAgentProfile const& profile)
+    {
+        if (profile.Agent.Value == 901014) return NpcAgentProfileBindingFailure(profile, nullptr);
+        NpcAgentProfileBinding binding{profile.Agent, 725, profile.SpawnId, true, true, true, true};
+        return NpcAgentProfileBindingFailure(profile, &binding);
+    });
+    REQUIRE(catalog.Size() == 2);
+    CHECK(catalog.Get(AgentId{901035}));
+    CHECK(catalog.Get(AgentId{901036}));
+    CHECK_FALSE(catalog.Get(AgentId{901014}));
+    REQUIRE(issues.size() == 4);
+    auto invalid = std::find_if(issues.begin(), issues.end(), [](auto const& issue) { return issue.Identity == 901014; });
+    REQUIRE(invalid != issues.end());
+    CHECK(invalid->Filename == "901014.json");
+    CHECK(invalid->Reason == "agent is not registered");
+    for (auto const& issue : issues)
+    {
+        CHECK(issue.Filename.find(directory.Path.string()) == std::string::npos);
+        CHECK(issue.Reason.find("Pracuji") == std::string::npos);
+    }
+}
+
+TEST_CASE("NPC authoring eligibility preserves every existing runtime ownership boundary", "[AIWorld][NpcAgent][Import]")
+{
+    NpcAgentProfile profile;
+    REQUIRE(ParseNpcAgentProfile(ProfileJson(901014, 725), profile));
+    CHECK(std::string(NpcAgentProfileBindingFailure(profile, nullptr)) == "agent is not registered");
+    NpcAgentProfileBinding native{AgentId{901014}, 725, 901014, false, false, false, true};
+    CHECK(std::string(NpcAgentProfileBindingFailure(profile, &native)) == "agent is not AIWorld controlled");
+    CHECK_FALSE(native.Controlled); // validation never promotes a native NPC
+    NpcAgentProfileBinding valid{profile.Agent, profile.MapId, profile.SpawnId, true, true, true, true};
+    CHECK(NpcAgentProfileBindingFailure(profile, &valid) == nullptr);
+    for (int boundary = 0; boundary < 7; ++boundary)
+    {
+        auto blocked = valid;
+        if (boundary == 0) blocked.Agent = AgentId{901035};
+        if (boundary == 1) blocked.SpawnId = 901035;
+        if (boundary == 2) blocked.MapId = 0;
+        if (boundary == 3) blocked.Controlled = false;
+        if (boundary == 4) blocked.InMembership = false;
+        if (boundary == 5) blocked.Participating = false;
+        if (boundary == 6) blocked.SupportedRole = false;
+        CHECK(NpcAgentProfileBindingFailure(profile, &blocked) != nullptr);
+    }
+}
+
+TEST_CASE("Runtime profile capacity applies after eligibility with deterministic canonical priority", "[AIWorld][NpcAgent][Import]")
+{
+    ProfileDirectory directory;
+    REQUIRE(directory.Created);
+    // Create in reverse order so an unordered filesystem cannot choose which
+    // eligible profiles fill the controller's bounded slot budget.
+    directory.Write("901037.json", ProfileJson(901037));
+    directory.Write("901036.json", ProfileJson(901036));
+    directory.Write("901035.json", ProfileJson());
+    directory.Write("901014.json", ProfileJson(901014));
+    NpcAgentProfileCatalog catalog;
+    auto issues = catalog.LoadRuntime(directory.Path.string(), [](NpcAgentProfile const& profile) -> char const*
+    { return profile.SpawnId == 901014 ? "agent is not registered" : nullptr; }, 2);
+    REQUIRE(catalog.Size() == 2);
+    CHECK(catalog.Get(AgentId{901035}));
+    CHECK(catalog.Get(AgentId{901036}));
+    CHECK_FALSE(catalog.Get(AgentId{901037}));
+    REQUIRE(issues.size() == 2);
+    CHECK(issues[0].Identity == 901014);
+    CHECK(issues[1].Identity == 901037);
+    CHECK(issues[1].Reason == "eligible profile limit exceeded");
+    auto again = catalog.LoadRuntime(directory.Path.string(), [](NpcAgentProfile const& profile) -> char const*
+    { return profile.SpawnId == 901014 ? "agent is not registered" : nullptr; }, 2);
+    REQUIRE(again.size() == issues.size());
+    for (std::size_t i = 0; i < issues.size(); ++i) CHECK(again[i].Filename == issues[i].Filename);
+}
+
+TEST_CASE("Missing or entirely rejected runtime authoring leaves an empty optional controller catalog", "[AIWorld][NpcAgent][Import]")
+{
+    ProfileDirectory directory;
+    REQUIRE(directory.Created);
+    NpcAgentProfileCatalog catalog;
+    auto missing = catalog.LoadRuntime((directory.Path / "absent").string());
+    REQUIRE(missing.size() == 1);
+    CHECK(catalog.Size() == 0);
+    CHECK(missing[0].Reason == "directory unavailable");
+    directory.Write("901014.json", ProfileJson(901014, 725));
+    auto invalid = catalog.LoadRuntime(directory.Path.string(), [](NpcAgentProfile const&) -> char const*
+    { return "agent is not registered"; });
+    REQUIRE(invalid.size() == 1);
+    CHECK(catalog.Size() == 0);
+}
+
+TEST_CASE("Runtime authoring directory scans and diagnostic names stay bounded", "[AIWorld][NpcAgent][Import]")
+{
+    ProfileDirectory directory;
+    REQUIRE(directory.Created);
+    directory.Write("901035.json", ProfileJson());
+    for (std::size_t i = 0; i < NpcAgentProfileCatalog::MaxProfiles * 2; ++i)
+        directory.Write("note-" + std::to_string(i) + ".txt", "unrelated");
+    NpcAgentProfileCatalog catalog;
+    auto issues = catalog.LoadRuntime(directory.Path.string());
+    REQUIRE(issues.size() == 1);
+    CHECK(issues[0].Reason == "directory entry limit exceeded");
+    CHECK(catalog.Size() == 0);
+    std::string unsafe = "line|break";
+    unsafe.push_back('\n');
+    unsafe += std::string(100, 'z');
+    auto display = NpcAgentCatalogLoading::Filename(std::filesystem::path(unsafe));
+    CHECK(display.size() <= 80);
+    CHECK(display.find('|') == std::string::npos);
+    CHECK(display.find('\n') == std::string::npos);
 }
