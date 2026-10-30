@@ -2,6 +2,7 @@
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "tc_catch2.h"
 #include "Agent/LivingRaidRuntime.h"
+#include "Agent/LivingRaidMemory.h"
 #include "Agent/LivingRolePolicy.h"
 #include "Action/ActionSystem.h"
 #include <limits>
@@ -138,6 +139,34 @@ TEST_CASE("Each village raid owns a bounded source-specific reversible corridor"
     auto shifted = LivingFields::Fields[0].DepotPoint;
     shifted.X += 0.01f;
     REQUIRE(ArrivalRadius(shifted) == 3);
+}
+
+TEST_CASE("The remembered left guard has a separate authorized approach to the right warehouse", "[AIWorld][LivingRaid]")
+{
+    auto route = SourceFor(6, true, 2);
+    REQUIRE(route == &RightBypass);
+    REQUIRE(route->RouteId == 2);
+    REQUIRE(SamePosition(route->Point(), LivingFields::Fields[2].DepotPoint));
+    REQUIRE_FALSE(SourceFor(6, false, 2));
+    for (uint32 depot : {0u, 1u, 2u, 3u, 4u, 5u, 7u}) REQUIRE_FALSE(SourceFor(depot, true, 2));
+    REQUIRE_FALSE(SourceFor(6, true, 3));
+    ActionPosition leftGuard{725, 40.2458698357f, 872.5641450404f, .15f};
+    auto minimum = [&](SourceSpec const& spec)
+    {
+        float result = std::numeric_limits<float>::max();
+        ActionPosition previous = Camp;
+        for (uint32 leg = 0; leg < spec.Count; ++leg)
+        {
+            auto const& point = spec.Route[leg];
+            REQUIRE(Distance(previous, point) <= 384);
+            REQUIRE(std::hypot(point.X-Camp.X, point.Y-Camp.Y) <= RaiderHomeRadius);
+            result = std::min(result, LivingRaidMemory::SegmentDistance(leftGuard, previous, point));
+            previous = point;
+        }
+        return result;
+    };
+    REQUIRE(minimum(*SourceFor(6, true)) < LivingRaidMemory::DangerRadius);
+    REQUIRE(minimum(*route) > LivingRaidMemory::DangerRadius);
 }
 
 TEST_CASE("Dense straight raid travel coalesces into bounded three-dimensional execution legs", "[AIWorld][LivingRaid]")

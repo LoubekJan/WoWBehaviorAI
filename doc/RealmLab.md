@@ -13,12 +13,22 @@ sklizně, doručení, jídla a návratu.
 
 Rozšíření k **30. říjnu 2026**: Defias 901055 v aktivním `fields-v8`
 vybírá ze všech čtyř vesnických skladů (1/4/5/6). Při hladu a prázdném
-táboře střídá kandidáty s alespoň šesti porcemi. Cíl drží po celou
+táboře plánuje podle vlastních zkušeností se zásobami, nebezpečím a cestou.
+Neznámý sklad může prozkoumat; čerstvě zjištěné nedostatečné zásoby odkládá.
+Cíl drží po celou
 výpravu; vlastní pětisekundová práce odečte nejvýše dvě porce právě
 tomuto skladu a až skutečný návrat s předáním je přidá do tábora.
 Sklady vedou oddělené počty odcizených porcí. Strážný zůstává u jižní
 vesnice a počet řízených NPC zůstává 40. Nové cíle používají přesnější
 příchod 1,9 yd k budovám, stejně jako jejich zemědělci.
+
+Zkušenosti z přepadů používají stávající krátkodobou paměť a vyhledávání
+vzpomínek. Uchovávají skutečně pozorované zásoby (nejvýše pět minut),
+viděného útočníka s jeho polohou (patnáct minut), neprůchodnou cestu,
+krádež a oddělené předání nákladu. Nebezpečí se vztahuje k místu setkání:
+levá hlídka na cestě k pravému skladu není pozorováním pravého skladu.
+Plánovač může zvolit východní objížďku nebo výpravu odložit. Tato paměť
+zůstává pouze během běhu serveru a neukládá se do databáze.
 
 `python -m tools.realm_lab.warehouse_raid_acceptance <recording-directory>`
 kontroluje fyzické řetězce ze všech čtyř skladů a společnou bilanci
@@ -27,6 +37,12 @@ kontroluje fyzické řetězce ze všech čtyř skladů a společnou bilanci
 Původní test `raid_acceptance` zůstává pro historický profil `raids-v8`
 s jižním skladem. Potřeby, jídlo a rozpracované výpravy se stále
 neukládají přes restart.
+
+Samostatný `python -m tools.realm_lab.raid_memory_acceptance <recording-directory>`
+ověřuje svědectví o útoku, pozdější vybavení stejné zkušenosti po návratu
+do tábora a skutečně zahájený změněný plán nebo odklad. Kontroluje také
+všech šest skladů a účetní bilanci. Úspěšné vybavení paměti není důkazem
+úspěšné krádeže.
 
 Nové rozšíření k 27. říjnu 2026: profil `raids-v8` navazuje na
 `consumers-v8` a řídí 28 ze stávajících 100 NPC. Přidává pouze Defiase

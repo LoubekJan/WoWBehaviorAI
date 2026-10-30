@@ -47,6 +47,7 @@ namespace LivingRaid
         uint32 Depot;
         std::array<ActionPosition, 9> Route;
         uint32 Count;
+        uint32 RouteId = 1;
         ActionPosition const& Point() const { return Route[Count-1]; }
     };
     // Source-specific hints bound every planner query. They do not prove
@@ -63,10 +64,18 @@ namespace LivingRaid
             {725, 95.999969482421875f, 539.73333740234375f, .48f},
             {725, 106.66663360595703f, 426.66653442382812f, .15f}, LivingFields::Fields[2].DepotPoint}}, 7}
     }};
-    inline SourceSpec const* SourceFor(uint32 depot, bool fieldsEnabled)
+    // A separately probed eastern approach reaches the right village without
+    // walking through the left village. Runtime still proves every real leg.
+    inline constexpr SourceSpec RightBypass{6, {{{725, 120, 930, .15f},
+        {725, 120, 820, .15f}, {725, 63.999980926513672f, 661.333251953125f, .15f},
+        {725, 85.33331298828125f, 597.33331298828125f, .15f},
+        {725, 95.999969482421875f, 539.73333740234375f, .48f},
+        {725, 106.66663360595703f, 426.66653442382812f, .15f}, LivingFields::Fields[2].DepotPoint}}, 7, 2};
+    inline SourceSpec const* SourceFor(uint32 depot, bool fieldsEnabled, uint32 routeId = 1)
     {
+        if (fieldsEnabled && depot == RightBypass.Depot && routeId == RightBypass.RouteId) return &RightBypass;
         for (auto const& spec : Sources)
-            if (spec.Depot == depot && (fieldsEnabled || depot == SourceDepot)) return &spec;
+            if (spec.Depot == depot && spec.RouteId == routeId && (fieldsEnabled || depot == SourceDepot)) return &spec;
         return nullptr;
     }
     inline std::optional<uint32> SelectSource(uint32 previousDepot, bool fieldsEnabled,
@@ -143,6 +152,10 @@ namespace LivingRaid
         // The target changes only when a new attempt begins. Keep it through
         // interruption/return so theft receipts and the reverse route agree.
         uint32 SelectedSourceDepot = SourceDepot, PreviousSourceDepot = 0;
+        uint32 SelectedRouteId = 1;
+        uint64 LastStockObservationAtMs = 0;
+        float MemoryRisk = 0;
+        std::string PlanningReason = "NOT_EVALUATED";
         bool Active = false, Returning = false, DutyAtPost = false;
         std::string Phase = "IDLE", Outcome = "MATERIALIZED";
         GuardTransit Transit;

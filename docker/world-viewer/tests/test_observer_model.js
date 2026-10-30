@@ -205,7 +205,7 @@ test("raid facts retain attempt identity and share village and camp stock observ
   const facts = Object.fromEntries(model.raidFacts(raider));
   assert.equal(facts["Pokus"], "18446744073709551615");
   assert.equal(facts["Právě dělá"], "Odcizování zásob");
-  assert.equal(facts["Jídlo ve vesnici"], 4);
+  assert.equal(facts["Skutečné zásoby skladu"], 4);
   assert.equal(facts["Jídlo v táboře"], 2);
   assert.equal(Object.fromEntries(model.supplyFacts(raider))["Odcizené jídlo"], "2");
   assert.deepEqual(model.foodDepots([raider], 725).map(d => d.id), [1, 3]);
@@ -225,7 +225,7 @@ test("raid facts follow the selected village without merging stock or stolen por
     thief.raid.source_depot = source;
     const facts = Object.fromEntries(model.raidFacts(thief));
     assert.equal(facts["Cílový sklad"], source.name);
-    assert.equal(facts["Jídlo ve vesnici"], source.stock);
+    assert.equal(facts["Skutečné zásoby skladu"], source.stock);
     assert.equal(facts["Z tohoto skladu odcizeno"], source.stolen);
     assert.equal(Object.fromEntries(model.supplyFacts(thief))["Odcizené jídlo"], "12");
     assert.deepEqual(model.foodDepots([thief, ...workers], 725).map(d => [d.id, d.stock, d.stolen]),
@@ -234,6 +234,40 @@ test("raid facts follow the selected village without merging stock or stolen por
   thief.raid.role = "GUARD";
   thief.raid.source_depot = warehouses[0];
   assert.equal(Object.fromEntries(model.raidFacts(thief))["Střežený sklad"], "Vesnice 1");
+});
+
+test("raid planning shows remembered route danger without inventing warehouse knowledge", () => {
+  const source = { id: 6, name: "Pravá vesnice", stock: 30, position: { map_id: 725, x: 151, y: 282, z: 0.15 } };
+  const thief = { ...base, supply: { enabled: true, role: "RAIDER" }, raid: { enabled: true, role: "RAIDER",
+    phase: "TO_SOURCE", source_depot: source, planning: { reason: "EXPLORE_UNKNOWN", memory_records: 3,
+      route_id: 2, known_stock: null, stock_age_ms: null, risk: 0.2, retry_remaining_ms: 0,
+      danger: { guard_spawn_id: "901026", age_ms: 120000, position: { map_id: 725, x: 40, y: 873, z: 0.15 } } } } };
+  let facts = Object.fromEntries(model.raidFacts(thief));
+  assert.equal(facts["Cílový sklad"], "Pravá vesnice");
+  assert.equal(facts["Skutečné zásoby skladu"], 30);
+  assert.equal(facts["NPC naposledy zjistilo"], "Zásoby dosud nezná");
+  assert.equal(facts["Stáří informace o zásobách"], null);
+  assert.equal(facts["Zapamatovaný útočník"], "901026");
+  assert.equal(facts["Místo nebezpečí"], "40.0, 873.0, 0.1");
+  assert.equal(facts["Zvolená cesta"], "Obchvat levé vesnice");
+  assert.equal(facts["Riziko podle paměti"], "Nižší");
+  assert.equal(facts["Stáří nebezpečí"], "120.0 s");
+  thief.raid.planning.known_stock = 0;
+  thief.raid.planning.stock_age_ms = 5000;
+  facts = Object.fromEntries(model.raidFacts(thief));
+  assert.equal(facts["NPC naposledy zjistilo"], 0);
+  assert.equal(facts["Stáří informace o zásobách"], "5.0 s");
+  thief.raid.phase = "WAITING_MEMORY";
+  thief.raid.planning.reason = "WAIT_DANGER";
+  thief.raid.planning.risk = 20;
+  thief.raid.planning.retry_remaining_ms = 10000;
+  facts = Object.fromEntries(model.raidFacts(thief));
+  assert.equal(facts["Právě dělá"], "Odkládá výpravu podle zkušeností");
+  assert.equal(facts["Důvod plánu"], "Počkat kvůli zapamatovanému nebezpečí");
+  assert.equal(facts["Riziko podle paměti"], "Vysoké");
+  assert.equal(facts["Další plánování za"], "10.0 s");
+  delete thief.raid.planning;
+  assert.equal(Object.fromEntries(model.raidFacts(thief))["NPC naposledy zjistilo"], undefined);
 });
 
 function viewerPollingHarness() {

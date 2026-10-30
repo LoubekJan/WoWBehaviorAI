@@ -542,6 +542,16 @@ namespace LivingRecoveryPath
             if (std::hypot(points[i].x-points[i-1].x, points[i].y-points[i-1].y) > 0.1f &&
                 !LivingRolePolicy::AvoidsDanger(points[i-1].x, points[i-1].y, points[i].x, points[i].y,
                 request.Danger->X, request.Danger->Y, request.DangerRadius)) return reject("DANGER_BLOCKED");
+        // Dispatch and every speed-change/resume rebuild must honor the same
+        // freshly recalled raid dangers as planning. This supplements the
+        // existing provider's geometry/body/LOS and30yd danger constraints.
+        if (creature.GetMapId() == 725 && creature.GetSpawnId() == LivingRaid::RaiderSpawn)
+        {
+            std::vector<ActionPosition> raidPath;
+            raidPath.reserve(points.size());
+            for (auto const& point : points) raidPath.push_back({from.MapId, point.x, point.y, point.z});
+            if (!sAIWorldMgr->IsLivingRaidPathMemorySafe(creature, raidPath)) return reject("REMEMBERED_RAID_DANGER");
+        }
         if (diagnostics) diagnostics->Navigation = nav;
         return true;
     }

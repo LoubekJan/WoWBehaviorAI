@@ -24,6 +24,7 @@
 #include "Event/WorldEventType.h"
 #include "ObservationType.h"
 #include "PerceptionChannel.h"
+#include "Memory/RaidExperience.h"
 #include <optional>
 
 // What a specific agent actually perceived - never the underlying fact
@@ -74,6 +75,7 @@ struct Observation
 
     float Distance = 0.0f;
     bool LineOfSight = false;
+    std::optional<RaidExperience> Raid;
 };
 
 #endif // AIWORLD_OBSERVATION_H

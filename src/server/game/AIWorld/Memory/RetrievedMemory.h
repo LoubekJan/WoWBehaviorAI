@@ -22,6 +22,7 @@
 #include "Event/WorldEntityRef.h"
 #include "Event/WorldEventType.h"
 #include "Perception/ObservationType.h"
+#include "RaidExperience.h"
 #include <optional>
 
 enum class MemoryTier : uint8
@@ -67,6 +68,8 @@ struct RetrievedMemory
     WorldEventLocation Location;
     WorldEntityRef Actor;
     WorldEntityRef Target;
+    AgentId Owner;
+    std::optional<RaidExperience> Raid;
 };
 
 #endif // AIWORLD_RETRIEVEDMEMORY_H

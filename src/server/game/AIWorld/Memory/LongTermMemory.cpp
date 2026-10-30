@@ -27,6 +27,8 @@ LongTermMemoryRecord* LongTermMemory::FindEquivalent(std::vector<LongTermMemoryR
 
         switch (observation.Type)
         {
+            case ObservationType::RaidExperience:
+                break;
             case ObservationType::WorldEvent:
                 // Not just SourceEventId: EventBus's ids restart from 1
                 // every process lifetime, so a bare id could otherwise
@@ -63,6 +65,9 @@ LongTermMemoryRecord* LongTermMemory::FindEquivalent(std::vector<LongTermMemoryR
 
 std::optional<LongTermMemoryRecord> LongTermMemory::Remember(Observation const& observation, float importance)
 {
+    // Raid learning deliberately ends with this server session. Even an
+    // accidental generic promotion must never schedule a database insert.
+    if (observation.Type == ObservationType::RaidExperience) return std::nullopt;
     std::vector<LongTermMemoryRecord>& records = _records[observation.Observer.Value];
 
     if (LongTermMemoryRecord* existing = FindEquivalent(records, observation))
@@ -105,7 +110,7 @@ std::optional<LongTermMemoryRecord> LongTermMemory::Remember(Observation const& 
 
 bool LongTermMemory::AddLoaded(LongTermMemoryRecord const& record)
 {
-    if (!record.PersistentId || !record.Owner)
+    if (!record.PersistentId || !record.Owner || record.Type == ObservationType::RaidExperience)
         return false;
 
     _records[record.Owner.Value].push_back(record);

@@ -3,6 +3,7 @@
 const ObserverMemory = (() => {
   const labels = {
     WORLD_EVENT: "Událost ve světě", PLAYER_SEEN: "Spatřený hráč", CREATURE_SEEN: "Spatřená bytost",
+    RAID_EXPERIENCE: "Zkušenost z výpravy",
     CREATURE_KILLED: "Zabití bytosti", NPC_INJURED: "Zranění NPC", ITEM_STOLEN: "Krádež předmětu",
     TRADE_COMPLETED: "Dokončený obchod", LIVESTOCK_KILLED: "Zabití hospodářského zvířete",
     WOLF_PACK_MOVED: "Přesun vlčí smečky", FOOD_SHORTAGE: "Nedostatek jídla", NPC_DIED: "Úmrtí NPC",

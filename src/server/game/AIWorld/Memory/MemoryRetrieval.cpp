@@ -71,6 +71,10 @@ bool MemoryRetrieval::IsSameMemory(RetrievedMemory const& a, RetrievedMemory con
 
     switch (a.Type)
     {
+        case ObservationType::RaidExperience:
+            return a.Raid && b.Raid && a.Owner == b.Owner &&
+                a.Location.MapId == b.Location.MapId && SameRaidExperience(*a.Raid, *b.Raid) &&
+                (a.Raid->Kind != RaidExperienceKind::GuardEncounter || a.Target.SpawnId == b.Target.SpawnId);
         case ObservationType::WorldEvent:
             // Not just SourceEventId: EventBus's ids restart from 1 every
             // process lifetime, so a bare id could otherwise match an
@@ -116,6 +120,8 @@ std::vector<RetrievedMemory> MemoryRetrieval::Retrieve(MemoryQueryContext const&
         retrieved.Location = memory.Location;
         retrieved.Actor = memory.Actor;
         retrieved.Target = memory.Target;
+        retrieved.Owner = memory.Owner;
+        retrieved.Raid = memory.Raid;
 
         combined.push_back(retrieved);
     }
@@ -136,6 +142,7 @@ std::vector<RetrievedMemory> MemoryRetrieval::Retrieve(MemoryQueryContext const&
         retrieved.Location = memory.Location;
         retrieved.Actor = memory.Actor;
         retrieved.Target = memory.Target;
+        retrieved.Owner = memory.Owner;
 
         combined.push_back(retrieved);
     }

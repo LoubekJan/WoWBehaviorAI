@@ -339,6 +339,7 @@ class TC_GAME_API AIWorldMgr
         bool CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creature const& prey) const;
         std::optional<LivingSupplyTelemetry> DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const;
         std::optional<LivingRaidTelemetry> DescribeLivingRaid(Creature const& creature, AgentRecord const& record) const;
+        bool IsLivingRaidPathMemorySafe(Creature const& creature, std::vector<ActionPosition> const& path) const;
 
         // Thin Manual-only wrappers around the otherwise-private
         // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below -
@@ -2956,6 +2957,9 @@ class TC_GAME_API AIWorldMgr
         LivingSupply::ConsumerSpec const* SupplyConsumerSpec(AgentRecord const& record) const;
         std::optional<FoodDepotTelemetry> DescribeFoodDepot(uint32 depotId) const;
         Unit* LivingRaidThreat(AgentRecord& record, Creature& creature, uint64 nowMs);
+        std::vector<RetrievedMemory> RecallLivingRaid(AgentRecord const& record, Creature const& creature, uint64 nowMs) const;
+        void RememberLivingRaid(AgentRecord const& record, Creature const& creature, uint64 nowMs,
+            RaidExperienceKind kind, uint32 quantity = 0, Unit const* threat = nullptr);
         bool UpdateLivingRaid(AgentRecord& record, Creature& creature, uint64 nowMs,
             std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
             std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step);

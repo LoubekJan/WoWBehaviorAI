@@ -28,6 +28,13 @@ MemoryRecord* ShortTermMemory::FindEquivalent(std::vector<MemoryRecord>& records
 
         switch (observation.Type)
         {
+            case ObservationType::RaidExperience:
+                if (record.Raid && observation.Raid && SameRaidExperience(*record.Raid, *observation.Raid) &&
+                    record.Location.MapId == observation.Location.MapId &&
+                    (observation.Raid->Kind != RaidExperienceKind::GuardEncounter ||
+                        record.Target.SpawnId == observation.Target.SpawnId))
+                    return &record;
+                break;
             case ObservationType::WorldEvent:
                 if (record.SourceEventId == observation.SourceEventId)
                     return &record;
@@ -77,6 +84,7 @@ ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& obs
         existing->Target = observation.Target;
         existing->LastDistance = observation.Distance;
         existing->LastLineOfSight = observation.LineOfSight;
+        existing->Raid = observation.Raid;
 
         TC_LOG_DEBUG("ai.world", "AI memory refreshed id={} agent={} type={} count={} targetGuid={} importance={:.2f}",
             existing->Id, observation.Observer.Value, ToString(existing->Type), existing->ObservationCount,
@@ -119,6 +127,7 @@ ShortTermMemory::RememberResult ShortTermMemory::Remember(Observation const& obs
     record.Channel = observation.Channel;
     record.LastDistance = observation.Distance;
     record.LastLineOfSight = observation.LineOfSight;
+    record.Raid = observation.Raid;
 
     if (record.Type == ObservationType::WorldEvent)
     {

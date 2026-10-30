@@ -115,6 +115,8 @@ const ObserverModel = (() => {
     if (!raidSupported(agent)) return [];
     const raid = agent.raid;
     const phases = { IDLE: "Čeká", WAITING: "Čeká", WAITING_SUPPLY: "Čeká na zásoby ve vesnici", COOLDOWN: "Čeká na další pokus",
+      WAIT_DANGER: "Odkládá výpravu kvůli nebezpečí", DEFERRED: "Odkládá výpravu podle zkušeností",
+      WAITING_MEMORY: "Odkládá výpravu podle zkušeností",
       TO_VILLAGE: "Cesta k vesnici", TO_SOURCE: "Cesta k zásobárně", STEALING: "Odcizování zásob",
       CARRYING: "Odnáší zásoby", TO_CAMP: "Cesta do tábora", RETURNING_CAMP: "Cesta do tábora",
       DELIVERING: "Vykládání zásob", DELIVERING_CAMP: "Vykládání zásob",
@@ -122,14 +124,40 @@ const ObserverModel = (() => {
       PATROLLING: "Hlídka", GUARD_HOME: "U domova strážného", GUARD_POST: "Na strážním místě",
       NOTICED: "Zpozoroval nájezdníka", INTERCEPTING: "Zasahuje",
       PREVENTED: "Krádež zmařena", ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený" };
-    return [["Úloha při nájezdu", raid.role === "RAIDER" ? "Nájezdník" : "Strážný"],
+    const rows = [["Úloha při nájezdu", raid.role === "RAIDER" ? "Nájezdník" : "Strážný"],
       ["Právě dělá", phases[raid.phase] || raid.phase], ["Pokus", raid.attempt_id],
       ["Výsledek", raid.outcome], ["Protějšek NPC", raid.target_spawn_id],
       ["Zpozorování", raid.noticed], ["Zásahy stráže", raid.interceptions],
       ["Dokončené krádeže", raid.thefts], ["Doručení do tábora", raid.delivered], ["Zmařené pokusy", raid.prevented],
       [raid.role === "RAIDER" ? "Cílový sklad" : "Střežený sklad", raid.source_depot?.name],
-      ["Jídlo ve vesnici", raid.source_depot?.stock], ["Z tohoto skladu odcizeno", raid.source_depot?.stolen || "0"],
+      ["Skutečné zásoby skladu", raid.source_depot?.stock], ["Z tohoto skladu odcizeno", raid.source_depot?.stolen || "0"],
       ["Tábor", raid.camp_depot?.name], ["Jídlo v táboře", raid.camp_depot?.stock]];
+    const plan = raid.role === "RAIDER" ? raid.planning : null;
+    if (plan) {
+      const reasons = { EXPLORE_UNKNOWN: "Ověřit dosud neznámé zásoby", KNOWN_STOCK: "Poslední zjištěné zásoby",
+        WAIT_DANGER: "Počkat kvůli zapamatovanému nebezpečí", WAIT_EMPTY: "Počkat po zjištění prázdných skladů",
+        ALL_ROUTES_DANGEROUS: "Známé cesty jsou nebezpečné", AVOID_DANGER: "Vyhnout se zapamatovanému nebezpečí",
+        KNOWN_SUCCESS: "Předchozí úspěšná výprava", NO_MEMORY: "Zatím nemá zkušenost", LEGACY: "Původní přepad",
+        REMEMBERED_SUPPLY: "Poslední zjištěné zásoby", EXPLORE_UNKNOWN_STOCK: "Ověřit dosud neznámé zásoby",
+        DEFER_REMEMBERED_DANGER: "Počkat kvůli zapamatovanému nebezpečí", DEFER_KNOWN_EMPTY: "Počkat po zjištění prázdných skladů",
+        AVOID_REMEMBERED_DANGER: "Vyhnout se zapamatovanému nebezpečí", NO_CANDIDATE: "Zatím nemá vhodný cíl",
+        NOT_EVALUATED: "Zatím neplánuje výpravu",
+        INVALID_CONTEXT: "Plán nemá platné podklady" };
+      const seconds = value => `${(value / 1000).toFixed(1)} s`;
+      rows.push(["Důvod plánu", reasons[plan.reason] || plan.reason], ["Vzpomínky na výpravy", plan.memory_records],
+        ["Zvolená cesta", ({ 0: "Zatím nevybraná", 1: "Původní cesta", 2: "Obchvat levé vesnice" })[plan.route_id] || plan.route_id],
+        ["NPC naposledy zjistilo", plan.known_stock ?? "Zásoby dosud nezná"],
+        ["Stáří informace o zásobách", plan.stock_age_ms == null ? null : seconds(plan.stock_age_ms)],
+        ["Riziko podle paměti", plan.risk >= 4 ? "Vysoké" : plan.risk > 0 ? "Nižší" : "Žádné známé"],
+        ["Další plánování za", plan.retry_remaining_ms > 0 ? seconds(plan.retry_remaining_ms) : null]);
+      if (plan.danger) {
+        const danger = plan.danger, point = danger.position;
+        rows.push(["Zapamatovaný útočník", danger.guard_spawn_id === "0" ? "Neznámý" : danger.guard_spawn_id],
+          ["Místo nebezpečí", point ? `${point.x.toFixed(1)}, ${point.y.toFixed(1)}, ${point.z.toFixed(1)}` : null],
+          ["Stáří nebezpečí", seconds(danger.age_ms)]);
+      }
+    }
+    return rows;
   }
   function foodDepots(agents, mapId) {
     const depots = new Map();

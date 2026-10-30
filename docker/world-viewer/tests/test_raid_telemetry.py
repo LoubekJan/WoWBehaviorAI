@@ -29,6 +29,13 @@ def raider():
     return current
 
 
+def planning():
+    return dict(reason="EXPLORE_UNKNOWN", memory_records=1, route_id=2, known_stock=None,
+                stock_age_ms=None, risk=0.0, retry_remaining_ms=0,
+                danger=dict(position=dict(map_id=725, x=40.25, y=872.56, z=0.15),
+                            guard_spawn_id="901026", age_ms=120000))
+
+
 class RaidTelemetryTests(unittest.TestCase):
     def test_live_raid_is_optional_and_decimal_attempt_and_event_counters_roundtrip(self):
         self.assertIsNone(Agent.model_validate(agent()).raid)
@@ -51,6 +58,42 @@ class RaidTelemetryTests(unittest.TestCase):
         hunter = supply()
         hunter["stolen"] = "1"
         with self.assertRaises(ValidationError): LivingSupply.model_validate(hunter)
+
+    def test_planning_keeps_unknown_stock_and_route_danger_separate_from_real_source(self):
+        current = raider()
+        current["raid"].update(source_depot_id=6, planning=planning())
+        current["raid"]["source_depot"].update(id=6, name="Right village", stock=30)
+        current["raid"]["source_depot"]["position"].update(x=151.1844, y=282.1731)
+        parsed = Agent.model_validate(current)
+        self.assertIsNone(parsed.raid.planning.known_stock)
+        self.assertIsNone(parsed.raid.planning.stock_age_ms)
+        self.assertEqual(parsed.raid.source_depot.stock, 30)
+        self.assertEqual(parsed.raid.planning.danger.guard_spawn_id, "901026")
+        self.assertNotEqual(parsed.raid.planning.danger.position, parsed.raid.source_depot.position)
+        self.assertEqual(Agent.model_validate_json(parsed.model_dump_json()), parsed)
+        current["raid"]["planning"].update(known_stock=7, stock_age_ms=300000)
+        parsed = Agent.model_validate(current)
+        self.assertEqual(parsed.raid.planning.known_stock, 7)
+        self.assertEqual(parsed.raid.source_depot.stock, 30)
+
+    def test_planning_rejects_unbounded_or_incomplete_observations_and_guard_ownership(self):
+        for field, value in (("memory_records", 129), ("memory_records", True), ("route_id", -1), ("route_id", 3),
+                             ("known_stock", 31), ("stock_age_ms", -1), ("risk", float("nan")),
+                             ("risk", float("inf")), ("risk", -0.1), ("risk", 21), ("risk", True),
+                             ("retry_remaining_ms", -1), ("reason", "x"*81)):
+            with self.subTest(field=field, value=value):
+                bad = raider(); bad["raid"]["planning"] = planning()
+                bad["raid"]["planning"][field] = value
+                with self.assertRaises(ValidationError): Agent.model_validate(bad)
+        for observation in ((7, None), (None, 500)):
+            bad = raider(); bad["raid"]["planning"] = planning()
+            bad["raid"]["planning"].update(zip(("known_stock", "stock_age_ms"), observation))
+            with self.assertRaises(ValidationError): Agent.model_validate(bad)
+        bad = raider(); bad["raid"]["planning"] = planning()
+        bad["raid"]["planning"]["danger"]["position"]["map_id"] = 0
+        with self.assertRaises(ValidationError): Agent.model_validate(bad)
+        bad = raid(); bad.update(role="GUARD", planning=planning())
+        with self.assertRaises(ValidationError): LivingRaid.model_validate(bad)
 
     def test_raider_can_observe_each_village_source_without_changing_own_camp(self):
         for depot_id, name in ((1, "South"), (4, "Top"), (5, "Left"), (6, "Right")):

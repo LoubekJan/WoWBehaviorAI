@@ -102,6 +102,7 @@ uint32 MemoryPersistence::LoadLongTermMemories(LongTermMemory& memory, AgentRegi
 
 void MemoryPersistence::PersistLongTermMemory(LongTermMemoryRecord const& record)
 {
+    if (record.Type == ObservationType::RaidExperience) return;
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AI_LONG_TERM_MEMORY);
 
     stmt->setUInt64(0, record.Owner.Value);

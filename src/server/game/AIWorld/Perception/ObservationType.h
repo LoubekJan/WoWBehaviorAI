@@ -33,7 +33,8 @@ enum class ObservationType : uint8
 {
     WorldEvent,
     PlayerSeen,
-    CreatureSeen
+    CreatureSeen,
+    RaidExperience
 };
 
 inline char const* ToString(ObservationType type)
@@ -43,6 +44,7 @@ inline char const* ToString(ObservationType type)
         case ObservationType::WorldEvent:   return "WORLD_EVENT";
         case ObservationType::PlayerSeen:   return "PLAYER_SEEN";
         case ObservationType::CreatureSeen: return "CREATURE_SEEN";
+        case ObservationType::RaidExperience: return "RAID_EXPERIENCE";
         default:                            return "UNKNOWN";
     }
 }

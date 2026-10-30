@@ -155,6 +155,33 @@ class LivingSupply(ProtocolModel):
         return self
 
 
+class RaidDangerMemory(ProtocolModel):
+    position: Point
+    guard_spawn_id: Counter64
+    age_ms: int = Field(ge=0, le=2**64 - 1, strict=True)
+
+
+class RaidPlanning(ProtocolModel):
+    # These are the raider's own recalled observations. The source_depot below
+    # remains the spectator's real ledger snapshot, not omniscient NPC knowledge.
+    reason: str = Field(min_length=1, max_length=80, strict=True)
+    memory_records: int = Field(ge=0, le=128, strict=True)
+    route_id: int = Field(ge=0, le=2, strict=True)
+    known_stock: Quantity32 | None
+    stock_age_ms: int | None = Field(ge=0, le=2**64 - 1, strict=True)
+    risk: float = Field(ge=0, le=20, strict=True)
+    retry_remaining_ms: int = Field(ge=0, le=2**64 - 1, strict=True)
+    danger: RaidDangerMemory | None
+
+    @model_validator(mode="after")
+    def stock_observation_has_age(self):
+        if (self.known_stock is None) != (self.stock_age_ms is None):
+            raise ValueError("A raider's stock knowledge requires both observed quantity and age")
+        if self.known_stock is not None and self.known_stock > 30:
+            raise ValueError("Remembered village stock exceeds the reviewed warehouse capacity")
+        return self
+
+
 class LivingRaid(ProtocolModel):
     enabled: bool = Field(strict=True)
     role: Literal["RAIDER", "GUARD"]
@@ -171,12 +198,18 @@ class LivingRaid(ProtocolModel):
     camp_depot_id: int = Field(gt=0, le=2**32 - 1, strict=True)
     source_depot: FoodDepot
     camp_depot: FoodDepot
+    planning: RaidPlanning | None = None
 
     @model_validator(mode="after")
     def distinct_consistent_depots(self):
         if (self.source_depot_id == self.camp_depot_id or self.source_depot.id != self.source_depot_id or
             self.camp_depot.id != self.camp_depot_id or self.source_depot.position.map_id != self.camp_depot.position.map_id):
             raise ValueError("Raid source and camp must be distinct matching depot snapshots on the same map")
+        if self.planning is not None:
+            if self.role != "RAIDER":
+                raise ValueError("Raid planning memory belongs only to the raider")
+            if self.planning.danger is not None and self.planning.danger.position.map_id != self.camp_depot.position.map_id:
+                raise ValueError("Remembered danger must remain on the raid map")
         return self
 
 

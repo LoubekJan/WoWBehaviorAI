@@ -24,6 +24,7 @@
 #include "Event/WorldEventType.h"
 #include "Perception/ObservationType.h"
 #include "Perception/PerceptionChannel.h"
+#include "RaidExperience.h"
 #include <optional>
 
 // What an agent currently remembers - a deduplicated, TTL'd summary of one
@@ -63,6 +64,7 @@ struct MemoryRecord
 
     float LastDistance = 0.0f;
     bool LastLineOfSight = false;
+    std::optional<RaidExperience> Raid;
 };
 
 #endif // AIWORLD_MEMORYRECORD_H

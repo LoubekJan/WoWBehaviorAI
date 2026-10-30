@@ -328,6 +328,30 @@ namespace
         if (raid.SourceDepot) WriteValue(out, *raid.SourceDepot); else out << "null";
         out << ",\"camp_depot\":";
         if (raid.CampDepot) WriteValue(out, *raid.CampDepot); else out << "null";
+        out << ",\"planning\":";
+        if (raid.Planning)
+        {
+            auto const& plan = *raid.Planning;
+            out << "{\"reason\":"; WriteValue(out, plan.Reason);
+            WriteJsonField(out, "memory_records", plan.MemoryRecords);
+            WriteJsonField(out, "route_id", plan.RouteId);
+            out << ",\"known_stock\":";
+            if (plan.KnownStock) WriteValue(out, *plan.KnownStock); else out << "null";
+            out << ",\"stock_age_ms\":";
+            if (plan.StockAgeMs) WriteValue(out, *plan.StockAgeMs); else out << "null";
+            WriteJsonField(out, "risk", plan.Risk);
+            WriteJsonField(out, "retry_remaining_ms", plan.RetryRemainingMs);
+            out << ",\"danger\":";
+            if (plan.Danger)
+            {
+                out << "{\"position\":"; WriteValue(out, *plan.Danger);
+                WriteJsonField(out, "guard_spawn_id", std::to_string(plan.DangerGuardSpawnId));
+                WriteJsonField(out, "age_ms", plan.DangerAgeMs); out << '}';
+            }
+            else out << "null";
+            out << '}';
+        }
+        else out << "null";
         out << '}';
     }
 

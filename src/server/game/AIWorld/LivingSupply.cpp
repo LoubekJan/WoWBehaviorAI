@@ -8,6 +8,7 @@
 #include "PointMovementGenerator.h"
 #include "Agent/LivingRecoveryPath.h"
 #include "Agent/LivingFieldRuntime.h"
+#include "Agent/LivingRaidMemory.h"
 #include "Scheduler/PlanningWorkBudget.h"
 #include <algorithm>
 #include <cmath>
@@ -259,6 +260,8 @@ void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* 
         if (IsSupplyRaider(record) || IsRaidGuard(record))
         {
             auto& raid = IsSupplyRaider(record) ? _raidRaider : _raidGuard;
+            if (matches && !live && raid.Active && IsSupplyRaider(record) && creature)
+                RememberLivingRaid(record, *creature, nowMs, RaidExperienceKind::RouteBlocked);
             if (matches && !live && raid.Active && actor.Stolen == raid.StolenAtStart)
             {
                 ++raid.Prevented;
@@ -527,6 +530,32 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
     std::optional<ActionPosition> danger = nowMs < state.DangerUntilMs ?
         std::optional<ActionPosition>(state.DangerPosition) : std::nullopt;
     float clearance = LivingRolePolicy::SafetyRadius(record.Id.Value);
+    std::vector<ActionPosition> knownRaidDangers;
+    if (_livingFieldsEnabled && IsSupplyRaider(record))
+    {
+        auto memories = RecallLivingRaid(record, creature, nowMs);
+        RetrievedMemory const* nearest = nullptr;
+        float closest = std::numeric_limits<float>::max();
+        for (auto const& memory : memories)
+        {
+            if (!LivingRaidMemory::ShouldAvoidGuard(memory, record.Id, from.MapId, nowMs)) continue;
+            ActionPosition point{memory.Location.MapId, memory.Location.X, memory.Location.Y, memory.Location.Z};
+            knownRaidDangers.push_back(point);
+            float distance = LivingRaidMemory::SegmentDistance(point, from, destination);
+            if (distance < closest) { closest = distance; nearest = &memory; }
+        }
+        if (nearest)
+        {
+            ActionPosition point{nearest->Location.MapId, nearest->Location.X, nearest->Location.Y, nearest->Location.Z};
+            // Current directly sensed danger takes priority. Otherwise the
+            // nearest remembered encounter constrains the native/surface plan.
+            if (!danger) danger = point;
+            // The existing provider accepts at most30yd. Its ordinary guard
+            // constraint remains intact; the stronger40yd memory rule is
+            // additionally checked on every built segment before approval.
+            clearance = std::max(clearance, std::min(30.0f, LivingRaidMemory::DangerRadius));
+        }
+    }
     uint32 capabilities = uint32(creature.CanWalk()) + uint32(creature.CanEnterWater()) * 2 + uint32(creature.IsFlying()) * 4;
     if (!travel.Matches(creature.GetGUID(), destination, home, danger, clearance, creature.GetPhaseMask(), capabilities) ||
         !travel.ObserveSource(from) || (travel.RetryAtMs && nowMs >= travel.RetryAtMs))
@@ -606,6 +635,26 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         Movement::PointsArray points;
         state.ReturnDiagnostics.Deferred = false;
         if (!LivingRecoveryPath::Build(creature, request, points, &state.ReturnDiagnostics))
+        {
+            travel.RejectCandidate(from, query);
+            continue;
+        }
+        // A native corridor can bend closer to another remembered guard than
+        // its waypoint chord. Prove every actual segment against all known
+        // encounters, including a monotonic escape if already inside a zone.
+        ActionPosition previous = from;
+        bool rememberedDangerClear = true;
+        for (auto const& point : points)
+        {
+            ActionPosition next{from.MapId, point.x, point.y, point.z};
+            if (Distance(previous, next) <= .001f) { previous = next; continue; }
+            for (auto const& known : knownRaidDangers)
+                if (!LivingRaidMemory::SafeKnownDangerLeg(previous, next, known, LivingRaidMemory::DangerRadius))
+                { rememberedDangerClear = false; break; }
+            if (!rememberedDangerClear) break;
+            previous = next;
+        }
+        if (!rememberedDangerClear)
         {
             travel.RejectCandidate(from, query);
             continue;

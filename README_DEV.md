@@ -237,14 +237,17 @@ nepotvrzují. Tento test neopakuje úplný předchozí test přepadů.
 
 V profilu `fields-v8` může Defias 901055 krást ze skladu jižní (1), horní
 (4), levé (5) i pravé (6) vesnice. Hlad a prázdný tábor nadále spouštějí
-výpravu; kandidát musí mít alespoň šest porcí. Zásobené vesnice se při
-dalších pokusech střídají. Sklady gnollů a samotných Defias nejsou cíle.
+výpravu. V aktivním profilu vybírá podle vlastních vzpomínek, délky cesty
+a nebezpečí. Neznámé zásoby jsou důvodem k průzkumu; čerstvě zjištěný
+sklad s méně než šesti porcemi odkládá. Sklady gnollů a samotných Defias
+nejsou cíle.
 
 Vybraný sklad se během výpravy, krádeže a zpáteční cesty nemění.
 Defias musí ke skladu skutečně dojít, pět sekund pracovat a nejvýše dvě
 porce odnést zpět do svého tábora. Každý sklad má vlastní stav zásob
 i počet ukradených porcí; přesun jídlo nevytváří. Strážný 901039 nadále
-chrání jižní sklad. Ostatní vesnice zatím nemají nově přidané stráže.
+chrání jižní sklad. Ostatní vesnice si ponechávají původní nativní stráže,
+jejichž útok může výpravu také přerušit.
 Observer ukazuje jméno cílového skladu a odcizené porce tohoto skladu.
 
 Nové cesty používají vlastní průchozí body a stávající kontroly terénu,
@@ -263,6 +266,45 @@ všech čtyř skladů v jednom souvislém záznamu. Přepínač `--required-sour
 lze opakovat pro užší test; výsledek výslovně uvádí nepozorované sklady.
 Test kontroluje všech šest zásobáren a bilanci všech 40 řízených aktérů;
 nenahrazuje samostatný důkaz obrany strážným nebo celý test zemědělců.
+
+### Paměť při plánování přepadů
+
+Přepady používají existující `ShortTermMemory` a `MemoryRetrieval`.
+Zkušenost má konkrétního vlastníka, sklad, trasu, čas a skutečné místo
+pozorování. Zásoby se zapisují až při fyzickém příchodu se vzájemnou
+viditelností; vzdálený účetní stav skladu není informací bandity. Krádež
+a doručení jsou dvě různé zkušenosti a úspěšné zásobení potvrzuje teprve
+skutečné předání nákladu v táboře.
+
+Setkání s viděným útočníkem označí jeho skutečné místo. Levá hlídka,
+která přeruší cestu k pravému skladu, tak vytvoří vzpomínku na nebezpečnou
+cestu. Pravý sklad tím není považován za prozkoumaný. Výběr zohledňuje
+celou cestu, umí použít východní objížďku pravé vesnice a při nebezpečí
+všech vhodných cest výpravu odloží. Každý skutečný pohyb dál prochází
+kontrolou terénu, kolizí, dosahu a viditelnosti.
+[Nativní důkaz objížďky](data/realm_lab/aiworldlab/preview-v8/raid-memory-nav-probe.json)
+ověřuje jejích osm bodů a čtrnáct směrovaných spojení; skutečné projetí
+a použití vzpomínek ověřuje samostatný živý test.
+
+Informace o zásobách vydrží nejvýše pět minut, setkání s útočníkem
+patnáct minut. Zkušenosti postupně ztrácejí váhu. Tyto záznamy se
+nepovyšují do dlouhodobé paměti ani do databáze a restart je odstraní.
+Mluvící NPC si ponechávají svůj dosavadní řadič; rozhodování přepadů
+využívá stávající místní vyhledávání vzpomínek.
+
+Observer u Defias ukazuje důvod volby nebo odkladu, trasu, počet vybavených
+vzpomínek, poslední známé zásoby a stáří informace. Skutečné zásoby skladu
+zůstávají samostatným údajem přehledu.
+
+```bash
+python3 -m tools.realm_lab.raid_memory_acceptance runtime/lab/recordings/aiworld-SESSION --output runtime/lab/validation/raid-memory-acceptance.json
+```
+
+Tento test spojuje skutečně pozorovaný útok s pozdějším vybavením vzpomínky
+po návratu do tábora a s provedenou změnou cíle, trasy nebo odkladem. Vyžaduje
+nejméně pět minut souvislého záznamu a zachovanou bilanci všech zásob.
+Samotné jméno důvodu nebo počet vzpomínek nestačí. Výsledek nepotvrzuje
+úspěšnou loupež; tu nadále ověřuje samostatný test přepadů.
 
 ## Přepady zásob — základ raids-v8
 
