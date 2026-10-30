@@ -116,6 +116,33 @@ class PublishedDefiasTests(unittest.TestCase):
         next(actor for actor in candidate["agents"] if actor["spawn_id"] == 901059)["raid"]["camp_depot"]["stock"] = 1
         with self.assertRaises(defias.ProfileError): telemetry_contract.validate_snapshot(candidate, defias.PROFILE)
 
+    def test_consumer_camp_accepts_native_serialized_coordinates_but_not_invalid_positions(self):
+        # Actual float coordinates serialized by the native worldserver. The
+        # reviewed metadata retains more decimal places than this wire value.
+        position = dict(map_id=725, x=58.68674, y=971.2688, z=0.15)
+        self.assertNotEqual(position, raids.DEPOT["position"])
+
+        def with_camp_position(value):
+            candidate = frame()
+            for actor in candidate["agents"]:
+                for section, key in (("supply", "depot"), ("raid", "camp_depot")):
+                    depot = (actor.get(section) or {}).get(key)
+                    if isinstance(depot, dict) and depot.get("id") == 3:
+                        depot["position"] = copy.deepcopy(value)
+            return candidate
+
+        counts = telemetry_contract.validate_snapshot(with_camp_position(position), defias.PROFILE)
+        self.assertEqual((counts["managed"], counts["native"], counts["live_roles"]), (55, 45, 55))
+        for key, value in (("x", position["x"] + .002), ("x", float("nan")),
+                           ("x", float("inf")), ("x", True), ("x", str(position["x"])),
+                           ("map_id", 0)):
+            invalid = {**position, key: value}
+            with self.subTest(key=key, value=value), self.assertRaises(defias.ProfileError):
+                telemetry_contract.validate_snapshot(with_camp_position(invalid), defias.PROFILE)
+        invalid = {key: value for key, value in position.items() if key != "x"}
+        with self.assertRaises(defias.ProfileError):
+            telemetry_contract.validate_snapshot(with_camp_position(invalid), defias.PROFILE)
+
 
 class DefiasPopulationTests(unittest.TestCase):
     def setUp(self):
