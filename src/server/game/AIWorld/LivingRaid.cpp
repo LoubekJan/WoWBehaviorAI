@@ -37,7 +37,7 @@ namespace
     }
     bool Near(Creature const& creature, ActionPosition const& point)
     {
-        return creature.GetMapId() == point.MapId && creature.GetExactDist(point.X, point.Y, point.Z) <= 3.0f &&
+        return creature.GetMapId() == point.MapId && creature.GetExactDist(point.X, point.Y, point.Z) <= LivingRaid::ArrivalRadius(point) &&
             creature.IsWithinLOS(point.X, point.Y, point.Z);
     }
     bool RaidMovement(char const* purpose)
@@ -73,6 +73,7 @@ std::optional<FoodDepotTelemetry> AIWorldMgr::DescribeFoodDepot(uint32 id) const
     result.Name = location ? location->Name : field ? field->Name : "Defias camp";
     result.Position = location ? location->Point : field ? field->DepotPoint : LivingRaid::Camp;
     result.Stock = depot->Stock; result.Capacity = depot->Capacity; result.LowThreshold = depot->Low;
+    result.Stolen = depot->Stolen;
     for (auto const& [spawn, actor] : _supplyActors)
     {
         auto hunter = LivingSupply::Hunter(spawn);
@@ -83,7 +84,6 @@ std::optional<FoodDepotTelemetry> AIWorldMgr::DescribeFoodDepot(uint32 id) const
             spawn == LivingRaid::GuardSpawn ? LivingRaid::SourceDepot :
             spawn == LivingRaid::RaiderSpawn ? LivingRaid::CampDepot : 0;
         if (owner == id) { result.Delivered += actor.Delivered; result.Consumed += actor.Consumed; }
-        if (id == LivingRaid::SourceDepot && spawn == LivingRaid::RaiderSpawn) result.Stolen += actor.Stolen;
     }
     return result;
 }
@@ -101,7 +101,8 @@ std::optional<LivingRaidTelemetry> AIWorldMgr::DescribeLivingRaid(Creature const
     result.TargetSpawnId = raider ? LivingRaid::GuardSpawn : LivingRaid::RaiderSpawn;
     result.Noticed = raid.Noticed; result.Interceptions = raid.Interceptions;
     result.Thefts = raid.Thefts; result.Delivered = raid.Delivered; result.Prevented = raid.Prevented;
-    result.SourceDepotId = LivingRaid::SourceDepot; result.CampDepotId = LivingRaid::CampDepot;
+    result.SourceDepotId = raider ? raid.SelectedSourceDepot : LivingRaid::SourceDepot;
+    result.CampDepotId = LivingRaid::CampDepot;
     result.SourceDepot = DescribeFoodDepot(result.SourceDepotId); result.CampDepot = DescribeFoodDepot(result.CampDepotId);
     return result;
 }
@@ -145,7 +146,8 @@ Unit* AIWorldMgr::LivingRaidThreat(AgentRecord& record, Creature& creature, uint
         bool beforeTheft = actor.Stolen == raid.StolenAtStart;
         if (beforeTheft) ++raid.Prevented;
         raid.Active = false; raid.Returning = true;
-        raid.Leg = std::min<uint32>(raid.Leg, LivingRaid::ToSource.size()-1);
+        auto source = LivingRaid::SourceFor(raid.SelectedSourceDepot, _livingFieldsEnabled);
+        raid.Leg = source ? std::min<uint32>(raid.Leg, source->Count-1) : 0;
         raid.Phase = "FLEEING";
         raid.Outcome = guardAttack ? beforeTheft ? "INTERCEPTED" : "CAUGHT_WITH_CARGO" : "INTERRUPTED_COMBAT";
         actor.Travel.RejectPending();
@@ -166,6 +168,8 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
     auto& actor = found->second;
     auto& state = record.LivingRole;
     auto& raid = raider ? _raidRaider : _raidGuard;
+    auto source = LivingRaid::SourceFor(raid.SelectedSourceDepot, _livingFieldsEnabled);
+    if (raider && !source) return false;
     auto finish = [&](char const* result, uint64 delay)
     {
         StopLivingRole(record, creature);
@@ -206,20 +210,20 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
     {
         bool theft = raid.Phase == "STEALING", delivery = raid.Phase == "DELIVERING", meal = raid.Phase == "EATING_CAMP";
         if (!theft && !delivery && !meal) { finish("ACTIVITY_INTERRUPTED", 1000); return true; }
-        auto const& depot = theft ? LivingRaid::Source : LivingRaid::Camp;
+        auto const& depot = theft ? source->Point() : LivingRaid::Camp;
         bool owned = state.SourceGoal == GoalType::LocalActivity && OwnedAction(record, ActionType::Ambient) &&
             state.Activity == (meal ? Activity::Eat : Activity::Work) && Near(creature, depot) && creature.IsStopped() &&
             !creature.IsInCombat() && creature.GetStandState() == UNIT_STAND_STATE_STAND;
         if (!owned || nowMs < state.StartedAtMs)
         {
             finish("ACTIVITY_INTERRUPTED", 1000);
-            if (theft) { raid.Active = false; raid.Returning = true; raid.Leg = LivingRaid::ToSource.size()-1; raid.Outcome = "ACTIVITY_INTERRUPTED"; }
+            if (theft) { raid.Active = false; raid.Returning = true; raid.Leg = source->Count-1; raid.Outcome = "ACTIVITY_INTERRUPTED"; }
             raid.Phase = raid.Returning ? "RETURNING_EMPTY" : "COOLDOWN";
             return true;
         }
         if (nowMs-state.StartedAtMs < 5000) return true;
         if (actor.EventSerial == std::numeric_limits<uint64>::max()) { finish("EVENT_ID_EXHAUSTED", 60000); return true; }
-        auto result = theft ? _supplyLedger.Steal(record.SpawnId, ++actor.EventSerial, LivingRaid::SourceDepot, LivingRaid::Portions, true) :
+        auto result = theft ? _supplyLedger.Steal(record.SpawnId, ++actor.EventSerial, raid.SelectedSourceDepot, LivingRaid::Portions, true) :
             delivery ? _supplyLedger.Deliver(record.SpawnId, ++actor.EventSerial, LivingRaid::CampDepot, LivingRaid::Portions, true) :
             _supplyLedger.EatDepot(record.SpawnId, ++actor.EventSerial, LivingRaid::CampDepot, 1, true);
         if (result.Success && !result.Duplicate)
@@ -227,7 +231,7 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
             if (theft)
             {
                 actor.Stolen += result.Portions; ++raid.Thefts;
-                raid.Returning = true; raid.Leg = LivingRaid::ToSource.size()-1;
+                raid.Returning = true; raid.Leg = source->Count-1;
                 raid.Phase = "TO_CAMP"; raid.Outcome = "STOLEN";
             }
             else if (delivery)
@@ -242,7 +246,7 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
         }
         else if (theft)
         {
-            raid.Active = false; raid.Returning = true; raid.Leg = LivingRaid::ToSource.size()-1;
+            raid.Active = false; raid.Returning = true; raid.Leg = source->Count-1;
             raid.Phase = "RETURNING_EMPTY"; raid.Outcome = "SOURCE_EMPTY";
         }
         finish(result.Success ? theft ? "STOLEN" : delivery ? "DELIVERED" : "ATE_DEPOT" : result.Reason, 1000);
@@ -296,9 +300,9 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
     {
         // Consume only physically reached anchors. The fixed route bounds the
         // administrative pass; at most one new movement is launched below.
-        for (size_t reached = 0; reached <= LivingRaid::ToSource.size(); ++reached)
+        for (size_t reached = 0; reached <= source->Count; ++reached)
         {
-            auto destination = raid.Leg ? LivingRaid::ToSource[raid.Leg-1] : LivingRaid::Camp;
+            auto destination = raid.Leg ? source->Route[std::min(raid.Leg, source->Count)-1] : LivingRaid::Camp;
             if (!Near(creature, destination)) return travel(destination, cargo ? "TO_CAMP" : "RETURNING_EMPTY", cargo ? "RAID_CAMP" : "RAID_EMPTY_RETURN");
             if (!raid.Leg) break;
             --raid.Leg; actor.Travel = {}; actor.NextAtMs = nowMs;
@@ -325,19 +329,26 @@ bool AIWorldMgr::UpdateLivingRaid(AgentRecord& record, Creature& creature, uint6
     }
     if (!raid.Active)
     {
-        auto source = _supplyLedger.GetDepot(LivingRaid::SourceDepot);
         actor.Phase = nowMs < raid.NextAtMs ? "COOLDOWN" : "WAITING_SUPPLY"; raid.Phase = actor.Phase;
-        if (nowMs < raid.NextAtMs || record.Needs.Hunger < 0.65f || (camp && camp->Stock) || !source || source->Stock < LivingRaid::StartStock)
+        if (nowMs < raid.NextAtMs || record.Needs.Hunger < 0.65f || (camp && camp->Stock))
         { actor.NextAtMs = nowMs+1000; return true; }
+        std::array<uint32, 4> stocks{};
+        for (size_t i = 0; i < LivingRaid::Sources.size(); ++i)
+            if (auto depot = _supplyLedger.GetDepot(LivingRaid::Sources[i].Depot)) stocks[i] = depot->Stock;
+        auto selected = LivingRaid::SelectSource(raid.PreviousSourceDepot, _livingFieldsEnabled, stocks);
+        if (!selected) { actor.NextAtMs = nowMs+1000; return true; }
         if (raid.AttemptId == std::numeric_limits<uint64>::max()) { actor.NextAtMs = nowMs+60000; return true; }
+        raid.SelectedSourceDepot = raid.PreviousSourceDepot = *selected;
+        source = LivingRaid::SourceFor(*selected, _livingFieldsEnabled);
         ++raid.AttemptId; raid.Active = true; raid.Leg = 0; raid.StartedAtMs = nowMs;
+        actor.Travel = {};
         raid.StolenAtStart = actor.Stolen; raid.Outcome = "STARTED";
     }
-    for (size_t reached = 0; reached < LivingRaid::ToSource.size(); ++reached)
+    for (size_t reached = 0; reached < source->Count; ++reached)
     {
-        auto const& destination = LivingRaid::ToSource[std::min<size_t>(raid.Leg, LivingRaid::ToSource.size()-1)];
+        auto const& destination = source->Route[std::min(raid.Leg, source->Count-1)];
         if (!Near(creature, destination)) return travel(destination,"TO_SOURCE","RAID_SOURCE");
-        if (raid.Leg+1 >= LivingRaid::ToSource.size()) break;
+        if (raid.Leg+1 >= source->Count) break;
         ++raid.Leg; actor.Travel = {}; actor.NextAtMs = nowMs;
     }
     return activity(Activity::Work,"STEALING","RAID_THEFT");

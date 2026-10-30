@@ -37,7 +37,9 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
     field_population = fields.Population.load() if profile == fields.PROFILE and wildlife_enabled else None
     field_actors = {actor.spawn_id: actor for actor in field_population.recruits} if field_population else {}
     field_definitions = {field["id"]: field for field in field_population.fields} if field_population else {}
+    village_warehouses = {1: supply.DEPOTS[0], **{key: value["warehouse"] for key, value in field_definitions.items()}}
     accounting_snapshot, field_snapshots, warehouse_snapshots = None, {}, {}
+    raid_warehouse_snapshots = {}
     live_roles = 0
     for actor in actors:
         identity = actor["spawn_id"]
@@ -72,11 +74,13 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                         type(actor.get("world_faction")) is int and actor["world_faction"] == raids.RECRUIT_FACTIONS[identity],
                         "Raid ordinary type or faction changed")
                 raid = actor.get("raid")
+                source_id = raid.get("source_depot_id") if isinstance(raid, dict) else None
+                allowed_sources = village_warehouses if identity in raids.RAIDER_IDS else {1: supply.DEPOTS[0]}
                 require(isinstance(raid, dict) and raid.get("enabled") is True and
                         raid.get("role") == raids.RECRUIT_ROLES[identity] and
-                        raid.get("source_depot_id") == 1 and raid.get("camp_depot_id") == 3,
+                        type(source_id) is int and source_id in allowed_sources and raid.get("camp_depot_id") == 3,
                         "Raid capability or reviewed depot assignment is missing")
-                for key, expected in (("source_depot", supply.DEPOTS[0]), ("camp_depot", raids.DEPOT)):
+                for key, expected in (("source_depot", allowed_sources[source_id]), ("camp_depot", raids.DEPOT)):
                     depot = raid.get(key)
                     require(isinstance(depot, dict) and depot.get("id") == expected["id"] and
                             isinstance(depot.get("position"), dict) and
@@ -87,6 +91,8 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                             type(depot.get("stock")) is int and type(depot.get("capacity")) is int and
                             0 <= depot["stock"] <= depot["capacity"] == 30,
                             "Raid depot coordinates, stock or capacity changed")
+                if source_id in field_definitions:
+                    raid_warehouse_snapshots[source_id] = raid["source_depot"]
             if identity in field_actors:
                 farmer = field_actors[identity]
                 definition = field_definitions[farmer.field_id]
@@ -195,6 +201,9 @@ def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True) 
                 require(accounting_snapshot is None or accounting_snapshot == accounting,
                         "Field profile supply roles do not share one food accounting snapshot")
                 accounting_snapshot = accounting
+    for identity, depot in raid_warehouse_snapshots.items():
+        require(identity not in warehouse_snapshots or warehouse_snapshots[identity] == depot,
+                "Raid source copy disagrees with the village warehouse ledger")
     require(not active or live_roles > 0, "No living controlled wildlife role is observable")
     return {"total": 100, "managed": len(active), "native": 100 - len(active), "live_roles": live_roles}
 

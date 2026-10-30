@@ -120,10 +120,16 @@ void AIWorldMgr::InitializeLivingSupply()
         valid = _supplyLedger.RegisterActor(spawn, 0, 0, true) && valid;
         _supplyActors.emplace(spawn, LivingSupply::ActorRuntime{});
     }
+    // Register the complete source capability once, after all village depots
+    // exist. The legacy raid profile keeps its original south-only authority.
+    if (_livingFieldsEnabled)
+        for (auto const& field : LivingFields::Fields)
+            valid = _supplyLedger.ConfigureDepot(field.Depot) && valid;
     if (_livingRaidsEnabled)
     {
         valid = _livingConsumersEnabled && _supplyLedger.ConfigureDepot(LivingRaid::CampDepot) &&
-            _supplyLedger.RegisterRaider(LivingRaid::RaiderSpawn) &&
+            _supplyLedger.RegisterRaider(LivingRaid::RaiderSpawn, LivingRaid::CampDepot,
+                LivingRaid::SourceDepot, LivingRaid::Portions, _livingFieldsEnabled) &&
             _supplyLedger.RegisterActor(LivingRaid::GuardSpawn, LivingRaid::SourceDepot, 0, false, true) && valid;
         _supplyActors.emplace(LivingRaid::RaiderSpawn, LivingSupply::ActorRuntime{});
         _supplyActors.emplace(LivingRaid::GuardSpawn, LivingSupply::ActorRuntime{});
@@ -502,6 +508,8 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
     float arrivalRadius = 3.0f;
     if (fieldWorker)
         arrivalRadius = LivingFields::ArrivalRadius(*LivingFields::Worker(record.SpawnId), destination, home);
+    else if (IsSupplyRaider(record))
+        arrivalRadius = LivingRaid::ArrivalRadius(destination);
     auto inBounds = [&](ActionPosition const& point)
     {
         return Finite(point) && point.MapId == from.MapId &&
@@ -604,9 +612,9 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         }
         auto const& end = points.back();
         // A complete final leg can normalize its endpoint during grounding.
-        // Recheck the actual endpoint against the same farmer arrival rule;
+        // Recheck the actual endpoint against the same warehouse arrival rule;
         // a loose build tolerance must not strand the next anchor departure.
-        if (fieldWorker && SamePosition(query, endpoint) &&
+        if ((fieldWorker || IsSupplyRaider(record)) && SamePosition(query, endpoint) &&
             (Distance({from.MapId, end.x, end.y, end.z}, destination) > arrivalRadius ||
                 !creature.GetMap()->isInLineOfSight(end.x, end.y, end.z + lift,
                     destination.X, destination.Y, destination.Z + lift, creature.GetPhaseMask(),

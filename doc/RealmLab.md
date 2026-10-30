@@ -11,6 +11,23 @@ Podrobný cyklus a spuštění popisuje [README_DEV](../README_DEV.md#pole-a-vla
 Nativní důkaz 51 bodů a 132 spojení je oddělený od fyzického testu
 sklizně, doručení, jídla a návratu.
 
+Rozšíření k **30. říjnu 2026**: Defias 901055 v aktivním `fields-v8`
+vybírá ze všech čtyř vesnických skladů (1/4/5/6). Při hladu a prázdném
+táboře střídá kandidáty s alespoň šesti porcemi. Cíl drží po celou
+výpravu; vlastní pětisekundová práce odečte nejvýše dvě porce právě
+tomuto skladu a až skutečný návrat s předáním je přidá do tábora.
+Sklady vedou oddělené počty odcizených porcí. Strážný zůstává u jižní
+vesnice a počet řízených NPC zůstává 40. Nové cíle používají přesnější
+příchod 1,9 yd k budovám, stejně jako jejich zemědělci.
+
+`python -m tools.realm_lab.warehouse_raid_acceptance <recording-directory>`
+kontroluje fyzické řetězce ze všech čtyř skladů a společnou bilanci
+šesti zásobáren. Pro omezené pozorování lze výslovně zadat například
+`--required-source 4`; ostatní zdroje zůstanou uvedené jako nepozorované.
+Původní test `raid_acceptance` zůstává pro historický profil `raids-v8`
+s jižním skladem. Potřeby, jídlo a rozpracované výpravy se stále
+neukládají přes restart.
+
 Nové rozšíření k 27. říjnu 2026: profil `raids-v8` navazuje na
 `consumers-v8` a řídí 28 ze stávajících 100 NPC. Přidává pouze Defiase
 901055 a strážného 901039; ostatních 72 NPC zůstává nativních. Nasazení

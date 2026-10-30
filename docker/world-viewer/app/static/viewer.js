@@ -167,7 +167,7 @@ function drawConnections() {
     if (agent.supply.role === "FARMER") connect(agent.supply.field_workpoint, "Pracovní místo na poli", "#e9bf72", true);
   }
   if (ObserverModel.raidSupported(agent)) {
-    connect(agent.raid.source_depot?.position, "Zásobárna vesnice", "#d39d76", true);
+    connect(agent.raid.source_depot?.position, agent.raid.source_depot?.name || "Zásobárna vesnice", "#d39d76", true);
     connect(agent.raid.camp_depot?.position, "Tábor nájezdníka", "#d39d76", true);
   }
   const companion = snapshot.agents.find(item => item.spawn_id === agent.living_role?.companion_spawn_id && item.position.source === "live");

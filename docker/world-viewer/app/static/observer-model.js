@@ -126,7 +126,8 @@ const ObserverModel = (() => {
       ["Výsledek", raid.outcome], ["Protějšek NPC", raid.target_spawn_id],
       ["Zpozorování", raid.noticed], ["Zásahy stráže", raid.interceptions],
       ["Dokončené krádeže", raid.thefts], ["Doručení do tábora", raid.delivered], ["Zmařené pokusy", raid.prevented],
-      ["Zásobárna vesnice", raid.source_depot?.name], ["Jídlo ve vesnici", raid.source_depot?.stock],
+      [raid.role === "RAIDER" ? "Cílový sklad" : "Střežený sklad", raid.source_depot?.name],
+      ["Jídlo ve vesnici", raid.source_depot?.stock], ["Z tohoto skladu odcizeno", raid.source_depot?.stolen || "0"],
       ["Tábor", raid.camp_depot?.name], ["Jídlo v táboře", raid.camp_depot?.stock]];
   }
   function foodDepots(agents, mapId) {

@@ -5,6 +5,7 @@ import unittest
 from pydantic import ValidationError
 
 from app.telemetry import Agent, LivingRaid, LivingSupply, TelemetryBatch
+from test_field_telemetry import farmer
 from test_supply_telemetry import agent, supply
 
 
@@ -50,6 +51,43 @@ class RaidTelemetryTests(unittest.TestCase):
         hunter = supply()
         hunter["stolen"] = "1"
         with self.assertRaises(ValidationError): LivingSupply.model_validate(hunter)
+
+    def test_raider_can_observe_each_village_source_without_changing_own_camp(self):
+        for depot_id, name in ((1, "South"), (4, "Top"), (5, "Left"), (6, "Right")):
+            with self.subTest(depot_id=depot_id):
+                current = raider()
+                current["raid"]["source_depot_id"] = depot_id
+                current["raid"]["source_depot"].update(id=depot_id, name=name, stolen="2")
+                # Actor counters cover every attempt; this depot reports only
+                # the portions withdrawn from this particular warehouse.
+                current["supply"]["stolen"] = "8"
+                parsed = Agent.model_validate(current)
+                self.assertEqual(parsed.raid.source_depot.id, depot_id)
+                self.assertEqual(parsed.raid.source_depot.stolen, "2")
+                self.assertEqual(parsed.supply.stolen, "8")
+                self.assertEqual((parsed.supply.depot_id, parsed.raid.camp_depot_id), (3, 3))
+                self.assertEqual(Agent.model_validate_json(parsed.model_dump_json()), parsed)
+                current["raid"]["source_depot_id"] = depot_id + 10
+                with self.assertRaises(ValidationError): Agent.model_validate(current)
+
+    def test_switching_target_preserves_each_warehouse_stock_and_theft_counter(self):
+        thief = raider()
+        workers = []
+        for depot_id, spawn, stock, stolen in ((4, 901016, 24, "2"), (5, 901022, 19, "4"), (6, 901028, 13, "0")):
+            worker = farmer()
+            worker.update(agent_id=spawn, spawn_id=spawn)
+            worker["supply"].update(field_id=depot_id, depot_id=depot_id)
+            worker["supply"]["depot"].update(id=depot_id, name=f"Village {depot_id}", stock=stock, stolen=stolen)
+            workers.append(worker)
+        for worker in workers:
+            with self.subTest(source_depot_id=worker["supply"]["depot_id"]):
+                thief["raid"].update(source_depot_id=worker["supply"]["depot_id"],
+                    source_depot=copy.deepcopy(worker["supply"]["depot"]))
+                batch = dict(version=4, captured_at_ms=1000, agents=[thief, *workers])
+                self.assertEqual(len(TelemetryBatch.model_validate(batch).agents), 4)
+                mismatched = copy.deepcopy(batch)
+                mismatched["agents"][0]["raid"]["source_depot"]["stolen"] = "99"
+                with self.assertRaises(ValidationError): TelemetryBatch.model_validate(mismatched)
 
     def test_guard_keeps_its_zero_cargo_consumer_capability(self):
         current = raider()

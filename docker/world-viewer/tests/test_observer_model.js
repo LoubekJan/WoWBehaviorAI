@@ -214,6 +214,28 @@ test("raid facts retain attempt identity and share village and camp stock observ
   assert.deepEqual(model.raidFacts(base), []);
 });
 
+test("raid facts follow the selected village without merging stock or stolen portions", () => {
+  const camp = { id: 3, name: "Tábor Defias", stock: 2, position: { map_id: 725, x: 20, y: 30, z: 0 } };
+  const warehouses = [1, 4, 5, 6].map((id, index) => ({ id, name: `Vesnice ${id}`, stock: 10 + index,
+    stolen: String(index * 2), position: { map_id: 725, x: id, y: id, z: 0 } }));
+  const workers = warehouses.map(depot => ({ ...base, supply: { enabled: true, role: "CONSUMER", depot } }));
+  const thief = { ...base, supply: { enabled: true, role: "RAIDER", stolen: "12", depot: camp },
+    raid: { enabled: true, role: "RAIDER", phase: "TO_SOURCE", camp_depot: camp } };
+  for (const source of warehouses) {
+    thief.raid.source_depot = source;
+    const facts = Object.fromEntries(model.raidFacts(thief));
+    assert.equal(facts["Cílový sklad"], source.name);
+    assert.equal(facts["Jídlo ve vesnici"], source.stock);
+    assert.equal(facts["Z tohoto skladu odcizeno"], source.stolen);
+    assert.equal(Object.fromEntries(model.supplyFacts(thief))["Odcizené jídlo"], "12");
+    assert.deepEqual(model.foodDepots([thief, ...workers], 725).map(d => [d.id, d.stock, d.stolen]),
+      [warehouses[0], camp, ...warehouses.slice(1)].map(d => [d.id, d.stock, d.stolen]));
+  }
+  thief.raid.role = "GUARD";
+  thief.raid.source_depot = warehouses[0];
+  assert.equal(Object.fromEntries(model.raidFacts(thief))["Střežený sklad"], "Vesnice 1");
+});
+
 function viewerPollingHarness() {
   const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
   class Element {

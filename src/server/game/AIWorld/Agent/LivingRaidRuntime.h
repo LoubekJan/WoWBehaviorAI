@@ -5,6 +5,7 @@
 #include "Action/ActionPosition.h"
 #include "AgentType.h"
 #include "Agent/LivingReturnPolicy.h"
+#include "Agent/LivingFieldRuntime.h"
 #include "ObjectGuid.h"
 #include <array>
 #include <cmath>
@@ -41,6 +42,56 @@ namespace LivingRaid
         {725, -340.0f, 580.0f, 0.15f},
         Source
     }};
+    struct SourceSpec
+    {
+        uint32 Depot;
+        std::array<ActionPosition, 9> Route;
+        uint32 Count;
+        ActionPosition const& Point() const { return Route[Count-1]; }
+    };
+    // Source-specific hints bound every planner query. They do not prove
+    // movement: each actual leg still uses the live floor/body/LOS checks.
+    inline constexpr std::array<SourceSpec, 4> Sources{{
+        {1, ToSource, 9},
+        {4, {{{725, 61.066650390625f, 969.0665283203125f, .15f},
+            {725, 160, 868, .15f}, {725, 260, 766, 2.0f},
+            {725, 362.66656494140625f, 661.333251953125f, .15f}, LivingFields::Fields[0].DepotPoint}}, 5},
+        {5, {{{725, 53.599983215332031f, 964.2664794921875f, .15f}, LivingFields::Fields[1].DepotPoint}}, 2},
+        {6, {{{725, 53.599983215332031f, 964.2664794921875f, .15f},
+            {725, 58, 820, .15f}, {725, 63.999980926513672f, 661.333251953125f, .15f},
+            {725, 85.33331298828125f, 597.33331298828125f, .15f},
+            {725, 95.999969482421875f, 539.73333740234375f, .48f},
+            {725, 106.66663360595703f, 426.66653442382812f, .15f}, LivingFields::Fields[2].DepotPoint}}, 7}
+    }};
+    inline SourceSpec const* SourceFor(uint32 depot, bool fieldsEnabled)
+    {
+        for (auto const& spec : Sources)
+            if (spec.Depot == depot && (fieldsEnabled || depot == SourceDepot)) return &spec;
+        return nullptr;
+    }
+    inline std::optional<uint32> SelectSource(uint32 previousDepot, bool fieldsEnabled,
+        std::array<uint32, 4> const& stocks)
+    {
+        // Rotate among stocked villages. Nearer or faster-producing villages
+        // cannot permanently starve another eligible warehouse of attempts.
+        size_t start = 0, count = fieldsEnabled ? Sources.size() : 1;
+        for (size_t i = 0; i < count; ++i)
+            if (Sources[i].Depot == previousDepot) start = (i+1)%count;
+        for (size_t offset = 0; offset < count; ++offset)
+        {
+            size_t index = (start+offset)%count;
+            if (stocks[index] >= StartStock) return Sources[index].Depot;
+        }
+        return std::nullopt;
+    }
+    inline float ArrivalRadius(ActionPosition const& destination)
+    {
+        // Match the farmers' tighter approach at these building-side stocks
+        // so the thief's next departure does not start on a collision edge.
+        for (auto const& field : LivingFields::Fields)
+            if (LivingReturnPolicy::SamePosition(destination, field.DepotPoint)) return 1.9f;
+        return 3.0f;
+    }
     struct GuardTransit
     {
         ObjectGuid Guid;
@@ -89,6 +140,9 @@ namespace LivingRaid
         uint64 Noticed = 0, Interceptions = 0, Thefts = 0, Delivered = 0, Prevented = 0;
         uint64 StolenAtStart = 0, LastNoticedAttempt = 0, LastInterceptionAttempt = 0;
         uint32 Leg = 0;
+        // The target changes only when a new attempt begins. Keep it through
+        // interruption/return so theft receipts and the reverse route agree.
+        uint32 SelectedSourceDepot = SourceDepot, PreviousSourceDepot = 0;
         bool Active = false, Returning = false, DutyAtPost = false;
         std::string Phase = "IDLE", Outcome = "MATERIALIZED";
         GuardTransit Transit;

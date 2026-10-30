@@ -65,6 +65,7 @@ class _Evaluator:
         self.session = self.previous_session = self.last_sequence = self.last_time = None
         self.last_capture = self.last_payload = self.last_unique_time = None
         self.previous_metrics = self.previous_depots = self.previous_crops = self.previous_accounting = None
+        self.last_flows = None
 
     def violation(self, code, sid=0):
         self.violations[(code, sid)] = dict(code=code, spawn_id=sid)
@@ -86,6 +87,7 @@ class _Evaluator:
         self.quality[reason] += 1
         for sid in self.tracks: self.censor_track(sid, reason)
         self.previous_metrics = self.previous_depots = self.previous_crops = self.previous_accounting = None
+        self.last_flows = None
 
     def usable(self, record):
         if not isinstance(record, dict):
@@ -217,8 +219,11 @@ class _Evaluator:
                 values = {key: counter(supplied.get(key, "0" if key == "stolen" else None)) for key in COUNTERS}
                 if any(value is None for value in values.values()) or not quantity(supplied.get("cargo")):
                     self.violation("invalid_supply_counter_or_cargo", sid); return None
+                source_id = raid.get("source_depot_id") if isinstance(raid, dict) else None
+                if sid == 901055 and (type(source_id) is not int or source_id not in (1, 4, 5, 6)):
+                    self.violation("invalid_raid_source_warehouse", sid); return None
                 metrics[sid] = dict(counters=values, cargo=supplied["cargo"], guid=actor.get("runtime_guid"),
-                    life=role.get("lifetime_ms"))
+                    life=role.get("lifetime_ms"), source_depot_id=source_id)
                 if isinstance(supplied.get("depot"), dict): copies.append(supplied["depot"])
                 if sid in self.workers:
                     fid = self.workers[sid].field_id
@@ -445,10 +450,13 @@ class _Evaluator:
         flows = {key: dict(delivered=0, consumed=0, stolen=0) for key in self.depots}
         if self.previous_metrics:
             changes = {sid: {key: metrics[sid]["counters"][key]-self.previous_metrics[sid]["counters"][key] for key in COUNTERS} for sid in metrics}
+            thief_source = metrics[901055]["source_depot_id"]
+            if changes[901055]["stolen"] and thief_source != self.previous_metrics[901055]["source_depot_id"]:
+                self.violation("raid_source_changed_during_theft", 901055)
             for key, members in self.members.items():
                 flow = flows[key]
                 for name in ("delivered", "consumed"): flow[name] = sum(changes[sid][name] for sid in members)
-                flow["stolen"] = changes[901055]["stolen"] if key == 1 else 0
+                flow["stolen"] = changes[901055]["stolen"] if key == thief_source else 0
                 before, after = self.previous_depots[key], depots[key]
                 if (after["stock"]-before["stock"] != flow["delivered"]-flow["consumed"]-flow["stolen"] or
                     any(counter(after.get(name, "0"))-counter(before.get(name, "0")) != flow[name] for name in flow)):
@@ -470,6 +478,7 @@ class _Evaluator:
         epoch = self.epochs.setdefault(self.epoch, dict(first_capture=capture, last_capture=capture, frames=0))
         epoch["last_capture"], epoch["frames"] = capture, epoch["frames"]+1
         for sid, row in rows.items(): self.update_worker(sid, row, flows)
+        self.last_flows = flows
         self.previous_metrics, self.previous_depots, self.previous_crops, self.previous_accounting = metrics, depots, crops, accounting
 
     def report(self):

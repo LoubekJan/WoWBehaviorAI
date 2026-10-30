@@ -54,6 +54,7 @@ namespace LivingSupply
         uint32 Capacity = 0;
         uint32 Target = 0;
         uint32 Low = 0;
+        uint64 Stolen = 0;
     };
     struct Carcass
     {
@@ -171,18 +172,23 @@ namespace LivingSupply
         // permission to withdraw from an arbitrary warehouse. Registration
         // never upgrades or replaces an existing participant's capability.
         bool RegisterRaider(uint64 actor, uint32 ownDepotId = 3, uint32 sourceDepotId = 1,
-            uint32 cargoCapacity = RaiderCargoCapacity)
+            uint32 cargoCapacity = RaiderCargoCapacity, bool allVillageSources = false)
         {
             if (!actor || ownDepotId != 3 || sourceDepotId != 1 || cargoCapacity != RaiderCargoCapacity ||
                 !GetDepot(ownDepotId) || !GetDepot(sourceDepotId))
+                return false;
+            if (allVillageSources && (!GetDepot(4) || !GetDepot(5) || !GetDepot(6)))
                 return false;
             auto current = _actors.find(actor);
             if (current != _actors.end())
                 return current->second.DepotId == ownDepotId && current->second.Capacity == cargoCapacity &&
                     current->second.RaidSourceDepotId == sourceDepotId && !current->second.Predator &&
-                    !current->second.Consumer && !current->second.FieldId;
+                    !current->second.Consumer && !current->second.FieldId &&
+                    current->second.AllVillageRaidSources == allVillageSources;
             if (_actors.size() >= 128) return false;
-            _actors.emplace(actor, Actor{ownDepotId, cargoCapacity, false, false, sourceDepotId});
+            Actor raider{ownDepotId, cargoCapacity, false, false, sourceDepotId};
+            raider.AllVillageRaidSources = allVillageSources;
+            _actors.emplace(actor, std::move(raider));
             return true;
         }
 
@@ -364,7 +370,9 @@ namespace LivingSupply
                 return *replay;
             auto source = _depots.find(sourceDepotId);
             if (!physicallyCompleted || !eventSerial || !requested || requested > RaiderCargoCapacity ||
-                owner.Predator || owner.Consumer || !owner.RaidSourceDepotId || owner.RaidSourceDepotId != sourceDepotId ||
+                owner.Predator || owner.Consumer || !owner.RaidSourceDepotId ||
+                (owner.RaidSourceDepotId != sourceDepotId && !(owner.AllVillageRaidSources &&
+                    sourceDepotId >= 4 && sourceDepotId <= 6)) ||
                 source == _depots.end())
                 return Rejected("THEFT_NOT_AUTHORIZED");
             uint32 amount = std::min(requested, owner.Capacity - owner.Cargo);
@@ -373,6 +381,7 @@ namespace LivingSupply
             // may have used these portions since the runtime began its action.
             if (source->second.Stock < amount) return Rejected("NO_FOOD");
             source->second.Stock -= amount;
+            source->second.Stolen += amount;
             owner.Cargo += amount;
             _counters.StolenTotal += amount;
             return SaveEvent(owner, eventSerial, EventKind::Theft, sourceDepotId, requested, amount);
@@ -495,6 +504,7 @@ namespace LivingSupply
             std::optional<std::pair<Token, Result>> LastCommitted;
             uint64 LastEventSerial = 0;
             std::optional<Event> LastEvent;
+            bool AllVillageRaidSources = false;
         };
         static Result Rejected(char const* reason) { return {false, false, 0, reason}; }
         static Result Replayed(Result receipt) { receipt.Duplicate = true; return receipt; }

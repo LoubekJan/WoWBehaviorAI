@@ -1,0 +1,2097 @@
+{
+  "schema_version": 1,
+  "profile": "fields-v8",
+  "map_id": 725,
+  "source_revision": "preview-v8",
+  "captured_at_utc": "2026-10-30T14:25:07.433716+00:00",
+  "status": "PASS",
+  "scope": "native_detour_ground_connectivity_only",
+  "physical_movement_verified": false,
+  "native_collision_queries_verified": false,
+  "village_source_depot_ids": [
+    1,
+    4,
+    5,
+    6
+  ],
+  "new_source_depot_ids": [
+    4,
+    5,
+    6
+  ],
+  "method": "Native DT_POLYREF64 Detour probe over the unchanged four authored map725 tiles. Ground-only nearest-poly, findPath and findStraightPath queries verify every new route hint and all28 directed camp/waypoint/warehouse legs; existing south route proof is retained separately.",
+  "route_source": {
+    "path": "src/server/game/AIWorld/Agent/LivingRaidRuntime.h",
+    "bytes": 10183,
+    "sha256": "2c469d57a0652f6b4b3dd1543c1a68175b5893174ad26f434f4c43065ad7ed34",
+    "normalization": "repository LF text"
+  },
+  "retained_south_proof": {
+    "path": "data/realm_lab/aiworldlab/preview-v8/raid-nav-probe.json",
+    "bytes": 67001,
+    "sha256": "9f378e554af2e864254a23f23c992bdcef795e2b85a61d97aff5f31248640556",
+    "normalization": "repository LF text"
+  },
+  "field_population_manifest": {
+    "path": "data/realm_lab/aiworldlab/preview-v8/field-population.json",
+    "bytes": 19381,
+    "sha256": "304188555819914d88307dd45d1b2fd6d57fc7995b6f457005948600ccbd2430"
+  },
+  "native_navigation_inputs": [
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253130.mmtile",
+      "bytes": 212700,
+      "sha256": "512a86fb6e5b5df4a69e1187ccc7a68916b82352fc6b54c6d5859dc6b1b3f6b1"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253131.mmtile",
+      "bytes": 143024,
+      "sha256": "4cec41414980ba65e5440f4957db63c5091ed531a91518f8b48e61e33aab4bd3"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253230.mmtile",
+      "bytes": 239812,
+      "sha256": "d7715e200461de32442937eff865c60dc6da6ce4bdbfffa8dc69ec70feb23b62"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/mmaps/7253231.mmtile",
+      "bytes": 507252,
+      "sha256": "535cceace6af01373488c2421451737de80ff744982281f65ddbfd2370c5ff5b"
+    }
+  ],
+  "native_terrain_inputs": [
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253130.map",
+      "bytes": 136144,
+      "sha256": "4bbb5f60de676ce3f03dbf15b07cfb17369b1a0aad6b7eb38416056313f3322f"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253131.map",
+      "bytes": 142756,
+      "sha256": "f77c30855a6870307ec6e4af7b47ff5f487206c8ce04496d42fa65c3e42865eb"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253230.map",
+      "bytes": 199516,
+      "sha256": "22081fd67ab1506114610bc635ae4d3978013e401763022747d288f7d2d39172"
+    },
+    {
+      "path": "runtime/lab-validation/map-preview-v8/data-fixed/maps/7253231.map",
+      "bytes": 172164,
+      "sha256": "549c381a2f0f215346b06af5e9eb05201f038caeff4727c2d3b6e0b86b9f0a73"
+    }
+  ],
+  "results": {
+    "ok": true,
+    "map_id": 725,
+    "poly_ref_bits": 64,
+    "tiles": 4,
+    "include_flags": 1,
+    "exclude_flags": 65534,
+    "projection_limits": {
+      "xy": 1,
+      "z": 2
+    },
+    "valid_projections": 15,
+    "required_paths": 28,
+    "complete_paths": 28,
+    "projections": [
+      {
+        "id": "camp",
+        "input": {
+          "x": 58.6867446881,
+          "y": 971.2687759381,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370778",
+        "valid": true,
+        "projected": {
+          "x": 58.686744689941406,
+          "y": 971.268798828125,
+          "z": 0.5681513547897339
+        },
+        "xy_delta": 2.2890025053527333e-05,
+        "z_delta": 0.41815135478973386
+      },
+      {
+        "id": "warehouse_4",
+        "input": {
+          "x": 378.03635207966687,
+          "y": 626.4014701827371,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371325",
+        "valid": true,
+        "projected": {
+          "x": 378.0363464355469,
+          "y": 626.4014892578125,
+          "z": 0.3144400715827942
+        },
+        "xy_delta": 1.989257634542287e-05,
+        "z_delta": 0.1644400715827942
+      },
+      {
+        "id": "warehouse_5",
+        "input": {
+          "x": 44.97056274847714,
+          "y": 859.9705627484772,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370763",
+        "valid": true,
+        "projected": {
+          "x": 44.97056198120117,
+          "y": 859.9705810546875,
+          "z": 0.4609951078891754
+        },
+        "xy_delta": 1.832228286221458e-05,
+        "z_delta": 0.3109951078891754
+      },
+      {
+        "id": "warehouse_6",
+        "input": {
+          "x": 151.18440237676216,
+          "y": 282.17310878027087,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854511",
+        "valid": true,
+        "projected": {
+          "x": 151.1844024658203,
+          "y": 282.173095703125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.3077449114693066e-05,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v4_transit_0",
+        "input": {
+          "x": 61.066650390625,
+          "y": 969.0665283203125,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370774",
+        "valid": true,
+        "projected": {
+          "x": 61.066650390625,
+          "y": 969.0665283203125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v4_transit_1",
+        "input": {
+          "x": 160,
+          "y": 868,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371041",
+        "valid": true,
+        "projected": {
+          "x": 160,
+          "y": 868,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v4_transit_2",
+        "input": {
+          "x": 260,
+          "y": 766,
+          "z": 2
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371161",
+        "valid": true,
+        "projected": {
+          "x": 260,
+          "y": 766,
+          "z": 2.1930313110351562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.19303131103515625
+      },
+      {
+        "id": "v4_transit_3",
+        "input": {
+          "x": 362.66656494140625,
+          "y": 661.333251953125,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371328",
+        "valid": true,
+        "projected": {
+          "x": 362.66656494140625,
+          "y": 661.333251953125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v5_transit_0",
+        "input": {
+          "x": 53.59998321533203,
+          "y": 964.2664794921875,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370782",
+        "valid": true,
+        "projected": {
+          "x": 53.59998321533203,
+          "y": 964.2664794921875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v6_transit_0",
+        "input": {
+          "x": 53.59998321533203,
+          "y": 964.2664794921875,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370782",
+        "valid": true,
+        "projected": {
+          "x": 53.59998321533203,
+          "y": 964.2664794921875,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v6_transit_1",
+        "input": {
+          "x": 58,
+          "y": 820,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370744",
+        "valid": true,
+        "projected": {
+          "x": 58,
+          "y": 820,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v6_transit_2",
+        "input": {
+          "x": 63.99998092651367,
+          "y": 661.333251953125,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370865",
+        "valid": true,
+        "projected": {
+          "x": 63.99998092651367,
+          "y": 661.333251953125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v6_transit_3",
+        "input": {
+          "x": 85.33331298828125,
+          "y": 597.3333129882812,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370924",
+        "valid": true,
+        "projected": {
+          "x": 85.33331298828125,
+          "y": 597.3333129882812,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      },
+      {
+        "id": "v6_transit_4",
+        "input": {
+          "x": 95.99996948242188,
+          "y": 539.7333374023438,
+          "z": 0.48
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370921",
+        "valid": true,
+        "projected": {
+          "x": 95.99996948242188,
+          "y": 539.7333374023438,
+          "z": 0.48322296142578125
+        },
+        "xy_delta": 0,
+        "z_delta": 0.0032229614257812678
+      },
+      {
+        "id": "v6_transit_5",
+        "input": {
+          "x": 106.66663360595703,
+          "y": 426.6665344238281,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854418",
+        "valid": true,
+        "projected": {
+          "x": 106.66663360595703,
+          "y": 426.6665344238281,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 0,
+        "z_delta": 0.06655654907226563
+      }
+    ],
+    "paths": [
+      {
+        "from": "camp",
+        "to": "v4_transit_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          },
+          {
+            "x": 61.066650390625,
+            "y": 969.0665283203125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_0",
+        "to": "camp",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 61.066650390625,
+            "y": 969.0665283203125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_0",
+        "to": "v4_transit_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 15,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 61.066650390625,
+            "y": 969.0665283203125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 160,
+            "y": 868,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_1",
+        "to": "v4_transit_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 15,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 160,
+            "y": 868,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 61.066650390625,
+            "y": 969.0665283203125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_1",
+        "to": "v4_transit_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 11,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 160,
+            "y": 868,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 260,
+            "y": 766,
+            "z": 2.1930313110351562
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_2",
+        "to": "v4_transit_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 11,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 260,
+            "y": 766,
+            "z": 2.1930313110351562
+          },
+          {
+            "x": 160,
+            "y": 868,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_2",
+        "to": "v4_transit_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 260,
+            "y": 766,
+            "z": 2.1930313110351562
+          },
+          {
+            "x": 362.66656494140625,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_3",
+        "to": "v4_transit_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 362.66656494140625,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 260,
+            "y": 766,
+            "z": 2.1930313110351562
+          }
+        ]
+      },
+      {
+        "from": "v4_transit_3",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 362.66656494140625,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "v4_transit_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 3,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 362.66656494140625,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "camp",
+        "to": "v5_transit_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          },
+          {
+            "x": 53.86664962768555,
+            "y": 965.3331909179688,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v5_transit_0",
+        "to": "camp",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.86664962768555,
+            "y": 965.3331909179688,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          }
+        ]
+      },
+      {
+        "from": "v5_transit_0",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "v5_transit_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "camp",
+        "to": "v6_transit_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          },
+          {
+            "x": 53.86664962768555,
+            "y": 965.3331909179688,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_0",
+        "to": "camp",
+        "complete": true,
+        "attempted": true,
+        "polygons": 2,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.86664962768555,
+            "y": 965.3331909179688,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_0",
+        "to": "v6_transit_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 13,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 58,
+            "y": 820,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_1",
+        "to": "v6_transit_0",
+        "complete": true,
+        "attempted": true,
+        "polygons": 13,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58,
+            "y": 820,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_1",
+        "to": "v6_transit_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58,
+            "y": 820,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 63.99998092651367,
+            "y": 682.6666259765625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 63.99998092651367,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_2",
+        "to": "v6_transit_1",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 63.99998092651367,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 58,
+            "y": 820,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_2",
+        "to": "v6_transit_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 63.99998092651367,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 85.33331298828125,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_3",
+        "to": "v6_transit_2",
+        "complete": true,
+        "attempted": true,
+        "polygons": 8,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 85.33331298828125,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 63.99998092651367,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_3",
+        "to": "v6_transit_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 85.33331298828125,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 95.99996948242188,
+            "y": 539.7333374023438,
+            "z": 0.48322296142578125
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_4",
+        "to": "v6_transit_3",
+        "complete": true,
+        "attempted": true,
+        "polygons": 4,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 95.99996948242188,
+            "y": 539.7333374023438,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 85.33331298828125,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_4",
+        "to": "v6_transit_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 95.99996948242188,
+            "y": 539.7333374023438,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 106.66663360595703,
+            "y": 511.9998474121094,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 106.66663360595703,
+            "y": 447.9998779296875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 106.66663360595703,
+            "y": 426.6665344238281,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_5",
+        "to": "v6_transit_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 9,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 106.66663360595703,
+            "y": 426.6665344238281,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 95.99996948242188,
+            "y": 539.7333374023438,
+            "z": 0.48322296142578125
+          }
+        ]
+      },
+      {
+        "from": "v6_transit_5",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 106.66663360595703,
+            "y": 426.6665344238281,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 127.99996185302734,
+            "y": 362.66656494140625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 298.6665954589844,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "v6_transit_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 106.66663360595703,
+            "y": 426.6665344238281,
+            "z": 0.21655654907226562
+          }
+        ]
+      }
+    ]
+  },
+  "direct_camp_warehouse_results": {
+    "ok": true,
+    "map_id": 725,
+    "poly_ref_bits": 64,
+    "tiles": 4,
+    "include_flags": 1,
+    "exclude_flags": 65534,
+    "projection_limits": {
+      "xy": 1,
+      "z": 2
+    },
+    "valid_projections": 4,
+    "required_paths": 6,
+    "complete_paths": 6,
+    "projections": [
+      {
+        "id": "camp",
+        "input": {
+          "x": 58.6867446881,
+          "y": 971.2687759381,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370778",
+        "valid": true,
+        "projected": {
+          "x": 58.686744689941406,
+          "y": 971.268798828125,
+          "z": 0.5681513547897339
+        },
+        "xy_delta": 2.2890025053527333e-05,
+        "z_delta": 0.41815135478973386
+      },
+      {
+        "id": "warehouse_4",
+        "input": {
+          "x": 378.03635207966687,
+          "y": 626.4014701827371,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627371325",
+        "valid": true,
+        "projected": {
+          "x": 378.0363464355469,
+          "y": 626.4014892578125,
+          "z": 0.3144400715827942
+        },
+        "xy_delta": 1.989257634542287e-05,
+        "z_delta": 0.1644400715827942
+      },
+      {
+        "id": "warehouse_5",
+        "input": {
+          "x": 44.97056274847714,
+          "y": 859.9705627484772,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503599627370763",
+        "valid": true,
+        "projected": {
+          "x": 44.97056198120117,
+          "y": 859.9705810546875,
+          "z": 0.4609951078891754
+        },
+        "xy_delta": 1.832228286221458e-05,
+        "z_delta": 0.3109951078891754
+      },
+      {
+        "id": "warehouse_6",
+        "input": {
+          "x": 151.18440237676216,
+          "y": 282.17310878027087,
+          "z": 0.15
+        },
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "ref": "4503601774854511",
+        "valid": true,
+        "projected": {
+          "x": 151.1844024658203,
+          "y": 282.173095703125,
+          "z": 0.21655654907226562
+        },
+        "xy_delta": 1.3077449114693066e-05,
+        "z_delta": 0.06655654907226563
+      }
+    ],
+    "paths": [
+      {
+        "from": "camp",
+        "to": "warehouse_4",
+        "complete": true,
+        "attempted": true,
+        "polygons": 37,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          },
+          {
+            "x": 61.066650390625,
+            "y": 969.0665283203125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 362.66656494140625,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          }
+        ]
+      },
+      {
+        "from": "camp",
+        "to": "warehouse_5",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          },
+          {
+            "x": 53.86664962768555,
+            "y": 965.3331909179688,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          }
+        ]
+      },
+      {
+        "from": "camp",
+        "to": "warehouse_6",
+        "complete": true,
+        "attempted": true,
+        "polygons": 49,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          },
+          {
+            "x": 53.86664962768555,
+            "y": 965.3331909179688,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 63.99998092651367,
+            "y": 661.333251953125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 85.33331298828125,
+            "y": 597.3333129882812,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 95.99996948242188,
+            "y": 539.7333374023438,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 106.66663360595703,
+            "y": 426.6665344238281,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          }
+        ]
+      },
+      {
+        "from": "warehouse_4",
+        "to": "camp",
+        "complete": true,
+        "attempted": true,
+        "polygons": 36,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 378.0363464355469,
+            "y": 626.4014892578125,
+            "z": 0.3144400715827942
+          },
+          {
+            "x": 85.33331298828125,
+            "y": 938.66650390625,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 61.066650390625,
+            "y": 969.0665283203125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          }
+        ]
+      },
+      {
+        "from": "warehouse_5",
+        "to": "camp",
+        "complete": true,
+        "attempted": true,
+        "polygons": 10,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 44.97056198120117,
+            "y": 859.9705810546875,
+            "z": 0.4609951078891754
+          },
+          {
+            "x": 53.59998321533203,
+            "y": 964.2664794921875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 53.86664962768555,
+            "y": 965.3331909179688,
+            "z": 0.48322296142578125
+          },
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          }
+        ]
+      },
+      {
+        "from": "warehouse_6",
+        "to": "camp",
+        "complete": true,
+        "attempted": true,
+        "polygons": 42,
+        "status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "straight_status": {
+          "value": 1073741824,
+          "succeeded": true,
+          "failed": false,
+          "detail_bits": 0,
+          "partial": false,
+          "buffer_too_small": false,
+          "out_of_nodes": false
+        },
+        "endpoint_delta": 0,
+        "all_corridor_flags_ground_only": true,
+        "straight_path": [
+          {
+            "x": 151.1844024658203,
+            "y": 282.173095703125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 149.3332977294922,
+            "y": 298.6665954589844,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 127.99996185302734,
+            "y": 767.9998779296875,
+            "z": 4.483222007751465
+          },
+          {
+            "x": 106.66663360595703,
+            "y": 831.9998779296875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 85.33331298828125,
+            "y": 895.9998779296875,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 63.99998092651367,
+            "y": 964.7998657226562,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 61.066650390625,
+            "y": 969.0665283203125,
+            "z": 0.21655654907226562
+          },
+          {
+            "x": 58.686744689941406,
+            "y": 971.268798828125,
+            "z": 0.5681513547897339
+          }
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "This proves native ground connectivity, not actual executed movement, body collision queries or line of sight.",
+    "Each runtime move independently proves its floor, body clearance, scope and LOS. No home, map or food state was changed by the probe.",
+    "Physical theft and camp delivery coverage must be reported independently per source."
+  ]
+}
