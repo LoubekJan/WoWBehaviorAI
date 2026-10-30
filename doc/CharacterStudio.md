@@ -48,7 +48,7 @@ jen vzhledy existujících NPC zapnutých pro LLM. Současný controller má nad
 svůj původní limit 16 současně registrovaných LLM profilů.
 
 Editor ověřuje cíl proti čtenému, hashově kontrolovanému populačnímu profilu
-`consumers-v8`, `raids-v8` nebo `fields-v8`. Před stažením server kontrolu
+`consumers-v8`, `raids-v8`, `fields-v8` nebo `defias-v8`. Před stažením server kontrolu
 opakuje, takže ji nelze obejít starým otevřeným formulářem. Nepřebírá sám
 běžné NPC do AI řízení, nemění jejich registraci ani nevytváří nové spawny.
 Změna karty již obsazeného cíle znamená nahrazení jeho autorské identity

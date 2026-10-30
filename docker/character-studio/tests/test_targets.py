@@ -24,13 +24,27 @@ class ReviewedTargetRegistryTests(unittest.TestCase):
         self.assertEqual(denied["target"]["control_mode"], "OBSERVE_ONLY")
 
     def test_scope_changes_with_reviewed_profile_without_broadening_native_ownership(self):
-        for profile, expected in (("consumers-v8", 26), ("raids-v8", 28), ("fields-v8", 40)):
+        for profile, expected in (("consumers-v8", 26), ("raids-v8", 28), ("fields-v8", 40), ("defias-v8", 55)):
             with self.subTest(profile=profile):
                 registry = TargetRegistry.load(ROOT, profile)
                 self.assertTrue(registry.available, registry.reason)
                 self.assertEqual(sum(row.eligible for row in registry.targets), expected)
                 self.assertFalse(registry.validate("901014", "901014", 725)["eligible"])
         self.assertFalse(TargetRegistry.load(ROOT, "consumers-v8").validate("901016", "901016", 725)["eligible"])
+
+    def test_defias_overlay_admits_only_its_reviewed_extra_actors(self):
+        previous = TargetRegistry.load(ROOT, "fields-v8")
+        current = TargetRegistry.load(ROOT, "defias-v8")
+        self.assertTrue(current.available, current.reason)
+        self.assertEqual(len(current.targets), 100)
+        original_ids = {row.spawn_id for row in previous.targets if row.eligible}
+        current_ids = {row.spawn_id for row in current.targets if row.eligible}
+        self.assertEqual(current_ids - original_ids, set(range(901044, 901060)) - {901055})
+        for spawn in (901044, 901048, 901050, 901059):
+            self.assertTrue(current.validate(str(spawn), str(spawn), 725)["eligible"])
+            self.assertFalse(previous.validate(str(spawn), str(spawn), 725)["eligible"])
+        self.assertFalse(current.validate("901014", "901014", 725)["eligible"])
+        self.assertEqual(current.validate("901048", "901048", 725)["target"]["name"], "Zásobovač · Defias")
 
     def test_unknown_identity_and_wrong_map_are_not_verified_by_numeric_syntax(self):
         registry = TargetRegistry.load(ROOT, "fields-v8")

@@ -15,11 +15,13 @@ import sys
 from .models import decimal_identity
 
 SUPPORTED_PROFILES = {"consumers-v8": "consumer_population", "raids-v8": "raid_population",
-                      "fields-v8": "field_population"}
+                      "fields-v8": "field_population", "defias-v8": "defias_population"}
 LIVING_ROLES = {0: "CIVILIAN", 1: "GUARD", 2: "SERVICE", 5: "COMBATANT", 6: "PREDATOR", 7: "PREY"}
 ROLE_NAMES = {"resident": "Obyvatel", "worker": "Pracovník", "guard": "Strážný",
               "hunter": "Lovec", "raider": "Nájezdník", "combatant": "Bojovník",
-              "predator": "Dravec", "prey": "Zvěř", "merchant": "Obchodník"}
+              "predator": "Dravec", "prey": "Zvěř", "merchant": "Obchodník",
+              "farmer": "Farmář", "consumer": "Obyvatel", "supplier": "Zásobovač",
+              "camp_guard": "Táborová stráž"}
 FACTION_NAMES = {"stormwind": "Stormwind", "defias": "Defias", "gnolls": "Gnollové",
                  "murlocs": "Murloci", "kobolds": "Koboldové", "wildlife": "Divočina"}
 
