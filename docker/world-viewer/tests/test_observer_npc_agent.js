@@ -13,8 +13,19 @@ test("NPC cognition facts preserve exact IDs and show only public runtime fields
   assert(facts.some(([label, value]) => label === "Stav rozhodování" && value === "THINKING"));
   assert(facts.some(([label, value]) => label === "Požadavek" && value === "18446744073709551615"));
   assert(facts.some(([label, value]) => label === "Zapamatované repliky" && value === "12 / 12"));
+  assert(facts.some(([label, value]) => label === "Vzpomínky" && value === "0 / 96"));
+  assert(facts.some(([label, value]) => label === "Vybavené vzpomínky" && value === "0 / 6"));
   assert(!JSON.stringify(facts).includes("private"));
   assert(model.matches(current, { query: "matěj" }, { map_id: 725 }));
+});
+
+test("NPC memory facts show bounded counts without private memory payloads", () => {
+  const current = { ...base, llm_agent: { ...npc, memory_records: 96, memory_recalled: 6,
+    memories: [{ speaker: "Private player", text: "Private quote" }], relationships: ["Private player"] } };
+  const facts = model.npcAgentFacts(current);
+  assert(facts.some(([label, value]) => label === "Vzpomínky" && value === "96 / 96"));
+  assert(facts.some(([label, value]) => label === "Vybavené vzpomínky" && value === "6 / 6"));
+  assert(!JSON.stringify(facts).includes("Private"));
 });
 
 test("native background and legacy rows do not claim current LLM activity", () => {

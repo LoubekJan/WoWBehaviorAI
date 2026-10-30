@@ -5,6 +5,7 @@
 #include "Action/ActionPosition.h"
 #include "Inference/NpcAgent.h"
 #include "NpcAgentDialogue.h"
+#include "NpcAgentMemory.h"
 #include "NpcAgentSpeechState.h"
 #include <optional>
 #include <string_view>
@@ -37,6 +38,17 @@ struct NpcAgentRuntime
     std::unordered_map<uint32, NpcAgentRecipientBinding> Recipients;
     NpcAgentDialogueHistory Dialogue;
     NpcAgentSpeechState Speech;
+    NpcAgentMemoryStore Memory;
+    uint32 MemoryRecalled = 0;
+
+    // This runtime belongs to one stable AgentId/map/spawn. A new Creature GUID
+    // invalidates live ownership and requests, while its session evidence stays.
+    void Rebind(ObjectGuid guid)
+    {
+        auto memory = std::move(Memory);
+        *this = {};
+        Memory = std::move(memory); Guid = guid;
+    }
 
     void InvalidatePending()
     {

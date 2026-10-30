@@ -387,6 +387,8 @@ class NpcAgent(ProtocolModel):
     request_id: Counter64
     next_think_ms: int = Field(ge=0, le=2**64 - 1)
     dialogue_count: int = Field(ge=0, le=12)
+    memory_records: int = Field(default=0, ge=0, le=96)
+    memory_recalled: int = Field(default=0, ge=0, le=6)
     last_speech: str = Field(max_length=256)
 
     @field_validator("name", "status", "last_action_result", "active_action", "last_speech")
