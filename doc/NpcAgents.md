@@ -155,6 +155,11 @@ Mimo lab lze nastavit přímo `AIWorld.NpcAgentEnabled`,
 `AIWorld.NpcAgentMaxInFlight` a `AIWorld.NpcAgentTimeoutMs` ve worldserver.conf.
 Profil sám o sobě nemění řízení ani oprávnění jiné postavy.
 
+Pro herní export v Ateliéru postav zvolte ověřený řízený cíl. Číslo běžného
+NPC s původní AI nestačí k jeho registraci jako LLM agenta. Chybnou volitelnou
+kartu server při startu odmítne s diagnostikou a pokračuje s platnými profily;
+samotný import tak nezastaví celý svět. Vadný vzhled ponechá původní model.
+
 ## Současné charakterové karty
 
 - [Matěj](../data/npc_agents/901035.json) je zdrženlivý a pečlivý soused se suchým

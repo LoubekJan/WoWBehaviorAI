@@ -204,6 +204,38 @@ NpcAgentAppearance const* NpcAgentAppearanceCatalog::Get(uint64 spawnId) const
     return found == _appearances.end() ? nullptr : &found->second;
 }
 
+NpcAgentCatalogIssues NpcAgentAppearanceCatalog::LoadRuntime(std::string const& directory,
+    RuntimeValidator const& validator)
+{
+    _appearances.clear();
+    NpcAgentCatalogIssues issues;
+    for (auto const& path : NpcAgentCatalogLoading::Files(directory, MaxAppearances * 2, true, issues))
+    {
+        auto body = NpcAgentCatalogLoading::Read(path, MaxFileBytes, issues);
+        if (!body) continue;
+        NpcAgentAppearance appearance;
+        if (!ParseNpcAgentAppearance(*body, appearance))
+        {
+            issues.push_back({NpcAgentCatalogLoading::Filename(path), 0, "appearance schema or identity invalid"});
+            continue;
+        }
+        uint64 id = appearance.SpawnId;
+        char const* failure = nullptr;
+        if (path.filename() != std::filesystem::path(std::to_string(id) + ".json"))
+            failure = "appearance filename must equal spawn ID";
+        else if (_appearances.find(id) != _appearances.end()) failure = "duplicate appearance spawn identity";
+        else if (validator) failure = validator(appearance);
+        if (!failure && _appearances.size() >= MaxAppearances) failure = "appearance count limit exceeded";
+        if (failure)
+        {
+            issues.push_back({NpcAgentCatalogLoading::Filename(path), id, failure});
+            continue;
+        }
+        _appearances.emplace(id, std::move(appearance));
+    }
+    return issues;
+}
+
 // Keep the pure wire codec with the parser/catalog translation unit. Tests
 // can link it without pulling the Creature/Player integration and its stores.
 bool BuildNpcAgentMirrorImageData(WorldPacket& packet, ObjectGuid guid, uint32 baseDisplay,

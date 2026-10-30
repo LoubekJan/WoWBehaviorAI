@@ -5,6 +5,8 @@
 
 #include "AgentId.h"
 #include "Define.h"
+#include "NpcAgentCatalogLoading.h"
+#include <functional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -23,6 +25,32 @@ struct NpcAgentProfile
 // No entry fallback: this profile belongs only to this stable individual.
 TC_GAME_API bool ParseNpcAgentProfile(std::string_view json, NpcAgentProfile& profile);
 
+// A profile is a request to use an existing agent, never authority to create
+// one or to change its control/participation/scope. Pure seam shared by startup
+// and regression tests for imported profiles targeting native civilians.
+struct NpcAgentProfileBinding
+{
+    AgentId Agent;
+    uint32 MapId = 0;
+    uint64 SpawnId = 0;
+    bool Controlled = false;
+    bool InMembership = false;
+    bool Participating = false;
+    bool SupportedRole = false;
+};
+
+inline char const* NpcAgentProfileBindingFailure(NpcAgentProfile const& profile, NpcAgentProfileBinding const* binding)
+{
+    if (!binding) return "agent is not registered";
+    if (profile.Agent != binding->Agent || profile.SpawnId != binding->SpawnId || profile.MapId != binding->MapId)
+        return "agent identity or map mismatch";
+    if (!binding->Controlled) return "agent is not AIWorld controlled";
+    if (!binding->InMembership) return "agent is outside simulation membership";
+    if (!binding->Participating) return "agent participation does not allow LLM control";
+    if (!binding->SupportedRole) return "agent role has no supported action capabilities";
+    return nullptr;
+}
+
 class TC_GAME_API NpcAgentProfileCatalog
 {
 public:
@@ -33,6 +61,11 @@ public:
     // Any I/O/schema/identity error clears the catalog. Diagnostics never
     // include file contents, paths, or filesystem exception text.
     bool Load(std::string const& directory);
+    // Startup contains individual optional import errors. Only canonical
+    // filenames and runtime-eligible identities enter the resulting catalog.
+    using RuntimeValidator = std::function<char const*(NpcAgentProfile const&)>;
+    NpcAgentCatalogIssues LoadRuntime(std::string const& directory, RuntimeValidator const& validator = {},
+        std::size_t maxAccepted = MaxProfiles);
     NpcAgentProfile const* Get(AgentId id) const;
     std::size_t Size() const { return _profiles.size(); }
     std::string const& GetLastError() const { return _lastError; }

@@ -102,32 +102,44 @@ void AIWorldMgr::InitializeNpcAgents()
     if (!_enabled || !_livingRolesEnabled || !_livingRoleExtensionsEnabled || !_restrictAgentsToSimulationScope)
         throw std::runtime_error("NPC agents require enabled scoped AIWorld and living role action capabilities");
     std::string profilesDirectory = sConfigMgr->GetStringDefault("AIWorld.NpcAgentProfilesDirectory", "data/npc_agents");
-    if (!_npcAgentProfiles.Load(profilesDirectory) ||
-        !_npcAgentProfiles.Size() || _npcAgentProfiles.Size() > 16)
-        throw std::runtime_error("NPC agent profiles must be a valid directory containing 1..16 individual profiles");
-    std::size_t accepted = 0;
-    for (AgentId id : _registry.GetAgents())
-        if (auto* record = _registry.Find(id); record && _npcAgentProfiles.Get(id))
-        {
-            if (!IsNpcAgent(*record) || !LivingRolePolicy::KnownRole(LivingRolePolicy::Resolve(record->Type, 0, false)))
-                throw std::runtime_error("NPC profile must match an existing controlled participating agent");
-            ++accepted;
-        }
-    if (accepted != _npcAgentProfiles.Size())
-        throw std::runtime_error("NPC profile references an unregistered or mismatched agent");
+    _npcAgentAppearances.Clear();
+    auto profileIssues = _npcAgentProfiles.LoadRuntime(profilesDirectory, [&](NpcAgentProfile const& profile) -> char const*
+    {
+        auto const* record = _registry.Find(profile.Agent);
+        if (!record) return NpcAgentProfileBindingFailure(profile, nullptr);
+        auto participation = _spawnParticipationCatalog.Resolve(record->SpawnId);
+        NpcAgentProfileBinding binding{record->Id, record->MapId, record->SpawnId,
+            record->ControlMode == AgentControlMode::AIWorldControlled,
+            InSimulationMembership(record->MapId, record->SpawnId),
+            participation == SpawnParticipationMode::FullAgent || participation == SpawnParticipationMode::LightweightBackground,
+            LivingRolePolicy::KnownRole(LivingRolePolicy::Resolve(record->Type, 0, false))};
+        return NpcAgentProfileBindingFailure(profile, &binding);
+    }, 16);
+    for (auto const& issue : profileIssues)
+        TC_LOG_ERROR("ai.world", "LLM NPC profile ignored: file={} agent={} reason={}",
+            issue.Filename, issue.Identity, issue.Reason);
+    if (!_npcAgentProfiles.Size())
+    {
+        _npcAgentEnabled = false;
+        TC_LOG_ERROR("ai.world", "LLM NPC controller disabled: no eligible authored profiles; world startup continues");
+        return;
+    }
     std::string appearanceDirectory = sConfigMgr->GetStringDefault("AIWorld.NpcAgentAppearancesDirectory",
         (std::filesystem::path(profilesDirectory).parent_path() / "npc_appearances").string());
-    if (!_npcAgentAppearances.Load(appearanceDirectory))
-        throw std::runtime_error("NPC appearance directory contains an invalid sidecar");
-    for (auto const& [spawn, appearance] : _npcAgentAppearances.Entries())
+    auto appearanceIssues = _npcAgentAppearances.LoadRuntime(appearanceDirectory, [&](NpcAgentAppearance const& appearance) -> char const*
     {
-        auto const* profile = _npcAgentProfiles.Get(AgentId{spawn});
-        if (!profile || profile->MapId != appearance.MapId || profile->SpawnId != spawn ||
-            !ValidateNativeNpcAgentAppearance(appearance))
-            throw std::runtime_error("NPC appearance must match an opted-in profile and valid native client data");
-    }
+        auto const* profile = _npcAgentProfiles.Get(AgentId{appearance.SpawnId});
+        if (!profile) return "appearance has no eligible LLM profile";
+        if (profile->MapId != appearance.MapId || profile->SpawnId != appearance.SpawnId)
+            return "appearance profile identity or map mismatch";
+        if (!ValidateNativeNpcAgentAppearance(appearance)) return "appearance is invalid for native client data";
+        return nullptr;
+    });
+    for (auto const& issue : appearanceIssues)
+        TC_LOG_ERROR("ai.world", "LLM NPC appearance ignored: file={} spawn={} reason={}; creature template remains active",
+            issue.Filename, issue.Identity, issue.Reason);
     TC_LOG_INFO("ai.world", "LLM NPC controller enabled: profiles={} appearances={} intervalMs={} maxInFlight={}",
-        accepted, _npcAgentAppearances.Size(), _npcAgentIntervalMs, _npcAgentMaxInFlight);
+        _npcAgentProfiles.Size(), _npcAgentAppearances.Size(), _npcAgentIntervalMs, _npcAgentMaxInFlight);
 }
 
 bool AIWorldMgr::SendNpcAgentAppearance(Player& observer, Creature const& creature) const

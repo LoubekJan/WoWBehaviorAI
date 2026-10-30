@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.models import SLOTS, UINT64_MAX
+from app.targets import Target, TargetRegistry
 
 
 def fixture_catalog():
@@ -47,6 +48,14 @@ PROPOSAL = {"backstory": "Jsem z malé vesnice. Jednou jsem napravil svou chybu.
             "personality": "Mluvím česky, klidně a přiznám nejistotu.", "suggestions": ["Kdo zná tuto vzpomínku?"]}
 
 
+def fixture_targets():
+    return TargetRegistry(True, "fixture", tuple(
+        Target(identity, 725, "Ověřená postava", "worker", "CIVILIAN", 11328, True, "Ověřený řízený cíl.")
+        for identity in (901016, 901035, 901036, UINT64_MAX)) + (
+            Target(901014, 725, "Městský obyvatel", "resident", "NONE", 11328, False,
+                   "NPC 901014 používá běžné herní AI a není registrované pro LLM řízení."),))
+
+
 class CharacterStudioTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -76,7 +85,7 @@ class CharacterStudioTests(unittest.TestCase):
         return create_app(data_dir=self.root / "data", catalog_path=self.catalog_path,
                           source_dir=self.sources, appearance_dir=self.appearances,
                           model_data_dir=self.root / "models", ai_url="http://ai.invalid", ai_transport=self.transport,
-                          password=extra.pop("password", ""), **extra)
+                          password=extra.pop("password", ""), target_registry=extra.pop("target_registry", fixture_targets()), **extra)
 
     def tearDown(self):
         self.client.close()
@@ -159,6 +168,56 @@ class CharacterStudioTests(unittest.TestCase):
         self.assertIn(str(UINT64_MAX).encode(), response.content)
         self.assertIn("attachment", response.headers["content-disposition"])
         self.assertEqual(saved["card"]["agent_id"], str(UINT64_MAX))
+
+    def test_export_rejects_native_observe_only_target_without_losing_draft(self):
+        saved = self.create(draft("901014"))
+        for suffix in ("profile", "appearance", "bundle", "bundle.zip"):
+            with self.subTest(suffix=suffix):
+                response = self.client.get(f"/api/characters/{saved['id']}/{suffix}")
+                self.assertEqual(response.status_code, 422)
+                self.assertIn("901014", response.json()["detail"])
+        self.assertEqual(self.client.get(f"/api/characters/{saved['id']}").json(), saved)
+        self.assertEqual(self.client.get(f"/api/characters/{saved['id']}/draft").status_code, 200)
+
+    def test_target_validation_distinguishes_unknown_wrong_map_and_known_controlled(self):
+        cases = (("901014", 725, False), ("900000", 725, False), ("901035", 0, False),
+                 ("901035", 725, True), ("901036", 725, True), ("901016", 725, True))
+        for identity, map_id, allowed in cases:
+            with self.subTest(identity=identity, map_id=map_id):
+                response = self.client.post("/api/validate-target", json={"agent_id": identity,
+                    "spawn_id": identity, "map_id": map_id}, headers=self.headers)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["eligible"], allowed)
+                self.assertTrue(response.json()["reason"])
+        self.assertEqual(self.client.post("/api/validate-target", json={"agent_id": "901035",
+            "spawn_id": "901035", "map_id": 725}).status_code, 403)
+
+    def test_all_native_downloads_fail_closed_without_population_metadata(self):
+        unavailable = TargetRegistry(False, "fields-v8", reason="Metadata populace nejsou ověřená.")
+        with TestClient(self.new_app(target_registry=unavailable)) as client:
+            token = client.get("/api/session").json()["csrf_token"]
+            response = client.post("/api/characters", json=draft(), headers={"X-CSRF-Token": token})
+            self.assertEqual(response.status_code, 201)
+            saved = response.json()
+            for suffix in ("profile", "appearance", "bundle.zip"):
+                self.assertEqual(client.get(f"/api/characters/{saved['id']}/{suffix}").status_code, 503)
+            self.assertEqual(client.get(f"/api/characters/{saved['id']}/draft").status_code, 200)
+            self.assertFalse(client.get("/api/catalog").json()["target_registry"]["available"])
+
+    def test_unknown_target_and_mismatched_map_cannot_download_profile(self):
+        for data in (draft("900000"), {**draft(), "card": {**draft()["card"], "map_id": 0}}):
+            saved = self.create(data)
+            for suffix in ("profile", "appearance", "bundle.zip"):
+                self.assertEqual(self.client.get(f"/api/characters/{saved['id']}/{suffix}").status_code, 422)
+
+    def test_catalog_exposes_verified_targets_with_lossless_ids_and_denial_reason(self):
+        catalog = self.client.get("/api/catalog").json()
+        self.assertTrue(catalog["target_registry"]["available"])
+        rows = {row["spawn_id"]: row for row in catalog["targets"]}
+        self.assertFalse(rows["901014"]["eligible"])
+        self.assertTrue(rows["901035"]["eligible"])
+        self.assertIn(str(UINT64_MAX), rows)
+        self.assertTrue(rows["901014"]["reason"])
 
     def test_profile_import_preserves_exact_text_and_numeric_id(self):
         original = native(UINT64_MAX)

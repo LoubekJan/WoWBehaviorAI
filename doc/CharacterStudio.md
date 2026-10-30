@@ -29,9 +29,12 @@ odmítne místo přepsání novější verze.
    původního creature modelu.
 2. Zvolte podobu a výbavu. V části **Charakter** napište motivace a způsob řeči;
    v části **Příběh** vyplňte minulost a vztahy. Návrh AI se automaticky neukládá.
-3. Uložte postavu. V části **Export** přiřaďte skutečné Spawn ID a mapu.
+3. Uložte postavu. V části **Export** vyberte ověřené řízené NPC z aktivního
+   populačního profilu. Pouhé platné číslo Spawn ID nestačí: běžný městský
+   obyvatel s původní AI, neznámé ID ani jiná mapa nejsou platným cílem.
    Agent ID se rovná Spawn ID; velká uint64 ID se v editoru nepřevádějí na
-   nepřesná JavaScript čísla.
+   nepřesná JavaScript čísla. Návrh i jeho editovatelnou zálohu lze uložit
+   bez platného cíle, herní export je však zablokovaný až do ověření.
 4. Stáhněte ZIP. Obsahuje `npc_agents/<spawn>.json`,
    `npc_appearances/<spawn>.json`, editovatelný návrh a návod.
 5. Zkontrolované soubory vložte do odpovídajících `data/` adresářů projektu,
@@ -43,6 +46,20 @@ samostatný volitelný soubor; prázdný adresář nepřepisuje původní modely
 Server kontroluje skutečné DBC, shodu identity a mapy i sloty vybavení. Načítá
 jen vzhledy existujících NPC zapnutých pro LLM. Současný controller má nadále
 svůj původní limit 16 současně registrovaných LLM profilů.
+
+Editor ověřuje cíl proti čtenému, hashově kontrolovanému populačnímu profilu
+`consumers-v8`, `raids-v8` nebo `fields-v8`. Před stažením server kontrolu
+opakuje, takže ji nelze obejít starým otevřeným formulářem. Nepřebírá sám
+běžné NPC do AI řízení, nemění jejich registraci ani nevytváří nové spawny.
+Změna karty již obsazeného cíle znamená nahrazení jeho autorské identity
+při nasazení; editor na existující jméno upozorní.
+
+Při startu světa se chybný volitelný import izoluje: neplatná nebo neověřená
+karta se nepoužije, vadný vzhled ponechá původní creature model. Ostatní
+platné postavy se načtou dál. Není-li použitelná žádná karta, vypne se jen
+LLM controller; samotný herní svět může naběhnout. Důvod odmítnutí je v logu.
+Původní konfigurační kontroly oprávnění a rozsahu AIWorld zůstávají přísné.
+Soubor karty ani návrh se při tomto odmítnutí nemaže nebo automaticky nemění.
 
 ## Vzhled ve hře
 

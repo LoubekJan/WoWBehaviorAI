@@ -9,3 +9,5 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 
 .preview-render-note{font-size:9px;color:var(--muted);line-height:1.7;padding:12px 22px 0}.preview-render-note:empty{display:none}@media(max-width:900px){.preview-render-note{grid-column:1/-1;grid-row:3;padding-bottom:12px}}
+
+.target-status{font-size:11px;line-height:1.8;border-left:2px solid var(--green);padding:9px 12px;background:#203226;margin:0 0 18px;color:#b9d1b2}.target-status.invalid{border-color:var(--gold);background:#373222;color:#e0c993}.target-identities{font-size:11px;color:var(--muted);margin:18px 0 22px}.target-identities summary{cursor:pointer;margin-bottom:12px}.export-card .button:disabled{cursor:not-allowed}.target-invalid-badge{font-size:10px;color:var(--gold)}

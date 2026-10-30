@@ -290,3 +290,38 @@ NpcAgentProfile const* NpcAgentProfileCatalog::Get(AgentId id) const
     auto found = _profiles.find(id.Value);
     return found == _profiles.end() ? nullptr : &found->second;
 }
+
+NpcAgentCatalogIssues NpcAgentProfileCatalog::LoadRuntime(std::string const& directory,
+    RuntimeValidator const& validator, std::size_t maxAccepted)
+{
+    _profiles.clear();
+    _lastError.clear();
+    NpcAgentCatalogIssues issues;
+    maxAccepted = std::min(maxAccepted, MaxProfiles);
+    for (auto const& path : NpcAgentCatalogLoading::Files(directory, MaxProfiles * 2, false, issues))
+    {
+        auto body = NpcAgentCatalogLoading::Read(path, MaxProfileFileBytes, issues);
+        if (!body) continue;
+        NpcAgentProfile profile;
+        if (!ParseNpcAgentProfile(*body, profile))
+        {
+            issues.push_back({NpcAgentCatalogLoading::Filename(path), 0, "profile schema or identity invalid"});
+            continue;
+        }
+        uint64 id = profile.Agent.Value;
+        char const* failure = nullptr;
+        if (path.filename() != std::filesystem::path(std::to_string(id) + ".json"))
+            failure = "profile filename must equal spawn ID";
+        else if (_profiles.find(id) != _profiles.end()) failure = "duplicate profile agent identity";
+        else if (validator) failure = validator(profile);
+        if (!failure && _profiles.size() >= maxAccepted) failure = "eligible profile limit exceeded";
+        if (failure)
+        {
+            issues.push_back({NpcAgentCatalogLoading::Filename(path), id, failure});
+            continue;
+        }
+        _profiles.emplace(id, std::move(profile));
+    }
+    if (!issues.empty()) _lastError = issues.front().Reason;
+    return issues;
+}

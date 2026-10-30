@@ -6,7 +6,7 @@ const authorKeys = ['role', 'faction', 'age', 'home', 'traits', 'values', 'goals
 const appearanceFields = [['skin', 'Odstín kůže', 'skins'], ['face', 'Obličej', 'faces'], ['hair_style', 'Účes', 'hair_styles'], ['hair_color', 'Barva vlasů', 'hair_colors'], ['facial_hair', 'Vousy / doplňky', 'facial_hairs']];
 const tabs = ['appearance', 'personality', 'story', 'export'];
 const defaults = () => ({card: {agent_id: '', spawn_id: '', map_id: 725, name: '', backstory: '', personality: ''}, appearance: {race: 1, gender: 0, class_id: 1, skin: 0, face: 0, hair_style: 0, hair_color: 0, facial_hair: 0, equipment: []}, authoring: Object.fromEntries(authorKeys.map(key => [key, '']))});
-let catalog = {races: [], equipment: [], equipment_slots: [], source_profiles: []};
+let catalog = {races: [], equipment: [], equipment_slots: [], source_profiles: [], targets: []};
 let characters = [];
 let current = defaults();
 let dirty = false;
@@ -205,7 +205,59 @@ function completion() {
   return [!!current.card.name.trim() && current.card.name.length <= 32 && bytes(current.card.name) <= 80,
     !!current.card.personality.trim() && bytes(current.card.personality) <= 2048,
     !!current.card.backstory.trim() && bytes(current.card.backstory) <= 8192,
-    validId(current.card.spawn_id) && current.card.agent_id === current.card.spawn_id && Number.isInteger(current.card.map_id) && current.card.map_id >= 0 && current.card.map_id <= 4294967295];
+    targetStatus().eligible];
+}
+
+function targetStatus() {
+  const registry = catalog.target_registry;
+  if (registry?.available !== true) return {eligible: false, reason: registry?.reason || 'Nabídku řízených NPC se nepodařilo ověřit. Návrh můžeš uložit, herní export zatím není dostupný.'};
+  if (!current.card.spawn_id) return {eligible: false, reason: 'Vyber cílové NPC. Nové číslo samo o sobě postavu ve světě nevytvoří ani nezapne její LLM řízení.'};
+  if (!validId(current.card.spawn_id) || current.card.agent_id !== current.card.spawn_id) return {eligible: false, reason: 'Agent ID a Spawn ID musí být stejné platné číslo.'};
+  const row = (catalog.targets || []).find(row => row.spawn_id === current.card.spawn_id);
+  if (!row) return {eligible: false, reason: 'Toto ID není v ověřené populaci světa. Návrh zůstává uložený; před herním exportem zvol existující řízené NPC.'};
+  if (row.map_id !== current.card.map_id) return {eligible: false, reason: `Cílové NPC patří na mapu ${row.map_id}. Zvolená mapa s ním nesouhlasí.`};
+  if (row.agent_id !== current.card.agent_id || row.eligible !== true) return {eligible: false, reason: row.reason || 'Toto NPC není registrované pro řízení LLM. Samotný import charakterové karty jeho řízení nezapne.'};
+  const installed = catalog.source_profiles.find(source => source.card.spawn_id === row.spawn_id && source.card.map_id === row.map_id);
+  let reason = `Cíl ${row.spawn_id} je ověřený podle aktivního profilu ${registry.profile}.`;
+  if (installed && installed.card.name !== current.card.name) reason += ` Používá kartu „${installed.card.name}“. Nasazení tohoto exportu ji nahradí novou identitou.`;
+  return {eligible: true, reason};
+}
+
+function renderTargets() {
+  const select = $('#target-select');
+  const options = [];
+  const placeholder = el('option', 'Vyber ověřené NPC…');
+  placeholder.value = ''; options.push(placeholder);
+  const targets = catalog.targets || [];
+  const groups = new Map([[true, el('optgroup')], [false, el('optgroup')]]);
+  groups.get(true).label = 'Řízená NPC – lze přiřadit kartu';
+  groups.get(false).label = 'Původní AI – zatím nelze exportovat';
+  for (const row of targets) {
+    const source = catalog.source_profiles.find(source => source.card.spawn_id === row.spawn_id && source.card.map_id === row.map_id);
+    const name = source?.card.name || row.name || row.role || 'NPC';
+    const option = el('option', `${row.spawn_id} · ${name}${row.eligible ? '' : ' · není řízené LLM'}`);
+    option.value = row.spawn_id;
+    option.disabled = row.eligible !== true;
+    option.selected = row.spawn_id === current.card.spawn_id;
+    groups.get(row.eligible === true).append(option);
+  }
+  if (current.card.spawn_id && !targets.some(row => row.spawn_id === current.card.spawn_id)) {
+    const unknown = el('option', `${current.card.spawn_id} · neověřený cíl`);
+    unknown.value = current.card.spawn_id; unknown.selected = true; unknown.disabled = true; options.push(unknown);
+  }
+  for (const group of groups.values()) if (group.children.length) options.push(group);
+  select.replaceChildren(...options);
+  if (!current.card.spawn_id) select.value = '';
+  select.disabled = catalog.target_registry?.available !== true;
+  $('#target-registry-source').textContent = catalog.target_registry?.available ? `Zdroj: ověřený populační profil ${catalog.target_registry.profile}.` : 'Ověřený populační profil není dostupný.';
+  const status = targetStatus();
+  $('#target-status').textContent = status.reason;
+  $('#target-status').classList.toggle('invalid', !status.eligible);
+  for (const id of ['export-bundle', 'export-profile', 'export-appearance']) {
+    $(`#${id}`).disabled = !status.eligible;
+    $(`#${id}`).title = status.eligible ? '' : status.reason;
+    $(`#${id}`).setAttribute('aria-describedby', 'target-status');
+  }
 }
 
 function renderSummary() {
@@ -230,7 +282,7 @@ function renderSummary() {
     counter.classList.toggle('over-limit', size > max);
   }
   const checklist = completion();
-  const labels = ['Jméno postavy v herním limitu', 'Osobnost pro rozhodování a řeč', 'Životopis a vlastní minulost', 'Skutečná identita NPC a mapa'];
+  const labels = ['Jméno postavy v herním limitu', 'Osobnost pro rozhodování a řeč', 'Životopis a vlastní minulost', 'Ověřený řízený cíl NPC a mapa'];
   $('#export-checklist').replaceChildren(...checklist.map((ready, i) => {
     const row = el('li', undefined, ready ? 'complete' : 'incomplete');
     row.append(el('span', ready ? '✓' : '·', 'check-mark'), el('span', labels[i]));
@@ -240,6 +292,7 @@ function renderSummary() {
   $('#completion-label').textContent = `${count} / 4`;
   $('#completion-bar').style.width = `${count * 25}%`;
   $('#delete-character').hidden = !current.id;
+  renderTargets();
   const key = JSON.stringify(current.appearance);
   if (key !== previewKey) {
     clearTimeout(previewTimer);
@@ -327,6 +380,7 @@ function downloadBlob(blob, name) {
 
 async function exportFile(kind) {
   readForm();
+  if (!targetStatus().eligible) { showTab('export'); throw new Error(targetStatus().reason); }
   if (completion().some(ready => !ready)) { showTab('export'); throw new Error('Před exportem doplň jméno, osobnost, životopis a platnou identitu NPC.'); }
   if (dirty || !current.id) await save();
   await download(`/api/characters/${current.id}/${kind}`);
@@ -339,6 +393,16 @@ function setupEvents() {
   });
   $('#character-form').addEventListener('change', event => {
     if (event.target.matches('[data-author]')) { readForm(); changed(); }
+  });
+  $('#target-select').addEventListener('change', event => {
+    const row = (catalog.targets || []).find(row => row.spawn_id === event.target.value && row.eligible === true);
+    if (!row) return;
+    current.card.spawn_id = row.spawn_id;
+    current.card.agent_id = row.agent_id;
+    current.card.map_id = row.map_id;
+    $('#card-spawn').value = row.spawn_id;
+    $('#card-map').value = row.map_id;
+    changed();
   });
   $('#appearance-race').addEventListener('change', event => { current.appearance.race = Number(event.target.value); normalizeAppearance(); renderAppearance(); changed(); });
   $$('input[name="gender"]').forEach(input => input.addEventListener('change', () => { current.appearance.gender = Number(input.value); normalizeAppearance(); renderAppearance(); changed(); }));

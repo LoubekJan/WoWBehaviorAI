@@ -2,6 +2,7 @@
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "tc_catch2.h"
 #include "Agent/NpcAgentAppearance.h"
+#include "Agent/NpcAgentProfile.h"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -121,4 +122,56 @@ TEST_CASE("Optional appearance directories are atomic and bound to authored file
     directory.Write("901037.json", std::string(NpcAgentAppearanceCatalog::MaxFileBytes + 1, ' '));
     CHECK_FALSE(catalog.Load(directory.Path.string()));
     CHECK(catalog.Size() == 0);
+}
+
+TEST_CASE("Runtime appearance imports retain healthy looks and both cards when one look is malformed", "[AIWorld][NpcAgent][Appearance][Import]")
+{
+    AppearanceDirectory directory;
+    REQUIRE(directory.Created);
+    REQUIRE(std::filesystem::create_directory(directory.Path / "profiles"));
+    REQUIRE(std::filesystem::create_directory(directory.Path / "looks"));
+    for (uint64 id : {901035ull, 901036ull})
+        directory.Write("profiles/" + std::to_string(id) + ".json", "{\"agent_id\":" + std::to_string(id)
+            + ",\"spawn_id\":" + std::to_string(id) + R"(,"map_id":725,"name":"N","backstory":"B","personality":"P"})");
+    NpcAgentProfileCatalog profiles;
+    CHECK(profiles.LoadRuntime((directory.Path / "profiles").string()).empty());
+    REQUIRE(profiles.Size() == 2);
+    directory.Write("looks/901035.json", AppearanceJson());
+    directory.Write("looks/901036.json", "{broken}");
+    directory.Write("looks/901014.json", AppearanceJson(901014));
+    directory.Write("looks/901035 (1).json", AppearanceJson());
+    NpcAgentAppearanceCatalog looks;
+    auto issues = looks.LoadRuntime((directory.Path / "looks").string(), [&](NpcAgentAppearance const& appearance) -> char const*
+    { return profiles.Get(AgentId{appearance.SpawnId}) ? nullptr : "appearance has no eligible LLM profile"; });
+    REQUIRE(looks.Size() == 1);
+    CHECK(looks.Get(901035));
+    CHECK_FALSE(looks.Get(901036));
+    CHECK_FALSE(looks.Get(901014));
+    CHECK(profiles.Size() == 2);
+    CHECK(profiles.Get(AgentId{901036}));
+    CHECK(issues.size() == 3);
+}
+
+TEST_CASE("Runtime look validation isolates native data or map failures without removing a valid card", "[AIWorld][NpcAgent][Appearance][Import]")
+{
+    AppearanceDirectory directory;
+    REQUIRE(directory.Created);
+    directory.Write("901035.json", AppearanceJson());
+    directory.Write("901036.json", Replace(AppearanceJson(901036), "\"face\":3", "\"face\":255"));
+    directory.Write("901037.json", Replace(AppearanceJson(901037), "\"map_id\":725", "\"map_id\":0"));
+    NpcAgentAppearanceCatalog looks;
+    auto issues = looks.LoadRuntime(directory.Path.string(), [](NpcAgentAppearance const& appearance) -> char const*
+    {
+        if (appearance.MapId != 725) return "appearance profile identity or map mismatch";
+        return appearance.Face == 255 ? "appearance is invalid for native client data" : nullptr;
+    });
+    REQUIRE(looks.Size() == 1);
+    CHECK(looks.Get(901035));
+    CHECK_FALSE(looks.Get(901036));
+    CHECK_FALSE(looks.Get(901037));
+    REQUIRE(issues.size() == 2);
+    CHECK(issues[0].Identity == 901036);
+    CHECK(issues[1].Identity == 901037);
+    CHECK(looks.LoadRuntime((directory.Path / "absent").string()).empty());
+    CHECK(looks.Size() == 0);
 }
