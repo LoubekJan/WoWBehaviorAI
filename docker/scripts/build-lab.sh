@@ -7,7 +7,9 @@ cmake -S /workspace -B /build -G Ninja \
   -DCMAKE_INSTALL_PREFIX="$install_prefix" \
   -DTOOLS=1 -DBUILD_TESTING=ON \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-cmake --build /build
+# CI and deployment share this host with the running realm and other services.
+# Bound each build even when separate CI/deployment jobs overlap.
+cmake --build /build --parallel 2
 ctest --test-dir /build --output-on-failure --no-tests=error
 cmake --install /build
 "$install_prefix/bin/worldserver" --version
