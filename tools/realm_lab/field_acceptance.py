@@ -438,7 +438,7 @@ class _Evaluator:
                 track.closed_stamps = set(sorted(track.closed_stamps, key=lambda item: item[1])[-64:])
         track.previous = row
 
-    def observe(self, record):
+    def observe(self, record, *, witnessed_dead_bindings=None):
         usable = self.usable(record)
         if usable is None: return
         state, t, capture = usable
@@ -453,13 +453,39 @@ class _Evaluator:
             self.reset("incomplete_six_depot_ledger"); return
         metrics, depots, crops, accounting = ledger
         if self.previous_metrics:
-            comparable = set(metrics) == set(self.previous_metrics) and all(
-                (metrics[sid]["guid"], metrics[sid]["life"]) == (self.previous_metrics[sid]["guid"], self.previous_metrics[sid]["life"])
-                for sid in metrics)
+            same_members = set(metrics) == set(self.previous_metrics)
+            changed = {sid for sid in metrics if sid in self.previous_metrics and
+                (metrics[sid]["guid"], metrics[sid]["life"]) != (self.previous_metrics[sid]["guid"], self.previous_metrics[sid]["life"])}
+            # Only the group proof can authorize a previously witnessed dead
+            # raider's retirement. Its new life never inherits the old trip's
+            # actor evidence. Food counters still belong to the spawn ledger:
+            # retain and reconcile every flow rather than silently rebasing it.
+            retired = witnessed_dead_bindings or {}
+            authorized, role_resets, respawns = bool(changed), 0, 0
+            for sid in changed:
+                original = retired.get(sid)
+                if (sid not in self.raiders or not isinstance(original, tuple) or len(original) != 2 or
+                    not isinstance(original[0], str) or not original[0] or type(original[1]) is not int or original[1] <= 0):
+                    authorized = False; break
+                before, after, actor = self.previous_metrics[sid], metrics[sid], actors[sid]
+                old_guid, old_life = original
+                prior_bound = before["guid"] == old_guid and type(before["life"]) is int and before["life"] in (0, old_life)
+                dead_reset = (actor.get("alive") is False and actor.get("health") == 0 and
+                    after["guid"] == old_guid and type(after["life"]) is int and after["life"] == 0)
+                new_life = (actor.get("alive") is True and isinstance(after["guid"], str) and bool(after["guid"].strip()) and
+                    type(after["life"]) is int and old_life < after["life"] <= capture)
+                if not prior_bound or not (dead_reset or new_life):
+                    authorized = False; break
+                role_resets += int(dead_reset)
+                respawns += int(new_life)
+            comparable = same_members and (not changed or authorized)
             reset = (not comparable or any(metrics[sid]["counters"][key] < self.previous_metrics[sid]["counters"][key] for sid in metrics for key in COUNTERS) or
                 accounting["initial_food"] != self.previous_accounting["initial_food"] or
                 any(accounting[key] < self.previous_accounting[key] for key in ("harvested", "consumed", "lost")))
             if reset: self.reset("incarnation_or_food_counter_transition")
+            elif authorized:
+                if role_resets: self.quality["witnessed_dead_raider_role_reset_continued"] += role_resets
+                if respawns: self.quality["witnessed_dead_raider_incarnation_continued"] += respawns
         flows = {key: dict(delivered=0, consumed=0, stolen=0) for key in self.depots}
         if self.previous_metrics:
             changes = {sid: {key: metrics[sid]["counters"][key]-self.previous_metrics[sid]["counters"][key] for key in COUNTERS} for sid in metrics}

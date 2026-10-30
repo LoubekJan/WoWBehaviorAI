@@ -51,6 +51,8 @@ class _Evaluator:
             camp_members=population.DEFIAS_IDS, profile=population.PROFILE)
         self.minimum_seconds, self.max_gap = minimum_seconds, max_gap_seconds
         self.tracks, self.receipts = {}, []
+        self.retired_bindings = {}
+        self.current_death_bindings = {}
         self.party_frames = 0
 
     def violation(self, code, sid=0):
@@ -93,9 +95,12 @@ class _Evaluator:
     def actor_row(self, actor, capture, party):
         role, supplied = actor.get("living_role") or {}, actor.get("supply") or {}
         position = fields.point(actor.get("position"))
+        dead = actor.get("alive") is False and actor.get("health") == 0
+        binding = self.current_death_bindings.get(actor["spawn_id"]) if dead else None
+        if binding is None and fields.supply.positive_int(role.get("lifetime_ms")):
+            binding = (actor.get("runtime_guid"), role["lifetime_ms"])
         if (position is None or actor.get("position", {}).get("source") != "live" or
-            not actor.get("runtime_guid") or not fields.supply.positive_int(role.get("lifetime_ms")) or
-            role["lifetime_ms"] > capture):
+            not actor.get("runtime_guid") or binding is None or binding[1] > capture):
             return None
         if (supplied.get("enabled") is not True or supplied.get("role") != "RAIDER" or
             supplied.get("depot_id") != 3 or supplied.get("capacity") != 2 or
@@ -104,13 +109,55 @@ class _Evaluator:
             self.violation("defias_raider_capability_changed", actor["spawn_id"]); return None
         camp, source = self.field_gate.depots[3], self.field_gate.depots[party["source"]]
         return dict(actor=actor, position=position, capture=capture,
-            binding=(actor["runtime_guid"], role["lifetime_ms"]),
+            binding=binding, observed_role_lifetime_ms=role.get("lifetime_ms"),
             camp_distance=fields.dist3(position, fields.point(camp)),
             source_distance=fields.dist3(position, fields.point(source)),
             outward=self.owned_move(actor, {"RAID_SOURCE"}),
             returning=self.owned_move(actor, {"RAID_CAMP", "RAID_EMPTY_RETURN"}),
             alive=actor.get("alive") is True and isinstance(actor.get("health"), (int, float)) and actor["health"] > 0,
-            dead=actor.get("alive") is False and actor.get("health") == 0)
+            dead=dead)
+
+    def death_bindings(self, record):
+        """Retain a prior live identity only for a directly witnessed corpse.
+
+        Death clears LivingRole in the runtime, so its raw lifetime can be zero.
+        The old positive lifetime is provenance from the immediately preceding
+        fresh bound sample, never a fabricated postmortem role observation.
+        """
+        result = dict(self.retired_bindings)
+        state = record if isinstance(record, dict) and "agents" in record else (record.get("state") if isinstance(record, dict) else None)
+        if not isinstance(state, dict) or not isinstance(state.get("agents"), list):
+            return result
+        capture = state.get("captured_at_ms")
+        if not fields.supply.positive_int(capture):
+            return result
+        for actor in state["agents"]:
+            if (not isinstance(actor, dict) or actor.get("spawn_id") not in population.RAIDER_IDS or
+                actor.get("alive") is not False or actor.get("health") != 0 or
+                (actor.get("position") or {}).get("source") != "live" or
+                (actor.get("position") or {}).get("map_id") != 725):
+                continue
+            sid, position = actor["spawn_id"], fields.point(actor.get("position"))
+            if position is None:
+                continue
+            party = self.party(actor)
+            if party is None:
+                continue
+            track = self.tracks.get((self.field_gate.epoch, party["id"], party["attempt"]))
+            if track is None or track.closed or sid not in track.bindings:
+                continue
+            if (track.roster, track.leader, track.source, track.route) != (party["members"], party["leader"], party["source"], party["route"]):
+                continue
+            original, old = track.bindings[sid], track.previous.get(sid)
+            raw_life = (actor.get("living_role") or {}).get("lifetime_ms")
+            if (actor.get("runtime_guid") != original[0] or type(raw_life) is not int or raw_life not in (0, original[1]) or
+                old is None or not old["alive"] or not 0 < capture-old["capture"] <= self.max_gap*1000):
+                continue
+            speed = (old["actor"].get("movement") or {}).get("run_speed", 7)
+            speed = min(speed, 14) if fields.finite(speed) and speed > 0 else 7
+            if fields.dist3(position, old["position"]) <= speed*(capture-old["capture"])/1000*1.5+3:
+                result[sid] = original
+        return result
 
     def validate_defias_capabilities(self, actors):
         for sid in population.DEFIAS_IDS:
@@ -140,7 +187,11 @@ class _Evaluator:
                 del self.tracks[next(iter(self.tracks))]
         if track.closed:
             return
-        if set(rows) != set(track.roster):
+        dead_members = {sid for sid, terminal in track.terminal.items() if terminal["kind"] == "DEATH"}
+        # A captured death is already a final outcome for that exact binding.
+        # Its later respawn may clear PartyId while the surviving old party is
+        # still returning. Missing live members remain an evidence break.
+        if not (set(track.roster)-dead_members).issubset(rows) or set(rows)-set(track.roster):
             track.closed = True; return
         if (track.roster, track.leader, track.source, track.route) != (
             party["members"], party["leader"], party["source"], party["route"]):
@@ -148,6 +199,10 @@ class _Evaluator:
         for sid, row in rows.items():
             if row["binding"] != track.bindings.get(sid):
                 track.closed = True; return
+            if sid in dead_members:
+                if not row["dead"]:
+                    track.closed = True; return
+                continue
             old = track.previous.get(sid)
             if old is not None:
                 seconds = (capture-old["capture"])/1000
@@ -178,7 +233,11 @@ class _Evaluator:
             if type(planning.get("memory_records")) is int and planning["memory_records"] > 0:
                 track.memories[sid] = dict(capture_ms=capture, records=planning["memory_records"], reason=planning.get("reason"))
             if row["dead"]:
-                track.terminal.setdefault(sid, dict(kind="DEATH", capture_ms=capture))
+                track.terminal.setdefault(sid, dict(kind="DEATH", capture_ms=capture,
+                    runtime_guid=row["binding"][0], lifetime_ms=row["binding"][1],
+                    observed_role_lifetime_ms=row["observed_role_lifetime_ms"],
+                    prior_alive_capture_ms=old["capture"] if old is not None else None))
+                self.retired_bindings[sid] = row["binding"]
             elif sid in track.joint_members:
                 if (party["phase"] in ("RETURNING", "COMPLETE") and row["alive"] and
                       row["camp_distance"] <= 3.01 and actor.get("in_combat") is False and
@@ -191,7 +250,7 @@ class _Evaluator:
                 for second in travelers-{first}:
                     if fields.dist3(rows[first]["position"], rows[second]["position"]) <= JOINT_RADIUS:
                         track.joint_members.update((first, second))
-        track.previous = rows
+        track.previous = {sid: row for sid, row in rows.items() if not row["dead"]}
         witnessed = bool(track.objective.keys() & track.joint_members)
         if len(track.joint_members) >= 2 and set(track.roster).issubset(track.terminal) and witnessed:
             self.receipts.append(dict(epoch=key[0], party_id=str(key[1]), attempt_id=str(key[2]),
@@ -204,14 +263,20 @@ class _Evaluator:
 
     def observe(self, record):
         prior_frames, prior_epoch = self.field_gate.complete, self.field_gate.epoch
-        self.field_gate.observe(record)
+        self.current_death_bindings = self.death_bindings(record)
+        self.field_gate.observe(record, witnessed_dead_bindings=self.current_death_bindings)
         if self.field_gate.epoch != prior_epoch:
             self.tracks.clear()
+            self.retired_bindings.clear()
+            self.current_death_bindings.clear()
         if self.field_gate.complete == prior_frames:
             return
         state = record if "agents" in record else record["state"]
         capture = state["captured_at_ms"]
         actors = {actor["spawn_id"]: actor for actor in state["agents"]}
+        self.retired_bindings = {sid: binding for sid, binding in self.retired_bindings.items()
+            if self.field_gate.previous_metrics[sid]["guid"] == binding[0] and
+            self.field_gate.previous_metrics[sid]["life"] in (0, binding[1])}
         self.validate_defias_capabilities(actors)
         parties = {}
         for sid in population.RAIDER_IDS:

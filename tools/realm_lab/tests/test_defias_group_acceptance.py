@@ -73,7 +73,153 @@ def samples(repelled=False):
     return result
 
 
+def respawn_samples(*, witnessed_death=True, dropped_cargo=False):
+    """One old member retires; four survivors return after its new life starts."""
+    result = deepcopy(samples(True))
+    camp = fields.DEPOTS[3]
+    encounter = dict(x=camp["x"], y=camp["y"]-70, z=camp["z"])
+    dead_sid = PARTY[-1]
+    for record in result:
+        t = record["elapsed_seconds"]
+        for sid in PARTY:
+            actor = fields.actor(record, sid)
+            if sid == dead_sid:
+                if witnessed_death and 26 <= t < 56:
+                    actor.update(alive=False, health=0, in_combat=False, action=None,
+                                 action_source_goal=None, goal=None, goal_owner="")
+                    actor["living_role"].update(lifetime_ms=0, phase="IDLE", activity="NONE", started_at_ms=0,
+                                               movement_purpose="NONE", enabled=True, role="RAIDER")
+                    fields.move(actor, encounter)
+                if t >= 56:
+                    actor.update(runtime_guid=f"SYNTHETIC-new-life-{sid}", alive=True, health=100,
+                                 in_combat=False, action=None, action_source_goal=None, goal=None, goal_owner="")
+                    actor["living_role"].update(lifetime_ms=fields.BASE+56000, phase="IDLE")
+                    actor["raid"].pop("party", None)
+                    fields.move(actor, actor["home"])
+                continue
+            if t >= 28:
+                phase = "RETURNING" if t <= 100 else "COMPLETE"
+                actor["raid"]["party"]["phase"] = phase
+                if t <= 100:
+                    fields.move(actor, fields.blend(encounter, camp, (t-28)/72), moving=True)
+                    fields.owned(actor, "RETURNING_EMPTY", "NONE", 28, moving=True, purpose="RAID_EMPTY_RETURN")
+        # Before its respawn, the corpse's party copy reports the shared phase.
+        if t >= 28 and t < 56:
+            fields.actor(record, dead_sid)["raid"]["party"]["phase"] = "RETURNING"
+        if dropped_cargo:
+            stolen, lost = int(t >= 20), int(t >= 26)
+            for actor in record["state"]["agents"]:
+                supplied = actor.get("supply")
+                copies = []
+                if supplied:
+                    accounting = supplied["accounting"]
+                    accounting["initial_food"] = "2"
+                    accounting["in_depots"] = str(int(accounting["in_depots"])+2*(1-stolen))
+                    accounting["in_cargo"] = str(int(accounting["in_cargo"])+2*(stolen-lost))
+                    accounting["lost"] = str(2*lost)
+                    copies.append(supplied["depot"])
+                if actor.get("raid"):
+                    copies.extend((actor["raid"]["source_depot"], actor["raid"]["camp_depot"]))
+                for depot in copies:
+                    if depot["id"] == 5:
+                        depot["stock"] += 2*(1-stolen)
+                        depot["stolen"] = str(2*stolen)
+            fields.actor(record, dead_sid)["supply"].update(stolen=str(2*stolen), lost=str(2*lost), cargo=2*(stolen-lost))
+    # Keep one continuous 300-second session. The repeated final state carries
+    # no new action/transfer evidence; it only extends the fresh ledger window.
+    for t in range(121, 301):
+        record = deepcopy(result[-1])
+        record.update(sequence=t+1, elapsed_seconds=t)
+        record["state"]["captured_at_ms"] = fields.BASE+t*1000
+        result.append(record)
+    return result
+
+
 class DefiasGroupAcceptanceTests(unittest.TestCase):
+    def test_witnessed_dead_member_can_respawn_before_the_survivors_return(self):
+        report = acceptance.evaluate_samples(respawn_samples())
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["quality"]["witnessed_dead_raider_incarnation_continued"], 1)
+        self.assertEqual(report["quality"]["witnessed_dead_raider_role_reset_continued"], 1)
+        receipt = report["receipts"][0]
+        terminal = receipt["member_outcomes"][PARTY[-1]]
+        self.assertEqual((terminal["kind"], terminal["capture_ms"]), ("DEATH", fields.BASE+26000))
+        self.assertEqual(terminal["runtime_guid"], f"SYNTHETIC-defias-{PARTY[-1]}")
+        self.assertLess(terminal["lifetime_ms"], fields.BASE+56000)
+        self.assertEqual(terminal["observed_role_lifetime_ms"], 0)
+        self.assertEqual(terminal["prior_alive_capture_ms"], fields.BASE+25000)
+        self.assertGreater(receipt["completed_capture_ms"], fields.BASE+56000)
+        # A creature may respawn under the same runtime GUID. Its newer role
+        # lifetime still separates the new life from the old death receipt.
+        rows = respawn_samples()
+        for record in rows:
+            if record["elapsed_seconds"] >= 56:
+                fields.actor(record, PARTY[-1])["runtime_guid"] = terminal["runtime_guid"]
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["receipts"][0]["member_outcomes"][PARTY[-1]], terminal)
+
+    def test_missing_live_or_unwitnessed_new_life_cannot_retire_a_member(self):
+        rows = respawn_samples(witnessed_death=False)
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["receipts"], [])
+        self.assertNotIn("witnessed_dead_raider_incarnation_continued", report["quality"])
+        rows = respawn_samples()
+        for record in rows:
+            if record["elapsed_seconds"] >= 55:
+                fields.actor(record, PARTY[1])["raid"].pop("party", None)
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["receipts"], [])
+
+    def test_zero_corpse_lifetime_requires_the_actual_previously_bound_guid(self):
+        rows = respawn_samples()
+        for record in rows:
+            if 26 <= record["elapsed_seconds"] < 56:
+                fields.actor(record, PARTY[-1])["runtime_guid"] = "SYNTHETIC-foreign-corpse"
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["receipts"], [])
+        self.assertNotIn("witnessed_dead_raider_role_reset_continued", report["quality"])
+
+    def test_a_new_life_cannot_rejoin_the_old_party_binding(self):
+        rows = respawn_samples()
+        for record in rows:
+            if record["elapsed_seconds"] >= 56:
+                fields.actor(record, PARTY[-1])["raid"]["party"] = deepcopy(fields.actor(record, PARTY[0])["raid"]["party"])
+                fields.actor(record, PARTY[-1])["raid"]["party"]["role"] = "MEMBER"
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["receipts"], [])
+
+    def test_death_cargo_loss_remains_conserved_through_retirement_and_respawn(self):
+        rows = respawn_samples(dropped_cargo=True)
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "PASS", report)
+        self.assertEqual(report["violations"], [])
+        rows = deepcopy(rows)
+        for record in rows:
+            if record["elapsed_seconds"] >= 56:
+                fields.actor(record, PARTY[-1])["supply"]["cargo"] = 2
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "FAIL", report)
+        self.assertIn("cargo_total_disagrees_with_accounting", [item["code"] for item in report["violations"]])
+
+    def test_counter_rebase_or_capture_gap_still_breaks_retired_member_proof(self):
+        rows = respawn_samples(dropped_cargo=True)
+        for record in rows:
+            if record["elapsed_seconds"] >= 56:
+                fields.actor(record, PARTY[-1])["supply"].update(stolen="0", lost="0")
+        report = acceptance.evaluate_samples(rows)
+        self.assertNotEqual(report["status"], "PASS", report)
+        self.assertEqual(report["receipts"], [])
+        rows = respawn_samples()
+        rows[40]["status"] = "stale"
+        report = acceptance.evaluate_samples(rows)
+        self.assertEqual(report["status"], "INCONCLUSIVE", report)
+        self.assertEqual(report["receipts"], [])
+
     def test_shared_warehouse_trip_preserves_individual_identity_and_all_roster_returns(self):
         report = acceptance.evaluate_samples(samples(), minimum_seconds=120)
         self.assertEqual(report["status"], "PASS", report)
