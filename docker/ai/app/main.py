@@ -57,10 +57,12 @@ from .model_provider import (
 
 from .recovery import router as recovery_router, get_recovery_config
 from .npc_agent import router as npc_agent_router, get_npc_config
+from .character_studio import router as character_studio_router
 
 app = FastAPI(title="ai-server", version="0.1.0")
 app.include_router(recovery_router)
 app.include_router(npc_agent_router)
+app.include_router(character_studio_router)
 
 CURRENT_PROTOCOL_VERSION = 2
 

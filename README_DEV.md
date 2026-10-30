@@ -4,6 +4,10 @@ Vývoj volitelných NPC řízených LLM, samostatné životopisy a přímý hern
 popisuje [NpcAgents.md](doc/NpcAgents.md). Režim se zapíná zvlášť a výchozí
 provozní profily ho nechávají vypnutý.
 
+Vlastní humanoidní vzhled, charakterové karty a příběhy lze tvořit ve webovém
+[Ateliéru postav](doc/CharacterStudio.md) na portu 9092. Uložené návrhy se do
+herního světa nasazují až samostatným exportem.
+
 Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
 herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
 **4988**. Profil `fields-v8` rozšiřuje přepady o práci na třech polích:
@@ -19,6 +23,7 @@ AIWorld řídí 40 ze 100 NPC, ostatních 60 používá běžné chování Trini
 | `lab-mysql` | Postavy, svět a AI paměť vlastního realmu | interní |
 | `worldserver` | Herní svět a interní SOAP | 9086 |
 | `world-viewer` | Pozice, zdraví a bojový stav 100 NPC | 9091 |
+| `character-studio` | Editor vzhledu, osobnosti a životopisů NPC | 9092 |
 | `account-web` | Formulář pro vytvoření účtů přes TrinityCore | 9088 |
 | `ai-server` | AI protokoly; modelové požadavky jsou vypnuté | interní |
 | `tc-dev` | Build, extraktory a správcovské nástroje | profil `tools` |

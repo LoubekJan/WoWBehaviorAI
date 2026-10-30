@@ -13,7 +13,7 @@ flock -x 9
 
 lab_compose=(docker compose --env-file .env -f compose.yml)
 "${lab_compose[@]}" config --quiet
-mkdir -p runtime/lab/logs/auth runtime/lab/recordings runtime/lab/receipts
+mkdir -p runtime/lab/logs/auth runtime/lab/recordings runtime/lab/receipts runtime/lab/character-models
 services="$("${lab_compose[@]}" --profile recording ps --services --status running)"
 if grep -Fxq aiworld-recorder <<< "$services"; then
   "${lab_compose[@]}" stop --timeout 30 aiworld-recorder
@@ -49,7 +49,7 @@ if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "
     python3 tools/realm_lab/manage.py "bootstrap-$lab_profile" /workspace/runtime/lab/data
 fi
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh
-"${lab_compose[@]}" up -d auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web
+"${lab_compose[@]}" up -d auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web character-studio
 
 wait_healthy() {
   local service="$1" cid state
@@ -66,7 +66,7 @@ wait_healthy() {
   "${lab_compose[@]}" logs --tail=100 "$service"
   return 1
 }
-for service in auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web; do
+for service in auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web character-studio; do
   wait_healthy "$service"
 done
 if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ]; then

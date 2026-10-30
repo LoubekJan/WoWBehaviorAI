@@ -9,3 +9,5 @@ volumes:
     name: aitc_lab_ci_build-data
   ccache-data:
     name: aitc_lab_ci_ccache-data
+  character-studio-data:
+    name: aitc_lab_ci_character-studio-unused

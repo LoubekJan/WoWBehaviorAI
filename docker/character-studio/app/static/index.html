@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#121918">
+  <title>Ateliér postav · AI World</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231b2925'/%3E%3Cpath d='M16 5L26 11V23L16 29 6 23V11Z' stroke='%23d2b579' fill='none'/%3E%3Cpath d='M16 9V24M10 13L22 20M22 13L10 20' stroke='%23d2b579'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/studio.css">
+  <script src="/static/studio.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Ateliér postav"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M18 3 31 10v16L18 33 5 26V10Z"/><path d="M18 8v20M11 12l14 12M25 12 11 24"/></svg><span>AI WORLD<small>ATELIÉR POSTAV</small></span></a>
+    <div class="project-mark"><span class="live-dot"></span> AI World Lab <span class="slash">/</span> Tvorba postav</div>
+    <a id="observer-link" class="world-link" href="#">Otevřít živý svět <span>↗</span></a>
+  </header>
+
+  <div class="workspace">
+    <aside class="library" aria-label="Knihovna postav">
+      <div class="library-heading"><div><span class="eyebrow">TVOJE KRONIKA</span><h2>Postavy <span id="library-count">0</span></h2></div><button id="new-character" class="icon-button" aria-label="Vytvořit novou postavu" title="Nová postava">＋</button></div>
+      <label class="search-box"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="m12 12 5 5"/></svg><input id="character-search" type="search" placeholder="Najít postavu…" aria-label="Najít postavu"></label>
+      <div id="character-list" class="character-list" aria-live="polite"><p class="muted library-empty">Načítám knihovnu…</p></div>
+      <div class="library-bottom"><button id="import-profile" class="text-button"><span>↥</span> Importovat kartu / návrh</button><input id="import-file" type="file" accept=".json,application/json" hidden><details class="seed-picker"><summary>Načíst postavu z projektu</summary><div id="source-list"></div></details><div class="library-note"><span class="outline-icon">◇</span><p>Návrhy se ukládají v ateliéru.<br>Herní svět měníš až nasazením exportu.</p></div></div>
+    </aside>
+
+    <main class="main-workspace">
+      <div class="page-heading"><div><span class="eyebrow">KAŽDÝ PŘÍBĚH ZAČÍNÁ POSTAVOU</span><h1>Dej světu vlastní tvář.</h1></div><span class="version-chip">WoW 3.3.5a</span></div>
+      <div id="global-error" class="notice error" role="alert" hidden></div>
+      <section class="character-heading" aria-label="Vybraná postava"><div class="character-heading-left"><div id="character-emblem" class="character-emblem">N</div><div><h2 id="character-title">Nová postava</h2><div class="character-meta"><span id="character-subtitle">Tvůj další příběh</span><span class="meta-divider">·</span><span id="save-state" role="status">Neuložený návrh</span></div></div></div><div class="heading-actions"><button id="duplicate-character" class="button ghost" title="Vytvořit kopii">⧉ <span>Kopie</span></button><button id="save-character" class="button primary"><span>✓</span> Uložit postavu</button></div></section>
+      <div class="editor-grid">
+        <section class="editor-panel" aria-label="Editor postavy">
+          <nav class="tabs" aria-label="Části charakterové karty" role="tablist"><button class="tab active" id="tab-appearance" data-tab="appearance" role="tab" aria-controls="panel-appearance" aria-selected="true"><span>01</span> Vzhled</button><button class="tab" id="tab-personality" data-tab="personality" role="tab" aria-controls="panel-personality" aria-selected="false"><span>02</span> Charakter</button><button class="tab" id="tab-story" data-tab="story" role="tab" aria-controls="panel-story" aria-selected="false"><span>03</span> Příběh</button><button class="tab" id="tab-export" data-tab="export" role="tab" aria-controls="panel-export" aria-selected="false"><span>04</span> Export</button></nav>
+          <form id="character-form" novalidate>
+            <div class="identity-strip"><label class="field">Jméno postavy<input id="card-name" data-card="name" maxlength="32" placeholder="Jak se bude jmenovat?" autocomplete="off"></label><label class="field">Povolání / role<input id="author-role" data-author="role" maxlength="500" placeholder="Např. bylinkářka"></label></div>
+
+            <div id="panel-appearance" class="tab-panel" role="tabpanel" aria-labelledby="tab-appearance">
+              <div class="section-heading"><div><span class="eyebrow">PODOBA POSTAVY</span><h3>Nejdřív tvář. Pak příběh.</h3></div><button type="button" id="randomize-appearance" class="text-button">⤨ Náhodný vzhled</button></div>
+              <div class="form-row"><label class="field">Rasa<select id="appearance-race" data-appearance="race"></select></label><fieldset class="gender-field"><legend>Podoba</legend><div class="segmented"><label><input type="radio" name="gender" value="0" checked><span>♂ Muž</span></label><label><input type="radio" name="gender" value="1"><span>♀ Žena</span></label></div></fieldset></div>
+              <div id="appearance-controls" class="appearance-controls"></div>
+              <div class="section-heading equipment-heading"><div><span class="eyebrow">CESTOU SE SVĚTEM</span><h3>Oblečení a výbava</h3></div><button type="button" id="clear-equipment" class="text-button">Odložit výbavu</button></div>
+              <p class="section-description">Herní předměty z katalogu klienta 3.3.5a. Zbraň i oděv jsou součástí exportovaného vzhledu.</p>
+              <label class="search-box equipment-search"><input id="equipment-search" type="search" placeholder="Filtrovat výbavu podle názvu nebo ID…" aria-label="Filtrovat výbavu"></label>
+              <div id="equipment-controls" class="equipment-controls"></div>
+            </div>
+
+            <div id="panel-personality" class="tab-panel" role="tabpanel" aria-labelledby="tab-personality" hidden>
+              <div class="section-heading"><div><span class="eyebrow">CO JI DĚLÁ VÝJIMEČNOU</span><h3>Víc než jméno a tvář.</h3></div><span class="small-icon">✧</span></div>
+              <div class="form-row"><label class="field">Frakce<select id="author-faction" data-author="faction"><option value="">Bez příslušnosti</option><option>Stormwind</option><option>Defias Brotherhood</option><option>Elwynn Gnolls</option><option>Elwynn Murloc</option><option>Elwynn Kobolds</option><option>Neutrální</option></select></label><label class="field">Věk / životní období<input data-author="age" maxlength="500" placeholder="Např. 34 let"></label></div>
+              <label class="field">Domov a každodenní život<input data-author="home" maxlength="500" placeholder="Kde žije a čím se zabývá?"></label>
+              <label class="field">Povaha<textarea data-author="traits" rows="3" maxlength="2000" placeholder="Co je na ní poznat hned? Co ukazuje jen blízkým?"></textarea></label>
+              <div class="form-row"><label class="field">Hodnoty<textarea data-author="values" rows="3" maxlength="2000" placeholder="Co nikdy nezradí?"></textarea></label><label class="field">Obavy a slabosti<textarea data-author="fears" rows="3" maxlength="2000" placeholder="Čeho se bojí? V čem chybuje?"></textarea></label></div>
+              <label class="field">Cíle a motivace<textarea data-author="goals" rows="3" maxlength="2000" placeholder="Po čem touží a co je pro to ochotná udělat?"></textarea></label>
+              <label class="field">Osobnost pro herního agenta <span class="field-caption">Styl řeči, rozhodování a vztah k ostatním.</span><textarea id="card-personality" data-card="personality" rows="7" placeholder="Mluvím česky, krátce a přímo. K cizím jsem opatrný…"></textarea><span id="personality-counter" class="byte-counter"></span></label>
+            </div>
+
+            <div id="panel-story" class="tab-panel" role="tabpanel" aria-labelledby="tab-story" hidden>
+              <div class="section-heading"><div><span class="eyebrow">CO BYLO PŘEDTÍM</span><h3>Příběh, který si nese s sebou.</h3></div><span class="small-icon">✎</span></div>
+              <label class="field">Vztahy a společné vzpomínky<textarea data-author="relationships" rows="4" maxlength="4000" placeholder="Koho zná, komu věří a co spolu zažili? Zmiň konkrétní jména a události."></textarea></label>
+              <label class="field">Další podklady a tajemství<textarea data-author="notes" rows="3" maxlength="4000" placeholder="Minulost, tajemství, důležité události nebo hranice příběhu…"></textarea></label>
+              <div class="ai-invitation"><div class="ai-symbol">✦</div><div><h4>Spoluautor, když potřebuješ inspiraci.</h4><p>Qwen z tvých podkladů navrhne životopis a osobnost. Text si před převzetím upravíš.</p></div><button type="button" id="open-generator" class="button gold">Navrhnout s AI <span>↗</span></button></div>
+              <label class="field">Životopis pro herního agenta <span class="field-caption">Piš z pohledu postavy. Minulost odděl od toho, co se právě děje.</span><textarea id="card-backstory" data-card="backstory" rows="14" placeholder="Narodil jsem se v malé vesnici…"></textarea><span id="backstory-counter" class="byte-counter"></span></label>
+            </div>
+
+            <div id="panel-export" class="tab-panel" role="tabpanel" aria-labelledby="tab-export" hidden>
+              <div class="section-heading"><div><span class="eyebrow">Z NÁVRHU DO ŽIVÉHO SVĚTA</span><h3>Připravena na vlastní příběh.</h3></div><span class="small-icon">↗</span></div>
+              <p class="section-description">Kartu spoj se skutečným řízeným NPC. Uložení v ateliéru ani stažení balíčku samo nepřidává postavu do hry.</p>
+              <div class="form-row"><label class="field">Spawn ID / Agent ID<input id="card-spawn" data-card="spawn_id" inputmode="numeric" pattern="[0-9]+" placeholder="Např. 901035"><span class="field-caption">Obě identity budou shodné.</span></label><label class="field">Mapa<input id="card-map" data-card="map_id" inputmode="numeric" type="number" min="0" max="4294967295" value="725"></label></div>
+              <ul id="export-checklist" class="export-checklist"></ul>
+              <div class="export-card"><div class="export-icon">⇣</div><div><h4>Balíček postavy</h4><p>Životopis, osobnost, úplný vzhled a postup nasazení. Připraveno pro tento projekt.</p></div><button type="button" id="export-bundle" class="button primary">Stáhnout ZIP</button></div>
+              <div class="export-alternatives"><button type="button" id="export-profile" class="text-button">Pouze karta NPC (.json)</button><button type="button" id="export-appearance" class="text-button">Pouze vzhled (.json)</button><button type="button" id="export-draft" class="text-button">Záloha návrhu (.json)</button></div>
+              <div class="integration-note"><span>i</span><p>Po vložení souborů do <code>data/npc_agents</code> a <code>data/npc_appearances</code> se karta a vzhled načtou při dalším startu worldserveru. Nové NPC musí být také registrované v populaci světa.</p></div>
+              <button type="button" id="delete-character" class="text-button danger">Smazat uložený návrh</button>
+            </div>
+          </form>
+          <footer class="editor-footer"><span id="editor-footer-text">Návrh postavy · změny nejsou živě nasazené</span><button id="next-tab" class="text-button">Pokračovat na charakter <span>→</span></button></footer>
+        </section>
+
+        <aside class="preview-panel" aria-label="Náhled postavy"><div class="preview-header"><span class="eyebrow">TVOJE POSTAVA</span><span class="preview-badge">NÁHLED</span></div><div class="model-stage"><div class="stage-glow"></div><div class="stage-ring"></div><div id="model-preview" class="model-preview"></div><div id="model-fallback" class="model-fallback"><span class="model-loading-mark">◇</span><p id="model-status">Připravuji náhled postavy…</p><small id="model-status-detail">Parametry vzhledu se ukládají spolu s kartou.</small></div><span class="stage-corner top-left"></span><span class="stage-corner bottom-right"></span><div class="preview-controls"><button id="rotate-left" class="icon-button" title="Otočit doleva" aria-label="Otočit model doleva">↶</button><span>TAŽENÍM OTÁČEJ · KOLEČKEM PŘIBLIŽUJ</span><button id="rotate-right" class="icon-button" title="Otočit doprava" aria-label="Otočit model doprava">↷</button></div></div><p id="preview-render-note" class="preview-render-note" role="status">Původní model 3.3.5a · statická póza. Výbavu ověř ve hře.</p><div class="preview-description"><div class="preview-name-row"><h3 id="preview-name">Nová postava</h3><span class="diamond">✧</span></div><p id="preview-race">Člověk · muž</p><div class="preview-tags"><span id="preview-faction">Bez příslušnosti</span><span id="preview-role">Role čeká na příběh</span></div><p id="preview-quote" class="preview-quote">„Každý, koho potkáš, má příběh. Tenhle teprve začíná.“</p><div class="card-completeness"><div><span>Charakterová karta</span><strong id="completion-label">0 / 4</strong></div><div class="progress-track"><span id="completion-bar"></span></div></div></div><div class="preview-footnote"><span>✦</span> Tvář tvoří první dojem. Charakter rozhodne, co přijde potom.</div></aside>
+      </div>
+      <footer class="page-footer"><span>AI WORLD LAB <span>·</span> Tvořeno pro živý svět.</span><span>Karty · vlastní vzhled · Qwen</span></footer>
+    </main>
+  </div>
+
+  <dialog id="generator-dialog" class="generator-dialog"><form method="dialog"><button class="dialog-close icon-button" aria-label="Zavřít dialog">×</button></form><span class="eyebrow">SPOLEČNĚ S QWENEM</span><h2>Dej příběhu první směr.</h2><p class="section-description">Použijí se jméno, podklady charakteru a aktuální karta. Žádný text se nepřevezme bez tvého rozhodnutí.</p><label class="field">Co má návrh zdůraznit?<textarea id="generation-instruction" rows="3" maxlength="2000" placeholder="Např. sousedské vztahy, nenápadné tajemství a suchý humor. Bez velkého hrdinství."></textarea></label><button id="generate-story" class="button gold">✦ Navrhnout příběh a osobnost</button><p id="generation-status" class="generation-status" role="status"></p><div id="generation-result" hidden><label class="field">Navržený životopis<textarea id="proposal-backstory" rows="10"></textarea></label><label class="field">Navržená osobnost<textarea id="proposal-personality" rows="6"></textarea></label><ul id="generation-suggestions" class="suggestions"></ul><button id="accept-generation" class="button primary">Převzít upravený návrh</button></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

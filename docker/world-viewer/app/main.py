@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
@@ -41,6 +41,11 @@ def create_app(telemetry_token: str | None = None) -> FastAPI:
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:
         return FileResponse(APP_DIR / "static" / "index.html")
+
+    @app.get("/character-studio", include_in_schema=False)
+    def character_studio(request: Request) -> RedirectResponse:
+        port = int(os.getenv("CHARACTER_STUDIO_PORT", "9092"))
+        return RedirectResponse(str(request.url.replace(port=port, path="/", query="")))
 
     @app.post("/internal/telemetry")
     async def receive(request: Request, response: Response) -> dict:
