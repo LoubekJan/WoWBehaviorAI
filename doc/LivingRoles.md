@@ -1,6 +1,13 @@
 # Živé role AIWorld
 
-## Aktuální svět — 31. října 2026
+> Při současné přípravě finální mapy je aktivní `authoring-empty`: mapa
+> 725 je bez NPC, AI role a modelové řízení jsou vypnuté. Následující
+> popis zachovává chování osazených profilů a jejich důkazy; nejde o
+> aktivní populaci prázdného světa. Aktuální postup je v
+> [README_DEV.md](../README_DEV.md#příprava-finální-mapy--authoring-empty).
+
+
+## Předchozí osazený svět — 31. října 2026
 
 Aktivní je vlastní realm **2**, mapa **725**, oblast **4988**, větev
 `AI-World-lab`. Profil `full-v8` přebírá všech **100 NPC pod AIWorld**;

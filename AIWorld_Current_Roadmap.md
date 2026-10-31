@@ -1,9 +1,19 @@
 # Finální podoba světa — příprava od 31. října 2026
 
-Další schválený krok je odstranit **všechna testovací NPC i vytvořené
-charaktery**, včetně návrhů, příběhů a vzhledů v Ateliéru. Před odstraněním
-se uchovává soukromá ověřená záloha. Účty, hráčské postavy, vlastní mapa
-725 / oblast 4988 a modelová/klientská aktiva zůstávají zachované.
+**Vyčištění je dokončené a živě ověřené.** Dne 31. října bylo odstraněno
+100 aktivních a 100 maskovaných historických NPC, jejich AI stav a tři
+vlastní herní šablony. Odstraněné jsou také všechny tři Studio návrhy a
+aktivní soubory karet, příběhů a vzhledů. Před odstraněním vznikla úplná
+soukromá záloha; zachování tří hráčských postav, čtyř účtů a všech 61
+geometrických souborů potvrdily shodné kontrolní otisky.
+
+Revize `5437178873e7` prošla
+[CI/CD během 41210187110](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41210187110)
+(877 Python / 699 nativních testů). Po explicitním přechodu běží všech osm
+služeb zdravě, profil `authoring-empty` má nulové NPC, AI vazby, vlastní
+šablony, Studio drafts i katalog cílů. Soukromý dokončovací záznam je na
+serveru `runtime/lab/receipts/final-world-reset-complete.json`. Finální
+geometrie se teprve připravuje.
 
 ## Režim prázdného světa
 

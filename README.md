@@ -6,14 +6,14 @@ behavior and optional LLM characters that can act and talk in the game.
 ## Current state — 31 October 2026
 
 The active branch is **`AI-World-lab`**. Realm **2**, map **725**, area
-**4988** is moving into its final map-authoring phase. The explicit
+**4988** is in its final map-authoring phase. The explicit
 **`authoring-empty`** profile runs the existing geometry without NPCs,
 AI simulation, LLM character control or AI telemetry. It never recreates
 previous test populations during startup or deployment.
 
-The reset removes the reviewed 100 active NPCs and the 100 masked legacy
+The verified reset removed the reviewed 100 active NPCs and the 100 masked legacy
 spawns, their AI state and three dedicated character templates, plus all
-saved Studio characters and installed cards/appearances. It requires a
+saved Studio characters and installed cards/appearances. It used a
 verified private backup and an explicit offline before-image plan. Accounts,
 player characters, source templates and the map are preserved. The final
 terrain/layout itself is still to be authored; the reset does not build it.
@@ -141,6 +141,21 @@ retain behavioral classification. Telemetry `entry` preserves that source
 meaning, while `template_entry` reports the actual native entry. Native
 template names supply the observer and game client, not only the LLM prompt.
 
+## Empty-world cutover verified — 31 October 2026
+
+Code revision `5437178873e7` passed [CI/CD run 41210187110](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41210187110)
+with **877 Python tests** and **699 native tests**. After the explicit offline
+reset, database checks confirmed zero map-725 NPCs/AI bindings and zero
+owned native templates. Studio contains zero drafts, source cards or targets.
+All eight services are healthy with zero automatic restarts. Fingerprints
+confirmed preservation of three player characters, four account identities
+and all 61 geometry files. Protected backups and the private before-image
+remain under `runtime/lab/backups/` and `runtime/lab/receipts/`.
+
+The Observer keeps its telemetry token configured, but has no capture time,
+no live snapshot and no agents; it does not report this as a fresh sample.
+Final terrain and the new population remain the next authoring work.
+
 ## Previous populated-world verification baseline
 
 Revision **`664d84687d7a`** was built and deployed on 31 October 2026 through
@@ -171,8 +186,8 @@ servers or trusted CI.
 
 For `authoring-empty`, `make start` refuses any residual map-725 NPCs, AI
 bindings, owned template ledger rows or runtime character JSON. It starts
-the canonical stack only after that preflight. The Observer remains
-unconfigured because no NPC heartbeat is emitted; this is not a simulated
+the canonical stack only after that preflight. The Observer has no live
+snapshot because no NPC heartbeat is emitted; this is not a simulated
 fresh zero-agent recording. The Studio can save future drafts, but game
 exports are blocked until a new population is registered.
 

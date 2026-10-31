@@ -9,12 +9,12 @@ charakterový návrh, vzhled, příběh a editovatelnou zálohu lze dál vytvoř
 a uložit; profil však neumožní stáhnout runtime kartu, vzhled, herní šablonu
 ani ZIP pro neexistující postavu. Změna čísla ve starém návrhu zákaz neobejde.
 
-Přechod zahrnuje odstranění dosavadních mapových NPC, nainstalovaných karet,
-vzhledů a vytvořených draftů až po jejich chráněné záloze. Je to samostatný
-provozní krok; samotná změna profilu ani tento návod nedokládají, že už
-čistka na serveru proběhla. Dokončení se potvrzuje novým provozním receipt,
-prázdným katalogem cílů a knihovnou návrhů. Mapa, účty a hráčské postavy
-zůstávají zachované.
+Přechod je dokončený: po ověřené záloze byly odstraněny obě původní
+populace (100 aktivních a 100 maskovaných NPC), tři vlastní šablony,
+aktivní charakterové vstupy i všechny tři Studio drafts. Dne 31. října
+kontrola revize `5437178873e7` potvrdila prázdné návrhy, zdrojové karty a
+cíle; osm služeb je zdravých. Mapa, účty a hráčské postavy zůstaly
+zachované. Provozní receipt je soukromý pod `runtime/lab/receipts/`.
 
 Pro budoucí osídlení se nejprve musí navrhnout a zaregistrovat nová populace
 nad finální mapou. Ateliér spawny ani registraci nevytváří. Níže uvedený

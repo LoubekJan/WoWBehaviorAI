@@ -1,5 +1,12 @@
 # Ověření oprav lovu a návratu z 1. 10. 2026
 
+> Při současné přípravě finální mapy je aktivní `authoring-empty`: mapa
+> 725 je bez NPC, AI role a modelové řízení jsou vypnuté. Následující
+> popis zachovává chování osazených profilů a jejich důkazy; nejde o
+> aktivní populaci prázdného světa. Aktuální postup je v
+> [README_DEV.md](../README_DEV.md#příprava-finální-mapy--authoring-empty).
+
+
 **Historický regresní záznam pro Elwynn, mapa 0 / zóna 12.** Původní
 realm je vyřazený. Aktuální vlastní svět používá realm 2, mapu 725,
 oblast 4988 a profil `full-v8` se 100 NPC pod AIWorld. Níže uvedená ID,
