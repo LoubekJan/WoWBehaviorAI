@@ -10,13 +10,18 @@ import unittest
 from unittest.mock import patch
 
 from tools.realm_lab import (defias_population as defias, full_population as full,
-    graveyard, manage, promotion, run_scoped, settlement_population as settlement, world_setup)
+    character_templates, graveyard, manage, promotion, run_scoped, settlement_population as settlement, world_setup)
 from tools.realm_lab.tests import test_full_population as full_tests
 from tools.realm_lab.tests.test_setup import environment
 
 
 class FullSetupTests(unittest.TestCase):
     def setUp(self):
+        # This suite exercises base population setup; installed clone SQL is
+        # covered independently by the character-template integration suite.
+        aliases = patch.object(character_templates, 'verify', return_value=())
+        aliases.start()
+        self.addCleanup(aliases.stop)
         self.population = full.Population.load()
         self.settings = manage.Settings.load({**environment(), "LAB_AI_PROFILE": "full-v8",
                                               "LAB_NPC_AGENTS_ENABLED": "1"})

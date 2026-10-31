@@ -9,6 +9,11 @@ exec 9>runtime/lab/deploy.lock
 flock -x 9
 compose=(docker compose --env-file "$env_file" -f compose.yml)
 "${compose[@]}" config --quiet
+# Validate optional authored template inputs before stopping the world.
+profile="$("${compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
+if [ "$profile" = full-v8 ]; then
+  "${compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -m tools.realm_lab.character_templates plan
+fi
 world_id="$("${compose[@]}" ps --all -q worldserver)"
 if [ -n "$world_id" ]; then
   "${compose[@]}" stop worldserver
@@ -21,6 +26,9 @@ fi
 run=("${compose[@]}" run --rm --no-deps -T --interactive=false)
 test -z "$("${compose[@]}" ps --all -q worldserver)"
 run+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
+if [ "$profile" = full-v8 ]; then
+  "${run[@]}" tc-dev python3 -m tools.realm_lab.character_templates restore
+fi
 receipt="runtime/lab/receipts/start-policy-$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import uuid; print(uuid.uuid4().hex)').json"
 "${run[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
   /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
@@ -30,4 +38,7 @@ receipt="runtime/lab/receipts/start-policy-$(date -u +%Y%m%dT%H%M%SZ)-$(python3 
 profile="$("${run[@]}" tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
 case "$profile" in settlement-v8|wildlife-v8|supply-v8|consumers-v8|raids-v8|fields-v8|defias-v8|full-v8) ;; *) echo 'A reviewed authored-world profile is required.' >&2; exit 2;; esac
 "${run[@]}" tc-dev python3 tools/realm_lab/manage.py "bootstrap-$profile" /workspace/runtime/lab/data
+if [ "$profile" = full-v8 ]; then
+  "${run[@]}" tc-dev python3 -m tools.realm_lab.character_templates apply
+fi
 printf 'Authored world prepared offline; start-policy receipt: %s\n' "$receipt"

@@ -64,7 +64,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
     ActionPosition here{creature.GetMapId(), creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()};
     auto const& homePosition = creature.GetHomePosition();
     ActionPosition home{creature.GetMapId(), homePosition.GetPositionX(), homePosition.GetPositionY(), homePosition.GetPositionZ()};
-    auto role = LivingRolePolicy::Resolve(record.Type, creature.GetEntry(), false);
+    auto role = LivingRolePolicy::Resolve(record.Type, GetBehaviorEntry(creature), false);
     float arrivalRadius = ((role == LivingRolePolicy::Role::Service || creature.IsQuestGiver()) ?
         0.0f : LivingRolePolicy::RoamRadius(role)) + 2.0f;
     float radius = returning ? state.ReturnHomeLimit : forageRadius;
@@ -156,7 +156,7 @@ std::optional<LivingAdviceCandidate> AIWorldMgr::TryLivingAdvice(AgentRecord& re
         creature.GetCreatureListWithEntryInGrid(nearby, 0, 30.0f);
         std::vector<Creature*> prey;
         for (auto* target : nearby)
-            if (target->IsAlive() && _agentTypeCatalog.Resolve(target->GetEntry()) == AgentType::Prey &&
+            if (target->IsAlive() && _agentTypeCatalog.Resolve(GetBehaviorEntry(*target)) == AgentType::Prey &&
                 GetSimulationScope().Contains(target->GetMapId(), target->GetZoneId(),
                     target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()) &&
                 creature.IsValidAttackTarget(target)) prey.push_back(target);

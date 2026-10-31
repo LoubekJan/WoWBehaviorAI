@@ -604,9 +604,19 @@ def deactivate_defias(data: Path, settings: Settings,
 
 
 def full_preflight(data: Path, settings: Settings, *, bootstrap: bool = False,
-                   metadata: Path = settlement_population.METADATA) -> full_population.Population:
+                   metadata: Path = settlement_population.METADATA,
+                   templates_restored: bool = False) -> full_population.Population:
+    try:
+        from . import character_templates
+    except ImportError:
+        import character_templates
     population = full_population.verify_data(data, metadata)
     rows = single_return.parse_snapshot(lab_mysql(settings, full_population.snapshot_sql(population)))
+    # Native entries belong to distinct authored characters. Verify their full
+    # database provenance before projecting them onto the immutable base-role
+    # contract. Editable cards/descriptors are deliberately not read here.
+    bindings = character_templates.verify(settings, allow_restored=bootstrap or templates_restored)
+    rows = character_templates.normalize_snapshot(rows, bindings)
     full_population.validate_snapshot(rows, population, control=None if bootstrap else 1, bootstrap=bootstrap)
     return population
 
@@ -630,7 +640,7 @@ def bootstrap_full(data: Path, settings: Settings,
     full_population.validate_snapshot(rows, population, control=None)
     settlement_population.ensure_world_offline()
     lab_mysql(settings, full_population.activation_sql(population))
-    full_preflight(data, settings, metadata=metadata)
+    full_preflight(data, settings, metadata=metadata, templates_restored=True)
     print("Full population ownership verified: all 100 authored NPCs controlled by AIWorld; native templates, services, homes and persistent state preserved. LLM cards opt in separately.")
 
 

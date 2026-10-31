@@ -31,7 +31,7 @@ bool AIWorldMgr::IsLivingWolf(AgentRecord const& record) const
 {
     return _livingWolvesEnabled && InSimulationMembership(record.MapId, record.SpawnId) &&
         record.ControlMode == AgentControlMode::AIWorldControlled &&
-        record.RuntimeGuid.IsCreature() && record.RuntimeGuid.GetEntry() == _wolfLooseFormationProfile.CreatureEntry &&
+        record.RuntimeGuid.IsCreature() && GetBehaviorEntry(record.MapId, record.SpawnId, record.RuntimeGuid.GetEntry()) == _wolfLooseFormationProfile.CreatureEntry &&
         record.WorldFaction == _wolfLooseFormationProfile.RequiredWorldFaction;
 }
 

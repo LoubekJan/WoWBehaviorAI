@@ -171,7 +171,7 @@ class CharacterStudioTests(unittest.TestCase):
 
     def test_export_rejects_native_observe_only_target_without_losing_draft(self):
         saved = self.create(draft("901014"))
-        for suffix in ("profile", "appearance", "bundle", "bundle.zip"):
+        for suffix in ("profile", "appearance", "template", "bundle", "bundle.zip"):
             with self.subTest(suffix=suffix):
                 response = self.client.get(f"/api/characters/{saved['id']}/{suffix}")
                 self.assertEqual(response.status_code, 422)
@@ -220,7 +220,7 @@ class CharacterStudioTests(unittest.TestCase):
             response = client.post("/api/characters", json=draft(), headers={"X-CSRF-Token": token})
             self.assertEqual(response.status_code, 201)
             saved = response.json()
-            for suffix in ("profile", "appearance", "bundle.zip"):
+            for suffix in ("profile", "appearance", "template", "bundle.zip"):
                 self.assertEqual(client.get(f"/api/characters/{saved['id']}/{suffix}").status_code, 503)
             self.assertEqual(client.get(f"/api/characters/{saved['id']}/draft").status_code, 200)
             self.assertFalse(client.get("/api/catalog").json()["target_registry"]["available"])
@@ -228,7 +228,7 @@ class CharacterStudioTests(unittest.TestCase):
     def test_unknown_target_and_mismatched_map_cannot_download_profile(self):
         for data in (draft("900000"), {**draft(), "card": {**draft()["card"], "map_id": 0}}):
             saved = self.create(data)
-            for suffix in ("profile", "appearance", "bundle.zip"):
+            for suffix in ("profile", "appearance", "template", "bundle.zip"):
                 self.assertEqual(self.client.get(f"/api/characters/{saved['id']}/{suffix}").status_code, 422)
 
     def test_catalog_exposes_verified_targets_with_lossless_ids_and_denial_reason(self):
@@ -260,7 +260,7 @@ class CharacterStudioTests(unittest.TestCase):
 
     def test_incomplete_draft_can_save_but_cannot_export(self):
         saved = self.create({"appearance": draft()["appearance"]})
-        for suffix in ("profile", "appearance", "bundle.zip"):
+        for suffix in ("profile", "appearance", "template", "bundle.zip"):
             self.assertEqual(self.client.get(f"/api/characters/{saved['id']}/{suffix}").status_code, 422)
 
     def test_bundle_contains_independent_native_files_and_editable_draft(self):
@@ -279,6 +279,95 @@ class CharacterStudioTests(unittest.TestCase):
             self.assertEqual(set(sidecar), {"schema_version", "spawn_id", "map_id", "appearance"})
             self.assertEqual(sidecar["appearance"], data["appearance"])
             self.assertEqual(json.loads(bundle.read("character-studio-draft.json")), saved)
+
+    def test_full_bundle_adds_private_template_with_unicode_and_literal_quotes(self):
+        data = draft("901014")
+        data["card"]["name"] = "Šaša O'Connor"
+        data["authoring"]["role"] = '  Hostinská "U lípy"  '
+        saved = self.create(data)
+        registry = TargetRegistry.load(Path(__file__).resolve().parents[3], "full-v8")
+        with TestClient(self.new_app(target_registry=registry)) as client:
+            path = f"/api/characters/{saved['id']}"
+            response = client.get(path + "/template")
+            self.assertEqual(response.status_code, 200, response.text)
+            expected = dict(schema_version=1, spawn_id=901014, map_id=725, entry=9800014,
+                base_entry=11328, name="Šaša O'Connor", title='Hostinská "U lípy"')
+            self.assertEqual(response.json(), expected)
+            self.assertEqual(response.headers['content-disposition'], 'attachment; filename="901014.json"')
+            bundle = client.get(path + "/bundle.zip")
+            self.assertEqual(bundle.status_code, 200, bundle.text if bundle.status_code != 200 else '')
+            with zipfile.ZipFile(io.BytesIO(bundle.content)) as archive:
+                self.assertEqual(set(archive.namelist()), {'npc_agents/901014.json', 'npc_appearances/901014.json',
+                    'npc_templates/901014.json', 'character-studio-draft.json', 'README.txt'})
+                self.assertEqual(json.loads(archive.read('npc_templates/901014.json')), expected)
+                profile = json.loads(archive.read('npc_agents/901014.json'))
+                self.assertEqual(set(profile), set(native()))
+                self.assertEqual(profile['name'], data['card']['name'])
+                self.assertEqual(json.loads(archive.read('character-studio-draft.json')), saved)
+                self.assertIn('npc_templates/', archive.read('README.txt').decode())
+            self.assertEqual(client.get(path).json(), saved)
+        self.assertEqual(list(self.sources.iterdir()), [])
+        self.assertEqual(list(self.appearances.iterdir()), [])
+
+    def test_template_identity_is_stable_for_renames_and_private_for_shared_base(self):
+        registry = TargetRegistry.load(Path(__file__).resolve().parents[3], "full-v8")
+        one = self.create(draft('901014'))
+        two = self.create(draft('901015'))
+        with TestClient(self.new_app(target_registry=registry)) as client:
+            first = client.get(f"/api/characters/{one['id']}/template").json()
+            second = client.get(f"/api/characters/{two['id']}/template").json()
+            self.assertEqual(first['base_entry'], second['base_entry'])
+            self.assertNotEqual(first['entry'], second['entry'])
+            edited = draft('901014')
+            edited['card']['name'] = 'Alena'
+            update = self.client.put(f"/api/characters/{one['id']}", json={**edited, 'revision': one['revision']}, headers=self.headers)
+            self.assertEqual(update.status_code, 200)
+            renamed = client.get(f"/api/characters/{one['id']}/template").json()
+            self.assertEqual((renamed['entry'], renamed['base_entry'], renamed['spawn_id']),
+                             (first['entry'], first['base_entry'], first['spawn_id']))
+            self.assertEqual(renamed['name'], 'Alena')
+            self.assertEqual(client.get(f"/api/characters/{two['id']}/template").json(), second)
+
+    def test_template_title_limit_does_not_prevent_preserving_draft_or_legacy_files(self):
+        registry = TargetRegistry.load(Path(__file__).resolve().parents[3], "full-v8")
+        with TestClient(self.new_app(target_registry=registry)) as client:
+            for title in ('ě' * 41, 'Správkyně\nvesnice'):
+                data = draft('901014')
+                data['authoring']['role'] = title
+                saved = self.create(data)
+                path = f"/api/characters/{saved['id']}"
+                self.assertEqual(client.get(path + '/template').status_code, 422)
+                self.assertEqual(client.get(path + '/bundle.zip').status_code, 422)
+                self.assertEqual(client.get(path + '/profile').status_code, 200)
+                self.assertEqual(client.get(path + '/appearance').status_code, 200)
+                self.assertEqual(client.get(path + '/draft').status_code, 200)
+                self.assertEqual(client.get(path).json(), saved)
+            data = draft('901014')
+            data['authoring']['role'] = 'ě' * 40
+            saved = self.create(data)
+            self.assertEqual(client.get(f"/api/characters/{saved['id']}/template").json()['title'], 'ě' * 40)
+
+    def test_old_profile_bundle_is_explicitly_partial_and_cannot_export_template(self):
+        saved = self.create()
+        path = f"/api/characters/{saved['id']}"
+        denied = self.client.get(path + '/template')
+        self.assertEqual(denied.status_code, 422)
+        self.assertIn('full-v8', denied.json()['detail'])
+        with zipfile.ZipFile(io.BytesIO(self.client.get(path + '/bundle.zip').content)) as bundle:
+            self.assertFalse(any(name.startswith('npc_templates/') for name in bundle.namelist()))
+            self.assertIn('NEOBSAHUJE vlastní herní šablonu', bundle.read('README.txt').decode())
+
+    def test_client_cannot_supply_template_entries_and_forged_bindings_stay_rejected(self):
+        for data in ({**draft('901014'), 'template': {'entry': 11328}},
+                {**draft('901014'), 'card': {**draft('901014')['card'], 'entry': 11328}}):
+            self.assertEqual(self.client.post('/api/characters', json=data, headers=self.headers).status_code, 422)
+        registry = TargetRegistry.load(Path(__file__).resolve().parents[3], "full-v8")
+        with TestClient(self.new_app(target_registry=registry)) as client:
+            for data in (draft('901100'), {**draft('901014'), 'card': {**draft('901014')['card'], 'map_id': 0}}):
+                saved = self.create(data)
+                path = f"/api/characters/{saved['id']}"
+                self.assertEqual(client.get(path + '/template').status_code, 422)
+                self.assertEqual(client.get(path + '/bundle.zip').status_code, 422)
 
     def test_draft_backup_import_preserves_appearance_but_assigns_fresh_storage_identity(self):
         data = draft()

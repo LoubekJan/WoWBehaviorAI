@@ -413,6 +413,15 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
             _worldFactionCatalog.Load();
             _agentTypeCatalog.Load();
             _worldFactionReputationCatalog.Load();
+            if (_restrictAgentsToSimulationScope)
+            {
+                // Read-only identity loading keeps installed character names,
+                // cache identity and source classification valid while paused.
+                // _enabled remains false: no ownership/action systems run.
+                _persistence.LoadAgents(_registry);
+                _spawnParticipationCatalog.Load();
+                InitializeNpcAgentTemplateAliases();
+            }
         }
         TC_LOG_INFO("ai.world", "Native creature telemetry scoped to {} spawn ids on map {}", _telemetrySpawnIds.size(), _simulationScope.MapId);
     }
@@ -1589,6 +1598,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     // invariant (Excluded/VanillaOnly must never be AIWorld-owned) must not
     // depend on an optional data-reconciliation feature flag.
     ApplyParticipationControlPolicy();
+    InitializeNpcAgentTemplateAliases();
     InitializeNpcAgents();
 
     // Milestone 2.12F4B2 (STATIC review): gated behind
@@ -3224,7 +3234,7 @@ std::optional<AIWorldMgr::WolfFormationDebugInfo> AIWorldMgr::DescribeWolfFormat
 
     if (!_enabled)
         info.FormationState = "AIWORLD_DISABLED";
-    else if (creature.GetEntry() != profile.CreatureEntry)
+    else if (GetBehaviorEntry(creature) != profile.CreatureEntry)
         info.FormationState = "ENTRY_MISMATCH";
     else if (record->WorldFaction != profile.RequiredWorldFaction)
         info.FormationState = "FACTION_MISMATCH";
@@ -3528,7 +3538,7 @@ std::vector<CoalitionCandidate> AIWorldMgr::CollectCoalitionCandidates() const
         candidate.X = creature->GetPositionX();
         candidate.Y = creature->GetPositionY();
         candidate.Z = creature->GetPositionZ();
-        candidate.CreatureEntry = creature->GetEntry();
+        candidate.CreatureEntry = GetBehaviorEntry(*creature);
         candidate.WorldFaction = record->WorldFaction;
         candidates.push_back(candidate);
     }
@@ -12599,8 +12609,8 @@ void AIWorldMgr::UpdateNeeds()
                                     bool produce = _livingRoleExtensionsEnabled &&
                                         LivingRolePolicy::InScope(_livingRolesEnabled, record->ControlMode, creature->GetMapId(),
                                             creature->GetZoneId(), _spawnParticipationCatalog.Resolve(record->SpawnId), GetSimulationScope()) &&
-                                        LivingRolePolicy::Resolve(record->Type, creature->GetEntry(), false) == LivingRolePolicy::Role::Worker;
-                                    uint32 entry = creature->GetEntry();
+                                        LivingRolePolicy::Resolve(record->Type, GetBehaviorEntry(*creature), false) == LivingRolePolicy::Role::Worker;
+                                    uint32 entry = GetBehaviorEntry(*creature);
                                     MutateEconomyAndPersist(*record, [workMoneyReward, workWindowId, produce, entry](AgentEconomyState& economy)
                                     {
                                         economy.Money += workMoneyReward;

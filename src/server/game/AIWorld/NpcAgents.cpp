@@ -6,11 +6,13 @@
 #include "Inference/NpcAgentJsonCodec.h"
 #include "Config.h"
 #include "Creature.h"
+#include "DatabaseEnv.h"
 #include "Log.h"
 #include "Map.h"
 #include "MapManager.h"
 #include "MotionMaster.h"
 #include "ObjectAccessor.h"
+#include "ObjectMgr.h"
 #include "Player.h"
 #include "PointMovementGenerator.h"
 #include "SharedDefines.h"
@@ -87,6 +89,68 @@ namespace
     }
 }
 
+uint32 AIWorldMgr::GetBehaviorEntry(Creature const& creature) const
+{
+    return GetBehaviorEntry(creature.GetMapId(), creature.GetSpawnId(), creature.GetEntry());
+}
+
+uint32 AIWorldMgr::GetBehaviorEntry(Unit const& unit) const
+{
+    if (auto const* creature = unit.ToCreature()) return GetBehaviorEntry(*creature);
+    return unit.GetEntry();
+}
+
+void AIWorldMgr::InitializeNpcAgentTemplateAliases()
+{
+    _npcAgentTemplateAliases.Clear();
+    // Fresh installations have no optional character ledger. Query metadata
+    // first rather than logging a SQL error for an absent optional table.
+    if (!WorldDatabase.Query("SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='ai_character_templates' LIMIT 1"))
+        return;
+    QueryResult result = WorldDatabase.Query("SELECT spawn_id,map_id,entry,base_entry,name,title FROM ai_character_templates ORDER BY spawn_id");
+    if (!result) return;
+    if (result->GetRowCount() > 100)
+    {
+        TC_LOG_ERROR("ai.world", "Character template aliases ignored: reserved population capacity exceeded");
+        return;
+    }
+    do
+    {
+        Field* fields = result->Fetch();
+        NpcAgentTemplateAlias alias{fields[0].GetUInt64(), fields[1].GetUInt32(), fields[2].GetUInt32(),
+            fields[3].GetUInt32(), fields[4].GetString(), fields[5].GetString()};
+        auto const* record = _registry.Find(AgentId{alias.SpawnId});
+        auto const* spawn = sObjectMgr->GetCreatureData(alias.SpawnId);
+        auto const* source = sObjectMgr->GetCreatureTemplate(alias.BaseEntry);
+        auto const* native = sObjectMgr->GetCreatureTemplate(alias.Entry);
+        auto participation = _spawnParticipationCatalog.Resolve(alias.SpawnId);
+        bool nativeMatch = source && native && native->Name == alias.Name && native->Title == alias.Title &&
+            native->faction == source->faction && native->npcflag == source->npcflag &&
+            native->unit_flags == source->unit_flags && native->unit_flags2 == source->unit_flags2 &&
+            native->flags_extra == source->flags_extra && native->type == source->type &&
+            native->unit_class == source->unit_class && native->minlevel == source->minlevel &&
+            native->maxlevel == source->maxlevel && native->VehicleId == source->VehicleId &&
+            native->AIName == source->AIName && native->ScriptID == source->ScriptID &&
+            native->RegenHealth == source->RegenHealth;
+        NpcAgentTemplateBinding binding{record ? record->Id.Value : 0, spawn ? spawn->mapId : 0, spawn ? spawn->id : 0,
+            record && record->MapId == alias.MapId && record->SpawnId == alias.SpawnId &&
+                record->ControlMode == AgentControlMode::AIWorldControlled,
+            _restrictAgentsToSimulationScope && InSimulationMembership(alias.MapId, alias.SpawnId),
+            participation == SpawnParticipationMode::FullAgent || participation == SpawnParticipationMode::LightweightBackground,
+            nativeMatch, _agentTypeCatalog.Resolve(alias.BaseEntry) != AgentType::Unclassified};
+        char const* failure = NpcAgentTemplateFailure(alias, binding);
+        if (failure || !_npcAgentTemplateAliases.Add(alias, binding))
+            TC_LOG_ERROR("ai.world", "Character template alias ignored: spawn={} reason={}", alias.SpawnId,
+                failure ? failure : "duplicate template binding");
+    } while (result->NextRow());
+    if (_npcAgentTemplateAliases.Size())
+    {
+        uint32 version = _npcAgentTemplateAliases.ClientCacheVersion(sWorld->getIntConfig(CONFIG_CLIENTCACHE_VERSION));
+        sWorld->setIntConfig(CONFIG_CLIENTCACHE_VERSION, version);
+        TC_LOG_INFO("ai.world", "Character template aliases enabled: count={} clientCacheVersion={}", _npcAgentTemplateAliases.Size(), version);
+    }
+}
+
 bool AIWorldMgr::IsNpcAgent(AgentRecord const& record) const
 {
     auto const* profile = _npcAgentEnabled ? _npcAgentProfiles.Get(record.Id) : nullptr;
@@ -113,7 +177,10 @@ void AIWorldMgr::InitializeNpcAgents()
             InSimulationMembership(record->MapId, record->SpawnId),
             participation == SpawnParticipationMode::FullAgent || participation == SpawnParticipationMode::LightweightBackground,
             LivingRolePolicy::KnownRole(LivingRolePolicy::Resolve(record->Type, 0, false))};
-        return NpcAgentProfileBindingFailure(profile, &binding);
+        if (auto const* failure = NpcAgentProfileBindingFailure(profile, &binding)) return failure;
+        if (auto const* spawn = sObjectMgr->GetCreatureData(record->SpawnId))
+            return _npcAgentTemplateAliases.ProfileFailure(profile.MapId, profile.SpawnId, spawn->id, profile.Name);
+        return nullptr;
     }, 16);
     for (auto const& issue : profileIssues)
         TC_LOG_ERROR("ai.world", "LLM NPC profile ignored: file={} agent={} reason={}",

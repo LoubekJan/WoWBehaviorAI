@@ -248,7 +248,7 @@ LivingRolePolicy::Role AIWorldMgr::ResolveLivingRole(AgentRecord const& record, 
         return LivingRolePolicy::Role::Worker;
     bool service = creature.IsVendor() || creature.IsTrainer() || creature.IsTaxi() || creature.IsBanker() ||
         creature.IsInnkeeper() || creature.IsAuctioner() || creature.IsSpiritService() || creature.IsBattleMaster();
-    return LivingRolePolicy::Resolve(record.Type, creature.GetEntry(), service);
+    return LivingRolePolicy::Resolve(record.Type, GetBehaviorEntry(creature), service);
 }
 
 void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* creature, uint64 nowMs)
@@ -388,7 +388,7 @@ bool AIWorldMgr::ClaimSupplyCarcass(AgentRecord const& record, Creature& creatur
 {
     if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled) || !BoundActor(record, creature) ||
         !InSupplyScope(GetSimulationScope(), creature) || !InSupplyScope(GetSimulationScope(), prey) ||
-        prey.IsAlive() || prey.GetEntry() != 883 || !LivingSupply::Prey(prey.GetSpawnId()) ||
+        prey.IsAlive() || GetBehaviorEntry(prey) != 883 || !LivingSupply::Prey(prey.GetSpawnId()) ||
         !creature.IsWithinDistInMap(&prey, 5.0f) || !creature.IsWithinLOSInMap(&prey) ||
         !creature.IsStopped() || creature.IsInCombat())
         return false;
@@ -425,7 +425,7 @@ uint32 AIWorldMgr::CommitSupplyCarcass(AgentRecord const& record, Creature& crea
         state.TargetGuid == prey.GetGUID() && OwnedAction(record, ActionType::Eat) &&
         record.ActiveActionState->Target && record.ActiveActionState->Target->Guid == prey.GetGUID() &&
         nowMs >= state.StartedAtMs && nowMs - state.StartedAtMs >= 5000 &&
-        !prey.IsAlive() && prey.GetEntry() == 883 && LivingSupply::Prey(prey.GetSpawnId()) &&
+        !prey.IsAlive() && GetBehaviorEntry(prey) == 883 && LivingSupply::Prey(prey.GetSpawnId()) &&
         !creature.IsInCombat() && creature.IsStopped() && creature.IsWithinDistInMap(&prey, 5.0f) &&
         creature.IsWithinLOSInMap(&prey) && actor.Guid == creature.GetGUID() &&
         source != _supplySources.end() && source->second.Guid == prey.GetGUID() &&

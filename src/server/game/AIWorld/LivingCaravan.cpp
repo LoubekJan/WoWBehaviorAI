@@ -39,7 +39,7 @@ namespace
     {
         uint32 entry = record.SpawnId == 901040 ? 66 : record.SpawnId == 901041 ? 11328 : 1423;
         return npc.GetMapId() == LivingCaravan::MapId && npc.GetSpawnId() == record.SpawnId &&
-            npc.GetEntry() == entry && npc.IsInWorld() && npc.IsAlive() && !npc.IsPet() && !npc.IsCharmed() &&
+            sAIWorldMgr->GetBehaviorEntry(npc) == entry && npc.IsInWorld() && npc.IsAlive() && !npc.IsPet() && !npc.IsCharmed() &&
             npc.GetCharmerOrOwnerGUID().IsEmpty() && !npc.IsControlledByPlayer() &&
             record.WorldState == AgentWorldState::Materialized && record.RuntimeGuid == npc.GetGUID() &&
             record.LivingRole.RuntimeGuid == npc.GetGUID();

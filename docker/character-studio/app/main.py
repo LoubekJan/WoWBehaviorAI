@@ -19,8 +19,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
-from .models import (Appearance, Card, DraftInput, DraftUpdate, GenerationInput, TargetIdentity, default_appearance,
-                     import_profile, native_profile, plain, strict_json, validate_appearance)
+from .models import (Appearance, Authoring, Card, DraftInput, DraftUpdate, GenerationInput, TargetIdentity, default_appearance,
+                     import_profile, native_profile, native_template, plain, strict_json, validate_appearance)
 from .storage import DraftStore, StoreError
 from .targets import TargetRegistry
 
@@ -160,6 +160,20 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
     def attachment(value, filename):
         body = json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
         return Response(body, media_type="application/json", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+    def template_export_value(doc):
+        # Resolve metadata again at the export boundary, not from the draft or
+        # client-supplied entry fields. The native installer clones all game
+        # columns/resources from this reviewed base, changing its private name.
+        registry = targets()
+        card = Card.model_validate(doc["card"])
+        binding = registry.validate(card.agent_id, card.spawn_id, card.map_id)
+        if not binding["eligible"]:
+            raise HTTPException(422 if binding["registry_available"] else 503, binding["reason"])
+        try:
+            return native_template(card, Authoring.model_validate(doc["authoring"]), binding["target"], registry.profile)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
 
     @app.get("/health")
     def health():
@@ -305,21 +319,34 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
         _doc, profile, appearance = exports(character_id)
         return attachment(appearance, f"{profile['spawn_id']}.json")
 
+    @app.get("/api/characters/{character_id}/template")
+    def template_export(character_id: str):
+        doc, profile, _appearance = exports(character_id)
+        return attachment(template_export_value(doc), f"{profile['spawn_id']}.json")
+
     @app.get("/api/characters/{character_id}/bundle")
     @app.get("/api/characters/{character_id}/bundle.zip")
     def bundle_export(character_id: str):
         doc, profile, appearance = exports(character_id)
+        template = template_export_value(doc) if targets().profile == "full-v8" else None
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for folder, item in (("npc_agents", profile), ("npc_appearances", appearance)):
                 bundle.writestr(f"{folder}/{profile['spawn_id']}.json", json.dumps(item, ensure_ascii=False, indent=2) + "\n")
+            if template:
+                bundle.writestr(f"npc_templates/{profile['spawn_id']}.json", json.dumps(template, ensure_ascii=False, indent=2) + "\n")
             bundle.writestr("character-studio-draft.json", json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
             bundle.writestr("README.txt", "CHARACTER STUDIO — export pro WoW 3.3.5a\n\n"
                 "npc_agents/ obsahuje přesný šestipolový profil LLM.\n"
                 "npc_appearances/ obsahuje samostatný vzhled stejného spawnu.\n"
+                + ("npc_templates/ obsahuje předpis samostatné herní šablony se jménem a podtitulem.\n"
+                   "Řízené offline nasazení vytvoří úplnou kopii parametrů a souvisejících zdrojů původní šablony.\n"
+                   "Změna této postavy nepřejmenuje ostatní NPC se stejným původním modelem.\n"
+                   if template else "Tento starší profil exportuje jen kartu a vzhled; balíček NEOBSAHUJE vlastní herní šablonu ani změnu jména nad NPC.\n") +
                 "Tyto soubory patří do odpovídajících data/ adresářů projektu.\n"
                 "Před použitím ověřte skutečné spawn ID, mapu a registraci spravovaného NPC.\n"
                 "Profil sám NPC nespawnuje ani nezapíná jeho řízení.\n"
+                "Při nasazení zachovejte všechny adresáře obsažené v balíčku. Šablony se instalují offline před spuštěním worldserveru.\n"
                 "Worldserver načítá profily a vzhled při spuštění; změna vyžaduje řízené nasazení a restart.\n"
                 "Editor nic automaticky nemění v běžícím světě. Uchovejte charakterový draft pro další úpravy.\n")
         return Response(archive.getvalue(), media_type="application/zip",

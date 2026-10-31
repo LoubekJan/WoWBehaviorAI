@@ -26,6 +26,11 @@ make graveyard-data
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
 lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
+if [ "$lab_profile" = full-v8 ]; then
+  # Authoring errors must fail before any healthy world process is stopped.
+  "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev \
+    python3 -m tools.realm_lab.character_templates plan
+fi
 world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
 # Both executables share the build volume; stop both before replacing binaries.
 "${lab_compose[@]}" stop worldserver authserver
@@ -38,6 +43,9 @@ if [ -n "$world_id" ]; then
 fi
 test -z "$("${lab_compose[@]}" ps --all -q worldserver)"
 run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
+if [ "$lab_profile" = full-v8 ]; then
+  "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 -m tools.realm_lab.character_templates restore
+fi
 if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
     /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
@@ -47,6 +55,9 @@ if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/graveyard.py bootstrap /workspace/runtime/lab/data
   "${lab_compose[@]}" "${run_args[@]}" tc-dev \
     python3 tools/realm_lab/manage.py "bootstrap-$lab_profile" /workspace/runtime/lab/data
+  if [ "$lab_profile" = full-v8 ]; then
+    "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 -m tools.realm_lab.character_templates apply
+  fi
 fi
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev bash /workspace/docker/scripts/build-lab.sh
 "${lab_compose[@]}" up -d auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web character-studio

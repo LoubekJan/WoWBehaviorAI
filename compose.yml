@@ -141,6 +141,7 @@ services:
       - ./data/realm_lab:/workspace/data/realm_lab:ro
       - ./data/npc_agents:/workspace/data/npc_agents:ro
       - ./data/npc_appearances:/workspace/data/npc_appearances:ro
+      - ./data/npc_templates:/workspace/data/npc_templates:ro
       - ./sql:/workspace/sql:ro
       - ./runtime/lab/data:/runtime/data:ro
       - ./runtime/lab/logs:/runtime/logs

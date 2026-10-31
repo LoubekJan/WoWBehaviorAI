@@ -468,7 +468,7 @@ bool AIWorldMgr::CanLivingPredatorHuntNeutralPrey(Creature const& hunter, Creatu
     bool neutral = WorldObject::GetFactionReactionTo(hunter.GetFactionTemplateEntry(), &prey) == REP_NEUTRAL &&
         WorldObject::GetFactionReactionTo(prey.GetFactionTemplateEntry(), &hunter) == REP_NEUTRAL;
     return LivingRolePolicy::CanHuntNeutralPrey(ResolveLivingRole(*record, hunter),
-        _agentTypeCatalog.Resolve(prey.GetEntry()), neutral);
+        _agentTypeCatalog.Resolve(GetBehaviorEntry(prey)), neutral);
 }
 
 std::optional<AIWorldMgr::LivingRoleDebugInfo> AIWorldMgr::DescribeLivingRole(Creature const& creature) const
@@ -912,10 +912,10 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             AgentRecord const* member = eligibleMember(ally);
             if (!member)
                 continue;
-            Role otherRole = LivingRolePolicy::Resolve(member->Type, ally->GetEntry(), IsService(*ally));
+            Role otherRole = LivingRolePolicy::Resolve(member->Type, GetBehaviorEntry(*ally), IsService(*ally));
             bool allied = LivingRolePolicy::CanAssistAlly(record.WorldFaction, member->WorldFaction,
                 creature.IsHostileTo(ally) || ally->IsHostileTo(&creature));
-            bool herd = role == Role::Prey && otherRole == Role::Prey && LivingRolePolicy::SameHerd(creature.GetEntry(), ally->GetEntry());
+            bool herd = role == Role::Prey && otherRole == Role::Prey && LivingRolePolicy::SameHerd(GetBehaviorEntry(creature), GetBehaviorEntry(*ally));
             if (extensions && !threat && !LivingRolePolicy::Fighter(role))
             {
                 if (role == Role::Prey && otherRole == Role::Predator && ally->IsValidAttackTarget(&creature) &&
@@ -1113,10 +1113,10 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 request.AmbientActivity == Activity::Talk ? 6.0f : 30.0f);
             context.TargetInLineOfSight = creature.IsWithinLOSInMap(target);
             context.TargetIsRolePrey = target->GetTypeId() == TYPEID_UNIT &&
-                _agentTypeCatalog.Resolve(target->GetEntry()) == AgentType::Prey && InSimulationScope(*target);
+                _agentTypeCatalog.Resolve(GetBehaviorEntry(*target)) == AgentType::Prey && InSimulationScope(*target);
             if (AgentRecord const* partner = eligibleMember(target->ToCreature()))
                 context.TargetIsSocialPartner = !target->IsInCombat() && target->IsStopped() &&
-                    !LivingRolePolicy::Wildlife(LivingRolePolicy::Resolve(partner->Type, target->GetEntry(), false)) &&
+                    !LivingRolePolicy::Wildlife(LivingRolePolicy::Resolve(partner->Type, GetBehaviorEntry(*target), false)) &&
                     LivingRolePolicy::CanAssistAlly(record.WorldFaction, partner->WorldFaction,
                         creature.IsHostileTo(target) || target->IsHostileTo(&creature));
             request.Target = ActionTargetRef{ target->GetGUID(), target->GetEntry() };
@@ -1285,7 +1285,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
                 {
                     AgentRecord const* helper = eligibleMember(guard);
                     if (guard == &creature || !helper || !guard->IsAlive() || !visibleDanger(guard) ||
-                        LivingRolePolicy::Resolve(helper->Type, guard->GetEntry(), IsService(*guard)) != Role::Guard ||
+                        LivingRolePolicy::Resolve(helper->Type, GetBehaviorEntry(*guard), IsService(*guard)) != Role::Guard ||
                         !LivingRolePolicy::CanAssistAlly(record.WorldFaction, helper->WorldFaction,
                             creature.IsHostileTo(guard) || guard->IsHostileTo(&creature)))
                         continue;
@@ -1606,13 +1606,13 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             if (state.GatheringFood && record.WorkLocation &&
                 record.WorkLocation->MapId == creature.GetMapId() &&
                 creature.GetExactDist(record.WorkLocation->X, record.WorkLocation->Y, record.WorkLocation->Z) <= 3.0f &&
-                LivingRolePolicy::CanGatherFood(role, creature.GetEntry()))
+                LivingRolePolicy::CanGatherFood(role, GetBehaviorEntry(creature)))
                 MutateEconomyAndPersist(record, [](AgentEconomyState& economy)
                 { LivingRolePolicy::GatherEmergencyFood(economy); });
             else if (!state.GatheringFood && state.WorkWindowAtStart == window && dayTime >= _routineScheduleConfig.WorkStartMs &&
                 dayTime < _routineScheduleConfig.WorkEndMs && record.EconomyState.LastRewardedWorkWindowId < window)
                 MutateEconomyAndPersist(record, [&](AgentEconomyState& economy)
-                { LivingRolePolicy::ProduceWorkStock(economy, creature.GetEntry(), window); });
+                { LivingRolePolicy::ProduceWorkStock(economy, GetBehaviorEntry(creature), window); });
         }
         if (state.Activity == Activity::Rest)
             record.Needs.Fatigue = 0.0f;
@@ -1631,7 +1631,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             !creature.IsInCombat() && creature.IsStopped() && nowMs >= state.NextDecisionAtMs)
         {
             if (!sharedFood && !record.EconomyState.Food && record.Needs.Hunger >= 0.65f &&
-                LivingRolePolicy::CanGatherFood(role, creature.GetEntry()))
+                LivingRolePolicy::CanGatherFood(role, GetBehaviorEntry(creature)))
             {
                 auto const& work = *record.WorkLocation;
                 if (work.MapId == creature.GetMapId() && creature.GetExactDist(work.X, work.Y, work.Z) <= 3.0f)
@@ -1894,7 +1894,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         for (Creature* candidate : nearby)
         {
             if (state.Refuge.Active(nowMs)) continue;
-            if (_agentTypeCatalog.Resolve(candidate->GetEntry()) != AgentType::Prey || !candidate->IsAlive() ||
+            if (_agentTypeCatalog.Resolve(GetBehaviorEntry(*candidate)) != AgentType::Prey || !candidate->IsAlive() ||
                 candidate->IsPet() || !candidate->GetCharmerOrOwnerGUID().IsEmpty() || candidate->IsControlledByPlayer() ||
                 IsService(*candidate) || candidate->IsQuestGiver() || !InSimulationScope(*candidate))
                 continue;
@@ -1916,8 +1916,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
         if (extensions)
             std::stable_sort(candidates.begin(), candidates.end(), [&](Creature* a, Creature* b)
             {
-                return LivingRolePolicy::PreyScore(creature.GetExactDist2d(a), a->GetHealthPct(), a->GetEntry(), creature.GetEntry()) <
-                    LivingRolePolicy::PreyScore(creature.GetExactDist2d(b), b->GetHealthPct(), b->GetEntry(), creature.GetEntry());
+                return LivingRolePolicy::PreyScore(creature.GetExactDist2d(a), a->GetHealthPct(), GetBehaviorEntry(*a), GetBehaviorEntry(creature)) <
+                    LivingRolePolicy::PreyScore(creature.GetExactDist2d(b), b->GetHealthPct(), GetBehaviorEntry(*b), GetBehaviorEntry(creature));
             });
         // One blocked nearest animal must not hide reachable prey behind it.
         if (candidates.size() > 8) candidates.resize(8);
@@ -2310,7 +2310,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             AgentRecord const* member = eligibleMember(neighbor);
             if (neighbor != &creature && member && neighbor->IsAlive() && !neighbor->IsInCombat() &&
                 neighbor->IsStopped() && creature.IsWithinDistInMap(neighbor, 6.0f) && visibleDanger(neighbor) &&
-                !LivingRolePolicy::Wildlife(LivingRolePolicy::Resolve(member->Type, neighbor->GetEntry(), IsService(*neighbor))) &&
+                !LivingRolePolicy::Wildlife(LivingRolePolicy::Resolve(member->Type, GetBehaviorEntry(*neighbor), IsService(*neighbor))) &&
                 LivingRolePolicy::CanAssistAlly(record.WorldFaction, member->WorldFaction,
                     creature.IsHostileTo(neighbor) || neighbor->IsHostileTo(&creature)))
             {
