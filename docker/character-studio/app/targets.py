@@ -55,6 +55,9 @@ class TargetRegistry:
 
     @classmethod
     def load(cls, project_root: Path, profile: str):
+        if profile == "authoring-empty":
+            return cls(False, profile, reason="Mapa se připravuje v režimu authoring-empty a nemá registrovaná NPC. "
+                       "Návrh lze uložit a zálohovat; export do hry je do nové registrace NPC vypnutý.")
         if profile not in SUPPORTED_PROFILES:
             return cls(False, profile, reason="Aktivní provozní profil nepodporuje ověřené vazby LLM postav. "
                        "Návrh lze uložit; export do hry zatím není dostupný.")

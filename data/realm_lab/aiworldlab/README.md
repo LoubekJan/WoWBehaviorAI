@@ -1,9 +1,10 @@
 # AI World Lab — mapy, populace a důkazy
 
 Aktualizováno **31. října 2026**. Aktivní svět používá mapu **725**, oblast
-**4988**, realm **2**, geometrii **`preview-v8`** a profil **`full-v8`**.
-Všech **100 autorových NPC** (`901000`–`901099`) řídí AIWorld; žádné z nich
-není pouze nativní. Původní Elwynn runtime a geometrie v2/v3 nejsou aktivní
+**4988**, realm **2** a geometrii **`preview-v8`**. Pro finální úpravy se
+používá **`authoring-empty`**, bez NPC a aktivních charakterů. Manifesty
+původních 100 aktérů zůstávají historickými/regresními daty; v tomto režimu
+se jejich bootstrap nespouští. Původní Elwynn runtime a geometrie v2/v3 nejsou aktivní
 provozní prostředí. Návod k provozu je v [README_DEV.md](../../../README_DEV.md)
 a [RealmLab.md](../../../doc/RealmLab.md).
 
@@ -43,13 +44,14 @@ populační manifest zůstává nezměněným zdrojem behaviorální identity.
 | `raids-v8` | 28 / 72 | Navíc první Defias a strážný |
 | `fields-v8` | 40 / 60 | Navíc dvanáct pracovníků polí |
 | `defias-v8` | 55 / 45 | Všech 16 Defias, skupinové výpravy a táborová spotřeba |
-| **`full-v8`** | **100 / 0** | **Aktivní profil**, běžné role, dvě karavany a městská spotřeba |
+| `full-v8` | 100 / 0 | Původní plná testovací populace, běžné role, dvě karavany a městská spotřeba |
+| **`authoring-empty`** | **0 / 0** | **Příprava finální mapy**, žádné NPC, AI a telemetrie vypnuté |
 
 Tyto počty jsou pro zapnutý příslušný profil, nikoli počty LLM karet.
 Manifests [polí](preview-v8/field-population.json),
 [Defias](preview-v8/defias-population.json) a
 [plné populace](preview-v8/full-population.json) obsahují explicitní identity
-a kapacity. Současný stav přidává městský sklad 7, nosiče 901040/901041,
+a kapacity. Předchozí `full-v8` přidává městský sklad 7, nosiče 901040/901041,
 doprovody 901042/901043 a městské spotřebitele 901014/901015.
 
 ## Co dokazují uložené výsledky

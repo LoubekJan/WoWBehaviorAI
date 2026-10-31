@@ -30,6 +30,10 @@ if [ "$lab_profile" = full-v8 ]; then
   # Authoring errors must fail before any healthy world process is stopped.
   "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev \
     python3 -m tools.realm_lab.character_templates plan
+elif [ "$lab_profile" = authoring-empty ]; then
+  # Clearing a population is an explicit backed-up operator action, never CD.
+  "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev \
+    python3 tools/realm_lab/manage.py preflight-authoring-empty /workspace/runtime/lab/data
 fi
 world_id="$("${lab_compose[@]}" ps --all -q worldserver)"
 # Both executables share the build volume; stop both before replacing binaries.
@@ -46,15 +50,20 @@ run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
 if [ "$lab_profile" = full-v8 ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 -m tools.realm_lab.character_templates restore
 fi
-if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = authoring-empty ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
     /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
   receipt="/workspace/runtime/lab/receipts/start-policy-deploy-$(date -u +%Y%m%dT%H%M%SZ)-${expected_revision:0:12}.json"
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py apply-start \
     /workspace/runtime/lab/data --receipt "$receipt"
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/graveyard.py bootstrap /workspace/runtime/lab/data
-  "${lab_compose[@]}" "${run_args[@]}" tc-dev \
-    python3 tools/realm_lab/manage.py "bootstrap-$lab_profile" /workspace/runtime/lab/data
+  if [ "$lab_profile" = authoring-empty ]; then
+    "${lab_compose[@]}" "${run_args[@]}" tc-dev \
+      python3 tools/realm_lab/manage.py preflight-authoring-empty /workspace/runtime/lab/data
+  else
+    "${lab_compose[@]}" "${run_args[@]}" tc-dev \
+      python3 tools/realm_lab/manage.py "bootstrap-$lab_profile" /workspace/runtime/lab/data
+  fi
   if [ "$lab_profile" = full-v8 ]; then
     "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 -m tools.realm_lab.character_templates apply
   fi
@@ -80,7 +89,7 @@ wait_healthy() {
 for service in auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web character-studio; do
   wait_healthy "$service"
 done
-if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
+if [ "$lab_profile" = authoring-empty ] || [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
   "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
     python3 tools/realm_lab/manage.py "preflight-$lab_profile" /runtime/data
 fi
@@ -103,6 +112,12 @@ assert f"AIWorld.Enable = {expected_enable}\n" in config
 if settings.ai_profile in ("settlement-v8", "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
     assert "AIWorld.TelemetryEnabled = 1\n" in config
     assert "AIWorld.TelemetryNativeCreaturesEnabled = 1\n" in config
+if settings.ai_profile == "authoring-empty":
+    assert "AIWorld.NpcAgentEnabled = 0\n" in config
+    assert "AIWorld.TelemetryEnabled = 0\n" in config
+    assert "AIWorld.TelemetryNativeCreaturesEnabled = 0\n" in config
+    assert "AIWorld.ScopeMapId = 725\n" in config
+    assert "AIWorld.ScopeRestrictAgents = 0\n" in config
 assert f"RealmID = {settings.realm_id}\n" in config
 print("Lab realm ID, shared-auth migration exclusion and rendered AI profile verified:", settings.ai_profile)
 '

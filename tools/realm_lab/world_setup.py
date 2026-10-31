@@ -78,7 +78,7 @@ class WorldStart:
 
 
 def validate_profile(settings: manage.Settings) -> None:
-    require(settings.realm_id == 2 and settings.ai_profile in (settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE),
+    require(settings.realm_id == 2 and settings.ai_profile in ("authoring-empty", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE),
             "Canonical world setup requires realm 2 with a reviewed authored-world profile")
 
 
@@ -142,6 +142,10 @@ COMMIT;
 def prepare(data: Path, template: Path, binary: Path, settings: manage.Settings) -> None:
     validate_profile(settings)
     settlement_population.ensure_world_offline()
+    if settings.ai_profile == "authoring-empty":
+        # Preparation must never turn an uncleared population into an empty
+        # world implicitly. Destructive retirement is a separate operation.
+        manage.authoring_preflight(data, settings)
     population = settlement_population.verify_data(data)
     WorldStart.load(population)
     manage.preflight(data, settings)
@@ -160,6 +164,8 @@ def prepare(data: Path, template: Path, binary: Path, settings: manage.Settings)
     require(result.returncode == 0, "Offline world/characters schema setup failed; inspect private server logs")
     settlement_population.ensure_world_offline()
     demote_retired_pilots(settings)
+    if settings.ai_profile == "authoring-empty":
+        manage.authoring_preflight(data, settings)
     print("World and characters schemas updated offline; retired Elwynn pilot control disabled and world simulation was not started.")
 
 
@@ -213,6 +219,8 @@ def verify_starts(before: list[dict], after: list[dict], start: WorldStart) -> N
 def apply_start(data: Path, receipt: Path, settings: manage.Settings) -> None:
     validate_profile(settings)
     settlement_population.ensure_world_offline()
+    if settings.ai_profile == "authoring-empty":
+        manage.authoring_preflight(data, settings)
     population = settlement_population.verify_data(data)
     start = WorldStart.load(population)
     before = starts_snapshot(settings)
