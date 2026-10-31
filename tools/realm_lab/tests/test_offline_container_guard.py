@@ -14,6 +14,8 @@ SCRIPTS = ("deploy-lab.sh", "setup-world.sh")
 STUB = r'''set -euo pipefail
 lab_compose=(docker compose)
 compose=(docker compose)
+lab_profile=full-v8
+profile=full-v8
 docker() {
   case "$1" in
     compose)
@@ -28,6 +30,13 @@ docker() {
           if [ "$GUARD_SCENARIO" != still-running ]; then rm -f "$GUARD_STATE/running"; fi
           ;;
         up) printf 'up\n' >> "$GUARD_EVENTS" ;;
+        run)
+          # The real template restore must only execute after the stopped
+          # container was removed and absence was explicitly attested.
+          [ ! -f "$GUARD_STATE/exists" ] && [ ! -f "$GUARD_STATE/running" ] || return 77
+          case "$*" in *"LAB_SETTLEMENT_WORLD_ABSENT=1"*"character_templates restore"*) ;; *) return 78;; esac
+          printf 'restore\n' >> "$GUARD_EVENTS"
+          ;;
         *) return 71 ;;
       esac
       ;;
@@ -54,7 +63,7 @@ class OfflineContainerGuardTests(unittest.TestCase):
     def run_guard(self, script, scenario):
         source = (ROOT / "docker/scripts" / script).read_text(encoding="utf-8")
         begin = source.index('world_id="$(')
-        end = source.index('if [ "$lab_profile"', begin) if script == "deploy-lab.sh" else source.index('receipt="', begin)
+        end = source.index('if [ "$lab_profile" = settlement-v8 ]', begin) if script == "deploy-lab.sh" else source.index('receipt="', begin)
         guard = source[begin:end]
         arguments = '"${run_args[@]}"' if script == "deploy-lab.sh" else '"${run[@]}"'
         with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
@@ -82,7 +91,8 @@ class OfflineContainerGuardTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn("LAB_SETTLEMENT_WORLD_ABSENT=1", result.stdout)
                     self.assertNotIn("LAB_SETTLEMENT_WORLD_IP", result.stdout)
-                    self.assertEqual(events[-1], "ps")
+                    self.assertEqual(events[-1], "restore")
+                    self.assertLess(max(i for i, event in enumerate(events) if event == 'ps'), events.index('restore'))
                     if scenario != "absent":
                         self.assertLess(events.index("stop"), events.index("inspect"))
                         self.assertLess(events.index("inspect"), events.index("remove"))
@@ -97,6 +107,7 @@ class OfflineContainerGuardTests(unittest.TestCase):
                     result, events = self.run_guard(script, scenario)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertNotIn("LAB_SETTLEMENT_WORLD_ABSENT=1", result.stdout)
+                    self.assertNotIn('restore', events)
                     if scenario == "still-running":
                         self.assertNotIn("remove", events)
 
