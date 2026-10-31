@@ -18,7 +18,7 @@ def main() -> None:
         raise SystemExit("run_scoped.py requires a command")
     try:
         profile = os.environ.get("LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
+        if profile not in ("disabled", "authoring-empty", "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
             raise ProfileError("Unknown reviewed observer lab profile")
         if profile == full_population.PROFILE:
             scope = full_population.Population.load()
@@ -34,7 +34,7 @@ def main() -> None:
             scope = supply_population.Population.load()
         elif profile == wildlife_population.PROFILE:
             scope = wildlife_population.Population.load()
-        elif profile == settlement_population.PROFILE:
+        elif profile in ("authoring-empty", settlement_population.PROFILE):
             scope = settlement_population.Population.load()
         else:
             scope = terrain_profile.load_scope() if profile == terrain_profile.PROFILE else Scope.load()

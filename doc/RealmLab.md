@@ -1,9 +1,23 @@
 # Vlastní svět jako jediný realm
 
-## Aktuální provozní stav — 31. října 2026
+## Přechod k finální mapě — authoring-empty
+
+Aktuální vývoj přechází na prázdný svět: všechny testovací NPC a vytvořené
+charaktery včetně Studio návrhů se po záloze vyřazují. Zůstává realm 2,
+mapa 725 / oblast 4988, účty, hráčské postavy a uložená geometrie. Profil
+`authoring-empty` nic automaticky nemaže ani znovu neosazuje. Jeho přísný
+preflight vyžaduje nulu ve světových spawnech, příslušných AI záznamech a
+charakterových vstupech; AI, LLM i telemetrie jsou vypnuté.
+
+Postup a meze resetu jsou v [README_DEV.md](../README_DEV.md#příprava-finální-mapy--authoring-empty).
+Do dokončení finální mapy Studio nenabízí cíle pro herní export a Observer
+neukazuje čerstvá NPC data. Nové budovy, terén a rozmístění se budou
+nasazovat jako nová ověřená verze, nikoli obnovením staré testovací stovky.
+
+## Předchozí ověřený provozní stav — 31. října 2026
 
 Aktivní svět je vlastní mapa `725` / oblast `4988`, realm `2`, větev
-`AI-World-lab`. Poslední zde ověřené nasazení je `664d84687d7a`:
+`AI-World-lab`. Předchozí osazené nasazení bylo `664d84687d7a`:
 [CI/CD běh](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41158138495)
 prošel 846 Python a 699 nativními testy. Všech osm aplikačních a databázových
 služeb bylo zdravých bez automatického restartu. Šlo o provozní a serverové
@@ -181,7 +195,7 @@ healthchecks a čerstvá telemetrie.
 | --- | --- |
 | Realm | AI World Lab, ID 2 |
 | Mapa / oblast | 725 / 4988 |
-| Aktivní profil | `full-v8`: 100 řízených / 0 nativně řízených NPC |
+| Aktivní profil přípravy | `authoring-empty`: 0 NPC, AI a telemetrie vypnuté |
 | Nasazovací checkout | `/home/voslik/WoWBehaviorAI-lab` |
 | Compose projekt / síť | `aitc-lab` / `aitc-lab_default` |
 | Auth / svět / viewer / registrace / editor | 3724 / 9086 / 9091 / 9088 / 9092 |

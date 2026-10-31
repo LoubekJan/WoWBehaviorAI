@@ -1,10 +1,33 @@
 # Ateliér postav
 
-Stav k **31. říjnu 2026**, nasazená verze `664d84687d7a`.
+## Finální tvorba mapy — `authoring-empty`
+
+Pro další tvorbu světa je připravený prázdný profil `authoring-empty`.
+Po jeho aktivaci nemá mapa registrovaná NPC ani dostupné cíle pro herní
+export. Editor vrací výslovné vysvětlení, že se mapa připravuje. Nový
+charakterový návrh, vzhled, příběh a editovatelnou zálohu lze dál vytvořit
+a uložit; profil však neumožní stáhnout runtime kartu, vzhled, herní šablonu
+ani ZIP pro neexistující postavu. Změna čísla ve starém návrhu zákaz neobejde.
+
+Přechod zahrnuje odstranění dosavadních mapových NPC, nainstalovaných karet,
+vzhledů a vytvořených draftů až po jejich chráněné záloze. Je to samostatný
+provozní krok; samotná změna profilu ani tento návod nedokládají, že už
+čistka na serveru proběhla. Dokončení se potvrzuje novým provozním receipt,
+prázdným katalogem cílů a knihovnou návrhů. Mapa, účty a hráčské postavy
+zůstávají zachované.
+
+Pro budoucí osídlení se nejprve musí navrhnout a zaregistrovat nová populace
+nad finální mapou. Ateliér spawny ani registraci nevytváří. Níže uvedený
+postup importu a rozsah `full-v8` popisují dosavadní implementaci; během
+`authoring-empty` je nespouštějte za účelem obnovení starých 100 NPC.
+
+## Editor a dosavadní populační profily
+
 Webový editor na `http://<adresa-serveru>:9092` vytváří vlastní humanoidní NPC
 pro klienta 3.3.5a (build 12340). Observer na portu 9091 obsahuje odkaz do editoru.
-Aktuální server používá `full-v8`: všech 100 připravených NPC je pod AIWorld,
-ale LLM kartu mají nainstalovanou jen Šaša, Matěj a Běla. Editor připravuje
+Předchozí nasazení `664d84687d7a` používalo `full-v8`: všech 100 tehdejších NPC
+bylo pod AIWorld a LLM kartu měly Šaša, Matěj a Běla. Tento stav je po
+přechodu na prázdnou mapu historický. Editor připravuje
 návrh pro existující ověřený spawn; netvoří nové spawn pozice ani nerozšiřuje
 populační registraci. Nové instalace podle `.env.example` začínají profilem
 `settlement-v8` s vypnutým modelem, a proto nejprve potřebují přípravu
@@ -31,21 +54,24 @@ odmítne místo přepsání novější verze.
 
 ## První použití
 
-1. Otevřete ateliér a zvolte novou postavu, případně načtěte některou z dostupných
-   karet z položky **Načíst postavu z projektu**. Ve veřejném repozitáři jsou
-   Matěj a Běla; na živém serveru je navíc soukromá Šašina karta. Není-li nainstalovaný vlastní
+1. Otevřete ateliér a zvolte novou postavu. Karty z položky **Načíst postavu
+   z projektu** závisejí na skutečně nainstalovaných souborech; po odstranění
+   starých karet se původní postavy nenabízejí. Není-li nainstalovaný vlastní
    vzhled, editor začne s výchozím lidským vzhledem, nikoli kopií jejich
    původního creature modelu.
 2. Zvolte podobu a výbavu. V části **Charakter** napište motivace a způsob řeči;
    v části **Příběh** vyplňte minulost a vztahy. Návrh AI se automaticky neukládá.
 3. Uložte postavu. V části **Export** vyberte ověřené řízené NPC z aktivního
-   populačního profilu. V profilu `full-v8` jsou řízená všechna současná NPC
+   populačního profilu. V dřívějším profilu `full-v8` byla řízená NPC
    `901000`–`901099`, včetně městského obyvatele `901014`. Pouhé platné číslo
    Spawn ID nestačí: neznámé ID, jiná mapa ani NPC s původní AI v některém
    ze starších profilů nejsou platným cílem.
    Agent ID se rovná Spawn ID; velká uint64 ID se v editoru nepřevádějí na
    nepřesná JavaScript čísla. Návrh i jeho editovatelnou zálohu lze uložit
    bez platného cíle, herní export je však zablokovaný až do ověření.
+   V `authoring-empty` je seznam cílů prázdný; pokračujte tvorbou návrhu
+   a stáhněte **Zálohu návrhu (.json)**. Následující herní exportní kroky
+   platí až pro budoucí ověřenou populaci nebo původní podporovaný profil.
 4. V části **Úplný balíček postavy** zvolte **Stáhnout ZIP**. Obsahuje `npc_agents/<spawn>.json`,
    `npc_appearances/<spawn>.json`, v profilu `full-v8` také
    `npc_templates/<spawn>.json`, editovatelný návrh a návod. V exportní části
@@ -87,11 +113,13 @@ platnou kartou konkrétního NPC, v rámci uvedeného limitu controlleru.
 
 Přeneste všechny tři runtime JSON stejné postavy do odpovídajících adresářů
 konkrétního serverového checkoutu. Soukromé životopisy a vzhledy nemusí být
-ve veřejném Gitu; export ani samotný editor je do něj neposílá. V repozitáři
-jsou jen ukázkové karty Matěje a Běly, zatímco uživatelské návrhy žijí ve
-volume studia. Archivujte také draft: nativní karta neobsahuje všechna
+ve veřejném Gitu; export ani samotný editor je do něj neposílá. Uživatelské
+návrhy žijí ve volume studia. Původní karty a návrhy patří při přípravě
+prázdného světa do chráněné zálohy, nikoli zpět do aktivních adresářů.
+Archivujte také draft: nativní karta neobsahuje všechna
 editovatelná autorská pole.
 
+Následující postup je pro původní populace; **nepoužívat při `authoring-empty`**.
 Pro již připravený server se správně sestavenou verzí kódu a aktivním
 `LAB_AI_PROFILE=full-v8` použijte z kořene checkoutu:
 
@@ -146,15 +174,15 @@ změněnou kopii, navázané prostředky či přesunutý spawn. Opakovaný impor
 stejného balíčku je idempotentní. Vypuštění JSON z adresáře není příkaz
 k odinstalaci a instalované vlastnictví se tím automaticky nemaže.
 
-Například obyvatel `901014` se základní šablonou `11328` dostane soukromou
-šablonu `9800014`. Jiný obyvatel se stejným základem dostane jiné číslo,
-takže změna Šašina jména nepřejmenuje Matěje ani další obyvatele. Při změně
+V předchozí populaci například obyvatel `901014` se základní šablonou `11328`
+dostal soukromou šablonu `9800014`. Jiný obyvatel se stejným základem dostal
+jiné číslo, takže změna Šašina jména nepřejmenovala Matěje ani další obyvatele. Při změně
 jména téže karty zůstává přidělená identita stejná. Backend odvozuje oba
 typy entry z ověřených serverových metadat, nikoli z hodnot dodaných klientem.
 
 Původní entry zůstává zdrojem behaviorální klasifikace přes ověřený alias.
-Přejmenovaná Šaša tak zachovává roli `CITY_CONSUMER`, Matěj a Běla roli
-`WORKER`. Alias se načítá před volitelnými LLM kartami a kontrola instalace
+Před vyprázdněním mapy tak přejmenovaná Šaša zachovala roli `CITY_CONSUMER`,
+Matěj a Běla roli `WORKER`. Alias se načítá před volitelnými LLM kartami a kontrola instalace
 čte databázi nezávisle na právě rozpracovaných souborech. Vadná volitelná
 karta nesmaže již instalovanou herní identitu. Při přejmenování však musí
 souhlasit jméno v kartě a v předpisu šablony; exportujte a nasaďte celý balíček.
@@ -168,8 +196,9 @@ zatímco `template_entry` označuje skutečnou nainstalovanou šablonu.
 Jméno má stávající limit 32 znaků / 80 UTF-8 bajtů. Povolání se pro podtitul
 ořízne o okolní mezery, musí být na jednom řádku do 80 UTF-8 bajtů a může
 zůstat prázdné. Delší autorské podklady lze uložit do návrhu; export úplného
-balíčku vyžaduje platný podtitul. Samostatné exporty původní šestipolové
-karty a vzhledu zůstávají dostupné i bez herní šablony.
+balíčku vyžaduje platný podtitul. V podporované registrované populaci zůstávají
+samostatné exporty původní šestipolové karty a vzhledu dostupné i bez herní
+šablony; `authoring-empty` blokuje všechny runtime exporty.
 
 Starší profily `consumers-v8`, `raids-v8`, `fields-v8` a `defias-v8` zachovávají
 původní export karty a vzhledu. Jejich ZIP výslovně uvádí, že vlastní herní
@@ -237,13 +266,17 @@ jednotlivé editovatelné JSON návrhy. Běžný rebuild/restart služby volume 
 
 ## Ověření a známá omezení
 
-Nasazení `664d84687d7a` ověřilo tři vlastní šablony Šaši, Matěje a Běly,
+Předchozí nasazení `664d84687d7a` ověřilo tři vlastní šablony Šaši, Matěje a Běly,
 nezměněné původní karty a ostatních 16 obyvatel společného základu `11328`.
-Server potvrdil všechny sloupce kopií a návazné prostředky, zachované domovy,
+Tato historická kontrola potvrdila všechny sloupce kopií a návazné prostředky, zachované domovy,
 správná jména, skutečné nové entry v živých GUID a tři aktivní LLM controllery.
 Z uložených návrhů prošel download předpisu šablony i úplného pětisouborového
 ZIP. Přesné rozsahy CI a živého ověření jsou v
 [NpcAgents.md](NpcAgents.md#ověřený-stav-a-diagnostika).
+
+Uvedený důkaz neznamená, že tyto tři postavy zůstávají nainstalované po
+požadované čistce. Nový prázdný profil je záměrně nepřebírá a jejich
+budoucí obnovení by vyžadovalo nové výslovné rozhodnutí a registraci.
 
 Vzhled v konkrétním WoW klientu a renderovaná stránka nebyly při tomto běhu
 vizuálně kontrolované. Funkční HTTP a nativní testy neprokazují zobrazení

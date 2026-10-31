@@ -1,5 +1,11 @@
 # AI World Viewer
 
+> V režimu přípravy finální mapy `authoring-empty` jsou NPC, AI i telemetrie
+> vypnuté. Viewer nemá připojený zdroj a recorder nemůže vytvořit fyzický
+> důkaz nulové populace. Následující postupy platí pro osazené profily,
+> zejména předchozí `full-v8`, a jejich historické záznamy.
+
+
 The viewer is a read-only FastAPI service. Compose publishes its browser UI on
 all host interfaces at port **9091** by default (`http://<server-LAN-IP>:9091`),
 configured by `LAB_VIEWER_PORT`. The authored-world stack uses realm 2,

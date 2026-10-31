@@ -1,5 +1,11 @@
 # Několikahodinový záznam chování AIWorld
 
+> V režimu přípravy finální mapy `authoring-empty` jsou NPC, AI i telemetrie
+> vypnuté. Viewer nemá připojený zdroj a recorder nemůže vytvořit fyzický
+> důkaz nulové populace. Následující postupy platí pro osazené profily,
+> zejména předchozí `full-v8`, a jejich historické záznamy.
+
+
 Záznamník ukládá všechny aktéry, které vidí Observer. Kanonický Compose
 načítá scope přes `tools/realm_lab/run_scoped.py`: nyní vlastní mapa
 **725**, oblast **4988**, profil **`full-v8`**, **100 AIWorld / 0 nativních NPC**.

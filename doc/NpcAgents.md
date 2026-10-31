@@ -1,11 +1,25 @@
 # NPC řízená jazykovým modelem
 
-Stav k **31. říjnu 2026**, ověřená nasazená revize `664d84687d7a`.
-Aktivní realm 2 používá vlastní mapu 725 / oblast 4988 a profil `full-v8`:
-**100 NPC řídí AIWorld, z nich tři mají zapnutý LLM controller**. Převzetí
-NPC systémem AIWorld samo neznamená požadavek na jazykový model. Výchozí
-`.env.example` nadále používá `settlement-v8` a nechává LLM vypnuté;
-nepopisuje soukromou konfiguraci běžícího serveru.
+## Prázdný svět pro finální tvorbu mapy
+
+Přechod na profil **`authoring-empty`** ponechává realm 2, vlastní mapu
+725 / oblast 4988, účty a hráčské postavy, ale jeho cílovým stavem je
+**0 mapových NPC a 0 LLM controllerů**. Dosavadní karty, vzhledy, předpisy
+šablon a uložené charakterové návrhy se při přechodu odstraňují až po
+chráněné záloze. Samotná přítomnost tohoto návodu není potvrzením dokončené
+čistky; tu dokládá provozní receipt a prázdné serverové katalogy.
+
+Ateliér v `authoring-empty` dál umožňuje vytvořit a zálohovat nový návrh,
+ale neposkytuje žádný ověřený cíl pro runtime export. Životopis ani ručně
+zadané číslo NPC neobnoví jeho spawn nebo registraci. Před novým osídlením
+se musí navrhnout a schválit populace finální mapy. Nepřepínejte zpět na
+`full-v8` jen kvůli odemknutí exportu: tím by se vracela dřívější sestava.
+
+Následující oddíly popisují zachované implementované schopnosti a historicky
+ověřený controller. Tři postavy z revize `664d84687d7a` jsou **předchozí
+testovací populace**, nikoli aktivní postavy prázdné mapy.
+
+## Implementované možnosti
 
 Volitelný režim předává výběr činností, řeči a animací modelu přes stávající
 AI bridge a jeho OpenAI-compatible HTTP klient. Model dostává životopis,
@@ -13,24 +27,25 @@ osobnost, aktuální potřeby, výsledek poslední činnosti, blízké postavy, 
 rozhovor a vybrané vlastní vzpomínky. Volí mezi nabídnutými pohyby, jídlem, odpočinkem, útěkem před skutečnou
 hrozbou, čekáním a zastavením. Engine ověřuje dosažitelnost a provádí akce.
 
-V repozitáři jsou ukázkové profily Matěje (`901035`) a Běly (`901036`).
-Na serveru je navíc nainstalovaná soukromá karta Šaši (`901014`); její
-autorská data nejsou součástí veřejných ukázek.
-Režim vyžaduje již připravený `consumers-v8`, `raids-v8`, `fields-v8`,
+Dosavadní implementace vyžaduje již připravený `consumers-v8`, `raids-v8`, `fields-v8`,
 `defias-v8` nebo `full-v8` a konkrétní NPC registrované v daném profilu jako
 řízený účastník. Vlastní herní šablony vyžadují `full-v8`. Samotné zapnutí
 LLM nemění registraci, nepřidává
 další řízené postavy a neupravuje původní soubory sestavy 100 NPC.
 
-`full-v8` registruje všech 100 vytvořených NPC včetně `901014`. Každému lze
+Původní `full-v8` registruje všech 100 testovacích NPC včetně `901014`. Každému lze
 samostatně přiřadit vlastní kartu; samotná registrace žádný životopis ani
 modelové požadavky nevytvoří. Současný katalog přijímá nejvýše 16 platných
 instalovaných LLM karet; ostatní NPC používají běžné role AIWorld.
 
-## Zapnutí
+## Zapnutí v osídleném světě
 
-V soukromém kořenovém `.env` nastavte následující hodnoty. Ukázka odpovídá
-aktuálnímu `full-v8`; vlastní šablony jsou vázané právě na něj. Pro ostatní
+Tato konfigurační ukázka patří dřívějšímu `full-v8`, nikoli prázdnému
+režimu finální tvorby mapy. V `authoring-empty` ponechte LLM controller vypnutý.
+Pro budoucí populaci bude nejprve nutná její vlastní ověřená registrace.
+
+V soukromém kořenovém `.env` jsou pro původní podporované profily následující
+hodnoty. Vlastní šablony jsou zatím vázané na `full-v8`. Pro ostatní
 podporované profily zachovejte jejich ověřenou sestavu a dostupné cíle.
 
 ```dotenv
@@ -159,11 +174,11 @@ runtime GUID, ale ne restart worldserveru. Nevytváří soubory ani tabulky v da
 V přehledu NPC jsou jen počty `Vzpomínky` a `Vybavené vzpomínky`; soukromý obsah
 se do veřejné telemetrie ani záznamu světa neexportuje.
 
-Pro ruční ověření vyberte Matěje a napište například
+Pro ruční ověření v osídleném světě vyberte jedno LLM NPC a napište například
 `/say Moje oblíbená barva je modrá.` Po několika dalších výměnách se zeptejte
 `/say Jaká je moje oblíbená barva?`. Pro ověření starší paměti proveďte alespoň
-sedm dalších výměn, aby první věta vypadla z dvanáctipoložkové historie. Běla tuto
-Matějovu soukromou vzpomínku při stejné otázce nedostane.
+sedm dalších výměn, aby první věta vypadla z dvanáctipoložkové historie.
+Jiné NPC soukromou vzpomínku této postavy při stejné otázce nedostane.
 
 ## Vlastní životopis
 
@@ -182,11 +197,14 @@ Identitu a polohu registrace ponechte podle skutečného agenta:
   "agent_id": 901035,
   "map_id": 725,
   "spawn_id": 901035,
-  "name": "Matěj",
-  "backstory": "Pracuji v jižní vesnici a pamatuji si velkou zimní bouři.",
-  "personality": "Mluvím krátce česky, jsem zvídavý a záleží mi na sousedech."
+  "name": "Ukázka formátu",
+  "backstory": "Sem patří autorem připravená minulost postavy.",
+  "personality": "Sem patří způsob řeči a povaha postavy."
 }
 ```
+
+Číslo v ukázce vychází z předchozí populace; v `authoring-empty` není
+registrovaným cílem. Příklad nevytváří kartu ani postavu na serveru.
 
 Jméno smí mít nejvýše 32 znaků a 80 UTF-8 bajtů, životopis 8192 UTF-8 bajtů
 a osobnost 2048. Celý JSON smí mít nejvýše 16 KiB. Životopis a osobnost
@@ -207,18 +225,11 @@ NPC s původní AI nestačí k jeho registraci jako LLM agenta. Chybnou voliteln
 kartu server při startu odmítne s diagnostikou a pokračuje s platnými profily;
 samotný import tak nezastaví celý svět. Vadný vzhled ponechá původní model.
 
-## Ukázkové charakterové karty
+## Psaní budoucích karet
 
-- [Matěj](../data/npc_agents/901035.json) je zdrženlivý a pečlivý soused se suchým
-  humorem. Z minulých drobných oprav si odnesl vztah k poctivé práci a obtížně
-  přiznává vlastní nejistotu.
-- [Běla](../data/npc_agents/901036.json) je otevřená, praktická a někdy příliš
-  přímočará. Záleží jí na jasné domluvě a umí uznat, že někoho odbyla neprávem.
-
-Oba si pamatují dávný déšť, při kterém společně přenesli ohrožené zásoby do sucha.
-Tato společná minulost je napsaná v ukázkových kartách a zůstává součástí jejich identity
-po restartu. Nové rozhovory používají krátkou paměť popsanou výše. Jejich vztah
-umožňuje sousedský respekt, drobné neshody i samostatné jednání.
+Staré karty Matěje, Běly a Šaši se do prázdného světa automaticky nenačítají.
+Jejich původní soubory a návrhy patří při tomto přechodu do chráněné zálohy;
+historická verze kódu nebo dokumentace není pokynem k jejich obnovení.
 
 Při psaní karet oddělujte minulost a přání od aktuálního stavu světa. Model dostává
 potřeby na škále 0–1 a současný stav má přednost před starými výroky o hladu či
@@ -231,7 +242,8 @@ Pořadí činností stále vybírá LLM.
 
 ## Ověřený stav a diagnostika
 
-Nasazení revize `664d84687d7a` dne 31. října 2026 ověřilo následující
+**Historické ověření před vyprázdněním mapy:** nasazení revize
+`664d84687d7a` dne 31. října 2026 ověřilo následující
 identity. Číslo `entry` v telemetrii zachovává původní behaviorální typ;
 nové `template_entry` a entry uvnitř živého GUID označují skutečnou herní
 šablonu. Původní záznam `11328` dál nese jméno `Eastvale Peasant`.
@@ -263,3 +275,10 @@ Zdravý `/health` nenahrazuje skutečný úspěšný modelový požadavek ani tu
 databázovou kontrolu. Úplné CI pro uvedenou revizi prošlo se 846 Python
 a 699 nativními testy; [výsledek běhu](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41158138495)
 je připnutý ke konkrétní revizi.
+
+Po přechodu do `authoring-empty` se tyto tři identity ani počty nevyžadují
+v aktuální telemetrii. Správný výsledek je prázdná populace a vypnutý
+controller; budoucí osídlení potřebuje vlastní nové ověření. Ověření šablon
+v prázdném světě potvrzuje nulovou instalaci, nikoli přítomnost starých tří
+postav. Stav odstranění charakterových návrhů se ověřuje odděleně v knihovně
+Ateliéru a jeho katalogu zdrojových karet.

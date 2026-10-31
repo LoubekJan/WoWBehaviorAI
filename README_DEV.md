@@ -1,37 +1,55 @@
 # Vývoj a provoz vlastního světa
 
-Stav k **31. říjnu 2026**, ověřená provozní revize `664d84687d7a`.
-Současný realm používá `full-v8`: **100 NPC řízených AIWorld, žádné nativně
-řízené NPC**. Tři z nich mají samostatnou LLM kartu a herní šablonu.
-Základní role, lov, pole, spotřeba, přepady a dvě zásobovací karavany se
-kombinují v jednom světě. Převzetí AIWorld neznamená 100 LLM požadavků.
+## Příprava finální mapy — authoring-empty
 
-Vývoj volitelných NPC řízených LLM, samostatné životopisy a přímý herní chat
-popisuje [NpcAgents.md](doc/NpcAgents.md). Režim je na současném serveru
-zapnutý pro tři karty; čistá `.env.example` jej ponechává vypnutý.
-Model i klíč se nastavují pouze v soukromé konfiguraci.
+Aktuální přechod vyčistí původní testovací osazení a všechny vytvořené
+charaktery. Profil `authoring-empty` zachovává realm **2**, mapu **725**,
+oblast **4988**, účty, hráčské postavy a současná mapová data. AI,
+NPC LLM controller a telemetrie jsou vypnuté. Finální geometrie a nové
+rozmístění obyvatel se teprve připravují v Noggit.
 
-Vlastní humanoidní vzhled, charakterové karty a příběhy lze tvořit ve webovém
-[Ateliéru postav](doc/CharacterStudio.md) na portu 9092. Uložené návrhy se do
-herního světa nasazují exportem a následným řízeným nasazením. Samotné
-uložení návrhu ani stažení ZIPu běžící svět nemění.
+```dotenv
+LAB_AI_PROFILE=authoring-empty
+LAB_WILDLIFE_ENABLED=0
+LAB_NPC_AGENTS_ENABLED=0
+AI_NPC_MODEL_ENABLED=0
+```
 
-Úplný balíček v profilu `full-v8` obsahuje také `npc_templates/<spawn>.json`.
-Při nasazení vznikne samostatná kopie všech sloupců nativní šablony a jejích
-návazných služeb. Vlastní jméno a podtitul se proto zobrazí i nad postavou;
-ostatní obyvatelé se stejným původním modelem si ponechají svá jména.
-Nasazení ověří vstupy před zastavením světa, pod offline zámkem připraví
-základní populaci a pak aplikuje ověřené vlastní šablony. Spawn ID a domovy
-se nemění. Po změně jména je potřeba nové přihlášení do hry; server oznámí
-odvozenou verzi klientské cache. Běžné nasazení lze opakovat bez ručních SQL zásahů.
+Samotné nastavení profilu nic nemaže. Startup, `make setup-world` i CI/CD
+vyžadují skutečně prázdnou mapu a neprovádějí bootstrap původních 100 NPC.
+Kontrolují také vypnuté historické spawny, vazby AI, paměti vyřazených
+agentů, ledger vlastních šablon a soubory runtime charakterů. Nový režim
+nepoužívá obecné `disabled` s historickými hranicemi prvního experimentu.
 
-Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
-herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
-**4988**. Profil `full-v8` přebírá všech 100 vytvořených NPC pod AIWorld.
-Rozšiřuje `defias-v8`, který řídí 55 NPC: deset banditů vyráží ve skupinách,
-šest dalších obyvatel tábora jí z vlastního skladu. Nasazení a
-fyzický výsledek se ověřují samostatně. Výchozí
-`.env.example` zůstává konzervativním profilem `settlement-v8`.
+Jednorázové vyřazení se provádí při zastaveném světě a studiu, po společné
+záloze world/characters, auth, všech tří adresářů charakterů a konzistentní
+SQLite studia. Nástroj `python3 -m tools.realm_lab.reset_population` má
+oddělené příkazy `plan`, `apply` a `verify-empty`. Plán zachycuje přesný
+předchozí stav; apply vyžaduje jeho soubor a výslovný přepínač
+`--confirm-delete-reviewed-npcs`. Zastaralý plán, cizí spawny či
+neověřené vazby operaci odmítnou. Původní profil `full-v8` musí být při
+plánování/SQL vyřazení zachován, aby šel původní stav plně ověřit; na
+`authoring-empty` se přepne až po kontrolovaném vyčištění.
+
+Odstraňují se jen přijaté sestavy `901000–901099` a případná úplná starší
+sestava `900725–900824`, jejich ověřené AI záznamy a přesně vlastněné
+nativní klony. Sdílená vanilla šablona `11328`, frakce, mapová data,
+hráčské postavy a účty se nemažou. Soubory karet/vzhledů/šablon a všechny
+Studio drafts se vyřazují samostatně po jejich záloze. Pouhé smazání
+SQLite ani pouze `DELETE creature` nejsou úplným resetem.
+
+Observer na 9091 v tomto režimu neobdrží AI heartbeat a ukáže stav bez
+připojené telemetrie; nevytváří se falešný záznam nulové populace.
+Ateliér na 9092 umožňuje připravovat a ukládat nové návrhy, ale nenabízí
+původní NPC a blokuje herní export. Nová registrace a rozmístění se připraví
+podle finální mapy. Postupy `full-v8` a starších profilů níže popisují
+zachované schopnosti a historické sestavy, nikoli současné prázdné osazení.
+
+`.env.example` zůstává konzervativní ukázkou `settlement-v8` s vypnutými
+modely; nekopíruje soukromé nastavení existujícího serveru. Tvorbu postav
+popisuje [Ateliér](doc/CharacterStudio.md), controller
+[NpcAgents.md](doc/NpcAgents.md) a předchozí ověřený stav i další kroky
+[roadmapa](AIWorld_Current_Roadmap.md).
 
 ## Služby a data
 

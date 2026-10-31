@@ -95,7 +95,7 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE, *hunt_population.PROFILES):
+        if profile not in ("disabled", "authoring-empty", "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE, *hunt_population.PROFILES):
             raise SetupError("Unknown reviewed LAB_AI_PROFILE")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
@@ -196,7 +196,13 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
                 "TestHuntArrivalOwnership", "TestControlMode", "TestFoodTargetEnabled", "TestDynamicTaskAgentId",
                 "TestDynamicQuestKillCreditLoss"):
         result[f"AIWorld.{key}"] = "0"
-    if settings.ai_profile == "single-return":
+    if settings.ai_profile == "authoring-empty":
+        try:
+            from . import authoring_empty
+        except ImportError:
+            import authoring_empty
+        result.update(authoring_empty.config())
+    elif settings.ai_profile == "single-return":
         scope = scope or single_return.Scope.load()
         result.update(scope.config())
         result.update({"AIWorld.Enable": "1", "AIWorld.LivingRolesEnabled": "1",
@@ -708,7 +714,17 @@ def preflight(data: Path, settings: Settings) -> None:
             raise SetupError(f"No extracted/generated {suffix} files in {data / folder}")
     row = mysql(settings, f"SELECT id, name, address, localAddress, localSubnetMask, port FROM realmlist WHERE id={settings.realm_id};")
     verify_registration(settings, row)
+    if settings.ai_profile == "authoring-empty":
+        authoring_preflight(data, settings)
     print("Lab data presence and shared-auth registration verified; custom geometry/AI are not certified.")
+
+
+def authoring_preflight(data: Path, settings: Settings):
+    try:
+        from . import authoring_empty
+    except ImportError:
+        import authoring_empty
+    return authoring_empty.preflight(data, settings)
 
 
 def main() -> None:
@@ -731,14 +747,16 @@ def main() -> None:
                     "bootstrap-raids-v8", "preflight-raids-v8",
                     "bootstrap-fields-v8", "preflight-fields-v8", "deactivate-fields-v8",
                     "bootstrap-defias-v8", "preflight-defias-v8", "deactivate-defias-v8",
-                    "bootstrap-full-v8", "preflight-full-v8", "deactivate-full-v8"):
+                    "bootstrap-full-v8", "preflight-full-v8", "deactivate-full-v8", "preflight-authoring-empty"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
         settings = Settings.load(os.environ)
         if args.command == "run-world":
             scope = None
-            if settings.ai_profile == "single-return":
+            if settings.ai_profile == "authoring-empty":
+                authoring_preflight(Path("/runtime/data"), settings)
+            elif settings.ai_profile == "single-return":
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = single_preflight(Path("/runtime/data"), settings, control=1)
             elif settings.ai_profile in hunt_population.PROFILES:
@@ -788,6 +806,9 @@ def main() -> None:
             print(f"Realm {settings.realm_id} registration verified on port {settings.port}.")
         elif args.command == "preflight":
             preflight(args.data, settings)
+        elif args.command == "preflight-authoring-empty":
+            authoring_preflight(args.data, settings)
+            print("Empty authored map verified: no NPCs, AI state or character inputs; simulation and telemetry disabled.")
         elif args.command == "bootstrap-single":
             bootstrap_single(args.data, settings)
         elif args.command == "activate-single":

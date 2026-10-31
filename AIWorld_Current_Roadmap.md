@@ -1,4 +1,52 @@
-# Aktuální stav a plán — 31. října 2026
+# Finální podoba světa — příprava od 31. října 2026
+
+Další schválený krok je odstranit **všechna testovací NPC i vytvořené
+charaktery**, včetně návrhů, příběhů a vzhledů v Ateliéru. Před odstraněním
+se uchovává soukromá ověřená záloha. Účty, hráčské postavy, vlastní mapa
+725 / oblast 4988 a modelová/klientská aktiva zůstávají zachované.
+
+## Režim prázdného světa
+
+Profil **`authoring-empty`** je určený pro finální mapování. Nemá NPC,
+AI simulaci, NPC LLM řízení ani AI telemetrii. Startup i další nasazení
+ověřují skutečnou nulu a **nespouštějí původní bootstrap 100 aktérů**.
+Při čištění se zohledňuje také vypnutá starší stovka, která v telemetrii
+nebyla vidět. Vlastní šablony a související stav se odstraňují pouze podle
+ověřeného before-image, zdrojové vanilla šablony zůstávají zachované.
+
+Ateliér může ukládat nové budoucí návrhy, ale nemá původní cíle a herní
+export zůstává blokovaný do nové registrace populace. Observer správně
+hlásí nepřipojenou AI telemetrii; neprohlašuje zastaralý záznam za čerstvý
+nulový svět. Samotná finální geometrie se tímto resetem nevytváří.
+
+## Aktuální TODO
+
+- [ ] Dokončit finální rozložení mapy v Noggit: hlavní město a vesnice
+  Stormwind, tábor Defias, gnollové, murloci u vody a koboldí důl;
+  zohlednit zdroje potravy, cesty a místa možných střetů.
+- [ ] Ze stejného uloženého a zavřeného projektu sestavit klientský patch
+  i serverová DBC/maps/vmaps/mmaps. Ověřit vodu, kolize budov/dolu,
+  mosty, cesty a bezpečný vstup hráče; stará geometrická evidence novou
+  mapu automaticky nepotvrzuje.
+- [ ] Navrhnout nové trvalé identity, domovy, frakce a role podle skutečné
+  finální mapy. Připravit nový verzovaný populační manifest a registraci
+  pro Ateliér; neobnovovat původní testovací osazení.
+- [ ] Vytvořit nové charaktery, příběhy, vzhledy a samostatné šablony.
+  Nejprve fyzicky ověřit malou novou sestavu a poté rozšířit osazení.
+- [ ] Znovu ověřit potravní řetězce a cesty na nové geometrii. Staré testy
+  zůstávají regresními důkazy k původním revizím, nikoli PASS finálního světa.
+- [ ] Následně rozvíjet konflikt o teritorium a účast hráče. Perzistenci
+  potřeb a nového living-world stavu nadále řešit až po stabilizaci chování.
+
+Postup vyčištění a provozní hranice popisuje
+[README_DEV.md](README_DEV.md#příprava-finální-mapy--authoring-empty).
+Následující přehled zachovává implementované schopnosti a předchozí důkazy,
+aby se při novém osazení nemusely znovu navrhovat. Jeho původní prioritní
+TODO platilo před rozhodnutím o kompletním vyčištění, ne jako aktuální plán.
+
+---
+
+# Předchozí implementovaný svět — stav před vyčištěním 31. října 2026
 
 Aktivní vývoj probíhá ve větvi **`AI-World-lab`** nad vlastním světem:
 realm **2**, mapa **725**, oblast **4988**, geometrie **`preview-v8`**,
