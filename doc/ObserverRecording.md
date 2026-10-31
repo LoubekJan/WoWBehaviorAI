@@ -1,40 +1,49 @@
 # Několikahodinový záznam chování AIWorld
 
-Záznamník ukládá všechny agenty, které vidí Observer: AIWorld v Elwynnu, mapa 0.
+Záznamník ukládá všechny aktéry, které vidí Observer. Kanonický Compose
+načítá scope přes `tools/realm_lab/run_scoped.py`: nyní vlastní mapa
+**725**, oblast **4988**, profil **`full-v8`**, **100 AIWorld / 0 nativních NPC**.
+Starší profily mohou mít jiný poměr řízení a pozorování; metadata scope
+a profilu se nesmí zaměnit s historickým Elwynnem na mapě 0.
 Zachytí jejich role, lov, pohyb, návraty domů, potřeby, skupiny, jídlo a suroviny.
 Každých 5 sekund uloží celý stav do komprimovaného souboru. Výpadky nebo zastaralá
 data označí zvlášť, aby se při rozboru nezaměnily se zaseknutým NPC.
 Po dokončení běhu také automaticky vyhodnotí chování a vytvoří report.
 
-## Automatický herní test
+## Spuštění záznamu a vztah k nasazení
 
-Po úspěšném nasazení přes GitHub CI (`push` do `ai-world`) se test spustí sám.
-Deploy nejprve uzavře předchozí záznam, ještě před změnou checkoutu nebo restartem
-serveru. Potom nasadí přesný commit daného CI běhu. Po kontrolách zdraví a AI
-počká nejvýše 180 sekund na dva navazující aktuální snímky živých rolí z nově
-spuštěného serveru. Spustí nový záznam a do 60 sekund ověří první čerstvá data.
-Každý deploy, i opakovaný pro stejný commit, vytvoří novou složku záznamu.
+Současné CI/CD větve **`AI-World-lab`** nasadí úspěšně otestovaný commit,
+ověří zdraví služeb, skutečnou revizi binárky a kontrakt populace v telemetrii.
+Před změnou checkoutu uzavře případný běžící recorder. **Nový několikahodinový
+záznam automaticky nespouští.** Starý Elwynn deploy tento krok měl; pro dnešní
+větev tento popis už neplatí. Zelené nasazení je technická kontrola služby,
+nikoli fyzický acceptance pohybu, lovu, zásobování či přepadů.
 
-Test poběží **4 hodiny na pozadí**; nastavení `AIWORLD_RECORD_HOURS` v serverovém
-`.env` může délku změnit. Report automaticky dostane SHA nasazeného commitu
-v `build_label` a označení `deploy:<SHA>`. Předchozí archivy zůstávají zachované.
-Pokud další deploy přijde dřív, předchozí test skončí předčasně a také vytvoří
-report; nedostatek dat označí jako `INCONCLUSIVE`, prokázanou chybu jako `FAIL`.
+Záznam spusť ručně z nasazeného checkoutu. Nejprve porovnej jeho SHA
+s `/build/bin/worldserver --version`, potom nastav správné označení sestavení:
 
-Zelený deploy potvrzuje spuštění sběru, nikoli výsledek čtyřhodinového testu.
-Pozdější `FAIL` nebo `INCONCLUSIVE` nezmění výsledek CI a nevrací nasazení zpět.
-Finální výsledek najdeš v reportu a přes `make record-aiworld-status`.
+```sh
+docker compose --env-file .env -f compose.yml exec -T worldserver /build/bin/worldserver --version
+AIWORLD_RECORD_BUILD_LABEL="$(git rev-parse HEAD)" make record
+make record-status
+```
+
+Výchozí délka je **4 hodiny**, interval **5 sekund**; obojí je samostatně
+nastavitelné. Report má `build_label`, který jsi zadal, jinak `unknown`.
+Záznamník sám skutečnou binárku neověří. Každý `make record` používá
+`--force-recreate`: uzavře předchozí běh a vytvoří novou session i při
+stejném nastavení. Předčasný konec může být `INCONCLUSIVE`, prokázaná chyba
+zůstane `FAIL`. Výsledek reportu nezmění hotové CI ani nevrací nasazení zpět.
 
 Po 15 minutách navíc automaticky vznikne `early-navigation/behavior-report.md`
 a JSON ve stejné složce záznamu. Tento průběžný report kontroluje zaseknutí,
-dokončení návratů, pohyb, udržení řízení v Elwynnu a frontu AI. Stav je i v
+dokončení návratů, pohyb, udržení řízení ve scope a frontu AI. Stav je i v
 `summary.json` pod `early_navigation` a ve výpisu `make record-aiworld-status`.
 Nevyžaduje další službu ani spuštění příkazu po deployi. Záznam pokračuje až
 do svého obvyklého konce i při FAIL, aby zůstaly důkazy pro rozbor. PASS tohoto
 krátkého reportu nepotvrzuje čtyřhodinový výsledek ani nepozorované scénáře.
-Samostatný záznamník umožňuje interval změnit přes `--checkpoint-minutes`.
-Při neúspěšných kontrolách deploye se nový test nespustí; pokud se nepodaří
-ověřit jeho první data, CI jej zastaví a označí deploy jako neúspěšný.
+Samostatný záznamník umožňuje okamžik tohoto reportu změnit přes `--checkpoint-minutes`.
+Průběžný report vzniká až při skutečně spuštěném recorderu s analýzou.
 
 Po ručním nasazení na serveru s běžícím Observerem spusť:
 
@@ -46,11 +55,11 @@ Jde o stejnou službu jako `make record-aiworld`: běží čtyři hodiny na poza
 ukládá původní data a současně průběžně vyhodnocuje sledovaná pravidla. Po
 skončení uloží `behavior-report.md` pro čtení a `behavior-report.json` pro další
 automatické zpracování. Souhrn `summary.json` dostane také pole `behavior`.
-Výsledky najdeš v nové složce `runtime/recordings/aiworld-<čas>-<id>/`.
+Výsledky najdeš v nové složce `runtime/lab/recordings/aiworld-<čas>-<id>/`.
 Test nemění NPC ani neposílá příkazy do hry. Není třeba překládat worldserver.
 
-Nová diagnostika navigace a hledání potravy vyžaduje také nasazení nového
-worldserveru. U neúspěšného napojení zaznamená skutečné XY/Z, původní výšku
+Diagnostika navigace a hledání potravy je součástí současného worldserveru.
+U neúspěšného napojení zaznamená skutečné XY/Z, původní výšku
 polygonu i její převod na povrch enginu, první odmítnutý bod, jeho povrch,
 předchozí výšku a počet kontrolovaných úseků. `rejoins` počítá omezené pokusy
 o napojení; `corridor_points` zbývající body již ověřené trasy.
@@ -64,7 +73,7 @@ tras, odmítnutých výšek a cest, zahájených přesunů a poslední navigačn
 Hladový predátor dostane v reportu `NO_LOCAL_PREY`, `PREY_NOT_ATTACKABLE`,
 `NO_REACHABLE_PREY`, `REACHABLE_PREY_SEEN` nebo `STALE_SCAN`. Poslední označení
 znamená průzkum starší než minuta nebo chybějící čas; absence kořisti v jednom
-lokálním průzkumu není důkaz absence potravy v celém Elwynnu.
+lokálním průzkumu není důkaz absence potravy v celém sledovaném světě.
 
 Krátké regresní scénáře návratů se spouštějí automaticky v existujícím CTest
 CI kroku před deployem. Samostatně je lze spustit v sestaveném testovacím
@@ -74,8 +83,10 @@ napojení z místa mimo navigační síť, dokončení návratu přes navštíve
 odlišení neúspěšné cesty od skutečně prohledaného místa. Používají řízenou
 geometrii; skutečné mmaps/vmaps ověřuje až pozorování na serveru.
 
-Pro srovnatelné výsledky nech svět běžet bez zásahů a nastav
-`AIWorld.ElwynnAlwaysActive = 1`. Záznamník musí sledovat aktuální telemetrii
+Pro srovnatelné výsledky nech svět běžet bez zásahů. Na vlastní mapě používá
+správný výběr a aktivaci schválený profil; nezapínej kvůli záznamu
+`AIWorld.ElwynnAlwaysActive`, který je v kanonickém nastavení vypnutý.
+Záznamník musí sledovat aktuální telemetrii
 verze 2, 3 nebo 4. Verze 1 neobsahuje potřebné údaje a dostane `INCONCLUSIVE`.
 
 | Kontrola | Výchozí pravidlo |
@@ -83,17 +94,42 @@ verze 2, 3 nebo 4. Verze 1 neobsahuje potřebné údaje a dostane `INCONCLUSIVE`
 | Zablokovaný návrat | Po hlášeném selhání návratu je NPC alespoň 5 minut nejvýše 1 yard od sledovaného bodu a dál mimo svůj běžný domovský okruh. Změna na náhradní animaci nebo `movement=NONE` toto měření sama nezruší. |
 | Nedokončený návrat | Po pozorovaném `RETURN_HOME` nebo selhání návratu zůstává místní role alespoň 10 minut mimo domovský okruh. Pohyb toto měření nenuluje, takže zachytí i chození tam a zpět. Návrat domů, jiná činnost, boj, root, evade nebo výpadek návaznost přeruší. |
 | Pohyb bez postupu | Nejméně 60 sekund v místním `MOVING` bez posunu přes 1 yard; samotné `moving=true` nestačí jako důkaz pohybu. Boj, root a evade se nepočítají. |
-| Odchod z Elwynnu | NPC dříve pozorované pod řízením role zůstává alespoň 30 sekund v `OUTSIDE_ELWYNN`. Po výpadku, smrti či ztrátě živé reprezentace se návaznost neodvozuje. |
+| Odchod z oblasti | NPC dříve pozorované pod řízením role zůstává alespoň 30 sekund mimo scope (`OUTSIDE_SCOPE`; starší data `OUTSIDE_ELWYNN`). Po výpadku, smrti či ztrátě živé reprezentace se návaznost neodvozuje. |
 | Hlad navzdory zásobám | Civilní/bojová role se zapnutým rozšířením má mimo boj alespoň 10 minut hlad ≥ 0,95 a Food > 0. |
 | Prázdná zásoba pracovníka | Pracovník s připraveným domovem a pracovištěm má mimo boj alespoň 10 minut hlad ≥ 0,95 a Food = 0. Vyžaduje zapnuté rozšíření; dřevorubec entry 1975 vyrábějící suroviny je vynechán. |
+| Fyzické zaseknutí | Nejméně 5 minut nehybnosti po pokusu o pohyb mimo domov, i přes střídání činností. Boj, root a evade se nepočítají. |
+| Odkládané plánování | Nejméně 5 minut fyzicky nehybného odkládání rozhodnutí; péče čas pozastaví. |
 | Hlad predátorů | Souvislý hlad ≥ 0,95 po 30 minut vyvolá upozornění. Sám nezpůsobí selhání — kořist nemusí být dostupná. |
 | Hlad kořisti | Kořist v `IDLE`, `ACTING` či `MOVING` má mimo boj, root a evade alespoň 10 minut hlad ≥ 0,95. Zachytí i hladovění při pohybu; pastva se skutečným poklesem hladu měření ukončí. |
+| Hlad kořisti při nebezpečí | Po 10 minutách hladu za opakovaného ohrožení vznikne samostatné upozornění. |
 
 Report uvádí spawn, nejdelší pozorovanou epizodu daného pravidla, časy UTC,
-souřadnice a poslední pohybový důvod. Překročení kteréhokoli prahu kromě upozornění na hlad predátorů znamená
+souřadnice a poslední pohybový důvod. Překročení kteréhokoli prahu kromě uvedených upozornění znamená
 `FAIL` a zaslouží kontrolu; report sám neurčuje příčinu chyby navmeshe.
 Souhrny rolí ukazují vzorkované začátky lovu/krmení, poklesy hladu a změny zásob.
 Stání služeb ani dosažení stropu surovin 20 nejsou automaticky závadou.
+
+**Pokrytí nových schopností:** obecný `behavior.py` vyhodnocuje známé
+základní role, ale nemá úplné fyzické gates pro `FARMER`, `CARAVAN_CARRIER`,
+`CARAVAN_ESCORT` a `CITY_CONSUMER`. Jejich telemetrii archivuje; obecný `PASS`
+proto není potvrzením chování všech 100 NPC. Pro plný sedmiskladový svět
+existuje `tools.realm_lab.caravan_acceptance`, pro skupiny Defias
+`tools.realm_lab.defias_group_acceptance --profile full-v8`.
+Staré šestiskladové gates nelze bez úpravy použít jako důkaz současného
+karavanového profilu. Výběr konkrétního testu popisuje [RealmLab.md](RealmLab.md).
+
+Pro krátké fáze a fyzické gates je vhodný interval **0,25 sekundy**;
+výchozích pět sekund může přeskočit práci nebo vazbu mezi členy. Například:
+
+```sh
+AIWORLD_RECORD_INTERVAL=0.25 AIWORLD_RECORD_BUILD_LABEL="nasazeny-commit" make record
+```
+
+Karavanový gate navíc potřebuje `--process-proof`: identitu skutečně
+běžícího procesu/binárky na začátku i konci a hashe všech uzavřených částí.
+Samotný běžný recorder tento důkaz procesu nevytváří. Bez něj může být
+archiv užitečný k diagnostice, ale úplný karavanový výsledek zůstane
+`INCONCLUSIVE`; nevyrábět chybějící metadata odhadem nebo jen z checkout SHA.
 
 Telemetrie v4 navíc ukládá `living_role.return_recovery`: strategii návratu,
 poslední chybu, počet neúspěchů a zapamatovaných bodů, čas bez posunu a do dalšího
@@ -101,8 +137,14 @@ pokusu, příznaky cesty, původní/vyřešenou výšku a počty odmítnutí pod
 Tyto údaje přetrvají i při náhradní animaci nebo `movement=NONE`; automatický
 test z nich také rozpozná selhání návratu. Podrobnosti nálezu jsou v JSON reportu.
 Starší archivy zůstávají čitelné, ale nové údaje nelze zpětně dopočítat.
-Pro v4 je nutné aktualizovat nejprve Observer a potom worldserver podle
-[návodu](LivingRoles.md#ověření-oprav-z-25-9); samotný záznamník rebuild enginu nepotřebuje.
+Receiver musí podporovat protokol vysílaný worldserverem. Současný provozní
+postup je v [README_DEV.md](../README_DEV.md); samotný záznamník rebuild enginu nepotřebuje.
+
+Archiv zachovává i nové `template_entry`, `runtime_guid`, `llm_agent`,
+`supply` a `raid`, pokud jsou ve zdroji přítomné. `entry` zůstává
+zdrojová behaviorální šablona; skutečné nové jméno bere `name` z vlastní
+nativní šablony. Dlouhodobé paměťové stránky z detailu NPC se samostatně
+nestahují. Jde o pozorování běžícího stavu, nikoli zálohu herní databáze.
 
 | Výsledek | Význam | Kód ukončení služby |
 | --- | --- | ---: |
@@ -130,8 +172,8 @@ make record-aiworld-status
 
 Při ručním spuštění nahraď `nasazeny-commit` označením skutečně nasazeného
 sestavení. Bez něj report uvádí `unknown`; záznamník nemůže ověřit shodu checkoutu
-s běžící binárkou. CI deploy toto označení nastavuje sám na nasazovaný SHA,
-nezávisle na hodnotě `AIWORLD_RECORD_BUILD_LABEL` v `.env`.
+s běžící binárkou. V aktuálním ručním postupu ho předává obsluha;
+CI nový recorder nespouští a jeho označení nepřepisuje.
 Pro krátký technický pokus lze použít například
 `AIWORLD_RECORD_HOURS=0.1 AIWORLD_TEST_MINUTES=5 make test-aiworld`.
 Takto krátký běh neověří pravidla s delším časovým prahem.
@@ -141,12 +183,13 @@ zkrácené minimum pro kvalitu dat už bylo splněné.
 Příkaz `make test-aiworld` se vrátí hned po spuštění kontejneru. Jeho úspěch
 není výsledek herního testu. Po skončení zkontroluj report a poslední log
 v `make record-aiworld-status`; Docker ukáže finální kód služby.
-Opětovné spuštění dokončené služby vytvoří novou session. Spuštění už běžící
-služby se stejným nastavením ji ponechá běžet; nevytvoří souběžný druhý test.
+Opětovné `make record` i jeho aliasy `make record-aiworld` a `make test-aiworld`
+vytvoří novou session a ukončí případný předchozí běh. Pokud chceš jen zjistit
+průběh, použij `make record-status`.
 
 ### Vyhodnocení starého záznamu
 
-Všechny části a souhrn dej do jedné složky pod `runtime/recordings` a spusť:
+Všechny části a souhrn dej do jedné složky pod `runtime/lab/recordings` a spusť:
 
 ```sh
 make analyze-aiworld SESSION=aiworld-20260924T155848Z-d7abf197
@@ -174,7 +217,7 @@ skutečný HTTP sběr, rotaci a čtení gzip, odhalení popsaných poruch, přer
 posloupnosti, legitimní stání, návratové kódy a ukončení přes `SIGTERM`.
 Ověřují také odmítnutí staré telemetrie po restartu a rozpoznání nového záznamu
 správného sestavení. Nasazení čeká i na úspěch tohoto testovacího jobu.
-Čtyřhodinový běh světa začíná po úspěšných kontrolách deploye, jak je popsáno výše.
+Čtyřhodinový běh světa spouští obsluha samostatně; není součástí aktuálního CI gate.
 
 ## 1. Ruční spuštění na serveru
 
@@ -195,10 +238,11 @@ hodin použij místo toho:
 AIWORLD_RECORD_HOURS=8 make record-aiworld
 ```
 
-Pokud nemáš `make`, základní příkaz je `docker compose up -d aiworld-recorder`.
+Pokud nemáš `make`, odpovídající příkaz je
+`docker compose --env-file .env -f compose.yml up -d --no-deps --force-recreate aiworld-recorder`.
 Samostatná služba používá Python image; při prvním spuštění se případně stáhne.
-Samotné `make start`, `make build` ani `make restart-world` nový záznam nezapínají;
-automatický start je součástí GitHub CI deploye. `make stop` jej zastaví spolu se serverem.
+Samotné `make start`, `make build`, `make restart-world` ani CI deploy nový
+záznam nezapínají. `make stop` jej zastaví spolu se serverem.
 Po restartu hostitele nebo Dockeru je potřeba jej znovu spustit.
 
 ## 2. Ověření po první minutě
@@ -226,12 +270,12 @@ Pokud za celou dobu nezíská ani jeden čerstvý neprázdný snímek, skončí 
 
 ## 3. Průběh testu
 
-Pro porovnání opravy návratů z 26. 9. nech **celé čtyři hodiny bez zásahů**.
-Nový svět i Observer nasazuj společně; recorder se po CI deployi spouští
-dosavadním automatickým postupem. Vedle výsledku `return` kontroluj také
+Pro dlouhý srovnávací běh nech svět **celé čtyři hodiny bez zásahů**.
+Worldserver a Observer mají mít kompatibilní protokol; recorder se spouští
+samostatně. Vedle výsledku `return` kontroluj také
 `return_duration`, který zachytí nekonečný návrat i při skutečném pohybu.
-Předchozí běh měl 34 nehybných návratů a 33 nedokončených návratů nad
-deset minut. Hlad kořisti a pohyb bez posunu byly bez nálezu a mají tak zůstat.
+Historický Elwynn běh z 26. 9. měl 34 nehybných návratů a 33 nedokončených
+návratů nad deset minut. Tato čísla nejsou současný výsledek vlastní mapy.
 
 V detailu NPC a `return_recovery.navigation` jsou nově dostupné:
 
@@ -252,9 +296,8 @@ Staré záznamy nemají `navigation` a nelze z nich dodatečně zjistit vzdálen
 od polygonů. Samotný hlad predátorů dál zůstává upozorněním: bez dostupné
 kořisti není důkazem chyby pohybu.
 
-Nech nejprve svět alespoň hodinu běžet bez vlastních zásahů. Pro simulaci bez
-přítomnosti hráče musí být na běžícím serveru aktivní `AIWorld.ElwynnAlwaysActive = 1`;
-v aktuální verzované konfiguraci je zapnuté. Díky tomu nemusíš stát u pavouků.
+Nech nejprve svět alespoň hodinu běžet bez vlastních zásahů. Aktivaci a scope
+zajišťuje schválený profil vlastní mapy; nezaměňuj je za původní Elwynn přepínač.
 
 Potom můžeš zkusit lov, útěk, obranu spojenců nebo práci dřevorubců. Poznamenej
 si čas a pokud možno `spawnId` dotčeného NPC. Připiš, zda jsi měl zapnuté GM,
@@ -282,7 +325,9 @@ jsou navíc `empty_search_rounds`, `failed_food_advice`, `known_food_places`,
 `search_radius` a `retry_ms`. Počet zapamatovaných míst není počet úlovků;
 pozitivní vzpomínka může být stará. Úspěch dál měří `food_success` a pokles hladu.
 
-Po deployi ověř `make test-recovery-ai` a `make record-aiworld-status`.
+Po deployi ověř čerstvou telemetrii a po spuštění záznamu `make record-status`.
+Starý cíl `make test-recovery-ai` není součástí kanonického Makefile;
+poradní model `/recovery` je v tomto nasazení vypnutý.
 Po opravě běhu `20260927T151045Z-eef927bb` archiv navíc obsahuje skutečné
 `advice.queue_wait_ms` (null mimo frontu), `queue_size`, `queue_dispatchable`
 a `queue_kind` (`RETURN` nebo `FOOD`). Samotný uchovávaný text `WAITING_TURN`
@@ -297,7 +342,7 @@ Hlad kořisti při opakovaném nebezpečí má vlastní upozornění
 nezmizí. Navigační diagnostika přidává `source_z` a `support_z` pro porovnání
 skutečné počáteční výšky a podporujícího povrchu při připojení.
 
-Nech automatický čtyřhodinový záznam doběhnout bez zásahů a pošli celou
+Nech ručně spuštěný čtyřhodinový záznam doběhnout bez zásahů a pošli celou
 složku včetně reportů. Důležité je pokrytí pomoci napříč NPC, pokles
 dlouhých nehybných epizod a skutečné krmení; samotný počet AI dotazů není úspěch.
 
@@ -311,7 +356,7 @@ make record-aiworld-status
 Výsledky najdeš na serveru v:
 
 ```text
-runtime/recordings/aiworld-<čas UTC>-<id>/
+runtime/lab/recordings/aiworld-<čas UTC>-<id>/
   summary.json
   part-0001.jsonl.gz
   part-0002.jsonl.gz   (jen pokud záznam narostl)
@@ -330,13 +375,13 @@ je samostatně v `behavior.status` a v reportu. Násilné ukončení nebo výpad
 rozepsanou část; již uzavřené části zůstanou čitelné.
 
 K záznamu připoj krátce verzi/commit nasazeného serveru, délku testu a své
-pozorování. Volitelně přilož `runtime/logs/Server.log` z téže doby — zkopíruj ho
+pozorování. Volitelně přilož `runtime/lab/logs/Server.log` z téže doby — zkopíruj ho
 **před restartem worldserveru**, protože aktuální konfigurace jej při startu
 přepisuje.
 
-### Ověření opravy návratů z 2026-09-29
+### Historické srovnání opravy návratů z 2026-09-29
 
-Po deployi nechat automatický recorder běžet čtyři hodiny bez hráčských/GM
+Původní Elwynn postup nechával automatický recorder běžet čtyři hodiny bez hráčských/GM
 zásahů. `make record-aiworld-status` ukáže průběh; `early_navigation` zůstává
 jednorázovým výsledkem z 15. minuty, nikoli živým počtem chyb.
 Pokud selže, průběžný report lze zkontrolovat hned, ale běh nerestartovat.

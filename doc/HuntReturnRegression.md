@@ -1,5 +1,14 @@
 # Ověření oprav lovu a návratu z 1. 10. 2026
 
+**Historický regresní záznam pro Elwynn, mapa 0 / zóna 12.** Původní
+realm je vyřazený. Aktuální vlastní svět používá realm 2, mapu 725,
+oblast 4988 a profil `full-v8` se 100 NPC pod AIWorld. Níže uvedená ID,
+souřadnice, tehdejší stav kompilace a ruční postup nejsou aktuální rollout.
+Nezapínat starý pilot 80883 ani nevytvářet jeho spawny v nové populaci.
+Aktuální provoz je v [RealmLab.md](RealmLab.md), současný záznam chování
+v [ObserverRecording.md](ObserverRecording.md). Historické výsledky
+zůstávají připnuté ke zde uvedeným sestavením.
+
 Podklad: běh `20260929T164924Z-d87b329a`, sestavení `918f206f0cbc`.
 První půlhodina obsahovala ruční testování včetně vlka 80883. Ze 40
 fyzických zaseknutí začalo 36 až po této půlhodině. Pilot 80883 se do

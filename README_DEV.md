@@ -1,12 +1,20 @@
 # Vývoj a provoz vlastního světa
 
+Stav k **31. říjnu 2026**, ověřená provozní revize `664d84687d7a`.
+Současný realm používá `full-v8`: **100 NPC řízených AIWorld, žádné nativně
+řízené NPC**. Tři z nich mají samostatnou LLM kartu a herní šablonu.
+Základní role, lov, pole, spotřeba, přepady a dvě zásobovací karavany se
+kombinují v jednom světě. Převzetí AIWorld neznamená 100 LLM požadavků.
+
 Vývoj volitelných NPC řízených LLM, samostatné životopisy a přímý herní chat
-popisuje [NpcAgents.md](doc/NpcAgents.md). Režim se zapíná zvlášť a výchozí
-provozní profily ho nechávají vypnutý.
+popisuje [NpcAgents.md](doc/NpcAgents.md). Režim je na současném serveru
+zapnutý pro tři karty; čistá `.env.example` jej ponechává vypnutý.
+Model i klíč se nastavují pouze v soukromé konfiguraci.
 
 Vlastní humanoidní vzhled, charakterové karty a příběhy lze tvořit ve webovém
 [Ateliéru postav](doc/CharacterStudio.md) na portu 9092. Uložené návrhy se do
-herního světa nasazují až samostatným exportem.
+herního světa nasazují exportem a následným řízeným nasazením. Samotné
+uložení návrhu ani stažení ZIPu běžící svět nemění.
 
 Úplný balíček v profilu `full-v8` obsahuje také `npc_templates/<spawn>.json`.
 Při nasazení vznikne samostatná kopie všech sloupců nativní šablony a jejích
@@ -36,7 +44,7 @@ fyzický výsledek se ověřují samostatně. Výchozí
 | `world-viewer` | Pozice, zdraví a bojový stav 100 NPC | 9091 |
 | `character-studio` | Editor vzhledu, osobnosti a životopisů NPC | 9092 |
 | `account-web` | Formulář pro vytvoření účtů přes TrinityCore | 9088 |
-| `ai-server` | AI protokoly; modelové požadavky jsou vypnuté | interní |
+| `ai-server` | AI protokoly a volitelné napojení modelu pro NPC a editor | interní |
 | `tc-dev` | Build, extraktory a správcovské nástroje | profil `tools` |
 | `aiworld-recorder` | Volitelný záznam telemetrie | profil `recording` |
 
@@ -49,7 +57,8 @@ nezveřejňuje.
 
 ## Přechod existujícího serveru
 
-Existující instalace musí nejprve převést celé `auth` ze staré MySQL do
+Tento jednorázový přechod je na současném serveru dokončený. Při převodu
+jiné staré instalace je potřeba nejprve převést celé `auth` ze staré MySQL do
 nové `auth-mysql`, zachovat účty, přístupová práva a záznamy realmu 2,
 vyřadit původní realm 1 a staré automatické nasazování. Staré databáze
 se uchovají v chráněné záloze. Import TDB ani vytvoření náhradních účtů
@@ -123,19 +132,21 @@ seznamu realmů.
 `account-web` je na `http://<server>:9088/`. Nastavit `TC_SOAP_USER` a
 `TC_SOAP_PASSWORD` na existující administrátorský herní účet pro realm
 2 nebo globální realm `-1`; `LAB_SOAP_ENABLED=1` ponechá SOAP pouze
-uvnitř Dockeru. První administrátorský účet lze vytvořit přes
-TrinityCore konzoli:
+uvnitř Dockeru. Současný server používá zachovaný administrátorský účet
+z migrace. Po změně soukromého servisního přihlášení znovu vytvoř službu:
 
 ```bash
-docker attach aitc-lab-worldserver-1
-# V konzoli serveru:
-# account create JMENO HESLO
-# account set gmlevel JMENO 3 -1
-# Odpojení od konzole: Ctrl+P a poté Ctrl+Q.
 docker compose --env-file .env -f compose.yml up -d --force-recreate account-web
 ```
 
-Formulář začne vytvářet účty po nastavení servisního přihlášení.
+Čistá instalace potřebuje první administrátorský účet připravit zvlášť
+přes správcovskou konzoli TrinityCore při zastaveném běžném worldserveru.
+Automatické založení prvního administrátora zatím není součástí nástrojů.
+Standardní kontejner má `Console.Enable=0` a nemá interaktivní terminál,
+takže `docker attach` není funkční postup pro tento bootstrap. Přihlašovací
+údaje nevytvářej přímým neověřeným zápisem do `auth.account`.
+
+Formulář začne vytvářet účty po nastavení platného servisního přihlášení.
 Umožňuje také založení administrátora; port 9088 patří pouze do
 spravované sítě.
 
@@ -158,7 +169,9 @@ pro společný migrační okamžik nejprve zastavit zápisy do světa i účtů.
 
 Pro vývoj používat `make shell`, pro C++ kontroly `make test`.
 Python kontroly: `python3 -m unittest discover -s tools/realm_lab/tests -v`
-a testy v `docker/world-viewer`, `docker/ai`, `docker/account-web`.
+a testy v `docker/world-viewer`, `docker/ai`, `docker/account-web`,
+`docker/character-studio` a `tools/character_studio/tests`. Úplný CI běh
+ověřuje také skutečné MySQL kontrakty a Compose konfigurace.
 Soubor `Makefile.lab` a `compose.lab.yml` zůstávají kompatibilními vstupy
 do stejného stacku. Hlavní nasazování má jedinou větev `AI-World-lab`;
 CI používá vlastní `aitc_lab_ci_*` build volumes.
@@ -170,6 +183,11 @@ samostatnými regresními profily. Výchozí `.env.example` používá nativní
 `settlement-v8`; zvířata se aktivují profilem `wildlife-v8`.
 
 ## Vývoj zvěře
+
+Následující postup popisuje původní profil `wildlife-v8`. Současný
+`full-v8` jeho chování zahrnuje; kvůli testování zvěře jej nepřepínej na
+starší profil. Přísné kontroly staršího profilu rozšířené AI identity
+odmítnou. Historické fyzické důkazy platí pro své původní revize.
 
 V `.env` nastav `LAB_AI_PROFILE=wildlife-v8` a `LAB_WILDLIFE_ENABLED=1`.
 `make setup-world` připraví při zastaveném světě stejné spawny a AI vazby
@@ -195,8 +213,9 @@ služba a dvě platné telemetrické dávky samy lovecký cyklus nepotvrzují.
 
 Profil přidává zbývajících 45 identit nad nezměněný `defias-v8`:
 21 strážných, 7 poskytovatelů služeb, 4 pracovníky a 13 bojovníků.
-Celkem jde o **100 řízených / 0 nativně řízených NPC**. Mapu, šablony,
-obchodní nabídky, frakce, domovy ani trvalou paměť tento převod nepřepisuje.
+Celkem jde o **100 řízených / 0 nativně řízených NPC**. Samotný převod
+vlastnictví nepřepisuje mapu, sdílené původní šablony, obchodní nabídky,
+frakce, domovy ani trvalou paměť.
 Aktivace je jedna podmíněná transakce po offline ověření všech identit.
 
 V soukromém `.env` nastavit `LAB_AI_PROFILE=full-v8` a ponechat
@@ -219,15 +238,59 @@ i obnova zdraví a respawn zůstávají součástí herního jádra.
 Vlastní LLM kartu lze nyní přiřadit i `901014`. Registrace všech 100 není
 zapnutí 100 modelových agentů: karty se instalují jednotlivě, současný
 limit je 16 karet a obvyklý limit souběžných požadavků zůstává 2.
-Nativní šestipolový profil a samostatný vzhled se nemění.
+Nativní šestipolový profil a samostatný vzhled se nemění; úplný export
+navíc obsahuje předpis vlastní herní šablony.
 
 Kontrola nasazení vyžaduje čerstvou telemetrii všech 100 řízených identit,
 správné běžné typy a role. Původní sklady, pole a přepady se kontrolují
 stejně přísně; šest zásobovacích rolí má přesná oprávnění a ostatní nové
 role nesmějí získat nepřiřazený sklad, karavanu či přepad.
-Pro fyzický záznam výprav používat
-`python -m tools.realm_lab.defias_group_acceptance <recording-directory> --profile full-v8`.
-Zdraví služeb ani převzetí vlastnictví samo nepotvrzuje dokončenou fyzickou výpravu.
+Pro současný sedmiskladový svět použij níže uvedený caravan evaluator.
+Starší Defias evaluator s `--profile full-v8` přijímá pouze historickou
+šestiskladovou variantu bez karavan. Zdraví služeb ani převzetí vlastnictví
+samo nepotvrzuje dokončenou fyzickou výpravu.
+
+### Vytvoření a nasazení pojmenované postavy
+
+1. V editoru na portu 9092 vyber existující způsobilé NPC, nastav jméno,
+   povolání, vzhled, vybavení a charakter. Návrh ulož a stáhni **úplný ZIP**.
+2. Do stejného nasazovacího checkoutu předej odpovídající soubory
+   `npc_agents/<spawn>.json` → `data/npc_agents/`,
+   `npc_appearances/<spawn>.json` → `data/npc_appearances/` a
+   `npc_templates/<spawn>.json` → `data/npc_templates/`.
+   Autorský návrh a README nejsou runtime vstupy. Soukromé karty a klíče
+   nepatří do veřejného Gitu.
+3. Vytvoř zálohu a použij běžné CI/CD nebo offline `make setup-world`
+   následované `make start`. Skript nejprve ověří export, při vypnutém
+   světě obnoví původní vazby pro bootstrap a poté nainstaluje vlastní
+   úplné šablony s ochranou proti kolizi a změně zdroje. Přidělená entry
+   se odvozují z ověřených identit; ruční přepis šablon není součástí postupu.
+4. Obnov editor přes Ctrl+F5 a přihlas se znovu do hry. Jméno a podtitul
+   pocházejí z nové herní šablony; vzhled z appearance souboru. K tomuto
+   přejmenování ani humanoidnímu vzhledu není potřeba nový mapový patch.
+
+Pouhé smazání exportu není odinstalací: již nainstalované identity se
+ověřují z `world.ai_character_templates` nezávisle na editovatelných
+souborech. Vadná volitelná LLM karta se při startu odmítne, aniž by
+zablokovala celý svět. Šablony a jejich zdroje se ověřují samostatně:
+
+```bash
+docker compose --env-file .env -f compose.yml exec -T -w /workspace worldserver python3 -m tools.realm_lab.character_templates verify
+```
+
+K 31. říjnu jsou nainstalované tyto tři identity; další karty se přidávají
+stejným postupem. Jde o serverově ověřená data, nikoli o vizuální test
+jmenovek v klientu.
+
+| Spawn | Postava | Vlastní entry | Původní entry | Zachovaná runtime role |
+| --- | --- | --- | --- | --- |
+| 901014 | Šaša | 9800014 | 11328 | `CITY_CONSUMER` |
+| 901035 | Matěj | 9800035 | 11328 | `WORKER` |
+| 901036 | Běla | 9800036 | 11328 | `WORKER` |
+
+Ostatních 16 obyvatel se stejným základem dál používá `11328` a jeho
+původní jméno. Telemetrické `entry` zachovává zdroj pro chování,
+`template_entry` ukazuje skutečnou samostatnou herní šablonu.
 
 ### Karavany se zásobami pro město
 
@@ -258,6 +321,10 @@ jako ztrátu a nedovolí přehrát příjem z předchozího života.
 Telemetrie rozlišuje `CARAVAN_CARRIER`, `CARAVAN_ESCORT` a `CITY_CONSUMER`.
 U dvojice ukazuje aktuální cestu, zdroj, členy, fázi, nesený náklad a
 provedené nakládky; sklad ukazuje i skutečně odvezené porce (`exported`).
+Přepravce i doprovod používají vlastní ověřované cíle ve stejné průchozí
+trase. Na úzkém mostě se doprovod neposouvá stranou mimo tuto trasu.
+Dokončení nakládky a navázaný odchod doprovodu mají vlastní fyzický audit;
+samotné zvýšení městské zásoby přítomnost doprovodu nedokládá.
 Zásoby i rozpracované cesty jsou pouze v paměti procesu. Pauza přes
 `LAB_WILDLIFE_ENABLED=0` vypíná i karavany. Původní profily včetně
 `defias-v8` mají tento přepínač vypnutý.
@@ -274,13 +341,24 @@ python3 -m tools.realm_lab.caravan_acceptance runtime/lab/recordings/aiworld-SES
 ```
 
 Metadata musí potvrdit uzavřený záznam, stejný běžící proces a kontrolní
-součty jeho částí. `PASS` vyžaduje fyzicky doloženou nakládku, společnou
+součty jeho částí. Běžný recorder vytváří záznam, ale tento důkaz procesu
+sám negeneruje. Soubor `caravan-capture.json` proto musí pocházet ze
+samostatně provedeného měření skutečného procesu, nikoli jen z ručně
+zadaného označení buildu. Automatizovaný sběrač tohoto provozního důkazu
+zatím není součástí verzovaných nástrojů. Bez shodného důkazu procesové
+identity a hashů všech částí skončí gate `INCONCLUSIVE`.
+`PASS` vyžaduje fyzicky doloženou nakládku, společnou
 cestu a vykládku pro všechny čtyři vesnice. Případné úseky s chybějícími
 aktéry se uvedou jako mezera v potravním důkazu; chybějící zásoby se
 nedopočítávají a samostatný stav účetnictví celého záznamu zůstane
 `INCONCLUSIVE`.
 
 ## Celý tábor Defias — defias-v8
+
+Tato a následující profilové části popisují postupné etapy a jejich
+regresní záznamy. Aktivní `full-v8` zahrnuje jejich chování a přidává
+další role. Příkazy pro aktivaci starší etapy patří do odpovídající
+historické instalace; nejsou postupem pro downgrade současného serveru.
 
 [Manifest](data/realm_lab/aiworldlab/preview-v8/defias-population.json)
 rozšiřuje nezměněný `fields-v8` o 15 existujících identit. Všech 16 Defias
@@ -320,7 +398,7 @@ Po úspěšném CI proveď běžný build a offline `make setup-world`, potom
 `make start`. Automatické nasazení rozpozná profil a provede jeho
 `bootstrap-defias-v8`; `preflight-defias-v8` ověří přesné identity a
 vlastnictví. Aktivace kontroluje celý předchozí profil i všech 15 nových
-rezervací. `AIWorld.LivingDefias.Enabled` zapíná pouze tento profil;
+rezervací. `AIWorld.LivingDefias.Enabled` zapíná tento profil i navazující `full-v8`;
 obecné Defias autoformation/regroup/roam/hunt přepínače zůstávají na 0,
 protože pohyb řídí konkrétní výprava. Pauza používá
 `LAB_WILDLIFE_ENABLED=0`. Offline `deactivate-defias-v8` pozastaví všech
@@ -489,7 +567,7 @@ viditelného útočníka zastavit a hráč může zasáhnout běžným bojem.
 na revizi `44a83af87236` obsahuje dva úspěšné přepady a třetí pokus
 zastavený strážným; pokračovalo původní zásobování i spotřeba.
 
-Aktivní konfigurace je `LAB_AI_PROFILE=raids-v8` a
+Konfigurace samotné historické etapy je `LAB_AI_PROFILE=raids-v8` a
 `LAB_WILDLIFE_ENABLED=1`. Pro pauzu ponech tento profil a nastav
 `LAB_WILDLIFE_ENABLED=0`; standardní znovuvytvoření worldserveru pozastaví
 všech 28 řízených aktérů. Potřeby, potrava, náklad a přepady se přes restart
@@ -555,8 +633,8 @@ Po sestavení verze se zásobováním a před první aktivací použij `make bac
 V privátním `.env` nastav `LAB_AI_PROFILE=consumers-v8` a
 `LAB_WILDLIFE_ENABLED=1`, potom spusť `make setup-world` a `make start`.
 CI/CD používá stejnou přípravu pod deploy zámkem. Výchozí `.env.example`
-zůstává u `settlement-v8`; současný realm už používá navazující `raids-v8`
-popsaný výše. Tento postup je pro první aktivaci etapy `consumers-v8`.
+zůstává u `settlement-v8`; současný realm už používá `full-v8`.
+Tento postup je pro první aktivaci etapy `consumers-v8`.
 
 Nové zásoby, náklad a rezervace kořisti jsou pouze stav aktuálního běhu;
 při restartu se resetují a sklady začínají prázdné. Jejich ukládání je

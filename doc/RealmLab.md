@@ -1,15 +1,66 @@
 # Vlastní svět jako jediný realm
 
-Aktuální rozšíření: `full-v8` přebírá **všech 100 vytvořených NPC** pod
+## Aktuální provozní stav — 31. října 2026
+
+Aktivní svět je vlastní mapa `725` / oblast `4988`, realm `2`, větev
+`AI-World-lab`. Poslední zde ověřené nasazení je `664d84687d7a`:
+[CI/CD běh](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41158138495)
+prošel 846 Python a 699 nativními testy. Všech osm aplikačních a databázových
+služeb bylo zdravých bez automatického restartu. Šlo o provozní a serverové
+ověření; neprokazuje každý fyzický cyklus v celé mapě.
+
+Profil `full-v8` řídí **všech 100 vytvořených NPC** pod
 AIWorld. Nad původních 55 přidává 45 běžných rolí: 21 strážných, 7 služeb,
 4 pracovníky a 13 bojovníků. Převzetí neinstaluje LLM karty; ty se zapínají
-samostatně pro konkrétní postavy. Profil zachovává šablony, domovy, služby,
-frakce a dosavadní specializované role původních 55 NPC. Obecné těžařské a
+samostatně pro konkrétní postavy. Samotný profil zachovává původní šablony,
+domovy, služby, frakce a specializované role původních 55 NPC. Obecné těžařské a
 rybářské postavy zatím nemají novou mechaniku těžby nebo rybolovu. Původní
 autonomní SmartAI skripty převzatých postav nahrazuje AIWorld.
 [Provoz, pauza a kontroly](../README_DEV.md#všechna-vytvořená-npc--full-v8).
 
-Rozšíření k **30. říjnu 2026**: nový profil `defias-v8` řídí všech
+V jednom světě jsou zapojené zvěř a lovci, sklady a spotřebitelé,
+tři zemědělské vesnice, skupinové přepady Defias i dvě karavany dopravující
+skutečné zásoby do městského skladu 7. Dva městští obyvatelé z něj jedí.
+Obsazování vesnic a dlouhodobá územní politika zatím hotové nejsou.
+Nové potřeby, zásoby, úroda, náklad, přepadová paměť a karavany se podle
+zadání přes restart neukládají; to neruší existující perzistenci identity
+a dlouhodobé paměti agentů.
+
+Tři pojmenované LLM postavy mají vlastní herní šablony i aktivní řadiče:
+Šaša `901014 → 9800014`, Matěj `901035 → 9800035`, Běla `901036 → 9800036`.
+Jejich zdrojové entry zůstává `11328`; Šaša zachovává roli `CITY_CONSUMER`,
+Matěj a Běla `WORKER`. Úplná kopie šablony a návazných prostředků je ověřená
+v databázi. Ostatních 16 obyvatel používajících stejný základ se nepřejmenovalo.
+Serverová telemetrie potvrdila skutečné GUID s novými entry a všechny tři
+aktivní LLM řadiče. Zobrazení jmenovek v herním klientu nebylo vizuálně ověřeno.
+
+Webový [Ateliér postav](CharacterStudio.md) na portu 9092 exportuje kartu,
+humanoidní vzhled, předpis vlastní šablony, zálohu návrhu a postup nasazení.
+Návrh zůstává autorskými daty; běžící svět mění až řízené nasazení.
+Po nasazení jména je potřeba nové přihlášení do hry, po změně editoru
+Ctrl+F5. Pro tato jména a humanoidní vzhled není potřeba nový mapový patch.
+Modelová konfigurace je soukromá; `.env.example` dál používá konzervativní
+`settlement-v8` s vypnutým LLM a nepředstavuje aktuální soukromý `.env`.
+
+## Vývoj profilů a starší fyzické důkazy
+
+Následující profily popisují postupné rozšiřování stejné mapy. Jejich
+počty a výsledky patří ke konkrétním profilům a uvedeným revizím.
+Současný `full-v8` je zahrnuje a rozšiřuje; přepnutí na starší profil není
+pauzou ani podporovaným automatickým downgradem rozšířené populace.
+
+| Profil | AIWorld / nativně řízená NPC | Přidaná část |
+| --- | --- | --- |
+| `settlement-v8` | 0 / 100 | Původní autorské rozmístění a nativní telemetrie |
+| `wildlife-v8` | 20 / 80 | Zvěř, hlad, pastva a lov |
+| `supply-v8` | 23 / 77 | Tři lovci a konečné zásoby masa |
+| `consumers-v8` | 26 / 74 | Tři spotřebitelé skladů |
+| `raids-v8` | 28 / 72 | Jeden Defias a obrana jižního skladu |
+| `fields-v8` | 40 / 60 | Dvanáct zemědělců, tři pole a sklady |
+| `defias-v8` | 55 / 45 | Celý tábor Defias a skupinové výpravy |
+| **`full-v8` — současný** | **100 / 0** | Všechny role, dvě karavany a městský sklad |
+
+Rozšíření k **30. říjnu 2026**: profil `defias-v8` řídí všech
 16 Defias, celkem **55 řízených / 45 nativních NPC**. Přidává 15 rezervací
 nad nezměněný `fields-v8`; domovy, frakce, běžné typy a mapová geometrie
 zůstávají zachované. Deset banditů 901050–901059 tvoří výpravy o 2–5
@@ -82,7 +133,7 @@ do tábora a skutečně zahájený změněný plán nebo odklad. Kontroluje tak�
 všech šest skladů a účetní bilanci. Úspěšné vybavení paměti není důkazem
 úspěšné krádeže.
 
-Nové rozšíření k 27. říjnu 2026: profil `raids-v8` navazuje na
+Předchozí rozšíření k 27. říjnu 2026: profil `raids-v8` navazuje na
 `consumers-v8` a řídí 28 ze stávajících 100 NPC. Přidává pouze Defiase
 901055 a strážného 901039; ostatních 72 NPC zůstává nativních. Nasazení
 a fyzický výsledek se ověřují samostatně po úspěšném CI.
@@ -100,8 +151,8 @@ Přerušená krádež nepřidá potravu, smrt ztrácí nesený náklad a všechn
 převody zůstávají v původní bilanci zásob. Stav přepadů, potřeby i zásoby
 se podle současného rozhodnutí přes restart neukládají.
 
-`AIWorld.LivingRaidsEnabled` je standardně vypnuté a zapíná jej pouze
-profil `raids-v8` spolu se zásobováním a spotřebiteli. Domovy, typy NPC,
+`AIWorld.LivingRaidsEnabled` je standardně vypnuté a zapíná jej
+profil `raids-v8` i navazující profily spolu se zásobováním a spotřebiteli. Domovy, typy NPC,
 geometrie a původní lovecké vazby se nemění. Delší dosah 900 yd má pouze
 konkrétní útočník. Každý pohyb nadále prochází skutečnou navigací a
 kontrolami kolizí. Přijímací nástroj je
@@ -117,7 +168,7 @@ shoduje. Důkaz uvádí hashe, identitu běžící binárky i omezení měření
 neprokazuje dlouhodobou rovnováhu ani perzistenci. Při návratu strážného
 zbývá zkrátit pozorované 50,75sekundové hledání bezpečné objížďky.
 
-Verzovaný provozní model k **30. říjnu 2026**. Aktivní větev zůstává
+Verzovaný provozní model k **31. říjnu 2026**. Aktivní větev zůstává
 `AI-World-lab`; hlavním vstupem jsou root `compose.yml`, `.env` a
 `Makefile`. Původní Elwynn realm 1 je vyřazený. Přihlášení a
 existující účty zajišťuje samostatná auth služba tohoto stacku.
@@ -130,10 +181,10 @@ healthchecks a čerstvá telemetrie.
 | --- | --- |
 | Realm | AI World Lab, ID 2 |
 | Mapa / oblast | 725 / 4988 |
-| Rozšířený profil | `defias-v8`; živý výsledek se ověřuje samostatně |
+| Aktivní profil | `full-v8`: 100 řízených / 0 nativně řízených NPC |
 | Nasazovací checkout | `/home/voslik/WoWBehaviorAI-lab` |
 | Compose projekt / síť | `aitc-lab` / `aitc-lab_default` |
-| Auth / svět / viewer / registrace | 3724 / 9086 / 9091 / 9088 |
+| Auth / svět / viewer / registrace / editor | 3724 / 9086 / 9091 / 9088 / 9092 |
 | Auth databáze | `auth-mysql`, volume `aitc_auth_mysql-data` |
 | Svět a postavy | `lab-mysql`, volume `aitc_lab_mysql-data` |
 | Runtime build / cache | `aitc_lab_build-data` / `aitc_lab_ccache-data` |
@@ -194,11 +245,40 @@ správa příkazů používá interní SOAP, logy zůstávají dostupné přes D
 Registrace nastavuje rozšíření Wrath of the Lich King (2). SOAP se na
 hostu nezveřejňuje; samotný registrační web je na portu 9088.
 
+## Charakterové karty a vlastní herní šablony
+
+Karta určuje LLM osobnost, příběh a chat; appearance soubor určuje
+humanoidní vzhled a vybavení; `data/npc_templates/<spawn>.json` je předpis
+samostatné nativní šablony. U `full-v8` tyto tři runtime soubory vznikají
+v jednom úplném ZIPu z editoru. Uložení návrhu ani export samy databázi nemění.
+Podrobný [postup instalace](../README_DEV.md#vytvoření-a-nasazení-pojmenované-postavy)
+zachovává stejný spawn i původní domov.
+
+Entry je jednoznačně odvozené z ověřeného spawnu, například
+`901014 → 9800014`. Instalátor kopíruje všechny sloupce nativní šablony
+a prostředky navázané na entry; na ověřené provozní revizi šlo o 59
+sloupců a 21 kategorií. Mění vlastní identitu, jméno a podtitul. Společný
+zdroj a sdílené reference se nepřejmenovávají. Ledger
+`world.ai_character_templates` připíná vlastnictví a hashe zdroje i kopie;
+cizí kolize nebo pozměněné zdroje instalaci odmítnou.
+
+Runtime aliasy překládají skutečné nové entry na původní entry pro
+rozhodování rolí. Načítají se před volitelnými LLM kartami, tedy i když
+je karta chybná nebo je LLM vypnuté. Špatná volitelná karta se přeskočí
+s důvodem v logu. Již nainstalovaná šablona se ověřuje z databáze,
+nezávisle na rozpracovaných souborech editoru. Smazání souboru proto
+není automatickou odinstalací.
+
+Telemetrie zachovává `entry` pro původní chování a přidává
+`template_entry` pro skutečnou herní identitu. Klientská cache verze se
+odvozuje z nainstalovaných jmen a podtitulů; nové přihlášení načte jejich
+změny. Ruční mazání Cache ani nový mapový patch nejsou součástí tohoto postupu.
+
 ## Nasazování a migrace
 
 `Realm Lab CI/CD` zůstává názvem jediného aktivního workflow, aby
 navazoval na dosavadní běhy. Push do `AI-World-lab` spustí Python/MySQL
-kontrakty, Observer/AI/account-web testy, C++ build/CTest a kontrolu
+kontrakty, Observer/AI/account-web/studio testy, C++ build/CTest a kontrolu
 Compose modelů. PR běží bez přístupu do nasazovacího hostu. CI volumes
 jsou oddělené od runtime.
 
@@ -211,17 +291,23 @@ bash docker/scripts/deploy-lab.sh <otestovany-commit>
 python3 tools/realm_lab/promotion.py finalize
 ```
 
-Příprava zachytí chráněné zálohy původního auth/world/characters i
+Jednorázová migrační příprava zachytí chráněné zálohy původního auth/world/characters i
 současného světa a převede účty do nového auth volume. Finalizace
 probíhá až po ověření nového stacku a vyřadí původní aplikační kontejnery
 a nasazování Elwynnu. Původní `.github/workflows/ci.yml` je pouze ruční
 informační workflow; nic nenasazuje. Starý deploy runner se vyřadí,
-sdílený CI runner a nový deploy runner zůstávají.
+sdílený CI runner a nový deploy runner zůstávají. Na současném hostu je
+tato migrace hotová. Další běhy kontrolují uložený migrační stav místo
+opětovného vytváření účtů nebo obnovení původního světa.
 
-Běžné nasazování pod zámkem zastaví vlastní worldserver i authserver
-před výměnou binárek. Ověří data, aktualizuje schémata, startovní politiku,
-hřbitov a populaci, spustí celý stack a požaduje dvě čerstvé úplné dávky
-telemetrie všech 100 NPC. Příprava čisté instalace je explicitní
+Běžné nasazování pod zámkem nejprve ověří autorské vstupy pro šablony,
+pak zastaví vlastní worldserver i authserver před výměnou binárek.
+U `full-v8` obnoví pouze vlastněné vazby spawnů na původní entry pro
+přísný bootstrap; úplné šablony a ledger přitom ponechá. Ověří data,
+aktualizuje schémata, startovní politiku, hřbitov a základní populaci,
+pak znovu aplikuje a ověří samostatné šablony. Spustí celý stack,
+ověří přesnou verzi binárky a požaduje dvě čerstvé úplné dávky
+telemetrie všech 100 řízených NPC. Příprava čisté instalace je explicitní
 `make setup-world` po importu TDB a dodání dat. Kompletní postup a
 příkazy jsou v [README_DEV.md](../README_DEV.md).
 
@@ -231,6 +317,12 @@ Compose resources nelze přepisovat dalším souborem vedle wrapperu.
 `compose.auth-share.yml` a externí auth síť už canonical stack nepoužívá.
 
 ## Zvěř, potrava a lov — wildlife-v8
+
+Tato a následující sekce zachovávají pravidla a fyzické důkazy starších
+profilů. Jejich chování je zahrnuté v `full-v8`, ale původní poměry
+řízených a nativních NPC popisují pouze daný historický profil. Současný
+server kvůli pauze nepřepínej na starší profil; ponech `full-v8` a použij
+`LAB_WILDLIFE_ENABLED=0` s novým vytvořením worldserveru.
 
 Profil `wildlife-v8` přidává řízení ke stávajícím spawnům 901072–901091:
 16 jelenů má roli kořisti, medvědi 901076, 901081, 901086 a 901091 jsou
@@ -299,7 +391,7 @@ První provozní ověření **26. října 2026 prošlo (PASS)** na revizi
 `3de22f87d6617313d1a1fc78b3bce61ad4dfd670`. Oficiální záznam dlouhý
 438,819 sekundy má 439 čerstvých vzorků: všech 20 zvířat se pohnulo,
 všech 16 jelenů se páslo s poklesem hladu a všichni čtyři medvědi
-dokončili souvislý cyklus lov–krmení–návrat. Aktivní populace je 20 řízených
+dokončili souvislý cyklus lov–krmení–návrat. Populace tohoto historického testu je 20 řízených
 zvířat + 80 nativních NPC. [Versionovaný důkaz](../data/realm_lab/aiworldlab/preview-v8/wildlife-first-cycle-acceptance.json)
 obsahuje jednotlivé cykly, kontrolní součty záznamu a 233 pozorování
 ze spawn/last-known fallbacku, která evaluator vyloučil z živého fyzického
@@ -312,7 +404,7 @@ výše uvedené `PASS` patří samostatnému wildlife evaluatoru.
 
 ## Zásobování lovem — supply-v8
 
-**Profil je nasazený; první fyzický řetězec zásobování prošel (PASS)**
+**První fyzický řetězec tohoto předchozího profilu prošel (PASS)**
 26. října 2026 na revizi `1937ad25ff05b588ba6c25d7f3fa5ea6f6f50e81`.
 Ověření po úpravě plánovacího rozpočtu prošlo také na revizi
 `ed629af322ef69f950f56c86a40d4a916865526f`.
@@ -434,7 +526,7 @@ zůstává odložená podle zadání.
 
 ## Spotřebitelé zásob — consumers-v8
 
-**Nasazeno; fyzický gate PASS** na revizi
+**Historický profil; fyzický gate PASS** na revizi
 `28ce117538745eafaeb70378e3090cffddb326ae`.
 [Versionovaný důkaz](../data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json)
 připíná záznam 794,033 sekundy, CI, zdrojové hashe a nezávislé přehrání.
@@ -491,8 +583,8 @@ LAB_WILDLIFE_ENABLED=1
 
 Offline bootstrap ověří původní populaci a rozšíří existujících 23 vazeb
 o tyto tři: výsledkem je **26 řízených + 74 nativních = 100 NPC**.
-Nový přepínač `AIWorld.LivingConsumersEnabled` se zapne jen pro tento
-profil. Pro pauzu ponech profil `consumers-v8` a nastav
+Přepínač `AIWorld.LivingConsumersEnabled` se zapne pro tento
+profil i navazující profily. Pro pauzu této původní etapy ponech `consumers-v8` a nastav
 `LAB_WILDLIFE_ENABLED=0`; návrat na starší profil po založení vazeb
 neprojde jeho přísnou kontrolou vlastnictví. Potřeby, zásobárny a nové
 čítače zůstávají pouze v paměti a při restartu se resetují podle zadání.
@@ -506,17 +598,20 @@ Výsledky jednotkových testů nepředstavují samy o sobě runtime důkaz.
 
 ## Telemetrie a navazující vývoj
 
-Viewer na portu 9091 ukazuje vybraných 100 NPC: živou
-pozici, zdraví a bojový stav. V nativním `settlement-v8` je AI vypnutá;
-`wildlife-v8` přidává výše popsanou řízenou zvěř; `supply-v8`
-navazuje třemi lovci a zásobárnami s prvním fyzickým důkazem. Aktivní
-`consumers-v8` přidává tři spotřebitele se samostatným fyzickým důkazem
-jídel a návratů všech tří.
-Automatické skupiny,
-přepady vesnic a dobývání teritoria zatím nejsou zapnuté.
-Nové chování se má přidávat po ověřitelných krocích nad touto vlastní
-mapou. Zdravý kontejner ani úplná telemetrie samy nepotvrzují fyzickou
-průchodnost každé trasy.
+Viewer na portu 9091 ukazuje všech 100 NPC řízených profilem `full-v8`:
+živou pozici nebo výslovně označený fallback, zdraví, boj, potřeby,
+role, sklady, pole, Defias výpravy, karavany a volitelné LLM řadiče.
+Aktuální sedmiskladová ekonomika používá
+[caravan acceptance](../README_DEV.md#karavany-se-zásobami-pro-město).
+Starší Defias group evaluator pro šest skladů tento rozšířený záznam
+označí `INCONCLUSIVE`; chybějící ekonomické účastníky není možné vynechat.
+
+Skupinové přepady zásob a karavany jsou implementované a zapnuté.
+Samostatně zbývá fyzicky a dlouhodobě doložit všechny jejich řetězce
+na stejné aktuální revizi. Dobývání teritoria, těžba, rybolov a ukládání
+nového runtime stavu přes restart jsou další vývoj. Zdravý kontejner
+ani úplná telemetrie samy nepotvrzují průchodnost každé trasy nebo
+dlouhodobou rovnováhu zásob.
 
 [Historický popis odděleného labu, map a testů do 11. října 2026](archive/RealmLab-2026-10-11.md)
 uchovává původní postup a důkazy. Sdílené faction CSV v `data/elwynn/factions`

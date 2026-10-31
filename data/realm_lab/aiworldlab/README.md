@@ -1,19 +1,89 @@
-# AI World Lab — mapový projekt
+# AI World Lab — mapy, populace a důkazy
 
-Aktuální populace je definovaná nad verzí `preview-v8`. Nový
-[manifest Defias](preview-v8/defias-population.json) navazuje na nezměněný
-`fields-v8`: 55 řízených / 45 nativních NPC, všech 16 Defias včetně deseti
-banditů ve skupinách a šesti táborových spotřebitelů. Nemění 100 domovů
-ani 61 souborů geometrie. Nasazení a nový fyzický test popisuje
-[provozní postup](../../../README_DEV.md#celý-tábor-defias--defias-v8).
-Původní polní a přepadové receipts platí pro své zaznamenané revize;
-nový profil vyžaduje vlastní živé ověření.
+Aktualizováno **31. října 2026**. Aktivní svět používá mapu **725**, oblast
+**4988**, realm **2**, geometrii **`preview-v8`** a profil **`full-v8`**.
+Všech **100 autorových NPC** (`901000`–`901099`) řídí AIWorld; žádné z nich
+není pouze nativní. Původní Elwynn runtime a geometrie v2/v3 nejsou aktivní
+provozní prostředí. Návod k provozu je v [README_DEV.md](../../../README_DEV.md)
+a [RealmLab.md](../../../doc/RealmLab.md).
 
-Historická etapa používá uživatelův vlastní členitý terén
-[v3 a profil hunt-terrain-100](terrain-v3/README.md). Níže je zachovaná
-referenční rovná verze v2 a její původní extrakce. [Hodinový záznam
-100 NPC na v2](hunt-100-hour-verification.json) prošel; výsledky v2
-nejsou fyzickým potvrzením nové geometrie v3.
+## Současná geometrie a zdroje
+
+[Projektový manifest](preview-v8/project-manifest.json) vychází z uloženého
+uživatelského projektu, při přípravě upravuje jen oddělený staging a
+zachovává jeho evidované zdrojové soubory. Mapa má čtyři ADT dlaždice
+`(30,31)`, `(31,31)`, `(30,32)`, `(31,32)` a přibližné hranice
+X −533,333 až 533,333 a Y 0 až 1066,667 yardu. Není to původní jediná rovná
+dlaždice v Z 0. Stavby, voda, důl, most a tábory vycházejí z autorovy mapy.
+
+[Serverový manifest](preview-v8/server-manifest.json) a
+[kontrola dat](preview-v8/data-verification.json) popisují shodný výstup
+DBC/maps/vmaps/mmaps včetně kolizních závislostí. Populační preflight
+ověřuje 61 geometrických souborů. Binární zdroje, klientské MPQ a extrahovaná
+serverová data jsou soukromé; nejsou distribuované v Gitu. Změna geometrie
+vyžaduje znovu sestavit shodný klientský i serverový balík. Pouhé nasazení
+charakterové karty, vzhledu nebo vlastní šablony geometrii nemění.
+
+Umístění NPC a jejich domovy vycházejí z
+[autorských kotev](preview-v8/npc-anchor-audit.json),
+[rozložení](preview-v8/npc-layout-proposal.json) a
+[přijaté populace](preview-v8/settlement-population.json).
+`full-v8` zachovává jejich identitu a domovy. Herní entry jednotlivé
+pojmenované postavy může nahradit ověřená vlastní šablona; základní
+populační manifest zůstává nezměněným zdrojem behaviorální identity.
+
+## Profily nad stejnou mapou
+
+| Profil | AIWorld / pouze nativní | Rozsah |
+| --- | --- | --- |
+| `settlement-v8` | 0 / 100 | Výchozí konzervativní `.env.example`, nativní přehled |
+| `wildlife-v8` | 20 / 80 | 16 jelenů a 4 medvědi |
+| `supply-v8` | 23 / 77 | Navíc lidský a dva gnollí lovci |
+| `consumers-v8` | 26 / 74 | Navíc tři spotřebitelé |
+| `raids-v8` | 28 / 72 | Navíc první Defias a strážný |
+| `fields-v8` | 40 / 60 | Navíc dvanáct pracovníků polí |
+| `defias-v8` | 55 / 45 | Všech 16 Defias, skupinové výpravy a táborová spotřeba |
+| **`full-v8`** | **100 / 0** | **Aktivní profil**, běžné role, dvě karavany a městská spotřeba |
+
+Tyto počty jsou pro zapnutý příslušný profil, nikoli počty LLM karet.
+Manifests [polí](preview-v8/field-population.json),
+[Defias](preview-v8/defias-population.json) a
+[plné populace](preview-v8/full-population.json) obsahují explicitní identity
+a kapacity. Současný stav přidává městský sklad 7, nosiče 901040/901041,
+doprovody 901042/901043 a městské spotřebitele 901014/901015.
+
+## Co dokazují uložené výsledky
+
+| Důkaz | Rozsah |
+| --- | --- |
+| [Wildlife](preview-v8/wildlife-first-cycle-acceptance.json) | První fyzická pastva, lov, krmení a návrat zvěře na jeho zaznamenané revizi |
+| [Supply](preview-v8/supply-first-chain-acceptance.json), [plánovací rozpočet](preview-v8/supply-budget-chain-acceptance.json) | Fyzický řetězec lovců, maso, náklad, doručení a jídlo |
+| [Consumers](preview-v8/consumer-first-chain-acceptance.json) | Fyzická spotřeba a návrat tří tehdejších spotřebitelů |
+| [Raid](preview-v8/raid-first-chain-acceptance.json) | Dva dokončené přepady a doložené přerušení strážným |
+| Navigační audity v `preview-v8` | Průchodnost konkrétních cest, nikoli automaticky jejich dokončení NPC |
+
+Receipts jsou připnuté k vlastním revizím, datům a záznamům. Neoznačovat je
+za nový fyzický PASS celé populace, karavan nebo změněného modelu.
+Revize `664d84687d7a` prošla 31. října
+[CI/CD](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41158138495)
+(846 Python / 699 nativních testů) a následnou kontrolou osmi služeb,
+100 řízených NPC a tří vlastních šablon s aktivními LLM controllery.
+Její serverová kontrola nenahrazuje dlouhodobé fyzické přijetí `full-v8`.
+
+Aktuální recorder a acceptance postupy jsou v
+[ObserverRecording.md](../../../doc/ObserverRecording.md). Stav zásob,
+potřeb, úrody, přepadů a karavan se přes restart nyní neukládá; tato práce
+je výslovně odložená. Jména, vzhled a příběhy se připravují v
+[Ateliéru postav](../../../doc/CharacterStudio.md).
+
+## Historie rovné mapy v2
+
+Následující text zachovává extrakci a testování původní v2. Výrazy
+„aktuální“, „aktivní“, tehdejší čtyři služby, spawny 900725–900824 a uvedené
+hashe platí v rámci tohoto historického experimentu. Nejsou popisem
+nasazeného `preview-v8`. Příkazy pro starý bootstrap nebo doplnění jediné
+ADT nespouštět nad dnešním mapovým projektem či databází. Terén
+[v3](terrain-v3/README.md) představuje další oddělený historický krok.
 
 První vlastní mapa: MapID **725**, AreaID **4988**, exploration bit **3618**.
 Interní adresář `AIWorldLab`, název `AI World Lab`, `InstanceType=0`
@@ -171,7 +241,7 @@ Uživatel potvrdil funkční vstup na mapu a chůzi. [Hráčský záznam](in-gam
 zachovává jeho potvrzení; číselný výpis GPS a ověření všech čtyřech bodů
 ještě chybí. Uživatel potvrdil fyzický test dočasného medvěda 1186 přes
 `.npc follow`, `.npc follow stop` a `.npc evade`, podle
-[postupu v TODO](../../../doc/RealmLab.md#první-fyzický-test-jednoho-npc).
+[postupu v TODO](../../../doc/archive/RealmLab-2026-10-11.md#první-fyzický-test-jednoho-npc).
 Potvrzen je nejméně jeden cyklus následování a nativního návratu. Uživatel
 také uvedl, že první autonomní AIWorld návrat vypadá funkčně; časy a
 GUID před/po zatím nezaznamenal. Mapový generátorový manifest nadále

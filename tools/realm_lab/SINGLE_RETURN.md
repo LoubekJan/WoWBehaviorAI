@@ -1,5 +1,13 @@
 # One NPC return experiment
 
+> Historical regression profile, not the active deployment. The canonical
+> world uses `full-v8`, map 725 and 100 authored NPCs with IDs
+> `901000`–`901099`. This document retains the earlier single-bear experiment
+> and its former `.env`/Compose paths. Do not run its bootstrap or activation
+> against the current population: it expects different data and identities.
+> Use an isolated matching regression environment for reproductions, and
+> [README_DEV.md](../../README_DEV.md) for current operation.
+
 The user has approved continuing with the autonomous predator/prey population
 in [HUNT_POPULATION.md](HUNT_POPULATION.md). This single-bear profile remains a
 regression option. The manual ten-cycle series has not been marked complete.
@@ -9,7 +17,7 @@ entry `1186`, on map `725` / area `4988`. Its home and scope come from versioned
 `data/realm_lab/aiworldlab/test-points.json`. The bootstrap uses private
 `lab-mysql` world/characters credentials. It does not connect to shared auth.
 
-The default `LAB_AI_PROFILE=disabled` keeps AI, inference, advice, group features,
+In this historical procedure, `LAB_AI_PROFILE=disabled` keeps AI, inference, advice, group features,
 need evolution and test hooks off. `single-return` enables living roles and lab
 telemetry for the one explicit spawn. `AIWorld.TestSpawnId` remains `0` in both
 profiles. Existing agent/group/history rows remain; bootstrap demotes only the

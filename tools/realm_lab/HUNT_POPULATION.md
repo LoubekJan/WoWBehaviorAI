@@ -1,5 +1,13 @@
 # Lov, krmení a návrat v AI World Lab
 
+> Historický regresní profil původní rovné mapy, nikoli dnešní populace.
+> Současný provoz používá `preview-v8` / `full-v8` a spawny
+> `901000`–`901099`. Níže uvedené počty, domovy a příkazy s původními
+> `.env`/Compose cestami patří starému experimentu. Bootstrap ani aktivaci
+> nespouštět nad současnou DB; opakování vyžaduje oddělené prostředí se
+> shodnými starými daty. Aktuální postup je v
+> [README_DEV.md](../../README_DEV.md) a [RealmLab.md](../../doc/RealmLab.md).
+
 Profil `LAB_AI_PROFILE=hunt-cycle` rozšiřuje původní test na dva medvědy
 (predátory) a čtyři jeleny (kořist). Mapa zůstává `725`, oblast `4988` a vymezený
 prostor zůstává stejný. Klientský patch ani terén se kvůli této populaci nemění.

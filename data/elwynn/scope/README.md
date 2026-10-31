@@ -1,5 +1,10 @@
 # Elwynn Forest scope
 
+> Historical scope for the retired Elwynn experiment. `zoneId = 12` is
+> not the current production scope. The authored world is realm 2, map 725,
+> area 4988, with 100 reviewed `full-v8` NPCs. Use the
+> [current runtime guide](../../../doc/RealmLab.md) for deployment.
+
 ## Status
 
 Etapa 3.0 — authoritative scope definition.

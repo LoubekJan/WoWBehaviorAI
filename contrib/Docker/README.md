@@ -1,5 +1,11 @@
 # Docker
 
+> Upstream TrinityCore image notes, retained with their original scope.
+> WoWBehaviorAI uses its own canonical root Compose stack and gated
+> `AI-World-lab` workflow. These images do not include this project's
+> authored world, AIWorld changes or Character Studio. Follow
+> [README_DEV.md](../../README_DEV.md) for the supported project setup.
+
 The Circle CI Linux pch job uses the Dockerfile contained in the same folder as this README to create an image with the binaries built for Linux, and stores that in the job artifacts. For the 3.3.5 and master branches, it also pushes the images to https://hub.docker.com/r/trinitycore/trinitycore .
 
 The instructions below expect a basic knowledge of how to configure TrinityCore and how to use Docker.
