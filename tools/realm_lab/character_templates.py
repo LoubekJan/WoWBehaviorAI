@@ -106,7 +106,8 @@ def strict_document(path: Path, maximum: int):
 
 def plain(value, maximum, *, required=False, characters=None):
     require(isinstance(value, str) and len(value.encode('utf-8')) <= maximum and
-            (not characters or len(value) <= characters) and (not required or bool(value.strip())) and
+            (not characters or len(value) <= characters) and
+            (bool(value.strip()) if required else (not value or bool(value.strip()))) and
             all(ord(c) >= 32 and not 127 <= ord(c) <= 159 and c != '|' for c in value),
             'Invalid native character name or subtitle')
     return value

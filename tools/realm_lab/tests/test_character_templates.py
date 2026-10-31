@@ -32,7 +32,8 @@ class CharacterTemplateTests(unittest.TestCase):
             self.assertEqual(result[0].document(), source)
             for key, value in (('entry', 11328), ('entry', True), ('base_entry', 295),
                                ('spawn_id', 901100), ('map_id', 0), ('name', 'Běla'),
-                               ('title', 'x\nA'), ('name', '|cff000000Šaša'), ('title', 'á'*41)):
+                               ('title', 'x\nA'), ('title', '   '),
+                               ('name', '|cff000000Šaša'), ('title', 'á'*41)):
                 candidate = {**source, key: value}
                 path.write_text(json.dumps(candidate), encoding='utf-8')
                 with self.subTest(key=key, value=value), self.assertRaises(templates.ProfileError):
