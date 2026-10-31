@@ -115,8 +115,10 @@ namespace LivingCaravan
             {{MapId,58,740,.15f}}, {{MapId,44,820,.15f}}, {LivingFields::Fields[1].DepotPoint,true}};
         static std::vector<Waypoint> const right{
             {CityPoint,true}, {{MapId,85.33331298828125f,597.33331298828125f,.15f}},
-            {{MapId,95.999969482421875f,539.73333740234375f,.48f}},
-            {{MapId,106.66663360595703f,426.66653442382812f,.15f}},
+            // The west formation slot selects a roof/ledge detour here.
+            // Both members use the traversable east lane through this bend.
+            {{MapId,97.499969482421875f,539.73333740234375f,.48f},true},
+            {{MapId,108.16663360595703f,426.66653442382812f,.15f},true},
             {{MapId,132,350,.15f}}, {LivingFields::Fields[2].DepotPoint,true}};
         static std::vector<Waypoint> const south{
             {CityPoint,true}, {{MapId,63.999980926513672f,661.333251953125f,.15f}},

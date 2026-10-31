@@ -141,6 +141,60 @@ def evaluate(rows, **kwargs):
 
 
 class CaravanAcceptanceTests(unittest.TestCase):
+    @staticmethod
+    def departing_members_after_load(members=(901042,)):
+        rows = deepcopy(samples())
+        source = gate.depot_specs()[5]["position"]
+        city = gate.depot_specs()[7]["position"]
+        for index in range(1, len(rows)):
+            current, previous = actor(rows[index], 901040), actor(rows[index-1], 901040)
+            if (current["supply"]["caravan"]["source_depot_id"] != 5 or
+                int(current["supply"]["caravan"]["loaded"]) == int(previous["supply"]["caravan"]["loaded"])):
+                continue
+            row = rows[index]
+            t = row["elapsed_seconds"]
+            row["elapsed_seconds"] += .5; row["state"]["captured_at_ms"] += 500
+            direction = gate.distance(gate.point(source), gate.point(city))
+            for identity in members:
+                value = actor(rows[index], identity)
+                value["position"].update({axis: source[axis]+3*(city[axis]-source[axis])/direction for axis in ("x", "y", "z")})
+                value["movement"]["moving"] = True
+                own(value, t, moving=True, destination={axis: city[axis] for axis in ("x", "y", "z")})
+                value["living_role"]["movement_purpose"] = "CARAVAN_CITY"
+            return rows, index
+        raise AssertionError("Synthetic source5 load not found")
+
+    def test_owned_member_departures_after_commit_keep_the_physical_load_receipt(self):
+        for members in ((901040,), (901042,), (901040, 901042)):
+            rows, _ = self.departing_members_after_load(members)
+            report = evaluate(rows)
+            with self.subTest(members=members):
+                self.assertEqual(report["status"], "PASS", report)
+                receipt = next(value for value in report["qualifying_receipts"] if value["source_depot_id"] == 5)
+                for identity in members:
+                    role = "carrier" if identity == 901040 else "escort"
+                    departure = receipt["loaded"][role+"_departure"]
+                    self.assertGreaterEqual(departure["movement_started_at_ms"], receipt["loaded"]["started_at_ms"]+5000)
+                    self.assertEqual(report["quality"]["owned_"+role+"_departure_after_load"], 1)
+
+    def test_early_foreign_or_unobserved_member_departure_is_not_a_load_receipt(self):
+        for identity in (901040, 901042):
+            for mutation in ("early", "foreign", "absent_before_commit", "new_life", "too_far"):
+                rows, index = self.departing_members_after_load((identity,))
+                current, previous = actor(rows[index], identity), actor(rows[index-1], identity)
+                if mutation == "early":
+                    current["action_started_at_ms"] -= 1000
+                    current["living_role"]["started_at_ms"] -= 1000
+                elif mutation == "foreign": current["action_source_goal"] = "DEFEND"
+                elif mutation == "absent_before_commit": previous["position"]["x"] += 5
+                elif mutation == "too_far": current["position"]["x"] += 40
+                else: current["living_role"]["lifetime_ms"] += 1
+                report = evaluate(rows)
+                with self.subTest(identity=identity, mutation=mutation):
+                    expected = "FAIL" if mutation == "too_far" or identity == 901040 and mutation == "absent_before_commit" else "INCONCLUSIVE"
+                    self.assertEqual(report["status"], expected, report)
+                    self.assertNotIn(5, report["witnessed_source_depot_ids"])
+
     def test_four_synthetic_physical_receipts_pass_with_audited_seven_depot_ledger(self):
         report = evaluate(samples())
         self.assertEqual(report["status"], "PASS", report)

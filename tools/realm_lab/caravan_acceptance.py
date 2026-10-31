@@ -317,7 +317,9 @@ class _Evaluator:
         if (amount <= 0 or amount > 6 or not self.activity(old, stage, source) or
             row["capture"]-role.get("started_at_ms", row["capture"]) < 5000):
             self.violation(kind+"_without_owned_warehouse_action", identity); return None
-        if distance(row["position"], target) > RADIUS or row["actor"].get("in_combat") is not False:
+        departure = self.post_load_departure(old, row, target, role["started_at_ms"]+5000) if kind == "loaded" else None
+        if ((distance(row["position"], target) > RADIUS and departure is None) or
+            row["actor"].get("in_combat") is not False):
             # A legitimate action may finish and hand over to movement/safety
             # between captures. That boundary lacks a physical end receipt;
             # it is missing evidence, not proof that the transfer was remote.
@@ -329,8 +331,49 @@ class _Evaluator:
         observed = self.activities.get((identity, stage))
         if not observed or observed["stamp"] != stamp[:2] or not observed["start_observed"]:
             self.quality[kind+"_activity_start_not_observed"] += 1; return None
-        return dict(started_at_ms=role["started_at_ms"], completion_capture_ms=row["capture"],
-                    portions=amount, position_before=list(old["position"]), position_after=list(row["position"]))
+        receipt = dict(started_at_ms=role["started_at_ms"], completion_capture_ms=row["capture"],
+                       portions=amount, position_before=list(old["position"]), position_after=list(row["position"]))
+        if distance(row["position"], target) > RADIUS:
+            receipt["carrier_departure"] = departure
+            self.quality["owned_carrier_departure_after_load"] += 1
+        return receipt
+
+    def post_load_departure(self, previous, current, anchor, not_before):
+        actor, old_actor = current["actor"], previous["actor"]
+        started = actor.get("action_started_at_ms")
+        if (distance(previous["position"], anchor) > RADIUS or
+            old_actor.get("movement", {}).get("moving") is not False or old_actor.get("in_combat") is not False or
+            previous["binding"] != current["binding"] or
+            any(previous["caravan"][key] != current["caravan"][key] for key in ("id", "trip", "source_depot_id")) or
+            current["caravan"]["stage"] != "TO_CITY" or
+            not 0 < current["capture"]-previous["capture"] <= self.max_gap*1000 or
+            not self.owned(actor, moving=True) or
+            actor.get("living_role", {}).get("movement_purpose") != "CARAVAN_CITY" or
+            not (not_before <= started <= current["capture"]) or started < previous["capture"]):
+            return None
+        speed = actor.get("movement", {}).get("run_speed", 7)
+        speed = min(speed, 14) if finite(speed) and speed > 0 else 7
+        if distance(previous["position"], current["position"]) > speed*(current["capture"]-started)/1000*1.5+.5:
+            return None
+        return dict(last_warehouse_capture_ms=previous["capture"], movement_started_at_ms=started,
+            departure_capture_ms=current["capture"], position_before=list(previous["position"]),
+            position_after=list(current["position"]))
+
+    def escort_at_load(self, previous, current, source, receipt):
+        anchor = point(self.specs[source]["position"])
+        if distance(current["position"], anchor) <= RADIUS:
+            return True
+        # Loading can finish and hand the escort its return leg between two
+        # captures. Keep the observed warehouse presence, exact original life
+        # and owned post-load departure; never infer an absent escort.
+        old_actor = previous["actor"]
+        departure = self.post_load_departure(previous, current, anchor, receipt["started_at_ms"]+5000)
+        if (old_actor.get("action") is not None or old_actor.get("living_role", {}).get("phase") != "IDLE" or
+            departure is None):
+            return False
+        receipt["escort_departure"] = departure
+        self.quality["owned_escort_departure_after_load"] += 1
+        return True
 
     def update_pair(self, identity, rows, depots):
         old = self.previous_pairs.get(identity)
@@ -390,8 +433,9 @@ class _Evaluator:
                         self.violation("caravan_consumed_village_reserve", identity)
                 if (receipt is not None and track is not None and track.joint_outward >= 2 and
                     all(track.outward.get(i, 0) >= 10 and i in track.outward_targets and
-                        distance(track.outward_targets[i], point(self.specs[source]["position"])) <= RADIUS and
-                        distance(rows[i]["position"], point(self.specs[source]["position"])) <= RADIUS for i in (0, 1))):
+                        distance(track.outward_targets[i], point(self.specs[source]["position"])) <= RADIUS for i in (0, 1)) and
+                    (distance(carrier["position"], point(self.specs[source]["position"])) <= RADIUS or "carrier_departure" in receipt) and
+                    self.escort_at_load(old[1], escort, source, receipt)):
                     track.load = receipt
             if delta["delivered"]:
                 receipt = self.event(old[0], carrier, "delivered", delta["delivered"])
