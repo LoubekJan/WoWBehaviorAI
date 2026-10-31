@@ -179,7 +179,10 @@ struct AgentTelemetrySnapshot
 {
     AgentId Agent;
     uint64 SpawnId = 0;
+    // Entry retains reviewed behavior provenance for existing consumers;
+    // TemplateEntry is the actual native GUID/query/name identity.
     uint32 Entry = 0;
+    uint32 TemplateEntry = 0;
     std::string Name;
     AgentType Type = AgentType::Unclassified;
     AgentControlMode ControlMode = AgentControlMode::ObserveOnly;

@@ -524,7 +524,7 @@ std::string SerializeAgentTelemetry(std::vector<AgentTelemetrySnapshot> const& s
             out << ',';
         first = false;
         out << "{\"agent_id\":" << item.Agent.Value << ",\"spawn_id\":" << item.SpawnId
-            << ",\"entry\":" << item.Entry << ",\"name\":";
+            << ",\"entry\":" << item.Entry << ",\"template_entry\":" << (item.TemplateEntry ? item.TemplateEntry : item.Entry) << ",\"name\":";
         WriteString(out, item.Name);
         out << ",\"type\":";
         WriteString(out, ToString(item.Type));

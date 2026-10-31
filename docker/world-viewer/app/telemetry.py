@@ -543,6 +543,9 @@ class Agent(ProtocolModel):
     native_creature: bool = Field(default=False, strict=True)
     runtime_guid: str | None = Field(default=None, max_length=80, strict=True)
     entry: int | None = Field(default=None, ge=0)
+    # entry retains the behavior/source identity; a dedicated character has
+    # its own native template/GUID entry in addition to that base identity.
+    template_entry: int | None = Field(default=None, ge=1, le=0xFFFFFF, strict=True)
     name: str | None = Field(default=None, max_length=200)
     type: str = Field(max_length=80)
     control_mode: str = Field(max_length=80)

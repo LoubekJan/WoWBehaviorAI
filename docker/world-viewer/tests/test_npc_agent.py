@@ -26,6 +26,17 @@ def payload():
 
 
 class NpcAgentTelemetryTests(unittest.TestCase):
+    def test_dedicated_template_entry_preserves_base_behavior_identity(self):
+        row = payload()['agents'][0]
+        row.update(entry=11328, template_entry=9800014, name='Šaša')
+        parsed = Agent.model_validate(row)
+        self.assertEqual((parsed.entry, parsed.template_entry, parsed.name), (11328, 9800014, 'Šaša'))
+        legacy = {key: value for key, value in row.items() if key != 'template_entry'}
+        self.assertIsNone(Agent.model_validate(legacy).template_entry)
+        for value in (0, True, '9800014', 0x1000000):
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                Agent.model_validate({**row, 'template_entry': value})
+
     def test_legacy_payloads_default_to_unavailable_cognition(self):
         for name in ('telemetry_v2.json', 'telemetry_v3_memory.json', 'telemetry_v4_native.json'):
             data = json.loads((Path(__file__).parent / 'fixtures' / name).read_text(encoding='utf-8'))

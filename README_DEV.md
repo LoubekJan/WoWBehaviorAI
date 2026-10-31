@@ -8,6 +8,15 @@ Vlastní humanoidní vzhled, charakterové karty a příběhy lze tvořit ve web
 [Ateliéru postav](doc/CharacterStudio.md) na portu 9092. Uložené návrhy se do
 herního světa nasazují až samostatným exportem.
 
+Úplný balíček v profilu `full-v8` obsahuje také `npc_templates/<spawn>.json`.
+Při nasazení vznikne samostatná kopie všech sloupců nativní šablony a jejích
+návazných služeb. Vlastní jméno a podtitul se proto zobrazí i nad postavou;
+ostatní obyvatelé se stejným původním modelem si ponechají svá jména.
+Nasazení ověří vstupy před zastavením světa, pod offline zámkem připraví
+základní populaci a pak aplikuje ověřené vlastní šablony. Spawn ID a domovy
+se nemění. Po změně jména je potřeba nové přihlášení do hry; server oznámí
+odvozenou verzi klientské cache. Běžné nasazení lze opakovat bez ručních SQL zásahů.
+
 Aktivní větev je `AI-World-lab`. Výchozí `compose.yml` provozuje jediný
 herní realm **AI World Lab**, ID **2**, s vlastní mapou **725** a oblastí
 **4988**. Profil `full-v8` přebírá všech 100 vytvořených NPC pod AIWorld.

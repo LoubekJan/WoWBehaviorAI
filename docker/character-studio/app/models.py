@@ -210,6 +210,23 @@ def native_profile(card: Card) -> dict:
     return result
 
 
+def native_template(card: Card, authoring: Authoring, target: dict, population_profile: str) -> dict:
+    """A reviewed recipe for a complete private clone, never client-selected SQL."""
+    profile = native_profile(card)
+    spawn_id = profile["spawn_id"]
+    if population_profile != "full-v8":
+        raise ValueError("Samostatná herní šablona vyžaduje aktivní profil full-v8. Kartu a vzhled lze exportovat samostatně.")
+    if (not 901000 <= spawn_id <= 901099 or card.map_id != 725 or
+            target.get("eligible") is not True or target.get("spawn_id") != card.spawn_id or
+            target.get("agent_id") != card.agent_id or target.get("map_id") != card.map_id or
+            type(target.get("entry")) is not int or not 0 < target["entry"] <= 0xFFFFFF):
+        raise ValueError("Herní šablona vyžaduje ověřený původní model NPC z vlastní populace.")
+    title = plain(authoring.role.strip(), 80, lines=False)
+    return {"schema_version": 1, "spawn_id": spawn_id, "map_id": card.map_id,
+            "entry": 9800000 + spawn_id - 901000, "base_entry": target["entry"],
+            "name": card.name, "title": title}
+
+
 def import_profile(raw: Any) -> Card:
     fields = {"agent_id", "spawn_id", "map_id", "name", "backstory", "personality"}
     if not isinstance(raw, dict) or set(raw) != fields:

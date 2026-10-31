@@ -202,10 +202,12 @@ function validId(value) {
 }
 
 function completion() {
-  return [!!current.card.name.trim() && current.card.name.length <= 32 && bytes(current.card.name) <= 80,
+  const checks = [!!current.card.name.trim() && current.card.name.length <= 32 && bytes(current.card.name) <= 80,
     !!current.card.personality.trim() && bytes(current.card.personality) <= 2048,
     !!current.card.backstory.trim() && bytes(current.card.backstory) <= 8192,
     targetStatus().eligible];
+  if (catalog.target_registry?.profile === 'full-v8') checks.push(templateStatus().eligible);
+  return checks;
 }
 
 function targetStatus() {
@@ -221,6 +223,19 @@ function targetStatus() {
   let reason = `Cíl ${row.spawn_id} je ověřený podle aktivního profilu ${registry.profile}.`;
   if (installed && installed.card.name !== current.card.name) reason += ` Používá kartu „${installed.card.name}“. Nasazení tohoto exportu ji nahradí novou identitou.`;
   return {eligible: true, reason};
+}
+
+function templateStatus() {
+  if (!targetStatus().eligible) return {eligible: false, reason: targetStatus().reason};
+  if (catalog.target_registry?.profile !== 'full-v8') return {eligible: false, reason: 'Aktivní starší profil nabízí kartu a vzhled. Vlastní herní jméno a šablona vyžadují profil full-v8.'};
+  const spawn = Number(current.card.spawn_id);
+  const row = (catalog.targets || []).find(row => row.spawn_id === current.card.spawn_id);
+  if (!Number.isInteger(spawn) || spawn < 901000 || spawn > 901099 || !Number.isInteger(row?.entry) || row.entry <= 0 || current.card.map_id !== 725) return {eligible: false, reason: 'Herní šablona vyžaduje ověřené NPC vlastní populace.'};
+  if (!current.card.name.trim()) return {eligible: false, reason: 'Doplň jméno, které se zobrazí nad postavou ve hře.'};
+  const title = (current.authoring.role || '').trim();
+  if (bytes(title) > 80 || /[\u0000-\u001f\u007f-\u009f|\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/u.test(title)) return {eligible: false, reason: 'Povolání se použije jako podtitul ve hře. Zkrať ho na jeden řádek do 80 UTF-8 bajtů; delší popis patří do příběhu.'};
+  return {eligible: true, entry: 9800000 + spawn - 901000, base_entry: row.entry,
+    reason: 'Po nasazení bude mít tato postava vlastní herní jméno a šablonu. Ostatní NPC se stejným původním modelem zůstanou beze změny.'};
 }
 
 function renderTargets() {
@@ -258,6 +273,22 @@ function renderTargets() {
     $(`#${id}`).title = status.eligible ? '' : status.reason;
     $(`#${id}`).setAttribute('aria-describedby', 'target-status');
   }
+  const template = templateStatus();
+  const full = catalog.target_registry?.profile === 'full-v8';
+  $('#export-template').disabled = !template.eligible;
+  $('#export-template').title = template.eligible ? '' : template.reason;
+  $('#export-template').setAttribute('aria-describedby', 'template-status');
+  if (full) {
+    $('#export-bundle').disabled = !template.eligible;
+    $('#export-bundle').title = template.eligible ? '' : template.reason;
+    $('#export-bundle').setAttribute('aria-describedby', 'template-status');
+  }
+  $('#template-name-preview').textContent = current.card.name || 'Doplň jméno postavy';
+  $('#template-title-preview').textContent = (current.authoring.role || '').trim() || 'Bez podtitulu';
+  $('#template-status').textContent = template.reason;
+  $('#template-entry-summary').textContent = template.eligible ? `Vlastní šablona ${template.entry} · výchozí šablona ${template.base_entry} · Spawn ID ${current.card.spawn_id}` : 'Identita se vytvoří z ověřeného cíle; zadávání vlastního čísla není potřeba.';
+  $('#bundle-heading').textContent = full ? 'Úplný balíček postavy' : 'Karta a vzhled';
+  $('#bundle-description').textContent = full ? 'Vlastní herní jméno a šablona, vzhled, osobnost, životopis a postup nasazení.' : 'Starší profil: bez vlastní herní šablony a změny jména nad NPC.';
 }
 
 function renderSummary() {
@@ -283,14 +314,15 @@ function renderSummary() {
   }
   const checklist = completion();
   const labels = ['Jméno postavy v herním limitu', 'Osobnost pro rozhodování a řeč', 'Životopis a vlastní minulost', 'Ověřený řízený cíl NPC a mapa'];
+  if (checklist.length > 4) labels.push('Samostatná herní šablona s vlastním jménem');
   $('#export-checklist').replaceChildren(...checklist.map((ready, i) => {
     const row = el('li', undefined, ready ? 'complete' : 'incomplete');
     row.append(el('span', ready ? '✓' : '·', 'check-mark'), el('span', labels[i]));
     return row;
   }));
   const count = checklist.filter(Boolean).length;
-  $('#completion-label').textContent = `${count} / 4`;
-  $('#completion-bar').style.width = `${count * 25}%`;
+  $('#completion-label').textContent = `${count} / ${checklist.length}`;
+  $('#completion-bar').style.width = `${count * 100 / checklist.length}%`;
   $('#delete-character').hidden = !current.id;
   renderTargets();
   const key = JSON.stringify(current.appearance);
@@ -381,7 +413,9 @@ function downloadBlob(blob, name) {
 async function exportFile(kind) {
   readForm();
   if (!targetStatus().eligible) { showTab('export'); throw new Error(targetStatus().reason); }
-  if (completion().some(ready => !ready)) { showTab('export'); throw new Error('Před exportem doplň jméno, osobnost, životopis a platnou identitu NPC.'); }
+  const completeTemplate = kind === 'template' || (kind === 'bundle.zip' && catalog.target_registry?.profile === 'full-v8');
+  if (completeTemplate && !templateStatus().eligible) { showTab('export'); throw new Error(templateStatus().reason); }
+  if (completion().slice(0, 4).some(ready => !ready)) { showTab('export'); throw new Error('Před exportem doplň jméno, osobnost, životopis a platnou identitu NPC.'); }
   if (dirty || !current.id) await save();
   await download(`/api/characters/${current.id}/${kind}`);
 }
@@ -435,7 +469,7 @@ function setupEvents() {
     });
   });
   $('#next-tab').addEventListener('click', () => { const next = tabs[tabs.indexOf(activeTab) + 1]; if (next) showTab(next); });
-  for (const [id, path] of [['export-bundle', 'bundle.zip'], ['export-profile', 'profile'], ['export-appearance', 'appearance']]) $( `#${id}`).addEventListener('click', () => task(() => exportFile(path)));
+  for (const [id, path] of [['export-bundle', 'bundle.zip'], ['export-profile', 'profile'], ['export-appearance', 'appearance'], ['export-template', 'template']]) $( `#${id}`).addEventListener('click', () => task(() => exportFile(path)));
   $('#export-draft').addEventListener('click', () => { readForm(); downloadBlob(new Blob([JSON.stringify(current, null, 2) + '\n'], {type: 'application/json'}), 'charakter-navrh.json'); });
   $('#delete-character').addEventListener('click', () => {
     if (!current.id || !window.confirm('Smazat tento uložený návrh z ateliéru? Již exportované soubory ani herní NPC se nezmění.')) return;

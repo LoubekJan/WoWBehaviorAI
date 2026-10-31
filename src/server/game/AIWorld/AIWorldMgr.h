@@ -40,6 +40,7 @@
 #include "Agent/LivingRaidRuntime.h"
 #include "Agent/NpcAgentProfile.h"
 #include "Agent/NpcAgentAppearance.h"
+#include "Agent/NpcAgentTemplateAliases.h"
 #include "Agent/NpcAgentRuntime.h"
 #include "Telemetry/LivingRaidTelemetry.h"
 #include "Telemetry/LivingSupplyTelemetry.h"
@@ -164,6 +165,12 @@ class TC_GAME_API AIWorldMgr
         // Chat callbacks may originate in map/session updates: ingress only.
         void HandleNpcPlayerSpeech(Player* player, std::string const& text, uint32 language);
         bool SendNpcAgentAppearance(Player& observer, Creature const& creature) const;
+        // Authored clones have their own native query/name identity. Behavior
+        // still classifies against the verified original template.
+        uint32 GetBehaviorEntry(Creature const& creature) const;
+        uint32 GetBehaviorEntry(Unit const& unit) const;
+        uint32 GetBehaviorEntry(uint32 map, uint64 spawn, uint32 entry) const
+        { return _npcAgentTemplateAliases.Resolve(map, spawn, entry); }
         SimulationScope const& GetSimulationScope() const { return _simulationScope; }
         bool InSimulationMembership(uint32 mapId, uint64 spawnId) const
         {
@@ -379,6 +386,7 @@ class TC_GAME_API AIWorldMgr
         void PublishDynamicQuestKillEvent(DynamicQuestKillEvent event);
 
     private:
+        void InitializeNpcAgentTemplateAliases();
         void InitializeNpcAgents();
         bool IsNpcAgent(AgentRecord const& record) const;
         void UpdateNpcAgent(AgentRecord& record, Creature& creature, uint64 nowMs);
@@ -395,6 +403,7 @@ class TC_GAME_API AIWorldMgr
         uint64 _npcAgentUtterance = 0;
         NpcAgentProfileCatalog _npcAgentProfiles;
         NpcAgentAppearanceCatalog _npcAgentAppearances;
+        NpcAgentTemplateAliases _npcAgentTemplateAliases;
         std::unordered_map<uint64, NpcAgentRuntime> _npcAgentStates;
         NpcAgentConversationGuard _npcAgentConversationGuard;
         std::mutex _npcAgentSpeechMutex;

@@ -4,6 +4,30 @@
 #include "Telemetry/TelemetryJsonCodec.h"
 #include <limits>
 
+TEST_CASE("Character telemetry distinguishes reviewed behavior from actual native template identity", "[AIWorld][Telemetry][NpcAgent]")
+{
+    AgentTelemetrySnapshot row;
+    row.Agent = AgentId{901014}; row.SpawnId = 901014;
+    row.Entry = 11328; row.TemplateEntry = 9800014; row.Name = "Sasa";
+    auto json = SerializeAgentTelemetry({row}, 1);
+    CHECK(json.find("\"entry\":11328,\"template_entry\":9800014,\"name\":\"Sasa\"") != std::string::npos);
+    row.TemplateEntry = 0;
+    json = SerializeAgentTelemetry({row}, 1);
+    CHECK(json.find("\"entry\":11328,\"template_entry\":11328") != std::string::npos);
+
+    // Passive observation of an installed name never grants action ownership
+    // or introduces optional LLM/economy state while the world is paused.
+    row.TemplateEntry = 9800014;
+    row.NativeCreature = true;
+    row.ControlMode = AgentControlMode::ObserveOnly;
+    json = SerializeAgentTelemetry({row}, 2);
+    CHECK(json.find("\"template_entry\":9800014") != std::string::npos);
+    CHECK(json.find("\"control_mode\":\"OBSERVE_ONLY\"") != std::string::npos);
+    CHECK(json.find("\"needs\":null") != std::string::npos);
+    CHECK(json.find("\"economy\":null") != std::string::npos);
+    CHECK(json.find("\"llm_agent\":null") != std::string::npos);
+}
+
 TEST_CASE("NPC telemetry exports public runtime metadata with exact request IDs", "[AIWorld][Telemetry][NpcAgent]")
 {
     AgentTelemetrySnapshot row;

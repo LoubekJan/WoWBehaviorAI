@@ -52,9 +52,10 @@ void AIWorldMgr::AppendNativeTelemetry(Map* scopeMap, std::vector<AgentTelemetry
         AgentTelemetrySnapshot item;
         item.Agent = AgentId{spawnId};
         item.SpawnId = spawnId;
-        item.Entry = spawn->id;
+        item.TemplateEntry = spawn->id;
+        item.Entry = GetBehaviorEntry(spawn->mapId, spawnId, spawn->id);
         item.NativeCreature = true;
-        if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(item.Entry))
+        if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(item.TemplateEntry))
             item.Name = creatureTemplate->Name;
         item.Type = _agentTypeCatalog.Resolve(item.Entry);
         item.WorldFaction = _worldFactionCatalog.Resolve(item.Entry);
@@ -124,8 +125,9 @@ void AIWorldMgr::CaptureTelemetry(Map* scopeMap)
         AgentTelemetrySnapshot item;
         item.Agent = id;
         item.SpawnId = record->SpawnId;
-        item.Entry = spawn->id;
-        if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(item.Entry))
+        item.TemplateEntry = spawn->id;
+        item.Entry = GetBehaviorEntry(record->MapId, record->SpawnId, spawn->id);
+        if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(item.TemplateEntry))
             item.Name = creatureTemplate->Name;
         item.Type = record->Type;
         item.ControlMode = record->ControlMode;

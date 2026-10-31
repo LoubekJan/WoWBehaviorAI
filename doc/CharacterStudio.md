@@ -10,8 +10,9 @@ pro klienta 3.3.5a (build 12340). Observer na portu 9091 obsahuje odkaz do edito
 - Oblečení a zbraně ze 166 ověřených položek ve 14 pozicích. Výchozí katalog
   obsahuje také vybavení startovních postav, nikoli celou databázi předmětů.
 - Jméno, povolání, frakci, domov, hodnoty, cíle, slabosti, vztahy a minulost.
-  Frakce a povolání zde slouží jako autorské podklady; nepřepisují herní faction
-  template, combat AI, úkoly nebo zásobování.
+  V profilu `full-v8` se jméno používá i nad postavou a povolání jako podtitul
+  její samostatné herní šablony. Frakce, domov a ostatní autorské podklady
+  nepřepisují herní faction template, pozici spawnu, combat AI, úkoly ani zásobování.
 - Životopis a osobnost pro stávající LLM agenty. Qwen umí navrhnout oba texty
   ze zadaných podkladů; autor návrh upraví a výslovně převezme.
 
@@ -38,9 +39,13 @@ odmítne místo přepsání novější verze.
    nepřesná JavaScript čísla. Návrh i jeho editovatelnou zálohu lze uložit
    bez platného cíle, herní export je však zablokovaný až do ověření.
 4. Stáhněte ZIP. Obsahuje `npc_agents/<spawn>.json`,
-   `npc_appearances/<spawn>.json`, editovatelný návrh a návod.
+   `npc_appearances/<spawn>.json`, v profilu `full-v8` také
+   `npc_templates/<spawn>.json`, editovatelný návrh a návod. V exportní části
+   je náhled jména a podtitulu ve hře; čísla šablon se odvozují automaticky
+   z ověřeného cíle a jsou jen ke čtení.
 5. Zkontrolované soubory vložte do odpovídajících `data/` adresářů projektu,
-   zahrňte je do běžného nasazení a restartu worldserveru. Nový spawn musí být
+   zahrňte celý balíček do běžného řízeného nasazení a restartu worldserveru.
+   Samostatná šablona se připravuje offline před spuštěním světa. Nový spawn musí být
    zvlášť registrován jako řízené NPC v použitém populačním profilu.
 
 Existující šestipolový formát charakterové karty zůstává beze změn. Vzhled je
@@ -67,13 +72,41 @@ LLM controller; samotný herní svět může naběhnout. Důvod odmítnutí je v
 Původní konfigurační kontroly oprávnění a rozsahu AIWorld zůstávají přísné.
 Soubor karty ani návrh se při tomto odmítnutí nemaže nebo automaticky nemění.
 
+## Samostatná herní šablona
+
+`full-v8` vytváří ke každé kartě předpis vlastní šablony s `schema_version`,
+`spawn_id`, `map_id`, `entry`, `base_entry`, `name` a `title`. Nasazení z něj
+vytvoří úplnou kopii původní `world.creature_template`, která přebírá její
+herní parametry. Mění vlastní identitu, jméno a podtitul; sdílená původní
+šablona se nepřejmenovává. Vzhled a vybavení dál dodává samostatný appearance
+soubor. Spawn ID, AI registrace a původní domov zůstávají zachované.
+
+Například obyvatel `901014` se základní šablonou `11328` dostane soukromou
+šablonu `9800014`. Jiný obyvatel se stejným základem dostane jiné číslo,
+takže změna Šašina jména nepřejmenuje Matěje ani další obyvatele. Při změně
+jména téže karty zůstává přidělená identita stejná. Backend odvozuje oba
+typy entry z ověřených serverových metadat, nikoli z hodnot dodaných klientem.
+
+Jméno má stávající limit 32 znaků / 80 UTF-8 bajtů. Povolání se pro podtitul
+ořízne o okolní mezery, musí být na jednom řádku do 80 UTF-8 bajtů a může
+zůstat prázdné. Delší autorské podklady lze uložit do návrhu; export úplného
+balíčku vyžaduje platný podtitul. Samostatné exporty původní šestipolové
+karty a vzhledu zůstávají dostupné i bez herní šablony.
+
+Starší profily `consumers-v8`, `raids-v8`, `fields-v8` a `defias-v8` zachovávají
+původní export karty a vzhledu. Jejich ZIP výslovně uvádí, že vlastní herní
+šablonu neobsahuje; samostatný export šablony je v nich zablokovaný. Uložení
+návrhu žádnou šablonu nevytváří v běžící databázi a samotný editor nemá SQL
+přístup ani oprávnění provádět živé změny světa.
+
 ## Vzhled ve hře
 
 Server používá původní mechanismus `SMSG_MIRRORIMAGE_DATA` a základní model
-rasy. Klient obdrží parametry těla, 11 display ID oděvů a původní GUID NPC;
+rasy. Klient obdrží parametry těla, 11 display ID oděvů a GUID aktuální inkarnace NPC;
 zbraně se nastavují přes nativní virtual-item pole. Není potřeba měnit DBC
-klienta ani vytvářet mapový patch. Jméno nad NPC dál patří jeho společné
-creature šabloně; vlastní autorské jméno používá LLM chat.
+klienta ani vytvářet mapový patch. Jméno nad NPC bere klient ze samostatné
+herní šablony; LLM a jeho chat používají stejné jméno z charakterové karty.
+Změny se projeví po řízeném nasazení a novém přihlášení do hry.
 
 Vzhled se aplikuje jednou na danou inkarnaci při navázání agenta a znovu po
 smrti či uvolnění NPC. Skutečná transformační, shapeshift nebo clone kouzla
