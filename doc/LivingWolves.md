@@ -1,8 +1,22 @@
 # Living wolves — first runtime pilot
 
-The implementation is limited to AIWorld-controlled creatures matching
+## Historical pilot and current scope
+
+This is the original September 2026 Elwynn pilot, not the active population
+configuration. The authored realm now uses map **725**, area **4988**, and
+`full-v8` owns all **100 NPCs**. Its wildlife consists of 16 deer and four
+bears and uses the individual living-role/food systems described in
+[RealmLab.md](RealmLab.md). Defias parties and caravan escorts are separate
+controllers; their existence does not activate this wolf pack pilot.
+
+The canonical renderer leaves `AIWorld.LivingWolvesEnabled`, wolf auto-formation,
+roaming and hunting disabled. Keep historical configuration and spawn-creation
+examples below on an isolated regression setup; they are not instructions to
+add wolves or rabbits to the reviewed 100-spawn world.
+
+The underlying implementation is limited to AIWorld-controlled creatures matching
 `AIWorld.WolfGroupCreatureEntry` and the WolfLoose faction. The deployment
-configuration uses entry **69 (Diseased Timber Wolf)** and prey entry
+pilot uses entry **69 (Diseased Timber Wolf)** and prey entry
 **721 (Rabbit)**.
 Other species are outside this pilot; the separate opt-in [LivingRoles](LivingRoles.md)
 cycle covers other controlled Elwynn roles. Roaming and hunting in this wolf pilot still require
@@ -50,13 +64,13 @@ not acquire prey independently in this pilot.
 
 ## Configuration
 
-`AIWorld.LivingWolvesEnabled = 1` is enabled in `deploy/worldserver.conf`; the
-upstream-style `worldserver.conf.dist` retains a default of `0`. The existing
-WolfGroupAutoFormation, CoalitionMaintenance, GroupCoordination and
-WolfGroupHuntEnabled settings must remain enabled. WolfGroupRoamEnabled is now
-also enabled in the deployment configuration. Apply configuration through the
-project's normal render/build/restart workflow; editing the tracked file alone
-does not alter a running server.
+For the historical pilot, `AIWorld.LivingWolvesEnabled = 1` and the existing
+WolfGroupAutoFormation, CoalitionMaintenance, GroupCoordination,
+WolfGroupHuntEnabled and WolfGroupRoamEnabled settings were enabled together.
+The current tracked configuration and canonical renderer disable the wolf cycle.
+Enabling one flag alone does not recreate the former pilot. Editing a tracked
+template alone also does not alter a running server; current operation follows
+[README_DEV.md](../README_DEV.md).
 
 The hunt target must also pass TrinityCore's normal attackability checks. Entry
 525 (Mangy Wolf), used in the initial configuration, is friendly to entry 69 in
@@ -95,7 +109,9 @@ combat/distance/LOS meal rejection, rest validation, and pack-defense selection
 (membership, live combat, distance, visibility, attackability, prey exclusion,
 friendly-fire exclusion and deterministic threat choice). It does **not** exercise
 live TrinityCore movement, animation, group formation, or the manager lifecycle.
-Full server CMake configuration is blocked locally by missing Boost >= 1.78.
+That standalone run did not include a full server build because the local
+environment then lacked Boost >= 1.78. This is a limitation of that historical
+run, not the current CI status.
 
 The spacing change also passed 141 standalone MSVC checks in
 `tests/game/GroupMemberFormation.cpp`; the original 70 LivingWolf checks passed

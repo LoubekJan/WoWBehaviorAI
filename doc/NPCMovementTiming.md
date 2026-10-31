@@ -1,5 +1,10 @@
 # Plynulost a načasování NPC
 
+Platí pro současný vlastní svět: realm 2, mapa 725 / oblast 4988,
+profil `full-v8`, 100 NPC pod AIWorld. Deterministické role, zásobovací
+trasy, skupiny a volitelné LLM postavy používají různé rozhodovací cykly;
+samotná společná telemetrie neznamená totožné časování všech NPC.
+
 Potřeby a vnímání se dříve zpracovávaly pro celý registr najednou v sekundových
 dávkách. Role navíc používaly `agentId % 15000` pro první rozhodnutí a stejnou
 šestisekundovou pauzu po přesunu. Sousední ID tak začínala v jednom updatu
@@ -19,12 +24,24 @@ nepřerušuje. Rozpočet proto není tvrdý limit délky jednoho dotazu na navig
 Nedokončené hledání si pamatuje dalšího kandidáta; odložení nezvyšuje počítadlo
 selhání návratu. Pohyb, dokončení krmení a reakce na nebezpečí pokračují před
 kontrolou rozpočtu. Změna polohy, domova, nebezpečí či fáze světa zruší původní
-rozpracovaný dotaz; stejně tak 30 sekund bez skutečného postupu hledání.
+rozpracovaný dotaz. Jednotlivé strategie mají vlastní pracovní a časové
+limity; čekání na rozpočet samo o sobě není neúspěšná cesta. Podrobnosti
+zachování a invalidace návratového grafu jsou v
+[RecoveryPlanning.md](RecoveryPlanning.md).
 
 Počáteční rozhodnutí se rozptylují v rozsahu 0–15 sekund. Běžná pauza po
 přesunu trvá 4–8 sekund, po činnosti 8–15 sekund; liší se mezi NPC i dalšími
-cykly stejného NPC. Návrat domů a hledání potravy zachovávají krátkou
-sekundovou prodlevu. Rozběhnutý pohyb stále provádí pohybový systém enginu.
+cykly stejného NPC. Při pokračování ověřené návratové nebo průzkumné trasy
+se další rozhodnutí probudí při příchodu bez vložené sekundové pauzy;
+jiný návrat nebo nové hledání si může krátkou prodlevu ponechat.
+Rozběhnutý pohyb stále provádí pohybový systém enginu.
+
+Zásobovací přesuny slučují přímé ověřené body, zachovávají rohy a navazují
+po skutečném příchodu. Čekání při hledání objížďky, pětisekundová práce,
+krádež, nakládka a vykládka zůstávají samostatné činnosti. Karavany čekají
+také na vlastní doprovod; jejich pauzu proto nelze automaticky označit za
+zaseknutí. U LLM postavy rozlišuj interval dalšího rozhodnutí, běžící
+požadavek modelu a skutečně prováděnou akci v `llm_agent`.
 
 Nasazovací konfigurace používá `Logger.ai=3,Console Server` (INFO). Zůstávají
 navigační sondy, chyby a souhrny výkonu, ale ne tisíce diagnostických zpráv
@@ -34,7 +51,7 @@ hodnotou 2.
 ## Krátký test po nasazení
 
 1. Ověř úspěšné CI, deploy a novou revizi v `.server info`.
-2. V Elwynnu sleduj 5–10 okolních samostatných NPC alespoň 3–5 minut.
+2. Na vlastní mapě 725 sleduj 5–10 okolních samostatných NPC alespoň 3–5 minut.
    Začátky chůze a pauzy mají být různě načasované. Jednotlivé NPC se stále
    smí zastavit, rozhlížet, pást nebo odpočívat. Koordinovaný přesun členů
    jedné skupiny je očekávaný.
@@ -43,13 +60,13 @@ hodnotou 2.
 4. Po několika minutách zkopíruj souhrny z terminálu na serveru:
 
    ```bash
-   docker compose -f compose.yml -f compose.dev.yml logs --since=5m worldserver | grep AIWORLD_UPDATE
+   docker compose --env-file .env -f compose.yml logs --since=5m worldserver | grep AIWORLD_UPDATE
    ```
 
    Pokud Docker starší zprávy už nemá, stejné řádky jsou v souborovém logu:
 
    ```bash
-   grep AIWORLD_UPDATE runtime/logs/Server.log | tail -10
+   grep AIWORLD_UPDATE runtime/lab/logs/Server.log | tail -10
    ```
 
 5. Teprve když se pohyb jeví správně, pokračuj dlouhým záznamem chování.

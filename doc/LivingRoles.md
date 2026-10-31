@@ -1,4 +1,51 @@
-# Živější role v Elwynnu
+# Živé role AIWorld
+
+## Aktuální svět — 31. října 2026
+
+Aktivní je vlastní realm **2**, mapa **725**, oblast **4988**, větev
+`AI-World-lab`. Profil `full-v8` přebírá všech **100 NPC pod AIWorld**;
+žádné z této populace nepoužívá režim nativního pozorování. To samo o sobě
+nevytváří LLM charakter: platná individuální karta je samostatný opt-in.
+Čistá `.env.example` nadále volí `settlement-v8`, tedy pozorování 100 NPC
+bez zapnutého řízení potřeb a bez modelových požadavků.
+
+Současné chování zahrnuje pastvu a lov 16 jelenů a čtyř medvědů,
+lovce a omezené zdroje masa, jídlo ze skladů, práci 12 zemědělců,
+skupinové přepady Defias a dvě karavany s doprovodem. Karavany spojují
+vesnické sklady 1/4/5/6 s městským skladem 7. Zbylé role si zachovávají
+strážní, bojové a servisní schopnosti; označení všech NPC jako AIWorld
+neznamená, že mají totožné schopnosti nebo všichni těží, loví či kradou.
+Obsazování území a dlouhodobá rovnováha celého světa nejsou uzavřené funkce.
+
+Přehled ukazuje také konkrétní schopnosti `FARMER`, `CARAVAN_CARRIER`,
+`CARAVAN_ESCORT` a `CITY_CONSUMER`. Dopravci jsou 901040/901041,
+doprovod 901042/901043, městští spotřebitelé 901014/901015.
+Instalace vlastní herní šablony zachovává zdrojovou klasifikaci:
+`entry` v telemetrii zůstává zdrojové entry, `template_entry` je skutečná
+herní identita. Proto Šaša 901014 zůstává `CITY_CONSUMER`, zatímco Matěj
+901035 a Běla 901036 zůstávají `WORKER`, i když už mají vlastní jména
+a samostatné šablony. Podrobnosti jsou v [NpcAgents.md](NpcAgents.md)
+a [CharacterStudio.md](CharacterStudio.md).
+
+Potřeby, sklady, náklady, úroda, zkušenosti z přepadů, raidové skupiny
+a karavany jsou v tomto herním cyklu **pouze v paměti běžícího serveru**.
+Po restartu se tento stav obnoví z výchozí konfigurace. Existující
+databázová identita agenta a dlouhodobá paměť jsou jiná vrstva; jejich
+podpora neznamená perzistenci nového potravního cyklu.
+
+Zapnutí, pauzu, přesné počty starších profilů a provozní postup popisuje
+[RealmLab.md](RealmLab.md). Aktuální záznamy mají scope vlastní mapy;
+postup je v [ObserverRecording.md](ObserverRecording.md). Starý vlčí
+pilot ani poradní endpoint `/recovery` nejsou součástí zapnutého profilu.
+Zelené CI a zdravé služby nenahrazují fyzický test konkrétní trasy, lovu,
+krádeže nebo karavany. Historické receipts zůstávají vázané na uvedené revize.
+
+## Historický vývoj v Elwynnu
+
+Následující část uchovává zářijové experimenty v mapě 0 / zóně 12.
+Její spawn ID, souřadnice, tehdejší zapnuté přepínače, počty testů,
+automatické startování záznamu a staré příkazy platí pro popisované běhy,
+**nikoli pro dnešní nasazení**. Původní Elwynn realm je vyřazený.
 
 Lokální rozšíření z 22. 9. 2026 navazuje na ve hře ověřený vlčí pilot.
 Uživatel potvrdil základní chování ve hře. Po následné opravě 22. 9. 2026 výslovně potvrdil také funkční lov Forest Spider a pomoc blízkých Defias. Oba původně neúspěšné scénáře tak mají potvrzený opakovaný herní test.

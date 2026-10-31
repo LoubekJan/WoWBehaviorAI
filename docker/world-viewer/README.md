@@ -1,8 +1,14 @@
 # AI World Viewer
 
 The viewer is a read-only FastAPI service. Compose publishes its browser UI on
-all host interfaces at port 8090 by default (`http://<server-LAN-IP>:8090`).
-The worldserver sends a complete snapshot about once per second to
+all host interfaces at port **9091** by default (`http://<server-LAN-IP>:9091`),
+configured by `LAB_VIEWER_PORT`. The authored-world stack uses realm 2,
+map **725**, area **4988**. Its active `full-v8` profile exports **100 AIWorld
+actors and 0 native-only observations**. The clean `.env.example` still selects
+the conservative `settlement-v8` profile, with 100 native observations.
+
+The worldserver sends complete snapshots at 250 ms while supply/consumer
+systems are active, otherwise at approximately one-second intervals, to
 `http://world-viewer:8000/internal/telemetry`.
 
 Set a long random `WORLD_VIEWER_TELEMETRY_TOKEN` in `.env` before enabling
@@ -30,11 +36,36 @@ can reach the published port can read the telemetry.
 - Long-term memory on selection: event/observation type, importance, perception
   channel, first/last observation, repetition count, historical participants and
   location. Pages contain 25 records and can be refreshed explicitly.
+- Food production, finite carcasses, carried portions, village/camp/city depot
+  counters, farmer workpoints, raid-party coordination and food caravans with
+  their original carriers and escorts.
+- Optional authored LLM controller identity, action/result, next-decision delay
+  and last speech. AIWorld ownership of 100 actors does not mean 100 LLM cards.
 
 Hunt status/end describe the last diagnostic result, not necessarily a current
 hunt; use the current phase. Background agents expose persisted/registry values
 but no live role, movement, target, destination or FactionTemplate observation.
-The viewer's scope remains AI-controlled Elwynn agents on map 0.
+The canonical command uses `tools/realm_lab/run_scoped.py` to load the reviewed
+scope for `LAB_AI_PROFILE`. API state contains that scope, and the map uses its
+bounds and labels. The map-0 Elwynn defaults remain for historical recordings
+and standalone compatibility; they are not the current realm.
+
+### Authored native identities
+
+Current telemetry keeps `entry` as the **behavior/source template** and adds
+optional `template_entry` as the **actual native creature entry**. `name` is
+the installed native-template name. For example, Šaša 901014 has source 11328
+and actual template 9800014; Matěj 901035 uses 9800035 and Běla 901036 uses
+9800036. Their source-based behavior remains intact: Šaša is `CITY_CONSUMER`,
+the other two are `WORKER`. Other residents sharing source 11328 keep their
+own original template and name. Older telemetry omits `template_entry` or has
+it null; do not infer that it had already installed a private native template.
+Actual live `runtime_guid` identifies the current creature incarnation.
+
+Character authoring and installation are described in
+[CharacterStudio.md](../../doc/CharacterStudio.md) and
+[NpcAgents.md](../../doc/NpcAgents.md). The Observer is read-only and cannot
+install cards, rename creatures or issue model/gameplay commands.
 
 ## Upgrade an existing deployment
 
@@ -42,47 +73,44 @@ From the repository root on the Docker host, update the receiver first. It accep
 protocol versions 1–4, while older receivers reject version 4:
 
 ```sh
-docker compose up -d --build world-viewer
-make build
-make restart-world
+docker compose --env-file .env -f compose.yml up -d --build world-viewer
 ```
 
-Keep the existing `.env` token and port. No database migration is needed for this
-Observer update. Reload the browser after upgrading. `/api/state` reports
+Keep the existing `.env` token and port. A full native-server update uses the
+controlled deployment procedure in [README_DEV.md](../../README_DEV.md); do not
+replace shared server executables while they are running. No database migration
+is needed solely to update the receiver. Reload the browser after upgrading. `/api/state` reports
 `version: 4` after the first snapshot from the rebuilt worldserver. Versions 1–3
 continue to show their supported fields; memory requires version 3 or newer.
 No snapshot is retained across a viewer restart; it waits for the next export.
 
 ## Several-hour recordings
 
-The optional recorder saves all agents in the Observer's Elwynn scope, including
+The optional recorder saves all actors in the Observer's configured scope, including
 their complete role, hunt, movement, needs, group and economy fields. It polls the
 public `/api/state`; it does not need the ingest token and does not issue gameplay
 or memory-page requests. No worldserver rebuild is needed to add this recorder.
 See [the Czech test instructions](../../doc/ObserverRecording.md).
 
-After a successful GitHub CI deployment (`push` to `ai-world`), recording starts
-automatically. Deployment closes the previous session before modifying the
-checkout or restarting services, builds the exact checked commit, and waits for
-health/smoke checks plus two advancing live role snapshots captured after restart
-(up to 180 seconds). It then recreates the recorder and verifies fresh samples
-from the new session within 60 seconds. Each deployment, including the same SHA,
-gets a separate archive tagged with that commit; earlier archives are retained.
+Current `AI-World-lab` CI/CD closes an existing recording before changing the
+checkout, but **does not start a new recording**. It verifies the tested server
+revision, service health and population/telemetry contracts separately from
+physical behavior acceptance. The old Elwynn deployment's automatic recording
+workflow is retired. Start a recording explicitly when collecting evidence.
 
-The four-hour run continues independently after CI finishes. A green deployment
-means collection started, not that behavior passed. A later FAIL/INCONCLUSIVE is
-saved in the report; it does not change the completed CI result or roll back the
-server. A subsequent deployment finishes the current session early and writes
-its report. Insufficient data is INCONCLUSIVE unless a violation was proven.
-Failed deployment/readiness checks prevent a new run; failed start verification
-stops the recorder and fails deployment. Set `AIWORLD_RECORD_HOURS` in the host's
-`.env` to change the duration (default four hours).
+A manually started run continues independently after SSH disconnect. A later
+FAIL/INCONCLUSIVE is saved in its report; it does not change a completed CI
+result or roll back the server. A subsequent deployment finishes the current
+session early and writes its report. Insufficient data is INCONCLUSIVE unless
+a violation was proven. Set `AIWORLD_RECORD_HOURS` in the host's `.env` to change
+the duration (default four hours).
 
 After a manual deployment, from the updated checkout on the Docker host with the
 worldserver running:
 
 ```sh
-make record-aiworld
+docker compose --env-file .env -f compose.yml exec -T worldserver /build/bin/worldserver --version
+AIWORLD_RECORD_BUILD_LABEL="$(git rev-parse HEAD)" make record-aiworld
 make record-aiworld-status
 # Optional early finish:
 make record-aiworld-stop
@@ -93,15 +121,16 @@ The default is four hours at five-second intervals, running in a detached
 automatically. For a different duration/interval, start with:
 
 ```sh
-AIWORLD_RECORD_HOURS=8 AIWORLD_RECORD_INTERVAL=5 AIWORLD_RECORD_LABEL="Elwynn overnight" make record-aiworld
+AIWORLD_RECORD_HOURS=8 AIWORLD_RECORD_INTERVAL=5 AIWORLD_RECORD_LABEL="Authored world overnight" make record-aiworld
 ```
 
-Changing these settings while recording recreates the recorder, ending the
-current session and opening a new one. Every run writes a new uniquely named
-directory under `runtime/recordings/aiworld-<UTC>-<id>/`; previous runs are retained.
-The Compose service has the `recording` profile. Automatic startup is wired to
-the GitHub deploy job; `make start`, `make build` and `make restart-world` alone
-do not start a new test. `make stop` stops it along with the stack. It does not automatically
+Every `make record`, `make record-aiworld` or `make test-aiworld` forces a new
+recorder container, ending the current session and opening a new one. Use
+`make record-status` to inspect an existing run. Every run writes a new uniquely
+named directory under `runtime/lab/recordings/aiworld-<UTC>-<id>/`; previous runs
+are retained. The Compose service has the `recording` profile. `make start`,
+`make build`, `make restart-world` and CI deploy do not start a new test.
+`make stop` stops it along with the stack. It does not automatically
 restart after a host/Docker restart.
 
 Each session contains `summary.json` (updated at status changes and at least every
@@ -124,11 +153,26 @@ for starting this four-hour recording. It writes `behavior-report.md` and
 `behavior-report.json` at completion, plus `summary.behavior`. Exit codes are
 0 (PASS within the observed scope), 3 (FAIL), and 2 (INCONCLUSIVE). The detached
 start command's exit code is not the eventual test result. Checks cover stuck
-returns, stationary movement attempts, observed loss of Elwynn control, and
+returns, stationary movement attempts, observed loss of scoped control, and
 hunger despite food stocks, and prolonged hunger with empty stocks in food
 workers with home/work routines. Prolonged predator hunger is a warning. Missing
 data or short runs cannot pass; unobserved combat and the wolf pilot remain
 outside these checks. Full thresholds and limitations are in the Czech guide.
+
+The generic analyzer currently skips unfamiliar local-role labels, including
+`FARMER`, `CARAVAN_CARRIER`, `CARAVAN_ESCORT` and `CITY_CONSUMER`. These actors
+are still recorded. A generic PASS is not a complete all-100-actor acceptance.
+Use the profile-specific physical gates, including `caravan_acceptance` for the
+seven-depot full-v8 ledger and `defias_group_acceptance --profile full-v8` for
+party trips. Older six-depot field/raid gates are not interchangeable with
+the current caravan world.
+
+Use denser collection such as `AIWORLD_RECORD_INTERVAL=0.25` for short physical
+phases; the default five-second samples may miss required transitions.
+The caravan gate also needs `--process-proof` tying the actual running process
+and executable identity to all closed-part hashes. The ordinary recorder does
+not create this process proof. Without it a useful diagnostic archive still
+cannot produce complete caravan PASS; missing evidence stays INCONCLUSIVE.
 
 Evaluate an existing archive without starting game services:
 
@@ -142,8 +186,8 @@ Offline evaluation verifies gzip CRCs, session/part order and summary counts.
 The live evaluator consumes the same samples before they are discarded from
 memory; it does not reread several hours of archives during graceful shutdown.
 For manual runs, specify `AIWORLD_RECORD_BUILD_LABEL` to identify the tested
-server build. CI deployment overrides this with the deployed SHA and sets
-`AIWORLD_RECORD_LABEL=deploy:<SHA>`.
+server build, after comparing the checkout with the actual running binary.
+The current CI deployment does not set a new recorder's build label.
 
 ### File format and analysis limits
 
@@ -161,15 +205,16 @@ transitions between samples may be missed. Repeated `hunt_end` values do not mea
 repeated failures. Analyze them with phase, target, time and position changes;
 never interpret stale/error intervals as NPC inactivity. Background agents have
 no live movement observation, and paginated long-term memory is not recorded.
-Check `AIWorld.ElwynnAlwaysActive = 1` on the running server if the test is intended
-to keep simulating all of Elwynn without players. Existing `Server.log` can provide
+The reviewed authored-world profile controls scope/activation; do not enable
+the retired `AIWorld.ElwynnAlwaysActive` flag to run this test. Existing
+`runtime/lab/logs/Server.log` can provide
 additional context; copy it before restarting the worldserver, which opens it in
 overwrite mode in the current deployment configuration.
 
 The recorder also runs directly with Python 3.11+ (no pip dependencies):
 
 ```sh
-python3 docker/world-viewer/app/record.py --analyze --hours 4 --url http://localhost:8090/api/state
+LAB_AI_PROFILE=full-v8 python3 tools/realm_lab/run_scoped.py python3 docker/world-viewer/app/record.py --analyze --hours 4 --url http://localhost:9091/api/state --output runtime/lab/recordings
 ```
 
 Recorder tests use a local HTTP fixture and compressed readback, with no game
@@ -184,7 +229,8 @@ python3 -m unittest discover -s tests -p 'test_*record*.py' -v
 
 `POST /internal/telemetry` requires `Authorization: Bearer <token>`. The C++
 exporter sends version 4; the receiver also accepts versions 1–3 for rolling updates.
-The following minimal version 1 example remains valid:
+The following historical map-0 version 1 example remains wire-compatible;
+it does not describe the currently installed population:
 
 ```json
 {
@@ -236,7 +282,8 @@ limited to 12 MiB and 10,000 agents (the v4 recovery fields exceed the former
 8 MiB limit for a fully materialized Elwynn snapshot). Duplicate AgentIds and malformed batches
 are rejected without changing the cached state. The state becomes stale five
 seconds after its most recent receipt; stale age is based on the receiver's
-monotonic clock, not the source timestamp. Browser polling is every second.
+monotonic clock, not the source timestamp. Browser polling is every 250 ms
+while data is configured/fresh, otherwise every second.
 
 ### Return recovery (v4)
 
@@ -261,7 +308,7 @@ the first page. **Předchozí / Další** traverse all records, 25 per page.
 The viewer queues a read request and returns its opaque ID, AgentId, offset and
 anchor in `X-Observer-Memory-Request` on the next authenticated telemetry response.
 The asynchronous exporter validates this narrow header format and hands one read
-to the world thread. Capture rechecks the Elwynn scope, copies at most 25 memories
+to the world thread. Capture rechecks the current simulation scope, copies at most 25 memories
 from the live long-term memory index (also for background agents), and sends an
 optional root `memory_page` in the next telemetry batch. No grids are loaded and
 no database queries or network operations run on the world thread. No gameplay
@@ -308,7 +355,7 @@ The C++ test target includes `tests/game/Telemetry.cpp` (`[Telemetry]` tag).
 Version 4 also supports `native_creature: true` for ordinary creatures exported
 without an AI agent. The field defaults to `false` for existing telemetry.
 Native observations retain `OBSERVE_ONLY`; their observer ID is a spawn ID in
-the exclusive native-only lab export. Classification, position, actual health,
+the reviewed native or mixed population export. Classification, position, actual health,
 combat and movement remain observable, while AI needs, economy, living roles
 and long-term memory are unavailable. The detail panel labels these as
 `běžné NPC` and hides unsupported AI sections.
@@ -319,3 +366,8 @@ is dead. Observation does not load a world grid. Memory requests for native
 creatures return `unsupported`, never enter the request queue, and native memory
 pages are rejected. See `tests/fixtures/telemetry_v4_native.json` for loaded and
 unloaded examples.
+
+`full-v8` has no native-only observations while enabled. Earlier reviewed
+profiles deliberately mix native and controlled actors; `settlement-v8`
+observes all 100 natively. Pausing a profile also changes the expected export;
+use the matching telemetry contract rather than inferring ownership from names.

@@ -1,5 +1,11 @@
 # AI World Lab — uživatelův terén v3
 
+> Historická geometrie a nasazení z 9. října 2026. Aktivní svět už používá
+> `preview-v8` a profil `full-v8`; v3 ani původní stovka medvědů/jelenů
+> nepopisují jeho současný obsah. Níže uvedené příkazy patří původní migraci
+> a nesmí se spouštět nad dnešní populací. Aktuální data a důkazy uvádí
+> [nadřazený index](../README.md) a [RealmLab.md](../../../../doc/RealmLab.md).
+
 Vstupem je uložený původní projekt `runtime/lab/map-project`, mapa 725,
 dlaždice 30,31. V3 zachovává uživatelův terén: výšky −1,244 až 33,989 yardů,
 nejvyšší lokální sklon 47,499°, bez vody a děr. Obsahuje dvě umístění

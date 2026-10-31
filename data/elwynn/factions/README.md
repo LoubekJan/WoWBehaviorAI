@@ -2,6 +2,12 @@
 
 Tento adresář je versionovaný source of truth pro faction data Elwynn Forest.
 
+> Elwynn census a níže uvedené runtime důkazy jsou historické. Aktivní svět
+> je vlastní mapa 725 / oblast 4988 s populací `full-v8`, nikoli původní
+> zóna 12. CSV a generátor společných DBC se však nadále používají i pro
+> vlastní svět. Tento katalog sám neurčuje aktuální populaci ani její
+> Spawn ID; ty jsou v [manifestech preview-v8](../../realm_lab/aiworldlab/README.md).
+
 Projekt odděluje dvě různé vrstvy:
 
 ```text
@@ -15,7 +21,7 @@ TrinityCore Faction/FactionTemplate/FactionGroup DBC
 
 `WorldFactionId` není `Faction.dbc` ID ani `FactionTemplate.dbc` ID.
 
-## Aktuální stav
+## Přijatý Elwynn baseline a sdílený katalog
 
 Permanentní Elwynn census má 182 creature templates / 1863 permanentních spawnů.
 `world_faction_assignments.csv` má explicitní a přijaté přiřazení pro všech 182 templates.
@@ -56,17 +62,20 @@ Každý `FactionTemplate.dbc` klon je byte-for-byte kopie svého `source_templat
 
 `faction_groups.csv` zůstává DRAFT - viz jeho vlastní komentář.
 
-`tools/dbc/build_elwynn_factions.py` generuje `Faction.dbc` i `FactionTemplate.dbc` (ne `FactionGroup.dbc`). Vezme jako vstup `runtime/dbc-base/{Faction,FactionTemplate}.dbc` a CSV z tohoto adresáře a deterministicky vytvoří `runtime/data/dbc/{Faction,FactionTemplate}.dbc` (vanilla řádky beze změny + nové na konci).
+`tools/dbc/build_elwynn_factions.py` generuje `Faction.dbc` i `FactionTemplate.dbc` (ne `FactionGroup.dbc`). Kanonický `make dbc-factions` předává vstup `runtime/lab/dbc-base/{Faction,FactionTemplate}.dbc` a výstup `runtime/lab/data/dbc/`; CSV zůstávají v tomto adresáři. Vanilla řádky zůstávají beze změny a nové se přidávají na konec.
 
-Současný workflow:
+Aktuální generování pro vlastní svět:
 
 ```text
-make dbc-factions   # factions.csv + faction_templates.csv -> runtime/data/dbc/{Faction,FactionTemplate}.dbc
-                     # (automaticky i při deployi - viz .github/workflows/ci.yml)
-# aplikovat sql/updates/world/3.3.5/2026_09_16_01_world.sql (creature_template.faction repoint)
-# aplikovat sql/updates/world/3.3.5/2026_09_16_02_world.sql (creature_onkill_reputation)
-make restart-world
+make dbc-factions   # CSV + runtime/lab/dbc-base -> runtime/lab/data/dbc
+# Řízené nasazení: .github/workflows/realm-lab.yml a docker/scripts/deploy-lab.sh
 ```
+
+Historické SQL migrace se spravují jako databázové aktualizace; jejich ruční
+opakování není postup importu nové postavy. Shodná klientská DBC a serverová
+data se nasazují podle [aktuálního průvodce](../../../README_DEV.md).
+Samostatná herní šablona mění creature entry a jméno, nikoli číselníky
+Faction/WorldFaction; nejde o stejný typ klonu jako `FactionTemplate.dbc` výše.
 
 **Runtime ověřeno (2026-09-16):** custom `Faction.dbc` generation, worldserver DBC load, client MPQ load, 4 custom reputation bary, initial Neutral state, server-side reputation change, DB persistence (`character_reputation`) a hráčova reakce (Neutral/Friendly/Hostile) proti repointovaným NPC po `FactionTemplate.dbc` klonech - viz `AIWorld_Current_Roadmap.md` sekce 3.3. Klientský MPQ patch tedy reálně existuje a funguje, ale `make client-patch` jako automatizovaný tooling krok zatím neexistuje - patch byl aplikován mimo tento repozitář.
 

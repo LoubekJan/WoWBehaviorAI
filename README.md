@@ -1,394 +1,193 @@
 # WoWBehaviorAI
 
-Experimental **persistent AI world layer for TrinityCore 3.3.5**.
+An authored living world for **TrinityCore 3.3.5a**, with deterministic NPC
+behavior and optional LLM characters that can act and talk in the game.
 
-The project extends TrinityCore with long-lived individual agents that can perceive the world, remember events, develop needs and goals, propose actions, participate in deterministic routines, and coordinate through persistent social groups without bypassing TrinityCore's authoritative gameplay rules.
+## Current state — 31 October 2026
 
-The goal is not to replace TrinityCore AI with a language model. Deterministic systems handle common behavior; external AI/inference is used only where it adds value.
+The active branch is **`AI-World-lab`**. One canonical stack runs realm **2**,
+map **725**, area **4988**, using the authored **`preview-v8`** map and
+**`full-v8`** population. All **100 NPCs** (`901000`–`901099`) are controlled
+by AIWorld; there are **0 native-only NPCs** in that population. AIWorld
+ownership does not automatically give an NPC an LLM card.
 
-> Active branch: **`AI-World-lab`**. Updated **2026-10-30**.
->
-> The project now runs one authored world: realm **2**, map **725**, area
-> **4988**, with **100 NPCs** and live observer telemetry. The original
-> Elwynn runtime is retired through the account-preserving
-> migration; existing realm-2 characters and world data are retained.
->
-> Root **`compose.yml`** is the complete stack: dedicated auth and world
-> databases, login/game servers, observer, AI protocol service and account
-> registration. Ports: login **3724**, world **9086**, observer **9091**,
-> account registration **9088**.
+The original Elwynn realm is retired. Existing login accounts and realm-2
+characters were preserved. Root `compose.yml`, root `.env` and `Makefile`
+are the current entry points; the old Compose names are compatibility
+wrappers, not separate worlds.
 
-Use [README_DEV.md](README_DEV.md) for setup and operation and
-[doc/RealmLab.md](doc/RealmLab.md) for the current map, population,
-account migration and deployment model. The new opt-in `defias-v8` profile
-extends `fields-v8` to all 16 authored Defias: **55 AI controlled / 45 native**
-NPCs, with unchanged homes and geometry. Ten raiders form parties of 2–5
-using the existing coalition and formation machinery; six camp inhabitants
-consume food from their own store. A party shares a target, route and
-attempt, while each member owns its memory, cargo and physical actions.
-Food, needs, raid memory and parties remain runtime-only. Live deployment
-and group acceptance must be verified separately; the new recording gate
-is documented in [README_DEV.md](README_DEV.md#celý-tábor-defias--defias-v8).
-Earlier profile receipts remain pinned to their original revisions.
-Territory capture remains future work.
+| Service | Purpose | Host port |
+| --- | --- | --- |
+| `authserver` | Login and realm list | 3724 |
+| `worldserver` | Authored game world | 9086 |
+| `world-viewer` | Live NPC telemetry and map | 9091 |
+| `character-studio` | Character appearance, personality and backstory editor | 9092 |
+| `account-web` | Game account registration | 9088 |
+| `auth-mysql`, `lab-mysql`, `ai-server` | Accounts, world/characters and AI protocols | Internal only |
 
-The AI subsystem notes below preserve the project's implementation
-history. [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md) records
-the earlier Elwynn research plan; current runtime instructions are the
-authored-world guides linked above.
+`tc-dev` is a tools container, and `aiworld-recorder` is an optional recording
+service. Neither is a permanent ninth game service. The LLM backend is
+configured separately from these eight services.
 
----
+**Defaults differ from the deployed world.** `.env.example` intentionally
+selects `settlement-v8` with LLM requests disabled. The verified deployment
+uses `full-v8`, with three explicitly installed LLM cards and the existing
+Qwen backend. Copying the example does not reproduce private credentials,
+authored cards, extracted map data or model settings.
 
-## Core design rule
+## Implemented behavior
 
-**AI proposes. `ActionSystem` validates. TrinityCore executes.**
+- Wildlife: deer forage; bears hunt, eat and return through validated movement.
+- Food supply: human and gnoll hunters gather finite meat, carry it and
+  deliver it to stores. Residents consume actual stored portions.
+- Farming: twelve workers use authored fields and village stores;
+  incomplete work does not create food.
+- Defias: ten raiders can form parties of 2–5 and steal physical food;
+  six camp residents consume supplies. Guards can interrupt raids.
+- City supply: two carrier/escort pairs transport food from village stores
+  to the city store, which supplies two city residents.
+- Ordinary guards, service NPCs and other inhabitants retain their reviewed
+  roles and game service flags within the same 100-NPC population.
+- Optional LLM characters: needs and observations inform validated actions,
+  movement, emotes, player chat and conversations between nearby characters.
+  Individual cards supply names, personalities and backstories.
+- Character Studio: saved drafts, humanoid customization and equipment,
+  local client-data previews, character-card generation and complete exports.
+- Independent native templates: offline deployment creates a complete clone
+  with its own name and subtitle, preserving Spawn ID, home and source-based
+  behavior. Other NPCs sharing the source template keep their original names.
 
-```text
-WORLD STATE
-    ↓
-EVENT
-    ↓
-PERCEPTION
-    ↓
-MEMORY
-    ↓
-NEEDS
-    ↓
-GOALS
-    ↓
-DECISION / PLANNING
-    ↓
-ActionRequest
-    ↓
-ActionSystem::Validate
-    ↓
-TrinityCore gameplay execution
-    └──────────────► WORLD STATE
-```
+Saving a Studio draft does not change the live game. Its full ZIP contains
+the card, appearance, native-template descriptor, draft and deployment guide.
+A controlled deployment installs these inputs. Log into WoW again after a
+name change so the client loads the updated label cache. Character changes
+require no additional map patch; geometry and shared DBC changes still need
+matching client and server data.
 
-Core invariants:
+Food, hunger/fatigue, crops, raid experience/parties and caravans currently
+reset on worldserver restart. Persisting these living-world systems is
+explicitly deferred. Persistent accounts, characters, AI identity/memory
+infrastructure and saved Studio drafts are separate concerns.
+The LLM controller's dialogue history and episodic memories are currently
+runtime-only too; they are not saved by the older AI memory infrastructure.
 
-- no live `Creature*`, `Player*`, `Map*` or `Unit*` crosses an async inference/persistence boundary;
-- async/network workers receive only value DTOs;
-- async responses are consumed and validated on the world thread;
-- AIWorld never force-loads grids just to simulate an agent;
-- loaded individual agent = materialized TrinityCore `Creature`; unloaded persistent agent = `AgentRecord` without a live pointer;
-- `AgentWorldState` (world binding) is separate from `SimulationTier` (simulation policy);
-- `AgentGroup` is a social/coordination entity over individual `AgentId`s, never a 1:1 replacement for a mob and never bound to a `Creature`;
-- group intent coordinates members through per-member `ActionRequest`s that pass normal validation;
-- remote decisions are untrusted intent, never permission to mutate world state;
-- deterministic behavior is preferred where sufficient.
+Territory capture, a complete faction economy and long-term balance across
+the whole population remain future work. Short acceptance recordings do not
+prove those larger outcomes.
 
----
+## Documentation
 
-## AI subsystem implementation history
+| Guide | Contents |
+| --- | --- |
+| [Development and operations](README_DEV.md) | Installation, configuration, build, deployment and backups |
+| [Realm and map](doc/RealmLab.md) | Current map, population profiles and physical acceptance boundaries |
+| [Current roadmap](AIWorld_Current_Roadmap.md) | Completed work, verified baseline, TODO and research history |
+| [Character Studio](doc/CharacterStudio.md) | Appearance, backstory, full exports and installation |
+| [LLM NPC agents](doc/NpcAgents.md) | Cards, actions, dialogue, models and native identity |
+| [Map data index](data/realm_lab/aiworldlab/README.md) | Current manifests and earlier geometry experiments |
+| [Observer](docker/world-viewer/README.md) and [recordings](doc/ObserverRecording.md) | Telemetry, recording and evaluation limits |
+| [Living roles](doc/LivingRoles.md) and [movement timing](doc/NPCMovementTiming.md) | Ownership, scheduling and diagnostics |
+| [Recovery planning](doc/RecoveryPlanning.md), [navigation pilot](doc/RecoveryNavigationPilot.md), [hunt regressions](doc/HuntReturnRegression.md) | Recovery design and scoped tests |
+| [Deploy runner](deploy/runner/README.md) and [runtime scripts](docker/scripts/README.md) | CI/CD infrastructure and script responsibilities |
 
-### Infrastructure — runtime verified
+The dated [August status](AIWorld_Status_2026-08-25.md),
+[original lab plan](doc/archive/RealmLab-2026-10-11.md), Elwynn census and
+earlier return/hunt profiles are historical references. They do not define
+the current population or deployment procedure. Upstream TrinityCore and
+dependency documentation retain their upstream scope.
 
-The Docker development environment has been exercised on a real Ubuntu/NVIDIA host:
+## Architecture
 
-- TrinityCore `3.3.5` builds in a development container;
-- persistent `/build` and `ccache` volumes support incremental work;
-- MySQL, `authserver`, `worldserver` and `ai-server` run through Compose;
-- pinned TDB import works through the Make workflow;
-- `dbc/maps/vmaps/mmaps` are mounted from host runtime storage;
-- LAN client login is runtime verified;
-- NVIDIA Container Toolkit is wired into the stack.
-
-### AIWorld foundation
-
-Implemented and runtime exercised:
-
-- `AIWorldMgr` lifecycle and disable switch;
-- stable `AgentId` + `AgentRegistry`;
-- materialized ↔ abstract binding without force-loading grids;
-- persistent agent identity and long-term memory;
-- world events, perception and short/long-term memory;
-- deterministic relevant-memory Top-N retrieval;
-- Needs System with health/hunger/fatigue/safety/resource pressure;
-- deterministic Goal System including `GET_FOOD`, `FLEE_DANGER`, farmer routing and interruption semantics;
-- safe Action API primitives/vertical slices `FLEE`, `MOVE_TO`, `EAT`, `WORK`, `REST`, `ATTACK`;
-- full `GET_FOOD → MOVE_TO → ARRIVED → EAT → CONSUMED → NEED_SATISFIED` feedback loop;
-- persistent farmer routine and economy state;
-- bounded multi-agent decision scheduling and coarse simulation scheduling;
-- separate persistent `AgentGroup` identity, membership and group coarse simulation;
-- runtime group lifecycle `CreateGroup → JoinGroup → LeaveGroup → DissolveGroup` over existing individual agents.
-
-### Async decision protocol — 2.9A through 2.9E
-
-The versioned async decision path carries a full value-only `AgentContext` over Protocol V2 and returns structured `DecisionIntent`.
-
-Safeguards include:
-
-- request/agent/snapshot correlation;
-- goal-attempt and RuntimeGuid provenance;
-- stale response rejection;
-- fail-closed unsupported intents;
-- world-thread authoritative `ActionRequest` translation;
-- `ActionSystem::Validate()` before any execution ownership could be transferred.
-
-Remote `/decision` execution is still intentionally dry-run; the separate `/dynamic-task` path is live and produces server-validated player quests. The deterministic Goal→Action pipeline remains the real action owner until execution ownership is transferred explicitly and safely.
-
-### Scheduler and simulation policy — 2.10 CLOSED
-
-2.10A–2.10D are closed with static/runtime PASS.
-
-Individual materialized decision tiers:
+**AI proposes. Server validation authorizes. TrinityCore executes.**
 
 ```text
-NEARBY → ~1 s decision cadence
-ACTIVE → ~5 s decision cadence
+World observations and events
+    -> perception, needs and memory
+    -> deterministic role or explicitly enabled LLM controller
+    -> validated action request
+    -> TrinityCore movement, combat, activity or dialogue
+    -> observed result and memory
 ```
 
-Individual non-materialized policy:
+Live `Creature*`, `Player*`, `Map*` and `Unit*` never cross an asynchronous
+inference boundary. Workers receive value DTOs; replies are checked and
+consumed on the world thread. A model cannot mutate SQL directly or bypass
+movement, target, scope and action constraints. AIWorld does not force-load
+grids merely to simulate an agent.
 
-```text
-BACKGROUND → default coarse interval 60 s
-```
+`AgentId` matches the persistent Spawn ID. Runtime GUIDs identify a particular
+materialization and can change after restart or respawn. Groups coordinate
+individual agents; they never replace several creatures with an aggregate mob.
 
-Decision admission is bounded by `AIWorld.DecisionMaxInFlight`. Capacity-skipped agents stay due rather than entering an unbounded request queue. Effective due-time ordering preserves fairness and allows live `ACTIVE ↔ NEARBY` cadence changes without stale deadlines.
+The older remote `/decision` path remains a separate dry-run protocol.
+Live `/npc-agent` character control and the earlier `/dynamic-task` quest
+vertical slice have their own validation and ownership. These are not one
+globally enabled inference switch.
 
-Background coarse work is bounded by `AIWorld.CoarseSimulationMaxPerPass`, uses deterministic phase staggering, has no catch-up loop, and does not force-load grids.
+Dedicated template entries supply game identity; reviewed source entries
+retain behavioral classification. Telemetry `entry` preserves that source
+meaning, while `template_entry` reports the actual native entry. Native
+template names supply the observer and game client, not only the LLM prompt.
 
-The old `SimulationTier::ABSTRACT` concept was removed during the AgentGroup identity refactor. Groups now have their own `GroupId`-keyed coarse scheduler instead of pretending to be abstract physical agents.
+## Verification baseline
 
-### Persistent farmer — 2.11 CLOSED
+Revision **`664d84687d7a`** was built and deployed on 31 October 2026 through
+[Realm Lab CI/CD](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41158138495):
+**846 Python tests** and **699 native tests** passed. Post-deployment checks
+found eight healthy services, 100 controlled NPCs, three verified independent
+templates and all three installed LLM controllers active. Exports, source
+preservation and actual native GUID entries were also checked.
 
-The first persistent civilian vertical slice uses **Pa Maclure** in Elwynn.
+This is a dated baseline, not a permanent test count or proof of every
+physical behavior. Earlier wildlife, supply, consumer and raid recordings
+remain valid only for their revisions and geometry. Full-population and
+caravan acceptance need suitable recording gates. New nameplates and the
+rendered editor were not visually inspected in this verification.
 
-Implemented and runtime verified:
+## Build and operation
 
-- persistent Home/Work locations;
-- deterministic synthetic-day routing `GO_TO_WORK` / `GO_HOME`;
-- emergency interruption by higher-priority goals such as `FLEE_DANGER`;
-- movement through the normal Action layer;
-- transient `WORK` / `REST` activity;
-- `ActionType::Work` / `ActionType::Rest` with ActionExecutor ownership;
-- persistent economy state and work-window replay suppression.
+Follow [README_DEV.md](README_DEV.md) before a fresh installation. Client
+3.3.5a data, the matching authored-map bundle and private configuration are
+required and are not distributed in Git.
 
-The implementation intentionally separates routing goals from work/rest activity. Pa Maclure remains `AgentType::Civilian`; profession/routine is not a new physical agent type.
+Use `make config` to check the canonical configuration. Local `make build`
+and `make test` use the deployment build volume: **stop both worldserver
+and authserver before replacing their shared binaries**, as described in
+the operations guide. Normal server changes use gated CI/CD, which performs
+this stop itself. Do not manually build into volumes used by running
+servers or trusted CI.
 
-### AgentGroup / wolf-coalition foundation — 2.12
+`make start` starts the canonical stack after preflight. `make backup` writes
+protected account and world/character backups under `runtime/lab/backups`.
+Do not repeat the TDB import to deploy a code or character change.
 
-The original aggregate wolf-pack design was abandoned. A group does **not** merge several mobs into one pseudo-agent.
-
-```text
-Wolf A AgentId 101 ┐
-Wolf B AgentId 102 ├── AgentGroup / Coalition #7
-Wolf C AgentId 103 ┘
-Wolf D AgentId 104     // independent
-```
-
-Each wolf keeps its own:
-
-- `AgentId` and spawn identity;
-- `Creature` materialization lifecycle;
-- memory and needs;
-- goals and decisions;
-- validated actions.
-
-The group owns social/coordination state only:
-
-- independent `GroupId`;
-- `AgentGroupKind { Loose, Stable }`;
-- membership edges to individual `AgentId`s;
-- territory/shared environmental resources;
-- shared REGROUP/ROAM/HUNT intent; roles/leadership remain conditional on a demonstrated need.
-
-Population is derived from membership count; it is not an aggregate mutable mob count.
-
-#### 2.12D — separate group identity
-
-Implemented:
-
-- `AgentGroupRecord`, `AgentGroupRegistry`, `AgentGroupPersistence`;
-- `ai_agent_groups` separate from `ai_agents`;
-- `ai_agent_group_members` persistent membership;
-- `AgentType::AgentGroup` removed;
-- group `Creature` binding impossible by construction;
-- `AgentGroupKind` persistence loads fail-closed;
-- bounded `GroupCoarseSimulationScheduler` keyed by `GroupId`;
-- group simulation continues whether members are loaded or unloaded;
-- saturated no-op group resource ticks skip persistence/version churn.
-
-Runtime presence evidence confirmed three individual wolves materializing as their own Creatures while the same group changed from `loadedMembers=0` to `loadedMembers=3`; group simulation continued and no grid was force-loaded.
-
-#### 2.12E1 — group lifecycle CLOSED
-
-Implemented lifecycle API:
-
-```text
-CreateGroup(...)
-JoinGroup(GroupId, AgentId)
-LeaveGroup(GroupId, AgentId)
-DissolveGroup(GroupId)
-```
-
-Properties:
-
-- `AgentGroupLifecycleSystem` owns lifecycle orchestration;
-- join requires an existing group and an existing individual `AgentRecord`;
-- duplicate membership is rejected;
-- group lifecycle never spawns/despawns/moves a member Creature;
-- no fake `SpawnId` or pseudo physical group agent is created;
-- membership writes are confirmed before runtime registry mutation;
-- dissolve removes membership rows + group row transactionally before registry removal;
-- `GroupId` uses persistent monotonic `ai_agent_group_id_sequence`;
-- allocator load is fail-closed and validated against physical `MAX(ai_agent_groups.group_id)`;
-- sequence reservation is read-back-confirmed before group creation;
-- dissolved `GroupId`s are not reused after restart.
-
-Historical 2.12E1 runtime acceptance evidence (individual AgentIds precede the 2.12F4A2 spawn-aligned migration):
-
-```text
-sequence = 2
-Create GroupId 2
-Join AgentId 1,2,3
-Leave AgentId 3
-Dissolve GroupId 2
-PASS
-
-DB after dissolve:
-GroupId 2 gone
-membership rows for GroupId 2 gone
-sequence = 3
-
-restart
-Create GroupId 3
-Join/Leave/Dissolve
-PASS
-```
-
-This proves persistent GroupId provenance and non-reuse while the individual wolves remain ordinary agents.
-
----
-
-## Earlier research gate
-
-Etapa 2 is **CLOSED / POC COMPLETE**. Its later gates added async-safe group lifecycle, Loose/Stable policy, generic automatic formation/maintenance, Elwynn population activation (`3540 / 3540 AIWorldControlled`), a second real coalition profile, REGROUP/ROAM/HUNT, and a local LLM dynamic quest lifecycle with outcome feedback. The final 2.14 gate confirmed real coalition HUNT through per-member ActionSystem validation and TrinityCore movement/combat.
-
-The earlier **Etapa 3** plan focused on Elwynn scope and a complete census. Development now proceeds on the authored map described in [RealmLab.md](doc/RealmLab.md); the prior plan remains historical context for the reusable AI subsystem.
-
-## What remains beyond the POC
-
-- Authored-world settlement semantics, faction activity, economy and territory behavior, integrated in independently verifiable steps.
-- World-scale indexing/bounded-work hardening and global rollout (2.12F4C/F4D), required before expanding beyond one location.
-- Roles/leadership (2.12G4) only when actual behavior demonstrates a need.
-- Richer persistent relationships, active goals and explicitly designed persistence for dynamic quests; current dynamic quests survive reconnect but are discarded on worldserver restart.
-- Safe transfer of NPC action ownership from deterministic behavior to selected remote `/decision` results; its parser/privacy hardening remains separate from the validated `/dynamic-task` path.
-- `PROTECT_HOME`/`REQUEST_HELP`, richer economy and the original wolves/farmer story remain future world-behavior examples, not prerequisites for the already closed aggregate POC.
-
-Detailed open items and their conditions are maintained in the [roadmap backlog](AIWorld_Current_Roadmap.md#další-postup-a-otevřený-hardening).
-
----
+Current logs are in `runtime/lab/logs/Server.log`; `make world-logs` follows
+container output. Recording is opt-in: `make record`, `make record-status`,
+`make record-stop`. A generic analysis PASS does not accept every role.
 
 ## Repository layout
 
 ```text
-WoWBehaviorAI/
-├── src/server/game/AIWorld/       # persistent AI world subsystem
-├── sql/                           # TrinityCore + project DB updates
-├── docker/                        # development/inference images and scripts
-├── deploy/                        # versioned runtime configuration
-├── runtime/                       # host-only runtime state, gitignored
-├── compose.yml
-├── compose.dev.yml
-├── .env.example
-├── Makefile
-├── README_DEV.md
-└── AIWorld_Current_Roadmap.md
+src/server/game/AIWorld/    AIWorld, roles, inference, dialogue and telemetry
+docker/                    services, Character Studio, Observer and scripts
+deploy/                    server configuration and deploy runner
+tools/realm_lab/           reviewed profiles, installers and acceptance tools
+data/realm_lab/            map/population manifests and dated evidence
+data/npc_agents/           example cards and operator-installed private cards
+data/npc_appearances/      operator-installed appearance files
+data/npc_templates/        operator-installed native-template descriptors
+sql/                       TrinityCore and project database updates
+runtime/lab/               private data, logs, recordings, receipts and backups
+compose.yml                canonical stack and optional tools
+Makefile                   current operator entry points
 ```
 
-The repository is a real fork of TrinityCore and keeps upstream history. Active development happens on `AI-World-lab`.
-
----
-
-## Setup and development
-
-Follow the complete [authored-world setup guide](README_DEV.md). A fresh
-installation supplies private `.env` credentials, imports pinned TDB and
-installs the matching map/client data before preparing the realm:
-
-```bash
-git checkout AI-World-lab
-make bootstrap
-make build
-make test
-# Complete the one-time auth, TDB, data and world setup in README_DEV.md.
-make start
-```
-
-Existing deployments preserve accounts and realm-2 data through the
-migration described in [RealmLab.md](doc/RealmLab.md); they do not repeat
-the TDB import. Routine source changes use `make build`,
-`make restart-world` and `make world-logs`. `make backup` writes protected
-auth and world/character backups under `runtime/lab/backups`.
-
----
-
-## AIWorld configuration
-
-AIWorld settings are versioned in `deploy/worldserver.conf` and rendered by the selected realm profile. The active `settlement-v8` profile keeps AI management disabled and exports native NPC telemetry. The following scheduler/group examples describe the earlier AI research profiles:
-
-```ini
-AIWorld.Enable = 1
-AIWorld.DecisionSchedulerIntervalMs = 250
-AIWorld.DecisionNearbyIntervalMs = 1000
-AIWorld.DecisionActiveIntervalMs = 5000
-AIWorld.DecisionNearbyPlayerRange = 60.0
-AIWorld.DecisionMaxInFlight = 4
-
-AIWorld.BackgroundSimulationIntervalMs = 60000
-AIWorld.CoarseSimulationMaxPerPass = 50
-
-AIWorld.GroupSimulationIntervalMs = 300000
-AIWorld.GroupSimulationMaxPerPass = 50
-AIWorld.AgentGroupResourcesRatePerSecond = 0.0005
-```
-
-The old `AIWorld.AbstractSimulationIntervalMs` setting was replaced by `AIWorld.GroupSimulationIntervalMs` when AgentGroup stopped being represented as an abstract individual agent.
-
-The 2.12E1 manual lifecycle smoke test is disabled by default:
-
-```ini
-AIWorld.TestGroupMemberAgentId1 = 0
-AIWorld.TestGroupMemberAgentId2 = 0
-AIWorld.TestGroupMemberAgentId3 = 0
-```
-
-Set `AIWorld.Enable = 0` to disable the custom subsystem.
-
----
-
-## Debugging and metrics
-
-Detailed AIWorld DEBUG traces are written to the file appender under:
-
-```text
-runtime/logs/Server.log
-```
-
-Useful checks:
-
-```bash
-grep "AI simulation tier" runtime/logs/Server.log
-grep "AI simulation tick" runtime/logs/Server.log
-grep -E "agent group presence|agent group simulation" runtime/logs/Server.log
-grep -E "group lifecycle smoke test|agent group created|agent group join|agent group leave|agent group dissolved" runtime/logs/Server.log
-```
-
-`make world-logs` follows container stdout/stderr, whose console threshold may hide DEBUG lines even when the `ai.world` logger is at DEBUG level.
-
-Decision metrics use TrinityCore's existing `Metric.h` infrastructure. Dedicated Influx/backend runtime verification remains a hardening item.
-
----
-
-## Roadmap handoff
-
-Use [doc/RealmLab.md](doc/RealmLab.md) for the current authored-world direction and acceptance boundaries. [AIWorld_Current_Roadmap.md](AIWorld_Current_Roadmap.md) retains the earlier infrastructure/AI POC history and research backlog.
-
-See [README_DEV.md](README_DEV.md) for environment details and the standard build/test workflow.
+Installed private authoring JSON is not automatically ignored by Git.
+Keep it out of commits; the tracked sample cards are separate from private
+server inputs. Credentials and private binary/runtime data belong outside
+the public repository.
 
 ## License
 
-The underlying TrinityCore project is licensed under **GPL-2.0**. See [COPYING](COPYING) and [AUTHORS](AUTHORS).
+The underlying TrinityCore project is licensed under **GPL-2.0**.
+See [COPYING](COPYING) and [AUTHORS](AUTHORS).

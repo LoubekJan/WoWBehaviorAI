@@ -1,15 +1,25 @@
 # NPC řízená jazykovým modelem
 
+Stav k **31. říjnu 2026**, ověřená nasazená revize `664d84687d7a`.
+Aktivní realm 2 používá vlastní mapu 725 / oblast 4988 a profil `full-v8`:
+**100 NPC řídí AIWorld, z nich tři mají zapnutý LLM controller**. Převzetí
+NPC systémem AIWorld samo neznamená požadavek na jazykový model. Výchozí
+`.env.example` nadále používá `settlement-v8` a nechává LLM vypnuté;
+nepopisuje soukromou konfiguraci běžícího serveru.
+
 Volitelný režim předává výběr činností, řeči a animací modelu přes stávající
 AI bridge a jeho OpenAI-compatible HTTP klient. Model dostává životopis,
 osobnost, aktuální potřeby, výsledek poslední činnosti, blízké postavy, krátký
 rozhovor a vybrané vlastní vzpomínky. Volí mezi nabídnutými pohyby, jídlem, odpočinkem, útěkem před skutečnou
 hrozbou, čekáním a zastavením. Engine ověřuje dosažitelnost a provádí akce.
 
-Připravené profily patří Matějovi (`901035`) a Běle (`901036`) na mapě 725.
+V repozitáři jsou ukázkové profily Matěje (`901035`) a Běly (`901036`).
+Na serveru je navíc nainstalovaná soukromá karta Šaši (`901014`); její
+autorská data nejsou součástí veřejných ukázek.
 Režim vyžaduje již připravený `consumers-v8`, `raids-v8`, `fields-v8`,
-`defias-v8` nebo `full-v8`, kde jsou oba
-registrováni jako řízená NPC. Samotné zapnutí nemění jejich registraci, nepřidává
+`defias-v8` nebo `full-v8` a konkrétní NPC registrované v daném profilu jako
+řízený účastník. Vlastní herní šablony vyžadují `full-v8`. Samotné zapnutí
+LLM nemění registraci, nepřidává
 další řízené postavy a neupravuje původní soubory sestavy 100 NPC.
 
 `full-v8` registruje všech 100 vytvořených NPC včetně `901014`. Každému lze
@@ -19,13 +29,12 @@ instalovaných LLM karet; ostatní NPC používají běžné role AIWorld.
 
 ## Zapnutí
 
-V soukromém `.env` nastavte:
-
-Zachovejte svůj aktivní podporovaný profil; ukázka používá `fields-v8`.
-Samotné zapnutí LLM nevyžaduje přepnutí mezi těmito profily.
+V soukromém kořenovém `.env` nastavte následující hodnoty. Ukázka odpovídá
+aktuálnímu `full-v8`; vlastní šablony jsou vázané právě na něj. Pro ostatní
+podporované profily zachovejte jejich ověřenou sestavu a dostupné cíle.
 
 ```dotenv
-LAB_AI_PROFILE=fields-v8
+LAB_AI_PROFILE=full-v8
 LAB_WILDLIFE_ENABLED=1
 LAB_NPC_AGENTS_ENABLED=1
 LAB_NPC_AGENTS_DECISION_INTERVAL_MS=8000
@@ -33,8 +42,10 @@ LAB_NPC_AGENTS_MAX_IN_FLIGHT=2
 LAB_NPC_AGENTS_TIMEOUT_MS=15000
 ```
 
-Údaje modelu lze držet odděleně například v ignorovaném
-`runtime/llm-npc-agent/model.env`. Následující klíč je pouze zástupný údaj:
+Do stejného soukromého `.env` patří také nastavení modelu. Běžná CI/CD
+pipeline načítá právě tento soubor; druhý ručně přidaný `--env-file` při
+příštím automatickém nasazení nepřevezme. Následující klíč je pouze
+zástupný údaj:
 
 ```dotenv
 AI_NPC_MODEL_ENABLED=1
@@ -49,15 +60,16 @@ stávajícího `AI_TASK_MODEL_*`. Zapnutí NPC nezapíná generování úkolů a
 advice. `AIWorld.RemoteInferenceEnabled` zůstává v labu `0`; nový endpoint
 `/npc-agent` má samostatný limit rozpracovaných požadavků.
 
-Po checkoutu této větve nejprve sestavte nativní worldserver a vygenerujte
-konfiguraci z upraveného `.env`. Pak při spuštění Compose načtěte i soubor
-modelu. Samotné sestavení obrazu `ai-server` nenahradí nativní build:
+Použijte řízené nasazení větve `AI-World-lab`, popsané v
+[README_DEV.md](../README_DEV.md), které sestaví nativní worldserver,
+vygeneruje konfiguraci a obnoví služby. Samotný build obrazu `ai-server`
+nenahradí nativní build. Ruční překlad do provozního build volume vyžaduje
+zastavení worldserveru i authserveru, které z něj používají binární soubory;
+běžný postup zajišťuje nasazovací skript.
 
-```sh
-make build
-make config
-docker compose --env-file .env --env-file runtime/llm-npc-agent/model.env -f compose.yml up -d --build ai-server worldserver
-```
+Pokud je potřebná verze kódu již sestavená a měníte pouze soubory postavy,
+použijte offline import uvedený v [Ateliéru postav](CharacterStudio.md#nasazení-balíčku).
+Pouhý restart nevytvoří novou databázovou šablonu.
 
 Výchozí rozhodovací interval je 8 s, minimálně 2 s. Worldserver připouští
 1–4 současné požadavky, backend dva. Timeout backendu lze zvýšit nejvýše na
@@ -66,9 +78,11 @@ na odpověď. `GET /health` ukazuje pouze zapnutí a vyplnění konfigurace mode
 neověřuje spojení s modelem. Při chybě či timeoutu NPC čeká na další rozhodnutí;
 náhradní činnost nevybírá pevná logika.
 
-Ve hře přijďte k Matějovi nebo Běle, vyberte dané NPC a napište například
+Ve hře přijďte k libovolnému nainstalovanému LLM NPC, vyberte jej a napište například
 `/say Ahoj, jak se dnes máš?`. Odpověď se objeví jako řeč NPC. Postavy mohou
-oslovovat také blízké NPC a reagovat na jejich řeč. Bezprostřední kontext rozhovoru
+oslovovat také blízká LLM NPC a reagovat na jejich řeč. Účastníci musejí být
+živí, viditelní, na stejné mapě a v dosahu 25 yardů s přímou viditelností.
+Bezprostřední kontext rozhovoru
 má nejvýše 12 položek; starší události lze vybavit z oddělené paměti popsané níže.
 Obě vrstvy zatím žijí jen v paměti procesu a restart je vymaže.
 Zprávy s řídicími znaky nebo WoW značkami, například odkazy na předměty,
@@ -85,8 +99,29 @@ poslední úspěšné řeči a neopakovaný text v okně 120 sekund. Přímé hr
 mají vlastní pravidla a tyto samovolné limity je neblokují. Povolení řeči nepřikazuje
 modelu mluvit a odmítnutí řeči nezahazuje jinak platné rozhodnutí o pohybu.
 
-Zprávy NPC nesou v chatu jejich autorské jméno, například Matěj nebo Běla.
-Jméno na štítku vybrané bytosti nadále vychází ze společné herní šablony.
+Zprávy NPC nesou v chatu jejich autorské jméno. V `full-v8` úplný balíček
+vytváří také vlastní nativní šablonu, ze které klient dostává stejné jméno
+nad postavou a podtitul z autorského povolání. Starší samostatný export
+karty bez šablony nadále může měnit pouze jméno používané LLM/chatem.
+Po nasazení změny jména se znovu přihlaste do hry; server odvozuje verzi
+klientské cache z nainstalovaných jmen a podtitulů.
+
+## Co model skutečně ovládá
+
+Model vybírá jednu z právě nabídnutých činností `WAIT`, `MOVE_TO`, `EAT`,
+`REST`, `FLEE` nebo `STOP`, případně řeč a kosmetické gesto. Pohybové cíle
+a adresáty vytváří server a model vrací jejich dočasné tokeny. Nemůže zadat
+libovolnou souřadnici, vytvořit předmět, změnit potřebu přímým zápisem ani
+si přidělit chybějící herní schopnost. Dostupná gesta zahrnují mávnutí,
+mluvení, přikývnutí, smích, ukázání, jásot a nesouhlas; `NONE` je bez gesta.
+Povolená akce stále prochází kontrolami vlastnictví, stavu a dosažitelnosti.
+
+Po dokončeném jídle či odpočinku potřebu mění engine. `WAIT` může ponechat
+vlastní rozpracovanou činnost běžet. V režimu LLM se běžná role nestává
+náhradním rozhodovačem při výpadku modelu. NPC však zůstává herní bytostí
+pod pravidly TrinityCore, včetně smrti, boje a omezení pohybu. Ovládání všech
+bojových, zásobovacích či ekonomických úkonů libovolnou instrukcí zatím
+není součástí tohoto controlleru.
 
 ## Paměť během běhu světa
 
@@ -134,7 +169,10 @@ Matějovu soukromou vzpomínku při stejné otázce nedostane.
 
 Karty a vlastní humanoidní vzhled lze připravit také ve webovém
 [Ateliéru postav](CharacterStudio.md) na portu 9092. Návrhy zůstávají oddělené
-od běžícího světa; editor nabízí ověřený export karty a vzhledu.
+od běžícího světa; editor nabízí ověřený export karty, vzhledu a v `full-v8`
+také vlastní herní šablony. Backstory není živý herní stav a samotné
+autorské pole frakce nebo domova nepřepisuje registraci, faction template
+ani skutečnou domovskou pozici.
 
 Každá postava má samostatný JSON v [data/npc_agents](../data/npc_agents).
 Identitu a polohu registrace ponechte podle skutečného agenta:
@@ -154,7 +192,10 @@ Jméno smí mít nejvýše 32 znaků a 80 UTF-8 bajtů, životopis 8192 UTF-8 ba
 a osobnost 2048. Celý JSON smí mít nejvýše 16 KiB. Životopis a osobnost
 mohou obsahovat escapované nové řádky `\n` a tabulátory `\t`; `\r\n` se
 při načtení převede na `\n`, samostatné `\r` není povolené.
-Profily se načítají při spuštění; po úpravě restartujte worldserver. V Dockeru
+Profily se načítají při spuštění. Změnu jména postavy s vlastní šablonou
+nasazujte současně s odpovídajícím `npc_templates/<spawn>.json`; jejich
+nesoulad způsobí odmítnutí volitelné karty. Pro změnu životopisu nebo osobnosti
+stačí načtení opravené karty při řízeném restartu. V Dockeru
 je adresář připojen pouze pro čtení jako `/workspace/data/npc_agents`.
 Mimo lab lze nastavit přímo `AIWorld.NpcAgentEnabled`,
 `AIWorld.NpcAgentProfilesDirectory`, `AIWorld.NpcAgentDecisionIntervalMs`,
@@ -166,7 +207,7 @@ NPC s původní AI nestačí k jeho registraci jako LLM agenta. Chybnou voliteln
 kartu server při startu odmítne s diagnostikou a pokračuje s platnými profily;
 samotný import tak nezastaví celý svět. Vadný vzhled ponechá původní model.
 
-## Současné charakterové karty
+## Ukázkové charakterové karty
 
 - [Matěj](../data/npc_agents/901035.json) je zdrženlivý a pečlivý soused se suchým
   humorem. Z minulých drobných oprav si odnesl vztah k poctivé práci a obtížně
@@ -175,7 +216,7 @@ samotný import tak nezastaví celý svět. Vadný vzhled ponechá původní mod
   přímočará. Záleží jí na jasné domluvě a umí uznat, že někoho odbyla neprávem.
 
 Oba si pamatují dávný déšť, při kterém společně přenesli ohrožené zásoby do sucha.
-Tato společná minulost je napsaná v kartách a zůstává součástí jejich identity
+Tato společná minulost je napsaná v ukázkových kartách a zůstává součástí jejich identity
 po restartu. Nové rozhovory používají krátkou paměť popsanou výše. Jejich vztah
 umožňuje sousedský respekt, drobné neshody i samostatné jednání.
 
@@ -187,3 +228,38 @@ potřeby na škále 0–1 a současný stav má přednost před starými výroky
 zpětná vazba pro zvážení jiné nabídnuté možnosti. Zpětná vazba obsahuje výsledek
 i popis zvolené činnosti, aby model mohl rozpoznat konkrétní zamítnutý cíl.
 Pořadí činností stále vybírá LLM.
+
+## Ověřený stav a diagnostika
+
+Nasazení revize `664d84687d7a` dne 31. října 2026 ověřilo následující
+identity. Číslo `entry` v telemetrii zachovává původní behaviorální typ;
+nové `template_entry` a entry uvnitř živého GUID označují skutečnou herní
+šablonu. Původní záznam `11328` dál nese jméno `Eastvale Peasant`.
+
+| Postava | Spawn ID / Agent ID | `entry` | `template_entry` | Zachovaná role |
+| --- | --- | --- | --- | --- |
+| Šaša | 901014 | 11328 | 9800014 | `CITY_CONSUMER` |
+| Matěj | 901035 | 11328 | 9800035 | `WORKER` |
+| Běla | 901036 | 11328 | 9800036 | `WORKER` |
+
+Živá kontrola potvrdila všechny tři aktivní LLM controllery, šest různých
+čerstvých snímků a osm zdravých služeb bez automatického restartu. Zbývajících
+16 obyvatel stejné zdrojové šablony nebylo přejmenováno. To dokládá instalaci
+a vazbu identit, nikoli dlouhodobou kvalitu dialogu nebo dokončení každé
+navržené herní činnosti. Zobrazení nových jmen nad NPC nebylo při této kontrole
+vizuálně ověřeno v klientu.
+
+V `runtime/lab/logs/Server.log` hledejte `Character template aliases enabled`
+a `LLM NPC controller enabled: profiles=... appearances=...`. Odmítnutý
+volitelný import má zprávu `LLM NPC profile ignored` nebo `LLM NPC appearance ignored`.
+Kontrola instalovaných úplných šablon je pouze pro čtení:
+
+```sh
+docker compose --env-file .env -f compose.yml exec -T --interactive=false -w /workspace worldserver \
+  python3 -m tools.realm_lab.character_templates verify
+```
+
+Zdravý `/health` nenahrazuje skutečný úspěšný modelový požadavek ani tuto
+databázovou kontrolu. Úplné CI pro uvedenou revizi prošlo se 846 Python
+a 699 nativními testy; [výsledek běhu](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41158138495)
+je připnutý ke konkrétní revizi.

@@ -1,5 +1,24 @@
 # Ověření návratů a rozpočtu plánování
 
+## Aktuální použití
+
+Kanonické nasazení je `AI-World-lab`, realm 2, vlastní mapa 725 / oblast
+4988. Profil `full-v8` řídí všech 100 NPC. Návratové plánování dál ověřuje
+skutečnou podporu povrchu, překážky, domácí oblast a vlastnictví pohybu;
+samotná nalezená trasa ani `MOVE_STARTED` nejsou dokončeným návratem.
+Vlastní herní šablony charakterů zachovávají původní Spawn ID a domov.
+Telemetrie uvádí zdrojové `entry` a skutečné `template_entry` odděleně.
+
+Aktuální konfigurace neaktivuje původní Elwynn wolf pilot, místní pilot
+80883 ani modelové rady `/recovery`. LLM charakterové karty mají vlastní
+controller a nejsou automatickým zapnutím těchto starších mechanismů.
+Přehled aktuálních profilů a mapových dat je v [RealmLab.md](RealmLab.md).
+
+Níže uvedené říjnové nálezy z Elwynnu se zachovávají jako **historické
+podklady pro mechanismus plánování**. Jejich mapa 0, konkrétní spawn ID,
+výsledky a výkonová maxima patří pouze k uvedeným běhům. Na nové mapě
+se průchodnost měří znovu; zelené CI či zdravá služba ji nedokládají.
+
 ## Pokračování návratu a místní hledání potravy (8. října)
 
 Dokončený běh `20261008T125951Z-104e6443`, build `5dadbf264438`,
@@ -231,40 +250,45 @@ vyčerpaného dílu (`WORK_BUDGET`); `stage` označuje hledání lovu, potravy,
 návratu či rady AI. `wait_ms`, `query_age_ms`, `no_progress_ms` jsou skutečné
 stáří včetně péče; `resets` počítá zahazování rozpracovaných kontextů.
 
-## Krátký test po deployi
+## Aktuální krátký test po deployi
 
 1. Porovnej `git log -1 --oneline` s verzí běžící binárky:
 
    ```bash
-   docker compose -f compose.yml -f compose.dev.yml exec -T worldserver /build/bin/worldserver --version
+   docker compose --env-file .env -f compose.yml exec -T worldserver /build/bin/worldserver --version
    ```
 
-2. V čerstvém Observeru vyhledej spawn `146145`, potom obdobně `146193`,
-   `81008` a `146194`. Použij aktuální polohu se zdrojem `live` a ve hře
-   `.go xyz X Y Z 0`. Příkaz `.go creature 146145` tě přenese na databázový
-   spawn bod; NPC se mezitím mohlo vzdálit. Historické souřadnice ani spawn
-   bod proto nezaručují jeho aktuální přítomnost. Po výběru NPC příkazem
-   `.aiworld group status` ověř spawn ID. Sleduj pohyb, lov, krmení a dosažení
-   původní domácí oblasti.
+2. V čerstvém Observeru na portu 9091 vyhledej některého ze čtyř medvědů
+   `901076`, `901081`, `901086`, `901091`, případně konkrétního aktéra
+   s nedokončeným návratem. Použij aktuální polohu se zdrojem `live` a ve
+   hře `.go xyz X Y Z 725`. Příkaz `.go creature <spawn ID>` tě přenese
+   na databázový spawn bod; NPC se mezitím mohlo vzdálit. Po výběru NPC
+   příkazem `.aiworld group status` ověř Spawn ID a sleduj skutečnou polohu,
+   životní instanci, pohyb, lov, krmení a dosažení původní domácí oblasti.
 3. Sleduj několik okolních NPC alespoň pět minut. Začátky chůze mají mít
    různé načasování. Ověř útokem, že obrana/útěk zůstává okamžitá. Tento
    ruční test odděl od dlouhého běhu bez zásahů.
 4. Zkontroluj výkonové souhrny:
 
    ```bash
-   docker compose -f compose.yml -f compose.dev.yml logs --since=5m worldserver | grep AIWORLD_UPDATE
+   docker compose --env-file .env -f compose.yml logs --since=5m worldserver | grep AIWORLD_UPDATE
    ```
 
    `planningDeferred` může být nenulové. Podstatný je vývoj
    `needsLateMaxMs`, `needsMaxMs` a `planningMaxMs`; samotný počet odložení
-   ani menší počet dotazů neprokazují zlepšení. Poslední běh měl medián
-   půlminutových maxim zpoždění potřeb přibližně 3017 ms.
+   ani menší počet dotazů neprokazují zlepšení. Starý Elwynn běh měl medián
+   půlminutových maxim zpoždění potřeb přibližně 3017 ms; nejde o výchozí
+   hodnotu ani aktuální měření vlastní mapy.
 
 ## Čtyřhodinový běh
 
-Deploy automaticky zahajuje záznam. `make record-aiworld-status` ukáže jeho
-průběh. Po skončení musí být všechny vzorky čerstvé a build v `summary.json`
-musí odpovídat nasazené revizi. Výsledky jsou v `behavior-report.md/json`.
+Aktuální deploy před změnou checkoutu uzavírá případný záznam, ale nový
+automaticky nezahajuje. Záznam spusť ručně podle
+[ObserverRecording.md](ObserverRecording.md), s označením skutečně běžící
+revize. `make record-status` ukáže průběh. Po skončení porovnej čerstvost,
+scope a build v `summary.json`; výsledky jsou v `behavior-report.md/json`
+pod `runtime/lab/recordings/`. Obecný report nepokrývá všechny nové
+schopnosti zemědělců a karavan; použij také odpovídající fyzický gate.
 
 Nová kontrola `planning_deferred` označí nejméně pět minut skutečně
 nehybného odkládání rozhodnutí i doma. Péče (`REST`/`LOOK`) čas kontroly

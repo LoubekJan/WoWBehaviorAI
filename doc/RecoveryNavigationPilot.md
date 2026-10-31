@@ -1,8 +1,17 @@
 # Cílený test návratu a místního zotavení
 
-První pokus je omezený na existující spawn **80883 (Gray Forest Wolf)**.
-`deploy/worldserver.conf` nastavuje `AIWorld.LocalRecoverySpawnId = 80883`;
-výchozí distribuční konfigurace má `0` (vypnuto). Nastavení se načítá při
+**Historický regresní pilot, září 2026.** Aktivní svět je nyní vlastní mapa
+725 / oblast 4988, realm 2, profil `full-v8` se 100 řízenými NPC.
+Spawn 80883, níže uvedené Elwynn souřadnice a staré logové cesty nejsou
+součástí aktuální populace. Dnešní `deploy/worldserver.conf` i kanonický
+renderer nastavují `AIWorld.LocalRecoverySpawnId = 0`; tento pilot je vypnutý.
+Původní postup se uchovává pro reprodukci starého testu na odpovídajících datech.
+Aktuální ověření vlastní mapy popisuje [RealmLab.md](RealmLab.md),
+obecné limity návratového plánování [RecoveryPlanning.md](RecoveryPlanning.md).
+
+První pokus byl omezený na existující spawn **80883 (Gray Forest Wolf)**.
+Tehdejší nasazení nastavovalo `AIWorld.LocalRecoverySpawnId = 80883`;
+distribuční konfigurace měla `0` (vypnuto). Nastavení se načítá při
 startu serveru. Jde o spawn ID, nikoli creature entry. Hlad neubírá zdraví.
 
 ## Co se má změnit

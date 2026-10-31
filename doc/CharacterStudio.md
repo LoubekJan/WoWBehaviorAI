@@ -1,7 +1,14 @@
 # Ateliér postav
 
+Stav k **31. říjnu 2026**, nasazená verze `664d84687d7a`.
 Webový editor na `http://<adresa-serveru>:9092` vytváří vlastní humanoidní NPC
 pro klienta 3.3.5a (build 12340). Observer na portu 9091 obsahuje odkaz do editoru.
+Aktuální server používá `full-v8`: všech 100 připravených NPC je pod AIWorld,
+ale LLM kartu mají nainstalovanou jen Šaša, Matěj a Běla. Editor připravuje
+návrh pro existující ověřený spawn; netvoří nové spawn pozice ani nerozšiřuje
+populační registraci. Nové instalace podle `.env.example` začínají profilem
+`settlement-v8` s vypnutým modelem, a proto nejprve potřebují přípravu
+podporovaného profilu podle [provozního návodu](../README_DEV.md).
 
 ## Co lze vytvořit
 
@@ -24,8 +31,9 @@ odmítne místo přepsání novější verze.
 
 ## První použití
 
-1. Otevřete ateliér a zvolte novou postavu, případně načtěte Matěje nebo Bělu
-   z položky **Načíst postavu z projektu**. Není-li pro ně nainstalovaný vlastní
+1. Otevřete ateliér a zvolte novou postavu, případně načtěte některou z dostupných
+   karet z položky **Načíst postavu z projektu**. Ve veřejném repozitáři jsou
+   Matěj a Běla; na živém serveru je navíc soukromá Šašina karta. Není-li nainstalovaný vlastní
    vzhled, editor začne s výchozím lidským vzhledem, nikoli kopií jejich
    původního creature modelu.
 2. Zvolte podobu a výbavu. V části **Charakter** napište motivace a způsob řeči;
@@ -38,13 +46,13 @@ odmítne místo přepsání novější verze.
    Agent ID se rovná Spawn ID; velká uint64 ID se v editoru nepřevádějí na
    nepřesná JavaScript čísla. Návrh i jeho editovatelnou zálohu lze uložit
    bez platného cíle, herní export je však zablokovaný až do ověření.
-4. Stáhněte ZIP. Obsahuje `npc_agents/<spawn>.json`,
+4. V části **Úplný balíček postavy** zvolte **Stáhnout ZIP**. Obsahuje `npc_agents/<spawn>.json`,
    `npc_appearances/<spawn>.json`, v profilu `full-v8` také
    `npc_templates/<spawn>.json`, editovatelný návrh a návod. V exportní části
    je náhled jména a podtitulu ve hře; čísla šablon se odvozují automaticky
    z ověřeného cíle a jsou jen ke čtení.
-5. Zkontrolované soubory vložte do odpovídajících `data/` adresářů projektu,
-   zahrňte celý balíček do běžného řízeného nasazení a restartu worldserveru.
+5. Zkontrolované soubory vložte do odpovídajících `data/` adresářů nasazovaného projektu
+   a použijte [řízený offline import](#nasazení-balíčku).
    Samostatná šablona se připravuje offline před spuštěním světa. Nový spawn musí být
    zvlášť registrován jako řízené NPC v použitém populačním profilu.
 
@@ -65,6 +73,49 @@ Převzetí všech 100 NPC profilem `full-v8` samo nevytváří 100 LLM karet.
 AIWorld nadále používá běžné role a LLM řízení se zapíná až nainstalovanou
 platnou kartou konkrétního NPC, v rámci uvedeného limitu controlleru.
 
+## Nasazení balíčku
+
+Úplný ZIP v `full-v8` má přesně pět souborů:
+
+| Soubor v ZIP | Úloha | Kam patří při nasazení |
+| --- | --- | --- |
+| `npc_agents/<spawn>.json` | Šestipolová LLM karta | `data/npc_agents/` |
+| `npc_appearances/<spawn>.json` | Parametry těla a výbavy | `data/npc_appearances/` |
+| `npc_templates/<spawn>.json` | Předpis vlastní herní šablony | `data/npc_templates/` |
+| `character-studio-draft.json` | Editovatelná záloha návrhu | Archiv autora nebo import do editoru |
+| `README.txt` | Pokyny k balíčku | Archiv autora |
+
+Přeneste všechny tři runtime JSON stejné postavy do odpovídajících adresářů
+konkrétního serverového checkoutu. Soukromé životopisy a vzhledy nemusí být
+ve veřejném Gitu; export ani samotný editor je do něj neposílá. V repozitáři
+jsou jen ukázkové karty Matěje a Běly, zatímco uživatelské návrhy žijí ve
+volume studia. Archivujte také draft: nativní karta neobsahuje všechna
+editovatelná autorská pole.
+
+Pro již připravený server se správně sestavenou verzí kódu a aktivním
+`LAB_AI_PROFILE=full-v8` použijte z kořene checkoutu:
+
+```sh
+make backup
+make config
+make setup-world
+make start
+```
+
+`make setup-world` pod provozním zámkem nejprve ověří autorské soubory,
+zastaví worldserver, dočasně obnoví původní entry ověřených spawnů, připraví
+základní populaci a aplikuje vlastní šablony. `make start` svět znovu spustí.
+Samotné `make restart-world` nebo znovuspuštění kontejneru vlastní šablonu
+nevytvoří. Pro změnu nativního kódu použijte standardní CI/CD postup v
+[README_DEV.md](../README_DEV.md); ruční build za běhu sdílených binárních
+souborů není součástí tohoto importu.
+
+Restart vymaže současnou krátkou a epizodickou paměť rozhovorů i další
+runtime stav potřeb a zásob; jeho perzistence je odložená. Nevymaže uložené
+drafty, databázové postavy ani nainstalované šablony. Po nasazení obnovte
+editor přes **Ctrl+F5** a **znovu se přihlaste do WoW**. Načtení vlastní
+šablony a runtime diagnostiku popisuje [NpcAgents.md](NpcAgents.md#ověřený-stav-a-diagnostika).
+
 Při startu světa se chybný volitelný import izoluje: neplatná nebo neověřená
 karta se nepoužije, vadný vzhled ponechá původní creature model. Ostatní
 platné postavy se načtou dál. Není-li použitelná žádná karta, vypne se jen
@@ -81,11 +132,38 @@ herní parametry. Mění vlastní identitu, jméno a podtitul; sdílená původn
 šablona se nepřejmenovává. Vzhled a vybavení dál dodává samostatný appearance
 soubor. Spawn ID, AI registrace a původní domov zůstávají zachované.
 
+Installer nekopíruje jen předem vybraný seznam parametrů: načte všechny
+sloupce skutečného schématu a prostředky vázané přímo na entry, například
+výbavu, prodejce, učitele, texty a lokální názvy. Sdílené odkazované zdroje,
+například loot ID, gossip menu nebo cesta, zůstávají sdílenými odkazy.
+Šablona tedy přebírá funkce výchozího NPC; editor z ní nedělá libovolného
+nového obchodníka, učitele nebo zadavatele úkolů a tyto funkce nemá vlastní
+formulář pro nastavování.
+
+Vlastnictví a hash původní i výsledné šablony eviduje
+`world.ai_character_templates`. Ověření odmítne cizí kolizi, změněný základ,
+změněnou kopii, navázané prostředky či přesunutý spawn. Opakovaný import
+stejného balíčku je idempotentní. Vypuštění JSON z adresáře není příkaz
+k odinstalaci a instalované vlastnictví se tím automaticky nemaže.
+
 Například obyvatel `901014` se základní šablonou `11328` dostane soukromou
 šablonu `9800014`. Jiný obyvatel se stejným základem dostane jiné číslo,
 takže změna Šašina jména nepřejmenuje Matěje ani další obyvatele. Při změně
 jména téže karty zůstává přidělená identita stejná. Backend odvozuje oba
 typy entry z ověřených serverových metadat, nikoli z hodnot dodaných klientem.
+
+Původní entry zůstává zdrojem behaviorální klasifikace přes ověřený alias.
+Přejmenovaná Šaša tak zachovává roli `CITY_CONSUMER`, Matěj a Běla roli
+`WORKER`. Alias se načítá před volitelnými LLM kartami a kontrola instalace
+čte databázi nezávisle na právě rozpracovaných souborech. Vadná volitelná
+karta nesmaže již instalovanou herní identitu. Při přejmenování však musí
+souhlasit jméno v kartě a v předpisu šablony; exportujte a nasaďte celý balíček.
+
+Na API je vlastní předpis dostupný také jako
+`GET /api/characters/{id}/template`; úplný ZIP je
+`GET /api/characters/{id}/bundle.zip`. Čísla entry se do návrhu ručně
+nezadávají. V přehledu světa `entry` označuje původní behaviorální typ,
+zatímco `template_entry` označuje skutečnou nainstalovanou šablonu.
 
 Jméno má stávající limit 32 znaků / 80 UTF-8 bajtů. Povolání se pro podtitul
 ořízne o okolní mezery, musí být na jednom řádku do 80 UTF-8 bajtů a může
@@ -156,3 +234,25 @@ neznamená provedený test inference.
 
 Zálohujte draftový volume standardním zálohováním Docker dat, nebo stahujte
 jednotlivé editovatelné JSON návrhy. Běžný rebuild/restart služby volume zachová.
+
+## Ověření a známá omezení
+
+Nasazení `664d84687d7a` ověřilo tři vlastní šablony Šaši, Matěje a Běly,
+nezměněné původní karty a ostatních 16 obyvatel společného základu `11328`.
+Server potvrdil všechny sloupce kopií a návazné prostředky, zachované domovy,
+správná jména, skutečné nové entry v živých GUID a tři aktivní LLM controllery.
+Z uložených návrhů prošel download předpisu šablony i úplného pětisouborového
+ZIP. Přesné rozsahy CI a živého ověření jsou v
+[NpcAgents.md](NpcAgents.md#ověřený-stav-a-diagnostika).
+
+Vzhled v konkrétním WoW klientu a renderovaná stránka nebyly při tomto běhu
+vizuálně kontrolované. Funkční HTTP a nativní testy neprokazují zobrazení
+každého kusu výbavy ani dlouhodobou kvalitu dialogů. Přímé živé přepínání
+vzhledu, tvorba nových spawnů, editace libovolných herních parametrů,
+3D animace v náhledu a ukládání nových rozhovorů přes restart zatím chybí.
+
+Pokud export není dostupný, nejprve rozlište neplatný cíl, nepodporovaný
+populační profil, nedostupná metadata a neplatný podtitul. Návrh lze dál
+uložit a zálohovat. Pokud se po nasazení neukáže nové jméno, ověřte instalaci
+celého balíčku, shodu názvu v kartě a šabloně a nové přihlášení klienta.
+Nevytvářejte náhradní postavu ani nepřejmenovávejte společný základ `11328`.

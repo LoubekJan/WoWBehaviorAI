@@ -1,5 +1,11 @@
 # Elwynn Census Coverage — permanent baseline
 
+> Historical Elwynn dataset, retained for source provenance. The active
+> realm uses map 725 and the reviewed `full-v8` population of 100 NPCs.
+> These census counts do not describe the deployed world. See the
+> [current map index](../../realm_lab/aiworldlab/README.md) and
+> [runtime guide](../../../doc/RealmLab.md).
+
 ## Census disposition
 
 - Raw `zoneId = 12` census: **3533** spawns

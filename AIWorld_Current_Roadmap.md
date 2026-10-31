@@ -1,4 +1,116 @@
-# Aktuální směr — 30. října 2026
+# Aktuální stav a plán — 31. října 2026
+
+Aktivní vývoj probíhá ve větvi **`AI-World-lab`** nad vlastním světem:
+realm **2**, mapa **725**, oblast **4988**, geometrie **`preview-v8`**,
+populace **`full-v8`**. Původní Elwynn realm je vyřazený; níže zachovaná
+výzkumná historie není návod k jeho obnovení.
+
+## Co je hotové
+
+| Část | Implementovaný stav |
+| --- | --- |
+| Provoz | Jeden kanonický Docker Compose stack, vlastní auth/world databáze, zachované účty a postavy realmu 2, gated CI/CD |
+| Mapa a populace | Čtyři ADT dlaždice vlastní mapy, 100 autorových NPC se zachovanými Spawn ID a domovy; všech 100 řídí AIWorld, 0 je pouze nativních |
+| Zvěř a potrava | Pastva, lov, konečné maso na kořisti, náklad, doručení a spotřeba skutečných zásob |
+| Pole a vesnice | Dvanáct pracovníků, sklizeň a vesnické sklady; nedokončená práce nevytváří potravu |
+| Defias a obrana | Deset banditů ve výpravách po 2–5, šest táborových spotřebitelů, krádeže a reakce stráže |
+| Karavany | Dvě dvojice nosič/doprovod, městský sklad 7, dva městští spotřebitelé; vlastní fyzický acceptance nástroj |
+| Běžné role | Zbývající obyvatelé, stráže, obchodní a servisní NPC jsou součástí stejné řízené populace; jejich původní služby zůstávají zachované |
+| LLM postavy | Samostatné karty, potřeby a vnímání, ověřované akce/pohyb, gesta a přímý chat s hráčem i mezi NPC; tři karty jsou nainstalované a živě ověřené |
+| Ateliér postav | Web na portu 9092, uložené návrhy, humanoidní vzhled a výbava, osobnost, backstory, generování přes existující AI službu a export |
+| Herní šablony | Úplný balíček obsahuje vlastní nativní šablonu se jménem a podtitulem; offline instalace zachovává domov, Spawn ID, původní chování i ostatní obyvatele |
+| Diagnostika | Observer na portu 9091, volitelný recorder, profilové kontroly a samostatné fyzické acceptance nástroje |
+
+**100 NPC pod AIWorld neznamená 100 LLM postav.** Model řídí jen aktéry
+s platnou nainstalovanou kartou a zapnutým controllerem. Ostatní používají
+implementované role. `.env.example` stále nabízí konzervativní
+`settlement-v8` s modely vypnutými; nasazené `full-v8` a soukromé modelové
+nastavení se do ukázkové konfigurace automaticky nepřenášejí.
+
+Uložení návrhu v Ateliéru není import do živého světa. Úplný ZIP obsahuje
+kartu, vzhled, předpis herní šablony, návrh a návod. Řízené nasazení nejprve
+zkontroluje vstupy, při vypnutém světě obnoví základní vazby pro bootstrap
+a pak nainstaluje vlastní úplné šablony. Jména se načtou po novém
+přihlášení do hry; kvůli této změně není potřeba nový mapový patch.
+
+## Poslední ověřený stav
+
+Dne 31. října byla nasazena revize **`664d84687d7a`**. V
+[CI/CD běhu 41158138495](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41158138495)
+prošlo **846 Python testů** a **699 nativních testů**. Jde o počty této
+konkrétní revize, ne o pevný požadavek pro budoucí změny.
+
+Následná serverová kontrola potvrdila:
+
+- osm zdravých služeb bez automatických restartů;
+- 100 řízených / 0 pouze nativních NPC v čerstvé telemetrii;
+- tři vlastní úplné šablony a původní sdílenou šablonu beze změny;
+- zachované domovy a hashe původních charakterových karet;
+- tři aktivní LLM controllery a skutečná nová entry v runtime GUID;
+- funkční export samostatné šablony a pětisouborového ZIP z uložených návrhů.
+
+Ověřené vlastní identity jsou `901014 → 9800014`, `901035 → 9800035`
+a `901036 → 9800036`, se základním entry `11328`. Aktér `901014` zůstává
+`CITY_CONSUMER`, druhé dva `WORKER`; vlastní jméno nemění jejich roli.
+Soukromé provozní receipts jsou na serveru pod `runtime/lab/receipts/`;
+obsah karet, návrhy a databázové zálohy nejsou veřejnou součástí Gitu.
+
+Tato kontrola neprokazuje dlouhodobou fyzickou funkčnost všech rolí.
+Nová jména nad NPC a výsledný vzhled v herním klientu nebyly při ní
+vizuálně kontrolovány. Dřívější fyzické důkazy lovu, zásobování, spotřeby
+a přepadů zůstávají připnuté k vlastním revizím a geometrii, uvedeným
+v [RealmLab.md](doc/RealmLab.md) a manifestech `preview-v8`.
+
+## Nejbližší postup ve vlastním světě
+
+- [ ] **Uzavřít fyzické přijetí `full-v8` na aktuální revizi.** Zaznamenat
+  souvislý běh s ověřenou identitou procesu a shodnými daty. Ověřit oba
+  nosiče, doprovody, nakládku, vykládku, městskou spotřebu a společnou
+  bilanci nástrojem `tools.realm_lab.caravan_acceptance`. Doplnit sběrač
+  skutečné identity procesu a hashů uzavřených částí: běžný recorder tento
+  nutný procesní důkaz sám nevytváří. Defias gate s `--profile full-v8`
+  přijímá jen starší šestiskladovou variantu; sedmiskladový svět s karavanami
+  označí `INCONCLUSIVE`. Skupinové ověření je nutné pro tuto ekonomiku
+  doplnit. Starší gate ani obecné `behavior.py` nedokládají všechny role.
+- [ ] **Potvrdit postavy v klientu.** Po novém přihlášení ověřit vlastní
+  jména/podtituly, humanoidní vzhled, výbavu a hráčský chat. Samostatně
+  ověřit rozmanitost rozhovorů, reakce na potřeby a soulad s vlastní kartou.
+- [ ] **Měřit delší provoz a bilanci.** Rozlišit běžný odpočinek a skutečně
+  zaseknutý pohyb, sledovat zásoby, hlad, úmrtí, návraty a sdílený výkon LLM.
+  Nové chyby opravovat podle konkrétních aktérů a uzavřených záznamů.
+- [ ] **Rozšířit dění frakcí a účast hráče.** Obsazování vesnic, změny
+  teritoria, širší zásobování a nové hráčské interakce jsou navazující
+  návrh/implementace; současné přepady samy o sobě území neobsazují.
+- [ ] **Doplnit provozní reprodukovatelnost.** CI má předat nasazení
+  neměnný identifikátor testovaného obrazu; nyní CI a deploy sdílejí tag,
+  ale každý build může použít jiný obraz. Oddělené build volumes a kontrola
+  běžící revize toto samy neřeší. Čistá instalace navíc potřebuje výslovný
+  postup prvního SOAP administrátora; hotový stack nepovoluje interaktivní
+  herní konzoli přes `docker attach`.
+
+**Ukládání living-world stavu přes restart je odložené rozhodnutím uživatele.**
+Hlad/únava, zásoby, úroda, raidové zkušenosti/skupiny a karavany se nyní
+resetují. Nejprve se má stabilizovat chování. To neruší perzistenci účtů,
+postav, AI identity a existující paměťové infrastruktury ani uložených návrhů.
+Rozhovory a epizodické vzpomínky současného LLM controlleru jsou také pouze
+v paměti procesu; starší databázová paměť AIWorld je automaticky neukládá.
+
+## Kde hledat aktuální postup
+
+- [Vývoj a provoz](README_DEV.md): konfigurace, služby, instalace, zálohy a CI/CD.
+- [Vlastní svět](doc/RealmLab.md): mapa, profily, populace a důkazy.
+- [Ateliér postav](doc/CharacterStudio.md): tvorba, export a nasazení charakteru.
+- [LLM NPC](doc/NpcAgents.md): controller, model, komunikace a vlastní šablony.
+- [Záznamy](doc/ObserverRecording.md): sběr dat a meze jednotlivých vyhodnocení.
+
+---
+
+Následující historie zachovává původní důkazy a jejich tehdejší omezení.
+Výrazy „aktuální“, „další krok“ nebo staré počty v této části se vztahují
+k popisovanému experimentu. Pro současné nasazení a TODO platí oddíly výše.
+Staré provozní příkazy nespouštět nad dnešním světem `full-v8`.
+
+# Historie profilů vlastního světa do 30. října 2026
 
 Nový profil `defias-v8` rozšiřuje nezměněný `fields-v8` na všech 16 Defias:
 **55 řízených / 45 nativních NPC**. Deset banditů tvoří výpravy o 2–5
@@ -171,7 +283,7 @@ Aktuální pravidla, přepínač pauzy a fyzický acceptance jsou v
 pravidla zásobování jsou v
 [části supply-v8](doc/RealmLab.md#zásobování-lovem--supply-v8).
 
-# AIWorld — Roadmap
+# Historická výzkumná roadmapa AIWorld
 
 | Kontext | Hodnota |
 |---|---|
@@ -180,9 +292,9 @@ pravidla zásobování jsou v
 | Aktivní větev | `AI-World-lab` |
 | Stav po uzavření Etapy 2 | [`a0bd5a8834`](https://github.com/LoubekJan/WoWBehaviorAI/commit/a0bd5a8834929da95d27388f47cd9c7b71ee3253) |
 
-Tento dokument je jediná projektová roadmapa: obsahuje aktuální stav, implementační historii, ověřovací důkazy a navazující plán. Další změny milníků se zapisují přímo sem. Starší datované statusy jsou historické snapshoty.
+Následující oddíly zachovávají výzkumný plán a důkazy původního Elwynn POC. Jejich otevřené milníky, profily a počty nejsou aktuální rollout plán. Aktuální stav a platné TODO jsou na začátku tohoto dokumentu.
 
-## Stav projektu
+## Historický stav projektu
 
 **Etapa 1 má splněný runtime gate. Etapa 2 je CLOSED / POC COMPLETE včetně 2.13 a finálního integračního gate 2.14. Etapa 3 — příprava Elwynn Forest — je IN PROGRESS: 3.0–3.2 (scope, census, sémantická mapa) zůstávají otevřené, ale 3.3 má RUNTIME PASS pro AI WorldFactionId sociální vrstvu, pro V1 custom player-reputation `Faction.dbc` (Defias Brotherhood/Riverpaw Gnolls/Elwynn Kobolds/Elwynn Murlocs) a pro `FactionTemplate.dbc` klony + creature_template repoint (32 NPC, player reaction ověřena). `creature_onkill_reputation` (zabití NPC → změna reputation) je vygenerované, runtime kill test je PENDING. Samotný TrinityCore `FactionTemplate` reaction audit (jsou vanilla reaction hodnoty správné?) zůstává otevřený.**
 
@@ -199,7 +311,7 @@ Podrobné výsledky jednotlivých gate jsou uvedené u příslušných milníků
 
 ## Obsah
 
-- [Stav projektu](#stav-projektu)
+- [Historický stav projektu](#historický-stav-projektu)
 - [Základní invariant](#základní-invariant)
 - [Etapa 1 — Development Infrastructure](#etapa-1--development-infrastructure)
 - [Etapa 2 — AI World Foundation](#etapa-2--ai-world-foundation)
@@ -231,8 +343,8 @@ Podrobné výsledky jednotlivých gate jsou uvedené u příslušných milníků
   - [Etapa 3 — Definition of Done](#etapa-3--definition-of-done)
 - [Etapa 4 — Living World](#etapa-4--living-world)
 - [Další postup a otevřený hardening](#další-postup-a-otevřený-hardening)
-  - [Nejbližší acceptance gate — 3.0–3.1](#nejbližší-acceptance-gate--3031)
-- [Development / verification workflow](#development--verification-workflow)
+  - [Nejbližší acceptance gate — 3.0–3.1](#původní-acceptance-plán-elwynn--3031)
+- [Development / verification workflow](#historický-development--verification-workflow)
 
 ## Základní invariant
 
@@ -2928,7 +3040,7 @@ Etapa 4 má využít již ověřené identity, threading, lifecycle, action owne
 
 ## Další postup a otevřený hardening
 
-### Nejbližší acceptance gate — 3.0–3.1
+### Původní acceptance plán Elwynn — 3.0–3.1
 
 1. Definovat authoritative Elwynn scope a reprodukovatelný world DB export podle [3.0](#30-scope-a-source-of-truth).
 2. Verzovat census manifest, klasifikaci a coverage report podle [3.1](#31-kompletní-census-npc-a-creature-spawnů); žádný spawn nezmizí jen proto, že není AI-enabled.
@@ -3000,7 +3112,11 @@ Převzaté otevřené body z implementační historie; před realizací ověřit
 </details>
 
 
-## Development / verification workflow
+## Historický development / verification workflow
+
+Tento postup popisuje původní větev a runtime adresáře Elwynn. Aktuální
+postup používá `AI-World-lab`, `runtime/lab/` a řízené nasazení podle
+[README_DEV.md](README_DEV.md). Následující příkazy nepatří do současného provozu.
 
 Pro C++ AIWorld změny:
 
