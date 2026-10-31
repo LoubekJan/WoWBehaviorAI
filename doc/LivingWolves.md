@@ -1,5 +1,12 @@
 # Living wolves — first runtime pilot
 
+> Při současné přípravě finální mapy je aktivní `authoring-empty`: mapa
+> 725 je bez NPC, AI role a modelové řízení jsou vypnuté. Následující
+> popis zachovává chování osazených profilů a jejich důkazy; nejde o
+> aktivní populaci prázdného světa. Aktuální postup je v
+> [README_DEV.md](../README_DEV.md#příprava-finální-mapy--authoring-empty).
+
+
 ## Historical pilot and current scope
 
 This is the original September 2026 Elwynn pilot, not the active population

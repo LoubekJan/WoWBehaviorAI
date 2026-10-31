@@ -1,5 +1,10 @@
 # Vývoj a provoz vlastního světa
 
+> Vyčištění proběhlo a bylo ověřeno 31. října na revizi `5437178873e7`:
+> 0 NPC/AI vazeb/charakterů, osm zdravých služeb. Účty, hráčské postavy a
+> geometrie jsou zachované; finální rozložení mapy zůstává další práce.
+
+
 ## Příprava finální mapy — authoring-empty
 
 Aktuální přechod vyčistí původní testovací osazení a všechny vytvořené

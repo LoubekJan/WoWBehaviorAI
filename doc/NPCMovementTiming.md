@@ -1,5 +1,12 @@
 # Plynulost a načasování NPC
 
+> Při současné přípravě finální mapy je aktivní `authoring-empty`: mapa
+> 725 je bez NPC, AI role a modelové řízení jsou vypnuté. Následující
+> popis zachovává chování osazených profilů a jejich důkazy; nejde o
+> aktivní populaci prázdného světa. Aktuální postup je v
+> [README_DEV.md](../README_DEV.md#příprava-finální-mapy--authoring-empty).
+
+
 Platí pro současný vlastní svět: realm 2, mapa 725 / oblast 4988,
 profil `full-v8`, 100 NPC pod AIWorld. Deterministické role, zásobovací
 trasy, skupiny a volitelné LLM postavy používají různé rozhodovací cykly;

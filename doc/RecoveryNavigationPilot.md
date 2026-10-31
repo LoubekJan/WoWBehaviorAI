@@ -1,5 +1,12 @@
 # Cílený test návratu a místního zotavení
 
+> Při současné přípravě finální mapy je aktivní `authoring-empty`: mapa
+> 725 je bez NPC, AI role a modelové řízení jsou vypnuté. Následující
+> popis zachovává chování osazených profilů a jejich důkazy; nejde o
+> aktivní populaci prázdného světa. Aktuální postup je v
+> [README_DEV.md](../README_DEV.md#příprava-finální-mapy--authoring-empty).
+
+
 **Historický regresní pilot, září 2026.** Aktivní svět je nyní vlastní mapa
 725 / oblast 4988, realm 2, profil `full-v8` se 100 řízenými NPC.
 Spawn 80883, níže uvedené Elwynn souřadnice a staré logové cesty nejsou

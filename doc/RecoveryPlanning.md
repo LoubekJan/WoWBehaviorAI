@@ -1,5 +1,12 @@
 # Ověření návratů a rozpočtu plánování
 
+> Při současné přípravě finální mapy je aktivní `authoring-empty`: mapa
+> 725 je bez NPC, AI role a modelové řízení jsou vypnuté. Následující
+> popis zachovává chování osazených profilů a jejich důkazy; nejde o
+> aktivní populaci prázdného světa. Aktuální postup je v
+> [README_DEV.md](../README_DEV.md#příprava-finální-mapy--authoring-empty).
+
+
 ## Aktuální použití
 
 Kanonické nasazení je `AI-World-lab`, realm 2, vlastní mapa 725 / oblast

@@ -1,5 +1,10 @@
 # AI World Lab — mapy, populace a důkazy
 
+> Vyčištění proběhlo a bylo ověřeno 31. října na revizi `5437178873e7`:
+> 0 NPC/AI vazeb/charakterů, osm zdravých služeb. Účty, hráčské postavy a
+> geometrie jsou zachované; finální rozložení mapy zůstává další práce.
+
+
 Aktualizováno **31. října 2026**. Aktivní svět používá mapu **725**, oblast
 **4988**, realm **2** a geometrii **`preview-v8`**. Pro finální úpravy se
 používá **`authoring-empty`**, bez NPC a aktivních charakterů. Manifesty

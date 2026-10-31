@@ -1,5 +1,10 @@
 # Vlastní svět jako jediný realm
 
+> Vyčištění proběhlo a bylo ověřeno 31. října na revizi `5437178873e7`:
+> 0 NPC/AI vazeb/charakterů, osm zdravých služeb. Účty, hráčské postavy a
+> geometrie jsou zachované; finální rozložení mapy zůstává další práce.
+
+
 ## Přechod k finální mapě — authoring-empty
 
 Aktuální vývoj přechází na prázdný svět: všechny testovací NPC a vytvořené

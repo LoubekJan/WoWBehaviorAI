@@ -2,12 +2,13 @@
 
 ## Prázdný svět pro finální tvorbu mapy
 
-Přechod na profil **`authoring-empty`** ponechává realm 2, vlastní mapu
-725 / oblast 4988, účty a hráčské postavy, ale jeho cílovým stavem je
-**0 mapových NPC a 0 LLM controllerů**. Dosavadní karty, vzhledy, předpisy
-šablon a uložené charakterové návrhy se při přechodu odstraňují až po
-chráněné záloze. Samotná přítomnost tohoto návodu není potvrzením dokončené
-čistky; tu dokládá provozní receipt a prázdné serverové katalogy.
+Aktivní profil **`authoring-empty`** má živě ověřených **0 mapových NPC
+na mapě 725 a 0 LLM controllerů**. Po chráněné záloze byly odstraněny
+aktivní i maskované testovací spawny, jejich AI stav, vlastní šablony,
+karty, vzhledy a všechny tři charakterové návrhy. Zachovány jsou realm 2,
+mapa 725 / oblast 4988, účty a hráčské postavy. Kontrola revize
+`5437178873e7` z 31. října potvrdila nulové serverové katalogy a osm
+zdravých služeb; soukromý receipt je v `runtime/lab/receipts/`.
 
 Ateliér v `authoring-empty` dál umožňuje vytvořit a zálohovat nový návrh,
 ale neposkytuje žádný ověřený cíl pro runtime export. Životopis ani ručně
