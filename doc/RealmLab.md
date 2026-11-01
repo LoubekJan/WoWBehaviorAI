@@ -14,6 +14,12 @@ Stejný bod používá start nových postav a hřbitov. Účty a existující
 hráčské postavy jsou zachované. Kontroly serverových dat neprokazují
 fyzickou chůzi hráče. Známý rozdíl druhých vrstev vody je popsaný v přehledu v9.
 
+[Závěrečné ověření](../data/realm_lab/aiworldlab/preview-v9/activation.json)
+potvrzuje revizi `6f44bb533c96`, osm zdravých služeb, všech 38 mapových
+souborů, 62 startovních kombinací a nulové NPC/AI osazení. CI/CD prošlo
+887 Python a 699 C++ testy. Klientské patche mapy a hřbitova jsou instalované;
+všech devět autorských souborů zůstalo shodných s původním snapshotem.
+
 > Vyčištění proběhlo a bylo ověřeno 31. října na revizi `5437178873e7`:
 > 0 NPC/AI vazeb/charakterů, osm zdravých služeb. Účty, hráčské postavy a
 > geometrie jsou zachované; finální rozložení mapy zůstává další práce.

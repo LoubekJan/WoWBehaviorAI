@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v9",
+  "installed_at_utc": "2026-11-01T16:35:51.373284+00:00",
+  "status": "installed",
+  "source_files_rechecked_unchanged": 9,
+  "closed_apps_guard": true,
+  "files": [
+    {
+      "name": "patch-4.MPQ",
+      "bytes": 4351622,
+      "sha256": "e5bdbbe3ba498c86c1bc21b9a7ca5025168811260370f459d8d5e4241fd4183b",
+      "previous_sha256": "cd4141f22999c22cf1cc6f680cee0c14ff90e3a3f0dc9c9bbb6c90598a70adba",
+      "previous_patch_backed_up": true
+    },
+    {
+      "name": "patch-X.MPQ",
+      "bytes": 81711,
+      "sha256": "4a21fba14735f1a2fb3b49492f739d2c0842d8d9e9142cb74684c3e08c1bbdb8",
+      "previous_sha256": null,
+      "previous_patch_backed_up": false
+    }
+  ]
+}

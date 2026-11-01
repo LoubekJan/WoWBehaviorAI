@@ -5,6 +5,13 @@ mapa 725, oblast 4988. Město, vesnice, tábory a most z předchozí mapy jsou
 odstraněné. Nový zdroj obsahuje vegetaci a původní jeskyni. Osazení NPC je
 prázdné, AI a telemetrie zůstávají vypnuté.
 
+[Nasazení bylo ověřeno](activation.json) na revizi `6f44bb533c96`:
+osm zdravých služeb, nulové osazení, 62 startovních kombinací a hřbitov
+na novém bodu. [CI/CD](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41327154594)
+prošlo 887 Python a 699 C++ testy. Oba [klientské patche](client-install.json)
+jsou instalované do `C:\WoWModding\Client-Lab\Data`; původní patch mapy
+i serverová data jsou zálohované.
+
 Čtyři ADT dlaždice zachovávají hranice X −533,333 až 533,333 a Y 0 až
 1066,667. Všech devět zdrojových souborů zůstalo beze změny. Samostatný
 staging přiřadil všem 1024 částem oblast 4988; jiné mapy nejsou v balíku.
