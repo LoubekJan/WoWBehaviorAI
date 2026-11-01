@@ -6,7 +6,7 @@
 
 
 Aktualizováno **1. listopadu 2026**. Aktivní svět používá mapu **725**, oblast
-**4988**, realm **2** a geometrii **`preview-v9`**. Pro finální úpravy se
+**4988**, realm **2** a geometrii **`preview-v10`**. Pro finální úpravy se
 používá **`authoring-empty`**, bez NPC a aktivních charakterů. Manifesty
 původních 100 aktérů zůstávají historickými/regresními daty; v tomto režimu
 se jejich bootstrap nespouští. Původní Elwynn runtime a geometrie v2/v3 nejsou aktivní
@@ -15,18 +15,18 @@ a [RealmLab.md](../../../doc/RealmLab.md).
 
 ## Současná geometrie a zdroje
 
-[Projektový manifest](preview-v9/project-manifest.json) vychází z uloženého
+[Projektový manifest](preview-v10/project-manifest.json) vychází z uloženého
 uživatelského projektu, při přípravě upravuje jen oddělený staging a
 zachovává jeho evidované zdrojové soubory. Mapa má čtyři ADT dlaždice
 `(30,31)`, `(31,31)`, `(30,32)`, `(31,32)` a přibližné hranice
 X −533,333 až 533,333 a Y 0 až 1066,667 yardu. Není to původní jediná rovná
-dlaždice v Z 0. Nová mapa obsahuje vegetaci, vodu a jeskyni; původní město,
-vesnice, tábory a most byly odstraněné.
+dlaždice v Z 0. Nová verze obsahuje vegetaci, vodu, jeskyni a znovu přidané
+budovy včetně hostince, kovárny, radnice, farem a pily.
 
-[Serverový manifest](preview-v9/server-manifest.json) a
-[kontrola dat](preview-v9/data-verification.json) popisují shodný výstup
+[Serverový manifest](preview-v10/server-manifest.json) a
+[kontrola dat](preview-v10/data-verification.json) popisují shodný výstup
 DBC/maps/vmaps/mmaps včetně kolizních závislostí. Prázdný mapový preflight
-ověřuje všech 38 geometrických souborů. [Přehled v9](preview-v9/README.md)
+ověřuje všech 74 geometrických souborů. [Přehled v10](preview-v10/README.md)
 uvádí bezpečný vstup i známé omezení druhých vrstev vody. Binární zdroje, klientské MPQ a extrahovaná
 serverová data jsou soukromé; nejsou distribuované v Gitu. Změna geometrie
 vyžaduje znovu sestavit shodný klientský i serverový balík. Pouhé nasazení

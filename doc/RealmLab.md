@@ -1,5 +1,17 @@
 # Vlastní svět jako jediný realm
 
+## Další úprava mapy — preview-v10, 1. listopadu 2026 večer
+
+[Preview-v10](../data/realm_lab/aiworldlab/preview-v10/README.md) používá
+uložené podklady z 22:14. Přibyly budovy a změnil se terén; všechny čtyři
+dlaždice, nové kolize a navigace byly znovu vytvořené a ověřené. Nový index
+váže 74 souborů na tuto konkrétní verzi. Profil zůstává `authoring-empty`.
+
+Vstup, start i hřbitov zůstávají na `.go xyz 266.667 800 4.209 725`.
+Starší manifesty a důkazy v9 zůstávají zachované. Při nasazování svět běží
+po celou dobu CI; zastavuje se až při chráněné výměně ověřených dat.
+Známé omezení druhých vodních vrstev přetrvává a je znovu zdokumentované.
+
 ## Nová prohlídková mapa — 1. listopadu 2026
 
 Profil `authoring-empty` nově používá [preview-v9](../data/realm_lab/aiworldlab/preview-v9/README.md)

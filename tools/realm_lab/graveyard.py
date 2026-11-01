@@ -24,10 +24,10 @@ import struct
 import tempfile
 
 try:
-    from . import settlement_population
+    from . import map_bundle, settlement_population
     from .build_map_patch import build_archive, dbc
 except ImportError:
-    import settlement_population
+    import map_bundle, settlement_population
     from build_map_patch import build_archive, dbc
 
 BOUNDS = settlement_population.BOUNDS
@@ -54,10 +54,6 @@ class Graveyard:
         if path is None:
             path = MANIFEST
             if os.environ.get("LAB_AI_PROFILE") == "authoring-empty":
-                try:
-                    from . import map_bundle
-                except ImportError:
-                    import map_bundle
                 if (map_bundle.METADATA / map_bundle.INDEX).exists():
                     path = map_bundle.GeometryBundle.load().metadata / "graveyard.json"
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -76,7 +72,7 @@ class Graveyard:
                     abs(coords[2] - coords[3] - 2.0) > 0.00001):
                 raise ValueError("Invalid graveyard position above reviewed ground")
             evidence = source["evidence"]
-            if (revision != ("preview-v9" if authoring else "preview-v8") or
+            if ((revision not in map_bundle.SUPPORTED_REVISIONS if authoring else revision != "preview-v8") or
                     any(not isinstance(source[field], str) or not re.fullmatch(r"[0-9a-f]{64}", source[field])
                         for field in ("proof_sha256", "geometry_verification_sha256")) or
                     evidence["dry"] is not True or evidence["outside_native_and_source_terrain_holes"] is not True or
@@ -85,12 +81,9 @@ class Graveyard:
                     evidence["outside_collision_bounds_margin"] < 2):
                 raise ValueError("Graveyard requires reviewed dry ground/navmesh evidence")
             if authoring:
-                try:
-                    from . import map_bundle
-                except ImportError:
-                    import map_bundle
                 bundle = map_bundle.GeometryBundle.load(path.parent.parent)
                 if (path.resolve() != (bundle.metadata / "graveyard.json").resolve() or
+                        revision != bundle.source_revision or
                         source["proof_sha256"] != bundle.entry_proof_sha256 or
                         source["geometry_verification_sha256"] != bundle.verification_sha256 or
                         source["evidence"] != bundle.entry_proof["evidence"] or
@@ -291,10 +284,6 @@ def bootstrap(data: Path, settings=None, graveyard: Graveyard | None = None) -> 
         raise ValueError("Graveyard bootstrap requires the native settlement profile and a stopped world")
     settlement_population.ensure_world_offline()
     if graveyard is None and settings.ai_profile == "authoring-empty":
-        try:
-            from . import map_bundle
-        except ImportError:
-            import map_bundle
         if (map_bundle.METADATA / map_bundle.INDEX).exists():
             graveyard = Graveyard.load(map_bundle.GeometryBundle.load().metadata / "graveyard.json")
     graveyard = verify_data(data, graveyard)

@@ -11,7 +11,7 @@ Aktuální přechod vyčistí původní testovací osazení a všechny vytvořen
 charaktery. Profil `authoring-empty` zachovává realm **2**, mapu **725**,
 oblast **4988**, účty, hráčské postavy a současná mapová data. AI,
 NPC LLM controller a telemetrie jsou vypnuté. Nová prohlídková geometrie
-[preview-v9](data/realm_lab/aiworldlab/preview-v9/README.md) z 1. listopadu
+[preview-v10](data/realm_lab/aiworldlab/preview-v10/README.md) z 1. listopadu
 má samostatný prázdný mapový kontrakt. Nové rozmístění obyvatel se připraví
 později. Vstup je `.go xyz 266.667 800 4.209 725`; klient potřebuje nové
 `patch-4.MPQ` a `patch-X.MPQ`.
@@ -125,8 +125,8 @@ make import-tdb TDB_VERSION=TDB335.25101 TDB_SHA256=b426641e6ce8da02e4109b40e570
 Import TDB patří pouze do nové prázdné world databáze. Do
 `runtime/lab/data/{dbc,maps,vmaps,mmaps}` dodat kompatibilní extrahovaná
 data klienta 3.3.5a včetně schváleného serverového balíku vlastní mapy.
-Pro současný `authoring-empty` musí všech 38 souborů odpovídat indexu
-`data/realm_lab/aiworldlab/authoring-map.json` a manifestu `preview-v9`.
+Pro současný `authoring-empty` musí všech 74 souborů odpovídat indexu
+`data/realm_lab/aiworldlab/authoring-map.json` a manifestu `preview-v10`.
 Historické osazené profily vyžadují původních 61 souborů manifestu
 `preview-v8/server-manifest.json`, včetně sdílených VMAP modelů.
 Samotné zdrojové ADT z Noggit nestačí.

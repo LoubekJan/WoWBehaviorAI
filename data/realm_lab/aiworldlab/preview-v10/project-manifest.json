@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v10",
+  "source_project": "runtime/lab/map-project",
+  "source_unchanged": true,
+  "source_files_rechecked_unchanged": 9,
+  "staging_project": "runtime/lab/map-project-preview-v10",
+  "excluded_maps": [
+    "azeroth",
+    "kalimdor"
+  ],
+  "tiles": [
+    [
+      30,
+      31
+    ],
+    [
+      31,
+      31
+    ],
+    [
+      30,
+      32
+    ],
+    [
+      31,
+      32
+    ]
+  ],
+  "world_bounds": {
+    "min_x": -533.3333129882812,
+    "max_x": 533.3333129882812,
+    "min_y": 0.0,
+    "max_y": 1066.6666259765625
+  },
+  "area_binding": [
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "bound_cells": 256,
+      "source_sha256": "8721b00633a5a37cd2e73dfbed5e2e0e479f5d7546ad3ddbef99312a8f4c2806",
+      "packaged_sha256": "966ed9197f194e98cb4d824cc9a2387dca736d71b4d3215e569bafb3cfb2bd96",
+      "changed_bytes": 512
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "bound_cells": 256,
+      "source_sha256": "059849fadc9996972a3d127cc59dcb3dbdf712d93ef815d656a146d159deb814",
+      "packaged_sha256": "dcf84d5f6aeb3fd20e29f4022a1927abc7dd0b6b278d18afd323629268215362",
+      "changed_bytes": 512
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "bound_cells": 256,
+      "source_sha256": "8a5d0ce5861265d3f7628e7e5ac9bc32c9545a876b1bdedd9bbff146c6913555",
+      "packaged_sha256": "ed1c6ee2fb4bad51d36159aeb7ce7a6b6c2edc928461b32d9871a9857139cc6b",
+      "changed_bytes": 512
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "cells": 256,
+      "before_ids": [
+        0
+      ],
+      "after_id": 4988,
+      "bound_cells": 256,
+      "source_sha256": "dad692418012dc9c65b9451a64f06cf900e33cddc9b564f98a65b335e28da10e",
+      "packaged_sha256": "2baa975d17ffae6ab63244e49cf6f7e601e6b8e995282ee7a25bdde4f9a743c2",
+      "changed_bytes": 512
+    }
+  ],
+  "dbc_compatibility": [
+    {
+      "name": "Map.dbc",
+      "baseline_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "current_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "shared_rows_unchanged": true,
+      "shared_strings_unchanged": true,
+      "map_725_row_changes_allowed": true
+    },
+    {
+      "name": "AreaTable.dbc",
+      "baseline_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "current_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "shared_rows_unchanged": true,
+      "shared_strings_unchanged": true,
+      "map_725_row_changes_allowed": false
+    },
+    {
+      "name": "Light.dbc",
+      "baseline_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "current_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "shared_rows_unchanged": true,
+      "shared_strings_unchanged": true,
+      "map_725_row_changes_allowed": false
+    }
+  ],
+  "archives": [
+    {
+      "kind": "source",
+      "path": "runtime/lab-validation/map-preview-v10-20261101/aiworldlab-725-preview-v10-source.zip",
+      "bytes": 1481696,
+      "sha256": "c480cb1c8c2f8f5899cefcaab98e425cc27171dac357279d46556165263575bd"
+    },
+    {
+      "kind": "bound-source",
+      "path": "runtime/lab-validation/map-preview-v10-20261101/aiworldlab-725-preview-v10-bound-source.zip",
+      "bytes": 1481830,
+      "sha256": "21cccf036222ec356634bcd059accd72b912731306ef76a1e263cd7cc5d261f7"
+    }
+  ],
+  "files": [
+    {
+      "path": "DBFilesClient/Map.dbc",
+      "bytes": 43922,
+      "source_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "packaged_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "DBFilesClient/AreaTable.dbc",
+      "bytes": 367119,
+      "source_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "packaged_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "DBFilesClient/Light.dbc",
+      "bytes": 42981,
+      "source_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "packaged_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdt",
+      "bytes": 32828,
+      "source_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba",
+      "packaged_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdl",
+      "bytes": 21108,
+      "source_sha256": "93f244be660eac69baeb3a8e23da65d047c7e02f7d6b63497d84b46242fca654",
+      "packaged_sha256": "93f244be660eac69baeb3a8e23da65d047c7e02f7d6b63497d84b46242fca654"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "bytes": 1102549,
+      "source_sha256": "8721b00633a5a37cd2e73dfbed5e2e0e479f5d7546ad3ddbef99312a8f4c2806",
+      "packaged_sha256": "966ed9197f194e98cb4d824cc9a2387dca736d71b4d3215e569bafb3cfb2bd96"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "bytes": 691268,
+      "source_sha256": "059849fadc9996972a3d127cc59dcb3dbdf712d93ef815d656a146d159deb814",
+      "packaged_sha256": "dcf84d5f6aeb3fd20e29f4022a1927abc7dd0b6b278d18afd323629268215362"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "bytes": 1414417,
+      "source_sha256": "8a5d0ce5861265d3f7628e7e5ac9bc32c9545a876b1bdedd9bbff146c6913555",
+      "packaged_sha256": "ed1c6ee2fb4bad51d36159aeb7ce7a6b6c2edc928461b32d9871a9857139cc6b"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "bytes": 638218,
+      "source_sha256": "dad692418012dc9c65b9451a64f06cf900e33cddc9b564f98a65b335e28da10e",
+      "packaged_sha256": "2baa975d17ffae6ab63244e49cf6f7e601e6b8e995282ee7a25bdde4f9a743c2"
+    }
+  ]
+}

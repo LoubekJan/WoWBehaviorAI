@@ -4,8 +4,8 @@
   "realm_id": 2,
   "map_id": 725,
   "area_id": 4988,
-  "source_revision": "preview-v9",
-  "server_manifest_sha256": "7e9d3000bbd2f12d14eecac945d253bbe0c33f06158e54299247d4d9db88e352",
-  "verification_sha256": "78bbbd1eec0a5533e30b2687b8756ebbc9464030e9e3d0dc807af4eb76118dc8",
-  "entry_proof_sha256": "0ced5bf1d467d28e5a828022ffac0f3db1f17cfaddac38e2ffc8761b8fb43d7e"
+  "source_revision": "preview-v10",
+  "server_manifest_sha256": "6555a53b2461cd1e549146d590ded78ea4cfc85e2995e959ea9f92334c475408",
+  "verification_sha256": "eff8d27982dbf5cf9c1d5bc1e697675279e52b8daa934817a7eba6fcd5b514bc",
+  "entry_proof_sha256": "3251febfad6510ab63653eb003f67110f2623dd1b806d0eb7866afe9ac771cfa"
 }

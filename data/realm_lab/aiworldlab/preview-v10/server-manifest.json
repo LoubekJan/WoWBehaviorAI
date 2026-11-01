@@ -1,0 +1,559 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v10",
+  "tiles": [
+    [
+      30,
+      31
+    ],
+    [
+      30,
+      32
+    ],
+    [
+      31,
+      31
+    ],
+    [
+      31,
+      32
+    ]
+  ],
+  "client_patch_sha256": "639d86ad044d1d2f00da3f1751c734af3b62f80658aee6d7345e21fd14f3c804",
+  "source_receipt_sha256": "6c1494a78524f0fdb3eaa09d0b2bd07efd200551e7522da81bf72aa429099c08",
+  "tool_build": {
+    "mapextractor": {
+      "path": "/build/bin/mapextractor",
+      "bytes": 8776224,
+      "sha256": "8d59eda8a5950a7e11e71b5e62e5e82e0844ff1d6f58978d51ac0cf8c40fa025"
+    },
+    "vmap4extractor": {
+      "path": "/build/bin/vmap4extractor",
+      "bytes": 17266664,
+      "sha256": "1c3e1eab7fd7a2ab32af19fde3cc92aa8f1ae5e631e2baf6e9dadee832a2c6a0"
+    },
+    "vmap4assembler": {
+      "path": "/build/bin/vmap4assembler",
+      "bytes": 20419752,
+      "sha256": "30176400126a305b5d178ad5c4169bbb1c6c68d185f42eebcc6599b6fbeab846"
+    },
+    "mmaps_generator": {
+      "path": "/build/bin/mmaps_generator",
+      "bytes": 31558440,
+      "sha256": "dae623fb1e0be59fceb2c049626c7710829d067d873ca6f19eeb5e8c563c003f"
+    }
+  },
+  "commands": [
+    [
+      "/build/bin/mapextractor",
+      "-i",
+      "/workspace/runtime/lab/client-source/map725-v10",
+      "-o",
+      "/workspace/runtime/lab/extractions/map725-v10",
+      "-e",
+      "3",
+      "-f",
+      "0"
+    ],
+    [
+      "/build/bin/vmap4extractor",
+      "-d",
+      "/workspace/runtime/lab/client-source/map725-v10"
+    ],
+    [
+      "/build/bin/vmap4assembler",
+      "Buildings",
+      "vmaps"
+    ],
+    [
+      "/build/bin/mmaps_generator",
+      "725",
+      "--includeFlatTerrain",
+      "true",
+      "--skipLiquid",
+      "false",
+      "--threads",
+      "1",
+      "--debugOutput",
+      "true",
+      "--silent"
+    ],
+    [
+      "python3",
+      "/workspace/runtime/lab/validation/map-preview-v10-20261101/generate_final_navigation.py",
+      "--normalization-plan-sha256",
+      "53a657625121f21f082843a2d70fb0842096763d595fd5600facd4ea51eba25c"
+    ]
+  ],
+  "step_seconds": {
+    "maps": 31.52,
+    "vmap-extract": 195.24,
+    "vmap-assemble": 95.15,
+    "navigation": 10.2
+  },
+  "files": [
+    {
+      "path": "dbc/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "dbc/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "dbc/Map.dbc",
+      "bytes": 43922,
+      "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "maps/7253130.map",
+      "bytes": 136144,
+      "sha256": "04a2f09e33efa93bb6d87d2ae8b9afbb63218de16e04d6b35ed3e31978a9d5b7"
+    },
+    {
+      "path": "maps/7253131.map",
+      "bytes": 143268,
+      "sha256": "a4487225a2d17320c0982a6b5d40d6d02bdc2ffb9c61f504f351297da67c1453"
+    },
+    {
+      "path": "maps/7253230.map",
+      "bytes": 183004,
+      "sha256": "df9bc73dfba81e72655c2c525ac621d1d6f720706989abd7b021b2a8be93c260"
+    },
+    {
+      "path": "maps/7253231.map",
+      "bytes": 172164,
+      "sha256": "a75f626671524bdae18082254f4b494da7198735d05dcc5d6011c1de4ba07ecb"
+    },
+    {
+      "path": "mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "mmaps/7253130.mmtile",
+      "bytes": 335380,
+      "sha256": "53228ea0e2e456fb49c563f4d66544cf64c74b0f3a07193f49fa4b46c3af3ed6"
+    },
+    {
+      "path": "mmaps/7253131.mmtile",
+      "bytes": 229796,
+      "sha256": "1a5193b095fd40dfcd0bddb598d6e3e882943fd0f3c9ed1456aa16a500fd89fe"
+    },
+    {
+      "path": "mmaps/7253230.mmtile",
+      "bytes": 262128,
+      "sha256": "4b74f7c6ff564705d2ce6c59558c33e6f3fc891c3e8a7a35ada5b3b0fadfd5d4"
+    },
+    {
+      "path": "mmaps/7253231.mmtile",
+      "bytes": 468028,
+      "sha256": "a8815000cd88c13eb63b35c0878f1ead694d0df4c58062a93c658db9646e17cb"
+    },
+    {
+      "path": "vmaps/725.vmtree",
+      "bytes": 6837,
+      "sha256": "826299ac21d9f8b5a9e57debe39f2981ddfd1ae5d1d5528b0818a763984140b2"
+    },
+    {
+      "path": "vmaps/725_30_31.vmtile",
+      "bytes": 17166,
+      "sha256": "8fc00e7d54a610b13de4ad9643d5a5944f2473ffd8354d290eab1b1def5c6867"
+    },
+    {
+      "path": "vmaps/725_30_32.vmtile",
+      "bytes": 8764,
+      "sha256": "29ebe9ffbab4fc3d7be9137752542afb9009476b31528c0ea497d3361e94ea3b"
+    },
+    {
+      "path": "vmaps/725_31_31.vmtile",
+      "bytes": 10417,
+      "sha256": "db5a08c5629d15750e1fcf92baae2810fe08bb5772b60d01818f7e746ba2fa64"
+    },
+    {
+      "path": "vmaps/725_31_32.vmtile",
+      "bytes": 13408,
+      "sha256": "27f0cb50c7d83903f1e8d0992f4f930c257abfa4bb7b2980214eb3c9469e5f6f"
+    },
+    {
+      "path": "vmaps/Armorstandmailblue.m2.vmo",
+      "bytes": 600,
+      "sha256": "76921fa255cfd9f18ee8dcb4bf07bbf52a7828d2bb31354457b340337b512b1f"
+    },
+    {
+      "path": "vmaps/Armorstandmailcoifblue.m2.vmo",
+      "bytes": 600,
+      "sha256": "cf53cecaba36b91b4be1d9a5f29bfe3dafe982f7476d08bb1bd5ccccdce89e47"
+    },
+    {
+      "path": "vmaps/Barrel01.m2.vmo",
+      "bytes": 848,
+      "sha256": "a87248d5b927d895d547fd3fc4da6697bdd1f8feddfb530d972285fa5bdd769b"
+    },
+    {
+      "path": "vmaps/Beerkeg01.m2.vmo",
+      "bytes": 4000,
+      "sha256": "1cb8a8f569202aafb5ef0e5c0e1d8f34ebea68fd22b98951c733a99daced1333"
+    },
+    {
+      "path": "vmaps/Beerkeg02.m2.vmo",
+      "bytes": 2516,
+      "sha256": "1bbc5489ff593608c4c18f467a18fce4a007971ef48d5fdc2ba4a902a18916d9"
+    },
+    {
+      "path": "vmaps/Cavekoboldbucket.m2.vmo",
+      "bytes": 960,
+      "sha256": "894764fa93b1f5a71851599e5417d6d8e1476fd741ea8cdf0e2712967dbe2bad"
+    },
+    {
+      "path": "vmaps/Cavekoboldminemachine.m2.vmo",
+      "bytes": 1680,
+      "sha256": "55c0962adc89184f5bae3303736776a4ffbdec1f04d33c1ec32b2eb4aafa4789"
+    },
+    {
+      "path": "vmaps/Caveminecar01.m2.vmo",
+      "bytes": 1688,
+      "sha256": "a20da8cdbb7f25da775093d2382c45995e6db2d06dcb386f791754f4152bbff5"
+    },
+    {
+      "path": "vmaps/Caveminecarwrecked01.m2.vmo",
+      "bytes": 1464,
+      "sha256": "18a0689f2b61a69a0dcceac1e3b46379f381a6839dc6eaa925a0acff1ddfb792"
+    },
+    {
+      "path": "vmaps/Caveminecarwrecked02.m2.vmo",
+      "bytes": 3512,
+      "sha256": "37807f22fc6db0cc4dfe288d9034457c2414ada847c569ec21172677d3458a64"
+    },
+    {
+      "path": "vmaps/Caveminewheelbarrow01.m2.vmo",
+      "bytes": 2276,
+      "sha256": "ec15b2b9651fd535882929eef1b2784f1e8a952190cde8e696b418855c6b1d0e"
+    },
+    {
+      "path": "vmaps/Crate02.m2.vmo",
+      "bytes": 624,
+      "sha256": "8659ab37cb288f3877941070a58db4c9ccc020c582482ff74d4e740e4ffd7eed"
+    },
+    {
+      "path": "vmaps/Dalaran_Wagon01.m2.vmo",
+      "bytes": 3460,
+      "sha256": "3309fbadc2a84c762ffae9dc404229f214e3b0323e01211263f5ce45cae239fc"
+    },
+    {
+      "path": "vmaps/Deadminecargonetboxes.m2.vmo",
+      "bytes": 568,
+      "sha256": "3c50b605fb989fd41d754a80d1a713a5668687d358e075ad9fdefd1f086d4ca1"
+    },
+    {
+      "path": "vmaps/Deadminecargonethangshort.m2.vmo",
+      "bytes": 984,
+      "sha256": "3740d34c7a7a55323860c3b1264b3aa2d2c9ca0aa1aac765a96ec72cae31df3f"
+    },
+    {
+      "path": "vmaps/Deadminelumberpilelarge.m2.vmo",
+      "bytes": 1408,
+      "sha256": "6b8ebade548722d9a48101b7c0e4a8db69790ca29e541c194db1b845387fbc6d"
+    },
+    {
+      "path": "vmaps/Deadminelumberpilesmall.m2.vmo",
+      "bytes": 1144,
+      "sha256": "279d974587648515c8441ec59e5f334b8a4ac7291a17148dbbf23341e7e4e7d7"
+    },
+    {
+      "path": "vmaps/Duskwood_Human_Farm.wmo.vmo",
+      "bytes": 41732,
+      "sha256": "b21af387b92bc553ad26b83afb40f74aaa5e53f5ace4ad37c3cd48020e3e087d"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy01.m2.vmo",
+      "bytes": 2056,
+      "sha256": "311a885b31f5088c64976aaa132140dba94820e55e1c794a8d8f17f8a61c23b4"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy02.m2.vmo",
+      "bytes": 2008,
+      "sha256": "9385f239db3dc1e7179c421f48ac18464ba5b4e5ae02c6b5594f4419a5e1ada1"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy03.m2.vmo",
+      "bytes": 1960,
+      "sha256": "68c303df10a8cd7a3d64f471a6f4cb735fd29c383161779c814defe36b5b2574"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy04.m2.vmo",
+      "bytes": 2008,
+      "sha256": "2e1b0ba9289cac358fb774afde4b886aae47ba9da9a33f389796133c6ab60a49"
+    },
+    {
+      "path": "vmaps/Elwynntreestump01.m2.vmo",
+      "bytes": 1660,
+      "sha256": "64da573cd342edde48a8de73508e9e9c4f3894ec47386d19c1d8dee764b9d86a"
+    },
+    {
+      "path": "vmaps/Elwynntreestump02.m2.vmo",
+      "bytes": 1588,
+      "sha256": "686d89a407f28949a1f46b327cf4778428efcde46470b81c170ed4961263e653"
+    },
+    {
+      "path": "vmaps/Farm.wmo.vmo",
+      "bytes": 41064,
+      "sha256": "920fbd34ed0228fdbda67698fe00f69fc2497f8477a513fa6bf0003837f42d3c"
+    },
+    {
+      "path": "vmaps/G_Tentburninator.m2.vmo",
+      "bytes": 3752,
+      "sha256": "dddc57f278990837e9d7ef5a30749e27ae1880539d55fadb8e4df76f2c18a834"
+    },
+    {
+      "path": "vmaps/Generalbookstackshort01.m2.vmo",
+      "bytes": 600,
+      "sha256": "866127852b479f7f38e246bc617e45f7d987a9c392ed109684b9cd0130720041"
+    },
+    {
+      "path": "vmaps/Generalbookstacktall01.m2.vmo",
+      "bytes": 816,
+      "sha256": "3be7adc6ab73d872d13db4b88e07d9837be95f3e439a8a8c97821accbe913355"
+    },
+    {
+      "path": "vmaps/Generalcandelabra01.m2.vmo",
+      "bytes": 600,
+      "sha256": "df4cf4c9e5017e9ddaacd5ae1ba9b5ec5bef410b1e96598fdcfa53354ff99336"
+    },
+    {
+      "path": "vmaps/Generalhanginglantern01.m2.vmo",
+      "bytes": 1736,
+      "sha256": "d0602e2f78e767149073deb52da4fd70571952179d342bc55544c27b514e81f6"
+    },
+    {
+      "path": "vmaps/Generalhanginglanternlong.m2.vmo",
+      "bytes": 600,
+      "sha256": "e82cba794d7aaa29d7d4215a56e0d67b4607384489b07e66f6b5fdd2e1c083c2"
+    },
+    {
+      "path": "vmaps/Generallantern02.m2.vmo",
+      "bytes": 960,
+      "sha256": "356090725baa31e8a7ba4709c8c6882dd07c5fd9df1861b6f56a5c6dce408ce3"
+    },
+    {
+      "path": "vmaps/Generallantern03.m2.vmo",
+      "bytes": 960,
+      "sha256": "c335ef7107b3c68edc99ee009b1abc10d739971885957a287b0094ac686ac80a"
+    },
+    {
+      "path": "vmaps/Generalweaponrack01.m2.vmo",
+      "bytes": 2568,
+      "sha256": "1c43aa5249d20fe80093a5420e8fa50160f9b778e15db7838692c4e4e9a9dc49"
+    },
+    {
+      "path": "vmaps/Goldshireblacksmith.wmo.vmo",
+      "bytes": 97208,
+      "sha256": "0689ed63d19056446193c17f5c54b29bc3d8e7a85f15e6400411d35ecf1173ca"
+    },
+    {
+      "path": "vmaps/Goldshireinn.wmo.vmo",
+      "bytes": 245544,
+      "sha256": "8199eac584cba1411bdc31c2d422bed1e9759904f9bcc057a1418d9ab013a5c6"
+    },
+    {
+      "path": "vmaps/Gypsywagon.m2.vmo",
+      "bytes": 1496,
+      "sha256": "5a797c58b67bd6f66ab32a458472578ea878f8e5f551b102181e3fe8a9054e2e"
+    },
+    {
+      "path": "vmaps/He_Wagon_01.m2.vmo",
+      "bytes": 12060,
+      "sha256": "177c8c81674771fb450b17e0af8be40465156779650b863cd897bb53a4b66314"
+    },
+    {
+      "path": "vmaps/Innchandelier.m2.vmo",
+      "bytes": 2664,
+      "sha256": "728e7b1558bcef7619500cf18e5b089ad1cff954515681fb3d1d5421d70f5a14"
+    },
+    {
+      "path": "vmaps/Jar02.m2.vmo",
+      "bytes": 1260,
+      "sha256": "355cfab595760ca1e18b12228f2dc6bddd86cb97fe92f0b8432eda9251362316"
+    },
+    {
+      "path": "vmaps/Jar03.m2.vmo",
+      "bytes": 804,
+      "sha256": "19e5fcc28c30ccbe2e0b8cd6379108aff7ce4b532da51a7ea5e52b7a30b92e29"
+    },
+    {
+      "path": "vmaps/Ld_Stratholme_Opentent.m2.vmo",
+      "bytes": 2216,
+      "sha256": "36b9c55760e5cc37736c08c6d3d7f57410f6852d3698752f4a8665dd7f71c863"
+    },
+    {
+      "path": "vmaps/Md_Spidermine_Nokobolds.wmo.vmo",
+      "bytes": 249376,
+      "sha256": "5812613eb81e45659ab49360f2c373e8b0df520c626271360f3b1c277e4cc6ad"
+    },
+    {
+      "path": "vmaps/Minepump01.m2.vmo",
+      "bytes": 1280,
+      "sha256": "29a74c466ebf98d3f5114b54bf688a0265c0344dcbfbe25bd30194e2c75b05eb"
+    },
+    {
+      "path": "vmaps/Redridge_Human_Farm.wmo.vmo",
+      "bytes": 41764,
+      "sha256": "20aa3597cca57509c8050dba12a7da0d9f71d70a3890b9c63f9134c7df2610f5"
+    },
+    {
+      "path": "vmaps/Redridge_Lumbermill.wmo.vmo",
+      "bytes": 86904,
+      "sha256": "648a2bc6bc3f48b795b4898c610ea888f5deca446ddf5e452f81408e12b0aee6"
+    },
+    {
+      "path": "vmaps/Rugrack01.m2.vmo",
+      "bytes": 600,
+      "sha256": "f99b2a8ef871d8f0bdbc7b88f408f3269a7296af127c915529e45a5e8cb914d3"
+    },
+    {
+      "path": "vmaps/Stormwindcrate01.m2.vmo",
+      "bytes": 600,
+      "sha256": "036a2ba7875e3920ace0044ed175f69f396af99fc9f74cad7e252757c1a3f777"
+    },
+    {
+      "path": "vmaps/Stormwindgypsywagon01.m2.vmo",
+      "bytes": 4044,
+      "sha256": "3fe7cf3805756d3937d1d0b211e9d3a610b2c5ccad8d7032ecdb14fc3b566c6c"
+    },
+    {
+      "path": "vmaps/Townhall_Nowall.wmo.vmo",
+      "bytes": 181528,
+      "sha256": "9b42ec57861a083e6f81907bd2d36902c93fdddcaf1964fb0e4db5e030b9740d"
+    },
+    {
+      "path": "vmaps/Well.m2.vmo",
+      "bytes": 1612,
+      "sha256": "fbf07ad29d3f693a1141134262e085e2055eb6e0b73e7456725e100cdec82560"
+    },
+    {
+      "path": "vmaps/Westfall_Human_Farm.wmo.vmo",
+      "bytes": 61444,
+      "sha256": "713828e6c98eda55ec4861200e36db0d828673f4235cce3e0380e00a150b175b"
+    },
+    {
+      "path": "vmaps/Westfall_Human_Farmb.wmo.vmo",
+      "bytes": 41296,
+      "sha256": "a7867b3154f140c2d1b80bf71105460fc2583c868ef52f47b7d1c172a7160fc0"
+    },
+    {
+      "path": "vmaps/Westfallbarrel01.m2.vmo",
+      "bytes": 1232,
+      "sha256": "e794806d689c6fcefd421bb28d09279119ea8e76e2841aefa281b1906b448bfb"
+    },
+    {
+      "path": "vmaps/Westfallcrate.m2.vmo",
+      "bytes": 1156,
+      "sha256": "a56299efa3483cdf2db1754b5fb1b300f1ae646b900d98644f2c46ec579f0ddf"
+    },
+    {
+      "path": "vmaps/Westfallgrainsilo01.m2.vmo",
+      "bytes": 8908,
+      "sha256": "ea9637185aee04b87b53c22def4c6631c6e4eeb5cbce47447df4c67b93fcc401"
+    },
+    {
+      "path": "vmaps/Westfallskeleton.m2.vmo",
+      "bytes": 712,
+      "sha256": "aa11ceb8327ad6ed3866fcc5c52ad6a4c50f286bc661b6e73b77ab03c9e11fd5"
+    }
+  ],
+  "custom_vmaps": {
+    "status": "present",
+    "tree_objects": 329,
+    "tile_files": [
+      "vmaps/725_30_31.vmtile",
+      "vmaps/725_30_32.vmtile",
+      "vmaps/725_31_31.vmtile",
+      "vmaps/725_31_32.vmtile"
+    ],
+    "models": [
+      "vmaps/Armorstandmailblue.m2.vmo",
+      "vmaps/Armorstandmailcoifblue.m2.vmo",
+      "vmaps/Barrel01.m2.vmo",
+      "vmaps/Beerkeg01.m2.vmo",
+      "vmaps/Beerkeg02.m2.vmo",
+      "vmaps/Cavekoboldbucket.m2.vmo",
+      "vmaps/Cavekoboldminemachine.m2.vmo",
+      "vmaps/Caveminecar01.m2.vmo",
+      "vmaps/Caveminecarwrecked01.m2.vmo",
+      "vmaps/Caveminecarwrecked02.m2.vmo",
+      "vmaps/Caveminewheelbarrow01.m2.vmo",
+      "vmaps/Crate02.m2.vmo",
+      "vmaps/Dalaran_Wagon01.m2.vmo",
+      "vmaps/Deadminecargonetboxes.m2.vmo",
+      "vmaps/Deadminecargonethangshort.m2.vmo",
+      "vmaps/Deadminelumberpilelarge.m2.vmo",
+      "vmaps/Deadminelumberpilesmall.m2.vmo",
+      "vmaps/Duskwood_Human_Farm.wmo.vmo",
+      "vmaps/Elwynntreecanopy01.m2.vmo",
+      "vmaps/Elwynntreecanopy02.m2.vmo",
+      "vmaps/Elwynntreecanopy03.m2.vmo",
+      "vmaps/Elwynntreecanopy04.m2.vmo",
+      "vmaps/Elwynntreestump01.m2.vmo",
+      "vmaps/Elwynntreestump02.m2.vmo",
+      "vmaps/Farm.wmo.vmo",
+      "vmaps/G_Tentburninator.m2.vmo",
+      "vmaps/Generalbookstackshort01.m2.vmo",
+      "vmaps/Generalbookstacktall01.m2.vmo",
+      "vmaps/Generalcandelabra01.m2.vmo",
+      "vmaps/Generalhanginglantern01.m2.vmo",
+      "vmaps/Generalhanginglanternlong.m2.vmo",
+      "vmaps/Generallantern02.m2.vmo",
+      "vmaps/Generallantern03.m2.vmo",
+      "vmaps/Generalweaponrack01.m2.vmo",
+      "vmaps/Goldshireblacksmith.wmo.vmo",
+      "vmaps/Goldshireinn.wmo.vmo",
+      "vmaps/Gypsywagon.m2.vmo",
+      "vmaps/He_Wagon_01.m2.vmo",
+      "vmaps/Innchandelier.m2.vmo",
+      "vmaps/Jar02.m2.vmo",
+      "vmaps/Jar03.m2.vmo",
+      "vmaps/Ld_Stratholme_Opentent.m2.vmo",
+      "vmaps/Md_Spidermine_Nokobolds.wmo.vmo",
+      "vmaps/Minepump01.m2.vmo",
+      "vmaps/Redridge_Human_Farm.wmo.vmo",
+      "vmaps/Redridge_Lumbermill.wmo.vmo",
+      "vmaps/Rugrack01.m2.vmo",
+      "vmaps/Stormwindcrate01.m2.vmo",
+      "vmaps/Stormwindgypsywagon01.m2.vmo",
+      "vmaps/Townhall_Nowall.wmo.vmo",
+      "vmaps/Well.m2.vmo",
+      "vmaps/Westfall_Human_Farm.wmo.vmo",
+      "vmaps/Westfall_Human_Farmb.wmo.vmo",
+      "vmaps/Westfallbarrel01.m2.vmo",
+      "vmaps/Westfallcrate.m2.vmo",
+      "vmaps/Westfallgrainsilo01.m2.vmo",
+      "vmaps/Westfallskeleton.m2.vmo"
+    ],
+    "unique_placements": 329
+  },
+  "raw_extraction_receipt_sha256": "95317770925d0a826ff874be6eba2d23cda10b5ac8bd75666ff9de9203f3488b",
+  "native_liquid_edge_normalization": {
+    "slots": 202,
+    "replacement": -500.0,
+    "plan_sha256": "53a657625121f21f082843a2d70fb0842096763d595fd5600facd4ea51eba25c",
+    "authored_values_unchanged": true,
+    "verification_requirement": "Independent source-MH2O comparison must pass before deployment."
+  },
+  "final_navigation_command": [
+    "/build/bin/mmaps_generator",
+    "725",
+    "--includeFlatTerrain",
+    "true",
+    "--skipLiquid",
+    "false",
+    "--threads",
+    "1",
+    "--debugOutput",
+    "true",
+    "--silent"
+  ]
+}

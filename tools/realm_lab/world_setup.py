@@ -16,9 +16,9 @@ import subprocess
 import sys
 
 try:
-    from . import full_population, defias_population, field_population, raid_population, consumer_population, manage, settlement_population, single_return, supply_population, wildlife_population
+    from . import full_population, defias_population, field_population, raid_population, consumer_population, manage, map_bundle, settlement_population, single_return, supply_population, wildlife_population
 except ImportError:  # Direct invocation inside the tools container.
-    import full_population, defias_population, field_population, raid_population, consumer_population, manage, settlement_population, single_return, supply_population, wildlife_population
+    import full_population, defias_population, field_population, raid_population, consumer_population, manage, map_bundle, settlement_population, single_return, supply_population, wildlife_population
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,7 +48,8 @@ class WorldStart:
     def load(cls, population, metadata: Path | None = None) -> WorldStart:
         try:
             revision = getattr(population, "source_revision", "preview-v8")
-            metadata = metadata or (population.metadata / "world-start.json" if revision == "preview-v9" else START_METADATA)
+            metadata = metadata or (population.metadata / "world-start.json"
+                                    if revision in map_bundle.SUPPORTED_REVISIONS else START_METADATA)
             document = json.loads(metadata.read_text(encoding="utf-8"))
             require(document["schema_version"] == 1 and document["source_revision"] == revision and
                     document["map_id"] == 725 and document["area_id"] == 4988,
@@ -66,7 +67,7 @@ class WorldStart:
                     proof["nav_ground_projection"]["flags"] == 1 and
                     abs(float(proof["nav_ground_projection"]["ground_delta"])) <= 1,
                     "Starting location lacks a dry, clear, ground navigation proof")
-            if revision == "preview-v9":
+            if revision in map_bundle.SUPPORTED_REVISIONS:
                 entry = population.entry_proof
                 require(document.get("source_entry_receipt_sha256") == population.entry_proof_sha256 and
                         all(coordinates[index] == entry["player_entry"][field]

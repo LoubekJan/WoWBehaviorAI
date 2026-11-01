@@ -24,9 +24,9 @@ def write(path, value):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def fixture(root):
+def fixture(root, revision=map_bundle.REVISION):
     metadata, data = root / "metadata", root / "data"
-    directory = metadata / map_bundle.REVISION
+    directory = metadata / revision
     files = []
     names = sorted(map_bundle.DBC_FILES | map_bundle.MAP_FILES | map_bundle.MMAP_FILES |
                    {"vmaps/725.vmtree", "vmaps/725_31_32.vmtile", "vmaps/mine.wmo.vmo"})
@@ -36,7 +36,7 @@ def fixture(root):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         files.append({"path": name, "bytes": len(content), "sha256": hashlib.sha256(content).hexdigest()})
-    base = dict(schema_version=1, source_revision=map_bundle.REVISION, map_id=725, area_id=4988,
+    base = dict(schema_version=1, source_revision=revision, map_id=725, area_id=4988,
                 tiles=[list(tile) for tile in map_bundle.TILES])
     manifest_sha = write(directory / "server-manifest.json", {**base, "files": files})
     vmap = {"present": True, "models": [], "tiles": []}
@@ -64,14 +64,14 @@ def fixture(root):
         "nav_ground_projection": {"flags": 1, "ground_delta": .2, "nav_z": 2.4},
         "physical_player_walk_verified": False}
     point = {"map": 725, "x": 266.667, "y": 800., "z": 4.2, "ground_z": 2.2}
-    entry_sha = write(directory / "player-entry.json", {"source_revision": map_bundle.REVISION,
+    entry_sha = write(directory / "player-entry.json", {"source_revision": revision,
         "ok": True, "status": "pass", "bounds": settlement_population.BOUNDS,
         "verification_sha256": proof_sha, "player_entry": point, "evidence": evidence})
     index = {"schema_version": 1, "profile": "authoring-empty", "realm_id": 2, "map_id": 725,
-        "area_id": 4988, "source_revision": map_bundle.REVISION, "server_manifest_sha256": manifest_sha,
+        "area_id": 4988, "source_revision": revision, "server_manifest_sha256": manifest_sha,
         "verification_sha256": proof_sha, "entry_proof_sha256": entry_sha}
     write(metadata / map_bundle.INDEX, index)
-    write(directory / "world-start.json", {"schema_version": 1, "source_revision": map_bundle.REVISION,
+    write(directory / "world-start.json", {"schema_version": 1, "source_revision": revision,
         "map_id": 725, "area_id": 4988, "x": point["x"], "y": point["y"], "z": point["z"],
         "orientation": 0, "geometry_sha256": world_setup.geometry_digest(files),
         "source_entry_receipt_sha256": entry_sha, "evidence": {"ground_z": point["ground_z"],
@@ -79,7 +79,7 @@ def fixture(root):
             "slope_degrees": 1.5, "nav_ground_projection": evidence["nav_ground_projection"]}})
     location = json.loads(graveyard.MANIFEST.read_text(encoding="utf-8"))
     location.update(profile="authoring-empty", position={k: point[k] for k in ("x", "y", "z", "ground_z")})
-    location["source"] = {"revision": map_bundle.REVISION, "proof_sha256": entry_sha,
+    location["source"] = {"revision": revision, "proof_sha256": entry_sha,
                           "geometry_verification_sha256": proof_sha, "evidence": evidence}
     write(directory / "graveyard.json", location)
     return metadata, data
@@ -113,6 +113,66 @@ class AuthoredMapBundleTests(unittest.TestCase):
             with self.subTest(path=row["path"]), self.assertRaisesRegex(settlement_population.ProfileError, "hash mismatch"):
                 map_bundle.verify_data(self.data, self.metadata)
             (self.data / row["path"]).write_bytes(original)
+
+    def test_reviewed_v10_uses_its_own_geometry_start_and_graveyard(self):
+        metadata, data = fixture(self.root / "v10", revision="preview-v10")
+        bundle = map_bundle.verify_data(data, metadata)
+        self.assertEqual(bundle.source_revision, "preview-v10")
+        self.assertEqual(bundle.metadata, metadata / "preview-v10")
+        self.assertEqual(bundle.actors, ())
+        start = world_setup.WorldStart.load(bundle)
+        location = graveyard.Graveyard.load(bundle.metadata / "graveyard.json")
+        self.assertEqual((start.x, start.y, start.z), (location.x, location.y, location.z))
+        with patch.object(map_bundle, "METADATA", metadata), \
+             patch.object(map_bundle.GeometryBundle, "load", return_value=bundle), \
+             patch.dict(os.environ, {"LAB_AI_PROFILE": "authoring-empty"}):
+            self.assertEqual(graveyard.Graveyard.load(), location)
+        (data / "mmaps/7253130.mmtile").write_bytes(b"changed native navigation")
+        with self.assertRaisesRegex(settlement_population.ProfileError, "hash mismatch"):
+            map_bundle.verify_data(data, metadata)
+
+    def test_unsupported_revision_is_rejected_before_loading_revision_files(self):
+        for revision in ("preview-v11", "../preview-v10", "preview-v10/../../other"):
+            index_path = self.metadata / map_bundle.INDEX
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+            index["source_revision"] = revision
+            write(index_path, index)
+            with self.subTest(revision=revision), patch.object(map_bundle, "_pinned") as pinned:
+                with self.assertRaisesRegex(settlement_population.ProfileError, "unsupported authored revision"):
+                    map_bundle.GeometryBundle.load(self.metadata)
+                pinned.assert_not_called()
+
+    def test_v10_cannot_repin_mixed_revision_native_or_entry_proofs(self):
+        records = (("server-manifest.json", "server_manifest_sha256", "bundle identity"),
+                   ("data-verification.json", "verification_sha256", "mismatched native"),
+                   ("player-entry.json", "entry_proof_sha256", "another native geometry"))
+        for name, pin, message in records:
+            metadata, _ = fixture(self.root / name, revision="preview-v10")
+            index_path = metadata / map_bundle.INDEX
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+            path = metadata / "preview-v10" / name
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["source_revision"] = "preview-v9"
+            index[pin] = write(path, document)
+            write(index_path, index)
+            with self.subTest(proof=name), self.assertRaisesRegex(settlement_population.ProfileError, message):
+                map_bundle.GeometryBundle.load(metadata)
+
+    def test_v10_start_and_graveyard_cannot_use_v9_revision_labels(self):
+        metadata, data = fixture(self.root / "v10-mixed-start", revision="preview-v10")
+        bundle = map_bundle.verify_data(data, metadata)
+        path = bundle.metadata / "world-start.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["source_revision"] = "preview-v9"
+        write(path, document)
+        with self.assertRaisesRegex(manage.SetupError, "reviewed map"):
+            world_setup.WorldStart.load(bundle)
+        path = bundle.metadata / "graveyard.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["source"]["revision"] = "preview-v9"
+        write(path, document)
+        with self.assertRaisesRegex(ValueError, "pinned native safe point"):
+            graveyard.Graveyard.load(path)
 
     def test_legacy_tiles_and_extra_navigation_files_are_rejected(self):
         for name in ("maps/7253330.map", "mmaps/7253330.mmtile", "vmaps/725_30_33.vmtile"):

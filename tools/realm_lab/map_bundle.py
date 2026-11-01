@@ -1,7 +1,7 @@
 """Pinned native geometry for an empty authored map, independent of NPC layouts.
 
 The legacy v8 population contracts remain immutable. Only authoring-empty can
-select this reviewed v9 bundle; it still checks every byte and the complete
+select a reviewed empty-map bundle; it still checks every byte and the complete
 map-725 footprint before a world starts.
 """
 from __future__ import annotations
@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 METADATA = ROOT / "data/realm_lab/aiworldlab"
 INDEX = "authoring-map.json"
 REVISION = "preview-v9"
+SUPPORTED_REVISIONS = frozenset({REVISION, "preview-v10"})
 TILES = ((30, 31), (30, 32), (31, 31), (31, 32))
 DBC_FILES = {"dbc/Map.dbc", "dbc/AreaTable.dbc", "dbc/Light.dbc"}
 MAP_FILES = {f"maps/725{y:02}{x:02}.map" for x, y in TILES}
@@ -72,14 +73,16 @@ class GeometryBundle:
     def load(cls, metadata: Path = METADATA) -> GeometryBundle:
         try:
             index = _read(metadata / INDEX)
+            revision = index.get("source_revision")
             require((index.get("schema_version"), index.get("profile"), index.get("realm_id"),
-                     index.get("map_id"), index.get("area_id"), index.get("source_revision")) ==
-                    (1, "authoring-empty", 2, 725, 4988, REVISION),
+                     index.get("map_id"), index.get("area_id")) ==
+                    (1, "authoring-empty", 2, 725, 4988) and
+                    isinstance(revision, str) and revision in SUPPORTED_REVISIONS,
                     "Wrong empty-map identity or unsupported authored revision")
-            directory = metadata / REVISION
+            directory = metadata / revision
             manifest = _pinned(directory / "server-manifest.json", index.get("server_manifest_sha256"))
             require((manifest.get("schema_version"), manifest.get("map_id"), manifest.get("area_id"),
-                     manifest.get("source_revision")) == (1, 725, 4988, REVISION),
+                     manifest.get("source_revision")) == (1, 725, 4988, revision),
                     "Wrong authored native bundle identity")
             _tiles(manifest)
             files = manifest.get("files")
@@ -105,7 +108,7 @@ class GeometryBundle:
                     any(name.endswith(".vmo") for name in records), "Incomplete map/terrain/navigation/model closure")
             proof = _pinned(directory / "data-verification.json", index.get("verification_sha256"))
             require((proof.get("schema_version"), proof.get("source_revision"), proof.get("map_id"),
-                     proof.get("area_id")) == (1, REVISION, 725, 4988) and proof.get("status") == "pass" and
+                     proof.get("area_id")) == (1, revision, 725, 4988) and proof.get("status") == "pass" and
                     proof.get("ok") is True and proof.get("errors") == [] and
                     proof.get("navigation_checked") is True and proof.get("geometry_files") == files,
                     "Missing or mismatched native authored-map verification")
@@ -142,7 +145,7 @@ class GeometryBundle:
             require(set(checked) == {name for name in records if name.startswith("vmaps/")},
                     "Native VMAP proof does not cover the complete model closure")
             entry = _pinned(directory / "player-entry.json", index.get("entry_proof_sha256"))
-            require(entry.get("source_revision") == REVISION and entry.get("status") == "pass" and
+            require(entry.get("source_revision") == revision and entry.get("status") == "pass" and
                     entry.get("ok") is True and entry.get("bounds") == settlement.BOUNDS and
                     entry.get("verification_sha256") == index["verification_sha256"],
                     "Safe entry belongs to another native geometry proof")
@@ -162,7 +165,8 @@ class GeometryBundle:
                     math.isfinite(evidence["outside_collision_bounds_margin"]) and
                     evidence["outside_collision_bounds_margin"] >= 2,
                     "Authored entry lacks a dry native ground/collision/navigation proof")
-            return cls(tuple(files), directory, entry, index["verification_sha256"], index["entry_proof_sha256"])
+            return cls(tuple(files), directory, entry, index["verification_sha256"], index["entry_proof_sha256"],
+                       source_revision=revision)
         except (OSError, KeyError, TypeError, ValueError) as exc:
             if isinstance(exc, settlement.ProfileError):
                 raise
