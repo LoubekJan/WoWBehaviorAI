@@ -51,14 +51,15 @@ class AuthoringIntegrationTests(unittest.TestCase):
             native_path = Path
             with patch.object(world_setup, "Path", side_effect=lambda value: target if str(value) == "/tmp/world-schema-setup.conf" else native_path(value)), \
                  patch.object(settlement, "ensure_world_offline"), \
-                 patch.object(manage, "authoring_preflight") as empty, \
-                 patch.object(settlement, "verify_data", return_value=self.population), \
+                 patch.object(manage, "authoring_preflight", return_value=self.population) as empty, \
+                 patch.object(settlement, "verify_data") as legacy, \
                  patch.object(manage, "preflight"), \
                  patch.object(world_setup, "demote_retired_pilots"), \
                  patch.object(world_setup.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as binary, \
                  redirect_stdout(io.StringIO()):
                 world_setup.prepare(Path(directory), ROOT / "deploy/worldserver.conf", Path("server"), self.settings)
             self.assertEqual(empty.call_count, 2)
+            legacy.assert_not_called()
             self.assertIn("--update-databases-only", binary.call_args.args[0])
             rendered = target.read_text(encoding="utf-8")
             self.assertIn("AIWorld.Enable = 0\n", rendered)

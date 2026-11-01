@@ -45,10 +45,12 @@ class WorldStart:
     area_id: int = 4988
 
     @classmethod
-    def load(cls, population: settlement_population.Population, metadata: Path = START_METADATA) -> WorldStart:
+    def load(cls, population, metadata: Path | None = None) -> WorldStart:
         try:
+            revision = getattr(population, "source_revision", "preview-v8")
+            metadata = metadata or (population.metadata / "world-start.json" if revision == "preview-v9" else START_METADATA)
             document = json.loads(metadata.read_text(encoding="utf-8"))
-            require(document["schema_version"] == 1 and document["source_revision"] == "preview-v8" and
+            require(document["schema_version"] == 1 and document["source_revision"] == revision and
                     document["map_id"] == 725 and document["area_id"] == 4988,
                     "Starting location must belong to the reviewed map 725 / area 4988")
             require(document["geometry_sha256"] == geometry_digest(population.geometry_files),
@@ -64,6 +66,14 @@ class WorldStart:
                     proof["nav_ground_projection"]["flags"] == 1 and
                     abs(float(proof["nav_ground_projection"]["ground_delta"])) <= 1,
                     "Starting location lacks a dry, clear, ground navigation proof")
+            if revision == "preview-v9":
+                entry = population.entry_proof
+                require(document.get("source_entry_receipt_sha256") == population.entry_proof_sha256 and
+                        all(coordinates[index] == entry["player_entry"][field]
+                            for index, field in enumerate(("x", "y", "z"))) and
+                        proof["ground_z"] == entry["player_entry"]["ground_z"] and
+                        proof["nav_ground_projection"] == entry["evidence"]["nav_ground_projection"],
+                        "Authoring start differs from the pinned native safe point")
             start = cls(*coordinates)
             bounds = settlement_population.BOUNDS
             require(bounds["min_x"] < start.x < bounds["max_x"] and bounds["min_y"] < start.y < bounds["max_y"],
@@ -145,8 +155,9 @@ def prepare(data: Path, template: Path, binary: Path, settings: manage.Settings)
     if settings.ai_profile == "authoring-empty":
         # Preparation must never turn an uncleared population into an empty
         # world implicitly. Destructive retirement is a separate operation.
-        manage.authoring_preflight(data, settings)
-    population = settlement_population.verify_data(data)
+        population = manage.authoring_preflight(data, settings)
+    else:
+        population = settlement_population.verify_data(data)
     WorldStart.load(population)
     manage.preflight(data, settings)
     profile = {wildlife_population.PROFILE: wildlife_population, supply_population.PROFILE: supply_population,
@@ -220,14 +231,15 @@ def apply_start(data: Path, receipt: Path, settings: manage.Settings) -> None:
     validate_profile(settings)
     settlement_population.ensure_world_offline()
     if settings.ai_profile == "authoring-empty":
-        manage.authoring_preflight(data, settings)
-    population = settlement_population.verify_data(data)
+        population = manage.authoring_preflight(data, settings)
+    else:
+        population = settlement_population.verify_data(data)
     start = WorldStart.load(population)
     before = starts_snapshot(settings)
     # The before-image must exist before any mutation, including a repeated run.
     receipt.parent.mkdir(parents=True, exist_ok=True)
     payload = {"schema_version": 1, "status": "before_mutation", "realm_id": 2,
-               "source_revision": "preview-v8", "start": start.__dict__, "before": before,
+               "source_revision": getattr(population, "source_revision", "preview-v8"), "start": start.__dict__, "before": before,
                "existing_characters_modified": False}
     descriptor = os.open(receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:

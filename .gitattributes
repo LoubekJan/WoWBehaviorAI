@@ -30,6 +30,10 @@ data/realm_lab/aiworldlab/preview-v8/consumer-first-chain-acceptance.json text e
 # Preserve verbatim source audits and the exact bytes pinned by field receipts.
 data/realm_lab/aiworldlab/preview-v8/field-*.json -text
 
+# Native map proof hashes use the same canonical bytes on Windows and Linux.
+data/realm_lab/aiworldlab/authoring-map.json text eol=lf
+data/realm_lab/aiworldlab/preview-v9/*.json text eol=lf
+
 # Standard to msysgit
 *.doc    diff=astextplain
 *.DOC    diff=astextplain

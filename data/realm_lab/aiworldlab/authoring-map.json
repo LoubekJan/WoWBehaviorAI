@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "profile": "authoring-empty",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v9",
+  "server_manifest_sha256": "7e9d3000bbd2f12d14eecac945d253bbe0c33f06158e54299247d4d9db88e352",
+  "verification_sha256": "78bbbd1eec0a5533e30b2687b8756ebbc9464030e9e3d0dc807af4eb76118dc8",
+  "entry_proof_sha256": "0ced5bf1d467d28e5a828022ffac0f3db1f17cfaddac38e2ffc8761b8fb43d7e"
+}

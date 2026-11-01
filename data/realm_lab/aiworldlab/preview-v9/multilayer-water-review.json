@@ -1,0 +1,984 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v9",
+  "source_receipt_sha256": "bba037a13a8ee2b4b051f38905a72ad51ff535a060f967c309b65fe55791a23f",
+  "counts": {
+    "multilayer_cells": 33,
+    "extra_layers": 33,
+    "extra_layer_visible_squares": 933,
+    "extra_only_visible_squares": 933,
+    "overlap_visible_squares": 0,
+    "extra_only_squares_above_terrain": 97
+  },
+  "max_shared_visible_vertex_height_delta": 0,
+  "layers": [
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "chunk": [
+        3,
+        10
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 2,
+      "extra_visible_squares": 35,
+      "extra_only_visible_squares": 35,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.9627450704574585,
+      "extra_max_center_clearance_over_source_terrain": 1.7022008895874023,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 35,
+        "extra_only_squares_above_terrain": 8
+      },
+      "largest_extra_only_above_ground_example": {
+        "x": -364.5833194255829,
+        "y": 935.4166309833527,
+        "extra_water_z": -4.150000095367432,
+        "terrain_z": -5.852200984954834,
+        "water_above_terrain": 1.7022008895874023
+      }
+    },
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "chunk": [
+        3,
+        11
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 4,
+      "extra_visible_squares": 20,
+      "extra_only_visible_squares": 20,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -0.9527186751365662,
+      "extra_max_center_clearance_over_source_terrain": 3.5002647042274475,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 20,
+        "extra_only_squares_above_terrain": 16
+      },
+      "largest_extra_only_above_ground_example": {
+        "x": -397.91665148735046,
+        "y": 935.4166309833527,
+        "extra_water_z": -4.150000095367432,
+        "terrain_z": -7.650264799594879,
+        "water_above_terrain": 3.5002647042274475
+      }
+    },
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "chunk": [
+        4,
+        14
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 6,
+      "extra_visible_squares": 14,
+      "extra_only_visible_squares": 14,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -1.1351523399353027,
+      "extra_max_center_clearance_over_source_terrain": 3.8047200441360474,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 14,
+        "extra_only_squares_above_terrain": 12
+      },
+      "largest_extra_only_above_ground_example": {
+        "x": -468.74998211860657,
+        "y": 902.0832989215851,
+        "extra_water_z": -4.150000095367432,
+        "terrain_z": -7.954720139503479,
+        "water_above_terrain": 3.8047200441360474
+      }
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        9,
+        3
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 61,
+      "extra_visible_squares": 3,
+      "extra_only_visible_squares": 3,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.519536018371582,
+      "extra_max_center_clearance_over_source_terrain": -4.35219144821167,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 3
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        10,
+        3
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 54,
+      "extra_visible_squares": 10,
+      "extra_only_visible_squares": 10,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.5274975299835205,
+      "extra_max_center_clearance_over_source_terrain": -4.2205281257629395,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 10
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        11,
+        3
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 51,
+      "extra_visible_squares": 13,
+      "extra_only_visible_squares": 13,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.466007232666016,
+      "extra_max_center_clearance_over_source_terrain": -4.167636871337891,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 13
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        12,
+        3
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 44,
+      "extra_visible_squares": 20,
+      "extra_only_visible_squares": 20,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.417466163635254,
+      "extra_max_center_clearance_over_source_terrain": -4.1719970703125,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 20
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        13,
+        3
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 45,
+      "extra_visible_squares": 19,
+      "extra_only_visible_squares": 19,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.490875244140625,
+      "extra_max_center_clearance_over_source_terrain": -4.150859832763672,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 19
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        14,
+        3
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 32,
+      "extra_visible_squares": 32,
+      "extra_only_visible_squares": 32,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.3533289432525635,
+      "extra_max_center_clearance_over_source_terrain": -4.150000095367432,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 32
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        15,
+        3
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 54,
+      "extra_visible_squares": 10,
+      "extra_only_visible_squares": 10,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.150000095367432,
+      "extra_max_center_clearance_over_source_terrain": -4.150000095367432,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 10
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        0,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 34,
+      "extra_visible_squares": 30,
+      "extra_only_visible_squares": 30,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -5.786193341016769,
+      "extra_max_center_clearance_over_source_terrain": -4.153914123773575,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 30
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        1,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 40,
+      "extra_visible_squares": 24,
+      "extra_only_visible_squares": 24,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -7.861600399017334,
+      "extra_max_center_clearance_over_source_terrain": -5.315690994262695,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 24
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        2,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 40,
+      "extra_visible_squares": 24,
+      "extra_only_visible_squares": 24,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -8.065521955490112,
+      "extra_max_center_clearance_over_source_terrain": -6.195825099945068,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 24
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        3,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 32,
+      "extra_visible_squares": 32,
+      "extra_only_visible_squares": 32,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -7.97642183303833,
+      "extra_max_center_clearance_over_source_terrain": -5.516892910003662,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 32
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        4,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 26,
+      "extra_visible_squares": 38,
+      "extra_only_visible_squares": 38,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -7.1129395961761475,
+      "extra_max_center_clearance_over_source_terrain": -5.078537940979004,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 38
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        5,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 21,
+      "extra_visible_squares": 43,
+      "extra_only_visible_squares": 43,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -6.025854825973511,
+      "extra_max_center_clearance_over_source_terrain": -4.349139451980591,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 43
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        6,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 12,
+      "extra_visible_squares": 52,
+      "extra_only_visible_squares": 52,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.90119743347168,
+      "extra_max_center_clearance_over_source_terrain": -3.654185175895691,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 52
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        7,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 9,
+      "extra_visible_squares": 55,
+      "extra_only_visible_squares": 55,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.710212290287018,
+      "extra_max_center_clearance_over_source_terrain": -3.6117135286331177,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 55
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        8,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 2,
+      "extra_visible_squares": 62,
+      "extra_only_visible_squares": 62,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -5.224079728126526,
+      "extra_max_center_clearance_over_source_terrain": -1.086508870124817,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 62
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        15,
+        4
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 3,
+      "extra_visible_squares": 61,
+      "extra_only_visible_squares": 61,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.150000095367432,
+      "extra_max_center_clearance_over_source_terrain": 9.768089771270752,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 61,
+        "extra_only_squares_above_terrain": 32
+      },
+      "largest_extra_only_above_ground_example": {
+        "x": -160.41666054725647,
+        "y": 2.0833332538604736,
+        "extra_water_z": -4.150000095367432,
+        "terrain_z": -13.918089866638184,
+        "water_above_terrain": 9.768089771270752
+      }
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        15,
+        5
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 1,
+      "extra_visible_squares": 63,
+      "extra_only_visible_squares": 63,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.462051868438721,
+      "extra_max_center_clearance_over_source_terrain": 4.732265949249268,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 63,
+        "extra_only_squares_above_terrain": 13
+      },
+      "largest_extra_only_above_ground_example": {
+        "x": -168.74999356269836,
+        "y": 2.0833332538604736,
+        "extra_water_z": -4.150000095367432,
+        "terrain_z": -8.8822660446167,
+        "water_above_terrain": 4.732265949249268
+      }
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        4,
+        6
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 2,
+      "extra_visible_squares": 62,
+      "extra_only_visible_squares": 62,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.341759204864502,
+      "extra_max_center_clearance_over_source_terrain": 6.2589430809021,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 62,
+        "extra_only_squares_above_terrain": 16
+      },
+      "largest_extra_only_above_ground_example": {
+        "x": -202.08332562446594,
+        "y": 377.0833189487457,
+        "extra_water_z": -4.150000095367432,
+        "terrain_z": -10.408943176269531,
+        "water_above_terrain": 6.2589430809021
+      }
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        6,
+        6
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 2,
+      "extra_visible_squares": 39,
+      "extra_only_visible_squares": 39,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.581793785095215,
+      "extra_max_center_clearance_over_source_terrain": -1.1677989959716797,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 39
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        10,
+        6
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 1,
+      "extra_visible_squares": 32,
+      "extra_only_visible_squares": 32,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -6.123330980539322,
+      "extra_max_center_clearance_over_source_terrain": -4.367972642183304,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 32
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        11,
+        6
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 15,
+      "extra_visible_squares": 25,
+      "extra_only_visible_squares": 25,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -6.1353678703308105,
+      "extra_max_center_clearance_over_source_terrain": -4.150000095367432,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 25
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        12,
+        6
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 26,
+      "extra_visible_squares": 24,
+      "extra_only_visible_squares": 24,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -5.962635397911072,
+      "extra_max_center_clearance_over_source_terrain": -4.150000095367432,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 24
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        13,
+        6
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 42,
+      "extra_visible_squares": 15,
+      "extra_only_visible_squares": 15,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.328816652297974,
+      "extra_max_center_clearance_over_source_terrain": -4.150000095367432,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 15
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        15,
+        6
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 19,
+      "extra_visible_squares": 5,
+      "extra_only_visible_squares": 5,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.652122795581818,
+      "extra_max_center_clearance_over_source_terrain": -4.60229229927063,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 5
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        0,
+        7
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 62,
+      "extra_visible_squares": 2,
+      "extra_only_visible_squares": 2,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.155482918024063,
+      "extra_max_center_clearance_over_source_terrain": -4.150000095367432,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 2
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        1,
+        7
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 36,
+      "extra_visible_squares": 24,
+      "extra_only_visible_squares": 24,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.868649482727051,
+      "extra_max_center_clearance_over_source_terrain": -3.988012373447418,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 24
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        2,
+        7
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 34,
+      "extra_visible_squares": 21,
+      "extra_only_visible_squares": 21,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -5.092076480388641,
+      "extra_max_center_clearance_over_source_terrain": -4.150000095367432,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 21
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        3,
+        7
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 20,
+      "extra_visible_squares": 21,
+      "extra_only_visible_squares": 21,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -5.61145141243469,
+      "extra_max_center_clearance_over_source_terrain": -4.181981590460055,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 21
+      },
+      "largest_extra_only_above_ground_example": null
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "chunk": [
+        4,
+        7
+      ],
+      "extra_layer": 1,
+      "first_type": 1,
+      "extra_type": 5,
+      "first_visible_squares": 23,
+      "extra_visible_squares": 3,
+      "extra_only_visible_squares": 3,
+      "overlap_visible_squares": 0,
+      "shared_visible_vertex_count": 0,
+      "shared_vertices_differ_gt001": 0,
+      "max_shared_visible_vertex_height_delta": null,
+      "extra_min_height": -4.150000095367432,
+      "extra_max_height": -4.150000095367432,
+      "extra_min_center_clearance_over_source_terrain": -4.906547620892525,
+      "extra_max_center_clearance_over_source_terrain": -4.5842806696891785,
+      "center_surface_comparison": {
+        "extra_only_visible_squares": 3
+      },
+      "largest_extra_only_above_ground_example": null
+    }
+  ],
+  "scope": "Read-only raw authored MH2O first-vs-later layer comparison, checked against frozen original ADT hashes. Center comparisons use four-corner average and source terrain, not native collision or client renderer execution.",
+  "native_behavior": "Current native GetLiquidInstance/ConvertADT selects the first MH2O instance in each cell. This analysis changes no source or deployment data."
+}

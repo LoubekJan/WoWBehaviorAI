@@ -1,5 +1,19 @@
 # Vlastní svět jako jediný realm
 
+## Nová prohlídková mapa — 1. listopadu 2026
+
+Profil `authoring-empty` nově používá [preview-v9](../data/realm_lab/aiworldlab/preview-v9/README.md)
+se čtyřmi dlaždicemi, vegetací a jeskyní. Uživatel výslovně zvolil čistou
+mapu bez NPC. Nový klientský patch a 38 serverových souborů mají vlastní
+verzované hashe; staré důkazy geometrie a osazení v8 zůstávají historické.
+Index [authoring-map.json](../data/realm_lab/aiworldlab/authoring-map.json)
+váže celý balík, nezávislou kontrolu a suchý vstupní bod na stejnou verzi.
+
+Pro prohlídku: `.gm on`, potom `.go xyz 266.667 800 4.209 725`.
+Stejný bod používá start nových postav a hřbitov. Účty a existující
+hráčské postavy jsou zachované. Kontroly serverových dat neprokazují
+fyzickou chůzi hráče. Známý rozdíl druhých vrstev vody je popsaný v přehledu v9.
+
 > Vyčištění proběhlo a bylo ověřeno 31. října na revizi `5437178873e7`:
 > 0 NPC/AI vazeb/charakterů, osm zdravých služeb. Účty, hráčské postavy a
 > geometrie jsou zachované; finální rozložení mapy zůstává další práce.

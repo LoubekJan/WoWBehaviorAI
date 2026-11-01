@@ -1,0 +1,343 @@
+{
+  "schema_version": 1,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v9",
+  "tiles": [
+    [
+      30,
+      31
+    ],
+    [
+      30,
+      32
+    ],
+    [
+      31,
+      31
+    ],
+    [
+      31,
+      32
+    ]
+  ],
+  "client_patch_sha256": "e5bdbbe3ba498c86c1bc21b9a7ca5025168811260370f459d8d5e4241fd4183b",
+  "source_receipt_sha256": "bba037a13a8ee2b4b051f38905a72ad51ff535a060f967c309b65fe55791a23f",
+  "tool_build": {
+    "mapextractor": {
+      "path": "/build/bin/mapextractor",
+      "bytes": 8776224,
+      "sha256": "a006c8c1e3028bc46ac1d07707681acdd1bf1e36dfbe166c408a7b8d33833d77"
+    },
+    "vmap4extractor": {
+      "path": "/build/bin/vmap4extractor",
+      "bytes": 17266664,
+      "sha256": "7a9c6bbe2e20897cbd6e2302d6a9c9b3db9d5ace0d5c4efb8a40c59564fff377"
+    },
+    "vmap4assembler": {
+      "path": "/build/bin/vmap4assembler",
+      "bytes": 20419752,
+      "sha256": "fadd253b4482813e9907ed4be77ebe956220879a4ab62b78ae836281f66de024"
+    },
+    "mmaps_generator": {
+      "path": "/build/bin/mmaps_generator",
+      "bytes": 31558440,
+      "sha256": "9fa70e1e2855a72f4291d89d2062533f30ad40937dfc020d66043917e5e88c0a"
+    }
+  },
+  "commands": [
+    [
+      "/build/bin/mapextractor",
+      "-i",
+      "/workspace/runtime/lab/client-source/map725-v9",
+      "-o",
+      "/workspace/runtime/lab/extractions/map725-v9",
+      "-e",
+      "3",
+      "-f",
+      "0"
+    ],
+    [
+      "/build/bin/vmap4extractor",
+      "-d",
+      "/workspace/runtime/lab/client-source/map725-v9"
+    ],
+    [
+      "/build/bin/vmap4assembler",
+      "Buildings",
+      "vmaps"
+    ],
+    [
+      "/build/bin/mmaps_generator",
+      "725",
+      "--includeFlatTerrain",
+      "true",
+      "--skipLiquid",
+      "false",
+      "--threads",
+      "1",
+      "--debugOutput",
+      "true",
+      "--silent"
+    ],
+    [
+      "python3",
+      "/workspace/runtime/lab/validation/map-preview-v9-20261101/generate_final_navigation.py",
+      "--normalization-plan-sha256",
+      "138384e901c6ccc83a68ab000651f5f76c5ad3512468d3e0b45c6e2a9981d4a1"
+    ]
+  ],
+  "step_seconds": {
+    "maps": 61.05,
+    "vmap-extract": 253.46,
+    "vmap-assemble": 87.13,
+    "navigation": 9.14
+  },
+  "files": [
+    {
+      "path": "dbc/AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "dbc/Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "dbc/Map.dbc",
+      "bytes": 43922,
+      "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "maps/7253130.map",
+      "bytes": 136144,
+      "sha256": "3730803a5c1ddae5223cc93788cb2c292a4c1559f185033fc04c4a05f8266fc1"
+    },
+    {
+      "path": "maps/7253131.map",
+      "bytes": 142756,
+      "sha256": "60846456b1bc78d62c745515cd96f8a69ace39279dd7ab85ba54059225d7f9e6"
+    },
+    {
+      "path": "maps/7253230.map",
+      "bytes": 183004,
+      "sha256": "d3ed80afda2baf27420d5965904380d4247c9b59de4b8b561c1d6c58ae2e9d5c"
+    },
+    {
+      "path": "maps/7253231.map",
+      "bytes": 172164,
+      "sha256": "669884d06b58d1cdfe4d25bef6201de31205498892fe92ccd36809452dfaf00e"
+    },
+    {
+      "path": "mmaps/725.mmap",
+      "bytes": 28,
+      "sha256": "9edb16c33cc4727a2cc2a7bd299fe23ccd3e38ad2afe206dba32610944b6da19"
+    },
+    {
+      "path": "mmaps/7253130.mmtile",
+      "bytes": 228852,
+      "sha256": "91e9700eac3b82f93708645b20fb93125656f71e0759f26e6bf89101bba83edc"
+    },
+    {
+      "path": "mmaps/7253131.mmtile",
+      "bytes": 185564,
+      "sha256": "f95446fdbfe3ee96d32667a24c981a2d05797dd70266519ca6191ab4803b5dd1"
+    },
+    {
+      "path": "mmaps/7253230.mmtile",
+      "bytes": 243128,
+      "sha256": "60153ff8fd94a68b3c1e34edec7eb43de81343317fcf0611b84544bb6fcaada4"
+    },
+    {
+      "path": "mmaps/7253231.mmtile",
+      "bytes": 436436,
+      "sha256": "58347b965797fc93065a3ea183de30fca531112e6c06f47d5c4a661332951d02"
+    },
+    {
+      "path": "vmaps/725.vmtree",
+      "bytes": 2385,
+      "sha256": "95da9c9a321a1643a8b1721765259e2f4e08177c61aa45bf59f66c8da9cceaad"
+    },
+    {
+      "path": "vmaps/725_30_31.vmtile",
+      "bytes": 3645,
+      "sha256": "1b4ed14dc0be54c9e696139743277ee0a78e31deca636da7caae0f837543f5b3"
+    },
+    {
+      "path": "vmaps/725_30_32.vmtile",
+      "bytes": 831,
+      "sha256": "2b1c8310eb969aeda016e1dba2972fd4d7a06fb23432e9295d8f4eada2151651"
+    },
+    {
+      "path": "vmaps/725_31_31.vmtile",
+      "bytes": 1923,
+      "sha256": "3046fb3bbd0be8fa9d65157703652c2f028bb1a711ae973b5c5dcc0c2ebef657"
+    },
+    {
+      "path": "vmaps/725_31_32.vmtile",
+      "bytes": 6463,
+      "sha256": "3ae4f6092a0b0b6a1075d0b3b221cb72b3f510ca291f1fa8a60571128c98b8da"
+    },
+    {
+      "path": "vmaps/Cavekoboldbucket.m2.vmo",
+      "bytes": 960,
+      "sha256": "894764fa93b1f5a71851599e5417d6d8e1476fd741ea8cdf0e2712967dbe2bad"
+    },
+    {
+      "path": "vmaps/Cavekoboldminemachine.m2.vmo",
+      "bytes": 1680,
+      "sha256": "55c0962adc89184f5bae3303736776a4ffbdec1f04d33c1ec32b2eb4aafa4789"
+    },
+    {
+      "path": "vmaps/Caveminecar01.m2.vmo",
+      "bytes": 1688,
+      "sha256": "a20da8cdbb7f25da775093d2382c45995e6db2d06dcb386f791754f4152bbff5"
+    },
+    {
+      "path": "vmaps/Caveminecarwrecked01.m2.vmo",
+      "bytes": 1464,
+      "sha256": "18a0689f2b61a69a0dcceac1e3b46379f381a6839dc6eaa925a0acff1ddfb792"
+    },
+    {
+      "path": "vmaps/Caveminecarwrecked02.m2.vmo",
+      "bytes": 3512,
+      "sha256": "37807f22fc6db0cc4dfe288d9034457c2414ada847c569ec21172677d3458a64"
+    },
+    {
+      "path": "vmaps/Caveminewheelbarrow01.m2.vmo",
+      "bytes": 2276,
+      "sha256": "ec15b2b9651fd535882929eef1b2784f1e8a952190cde8e696b418855c6b1d0e"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy01.m2.vmo",
+      "bytes": 2056,
+      "sha256": "311a885b31f5088c64976aaa132140dba94820e55e1c794a8d8f17f8a61c23b4"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy02.m2.vmo",
+      "bytes": 2008,
+      "sha256": "9385f239db3dc1e7179c421f48ac18464ba5b4e5ae02c6b5594f4419a5e1ada1"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy03.m2.vmo",
+      "bytes": 1960,
+      "sha256": "68c303df10a8cd7a3d64f471a6f4cb735fd29c383161779c814defe36b5b2574"
+    },
+    {
+      "path": "vmaps/Elwynntreecanopy04.m2.vmo",
+      "bytes": 2008,
+      "sha256": "2e1b0ba9289cac358fb774afde4b886aae47ba9da9a33f389796133c6ab60a49"
+    },
+    {
+      "path": "vmaps/Elwynntreestump01.m2.vmo",
+      "bytes": 1660,
+      "sha256": "64da573cd342edde48a8de73508e9e9c4f3894ec47386d19c1d8dee764b9d86a"
+    },
+    {
+      "path": "vmaps/Elwynntreestump02.m2.vmo",
+      "bytes": 1588,
+      "sha256": "686d89a407f28949a1f46b327cf4778428efcde46470b81c170ed4961263e653"
+    },
+    {
+      "path": "vmaps/Generallantern02.m2.vmo",
+      "bytes": 960,
+      "sha256": "356090725baa31e8a7ba4709c8c6882dd07c5fd9df1861b6f56a5c6dce408ce3"
+    },
+    {
+      "path": "vmaps/Generallantern03.m2.vmo",
+      "bytes": 960,
+      "sha256": "c335ef7107b3c68edc99ee009b1abc10d739971885957a287b0094ac686ac80a"
+    },
+    {
+      "path": "vmaps/Md_Spidermine_Nokobolds.wmo.vmo",
+      "bytes": 249376,
+      "sha256": "5812613eb81e45659ab49360f2c373e8b0df520c626271360f3b1c277e4cc6ad"
+    },
+    {
+      "path": "vmaps/Minepump01.m2.vmo",
+      "bytes": 1280,
+      "sha256": "29a74c466ebf98d3f5114b54bf688a0265c0344dcbfbe25bd30194e2c75b05eb"
+    },
+    {
+      "path": "vmaps/Stormwindcrate01.m2.vmo",
+      "bytes": 600,
+      "sha256": "036a2ba7875e3920ace0044ed175f69f396af99fc9f74cad7e252757c1a3f777"
+    },
+    {
+      "path": "vmaps/Well.m2.vmo",
+      "bytes": 1612,
+      "sha256": "fbf07ad29d3f693a1141134262e085e2055eb6e0b73e7456725e100cdec82560"
+    },
+    {
+      "path": "vmaps/Westfallbarrel01.m2.vmo",
+      "bytes": 1232,
+      "sha256": "e794806d689c6fcefd421bb28d09279119ea8e76e2841aefa281b1906b448bfb"
+    },
+    {
+      "path": "vmaps/Westfallcrate.m2.vmo",
+      "bytes": 1156,
+      "sha256": "a56299efa3483cdf2db1754b5fb1b300f1ae646b900d98644f2c46ec579f0ddf"
+    },
+    {
+      "path": "vmaps/Westfallskeleton.m2.vmo",
+      "bytes": 712,
+      "sha256": "aa11ceb8327ad6ed3866fcc5c52ad6a4c50f286bc661b6e73b77ab03c9e11fd5"
+    }
+  ],
+  "custom_vmaps": {
+    "status": "present",
+    "tree_objects": 131,
+    "tile_files": [
+      "vmaps/725_30_31.vmtile",
+      "vmaps/725_30_32.vmtile",
+      "vmaps/725_31_31.vmtile",
+      "vmaps/725_31_32.vmtile"
+    ],
+    "models": [
+      "vmaps/Cavekoboldbucket.m2.vmo",
+      "vmaps/Cavekoboldminemachine.m2.vmo",
+      "vmaps/Caveminecar01.m2.vmo",
+      "vmaps/Caveminecarwrecked01.m2.vmo",
+      "vmaps/Caveminecarwrecked02.m2.vmo",
+      "vmaps/Caveminewheelbarrow01.m2.vmo",
+      "vmaps/Elwynntreecanopy01.m2.vmo",
+      "vmaps/Elwynntreecanopy02.m2.vmo",
+      "vmaps/Elwynntreecanopy03.m2.vmo",
+      "vmaps/Elwynntreecanopy04.m2.vmo",
+      "vmaps/Elwynntreestump01.m2.vmo",
+      "vmaps/Elwynntreestump02.m2.vmo",
+      "vmaps/Generallantern02.m2.vmo",
+      "vmaps/Generallantern03.m2.vmo",
+      "vmaps/Md_Spidermine_Nokobolds.wmo.vmo",
+      "vmaps/Minepump01.m2.vmo",
+      "vmaps/Stormwindcrate01.m2.vmo",
+      "vmaps/Well.m2.vmo",
+      "vmaps/Westfallbarrel01.m2.vmo",
+      "vmaps/Westfallcrate.m2.vmo",
+      "vmaps/Westfallskeleton.m2.vmo"
+    ],
+    "unique_placements": 131
+  },
+  "raw_extraction_receipt_sha256": "980b1b5b7657e3147bd37732fce9e320a86fe56694c690413e3e37b7e6bb34fb",
+  "native_liquid_edge_normalization": {
+    "slots": 195,
+    "replacement": -500.0,
+    "plan_sha256": "138384e901c6ccc83a68ab000651f5f76c5ad3512468d3e0b45c6e2a9981d4a1",
+    "authored_values_unchanged": true,
+    "verification_requirement": "Independent source-MH2O comparison must pass before deployment."
+  },
+  "final_navigation_command": [
+    "/build/bin/mmaps_generator",
+    "725",
+    "--includeFlatTerrain",
+    "true",
+    "--skipLiquid",
+    "false",
+    "--threads",
+    "1",
+    "--debugOutput",
+    "true",
+    "--silent"
+  ]
+}

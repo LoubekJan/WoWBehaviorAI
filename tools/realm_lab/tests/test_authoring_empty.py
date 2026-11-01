@@ -75,12 +75,12 @@ class EmptyAuthoringTests(unittest.TestCase):
     def test_geometry_must_be_verified_before_accepting_zero_actor_state(self):
         population = object()
         data = Path('data-under-test')
-        with patch.object(settlement_population, 'verify_data', return_value=population) as geometry, \
+        with patch.object(authoring_empty, 'geometry', return_value=population) as geometry, \
              patch.object(authoring_empty, 'verify_empty') as empty:
             self.assertIs(manage.authoring_preflight(data, self.settings), population)
             geometry.assert_called_once_with(data)
             empty.assert_called_once_with(self.settings)
-        with patch.object(settlement_population, 'verify_data', side_effect=manage.SetupError('bad geometry')), \
+        with patch.object(authoring_empty, 'geometry', side_effect=manage.SetupError('bad geometry')), \
              patch.object(authoring_empty, 'verify_empty') as empty:
             with self.assertRaises(manage.SetupError):
                 manage.authoring_preflight(data, self.settings)

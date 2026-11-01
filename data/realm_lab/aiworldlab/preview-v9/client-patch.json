@@ -1,0 +1,85 @@
+{
+  "map_id": 725,
+  "area_id": 4988,
+  "format_version": 0,
+  "output": "runtime/lab-validation/map-preview-v9-20261101/patch-4.MPQ",
+  "created": true,
+  "bytes": 4351622,
+  "sha256": "e5bdbbe3ba498c86c1bc21b9a7ca5025168811260370f459d8d5e4241fd4183b",
+  "files": [
+    {
+      "path": "DBFilesClient\\Map.dbc",
+      "bytes": 43922,
+      "sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "DBFilesClient\\AreaTable.dbc",
+      "bytes": 367119,
+      "sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "DBFilesClient\\Light.dbc",
+      "bytes": 42981,
+      "sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "World\\Maps\\AIWorldLab\\AIWorldLab.wdt",
+      "bytes": 32828,
+      "sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba"
+    },
+    {
+      "path": "World\\Maps\\AIWorldLab\\AIWorldLab.wdl",
+      "bytes": 21108,
+      "sha256": "91c263f19cc5098edb972bb075a2c18f2af37adca395f72c54a15d6d5434f935"
+    },
+    {
+      "path": "World\\Maps\\AIWorldLab\\AIWorldLab_30_31.adt",
+      "bytes": 1100490,
+      "sha256": "e698ccf0959cdab995ff05c2fd235e336ac819c08bf982b226ff814a4f3e429a"
+    },
+    {
+      "path": "World\\Maps\\AIWorldLab\\AIWorldLab_31_31.adt",
+      "bytes": 690439,
+      "sha256": "e9bc493a6c054d6ec80acc59d2d8e53bc1738eaddaf4e87f3d7cb1339f038398"
+    },
+    {
+      "path": "World\\Maps\\AIWorldLab\\AIWorldLab_30_32.adt",
+      "bytes": 1413874,
+      "sha256": "fbe1d5427f47ada65031bf215a125c2bdb2e2eadf0c3a44ff6b49a9e65249a6b"
+    },
+    {
+      "path": "World\\Maps\\AIWorldLab\\AIWorldLab_31_32.adt",
+      "bytes": 637816,
+      "sha256": "dba00dc5833c688189b66fa05c2d4e28cac50e2a872ad74b22418b8c783506eb"
+    }
+  ],
+  "tiles": [
+    {
+      "x": 30,
+      "y": 31
+    },
+    {
+      "x": 31,
+      "y": 31
+    },
+    {
+      "x": 30,
+      "y": 32
+    },
+    {
+      "x": 31,
+      "y": 32
+    }
+  ],
+  "source_revision": "preview-v9",
+  "source_receipt_sha256": "bba037a13a8ee2b4b051f38905a72ad51ff535a060f967c309b65fe55791a23f",
+  "source_unchanged": true,
+  "source_files_rechecked_unchanged": 9,
+  "independent_mpq_roundtrip": {
+    "status": "PASS",
+    "verified_content_files": 9,
+    "Azeroth_included": false,
+    "Kalimdor_included": false
+  },
+  "verification_scope": "Client patch content only; native server collision, navigation and gameplay not yet verified."
+}

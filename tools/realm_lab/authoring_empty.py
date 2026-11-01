@@ -8,8 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 
 try:
-    from . import settlement_population as settlement
+    from . import map_bundle, settlement_population as settlement
 except ImportError:
+    import map_bundle
     import settlement_population as settlement
 
 PROFILE = 'authoring-empty'
@@ -64,7 +65,25 @@ def verify_empty(settings, *, root: Path = ROOT) -> dict[str, int]:
     return counts
 
 
+def geometry(data: Path):
+    """Only the empty profile may select geometry without a population proof."""
+    if (map_bundle.METADATA / map_bundle.INDEX).exists():
+        return map_bundle.verify_data(data)
+    return settlement.verify_data(data)
+
+
 def preflight(data: Path, settings):
-    population = settlement.verify_data(data)
+    population = geometry(data)
+    if isinstance(population, map_bundle.GeometryBundle):
+        try:
+            from . import graveyard, world_setup
+        except ImportError:
+            import graveyard
+            import world_setup
+        try:
+            world_setup.WorldStart.load(population)
+            graveyard.verify_data(data, graveyard.Graveyard.load(population.metadata / "graveyard.json"))
+        except ValueError as exc:
+            raise settlement.ProfileError("Authored start/graveyard does not match its pinned native safe point") from exc
     verify_empty(settings)
     return population

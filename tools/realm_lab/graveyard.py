@@ -50,12 +50,23 @@ class Graveyard:
     z: float
 
     @classmethod
-    def load(cls, path: Path = MANIFEST) -> "Graveyard":
+    def load(cls, path: Path | None = None) -> "Graveyard":
+        if path is None:
+            path = MANIFEST
+            if os.environ.get("LAB_AI_PROFILE") == "authoring-empty":
+                try:
+                    from . import map_bundle
+                except ImportError:
+                    import map_bundle
+                if (map_bundle.METADATA / map_bundle.INDEX).exists():
+                    path = map_bundle.GeometryBundle.load().metadata / "graveyard.json"
         value = json.loads(path.read_text(encoding="utf-8"))
         try:
+            revision = value.get("source", {}).get("revision")
+            authoring = value.get("profile") == "authoring-empty"
             if (value["schema_version"], value["profile"], value["realm_id"],
                     value["safe_location_id"], value["map_id"], value["zone_id"], value["team"]) != (
-                    1, "settlement-v8", 2, 9000, 725, 4988, 0):
+                    1, "authoring-empty" if authoring else "settlement-v8", 2, 9000, 725, 4988, 0):
                 raise ValueError("Unexpected custom-world graveyard identity")
             position, source = value["position"], value["source"]
             coords = [position[field] for field in ("x", "y", "z", "ground_z")]
@@ -65,7 +76,7 @@ class Graveyard:
                     abs(coords[2] - coords[3] - 2.0) > 0.00001):
                 raise ValueError("Invalid graveyard position above reviewed ground")
             evidence = source["evidence"]
-            if (source["revision"] != "preview-v8" or
+            if (revision != ("preview-v9" if authoring else "preview-v8") or
                     any(not isinstance(source[field], str) or not re.fullmatch(r"[0-9a-f]{64}", source[field])
                         for field in ("proof_sha256", "geometry_verification_sha256")) or
                     evidence["dry"] is not True or evidence["outside_native_and_source_terrain_holes"] is not True or
@@ -73,6 +84,18 @@ class Graveyard:
                     not 0 <= evidence["slope_degrees"] <= 15 or
                     evidence["outside_collision_bounds_margin"] < 2):
                 raise ValueError("Graveyard requires reviewed dry ground/navmesh evidence")
+            if authoring:
+                try:
+                    from . import map_bundle
+                except ImportError:
+                    import map_bundle
+                bundle = map_bundle.GeometryBundle.load(path.parent.parent)
+                if (path.resolve() != (bundle.metadata / "graveyard.json").resolve() or
+                        source["proof_sha256"] != bundle.entry_proof_sha256 or
+                        source["geometry_verification_sha256"] != bundle.verification_sha256 or
+                        source["evidence"] != bundle.entry_proof["evidence"] or
+                        {"map": 725, **position} != bundle.entry_proof["player_entry"]):
+                    raise ValueError("Authoring graveyard differs from the pinned native safe point")
             for field in ("name", "comment"):
                 if (not isinstance(value[field], str) or not 0 < len(value[field]) <= 128 or
                         any(ord(c) < 32 or ord(c) > 126 for c in value[field])):
@@ -267,6 +290,13 @@ def bootstrap(data: Path, settings=None, graveyard: Graveyard | None = None) -> 
     if settings.ai_profile not in ("disabled", "authoring-empty", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
         raise ValueError("Graveyard bootstrap requires the native settlement profile and a stopped world")
     settlement_population.ensure_world_offline()
+    if graveyard is None and settings.ai_profile == "authoring-empty":
+        try:
+            from . import map_bundle
+        except ImportError:
+            import map_bundle
+        if (map_bundle.METADATA / map_bundle.INDEX).exists():
+            graveyard = Graveyard.load(map_bundle.GeometryBundle.load().metadata / "graveyard.json")
     graveyard = verify_data(data, graveyard)
 
     def read_links() -> list[dict]:
@@ -290,11 +320,13 @@ def main() -> None:
     build.add_argument("data", type=Path)
     build.add_argument("--base", type=Path, required=True)
     build.add_argument("--client-patch", type=Path, required=True)
+    build.add_argument("--manifest", type=Path, help="Explicit reviewed graveyard metadata for staged generation")
     initialize = commands.add_parser("bootstrap", help="Install the private custom-zone link offline")
     initialize.add_argument("data", type=Path)
     args = parser.parse_args()
     try:
-        result = (build_server(args.data, args.base, args.client_patch) if args.command == "build-server"
+        result = (build_server(args.data, args.base, args.client_patch,
+                               Graveyard.load(args.manifest) if args.manifest else None) if args.command == "build-server"
                   else bootstrap(args.data))
     except (OSError, ValueError) as exc:
         parser.exit(2, f"Graveyard preparation refused: {exc}\n")

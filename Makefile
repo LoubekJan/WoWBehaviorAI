@@ -51,7 +51,7 @@ dbc-factions:
 	python3 tools/dbc/build_elwynn_factions.py --dbc-base-dir runtime/lab/dbc-base --out-dir runtime/lab/data/dbc
 
 graveyard-data:
-	python3 tools/realm_lab/graveyard.py build-server runtime/lab/data --base runtime/lab/dbc-base/WorldSafeLocs.dbc --client-patch runtime/lab/client-patch/patch-X.MPQ
+	$(RUN) --user 0:0 tc-dev python3 /workspace/tools/realm_lab/graveyard.py build-server /workspace/runtime/lab/data --base /workspace/runtime/lab/dbc-base/WorldSafeLocs.dbc --client-patch /workspace/runtime/lab/client-patch/patch-X.MPQ
 
 setup-world:
 	WORLD_ENV_FILE=$(WORLD_ENV_FILE) bash docker/scripts/setup-world.sh

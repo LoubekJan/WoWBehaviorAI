@@ -5,8 +5,8 @@
 > geometrie jsou zachované; finální rozložení mapy zůstává další práce.
 
 
-Aktualizováno **31. října 2026**. Aktivní svět používá mapu **725**, oblast
-**4988**, realm **2** a geometrii **`preview-v8`**. Pro finální úpravy se
+Aktualizováno **1. listopadu 2026**. Aktivní svět používá mapu **725**, oblast
+**4988**, realm **2** a geometrii **`preview-v9`**. Pro finální úpravy se
 používá **`authoring-empty`**, bez NPC a aktivních charakterů. Manifesty
 původních 100 aktérů zůstávají historickými/regresními daty; v tomto režimu
 se jejich bootstrap nespouští. Původní Elwynn runtime a geometrie v2/v3 nejsou aktivní
@@ -15,22 +15,24 @@ a [RealmLab.md](../../../doc/RealmLab.md).
 
 ## Současná geometrie a zdroje
 
-[Projektový manifest](preview-v8/project-manifest.json) vychází z uloženého
+[Projektový manifest](preview-v9/project-manifest.json) vychází z uloženého
 uživatelského projektu, při přípravě upravuje jen oddělený staging a
 zachovává jeho evidované zdrojové soubory. Mapa má čtyři ADT dlaždice
 `(30,31)`, `(31,31)`, `(30,32)`, `(31,32)` a přibližné hranice
 X −533,333 až 533,333 a Y 0 až 1066,667 yardu. Není to původní jediná rovná
-dlaždice v Z 0. Stavby, voda, důl, most a tábory vycházejí z autorovy mapy.
+dlaždice v Z 0. Nová mapa obsahuje vegetaci, vodu a jeskyni; původní město,
+vesnice, tábory a most byly odstraněné.
 
-[Serverový manifest](preview-v8/server-manifest.json) a
-[kontrola dat](preview-v8/data-verification.json) popisují shodný výstup
-DBC/maps/vmaps/mmaps včetně kolizních závislostí. Populační preflight
-ověřuje 61 geometrických souborů. Binární zdroje, klientské MPQ a extrahovaná
+[Serverový manifest](preview-v9/server-manifest.json) a
+[kontrola dat](preview-v9/data-verification.json) popisují shodný výstup
+DBC/maps/vmaps/mmaps včetně kolizních závislostí. Prázdný mapový preflight
+ověřuje všech 38 geometrických souborů. [Přehled v9](preview-v9/README.md)
+uvádí bezpečný vstup i známé omezení druhých vrstev vody. Binární zdroje, klientské MPQ a extrahovaná
 serverová data jsou soukromé; nejsou distribuované v Gitu. Změna geometrie
 vyžaduje znovu sestavit shodný klientský i serverový balík. Pouhé nasazení
 charakterové karty, vzhledu nebo vlastní šablony geometrii nemění.
 
-Umístění NPC a jejich domovy vycházejí z
+Historické umístění NPC a jejich domovy ve verzi v8 vycházejí z
 [autorských kotev](preview-v8/npc-anchor-audit.json),
 [rozložení](preview-v8/npc-layout-proposal.json) a
 [přijaté populace](preview-v8/settlement-population.json).
