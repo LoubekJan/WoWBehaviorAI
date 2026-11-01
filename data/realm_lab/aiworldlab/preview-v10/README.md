@@ -4,6 +4,12 @@ Další autorská úprava pro režim `authoring-empty`, realm 2, mapa 725,
 oblast 4988. Přibyly hostinec, kovárna, radnice, farmy, pila a další
 objekty; osazení NPC zůstává prázdné.
 
+[Závěrečné ověření](activation.json) potvrzuje nasazení revize `055db924b08c`,
+74 správných geometrických souborů, osm zdravých služeb a nulové NPC/AI
+osazení. [CI/CD](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41352203913)
+prošlo 891 Python a 699 C++ testy. [Klientské patche](client-install.json)
+jsou instalované a předchozí verze klienta i serveru je zálohovaná.
+
 Čtyři stejné dlaždice mají aktualizovaný terén, 93 M2 a 16 WMO umístění.
 V dlaždici (31,31) přibylo 12 čtverců děr, v (31,32) zůstalo původních 32.
 Zdrojových devět souborů bylo zkontrolováno před i po přípravě. Oddělený

@@ -12,6 +12,12 @@ Starší manifesty a důkazy v9 zůstávají zachované. Při nasazování svět
 po celou dobu CI; zastavuje se až při chráněné výměně ověřených dat.
 Známé omezení druhých vodních vrstev přetrvává a je znovu zdokumentované.
 
+[Ověřené nasazení v10](../data/realm_lab/aiworldlab/preview-v10/activation.json)
+na revizi `055db924b08c` prošlo CI/CD s 891 Python a 699 C++ testy.
+Všech osm služeb je zdravých, osazení i AI vazby jsou nulové, všech
+74 souborů odpovídá manifestu a start všech 62 kombinací je správný.
+Klientské patche jsou nainstalované; starý svět zůstal dostupný po celou dobu CI.
+
 ## Nová prohlídková mapa — 1. listopadu 2026
 
 Profil `authoring-empty` nově používá [preview-v9](../data/realm_lab/aiworldlab/preview-v9/README.md)

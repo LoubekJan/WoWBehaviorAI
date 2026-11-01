@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-11-01T21:44:06.865463+00:00",
+  "source_revision": "preview-v10",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "code_revision": "055db924b08cb40d3161a82916cd74219730d917",
+  "status": "installed_and_healthy",
+  "ci_run_url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41352203913",
+  "services": [
+    {
+      "service": "account-web",
+      "id": "7a6c8a29942d",
+      "health": "healthy"
+    },
+    {
+      "service": "ai-server",
+      "id": "296e3ede0c4c",
+      "health": "healthy"
+    },
+    {
+      "service": "auth-mysql",
+      "id": "bfe607d4d742",
+      "health": "healthy"
+    },
+    {
+      "service": "authserver",
+      "id": "db3ac8cc83a0",
+      "health": "healthy"
+    },
+    {
+      "service": "character-studio",
+      "id": "e1c5b4082ba7",
+      "health": "healthy"
+    },
+    {
+      "service": "lab-mysql",
+      "id": "dd4e75deb886",
+      "health": "healthy"
+    },
+    {
+      "service": "world-viewer",
+      "id": "932ca13b536f",
+      "health": "healthy"
+    },
+    {
+      "service": "worldserver",
+      "id": "8a8d7dec33d7",
+      "health": "healthy"
+    }
+  ],
+  "runtime": {
+    "profile": "authoring-empty",
+    "flags": {
+      "RealmID": "2",
+      "AIWorld.Enable": "0",
+      "AIWorld.ScopeMapId": "725",
+      "AIWorld.ScopeZoneIds": "\"4988\"",
+      "AIWorld.RemoteInferenceEnabled": "0",
+      "AIWorld.TelemetryEnabled": "0",
+      "AIWorld.TelemetryNativeCreaturesEnabled": "0",
+      "AIWorld.LivingRolesEnabled": "0",
+      "AIWorld.NpcAgentEnabled": "0"
+    },
+    "population": {
+      "creatures": 0,
+      "agents": 0,
+      "participation": 0,
+      "memberships": 0,
+      "memories": 0,
+      "respawns": 0,
+      "templates": 0,
+      "npc_agents": 0,
+      "npc_appearances": 0,
+      "npc_templates": 0
+    },
+    "start": {
+      "x": 266.667,
+      "y": 800.0,
+      "z": 4.208838059822325,
+      "orientation": 0.0,
+      "map_id": 725,
+      "area_id": 4988
+    },
+    "graveyard_id": 9000,
+    "installed_geometry_files": 74,
+    "new_character_starts_match": true,
+    "new_character_start_rows": 62,
+    "rendered_config_verified": true
+  },
+  "worldserver_version": "TrinityCore rev. 055db924b08c 2026-11-01 22:27:59 +0100 (AI-World-lab branch) (Linux, x86_64, RelWithDebInfo, Static)",
+  "client_patch_sha256": "639d86ad044d1d2f00da3f1751c734af3b62f80658aee6d7345e21fd14f3c804",
+  "graveyard_patch_sha256": "4a21fba14735f1a2fb3b49492f739d2c0842d8d9e9142cb74684c3e08c1bbdb8",
+  "backup_directory": "runtime/lab/validation/map-preview-v10-20261101/before/installed-data",
+  "existing_shared_vmo_preserved": 7540,
+  "observer_agent_count": 0,
+  "physical_player_walk_verified": false,
+  "validation": {
+    "ci_conclusion": "success",
+    "python_tests_passed": 891,
+    "cpp_tests_passed": 699,
+    "native_nav_tiles_verified": 4,
+    "client_source_files_unchanged": 9,
+    "physical_player_walk_verified": false
+  },
+  "authoring_map_index_sha256": "152d17162a2235bc30aa15d39c2ccfe2bd781c418153f83df355ece7c7689c08",
+  "client_install_receipt_sha256": "a17466782235f1dda59f4b7af8e57331c4781c9a41e5c9af58f21678f4d00e39"
+}
