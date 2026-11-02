@@ -76,7 +76,7 @@ def telemetry(population):
     rows = []
     for a in population.actors:
         point=dict(map_id=725,x=a.x,y=a.y,z=a.z)
-        rows.append(dict(spawn_id=a.spawn_id,agent_id=a.spawn_id,entry=a.entry,template_entry=current.expected_entry(a.spawn_id),
+        rows.append(dict(spawn_id=a.spawn_id,agent_id=a.spawn_id,entry=current.expected_entry(a.spawn_id),template_entry=current.expected_entry(a.spawn_id),
             native_creature=True, control_mode="OBSERVE_ONLY", position={**point,"source":"live"},home=point,
             world_faction=2 if a.spawn_id in current.DEFIAS_IDS else 1,faction_template_id=2300 if a.spawn_id in current.DEFIAS_IDS else 12,
             needs=None,economy=None,living_role=None,supply=None,raid=None,llm_agent=None,in_combat=False))
@@ -134,7 +134,7 @@ class V11ResidentsTests(unittest.TestCase):
     def test_native_faction_and_full_clone_identity_remain_visible_without_agents(self):
         state=telemetry(self.population)
         self.assertEqual(current.validate_telemetry(state,self.population)["defias"],10)
-        for key,value in (("world_faction",1),("faction_template_id",17),("template_entry",38),("native_creature",False)):
+        for key,value in (("world_faction",1),("faction_template_id",17),("entry",38),("template_entry",38),("native_creature",False)):
             bad=copy.deepcopy(state);bad["agents"][35][key]=value
             with self.subTest(key=key),self.assertRaises(current.ProfileError):current.validate_telemetry(bad,self.population)
         fighting=copy.deepcopy(state);fighting["agents"][35]["in_combat"]=True;fighting["agents"][35]["position"]["x"]+=10

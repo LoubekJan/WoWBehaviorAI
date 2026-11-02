@@ -314,7 +314,7 @@ def validate_telemetry(state, population):
         position, home = row.get("position"), row.get("home")
         require(row.get("native_creature") is True and row.get("control_mode") == "OBSERVE_ONLY" and
                 row.get("agent_id") == actor.spawn_id and row.get("world_faction") == (2 if defias else 1) and
-                row.get("entry") == actor.entry and row.get("template_entry") == expected_entry(actor.spawn_id) and
+                row.get("entry") == expected_entry(actor.spawn_id) and row.get("template_entry") == expected_entry(actor.spawn_id) and
                 all(row.get(key) is None for key in ("needs", "economy", "living_role", "supply", "raid", "llm_agent")) and
                 isinstance(position, dict) and position.get("map_id") == 725 and
                 all(type(position.get(key)) in (int, float) and math.isfinite(position[key]) for key in ("x", "y", "z")) and
