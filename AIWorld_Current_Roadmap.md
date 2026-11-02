@@ -1,3 +1,22 @@
+# Obyvatelé finální mapy — 2. listopadu 2026
+
+Aktivní geometrie je `preview-v10`, realm 2, mapa 725 a oblast 4988.
+Nový profil `residents-v10` přidává dvě NPC do každého z 11 obytných domů.
+Celkem 22 obyvatel má samostatné herní šablony, jména, karty a Studio návrhy.
+Hostinec, kovárna, radnice, pila, sila a jeskyně se tímto krokem neosazují.
+Rozpis a geometrické důkazy jsou v [přehledu obyvatel](data/realm_lab/aiworldlab/preview-v10/residents-README.md).
+
+- [x] Připravit 22 nových identit a vlastních šablon nad stávající mapou.
+- [x] Ověřit vnitřní podlahy, kolize, všechny vrstvy vody a cesty pro 22 bodů.
+- [x] Registrovat postavy v Ateliéru a doplňovat návrhy bez přepsání autorských úprav.
+- [ ] Vizuálně projít všechny domy v herním klientu a potvrdit umístění.
+- [ ] Podle zadání doplnit povolání, denní režimy a další chování obyvatel.
+- [ ] Pro nové role znovu ověřit fyzické cesty a potravní řetězce na této geometrii.
+
+Obyvatelé zatím používají stojící nativní AI. Staré simulace v8 a LLM
+řadiče se tímto osídlením neobnovují. Účty a hráčské postavy zůstávají zachované.
+Následující záznam popisuje předchozí vyčištění a jeho širší plán.
+
 # Finální podoba světa — příprava od 31. října 2026
 
 **Vyčištění je dokončené a živě ověřené.** Dne 31. října bylo odstraněno

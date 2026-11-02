@@ -159,7 +159,8 @@ git() {
 docker() {
   printf 'docker %s\n' "$*" >> "$CALLS"
   case "$*" in
-    *'print(Settings.load(os.environ).ai_profile)'*) printf 'authoring-empty';;
+    *'print(Settings.load(os.environ).ai_profile)'*) printf '%s' "$REVIEWED_PROFILE";;
+    *'character_templates plan'*) if [ "$FAIL_PREFLIGHT" = 1 ]; then return 42; fi;;
     *'preflight-authoring-empty'*) if [ "$FAIL_PREFLIGHT" = 1 ]; then return 42; fi;;
     *'ps --all -q worldserver'*) if [ "$WORLD_PRESENT" = 1 ]; then printf 'test-world'; fi;;
     'inspect --format {{.State.Running}} test-world') printf 'false';;
@@ -173,13 +174,14 @@ set -- "$REVISION"
 source "$SCRIPT"
 '''
 
-    def run_script(self, filename, fail=False):
+    def run_script(self, filename, fail=False, profile=PROFILE):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / ".env").write_text("", encoding="utf-8")
             calls = root / "calls.txt"
             env = {**os.environ, "SCRIPT": (ROOT / "docker/scripts" / filename).as_posix(),
-                   "CALLS": calls.as_posix(), "FAIL_PREFLIGHT": str(int(fail)), "REVISION": "a" * 40}
+                   "CALLS": calls.as_posix(), "FAIL_PREFLIGHT": str(int(fail)), "REVISION": "a" * 40,
+                   "REVIEWED_PROFILE": profile}
             # Binary stdin prevents Windows text-mode conversion to CRLF.
             result = subprocess.run([bash_binary(), "--noprofile", "--norc", "-s"], input=self.HARNESS.encode("utf-8"),
                 capture_output=True, cwd=root, env=env, timeout=20)
@@ -206,6 +208,25 @@ source "$SCRIPT"
                 self.assertTrue(any("preflight-authoring-empty" in call for call in calls))
                 self.assertTrue(all("stop worldserver" not in call and "world_setup.py prepare" not in call and
                                     "bootstrap-" not in call for call in calls))
+
+    def test_resident_setup_and_deploy_restore_then_install_the_22_new_owned_templates(self):
+        for filename in ("setup-world.sh", "deploy-lab.sh"):
+            with self.subTest(script=filename):
+                result, calls = self.run_script(filename, profile="residents-v10")
+                self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+                order = [next(i for i, call in enumerate(calls) if token in call) for token in (
+                    "character_templates plan", "stop worldserver", "character_templates restore",
+                    "world_setup.py prepare", "bootstrap-residents-v10", "character_templates apply")]
+                self.assertEqual(order, sorted(order))
+                self.assertFalse(any("bootstrap-settlement-v8" in call for call in calls))
+
+    def test_resident_authoring_errors_refuse_both_flows_before_world_stop(self):
+        for filename in ("setup-world.sh", "deploy-lab.sh"):
+            with self.subTest(script=filename):
+                result, calls = self.run_script(filename, fail=True, profile="residents-v10")
+                self.assertEqual(result.returncode, 42, result.stderr[-2000:])
+                self.assertTrue(any("character_templates plan" in call for call in calls))
+                self.assertFalse(any("stop worldserver" in call or "bootstrap-" in call for call in calls))
 
 
 if __name__ == "__main__":

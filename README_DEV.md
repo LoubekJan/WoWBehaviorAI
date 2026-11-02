@@ -1,5 +1,30 @@
 # Vývoj a provoz vlastního světa
 
+## Současné osídlení — residents-v10
+
+Profil `residents-v10` používá geometrii preview-v10 a **22 nativních obyvatel
+v 11 obytných domech**. Každý má vlastní šablonu, jméno a Studio návrh.
+Nastavení existujícího serveru je:
+
+```dotenv
+LAB_AI_PROFILE=residents-v10
+LAB_WILDLIFE_ENABLED=0
+LAB_NPC_AGENTS_ENABLED=0
+AI_NPC_MODEL_ENABLED=0
+```
+
+CI/CD ověří autorské vstupy, zastaví svět, připraví jen nových 22 spawnů,
+obnoví a aplikuje jejich samostatné šablony a po startu ověří databázi i
+čerstvou nativní telemetrii. `make setup-world` podporuje stejný offline
+postup pro již připravenou instalaci; původní testovací stovku neobnovuje.
+Účty, hráčské postavy a klientský mapový patch se nemění.
+
+Ateliér na portu 9092 při nasazení doplní chybějící návrhy a zachová uložené
+úpravy. Samotné uložení návrhu svět nezmění. Export instalované vlastní
+šablony mění jméno a podtitul; humanoidní vzhled a LLM řízení zůstávají pro
+tento profil vypnuté. [Přehled obyvatel](data/realm_lab/aiworldlab/preview-v10/residents-README.md)
+obsahuje přiřazení domů a meze ověření.
+
 > Vyčištění proběhlo a bylo ověřeno 31. října na revizi `5437178873e7`:
 > 0 NPC/AI vazeb/charakterů, osm zdravých služeb. Účty, hráčské postavy a
 > geometrie jsou zachované; finální rozložení mapy zůstává další práce.
