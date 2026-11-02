@@ -120,16 +120,16 @@ namespace LivingReturnPolicy
         std::array<std::optional<ActionPosition>, 9> GroundTargets{};
         LivingSurfaceCorridor::Search Surface;
         LivingSurfaceDetour::Search Detour;
-        bool AllowDetour = false;
+        bool AllowDetour = false, StrictArrival = false;
         ActionPosition From, Home;
         std::optional<ActionPosition> Danger;
         float ArrivalRadius = 0, Limit = 0, Clearance = 0;
 
         bool Matches(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
-            ActionPosition const* danger, float clearance, bool allowDetour = false) const
+            ActionPosition const* danger, float clearance, bool allowDetour = false, bool strictArrival = false) const
         {
             return HasContext && SamePosition(From, from) && SamePosition(Home, home) &&
-                ArrivalRadius == radius && Limit == limit && Clearance == clearance && AllowDetour == allowDetour &&
+                ArrivalRadius == radius && Limit == limit && Clearance == clearance && AllowDetour == allowDetour && StrictArrival == strictArrival &&
                 Danger.has_value() == bool(danger) && (!danger || SamePosition(*Danger, *danger));
         }
         std::vector<ActionPosition> TakeDetourRoute()
@@ -154,12 +154,12 @@ namespace LivingReturnPolicy
         bool CandidatesExhausted(std::size_t count) const
         { return NextTarget == count && NextSurfaceTarget == count; }
         void Begin(ActionPosition const& from, ActionPosition const& home, float radius, float limit,
-            ActionPosition const* danger, float clearance, bool allowDetour = false)
+            ActionPosition const* danger, float clearance, bool allowDetour = false, bool strictArrival = false)
         {
             *this = {};
             HasContext = true; From = from; Home = home;
             ArrivalRadius = radius; Limit = limit; Clearance = clearance;
-            AllowDetour = allowDetour;
+            AllowDetour = allowDetour; StrictArrival = strictArrival;
             if (danger) Danger = *danger;
             Report.Failure = "INVALID_REQUEST";
         }
@@ -209,12 +209,13 @@ namespace LivingReturnPolicy
     }
 
     inline bool HomeEndpointMatches(ActionPosition const& home, float radius, ActionPosition const& endpoint,
-        std::optional<ActionPosition> const& supported)
+        std::optional<ActionPosition> const& supported, bool strictArrival = false, bool lineOfSight = false)
     {
         return Finite(home) && Finite(endpoint) && home.MapId == endpoint.MapId &&
             std::isfinite(radius) && radius >= 0 && std::hypot(endpoint.X-home.X, endpoint.Y-home.Y) <= radius &&
             supported && Finite(*supported) && supported->MapId == endpoint.MapId &&
-            Distance(endpoint, *supported) <= 1.0f;
+            Distance(endpoint, *supported) <= 1.0f &&
+            (!strictArrival || (Distance(endpoint,home) <= radius && lineOfSight));
     }
 
     // Check the engine's resolved endpoint, not the proposed height. A trail

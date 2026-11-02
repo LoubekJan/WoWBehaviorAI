@@ -41,6 +41,23 @@ namespace LivingRecoveryPath
             if (!std::isfinite(height) || height <= INVALID_HEIGHT) return std::nullopt;
             return height + hover;
         }
+        bool ArrivalMatches(Creature& creature, ActionPosition const& goal, float radius,
+            ActionPosition const& endpoint, bool strict)
+        {
+            if (!LivingReturnPolicy::Finite(goal) || !LivingReturnPolicy::Finite(endpoint) ||
+                goal.MapId != endpoint.MapId || !std::isfinite(radius) || radius < 0) return false;
+            if (strict && LivingReturnPolicy::Distance(endpoint,goal) > radius) return false;
+            bool los = true;
+            if (strict)
+            {
+                float lift = std::max(0.5f,creature.GetCollisionHeight());
+                los = creature.GetMap()->isInLineOfSight(endpoint.X,endpoint.Y,endpoint.Z+lift,
+                    goal.X,goal.Y,goal.Z+lift,creature.GetPhaseMask(),
+                    LINEOFSIGHT_ALL_CHECKS,VMAP::ModelIgnoreFlags::Nothing);
+            }
+            return LivingReturnPolicy::HomeEndpointMatches(goal,radius,endpoint,
+                GroundHomeTarget(creature,goal,endpoint),strict,los);
+        }
         bool ClearGroundSegment(Creature const& creature, ActionPosition const& a, ActionPosition const& b)
         {
             for (float lift : {0.3f, std::max(0.5f, creature.GetCollisionHeight())})
@@ -124,13 +141,13 @@ namespace LivingRecoveryPath
 
     std::vector<ActionPosition> HomeCorridor(Creature& creature, ActionPosition const& from,
         ActionPosition const& home, float arrivalRadius, float limit, ActionPosition const* danger, float clearance,
-        LivingReturnPolicy::Diagnostics* diagnostics, LivingReturnPolicy::HomeCorridorSearch* search, bool allowDetour)
+        LivingReturnPolicy::Diagnostics* diagnostics, LivingReturnPolicy::HomeCorridorSearch* search, bool allowDetour, bool strictArrival)
     {
         using namespace LivingReturnPolicy;
         HomeCorridorSearch localSearch;
         auto& cursor = search ? *search : localSearch;
-        if (!cursor.Matches(from, home, arrivalRadius, limit, danger, clearance, allowDetour))
-            cursor.Begin(from, home, arrivalRadius, limit, danger, clearance, allowDetour);
+        if (!cursor.Matches(from, home, arrivalRadius, limit, danger, clearance, allowDetour, strictArrival))
+            cursor.Begin(from, home, arrivalRadius, limit, danger, clearance, allowDetour, strictArrival);
         auto& report = cursor.Report;
         if (diagnostics) { diagnostics->Deferred = false; diagnostics->HomePath = report; }
         auto publish = [&] { if (diagnostics) diagnostics->HomePath = report; };
@@ -148,7 +165,7 @@ namespace LivingRecoveryPath
                 if (search) permit.emplace(PlanningWorkBudget::TryAcquire());
                 if (permit && !*permit)
                 { if (diagnostics) diagnostics->Deferred = true; publish(); return {}; }
-                if (HomeEndpointMatches(home, arrivalRadius, from, GroundHomeTarget(creature, home, from)))
+                if (ArrivalMatches(creature,home,arrivalRadius,from,strictArrival))
                 { report.Failure = "NONE"; cursor.Done = true; publish(); return {from}; }
             }
             cursor.ArrivalChecked = true;
@@ -176,8 +193,7 @@ namespace LivingRecoveryPath
             auto points = path.GetPath();
             if (points.size() < 2 || Distance(from, {from.MapId, points.front().x, points.front().y, points.front().z}) > 1.5f ||
                 std::hypot(points.back().x-home.X, points.back().y-home.Y) > arrivalRadius ||
-                !HomeEndpointMatches(home, arrivalRadius, {from.MapId, points.back().x, points.back().y, points.back().z},
-                    GroundHomeTarget(creature, home, {from.MapId, points.back().x, points.back().y, points.back().z})))
+                !ArrivalMatches(creature,home,arrivalRadius,{from.MapId,points.back().x,points.back().y,points.back().z},strictArrival))
             { reject(HomePathFailure::Endpoint); continue; }
             points.front() = {from.X, from.Y, from.Z};
             if (!Movement::PathWithinBounds(points, [&](float x, float y, float z)
@@ -233,8 +249,7 @@ namespace LivingRecoveryPath
             if (status == LivingSurfaceCorridor::Status::Pending)
                 continue;
             if (status == LivingSurfaceCorridor::Status::Complete &&
-                HomeEndpointMatches(home, arrivalRadius, cursor.Surface.Route.back(),
-                    GroundHomeTarget(creature, home, cursor.Surface.Route.back())))
+                ArrivalMatches(creature,home,arrivalRadius,cursor.Surface.Route.back(),strictArrival))
             {
                 auto corridor = LivingSurfaceCorridor::Legs(cursor.Surface.Route);
                 if (!corridor.empty())
@@ -288,7 +303,7 @@ namespace LivingRecoveryPath
                 { return InScope(creature, p) &&
                     std::hypot(p.X-home.X, p.Y-home.Y) <= cursor.Limit; },
                 [&](ActionPosition const& p)
-                { return HomeEndpointMatches(home, cursor.ArrivalRadius, p, GroundHomeTarget(creature, home, p)); },
+                { return ArrivalMatches(creature,home,cursor.ArrivalRadius,p,cursor.StrictArrival); },
                 8, 1, [&](ActionPosition const& p) { return surfaceTiles.RecoveryTile({p.X, p.Y, p.Z}); });
             report.DetourFailure = cursor.Detour.Failure;
             report.DetourNodes = cursor.Detour.TotalNodes();

@@ -553,3 +553,60 @@ TEST_CASE("Departure staging never borrows budget yields cargo or a foreign home
     state.RestAtHome = false; state.DepartureTried = true;
     REQUIRE_FALSE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,0,0,false));
 }
+
+TEST_CASE("Strict resident arrival continues past a real XY-near node outside the 3D meal or home radius", "[AIWorld][RecoveryNavigation][SurfaceDetour][LivingResidentsV11]")
+{
+    using namespace LivingReturnPolicy;
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{725,110.5215f,1017.915f,.2463253f};
+    ActionPosition home{725,101.1432f,1020.631f,.9810646f};
+    ActionPosition rejected{725,103.0215f,1020.415f,.719072192f};
+    REQUIRE(std::hypot(rejected.X-home.X,rejected.Y-home.Y) < 1.9f);
+    REQUIRE(Distance(rejected,home) > 1.9f);
+    REQUIRE(HomeEndpointMatches(home,1.9f,rejected,rejected)); // unchanged legacy XY contract
+    REQUIRE_FALSE(HomeEndpointMatches(home,1.9f,rejected,rejected,true,true));
+    float slopeY = (rejected.Z-from.Z - .06f*(from.X-rejected.X))/(rejected.Y-from.Y);
+    auto floor = [&](ActionPosition const& p) -> std::optional<float>
+    { return from.Z + .06f*(from.X-p.X) + slopeY*(p.Y-from.Y); };
+    auto bounds = [&](ActionPosition const& p)
+    { return p.X >= 95 && p.X <= 115 && p.Y >= 1010 && p.Y <= 1030; };
+    unsigned rejectedNearNodes = 0;
+    auto goal = [&](ActionPosition const& p)
+    {
+        bool match = HomeEndpointMatches(home,1.9f,p,p,true,true);
+        if (!match && std::hypot(p.X-home.X,p.Y-home.Y) <= 1.9f) ++rejectedNearNodes;
+        return match;
+    };
+    Search route;
+    FinishDetour(route,from,home,1.9f,floor,clearDetour,bounds,goal);
+    REQUIRE(route.State == Status::Complete);
+    REQUIRE(rejectedNearNodes > 0);
+    REQUIRE_FALSE(route.Route.empty());
+    REQUIRE(Distance(route.Route.back(),home) <= 1.9f);
+    REQUIRE_FALSE(SamePosition(route.Route.back(),rejected));
+    auto previous = from;
+    for (auto const& point : route.Route)
+    {
+        LivingSurfaceCorridor::Search execution;
+        REQUIRE(LivingSurfaceCorridor::Advance(execution,previous,point,floor,clearDetour,bounds,12) == Status::Complete);
+        previous = point;
+    }
+}
+
+TEST_CASE("Strict resident endpoint checks require sight and isolate cached legacy arrival proofs", "[AIWorld][RecoveryNavigation][LivingResidentsV11]")
+{
+    using namespace LivingReturnPolicy;
+    ActionPosition from{725,10,0,0}, home{725,0,0,0}, near{725,1,0,0};
+    REQUIRE(HomeEndpointMatches(home,1.9f,near,near));
+    REQUIRE_FALSE(HomeEndpointMatches(home,1.9f,near,near,true,false));
+    REQUIRE_FALSE(HomeEndpointMatches(home,1.9f,near,near,true)); // missing sight proof fails closed
+    REQUIRE(HomeEndpointMatches(home,1.9f,near,near,true,true));
+    HomeCorridorSearch cache;
+    cache.Begin(from,home,1.9f,384,nullptr,8,true);
+    REQUIRE(cache.Matches(from,home,1.9f,384,nullptr,8,true));
+    REQUIRE_FALSE(cache.Matches(from,home,1.9f,384,nullptr,8,true,true));
+    cache.Begin(from,home,1.9f,384,nullptr,8,true,true);
+    REQUIRE(cache.StrictArrival);
+    REQUIRE(cache.Matches(from,home,1.9f,384,nullptr,8,true,true));
+    REQUIRE_FALSE(cache.Matches(from,home,1.9f,384,nullptr,8,true));
+}

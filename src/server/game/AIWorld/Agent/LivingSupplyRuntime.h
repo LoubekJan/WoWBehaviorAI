@@ -9,9 +9,11 @@
 #include "Action/RecoveryMovement.h"
 #include "ObjectGuid.h"
 #include "LivingReturnPolicy.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <string>
+#include <vector>
 
 namespace LivingSupply
 {
@@ -70,6 +72,9 @@ namespace LivingSupply
     struct TravelContext
     {
         bool Active = false;
+        bool SeparateFailureProofs = false;
+        struct FailedProof { ActionPosition From, To; bool Surface = false; };
+        std::vector<FailedProof> FailedProofs;
         ObjectGuid Guid;
         ActionPosition Goal, Home, Origin;
         std::optional<ActionPosition> Danger;
@@ -82,20 +87,21 @@ namespace LivingSupply
         ActionPosition PendingFrom;
 
         bool Matches(ObjectGuid guid, ActionPosition const& goal, ActionPosition const& home,
-            std::optional<ActionPosition> const& danger, float clearance, uint32 phase, uint32 capabilities) const
+            std::optional<ActionPosition> const& danger, float clearance, uint32 phase, uint32 capabilities, bool separateFailureProofs = false) const
         {
             return Active && Guid == guid && LivingReturnPolicy::SamePosition(Goal, goal) &&
                 LivingReturnPolicy::SamePosition(Home, home) && Danger.has_value() == danger.has_value() &&
                 (!Danger || LivingReturnPolicy::SamePosition(*Danger, *danger)) && Clearance == clearance &&
-                PhaseMask == phase && Capabilities == capabilities;
+                PhaseMask == phase && Capabilities == capabilities && SeparateFailureProofs == separateFailureProofs;
         }
         void Begin(ObjectGuid guid, ActionPosition const& from, ActionPosition const& goal,
             ActionPosition const& home, std::optional<ActionPosition> danger, float clearance,
-            uint32 phase, uint32 capabilities)
+            uint32 phase, uint32 capabilities, bool separateFailureProofs = false)
         {
             *this = {};
             Active = true; Guid = guid; Origin = from; Goal = goal; Home = home;
             Danger = std::move(danger); Clearance = clearance; PhaseMask = phase; Capabilities = capabilities;
+            SeparateFailureProofs = separateFailureProofs;
         }
         bool ObserveSource(ActionPosition const& here, bool ownedArrival = false)
         {
@@ -114,15 +120,36 @@ namespace LivingSupply
             }
             return LivingReturnPolicy::Distance(Origin, here) <= 0.01f;
         }
+        bool FailedCandidate(ActionPosition const& from, ActionPosition const& query, bool surface) const
+        {
+            if (!SeparateFailureProofs) return Route.Failed(from,query);
+            return std::any_of(FailedProofs.begin(),FailedProofs.end(),[&](FailedProof const& failed)
+            {
+                return failed.Surface == surface && failed.From.MapId == from.MapId && failed.To.MapId == query.MapId &&
+                    LivingReturnPolicy::Distance(failed.From,from) <= 2.0f &&
+                    LivingReturnPolicy::Distance(failed.To,query) <= 1.0f;
+            });
+        }
+        void RejectProof(ActionPosition const& from, ActionPosition const& query, bool surface)
+        {
+            if (SeparateFailureProofs && LivingReturnPolicy::Finite(from) && LivingReturnPolicy::Finite(query) && from.MapId == query.MapId &&
+                !FailedCandidate(from,query,surface))
+            {
+                if (FailedProofs.size() == LivingReturnPolicy::MaxTrailPoints) FailedProofs.erase(FailedProofs.begin());
+                FailedProofs.push_back({from,query,surface});
+            }
+            Route.Reject(from,query);
+        }
         void RejectPending()
         {
             if (Pending)
-                Route.Reject(PendingFrom, Pending->QueryDestination.value_or(Pending->Destination));
+                RejectProof(PendingFrom,Pending->QueryDestination.value_or(Pending->Destination),Pending->SurfaceCorridor);
             Pending.reset();
         }
         void RejectCandidate(ActionPosition const& from, ActionPosition const& query)
         {
-            Route.Reject(from, query);
+            // Capture the proof mode before Route.Reject clears its marker.
+            RejectProof(from,query,Route.SurfaceCorridor);
             Pending.reset();
         }
     };
