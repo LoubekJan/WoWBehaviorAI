@@ -869,6 +869,7 @@ void AIWorldMgr::Initialize(Trinity::Asio::IoContext& ioContext)
     _livingDefiasEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingDefias.Enabled", false);
     _livingCaravansEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingCaravans.Enabled", false);
     _livingResidentsV11Enabled = sConfigMgr->GetBoolDefault("AIWorld.LivingResidentsV11.Enabled", false);
+    _livingResidentsV12BridgeRoutesEnabled = sConfigMgr->GetBoolDefault("AIWorld.LivingResidentsV12.BridgeRoutesEnabled", false);
     InitializeLivingSupply();
     InitializeLivingResidentsV11();
     _livingRecoverySpawnId = uint32(std::max<int32>(0, sConfigMgr->GetIntDefault("AIWorld.LocalRecoverySpawnId", 0)));

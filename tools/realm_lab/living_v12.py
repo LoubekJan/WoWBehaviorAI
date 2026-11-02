@@ -1,4 +1,4 @@
-"""Preview-v12 geometry with the unchanged living-v11 runtime behavior/catalog.
+"""Preview-v12 geometry with immutable v11 interactions and opt-in v12 transit.
 
 V11 evidence remains immutable. New native paths certify the same compiled
 interaction coordinates against the new map, without rewriting any actor,
@@ -11,9 +11,10 @@ import hashlib
 from pathlib import Path
 
 try:
-    from . import living_v11 as previous, residents_v12 as native, single_return as base, settlement_population as settlement
+    from . import living_v11 as previous, living_v12_routes as transit, residents_v12 as native, single_return as base, settlement_population as settlement
 except ImportError:
     import living_v11 as previous
+    import living_v12_routes as transit
     import residents_v12 as native
     import single_return as base
     import settlement_population as settlement
@@ -37,18 +38,21 @@ def compiled_contract():
     return baseline, document
 
 
-def manifest_document(population, native_manifest_sha256, contract=None):
+def manifest_document(population, native_manifest_sha256, contract=None, *, transit_contract=None):
     if contract is None: _proof, contract = position_contract(population)
     _baseline, original = compiled_contract()
-    return {**previous.manifest_document(population, native_manifest_sha256, contract,
+    document = {**previous.manifest_document(population, native_manifest_sha256, contract,
                 profile=PROFILE, native_profile=native.PROFILE, source_revision=native.SOURCE_REVISION),
             "behavior_profile": previous.PROFILE,
             "compiled_position_proof_sha256": original["position_proof_sha256"]}
+    if transit_contract is not None: document['transit_route_catalog']=transit_contract
+    return document
 
 
 @dataclass(frozen=True)
 class Population(previous.Population):
     profile: str = PROFILE
+    transit_route_catalog: transit.TransitCatalog | None = None
 
     @classmethod
     def load(cls, metadata: Path = METADATA, geometry=None):
@@ -62,10 +66,19 @@ class Population(previous.Population):
         previous.verify_positions(proof, population, contract, profile=PROFILE,
             source_revision=native.SOURCE_REVISION, compiled_proof_sha256=original["position_proof_sha256"])
         sha = hashlib.sha256((metadata / native.MANIFEST).read_bytes()).hexdigest()
-        require(settlement.digest(base.load_json(metadata / MANIFEST)) ==
-                settlement.digest(manifest_document(population, sha, contract)),
+        document=base.load_json(metadata / MANIFEST)
+        # Historical v12 geometry-only manifests remain readable with transit
+        # disabled. A new override must be explicitly pinned, never inferred
+        # from a file appearing in the checkout.
+        catalog=transit.TransitCatalog.load(population,proof,original,document['transit_route_catalog']) if 'transit_route_catalog' in document else None
+        require(settlement.digest(document) ==
+                settlement.digest(manifest_document(population, sha, contract,
+                    transit_contract=catalog.contract if catalog else None)),
                 "V12 living identity, geometry, compiled catalog or behavior contract changed")
-        return cls(population, proof)
+        return cls(population, proof,transit_route_catalog=catalog)
+
+    def config(self):
+        return {**super().config(),transit.FLAG:'1' if self.transit_route_catalog else '0'}
 
 
 def verify_data(data: Path, metadata: Path = METADATA):

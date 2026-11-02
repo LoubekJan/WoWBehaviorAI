@@ -3,6 +3,7 @@
 #include "AIWorldMgr.h"
 #include "Agent/LivingFineRoute.h"
 #include "Agent/LivingResidentsV11Locations.h"
+#include "Agent/LivingResidentsV12Routes.h"
 #include "Creature.h"
 #include "Log.h"
 #include "Map.h"
@@ -61,6 +62,8 @@ namespace
 void AIWorldMgr::InitializeLivingResidentsV11()
 {
     _residentActors.clear();
+    if (_livingResidentsV12BridgeRoutesEnabled && !_livingResidentsV11Enabled)
+        throw std::runtime_error("Living residents v12 bridge routes require the enabled scoped resident runtime");
     if (!_livingResidentsV11Enabled) return;
     bool valid = _enabled && _livingRolesEnabled && _livingRoleExtensionsEnabled &&
         _restrictAgentsToSimulationScope && LivingResidentsV11::ScopeValid(GetSimulationScope()) &&
@@ -88,6 +91,9 @@ void AIWorldMgr::InitializeLivingResidentsV11()
     if (!valid)
         throw std::runtime_error("Living residents v11 require the exact scoped 45-actor population, exclusive runtime and six verified depots");
     TC_LOG_INFO("ai.world", "Living residents v11 enabled: farmers=12 carriers=2 consumers=21 raiders=10 depots=6 initialFood=0");
+    if (_livingResidentsV12BridgeRoutesEnabled)
+        TC_LOG_INFO("ai.world", "Living residents v12 bridge routes enabled: directedRoutes={} proof={}",
+            LivingResidentsV12::Routes.size(), LivingResidentsV12::ProofSha256);
 }
 
 bool AIWorldMgr::IsLivingResidentV11(AgentRecord const& record) const
@@ -284,7 +290,8 @@ bool AIWorldMgr::UpdateLivingResidentV11(AgentRecord& record, Creature& creature
                 float candidate = creature.GetExactDist(location.Point.X, location.Point.Y, location.Point.Z);
                 if (candidate < distance) { nearest = location.Id; distance = candidate; }
             }
-            RetargetJourney(trip, destination, targetDepot, nearest, Locations::Routes);
+            RetargetJourney(trip, destination, targetDepot, nearest,
+                _livingResidentsV12BridgeRoutesEnabled ? LivingResidentsV12::Routes : Locations::Routes);
         }
         while (trip.Waypoint < trip.Waypoints.size() && At(creature, trip.Waypoints[trip.Waypoint])) ++trip.Waypoint;
         if (trip.Waypoint == trip.Waypoints.size()) return true;
