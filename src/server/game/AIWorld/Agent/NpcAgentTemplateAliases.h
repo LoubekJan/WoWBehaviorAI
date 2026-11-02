@@ -19,7 +19,8 @@ struct NpcAgentTemplateAlias
 
 inline uint32 NpcAgentTemplateEntry(uint64 spawn)
 {
-    return spawn >= 901000 && spawn <= 901099 ? uint32(9800000 + spawn - 901000) : 0;
+    if (spawn >= 901000 && spawn <= 901099) return uint32(9800000 + spawn - 901000);
+    return spawn >= 902000 && spawn <= 902044 ? uint32(9810000 + spawn - 902000) : 0;
 }
 
 struct NpcAgentTemplateBinding
@@ -70,7 +71,7 @@ public:
     char const* ProfileFailure(uint32 map, uint64 spawn, uint32 entry, std::string_view name) const
     {
         auto const* alias = Find(map, spawn, entry);
-        if (entry >= 9800000 && entry <= 9800099 && !alias) return "native character template binding is invalid";
+        if (((entry >= 9800000 && entry <= 9800099) || (entry >= 9810000 && entry <= 9810044)) && !alias) return "native character template binding is invalid";
         if (alias && alias->Name != name) return "card name differs from installed native template";
         return nullptr;
     }

@@ -141,7 +141,10 @@ WHERE map_id=0 AND agent_id=spawn_id AND spawn_id IN ({identities}) AND control_
 COMMIT;
 """)
     predicate = "control_mode=1"
-    if settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
+    if settings.ai_profile == "living-v11":
+        owned = manage.RESIDENT_PROFILES[settings.ai_profile].Population.load().spawn_ids
+        predicate += f" AND (agent_id NOT IN ({owned}) OR spawn_id<>agent_id OR map_id<>725)"
+    elif settings.ai_profile in (wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
         profile = {wildlife_population.PROFILE: wildlife_population, supply_population.PROFILE: supply_population,
                    consumer_population.PROFILE: consumer_population, raid_population.PROFILE: raid_population, field_population.PROFILE: field_population, defias_population.PROFILE: defias_population, full_population.PROFILE: full_population}[settings.ai_profile]
         owned = profile.Population.load().spawn_ids

@@ -1,5 +1,36 @@
 # Preview-v11 — taverna, radnice a stanový tábor
 
+## Připravené navázání AI World — living-v11
+
+[Řízená populace](living-population.json) zachovává všech 45 současných
+obyvatel, jejich vlastní šablony, jména, příběhy a pevné domovy. Změnou je
+výslovné převzetí běžného řízení pod AI World; LLM controller a provider
+zůstávají vypnuté. Původní testovací stovka ani zvěř se nevytvářejí.
+
+| Schopnost | Počet | Sklad |
+| --- | ---: | --- |
+| Farmáři na třech skutečných polích | 12 | 1 pravá sýpka, 2 horní sýpka, 3 levá sýpka |
+| Jižní spotřebitelé | 4 | 4 venkovní sklad, bez pole a bez sýpky |
+| Nosiči potravin | 2 | Převoz z vesnic do skladu 4 a města 5 |
+| Městští spotřebitelé | 17 | 5 městský sklad |
+| Defias s přepadovou schopností | 10 | 6 vlastní táborový sklad |
+
+Skladové body patří k přístupným místům u staveb, nikoli dovnitř jejich
+neprůchodného modelu. [Nové ověření míst](living-position-verification.json)
+pokrývá šest skladů, 36 bodů úrody, všech 45 domovů a stejných 74 souborů
+geometrie. Nad 329 kolizními instancemi a všemi zdrojovými vrstvami vody
+prošlo **87 pozemních projekcí a 346 úplných cest**. Šestnáct směrovaných
+tras má navíc **70 ověřených bodů a 144 úplných úseků**; nejdelší úsek
+měří přibližně 139 yardů. Manifest připíná také otisk z těchto dat
+vygenerovaných bodů v serverovém kódu. Zásoby vznikají a mění majitele až dokončenými
+fyzickými činnostmi; nosiči nepřidávají potraviny pouhým příchodem.
+Potřeby, úroda, zásoby a náklad se přes restart nadále neukládají.
+
+CI/CD a nasazení tohoto profilu ještě následují. Níže uvedený
+[nativní provozní důkaz](activation.json) dokládá předchozí osazení,
+nikoli nové pracovní, zásobovací či přepadové cykly. Úspěšné ověření cest
+samo o sobě neprokazuje, že je NPC fyzicky odchodila.
+
 Uložená mapa z 2. listopadu 2026 obsahuje přesunutou tavernu a upravenou výšku radnice, další drobné výškové změny a aktualizované díry v terénu. Nový profil **residents-v11** zachovává původních 22 obyvatel a přidává 23 nových NPC. Všechna mají vlastní herní šablony a editovatelné návrhy v Ateliéru.
 
 | Umístění | Počet | Spawn ID | Vlastní entry | Příslušnost |

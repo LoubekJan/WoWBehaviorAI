@@ -1,5 +1,24 @@
 # Ateliér postav
 
+## Připravené řízení AI World — living-v11
+
+Profil `living-v11` nabízí stejných 45 současných postav a jejich vlastní
+šablony `9810000–9810044`. Registr je označuje jako řízené AI World;
+nejde tím o zapnutí LLM pro všechna NPC. Karty, příběhy, uložené návrhy
+vzhledu, jména i revize se při přechodu zachovají. Opakované doplnění
+návrhů nevytváří další kopie již existujících postav.
+
+Export obsahuje přesnou charakterovou kartu, předpis vlastní herní šablony
+a editovatelnou zálohu návrhu. Deset Defias zachovává zdroj 38 a ostatních
+35 obyvatel zdroj 11328. Herní vzhled zůstává původní; úprava humanoida je
+uložitelný návrh a tento balíček ji do hry neinstaluje. Samostatný export
+vzhledu vrací srozumitelné vysvětlení. ZIP také výslovně uvádí, že LLM
+řízení vyžaduje samostatné zapnutí.
+
+Nasazení řízeného profilu ještě následuje po kontrolách a CI/CD. Uložení
+draftu samo nemění běžící svět. Rozdělení pracovních schopností a skladů
+popisuje [provozní návod](../README_DEV.md#připravený-řízený-svět--living-v11).
+
 ## Rozšířené osídlení — residents-v11
 
 Aktuální registr nabízí 45 samostatných NPC: 22 v domech, 3 v taverně,

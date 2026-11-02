@@ -3,6 +3,21 @@
 An authored living world for **TrinityCore 3.3.5a**, with deterministic NPC
 behavior and optional LLM characters that can act and talk in the game.
 
+## Připravené zapnutí AI World — living-v11
+
+Profil **`living-v11`** přebírá všech **45 současných NPC** na mapě v11.
+Zachovává jejich jména, vlastní šablony, domovy i návrhy v Ateliéru. Tři
+sklady navazují přímo na sýpky u skutečných polí. Dvanáct farmářů dodává
+úrodu, dva nosiči zásobují jižní osadu a město, 21 obyvatel jí ze skladů
+a deset Defias vyráží pro zásoby z vlastního tábora. Jižní osada má venkovní
+sklad; pole ani sýpka tam v mapě nejsou.
+
+LLM řízení zůstává samostatně vypnuté. Původních 100 testovacích NPC ani
+zvěř se neobnovují. Potřeby a zásoby se přes restart zatím neukládají.
+Nasazení tohoto profilu a ověření skutečného chodu teprve následují po
+kontrolách a úspěšném CI/CD; níže uvedený ověřený provozní stav je předchozí
+nativní osazení. [Podrobnosti a meze](data/realm_lab/aiworldlab/preview-v11/README.md).
+
 ## Current state — 2 November 2026
 
 The active branch is **`AI-World-lab`**. Realm **2**, map **725**, area

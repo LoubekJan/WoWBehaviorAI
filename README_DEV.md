@@ -1,5 +1,45 @@
 # Vývoj a provoz vlastního světa
 
+## Připravený řízený svět — living-v11
+
+`living-v11` převádí přesně současných 45 obyvatel mapy preview-v11 pod
+AI World. Jejich spawny `902000–902044`, vlastní entry `9810000–9810044`,
+jména, domovy a Studio návrhy zůstávají zachované. Původní testovací stovka
+ani nová zvěř se nevytvářejí. LLM controller a modelový provider jsou vypnuté;
+AI World řídí běžné potřeby, pohyb a fyzické činnosti.
+
+| Úloha | NPC | Zásobování |
+| --- | --- | --- |
+| Farmáři | 902000–902011 | Tři skutečná pole, sklady 1–3 přímo u sýpek |
+| Jižní obyvatelé | 902012–902015 | Schválený venkovní sklad 4, bez vymyšleného pole |
+| Nosiči | 902016–902017 | Převoz existujících potravin z vesnic do skladů 4 a 5 |
+| Městští spotřebitelé | 902018–902034 | Městský sklad 5 |
+| Defias | 902035–902044 | Přepady zásob a návrat do táborového skladu 6 |
+
+Pro tento profil je soukromá konfigurace:
+
+```dotenv
+LAB_AI_PROFILE=living-v11
+LAB_WILDLIFE_ENABLED=1
+LAB_NPC_AGENTS_ENABLED=0
+AI_NPC_MODEL_ENABLED=0
+```
+
+Přepínač `AIWorld.LivingResidentsV11.Enabled=1` se vykreslí z profilu;
+historické přepínače zásobování v8 zůstávají vypnuté. Před zastavením
+zdravého světa se čte a ověřuje úplných 45 vlastních šablon, domovy a stav
+AI vazeb. Při zastaveném světě se pod společným zámkem vytvoří jen chybějící
+AI identity a explicitní účast, potom se ověří jejich převzetí. Neprovádí se
+nové rozmístění obyvatel. Uchovávají se účty, hráčské postavy i mapové zdroje.
+
+[Ověření míst a tras](data/realm_lab/aiworldlab/preview-v11/living-position-verification.json)
+potvrzuje 87 pozemních projekcí a 346 úplných cest, samostatně také 70
+trasových bodů a 144 úplných úseků nad stejnými nativními daty. Nasazení
+proběhne až po úspěšných kontrolách a CI/CD; tento text
+nepotvrzuje jeho dokončení ani odchozené pracovní a přepadové cykly.
+Potřeby, úroda, zásoby a náklad nadále zůstávají v paměti do restartu.
+[Přehled mapy a důkazů](data/realm_lab/aiworldlab/preview-v11/README.md).
+
 ## Současné osídlení — residents-v11
 
 Profil `residents-v11` používá geometrii preview-v11 a **45 nativních NPC**:

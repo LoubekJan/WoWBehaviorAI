@@ -39,6 +39,8 @@ data/npc_agents/*.json text eol=lf
 data/npc_templates/*.json text eol=lf
 tools/realm_lab/verify_resident_positions.py text eol=lf
 tools/realm_lab/verify_resident_navmesh.cpp text eol=lf
+src/server/game/AIWorld/Agent/LivingResidentsV11Locations.h text eol=lf
+tools/realm_lab/verify_living_v11_positions.py text eol=lf
 
 # Standard to msysgit
 *.doc    diff=astextplain
