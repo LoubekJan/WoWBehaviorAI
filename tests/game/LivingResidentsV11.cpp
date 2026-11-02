@@ -235,3 +235,25 @@ TEST_CASE("V11 retargeting retains the physical coast exit before joining a new 
     for (std::size_t i = 1; i < state.Waypoints.size(); ++i)
         REQUIRE(LivingReturnPolicy::Distance(state.Waypoints[i-1],state.Waypoints[i]) <= 180.0f);
 }
+
+TEST_CASE("A failed carrier home departure retires only its old long intent before the short city stage", "[AIWorld][LivingResidentsV11]")
+{
+    using namespace LivingResidentsV11;
+    State carrier;
+    carrier.TravelDepot = 1;
+    carrier.TravelGoal = Locations::Depots[0].Point;
+    carrier.Waypoints = TransitRoute(5,1,Locations::Routes);
+    REQUIRE(carrier.Waypoints.size() > 1);
+    ActionPosition home{725,23.80391f,615.259f,.752049f};
+    ActionPosition doorway{725,23.75155f,611.2593f,.700681f};
+    REQUIRE(ShouldStageDeparture(Job::Carrier,carrier,doorway,home,5,1,0,false));
+    BeginDepartureStage(carrier);
+    REQUIRE(carrier.TravelDepot == 0);
+    REQUIRE(carrier.Waypoints.empty());
+    REQUIRE(carrier.DepartureViaDepot);
+    RetargetJourney(carrier,Locations::Depots[4].Point,5,5,Locations::Routes);
+    REQUIRE(carrier.Waypoints.size() == 1);
+    REQUIRE(LivingReturnPolicy::SamePosition(carrier.Waypoints.front(),Locations::Depots[4].Point));
+    // This bounded home-stage reset must not weaken the separate coast test:
+    // RetargetJourney still preserves a running journey's unvisited exit.
+}

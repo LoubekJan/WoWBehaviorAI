@@ -1,8 +1,8 @@
 # Vývoj a provoz vlastního světa
 
-## Připravený řízený svět — living-v11
+## Současný řízený svět — living-v11
 
-`living-v11` převádí přesně současných 45 obyvatel mapy preview-v11 pod
+`living-v11` řídí přesně současných 45 obyvatel mapy preview-v11 pod
 AI World. Jejich spawny `902000–902044`, vlastní entry `9810000–9810044`,
 jména, domovy a Studio návrhy zůstávají zachované. Původní testovací stovka
 ani nová zvěř se nevytvářejí. LLM controller a modelový provider jsou vypnuté;
@@ -34,13 +34,26 @@ nové rozmístění obyvatel. Uchovávají se účty, hráčské postavy i mapov
 
 [Ověření míst a tras](data/realm_lab/aiworldlab/preview-v11/living-position-verification.json)
 potvrzuje 87 pozemních projekcí a 346 úplných cest, samostatně také 70
-trasových bodů a 144 úplných úseků nad stejnými nativními daty. Nasazení
-proběhne až po úspěšných kontrolách a CI/CD; tento text
-nepotvrzuje jeho dokončení ani odchozené pracovní a přepadové cykly.
+trasových bodů a 144 úplných úseků nad stejnými nativními daty.
+[Nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json) běží
+na bináru `3d439d28ea96`, jehož CI/CD prošlo 957 Python a 709 nativními
+testy. Osm služeb je zdravých, 45 NPC je řízených, načtených a živých.
+Všechny čtyři služby načítající populaci mají také samostatně připojený
+ověřený katalog `LivingResidentsV11Locations.h` jen pro čtení; kontrola
+v plném build kontejneru sama neověřuje omezené runtime vstupy.
+
+První desetiminutový záznam má 300 platných snímků bez chyby a se shodnými
+kopiemi šesti skladů. Pozoroval celé řetězce sklizeň–náklad–doručení u
+11 z 12 farmářů, odcizení–návrat–doručení u 7 z 10 Defias a nakládku–doručení
+u jednoho ze dvou nosičů. Bilance je 52 získaných porcí = 26 ve skladech +
+4 v nákladu + 22 snědených, bez ztrát. Jídlo se zachytilo u 16 různých NPC.
+Nejde o přijetí všech cyklů: farmář 902000 a nosič 902016 mají problém
+s výstupem z domu; jemnější plánovací krok pro úzké dveře se právě ověřuje.
+Také zbývající Defias a městské zásobování vyžadují další sledování.
 Potřeby, úroda, zásoby a náklad nadále zůstávají v paměti do restartu.
 [Přehled mapy a důkazů](data/realm_lab/aiworldlab/preview-v11/README.md).
 
-## Současné osídlení — residents-v11
+## Předchozí nativní osídlení — residents-v11
 
 Profil `residents-v11` používá geometrii preview-v11 a **45 nativních NPC**:
 22 původních obyvatel domů, 3 v taverně, 10 v radnici a 10 u levých stanů.

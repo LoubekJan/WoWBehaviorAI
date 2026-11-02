@@ -2,6 +2,8 @@
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "tc_catch2.h"
 #include "Agent/LivingSurfaceDetour.h"
+#include "Agent/LivingResidentsV11.h"
+#include "Agent/LivingSupplyState.h"
 #include <string>
 
 namespace
@@ -53,6 +55,7 @@ namespace
             CHECK(heights <= 8);
             if (search.State != LivingSurfaceDetour::Status::Complete) CHECK(search.Route.empty());
             CHECK(search.Nodes.size() <= search.NodeLimit);
+            CHECK(search.TotalNodes() <= search.NodeLimit);
             CHECK(search.Open.size() <= search.Nodes.size());
             CHECK(search.Index.size() <= search.NodeLimit);
             CHECK(search.EdgeAttempts <= search.EdgeLimit);
@@ -337,4 +340,216 @@ TEST_CASE("Recovery navigation surface detour preserves physically executable co
         previous = endpoint;
     }
     CHECK(goal(search.Route.back()));
+}
+namespace
+{
+    auto roomBounds = [](ActionPosition const& p)
+    { return p.X >= -3 && p.X <= 3 && p.Y >= -3 && p.Y <= 14; };
+    auto roomDoor = [](ActionPosition const& a, ActionPosition const& b)
+    {
+        return LivingSurfaceCorridor::BodyClear(a,b,.3f,2.4f,
+            [](ActionPosition const& from, ActionPosition const& to)
+            {
+                return !CrossesRectangle(from,to,-3.3f,.65f,3.0f,3.3f) &&
+                    !CrossesRectangle(from,to,1.85f,3.3f,3.0f,3.3f);
+            });
+    };
+}
+
+TEST_CASE("Recovery refines an exhausted multi-cell room to find its supported narrow doorway", "[AIWorld][RecoveryNavigation][SurfaceDetour]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{0,0,0,0}, home{0,0,12,0};
+    Search search;
+    FinishDetour(search,from,home,1.9f,flatDetour,roomDoor,roomBounds,homeBand(home,1.9f));
+    REQUIRE(search.State == Status::Complete);
+    REQUIRE(search.Spacing == NarrowGridStep);
+    REQUIRE(search.RetiredNodes > 1); // Coarse exploration found a room, not an isolated origin.
+    REQUIRE(search.TotalNodes() <= search.NodeLimit);
+    REQUIRE(search.EdgeAttempts <= search.EdgeLimit);
+    REQUIRE_FALSE(search.Route.empty());
+    auto previous = from;
+    for (auto const& point : search.Route)
+    {
+        REQUIRE(roomDoor(previous,point));
+        LivingSurfaceCorridor::Search execution;
+        REQUIRE(LivingSurfaceCorridor::Advance(execution,previous,point,
+            flatDetour,roomDoor,roomBounds,12) == Status::Complete);
+        previous = point;
+    }
+    REQUIRE(homeBand(home,1.9f)(previous));
+}
+
+TEST_CASE("Room refinement retains shared work caps and never restarts a changed or yielded query", "[AIWorld][RecoveryNavigation][SurfaceDetour]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{0,0,0,0}, home{0,0,12,0};
+    auto goal = homeBand(home,1.9f);
+    Search baseline;
+    unsigned calls = 0;
+    while (baseline.Spacing == GridStep && baseline.State == Status::Pending && ++calls < 1000)
+        Advance(baseline,from,home,1.9f,96,flatDetour,roomDoor,roomBounds,goal,8,1);
+    REQUIRE(baseline.Spacing == NarrowGridStep);
+    REQUIRE(baseline.RetiredNodes > 1);
+    REQUIRE(baseline.EdgeAttempts > 1);
+    Search search;
+    SECTION("coarse edges cannot be spent again on the fine graph")
+    {
+        search.EdgeLimit = baseline.EdgeAttempts - 1;
+        FinishDetour(search,from,home,1.9f,flatDetour,roomDoor,roomBounds,goal);
+        REQUIRE(search.State == Status::Rejected);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_EDGE_LIMIT");
+        REQUIRE(search.EdgeAttempts == search.EdgeLimit);
+        REQUIRE(search.Route.empty());
+    }
+    SECTION("retired coarse cells remain inside the same node cap")
+    {
+        search.NodeLimit = baseline.RetiredNodes + 2;
+        FinishDetour(search,from,home,1.9f,flatDetour,roomDoor,roomBounds,goal);
+        REQUIRE(search.State == Status::Rejected);
+        REQUIRE(search.RetiredNodes > 1);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_NODE_LIMIT");
+        REQUIRE(search.TotalNodes() == search.NodeLimit);
+        REQUIRE(search.Route.empty());
+    }
+    SECTION("zero geometry budgets preserve the refined cursor exactly")
+    {
+        search = baseline;
+        auto nodes = search.TotalNodes(), edges = search.EdgeAttempts;
+        unsigned callbacks = 0;
+        auto height = [&](ActionPosition const&) -> std::optional<float> { ++callbacks; return 0; };
+        REQUIRE(Advance(search,from,home,1.9f,96,height,roomDoor,roomBounds,goal,0,1) == Status::Pending);
+        REQUIRE(Advance(search,from,home,1.9f,96,height,roomDoor,roomBounds,goal,8,0) == Status::Pending);
+        REQUIRE(callbacks == 0);
+        REQUIRE(search.TotalNodes() == nodes);
+        REQUIRE(search.EdgeAttempts == edges);
+        REQUIRE(search.Spacing == NarrowGridStep);
+    }
+    SECTION("a changed goal cannot borrow the old room or door proof")
+    {
+        search = baseline;
+        home.X = 1;
+        REQUIRE(Advance(search,from,home,1.9f,96,flatDetour,roomDoor,roomBounds,goal,8,1) == Status::Rejected);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_CONTEXT");
+        REQUIRE(search.Route.empty());
+    }
+    SECTION("a sealed doorway stays rejected after its one refinement")
+    {
+        auto sealed = [](ActionPosition const& a, ActionPosition const& b)
+        { return !CrossesRectangle(a,b,-4,4,3,3.3f); };
+        FinishDetour(search,from,home,1.9f,flatDetour,sealed,roomBounds,goal);
+        REQUIRE(search.State == Status::Rejected);
+        REQUIRE(search.RetiredNodes > 1);
+        REQUIRE(search.Spacing == NarrowGridStep);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_EXHAUSTED");
+        REQUIRE(search.Route.empty());
+    }
+    SECTION("a doorway cliff stays rejected with unchanged floor checks")
+    {
+        auto cliff = [](ActionPosition const& p) -> std::optional<float> { return p.Y < 3 ? 0 : -3; };
+        FinishDetour(search,from,home,1.9f,cliff,roomDoor,roomBounds,goal);
+        REQUIRE(search.State == Status::Rejected);
+        REQUIRE(search.RetiredNodes > 1);
+        REQUIRE(search.Route.empty());
+    }
+}
+
+TEST_CASE("A bounded doorway departure stages through the existing warehouse before a distant physical field", "[AIWorld][RecoveryNavigation][SurfaceDetour][LivingResidentsV11]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition home{725,0,0,0}, field{725,100,12,0}, warehouse{725,0,8,0};
+    auto bounds = [](ActionPosition const& p)
+    { return p.X >= -3 && p.X <= 104 && p.Y >= -3 && p.Y <= 14 && (p.Y >= 3 || p.X <= 3); };
+    auto door = [](ActionPosition const& a, ActionPosition const& b)
+    {
+        return LivingSurfaceCorridor::BodyClear(a,b,.3f,2.4f,
+            [](ActionPosition const& from, ActionPosition const& to)
+            {
+                return !CrossesRectangle(from,to,-4,.65f,3,3.3f) &&
+                    !CrossesRectangle(from,to,1.85f,105,3,3.3f);
+            });
+    };
+    auto finish = [&](Search& search, ActionPosition const& from, ActionPosition const& goal)
+    {
+        unsigned calls = 0;
+        while (search.State == Status::Pending && ++calls < 5000)
+            Advance(search,from,goal,1.9f,160,flatDetour,door,bounds,homeBand(goal,1.9f),8,1);
+        REQUIRE(search.State != Status::Pending);
+        REQUIRE(search.TotalNodes() <= search.NodeLimit);
+        REQUIRE(search.EdgeAttempts <= search.EdgeLimit);
+    };
+    // A complete long proof cannot be produced within this request's cap.
+    // Nothing, including the otherwise safe doorway prefix, is dispatched.
+    Search direct; direct.NodeLimit = 256;
+    finish(direct,home,field);
+    REQUIRE(direct.State == Status::Rejected);
+    REQUIRE(direct.Route.empty());
+    LivingResidentsV11::State departure;
+    REQUIRE(LivingResidentsV11::ShouldStageDeparture(LivingResidentsV11::Job::Farmer,
+        departure,home,home,1,0,0,false));
+    LivingResidentsV11::BeginDepartureStage(departure);
+    LivingSupply::Ledger food;
+    for (uint32 id = 1; id <= 6; ++id) REQUIRE(food.ConfigureDepot(id));
+    REQUIRE(food.ConfigureResidentsV11());
+    REQUIRE(food.ConfigureField(1,1));
+    REQUIRE(food.RegisterFarmer(902000,1,1));
+    auto physical = home;
+    auto execute = [&](Search const& route)
+    {
+        INFO("stage from=" << route.From.X << "," << route.From.Y << " to=" << route.Home.X << "," << route.Home.Y
+            << " failure=" << route.Failure << " nodes=" << route.TotalNodes() << " retired=" << route.RetiredNodes
+            << " edges=" << route.EdgeAttempts << " spacing=" << route.Spacing);
+        REQUIRE(route.State == Status::Complete);
+        for (auto const& point : route.Route)
+        {
+            LivingSurfaceCorridor::Search segment;
+            REQUIRE(LivingSurfaceCorridor::Advance(segment,physical,point,flatDetour,door,bounds,12) == Status::Complete);
+            physical = point; // Each executed edge has its full floor/body proof.
+        }
+    };
+    Search first; first.NodeLimit = 256;
+    finish(first,physical,warehouse);
+    execute(first);
+    REQUIRE(homeBand(warehouse,1.9f)(physical));
+    REQUIRE(food.DepotFood() == 0);
+    REQUIRE(food.GetCargo(902000) == 0);
+    REQUIRE(food.GetCounters().HarvestedTotal == 0);
+    departure.DepartureViaDepot = false;
+    Search onward; onward.NodeLimit = 256;
+    finish(onward,physical,field);
+    execute(onward);
+    REQUIRE(homeBand(field,1.9f)(physical));
+    // Route selection and a warehouse pass-through create no food. Only
+    // the subsequent owned completed work receipt extracts the crop.
+    REQUIRE(food.DepotFood() == 0);
+    REQUIRE(food.HarvestField(902000,1,1,1,1,true));
+    Search returning; returning.NodeLimit = 256;
+    finish(returning,physical,warehouse);
+    execute(returning);
+    REQUIRE(food.Deliver(902000,2,1,1,true));
+    REQUIRE(food.GetDepot(1)->Stock == 1);
+    REQUIRE(food.Conserved());
+    REQUIRE(food.PotentialConserved());
+}
+
+TEST_CASE("Departure staging never borrows budget yields cargo or a foreign home episode", "[AIWorld][LivingResidentsV11]")
+{
+    using namespace LivingResidentsV11;
+    ActionPosition home{725,0,0,0}, doorway{725,0,4,0};
+    State state;
+    REQUIRE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,0,0,false));
+    REQUIRE(ShouldStageDeparture(Job::Carrier,state,doorway,home,5,1,0,false));
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,0,0,true));
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,0,1,false));
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Consumer,state,doorway,home,5,1,0,false));
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Raider,state,doorway,home,6,1,0,false));
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,1,0,false));
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Carrier,state,{725,20,0,0},home,5,1,0,false));
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Carrier,state,{0,0,4,0},home,5,1,0,false));
+    state.ReturningHome = true;
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,0,0,false));
+    state.ReturningHome = false; state.RestAtHome = true;
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,0,0,false));
+    state.RestAtHome = false; state.DepartureTried = true;
+    REQUIRE_FALSE(ShouldStageDeparture(Job::Farmer,state,doorway,home,1,0,0,false));
 }

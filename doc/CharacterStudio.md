@@ -1,6 +1,6 @@
 # Ateliér postav
 
-## Připravené řízení AI World — living-v11
+## Aktivní řízení AI World — living-v11
 
 Profil `living-v11` nabízí stejných 45 současných postav a jejich vlastní
 šablony `9810000–9810044`. Registr je označuje jako řízené AI World;
@@ -15,13 +15,15 @@ uložitelný návrh a tento balíček ji do hry neinstaluje. Samostatný export
 vzhledu vrací srozumitelné vysvětlení. ZIP také výslovně uvádí, že LLM
 řízení vyžaduje samostatné zapnutí.
 
-Nasazení řízeného profilu ještě následuje po kontrolách a CI/CD. Uložení
-draftu samo nemění běžící svět. Rozdělení pracovních schopností a skladů
-popisuje [provozní návod](../README_DEV.md#připravený-řízený-svět--living-v11).
+Řízený profil je nasazený; [provozní doklad](../data/realm_lab/aiworldlab/preview-v11/living-activation.json)
+potvrzuje všech 45 řízených, načtených a živých NPC. LLM zůstává vypnuté.
+Uložení draftu samo nemění běžící svět. Rozdělení pracovních schopností,
+skladů a meze dosavadního ověření popisuje
+[provozní návod](../README_DEV.md#současný-řízený-svět--living-v11).
 
-## Rozšířené osídlení — residents-v11
+## Předchozí nativní osídlení — residents-v11
 
-Aktuální registr nabízí 45 samostatných NPC: 22 v domech, 3 v taverně,
+Předchozí nativní registr nabízel 45 samostatných NPC: 22 v domech, 3 v taverně,
 10 v radnici a 10 ve stanovém táboře Defias. Jejich šablony mají vlastní
 entry `9810000`–`9810044`. Doplnění návrhů zachovává všech 22 dříve uložených
 postav včetně jejich jmen, příběhů, vzhledových návrhů a revizí; nově vytvoří

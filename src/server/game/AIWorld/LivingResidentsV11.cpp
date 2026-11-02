@@ -195,6 +195,7 @@ bool AIWorldMgr::UpdateLivingResidentV11(AgentRecord& record, Creature& creature
         {
             record.Needs.Fatigue = 0;
             trip.RestAtHome = trip.ReturningHome = false;
+            trip.DepartureViaDepot = trip.DepartureTried = false;
             trip.FieldCycle = (trip.FieldCycle + 1) % 3;
             finish("READY", "RESTED_HOME", 0);
             return true;
@@ -288,6 +289,19 @@ bool AIWorldMgr::UpdateLivingResidentV11(AgentRecord& record, Creature& creature
         if (!next)
         {
             bool deferred = state.Planning.Deferred;
+            if (ShouldStageDeparture(job,trip,
+                {725,creature.GetPositionX(),creature.GetPositionY(),creature.GetPositionZ()},home,
+                ownDepot,targetDepot,_supplyLedger.GetCargo(record.SpawnId),deferred))
+            {
+                // A narrow doorway may need a fine graph that cannot prove a
+                // distant field in the same bounded search. First prove the
+                // existing nearby warehouse, then start the outside journey.
+                BeginDepartureStage(trip);
+                actor.Travel = {};
+                actor.Phase = "WAITING"; actor.LastResult = "DEPARTURE_REPLAN";
+                actor.NextAtMs = state.NextDecisionAtMs = nowMs + 100;
+                return true;
+            }
             actor.Phase = deferred ? "WAITING" : "NO_ROUTE";
             actor.LastResult = deferred ? "PLANNING_DEFERRED" : "NO_ROUTE";
             actor.NextAtMs = state.NextDecisionAtMs = nowMs + (deferred ? 100 : 10000);
@@ -342,6 +356,15 @@ bool AIWorldMgr::UpdateLivingResidentV11(AgentRecord& record, Creature& creature
         if (!At(creature, home)) return travel(home, 0, "RETURNING_HOME");
         if (trip.RestAtHome) return activity(Activity::Rest, home, "RESTING_HOME");
         trip.ReturningHome = false; actor.Phase = "ORDINARY"; return false;
+    }
+    if (trip.DepartureViaDepot)
+    {
+        if (!At(creature, own->Point)) return travel(own->Point,ownDepot,"DEPARTURE_WAREHOUSE");
+        // Actual arrival retires the previous long intent before the field or
+        // supply destination is selected again. No stock or home is changed.
+        trip.DepartureViaDepot = false;
+        trip.TravelGoal = {}; trip.TravelDepot = 0;
+        trip.Waypoints.clear(); trip.Waypoint = 0; actor.Travel = {};
     }
     uint32 cargo = _supplyLedger.GetCargo(record.SpawnId);
     if (job == Job::Farmer)

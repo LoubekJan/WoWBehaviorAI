@@ -124,9 +124,26 @@ namespace LivingResidentsV11
         uint64 Attempts = 0, Thefts = 0, CompletedTrips = 0, Loaded = 0;
         uint32 SourceDepot = 0, PreviousSource = 0, DestinationDepot = 0, FieldCycle = 0, TravelDepot = 0;
         bool ReturningHome = false, RestAtHome = false, HomeViaCity = false;
+        bool DepartureViaDepot = false, DepartureTried = false;
         std::vector<ActionPosition> Waypoints;
         std::size_t Waypoint = 0;
     };
+    inline bool ShouldStageDeparture(Job job, State const& state, ActionPosition const& from,
+        ActionPosition const& home, uint32 ownDepot, uint32 requestedDepot, uint32 cargo, bool deferred)
+    {
+        return (job == Job::Farmer || job == Job::Carrier) && !deferred && !state.DepartureTried &&
+            !state.ReturningHome && !state.RestAtHome && !cargo && ownDepot && requestedDepot != ownDepot &&
+            LivingReturnPolicy::Finite(from) && LivingReturnPolicy::Finite(home) && from.MapId == 725 && home.MapId == 725 &&
+            LivingReturnPolicy::Distance(from,home) <= 12.0f;
+    }
+    inline void BeginDepartureStage(State& state)
+    {
+        state.DepartureViaDepot = state.DepartureTried = true;
+        // Only the caller's failed, stationary home-departure intent is
+        // retired here. General mid-journey retargeting retains its exit.
+        state.TravelGoal = {}; state.TravelDepot = 0;
+        state.Waypoints.clear(); state.Waypoint = 0;
+    }
     inline void RetargetJourney(State& state, ActionPosition const& goal, uint32 depot,
         uint32 nearbyDepot, std::vector<RouteSpec> const& routes)
     {
