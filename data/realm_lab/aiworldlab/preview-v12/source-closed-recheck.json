@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v12",
+  "rechecked_at_utc": "2026-11-02T21:02:52.202219+00:00",
+  "rechecked_after_noggit_process_absent": true,
+  "noggit_processes": [],
+  "all_nine_unchanged": true,
+  "files": [
+    {
+      "path": "DBFilesClient/Map.dbc",
+      "source_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e",
+      "expected_sha256": "321d2286cf100a0903b25af0d2fe24bc02a9c0d2b6b6f6c048df905fdcf21f7e"
+    },
+    {
+      "path": "DBFilesClient/AreaTable.dbc",
+      "source_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2",
+      "expected_sha256": "61306fa0116eaaa6f1c97a0b1d3035de25826c731832a7aed09975a86c10d3d2"
+    },
+    {
+      "path": "DBFilesClient/Light.dbc",
+      "source_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f",
+      "expected_sha256": "e096a7c58a54f2477e145ad6a42f91951bad8047392bedbf2fc06a93c54d895f"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdt",
+      "source_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba",
+      "expected_sha256": "855ebebfce7f7efac4e0b495f5317e55e091a594859b06a0252f3f14396972ba"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab.wdl",
+      "source_sha256": "64b0dbccf5b21db9e72548c8edd22a196e7a1505a95bc15f6147cf10f1f9b8ca",
+      "expected_sha256": "64b0dbccf5b21db9e72548c8edd22a196e7a1505a95bc15f6147cf10f1f9b8ca"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "source_sha256": "c02dce526ab34dacfbad632fe79c20a67bd9092081e35596dc283be8f844876c",
+      "expected_sha256": "c02dce526ab34dacfbad632fe79c20a67bd9092081e35596dc283be8f844876c"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "source_sha256": "e77e102b3cbf88734ee972a01fbffaae5cd52754d1005d15de8e2d791ffecd63",
+      "expected_sha256": "e77e102b3cbf88734ee972a01fbffaae5cd52754d1005d15de8e2d791ffecd63"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "source_sha256": "9682b1e3a583c30fce5cdd25a579259060b0e9dd7e966f60001c32da3bed53ad",
+      "expected_sha256": "9682b1e3a583c30fce5cdd25a579259060b0e9dd7e966f60001c32da3bed53ad"
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "source_sha256": "892c811f5bcabdb9a6475348e23459a27322898fae23909b82708e5146e18ae3",
+      "expected_sha256": "892c811f5bcabdb9a6475348e23459a27322898fae23909b82708e5146e18ae3"
+    }
+  ]
+}

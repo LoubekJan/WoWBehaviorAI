@@ -71,9 +71,11 @@ def position_contract(population, header=None):
                       runtime_catalog_sha256=settlement.digest(runtime_catalog(proof)))
 
 
-def verify_positions(proof,population,contract,header=None):
+def verify_positions(proof,population,contract,header=None, *, profile=PROFILE, source_revision=native.SOURCE_REVISION, compiled_proof_sha256=None):
+    require((profile, source_revision) in ((PROFILE, native.SOURCE_REVISION), ("living-v12", "preview-v12")),
+            "Unsupported living profile/geometry pair")
     require((proof.get("schema_version"),proof.get("profile"),proof.get("source_revision"),proof.get("realm_id"),
-        proof.get("map_id"),proof.get("area_id"),proof.get("ok"))==(1,PROFILE,native.SOURCE_REVISION,2,725,4988,True),
+        proof.get("map_id"),proof.get("area_id"),proof.get("ok"))==(1,profile,source_revision,2,725,4988,True),
         "Living position proof identity is invalid")
     require(proof.get("geometry_sha256")==native.geometry_digest(population.geometry_files) and
         proof.get("geometry_files")==list(population.geometry_files) and
@@ -81,7 +83,8 @@ def verify_positions(proof,population,contract,header=None):
         proof.get("homes_unchanged") is True and proof.get("source_map_modified") is False and
         proof.get("source_all_water_layers_checked") is True and proof.get("runtime_route_legs_verified") is True,
         "Living interaction proof belongs to another geometry or changes authored homes")
-    require(f'ProofSha256[] = "{contract["position_proof_sha256"]}"' in (header or LOCATIONS_HEADER).read_text(encoding="utf-8"),
+    bound_proof = compiled_proof_sha256 or contract["position_proof_sha256"]
+    require(f'ProofSha256[] = "{bound_proof}"' in (header or LOCATIONS_HEADER).read_text(encoding="utf-8"),
             "Compiled living locations are not bound to the same reviewed position proof")
     for key,projections,paths in (("native_navigation",87,346),("waypoint_navigation",70,144)):
         nav=proof.get(key,{})
@@ -132,10 +135,12 @@ def verify_positions(proof,population,contract,header=None):
             "Living runtime route endpoints or bounded physical legs changed")
 
 
-def manifest_document(population, native_manifest_sha256, contract=None):
+def manifest_document(population, native_manifest_sha256, contract=None, *, profile=PROFILE, native_profile=native.PROFILE, source_revision=native.SOURCE_REVISION):
+    require((profile, native_profile, source_revision) in ((PROFILE, native.PROFILE, native.SOURCE_REVISION),
+            ("living-v12", "residents-v12", "preview-v12")), "Unsupported living manifest identity")
     if contract is None: _proof,contract=position_contract(population)
-    return dict(schema_version=1, profile=PROFILE, realm_id=2, map_id=725, area_id=4988,
-        source_revision=native.SOURCE_REVISION, native_profile=native.PROFILE,
+    return dict(schema_version=1, profile=profile, realm_id=2, map_id=725, area_id=4988,
+        source_revision=source_revision, native_profile=native_profile,
         native_manifest_sha256=native_manifest_sha256,
         geometry_sha256=native.geometry_digest(population.geometry_files),
         owned_spawn_ids=sorted(SPAWN_IDS), native_spawn_ids=[], immutable_spawn_homes=True,

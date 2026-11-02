@@ -38,8 +38,8 @@ RECORD_SIZE = FIELD_COUNT * 4
 
 
 def authored_manifest(profile: str) -> Path | None:
-    if profile in ("residents-v10", "residents-v11", "living-v11"):
-        revision = "preview-v10" if profile == "residents-v10" else "preview-v11"
+    if profile in ("residents-v10", "residents-v11", "living-v11", "living-v12"):
+        revision = "preview-v10" if profile == "residents-v10" else "preview-v12" if profile == "living-v12" else "preview-v11"
         return map_bundle.GeometryBundle.load_revision(map_bundle.METADATA, revision).metadata / "graveyard.json"
     if profile == "authoring-empty" and (map_bundle.METADATA / map_bundle.INDEX).exists():
         return map_bundle.GeometryBundle.load().metadata / "graveyard.json"
@@ -87,7 +87,14 @@ class Graveyard:
                     evidence["outside_collision_bounds_margin"] < 2):
                 raise ValueError("Graveyard requires reviewed dry ground/navmesh evidence")
             if authoring:
-                bundle = map_bundle.GeometryBundle.load(path.parent.parent)
+                if path.parent.name != revision:
+                    raise ValueError("Authoring graveyard differs from the pinned native safe point")
+                try:
+                    selected = json.loads((path.parent.parent / map_bundle.INDEX).read_text(encoding="utf-8")).get("source_revision")
+                except (OSError, ValueError, AttributeError):
+                    selected = None
+                bundle = (map_bundle.GeometryBundle.load(path.parent.parent) if selected == revision else
+                          map_bundle.GeometryBundle.load_revision(path.parent.parent, revision))
                 if (path.resolve() != (bundle.metadata / "graveyard.json").resolve() or
                         revision != bundle.source_revision or
                         source["proof_sha256"] != bundle.entry_proof_sha256 or
@@ -286,10 +293,10 @@ def bootstrap(data: Path, settings=None, graveyard: Graveyard | None = None) -> 
     except ImportError:
         import manage
     settings = settings or manage.Settings.load(os.environ)
-    if settings.ai_profile not in ("disabled", "authoring-empty", "residents-v10", "residents-v11", "living-v11", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
+    if settings.ai_profile not in ("disabled", "authoring-empty", "residents-v10", "residents-v11", "living-v11", "living-v12", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
         raise ValueError("Graveyard bootstrap requires the native settlement profile and a stopped world")
     settlement_population.ensure_world_offline()
-    if graveyard is None and settings.ai_profile in ("authoring-empty", "residents-v10", "residents-v11", "living-v11"):
+    if graveyard is None and settings.ai_profile in ("authoring-empty", "residents-v10", "residents-v11", "living-v11", "living-v12"):
         path = authored_manifest(settings.ai_profile)
         if path is not None:
             graveyard = Graveyard.load(path)

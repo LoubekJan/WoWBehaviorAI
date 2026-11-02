@@ -243,10 +243,10 @@ def source_water(top, terrain, x, y):
 def verify(source: Path, data: Path, metadata: Path, probe: Path):
     geometry = map_bundle.verify_data(data, metadata.parent, revision=metadata.name)
     revision = geometry.source_revision
-    check(revision in ("preview-v10", "preview-v11") and geometry.metadata.resolve() == metadata.resolve(),
-          "Resident verifier requires the selected preview-v10 or preview-v11 bundle")
-    expanded = revision == "preview-v11"
-    profile = "residents-v11" if expanded else "residents-v10"
+    check(revision in ("preview-v10", "preview-v11", "preview-v12") and geometry.metadata.resolve() == metadata.resolve(),
+          "Resident verifier requires a reviewed preview-v10, preview-v11 or preview-v12 bundle")
+    expanded = revision != "preview-v10"
+    profile = "residents-" + revision.removeprefix("preview-")
     building_counts = dict.fromkeys(HOUSE_IDS, 2)
     if expanded:
         building_counts.update({209: 3, 199: 10})
@@ -280,7 +280,7 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
     check(len(buildings) == len(building_counts) and {b["house_id"] for b in buildings} == set(building_counts),
           "Proof must cover the exact resident buildings")
     scene = collision_scene(data)
-    check(len(scene) == 329, "Native collision scene inventory changed")
+    check(len(scene) == (332 if revision == "preview-v12" else 329), "Native collision scene inventory changed")
     all_points = []
     for building in buildings:
         model = houses[building["house_id"]]
@@ -373,12 +373,13 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
             check(max(ring)-min(ring) <= .25 and clear_scene(scene, dict(x=x, y=y, z=floor), 2.4),
                   "Camp standing cylinder intersects native scene collision")
             all_points.append(point)
-        previous = json.loads((metadata.parent / "preview-v10/residents-population.json").read_text(encoding="utf-8"))
+        baseline = "preview-v11" if revision == "preview-v12" else "preview-v10"
+        previous = json.loads((metadata.parent / baseline / "residents-population.json").read_text(encoding="utf-8"))
         by_spawn = {point["spawn_id"]: point for point in all_points}
         check(set(by_spawn) == set(range(902000, 902045)), "Expanded resident identities changed")
         for old in previous["actors"]:
             check(all(by_spawn[old["spawn_id"]][key] == old[key] for key in ("x", "y", "z", "orientation")),
-                  "An existing farmhouse resident moved")
+                  "An existing resident moved")
     entry = geometry.entry_proof["player_entry"]
     rows = ["kind\tid\trole\tx\ty\tz",
             f"test\tentry\t-\t{entry['x']}\t{entry['y']}\t{entry['ground_z']}"]

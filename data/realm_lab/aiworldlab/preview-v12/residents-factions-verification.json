@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "profile": "residents-v12",
+  "source_revision": "preview-v12",
+  "realm_id": 2,
+  "map_id": 725,
+  "ok": true,
+  "files": [
+    {
+      "path": "dbc/Faction.dbc",
+      "bytes": 109764,
+      "sha256": "7ae83c20064a9afc3fbb09ec240169d93dd88b4e24f45f481e8556e67c8445f0",
+      "fields": 57
+    },
+    {
+      "path": "dbc/FactionTemplate.dbc",
+      "bytes": 47509,
+      "sha256": "840ee71a0925ee40795b1efbd0e0fd26f3295fa2b417d179680d5357e47accef",
+      "fields": 14
+    }
+  ],
+  "custom_defias": {
+    "world_faction_id": 2,
+    "faction_id": 1201,
+    "faction_template_id": 2300,
+    "source_template_id": 7,
+    "faction_template_row": [
+      2300,
+      1201,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "faction_name": "Defias Brotherhood",
+    "native_reactions_preserved": true
+  },
+  "client": {
+    "locale": "enUS",
+    "files": [
+      {
+        "name": "Faction.dbc",
+        "archive": "Data/patch-W.MPQ",
+        "bytes": 109764,
+        "sha256": "7ae83c20064a9afc3fbb09ec240169d93dd88b4e24f45f481e8556e67c8445f0",
+        "server_native_and_installed_equal": true
+      },
+      {
+        "name": "FactionTemplate.dbc",
+        "archive": "Data/patch-W.MPQ",
+        "bytes": 47509,
+        "sha256": "840ee71a0925ee40795b1efbd0e0fd26f3295fa2b417d179680d5357e47accef",
+        "server_native_and_installed_equal": true
+      }
+    ],
+    "native_archive_precedence_verified": true
+  },
+  "source_entries": {
+    "38": 2,
+    "11328": 1
+  },
+  "scope": "Actual client DBC selected with native archive precedence equals both native v11 extraction and installed server DBC. Existing custom Defias clone keeps vanilla reaction fields."
+}

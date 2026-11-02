@@ -163,6 +163,24 @@ class AuthoredMapBundleTests(unittest.TestCase):
         with self.assertRaisesRegex(settlement_population.ProfileError, "Unsupported explicit"):
             map_bundle.GeometryBundle.load_revision(metadata, "../preview-v10")
 
+    def test_bridge_revision_preserves_both_historical_fixed_geometries(self):
+        root = self.root / "bridge-revision-history"
+        pins = {}
+        for revision in ("preview-v10", "preview-v11"):
+            metadata, data = fixture(root, revision=revision)
+            index = json.loads((metadata / map_bundle.INDEX).read_text())
+            pins[revision] = {key: index[key] for key in
+                              ("server_manifest_sha256", "verification_sha256", "entry_proof_sha256")}
+        fixture(root, revision="preview-v12")
+        with patch.dict(map_bundle.FROZEN_REVISION_PINS, pins, clear=True):
+            active = map_bundle.verify_data(data, metadata)
+            self.assertEqual(active.source_revision, "preview-v12")
+            for revision in pins:
+                with self.subTest(revision=revision):
+                    old = map_bundle.GeometryBundle.load_revision(metadata, revision)
+                    self.assertEqual(old.source_revision, revision)
+                    self.assertNotEqual(old.entry_proof_sha256, active.entry_proof_sha256)
+
     def test_v10_cannot_repin_mixed_revision_native_or_entry_proofs(self):
         records = (("server-manifest.json", "server_manifest_sha256", "bundle identity"),
                    ("data-verification.json", "verification_sha256", "mismatched native"),

@@ -91,14 +91,14 @@ def _caravan_supply(actor, identity, villages, depots, pairs):
 def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True, *,
                       legacy_ordinary_full: bool = False) -> dict[str, int]:
     require = settlement.require
-    if profile in ("residents-v10", "residents-v11", "living-v11"):
+    if profile in ("residents-v10", "residents-v11", "living-v11", "living-v12"):
         try:
-            from . import living_v11, residents_population, residents_v11
+            from . import living_v12, living_v11, residents_population, residents_v11
         except ImportError:
-            import living_v11, residents_population, residents_v11
+            import living_v12, living_v11, residents_population, residents_v11
         require(not legacy_ordinary_full, "Historical simulation validation cannot be applied to native residents")
-        module = {"residents-v10": residents_population, "residents-v11": residents_v11, "living-v11": living_v11}[profile]
-        require(profile != "living-v11" or wildlife_enabled, "Living residents must be enabled for deployment certification")
+        module = {"residents-v10": residents_population, "residents-v11": residents_v11, "living-v11": living_v11, "living-v12": living_v12}[profile]
+        require(profile not in ("living-v11", "living-v12") or wildlife_enabled, "Living residents must be enabled for deployment certification")
         return module.validate_telemetry(state, module.Population.load())
     require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE, fields.PROFILE, defias.PROFILE, full.PROFILE), "Unknown authored-world telemetry profile")
     require(isinstance(state, dict) and state.get("stale") is False and state.get("version") == 4,

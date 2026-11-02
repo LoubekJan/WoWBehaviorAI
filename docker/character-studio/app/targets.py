@@ -17,7 +17,7 @@ from .models import decimal_identity
 SUPPORTED_PROFILES = {"consumers-v8": "consumer_population", "raids-v8": "raid_population",
                       "fields-v8": "field_population", "defias-v8": "defias_population",
                       "full-v8": "full_population", "residents-v10": "residents_population", "residents-v11": "residents_v11",
-                      "living-v11": "living_v11"}
+                      "living-v11": "living_v11", "living-v12": "living_v12"}
 LIVING_ROLES = {0: "CIVILIAN", 1: "GUARD", 2: "SERVICE", 5: "COMBATANT", 6: "PREDATOR", 7: "PREY"}
 ROLE_NAMES = {"resident": "Obyvatel", "worker": "Pracovník", "guard": "Strážný",
               "hunter": "Lovec", "raider": "Nájezdník", "combatant": "Bojovník",
@@ -66,7 +66,7 @@ class TargetRegistry:
             project_root = project_root.resolve()
             module_name = SUPPORTED_PROFILES[profile]
             source = project_root / "tools" / "realm_lab" / (module_name + ".py")
-            metadata = project_root / "data" / "realm_lab" / "aiworldlab" / ("preview-v11" if profile in ("residents-v11", "living-v11") else "preview-v10" if profile == "residents-v10" else "preview-v8")
+            metadata = project_root / "data" / "realm_lab" / "aiworldlab" / ("preview-v12" if profile == "living-v12" else "preview-v11" if profile in ("residents-v11", "living-v11", "living-v12") else "preview-v10" if profile == "residents-v10" else "preview-v8")
             present = source.is_file() and metadata.is_dir()
         except (OSError, RuntimeError):
             present = False
@@ -85,7 +85,7 @@ class TargetRegistry:
             population = module.Population.load(metadata)
             all_actors = {actor.spawn_id: actor for actor in population.settlement.actors}
             owned = {actor.spawn_id: actor for actor in population.actors}
-            if profile in ("residents-v10", "residents-v11", "living-v11"):
+            if profile in ("residents-v10", "residents-v11", "living-v11", "living-v12"):
                 end = 902022 if profile == "residents-v10" else 902045
                 if (population.profile != profile or set(all_actors) != set(range(902000, end)) or
                         len(population.actors) != end-902000 or set(owned) != set(all_actors) or
@@ -98,9 +98,9 @@ class TargetRegistry:
                 targets = tuple(Target(spawn_id, 725,
                     f"Obyvatel domu {actor.house_id}" if actor.role == "resident" else roles.get(actor.role, actor.role),
                     actor.role, "COMBATANT" if actor.faction == "defias" else "CIVILIAN", actor.entry, True,
-                    "NPC má vlastní herní šablonu a je řízené AI World; LLM řízení se zapíná samostatně." if profile == "living-v11" else
+                    "NPC má vlastní herní šablonu a je řízené AI World; LLM řízení se zapíná samostatně." if profile in ("living-v11", "living-v12") else
                     "NPC má vlastní herní šablonu a používá běžné herní AI; LLM řízení je vypnuté.",
-                    "AI_WORLD_CONTROLLED" if profile == "living-v11" else "NATIVE_CORE") for spawn_id, actor in sorted(all_actors.items()))
+                    "AI_WORLD_CONTROLLED" if profile in ("living-v11", "living-v12") else "NATIVE_CORE") for spawn_id, actor in sorted(all_actors.items()))
                 return cls(True, profile, targets)
             if len(all_actors) != 100 or len(owned) != len(population.actors) or not owned.keys() <= all_actors.keys():
                 raise ValueError("population identities")

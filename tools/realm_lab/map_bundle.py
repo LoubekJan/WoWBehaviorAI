@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 METADATA = ROOT / "data/realm_lab/aiworldlab"
 INDEX = "authoring-map.json"
 REVISION = "preview-v9"
-SUPPORTED_REVISIONS = frozenset({REVISION, "preview-v10", "preview-v11"})
+SUPPORTED_REVISIONS = frozenset({REVISION, "preview-v10", "preview-v11", "preview-v12"})
 # Historical population loaders must not follow a newly selected authoring map.
 # These immutable pins certify their original evidence independently of INDEX.
 FROZEN_REVISION_PINS = {
@@ -35,6 +35,11 @@ FROZEN_REVISION_PINS = {
         "server_manifest_sha256": "6d29b517b72f97363b51ea8fa29014606bb4103d29b527d57a97e2320250bd12",
         "verification_sha256": "d3e4224936042d8a7f5abae8e268e11844def61b07416826ef0362bd449c893c",
         "entry_proof_sha256": "5409c6a3c02f1c1fe59d21eb6da2bf342e391b603846222d995dd0144c35d7ee",
+    },
+    "preview-v12": {
+        "server_manifest_sha256": "c655c7ea785ca8cc64a9fbadb53a4d0a627b2ee05338ea63f2520c5d5a46514c",
+        "verification_sha256": "180ee3995c3a8b2755fd63c90095a5774edeed0155098aaf81a7ea4eb5ee424e",
+        "entry_proof_sha256": "5b33dee769eade1b23597fb55edcd8019d7a6c6754c74c1422ca5cda108004e0",
     },
 }
 TILES = ((30, 31), (30, 32), (31, 31), (31, 32))

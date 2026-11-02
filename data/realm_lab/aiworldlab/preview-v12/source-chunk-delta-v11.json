@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "preview-v11",
+  "current_revision": "preview-v12",
+  "adts": [
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_31.adt",
+      "liquid_source_byte_identical": true,
+      "changed_chunks": []
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_31.adt",
+      "liquid_source_byte_identical": true,
+      "changed_chunks": []
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_30_32.adt",
+      "liquid_source_byte_identical": true,
+      "changed_chunks": [
+        {
+          "tag": "MHDR",
+          "index": 1,
+          "before_bytes": 64,
+          "after_bytes": 64
+        },
+        {
+          "tag": "MCIN",
+          "index": 2,
+          "before_bytes": 4096,
+          "after_bytes": 4096
+        },
+        {
+          "tag": "MMDX",
+          "index": 4,
+          "before_bytes": 329,
+          "after_bytes": 402
+        },
+        {
+          "tag": "MMID",
+          "index": 5,
+          "before_bytes": 20,
+          "after_bytes": 24
+        },
+        {
+          "tag": "MDDF",
+          "index": 8,
+          "before_bytes": 360,
+          "after_bytes": 468
+        },
+        {
+          "tag": "MCNK",
+          "index": 25,
+          "before_bytes": 5340,
+          "after_bytes": 5340
+        },
+        {
+          "tag": "MCNK",
+          "index": 80,
+          "before_bytes": 9448,
+          "after_bytes": 9452
+        },
+        {
+          "tag": "MCNK",
+          "index": 81,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 96,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 97,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 105,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 112,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 113,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 121,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 133,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        },
+        {
+          "tag": "MCNK",
+          "index": 134,
+          "before_bytes": 9444,
+          "after_bytes": 9448
+        }
+      ]
+    },
+    {
+      "path": "world/maps/aiworldlab/aiworldlab_31_32.adt",
+      "liquid_source_byte_identical": true,
+      "changed_chunks": []
+    }
+  ]
+}

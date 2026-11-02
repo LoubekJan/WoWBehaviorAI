@@ -17,13 +17,14 @@ import sys
 from typing import Mapping
 
 try:
-    from . import living_v11, residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    from . import living_v12, living_v11, residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 except ImportError:  # Direct script invocation inside the lab container.
-    import living_v11, residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    import living_v12, living_v11, residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 
 
 RESIDENT_PROFILES = {residents_population.PROFILE: residents_population, residents_v11.PROFILE: residents_v11,
-                     living_v11.PROFILE: living_v11}
+                     living_v11.PROFILE: living_v11, living_v12.PROFILE: living_v12}
+LIVING_PROFILES = frozenset((living_v11.PROFILE, living_v12.PROFILE))
 
 
 class SetupError(ValueError):
@@ -215,7 +216,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         result.update(population.config())
         result.update({"AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryNativeCreaturesEnabled": "1",
                        "AIWorld.TelemetryHost": "world-viewer", "AIWorld.TelemetryPort": "8000"})
-        if settings.ai_profile == living_v11.PROFILE and not settings.wildlife_enabled:
+        if settings.ai_profile in LIVING_PROFILES and not settings.wildlife_enabled:
             for key in ("AIWorld.Enable", "AIWorld.LivingRolesEnabled", "AIWorld.LivingRoleExtensionsEnabled",
                         "AIWorld.LivingNeedEvolutionEnabled", "AIWorld.LivingResidentsV11.Enabled"):
                 result[key] = "0"
@@ -758,7 +759,7 @@ def residents_preflight(data: Path, settings: Settings, *, bootstrap: bool = Fal
     bindings = character_templates.verify(settings, allow_restored=bootstrap)
     identities = {binding.spawn_id for binding in bindings}
     allowed = ((frozenset(), getattr(module, "HOUSEHOLD_IDS", module.SPAWN_IDS))
-               if bootstrap and settings.ai_profile != living_v11.PROFILE else ())
+               if bootstrap and settings.ai_profile not in LIVING_PROFILES else ())
     if identities != module.SPAWN_IDS and identities not in allowed:
         raise SetupError("Residents require the complete set of independently owned character templates")
     rows = single_return.parse_snapshot(lab_mysql(settings, module.snapshot_sql(population)))
@@ -785,7 +786,7 @@ def bootstrap_residents(data: Path, settings: Settings):
     rows = character_templates.normalize_snapshot(rows, character_templates.verify(settings, allow_restored=True))
     module.validate_snapshot(rows, population)
     settlement_population.ensure_world_offline()
-    mode = "AIWorld-controlled" if settings.ai_profile == living_v11.PROFILE else "native"
+    mode = "AIWorld-controlled" if settings.ai_profile in LIVING_PROFILES else "native"
     print(f"Exactly {len(population.actors)} reviewed {mode} residents prepared; retired actors remain absent.")
 
 
@@ -811,7 +812,8 @@ def main() -> None:
                     "bootstrap-defias-v8", "preflight-defias-v8", "deactivate-defias-v8",
                     "bootstrap-full-v8", "preflight-full-v8", "deactivate-full-v8", "preflight-authoring-empty",
                     "bootstrap-residents-v10", "preflight-residents-v10", "bootstrap-residents-v11", "preflight-residents-v11",
-                    "bootstrap-living-v11", "preflight-living-v11", "preflight-living-v11-adoption"):
+                    "bootstrap-living-v11", "preflight-living-v11", "preflight-living-v11-adoption",
+                    "bootstrap-living-v12", "preflight-living-v12", "preflight-living-v12-adoption"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -876,14 +878,14 @@ def main() -> None:
         elif args.command == "preflight-authoring-empty":
             authoring_preflight(args.data, settings)
             print("Empty authored map verified: no NPCs, AI state or character inputs; simulation and telemetry disabled.")
-        elif args.command in ("bootstrap-residents-v10", "bootstrap-residents-v11", "bootstrap-living-v11"):
+        elif args.command in ("bootstrap-residents-v10", "bootstrap-residents-v11", "bootstrap-living-v11", "bootstrap-living-v12"):
             bootstrap_residents(args.data, settings)
-        elif args.command in ("preflight-residents-v10", "preflight-residents-v11", "preflight-living-v11"):
+        elif args.command in ("preflight-residents-v10", "preflight-residents-v11", "preflight-living-v11", "preflight-living-v12"):
             population = residents_preflight(args.data, settings)
             print(f"Reviewed {population.source_revision} geometry, {len(population.actors)} native residents and independent templates verified.")
-        elif args.command == "preflight-living-v11-adoption":
-            if settings.ai_profile != living_v11.PROFILE:
-                raise SetupError("Living adoption requires LAB_AI_PROFILE=living-v11")
+        elif args.command in ("preflight-living-v11-adoption", "preflight-living-v12-adoption"):
+            if settings.ai_profile not in LIVING_PROFILES:
+                raise SetupError("Living adoption requires a reviewed living profile")
             residents_preflight(args.data, settings, bootstrap=True)
         elif args.command == "bootstrap-single":
             bootstrap_single(args.data, settings)

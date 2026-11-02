@@ -22,6 +22,7 @@ except ImportError:
 
 PROFILE = "residents-v11"
 SOURCE_REVISION = "preview-v11"
+GEOMETRY_PROFILES = {PROFILE: SOURCE_REVISION, "residents-v12": "preview-v12"}
 METADATA = map_bundle.METADATA / SOURCE_REVISION
 MANIFEST, POSITION_PROOF = previous.MANIFEST, previous.POSITION_PROOF
 FACTION_PROOF = "residents-factions-verification.json"
@@ -108,14 +109,17 @@ class Population(previous.Population):
     def expected_entry(spawn_id): return expected_entry(spawn_id)
 
     @classmethod
-    def load(cls, metadata: Path = METADATA, geometry=None):
+    def load(cls, metadata: Path = METADATA, geometry=None, *, profile=PROFILE, revision=SOURCE_REVISION):
         try:
-            geometry = geometry or map_bundle.GeometryBundle.load_revision(metadata.parent, SOURCE_REVISION)
-            require(geometry.source_revision == SOURCE_REVISION and geometry.metadata == metadata,
+            require(GEOMETRY_PROFILES.get(profile) == revision, "Unsupported resident profile/geometry pair")
+            require(cls.__dataclass_fields__["profile"].default == profile,
+                    "Resident loader class does not match its geometry profile")
+            geometry = geometry or map_bundle.GeometryBundle.load_revision(metadata.parent, revision)
+            require(geometry.source_revision == revision and geometry.metadata == metadata,
                     "V11 population requires the fixed preview-v11 native geometry")
             document = base.load_json(metadata / MANIFEST)
             require((document.get("profile"), document.get("realm_id"), document.get("map_id"), document.get("area_id"),
-                     document.get("source_revision")) == (PROFILE, 2, 725, 4988, SOURCE_REVISION),
+                     document.get("source_revision")) == (profile, 2, 725, 4988, revision),
                     "Wrong v11 native population identity")
             require(document.get("geometry_sha256") == geometry_digest(geometry.geometry_files) and
                     document.get("templates") == list(TEMPLATES) and document.get("smart_scripts") == list(DEFIAS_SMART_SCRIPTS) and
@@ -126,14 +130,14 @@ class Population(previous.Population):
                     "V11 custom Defias faction proof hash mismatch")
             faction_proof = base.load_json(factions)
             require((faction_proof.get("profile"), faction_proof.get("source_revision"), faction_proof.get("realm_id"),
-                     faction_proof.get("map_id"), faction_proof.get("ok")) == (PROFILE, SOURCE_REVISION, 2, 725, True),
+                     faction_proof.get("map_id"), faction_proof.get("ok")) == (profile, revision, 2, 725, True),
                     "Wrong custom Defias faction proof identity")
             proof_path = metadata / POSITION_PROOF
             require(hashlib.sha256(proof_path.read_bytes()).hexdigest() == document.get("position_proof_sha256"),
                     "V11 population position proof hash mismatch")
             proof = base.load_json(proof_path)
             require((proof.get("profile"), proof.get("source_revision"), proof.get("map_id"), proof.get("ok")) ==
-                    (PROFILE, SOURCE_REVISION, 725, True) and
+                    (profile, revision, 725, True) and
                     proof.get("geometry_files") == list(geometry.geometry_files) and
                     proof.get("geometry_sha256") == geometry_digest(geometry.geometry_files),
                     "V11 population proof belongs to different map bytes")
@@ -201,15 +205,16 @@ def verify_data(data, metadata=METADATA):
     return population
 
 
-def verify_factions(data, metadata=METADATA):
+def verify_factions(data, metadata=METADATA, *, profile=PROFILE, revision=SOURCE_REVISION):
     """Verify real server DBC bytes and the approved client's custom identity."""
+    require(GEOMETRY_PROFILES.get(profile) == revision, "Unsupported resident faction proof pair")
     document = base.load_json(metadata / MANIFEST)
     proof_path = metadata / FACTION_PROOF
     require(hashlib.sha256(proof_path.read_bytes()).hexdigest() == document.get("faction_proof_sha256"),
             "V11 faction proof changed")
     proof = base.load_json(proof_path)
-    require((proof.get("profile"), proof.get("source_revision"), proof.get("ok")) == (PROFILE, SOURCE_REVISION, True),
-            "V11 faction proof is not approved")
+    require((proof.get("profile"), proof.get("source_revision"), proof.get("ok")) == (profile, revision, True),
+            "Resident faction proof is not approved")
     files = proof.get("files")
     expected = {"dbc/Faction.dbc":57, "dbc/FactionTemplate.dbc":14}
     require(isinstance(files, list) and len(files) == 2 and {row.get("path") for row in files} == set(expected),

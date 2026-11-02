@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v12",
+  "status": "PASS",
+  "scope": "Read-only actual stock-client bridge asset lookup and M2 collision header; native transformed VMAP/MMAP extraction and traversal verification remain separate.",
+  "native_archive_order_source": "src/tools/extractor_common/mpq_libmpq.cpp:MPQ::Archives",
+  "archive_search_order": [
+    "Data\\patch-Y.MPQ",
+    "Data\\patch-X.MPQ",
+    "Data\\patch-W.MPQ",
+    "Data\\patch-4.MPQ",
+    "Data\\patch-3.MPQ",
+    "Data\\patch-2.MPQ",
+    "Data\\enUS\\patch-enUS-3.MPQ",
+    "Data\\enUS\\patch-enUS-2.MPQ",
+    "Data\\patch.MPQ",
+    "Data\\enUS\\patch-enUS.MPQ",
+    "Data\\expansion.MPQ",
+    "Data\\lichking.MPQ",
+    "Data\\common.MPQ",
+    "Data\\common-2.MPQ",
+    "Data\\enUS\\locale-enUS.MPQ",
+    "Data\\enUS\\expansion-locale-enUS.MPQ",
+    "Data\\enUS\\lichking-locale-enUS.MPQ"
+  ],
+  "bridge_asset": {
+    "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+    "archive": "Data\\common-2.MPQ",
+    "bytes": 21856,
+    "sha256": "b35d4d02cd1b6830b70bf1fbf960fe019cd097ef7a410a11305fc8766f145b51",
+    "nBoundingTriangles": 450,
+    "ofsBoundingTriangles": 18000,
+    "nBoundingVertices": 92,
+    "ofsBoundingVertices": 18912,
+    "nBoundingNormals": 150,
+    "ofsBoundingNormals": 20016,
+    "bounding_triangle_face_count": 150
+  },
+  "client_files_modified": false
+}

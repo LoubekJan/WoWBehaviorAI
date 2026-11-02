@@ -202,11 +202,11 @@ function validId(value) {
 }
 
 function supportsTemplates() {
-  return ['full-v8', 'residents-v10', 'residents-v11'].includes(catalog.target_registry?.profile);
+  return ['full-v8', 'residents-v10', 'residents-v11', 'living-v11', 'living-v12'].includes(catalog.target_registry?.profile);
 }
 
 function residentProfile() {
-  return ['residents-v10', 'residents-v11'].includes(catalog.target_registry?.profile);
+  return ['residents-v10', 'residents-v11', 'living-v11', 'living-v12'].includes(catalog.target_registry?.profile);
 }
 
 function completion() {
@@ -239,9 +239,9 @@ function templateStatus() {
   const resident = residentProfile();
   const spawn = Number(current.card.spawn_id);
   const row = (catalog.targets || []).find(row => row.spawn_id === current.card.spawn_id);
-  const limit = catalog.target_registry?.profile === 'residents-v11' ? 902044 : 902021;
+  const limit = catalog.target_registry?.profile === 'residents-v10' ? 902021 : 902044;
   const validSpawn = resident ? spawn >= 902000 && spawn <= limit : spawn >= 901000 && spawn <= 901099;
-  const expectedBase = catalog.target_registry?.profile === 'residents-v11' && spawn >= 902035 ? 38 : 11328;
+  const expectedBase = resident && catalog.target_registry?.profile !== 'residents-v10' && spawn >= 902035 ? 38 : 11328;
   if (!Number.isInteger(spawn) || !validSpawn || !Number.isInteger(row?.entry) || row.entry <= 0 || (resident && row.entry !== expectedBase) || current.card.map_id !== 725) return {eligible: false, reason: 'Herní šablona vyžaduje ověřené NPC vlastní populace.'};
   if (!current.card.name.trim()) return {eligible: false, reason: 'Doplň jméno, které se zobrazí nad postavou ve hře.'};
   const title = (current.authoring.role || '').trim();

@@ -13,7 +13,7 @@ from .targets import TargetRegistry
 
 def seed(*, project_root: Path, source_dir: Path, catalog_path: Path, data_dir: Path,
          profile: str) -> dict[str, int]:
-    if profile not in ("residents-v10", "residents-v11", "living-v11"):
+    if profile not in ("residents-v10", "residents-v11", "living-v11", "living-v12"):
         raise ValueError("Resident drafts require the active reviewed resident profile")
     registry = TargetRegistry.load(project_root, profile)
     identities = set(range(902000, 902022 if profile == "residents-v10" else 902045))

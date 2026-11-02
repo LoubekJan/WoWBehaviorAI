@@ -180,7 +180,7 @@ def configure_env(old: dict[str, dict]) -> None:
     target = ROOT / ".env"
     require(source.is_file(), "Existing authored-world configuration is missing")
     values = read_env(target if target.exists() else source)
-    require(values.get("LAB_REALM_ID", "2") == "2" and values.get("LAB_AI_PROFILE") in ("authoring-empty", "residents-v10", "residents-v11", "living-v11", "settlement-v8", "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"),
+    require(values.get("LAB_REALM_ID", "2") == "2" and values.get("LAB_AI_PROFILE") in ("authoring-empty", "residents-v10", "residents-v11", "living-v11", "living-v12", "settlement-v8", "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"),
             "Only the verified authored realm 2 can be promoted")
     values.setdefault("AUTH_MYSQL_ROOT_PASSWORD", secrets.token_urlsafe(32))
     values.setdefault("TC_AUTH_SERVER_USER", "world_auth")
@@ -255,14 +255,14 @@ def prepare_graveyard() -> None:
 def adopt_canonical_installation() -> None:
     """Recognize a completed fresh installation without importing any database."""
     try:
-        from . import living_v11, full_population, defias_population, field_population, raid_population, consumer_population, manage, residents_v11, residents_population, settlement_population, single_return, supply_population, wildlife_population
+        from . import living_v12, living_v11, full_population, defias_population, field_population, raid_population, consumer_population, manage, residents_v11, residents_population, settlement_population, single_return, supply_population, wildlife_population
     except ImportError:
-        import living_v11, full_population, defias_population, field_population, raid_population, consumer_population, manage, residents_v11, residents_population, settlement_population, single_return, supply_population, wildlife_population
+        import living_v12, living_v11, full_population, defias_population, field_population, raid_population, consumer_population, manage, residents_v11, residents_population, settlement_population, single_return, supply_population, wildlife_population
     configuration = ROOT / ".env"
     require(configuration.is_file(), "No original realm exists and canonical credentials are missing")
     try:
         settings = manage.Settings.load(read_env(configuration))
-        require(settings.realm_id == 2 and settings.ai_profile in ("authoring-empty", "living-v11", residents_population.PROFILE, residents_v11.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE) and
+        require(settings.realm_id == 2 and settings.ai_profile in ("authoring-empty", "living-v11", "living-v12", residents_population.PROFILE, residents_v11.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE) and
                 settings.auth_host == "aiworld-auth-db" and settings.auth_port == 3306,
                 "Only the canonical realm 2 settlement with its local auth may be adopted")
         databases = {}
@@ -283,9 +283,9 @@ def adopt_canonical_installation() -> None:
         profile = {wildlife_population.PROFILE: wildlife_population, supply_population.PROFILE: supply_population,
                    consumer_population.PROFILE: consumer_population, raid_population.PROFILE: raid_population, field_population.PROFILE: field_population, defias_population.PROFILE: defias_population, full_population.PROFILE: full_population,
                    residents_population.PROFILE: residents_population, residents_v11.PROFILE: residents_v11,
-                   living_v11.PROFILE: living_v11}.get(settings.ai_profile, settlement_population)
+                   living_v11.PROFILE: living_v11, living_v12.PROFILE: living_v12}.get(settings.ai_profile, settlement_population)
         population = profile.verify_data(ROOT / "runtime/lab/data")
-        if settings.ai_profile in ("authoring-empty", residents_population.PROFILE, residents_v11.PROFILE, living_v11.PROFILE):
+        if settings.ai_profile in ("authoring-empty", residents_population.PROFILE, residents_v11.PROFILE, living_v11.PROFILE, living_v12.PROFILE):
             # This launcher runs on the host. Use the existing tools container
             # for private lab SQL; never resolve Docker DB names or credentials
             # through a host-side connection, and never bootstrap the old NPCs.
@@ -298,7 +298,7 @@ def adopt_canonical_installation() -> None:
     except (manage.SetupError, settlement_population.ProfileError, OSError, ValueError, KeyError, TypeError) as exc:
         raise PromotionError("Fresh canonical installation did not pass configuration, database and native-population checks") from exc
     managed_count = 0 if profile in (settlement_population, residents_population, residents_v11) else len(profile.SPAWN_IDS)
-    native_count = (0 if settings.ai_profile in ("authoring-empty", "living-v11") else
+    native_count = (0 if settings.ai_profile in ("authoring-empty", "living-v11", "living-v12") else
                     len(population.actors) if profile in (residents_population, residents_v11) else 100 - managed_count)
     state = {"schema_version": 1, "status": "auth_ready", "mode": "adopted_canonical_installation",
              "original": {}, "running_before": {}, "backups": {},

@@ -317,7 +317,7 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
     @app.get("/api/characters/{character_id}/appearance")
     def appearance_export(character_id: str):
         _doc, profile, appearance = exports(character_id)
-        if targets().profile in ("residents-v10", "residents-v11", "living-v11"):
+        if targets().profile in ("residents-v10", "residents-v11", "living-v11", "living-v12"):
             raise HTTPException(422, "Obyvatelé používají původní herní vzhled. Návrh vzhledu lze uložit v draftu; tento profil jej do hry nenasazuje.")
         return attachment(appearance, f"{profile['spawn_id']}.json")
 
@@ -331,8 +331,8 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
     def bundle_export(character_id: str):
         doc, profile, appearance = exports(character_id)
         population_profile = targets().profile
-        resident = population_profile in ("residents-v10", "residents-v11", "living-v11")
-        template = template_export_value(doc) if population_profile in ("full-v8", "residents-v10", "residents-v11", "living-v11") else None
+        resident = population_profile in ("residents-v10", "residents-v11", "living-v11", "living-v12")
+        template = template_export_value(doc) if population_profile in ("full-v8", "residents-v10", "residents-v11", "living-v11", "living-v12") else None
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
             runtime_files = (("npc_agents", profile),) if resident else (("npc_agents", profile), ("npc_appearances", appearance))
@@ -343,7 +343,7 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
             bundle.writestr("character-studio-draft.json", json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
             bundle.writestr("README.txt", "CHARACTER STUDIO — export pro WoW 3.3.5a\n\n"
                 "npc_agents/ obsahuje přesnou šestipolovou charakterovou kartu.\n"
-                + (("Obyvatelé používají původní herní vzhled a řízení AI World. LLM řízení se zapíná samostatně.\n" if population_profile == "living-v11" else
+                + (("Obyvatelé používají původní herní vzhled a řízení AI World. LLM řízení se zapíná samostatně.\n" if population_profile in ("living-v11", "living-v12") else
                     "Obyvatelé používají původní herní vzhled a běžné herní AI. LLM řízení zůstává vypnuté.\n")
                    + "Vzhled uložený v draftu je návrh pro další úpravy. Do hry se tímto balíčkem neinstaluje.\n"
                    if resident else "npc_appearances/ obsahuje samostatný vzhled stejného spawnu.\n")

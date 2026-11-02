@@ -1,0 +1,3258 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v12",
+  "map_id": 725,
+  "source_unchanged": true,
+  "source_files_rechecked_unchanged": 9,
+  "references": [
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GYPSYWAGON\\GYPSYWAGON.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP01.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP02.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+      "adt_references": [
+        [
+          30,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\WESTFALL\\BUILDINGS\\GRAINSILO\\WESTFALLGRAINSILO01.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\EXPANSION02\\DOODADS\\DALARAN\\DALARAN_WAGON01.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\EXPANSION02\\DOODADS\\GENERIC\\HIGHELF\\HE_WAGON_01.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\EXPANSION02\\DOODADS\\STRATHOLME_PAST\\BANNERS\\LD_STRATHOLME_OPENTENT.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\GENERIC\\HUMAN\\PASSIVE DOODADS\\GYPSYWAGONS\\STORMWINDGYPSYWAGON01.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          30,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\GOOBER\\G_TENTBURNINATOR.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\LORDAERON\\PLAGUELAND\\ACTIVEDOODADS\\OUTHOUSE\\OUTHOUSETRAPPED.M2",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "texture",
+      "name": "tileset/elwynn/elwynncobblestonedock.blp",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "texture",
+      "name": "tileset/elwynn/elwynncobblestonedockdirt.blp",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "texture",
+      "name": "tileset/elwynn/elwynncrop92.blp",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "texture",
+      "name": "tileset/elwynn/elwynndirtbase2.blp",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "texture",
+      "name": "tileset/elwynn/elwynngrassbase.blp",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\DUSKWOOD_HUMAN_FARM\\DUSKWOOD_HUMAN_FARM.WMO",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREBLACKSMITH\\GOLDSHIREBLACKSMITH.WMO",
+      "adt_references": [
+        [
+          30,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREINN\\GOLDSHIREINN.WMO",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\HUMAN_FARM\\FARM.WMO",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          30,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\REDRIDGE_HUMAN_FARM\\REDRIDGE_HUMAN_FARM.WMO",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\REDRIDGE_LUMBERMILL\\REDRIDGE_LUMBERMILL.WMO",
+      "adt_references": [
+        [
+          30,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\TOWNHALL_NOWALL\\TOWNHALL_NOWALL.WMO",
+      "adt_references": [
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\WESTFALL_HUMAN_FARM\\WESTFALL_HUMAN_FARM.WMO",
+      "adt_references": [
+        [
+          31,
+          31
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\WESTFALL_HUMAN_FARM\\WESTFALL_HUMAN_FARMB.WMO",
+      "adt_references": [
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\DUNGEON\\MD_SPIDERMINE\\MD_SPIDERMINE_NOKOBOLDS.WMO",
+      "adt_references": [
+        [
+          31,
+          32
+        ]
+      ],
+      "local_override": false
+    }
+  ],
+  "unique_placements": [
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 93,
+      "raw_position": [
+        16072.541015625,
+        18.1424560546875,
+        16566.126953125
+      ],
+      "server_position": {
+        "x": 500.5390625,
+        "y": 994.125,
+        "z": 18.1424560546875
+      },
+      "rotation": [
+        -17.27473258972168,
+        -23.381967544555664,
+        -3.6007323265075684
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 82,
+      "raw_position": [
+        16076.1953125,
+        9.728500366210938,
+        16880.21875
+      ],
+      "server_position": {
+        "x": 186.447265625,
+        "y": 990.470703125,
+        "z": 9.728500366210938
+      },
+      "rotation": [
+        20.25758934020996,
+        -13.129485130310059,
+        2.3555119037628174
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 109,
+      "raw_position": [
+        16161.7431640625,
+        1.107696533203125,
+        17071.919921875
+      ],
+      "server_position": {
+        "x": -5.25390625,
+        "y": 904.9228515625,
+        "z": 1.107696533203125
+      },
+      "rotation": [
+        -3.614194393157959,
+        -1.4628922939300537,
+        -0.04615713655948639
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 123,
+      "raw_position": [
+        16474.3515625,
+        10.770584106445312,
+        16570.990234375
+      ],
+      "server_position": {
+        "x": 495.67578125,
+        "y": 592.314453125,
+        "z": 10.770584106445312
+      },
+      "rotation": [
+        4.019406795501709,
+        0.7585772275924683,
+        -0.026619117707014084
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 75,
+      "raw_position": [
+        16261.451171875,
+        6.4525604248046875,
+        16619.015625
+      ],
+      "server_position": {
+        "x": 447.650390625,
+        "y": 805.21484375,
+        "z": 6.4525604248046875
+      },
+      "rotation": [
+        -0.6881506443023682,
+        -1.1615033149719238,
+        -0.006975437980145216
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 92,
+      "raw_position": [
+        16027.3603515625,
+        17.00299072265625,
+        16607.234375
+      ],
+      "server_position": {
+        "x": 459.431640625,
+        "y": 1039.3056640625,
+        "z": 17.00299072265625
+      },
+      "rotation": [
+        -20.806501388549805,
+        37.1612548828125,
+        7.0632643699646
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 96,
+      "raw_position": [
+        16243.955078125,
+        14.7313232421875,
+        16557.54296875
+      ],
+      "server_position": {
+        "x": 509.123046875,
+        "y": 822.7109375,
+        "z": 14.7313232421875
+      },
+      "rotation": [
+        19.193744659423828,
+        18.567386627197266,
+        -3.1663551330566406
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 95,
+      "raw_position": [
+        16169.2353515625,
+        11.936721801757812,
+        16553.41015625
+      ],
+      "server_position": {
+        "x": 513.255859375,
+        "y": 897.4306640625,
+        "z": 11.936721801757812
+      },
+      "rotation": [
+        -25.424671173095703,
+        -7.820003509521484,
+        -1.7666867971420288
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 79,
+      "raw_position": [
+        16247.8408203125,
+        2.82855224609375,
+        16711.056640625
+      ],
+      "server_position": {
+        "x": 355.609375,
+        "y": 818.8251953125,
+        "z": 2.82855224609375
+      },
+      "rotation": [
+        13.487671852111816,
+        -14.558120727539062,
+        1.730669379234314
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 91,
+      "raw_position": [
+        16029.0263671875,
+        10.406768798828125,
+        16744.837890625
+      ],
+      "server_position": {
+        "x": 321.828125,
+        "y": 1037.6396484375,
+        "z": 10.406768798828125
+      },
+      "rotation": [
+        -14.066106796264648,
+        13.901978492736816,
+        1.7234236001968384
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 133,
+      "raw_position": [
+        16540.791015625,
+        8.36114501953125,
+        16581.615234375
+      ],
+      "server_position": {
+        "x": 485.05078125,
+        "y": 525.875,
+        "z": 8.36114501953125
+      },
+      "rotation": [
+        -11.350605010986328,
+        -15.240745544433594,
+        -1.5234984159469604
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 83,
+      "raw_position": [
+        16044.4091796875,
+        11.813140869140625,
+        16830.287109375
+      ],
+      "server_position": {
+        "x": 236.37890625,
+        "y": 1022.2568359375,
+        "z": 11.813140869140625
+      },
+      "rotation": [
+        -15.895598411560059,
+        -4.026218414306641,
+        -0.5623348951339722
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 97,
+      "raw_position": [
+        16314.791015625,
+        9.796142578125,
+        16562.048828125
+      ],
+      "server_position": {
+        "x": 504.6171875,
+        "y": 751.875,
+        "z": 9.796142578125
+      },
+      "rotation": [
+        -1.956060528755188,
+        -16.89862632751465,
+        -0.2905939519405365
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 70,
+      "raw_position": [
+        16133.6640625,
+        7.510894775390625,
+        16739.33984375
+      ],
+      "server_position": {
+        "x": 327.326171875,
+        "y": 933.001953125,
+        "z": 7.510894775390625
+      },
+      "rotation": [
+        -12.531182289123535,
+        -6.209897518157959,
+        -0.6824646592140198
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 88,
+      "raw_position": [
+        16161.46484375,
+        9.743698120117188,
+        16645.51953125
+      ],
+      "server_position": {
+        "x": 421.146484375,
+        "y": 905.201171875,
+        "z": 9.743698120117188
+      },
+      "rotation": [
+        7.929683685302734,
+        -10.07266616821289,
+        0.6999335289001465
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 105,
+      "raw_position": [
+        16059.25390625,
+        3.9986190795898438,
+        17017.044921875
+      ],
+      "server_position": {
+        "x": 49.62109375,
+        "y": 1007.412109375,
+        "z": 3.9986190795898438
+      },
+      "rotation": [
+        6.606700420379639,
+        -6.828887462615967,
+        0.39461755752563477
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 71,
+      "raw_position": [
+        16217.4013671875,
+        8.548919677734375,
+        16657.263671875
+      ],
+      "server_position": {
+        "x": 409.40234375,
+        "y": 849.2646484375,
+        "z": 8.548919677734375
+      },
+      "rotation": [
+        -5.417858123779297,
+        11.555987358093262,
+        0.5486283898353577
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 90,
+      "raw_position": [
+        16049.6240234375,
+        19.225234985351562,
+        16666.419921875
+      ],
+      "server_position": {
+        "x": 400.24609375,
+        "y": 1017.0419921875,
+        "z": 19.225234985351562
+      },
+      "rotation": [
+        -2.915807008743286,
+        16.004785537719727,
+        0.41000092029571533
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 81,
+      "raw_position": [
+        16173.716796875,
+        2.1862564086914062,
+        16871.455078125
+      ],
+      "server_position": {
+        "x": 195.2109375,
+        "y": 892.94921875,
+        "z": 2.1862564086914062
+      },
+      "rotation": [
+        6.690173625946045,
+        -6.090465545654297,
+        0.35631734132766724
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 87,
+      "raw_position": [
+        16169.26953125,
+        22.822906494140625,
+        16592.322265625
+      ],
+      "server_position": {
+        "x": 474.34375,
+        "y": 897.396484375,
+        "z": 22.822906494140625
+      },
+      "rotation": [
+        3.805602550506592,
+        -11.834257125854492,
+        0.3945641815662384
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 89,
+      "raw_position": [
+        16090.82421875,
+        17.906204223632812,
+        16637.990234375
+      ],
+      "server_position": {
+        "x": 428.67578125,
+        "y": 975.841796875,
+        "z": 17.906204223632812
+      },
+      "rotation": [
+        -9.481029510498047,
+        2.807537078857422,
+        0.23286667466163635
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 108,
+      "raw_position": [
+        16188.44140625,
+        2.7967987060546875,
+        16771.009765625
+      ],
+      "server_position": {
+        "x": 295.65625,
+        "y": 878.224609375,
+        "z": 2.7967987060546875
+      },
+      "rotation": [
+        3.3078153133392334,
+        -9.785765647888184,
+        0.2832440137863159
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 106,
+      "raw_position": [
+        16108.69140625,
+        1.7166748046875,
+        17034.3203125
+      ],
+      "server_position": {
+        "x": 32.345703125,
+        "y": 957.974609375,
+        "z": 1.7166748046875
+      },
+      "rotation": [
+        0.4305466413497925,
+        8.634255409240723,
+        -0.03250255808234215
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 99,
+      "raw_position": [
+        16407.4921875,
+        7.9726104736328125,
+        16596.90234375
+      ],
+      "server_position": {
+        "x": 469.763671875,
+        "y": 659.173828125,
+        "z": 7.9726104736328125
+      },
+      "rotation": [
+        3.749584436416626,
+        4.77248477935791,
+        -0.15630792081356049
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 84,
+      "raw_position": [
+        16081.400390625,
+        5.967887878417969,
+        16763.921875
+      ],
+      "server_position": {
+        "x": 302.744140625,
+        "y": 985.265625,
+        "z": 5.967887878417969
+      },
+      "rotation": [
+        5.3162360191345215,
+        -4.4261860847473145,
+        0.20559316873550415
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 72,
+      "raw_position": [
+        16299.1376953125,
+        6.5615692138671875,
+        16642.18359375
+      ],
+      "server_position": {
+        "x": 424.482421875,
+        "y": 767.5283203125,
+        "z": 6.5615692138671875
+      },
+      "rotation": [
+        -7.306149959564209,
+        -1.6496407985687256,
+        -0.10532809048891068
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 85,
+      "raw_position": [
+        16172.017578125,
+        8.1531982421875,
+        16690.0390625
+      ],
+      "server_position": {
+        "x": 376.626953125,
+        "y": 894.6484375,
+        "z": 8.1531982421875
+      },
+      "rotation": [
+        -1.0475728511810303,
+        10.90683650970459,
+        0.10001303255558014
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 78,
+      "raw_position": [
+        16357.197265625,
+        3.5422210693359375,
+        16653.58203125
+      ],
+      "server_position": {
+        "x": 413.083984375,
+        "y": 709.46875,
+        "z": 3.5422210693359375
+      },
+      "rotation": [
+        10.698580741882324,
+        -3.7824766635894775,
+        0.3542996346950531
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 69,
+      "raw_position": [
+        16110.0126953125,
+        5.6761932373046875,
+        16815.908203125
+      ],
+      "server_position": {
+        "x": 250.7578125,
+        "y": 956.6533203125,
+        "z": 5.6761932373046875
+      },
+      "rotation": [
+        7.465844631195068,
+        -0.26478058099746704,
+        0.017275407910346985
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 100,
+      "raw_position": [
+        16382.0400390625,
+        8.110687255859375,
+        16563.375
+      ],
+      "server_position": {
+        "x": 503.291015625,
+        "y": 684.6259765625,
+        "z": 8.110687255859375
+      },
+      "rotation": [
+        -2.08963942527771,
+        1.9880164861679077,
+        0.03626022860407829
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 103,
+      "raw_position": [
+        16032.8173828125,
+        1.1688385009765625,
+        17090.103515625
+      ],
+      "server_position": {
+        "x": -23.4375,
+        "y": 1033.8486328125,
+        "z": 1.1688385009765625
+      },
+      "rotation": [
+        -1.5941319465637207,
+        -5.453815937042236,
+        -0.0759325847029686
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 98,
+      "raw_position": [
+        16417.08203125,
+        2.1835784912109375,
+        16646.900390625
+      ],
+      "server_position": {
+        "x": 419.765625,
+        "y": 649.583984375,
+        "z": 2.1835784912109375
+      },
+      "rotation": [
+        -0.5011414289474487,
+        1.5848214626312256,
+        0.006931360345333815
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 77,
+      "raw_position": [
+        16355.5537109375,
+        5.49822998046875,
+        16599.431640625
+      ],
+      "server_position": {
+        "x": 467.234375,
+        "y": 711.1123046875,
+        "z": 5.49822998046875
+      },
+      "rotation": [
+        2.3967387676239014,
+        3.9321420192718506,
+        -0.08228693902492523
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\WESTFALL\\BUILDINGS\\GRAINSILO\\WESTFALLGRAINSILO01.M2",
+      "unique_id": 212,
+      "raw_position": [
+        16226.07421875,
+        0.2512969970703125,
+        16974.341796875
+      ],
+      "server_position": {
+        "x": 92.32421875,
+        "y": 840.591796875,
+        "z": 0.2512969970703125
+      },
+      "rotation": [
+        -4.757327556610107,
+        -178.66184997558594,
+        -2.2865829467773438
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\WESTFALL\\BUILDINGS\\GRAINSILO\\WESTFALLGRAINSILO01.M2",
+      "unique_id": 186,
+      "raw_position": [
+        16463.470703125,
+        0.0525362491607666,
+        16716.427734375
+      ],
+      "server_position": {
+        "x": 350.23828125,
+        "y": 603.1953125,
+        "z": 0.0525362491607666
+      },
+      "rotation": [
+        2.734135150909424,
+        -83.90731811523438,
+        -0.7790553569793701
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\EXPANSION02\\DOODADS\\GENERIC\\HIGHELF\\HE_WAGON_01.M2",
+      "unique_id": 219,
+      "raw_position": [
+        16489.4140625,
+        0.0002307891845703125,
+        17052.513671875
+      ],
+      "server_position": {
+        "x": 14.15234375,
+        "y": 577.251953125,
+        "z": 0.0002307891845703125
+      },
+      "rotation": [
+        0.0,
+        157.05673217773438,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\EXPANSION02\\DOODADS\\STRATHOLME_PAST\\BANNERS\\LD_STRATHOLME_OPENTENT.M2",
+      "unique_id": 222,
+      "raw_position": [
+        16496.447265625,
+        0.005562186241149902,
+        17043.572265625
+      ],
+      "server_position": {
+        "x": 23.09375,
+        "y": 570.21875,
+        "z": 0.005562186241149902
+      },
+      "rotation": [
+        0.0,
+        -124.28662872314453,
+        0.0
+      ],
+      "scale": 0.7890625,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\GENERIC\\HUMAN\\PASSIVE DOODADS\\GYPSYWAGONS\\STORMWINDGYPSYWAGON01.M2",
+      "unique_id": 220,
+      "raw_position": [
+        16493.3984375,
+        0.0005338191986083984,
+        17062.00390625
+      ],
+      "server_position": {
+        "x": 4.662109375,
+        "y": 573.267578125,
+        "z": 0.0005338191986083984
+      },
+      "rotation": [
+        0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\EXPANSION02\\DOODADS\\DALARAN\\DALARAN_WAGON01.M2",
+      "unique_id": 218,
+      "raw_position": [
+        16495.708984375,
+        0.001177668571472168,
+        17052.634765625
+      ],
+      "server_position": {
+        "x": 14.03125,
+        "y": 570.95703125,
+        "z": 0.001177668571472168
+      },
+      "rotation": [
+        0.0,
+        -12.079833984375,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GYPSYWAGON\\GYPSYWAGON.M2",
+      "unique_id": 216,
+      "raw_position": [
+        16487.96484375,
+        0.00014793872833251953,
+        17061.107421875
+      ],
+      "server_position": {
+        "x": 5.55859375,
+        "y": 578.701171875,
+        "z": 0.00014793872833251953
+      },
+      "rotation": [
+        0.0,
+        16.2437744140625,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\GOOBER\\G_TENTBURNINATOR.M2",
+      "unique_id": 223,
+      "raw_position": [
+        16045.3095703125,
+        0.3157539367675781,
+        16959.330078125
+      ],
+      "server_position": {
+        "x": 107.3359375,
+        "y": 1021.3564453125,
+        "z": 0.3157539367675781
+      },
+      "rotation": [
+        8.795022964477539,
+        167.19992065429688,
+        0.05893571302294731
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\GOOBER\\G_TENTBURNINATOR.M2",
+      "unique_id": 224,
+      "raw_position": [
+        16042.052734375,
+        0.2148456573486328,
+        16947.552734375
+      ],
+      "server_position": {
+        "x": 119.11328125,
+        "y": 1024.61328125,
+        "z": 0.2148456573486328
+      },
+      "rotation": [
+        1.6333180665969849,
+        78.33222198486328,
+        0.023665452376008034
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\GOOBER\\G_TENTBURNINATOR.M2",
+      "unique_id": 225,
+      "raw_position": [
+        16053.744140625,
+        1.2471427917480469,
+        16940.185546875
+      ],
+      "server_position": {
+        "x": 126.48046875,
+        "y": 1012.921875,
+        "z": 1.2471427917480469
+      },
+      "rotation": [
+        4.438569068908691,
+        2.937349796295166,
+        -0.11385661363601685
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP01.M2",
+      "unique_id": 121,
+      "raw_position": [
+        16370.7744140625,
+        4.179290771484375,
+        16851.28125
+      ],
+      "server_position": {
+        "x": 215.384765625,
+        "y": 695.8916015625,
+        "z": 4.179290771484375
+      },
+      "rotation": [
+        -6.973239421844482,
+        -8.048295021057129,
+        -0.4911732077598572
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP02.M2",
+      "unique_id": 119,
+      "raw_position": [
+        16321.6962890625,
+        2.8797607421875,
+        16933.33203125
+      ],
+      "server_position": {
+        "x": 133.333984375,
+        "y": 744.9697265625,
+        "z": 2.8797607421875
+      },
+      "rotation": [
+        -0.7648642659187317,
+        -14.731318473815918,
+        -0.09887385368347168
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP01.M2",
+      "unique_id": 114,
+      "raw_position": [
+        16288.271484375,
+        3.0121688842773438,
+        16921.083984375
+      ],
+      "server_position": {
+        "x": 145.58203125,
+        "y": 778.39453125,
+        "z": 3.0121688842773438
+      },
+      "rotation": [
+        -11.339603424072266,
+        3.255566358566284,
+        0.3233020305633545
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP01.M2",
+      "unique_id": 115,
+      "raw_position": [
+        16296.9208984375,
+        2.842041015625,
+        16876.7734375
+      ],
+      "server_position": {
+        "x": 189.892578125,
+        "y": 769.7451171875,
+        "z": 2.842041015625
+      },
+      "rotation": [
+        7.982937812805176,
+        4.091662406921387,
+        -0.2856254577636719
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP01.M2",
+      "unique_id": 116,
+      "raw_position": [
+        16325.5556640625,
+        0.9458084106445312,
+        16804.0703125
+      ],
+      "server_position": {
+        "x": 262.595703125,
+        "y": 741.1103515625,
+        "z": 0.9458084106445312
+      },
+      "rotation": [
+        2.6104114055633545,
+        -0.20022034645080566,
+        0.0045618414878845215
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP02.M2",
+      "unique_id": 117,
+      "raw_position": [
+        16317.14453125,
+        5.2754669189453125,
+        16843.201171875
+      ],
+      "server_position": {
+        "x": 223.46484375,
+        "y": 749.521484375,
+        "z": 5.2754669189453125
+      },
+      "rotation": [
+        -10.281914710998535,
+        -0.21879880130290985,
+        -0.019684957340359688
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\STUMPS\\ELWYNNTREESTUMP02.M2",
+      "unique_id": 120,
+      "raw_position": [
+        16350.0439453125,
+        2.1470184326171875,
+        16897.015625
+      ],
+      "server_position": {
+        "x": 169.650390625,
+        "y": 716.6220703125,
+        "z": 2.1470184326171875
+      },
+      "rotation": [
+        4.209629058837891,
+        0.479336142539978,
+        -0.017616895958781242
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\LORDAERON\\PLAGUELAND\\ACTIVEDOODADS\\OUTHOUSE\\OUTHOUSETRAPPED.M2",
+      "unique_id": 195,
+      "raw_position": [
+        16224.1005859375,
+        2.399566650390625,
+        17043.63671875
+      ],
+      "server_position": {
+        "x": 23.029296875,
+        "y": 842.5654296875,
+        "z": 2.399566650390625
+      },
+      "rotation": [
+        1.8972238302230835,
+        113.17618560791016,
+        -0.04279785975813866
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\REDRIDGE_HUMAN_FARM\\REDRIDGE_HUMAN_FARM.WMO",
+      "unique_id": 183,
+      "raw_position": [
+        16531.341796875,
+        0.027014732360839844,
+        16707.599609375
+      ],
+      "server_position": {
+        "x": 359.06640625,
+        "y": 535.32421875,
+        "z": 0.027014732360839844
+      },
+      "rotation": [
+        1.4850285053253174,
+        86.84906768798828,
+        0.009548528119921684
+      ],
+      "server_bounds": {
+        "min_x": 349.326171875,
+        "max_x": 368.44140625,
+        "min_y": 524.818359375,
+        "max_y": 545.146484375,
+        "min_z": -0.2510027289390564,
+        "max_z": 17.169116973876953
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\REDRIDGE_LUMBERMILL\\REDRIDGE_LUMBERMILL.WMO",
+      "unique_id": 191,
+      "raw_position": [
+        16494.8671875,
+        6.391742706298828,
+        16787.84765625
+      ],
+      "server_position": {
+        "x": 278.818359375,
+        "y": 571.798828125,
+        "z": 6.391742706298828
+      },
+      "rotation": [
+        -0.6417639255523682,
+        0.6417639255523682,
+        0.0035942401736974716
+      ],
+      "server_bounds": {
+        "min_x": 263.328125,
+        "max_x": 312.18359375,
+        "min_y": 549.5859375,
+        "max_y": 594.1484375,
+        "min_z": 3.6681466102600098,
+        "max_z": 36.591896057128906
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\DUSKWOOD_HUMAN_FARM\\DUSKWOOD_HUMAN_FARM.WMO",
+      "unique_id": 194,
+      "raw_position": [
+        16227.796875,
+        -1.081284999847412,
+        16996.345703125
+      ],
+      "server_position": {
+        "x": 70.3203125,
+        "y": 838.869140625,
+        "z": -1.081284999847412
+      },
+      "rotation": [
+        0.48358389735221863,
+        162.5051727294922,
+        -0.002708385232836008
+      ],
+      "server_bounds": {
+        "min_x": 58.654296875,
+        "max_x": 82.27734375,
+        "min_y": 827.1689453125,
+        "max_y": 850.138671875,
+        "min_z": -1.1904821395874023,
+        "max_z": 15.901758193969727
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\DUSKWOOD_HUMAN_FARM\\DUSKWOOD_HUMAN_FARM.WMO",
+      "unique_id": 193,
+      "raw_position": [
+        16222.6748046875,
+        -1.1977176666259766,
+        17022.71484375
+      ],
+      "server_position": {
+        "x": 43.951171875,
+        "y": 843.9912109375,
+        "z": -1.1977176666259766
+      },
+      "rotation": [
+        0.0,
+        175.29139709472656,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": 33.89453125,
+        "max_x": 54.244140625,
+        "min_y": 834.03515625,
+        "max_y": 853.6015625,
+        "min_z": -1.225496768951416,
+        "max_z": 15.706729888916016
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\HUMAN_FARM\\FARM.WMO",
+      "unique_id": 213,
+      "raw_position": [
+        16451.546875,
+        -3.4026851654052734,
+        17042.59765625
+      ],
+      "server_position": {
+        "x": 24.068359375,
+        "y": 615.119140625,
+        "z": -3.4026851654052734
+      },
+      "rotation": [
+        -0.6417941451072693,
+        -177.1841278076172,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": 14.00390625,
+        "max_x": 34.10546875,
+        "min_y": 605.458984375,
+        "max_y": 624.453125,
+        "min_z": -3.5349953174591064,
+        "max_z": 24.18779182434082
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\HUMAN_FARM\\FARM.WMO",
+      "unique_id": 214,
+      "raw_position": [
+        16450.748046875,
+        -3.5452136993408203,
+        17023.234375
+      ],
+      "server_position": {
+        "x": 43.431640625,
+        "y": 615.91796875,
+        "z": -3.5452136993408203
+      },
+      "rotation": [
+        0.0,
+        177.61463928222656,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": 33.724609375,
+        "max_x": 53.388671875,
+        "min_y": 606.326171875,
+        "max_y": 625.173828125,
+        "min_z": -3.5729928016662598,
+        "max_z": 23.939489364624023
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\HUMAN_FARM\\FARM.WMO",
+      "unique_id": 215,
+      "raw_position": [
+        16452.404296875,
+        -3.42447566986084,
+        17064.6875
+      ],
+      "server_position": {
+        "x": 1.978515625,
+        "y": 614.26171875,
+        "z": -3.42447566986084
+      },
+      "rotation": [
+        -0.09924905747175217,
+        -179.52276611328125,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": -7.474609375,
+        "max_x": 11.65234375,
+        "min_y": 604.984375,
+        "max_y": 623.216796875,
+        "min_z": -3.4684202671051025,
+        "max_z": 24.076812744140625
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\TOWNHALL_NOWALL\\TOWNHALL_NOWALL.WMO",
+      "unique_id": 199,
+      "raw_position": [
+        16504.19921875,
+        1.5692973136901855,
+        17038.740234375
+      ],
+      "server_position": {
+        "x": 27.92578125,
+        "y": 562.466796875,
+        "z": 1.5692973136901855
+      },
+      "rotation": [
+        0.0,
+        -33.28812789916992,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": 26.916015625,
+        "max_x": 105.1640625,
+        "min_y": 508.748046875,
+        "max_y": 587.185546875,
+        "min_z": 0.08956420421600342,
+        "max_z": 61.0173225402832
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREINN\\GOLDSHIREINN.WMO",
+      "unique_id": 209,
+      "raw_position": [
+        16551.16796875,
+        0.08964419364929199,
+        17068.669921875
+      ],
+      "server_position": {
+        "x": -2.00390625,
+        "y": 515.498046875,
+        "z": 0.08964419364929199
+      },
+      "rotation": [
+        0.0,
+        -90.32888793945312,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": -20.90234375,
+        "max_x": 11.646484375,
+        "min_y": 477.6484375,
+        "max_y": 537.546875,
+        "min_z": -6.672168731689453,
+        "max_z": 23.366256713867188
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 129,
+      "raw_position": [
+        16999.62109375,
+        30.710205078125,
+        17119.45703125
+      ],
+      "server_position": {
+        "x": -52.791015625,
+        "y": 67.044921875,
+        "z": 30.710205078125
+      },
+      "rotation": [
+        0.5286576747894287,
+        30.346996307373047,
+        -0.14337153732776642
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 127,
+      "raw_position": [
+        16944.072265625,
+        3.890869140625,
+        16749.65625
+      ],
+      "server_position": {
+        "x": 317.009765625,
+        "y": 122.59375,
+        "z": 3.890869140625
+      },
+      "rotation": [
+        -11.26473617553711,
+        8.338202476501465,
+        0.8237641453742981
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 124,
+      "raw_position": [
+        16600.572265625,
+        12.817047119140625,
+        16626.1328125
+      ],
+      "server_position": {
+        "x": 440.533203125,
+        "y": 466.09375,
+        "z": 12.817047119140625
+      },
+      "rotation": [
+        -8.591231346130371,
+        -4.724908351898193,
+        -0.3551041781902313
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 128,
+      "raw_position": [
+        17024.927734375,
+        19.7789306640625,
+        16906.845703125
+      ],
+      "server_position": {
+        "x": 159.8203125,
+        "y": 41.73828125,
+        "z": 19.7789306640625
+      },
+      "rotation": [
+        -6.551599979400635,
+        5.1772966384887695,
+        0.2965282201766968
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 126,
+      "raw_position": [
+        16902.93359375,
+        4.180633544921875,
+        16615.5859375
+      ],
+      "server_position": {
+        "x": 451.080078125,
+        "y": 163.732421875,
+        "z": 4.180633544921875
+      },
+      "rotation": [
+        9.894674301147461,
+        2.851276397705078,
+        -0.24686439335346222
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 125,
+      "raw_position": [
+        16739.958984375,
+        4.0838623046875,
+        16640.234375
+      ],
+      "server_position": {
+        "x": 426.431640625,
+        "y": 326.70703125,
+        "z": 4.0838623046875
+      },
+      "rotation": [
+        -5.993258953094482,
+        3.6740403175354004,
+        0.1923973113298416
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 151,
+      "raw_position": [
+        16696.533203125,
+        2.7249755859375,
+        17107.107421875
+      ],
+      "server_position": {
+        "x": -40.44140625,
+        "y": 370.1328125,
+        "z": 2.7249755859375
+      },
+      "rotation": [
+        -1.1157121658325195,
+        -0.042099710553884506,
+        -0.00040991371497511864
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 140,
+      "raw_position": [
+        17003.541015625,
+        4.20135498046875,
+        16680.951171875
+      ],
+      "server_position": {
+        "x": 385.71484375,
+        "y": 63.125,
+        "z": 4.20135498046875
+      },
+      "rotation": [
+        -7.261721134185791,
+        17.81130599975586,
+        1.139377474784851
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 138,
+      "raw_position": [
+        16949.298828125,
+        9.6683349609375,
+        16865.34375
+      ],
+      "server_position": {
+        "x": 201.322265625,
+        "y": 117.3671875,
+        "z": 9.6683349609375
+      },
+      "rotation": [
+        3.4305195808410645,
+        21.64357566833496,
+        -0.6559473872184753
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 145,
+      "raw_position": [
+        16966.61328125,
+        13.8502197265625,
+        16969.09765625
+      ],
+      "server_position": {
+        "x": 97.568359375,
+        "y": 100.052734375,
+        "z": 13.8502197265625
+      },
+      "rotation": [
+        -13.777931213378906,
+        -2.8220603466033936,
+        -0.34102335572242737
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 144,
+      "raw_position": [
+        16885.13671875,
+        11.23468017578125,
+        17069.62890625
+      ],
+      "server_position": {
+        "x": -2.962890625,
+        "y": 181.529296875,
+        "z": 11.23468017578125
+      },
+      "rotation": [
+        -8.592060089111328,
+        5.833903789520264,
+        0.4386238157749176
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 147,
+      "raw_position": [
+        16973.2890625,
+        24.323211669921875,
+        17031.896484375
+      ],
+      "server_position": {
+        "x": 34.76953125,
+        "y": 93.376953125,
+        "z": 24.323211669921875
+      },
+      "rotation": [
+        0.3062085509300232,
+        19.493213653564453,
+        -0.05259770527482033
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 154,
+      "raw_position": [
+        16629.9921875,
+        0.8972320556640625,
+        17103.095703125
+      ],
+      "server_position": {
+        "x": -36.4296875,
+        "y": 436.673828125,
+        "z": 0.8972320556640625
+      },
+      "rotation": [
+        -6.277633190155029,
+        4.139483451843262,
+        0.22709766030311584
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 131,
+      "raw_position": [
+        16650.87109375,
+        12.56622314453125,
+        16668.86328125
+      ],
+      "server_position": {
+        "x": 397.802734375,
+        "y": 415.794921875,
+        "z": 12.56622314453125
+      },
+      "rotation": [
+        -3.5549612045288086,
+        -9.026737213134766,
+        -0.28070560097694397
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 135,
+      "raw_position": [
+        16822.728515625,
+        5.22027587890625,
+        16679.078125
+      ],
+      "server_position": {
+        "x": 387.587890625,
+        "y": 243.9375,
+        "z": 5.22027587890625
+      },
+      "rotation": [
+        6.95328950881958,
+        -0.9153246879577637,
+        0.05561034753918648
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 149,
+      "raw_position": [
+        16777.53515625,
+        4.243415832519531,
+        17078.818359375
+      ],
+      "server_position": {
+        "x": -12.15234375,
+        "y": 289.130859375,
+        "z": 4.243415832519531
+      },
+      "rotation": [
+        -4.540987014770508,
+        -2.789254665374756,
+        -0.11061115562915802
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 139,
+      "raw_position": [
+        17001.47265625,
+        15.94390869140625,
+        16604.572265625
+      ],
+      "server_position": {
+        "x": 462.09375,
+        "y": 65.193359375,
+        "z": 15.94390869140625
+      },
+      "rotation": [
+        7.074822902679443,
+        4.861245155334473,
+        -0.3006923794746399
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 137,
+      "raw_position": [
+        16826.572265625,
+        5.92181396484375,
+        16579.48046875
+      ],
+      "server_position": {
+        "x": 487.185546875,
+        "y": 240.09375,
+        "z": 5.92181396484375
+      },
+      "rotation": [
+        3.0951173305511475,
+        -6.4538116455078125,
+        0.17454424500465393
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 134,
+      "raw_position": [
+        16671.626953125,
+        8.42938232421875,
+        16581.388671875
+      ],
+      "server_position": {
+        "x": 485.27734375,
+        "y": 395.0390625,
+        "z": 8.42938232421875
+      },
+      "rotation": [
+        -1.6366653442382812,
+        -2.0169265270233154,
+        -0.02881188876926899
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 141,
+      "raw_position": [
+        16865.79296875,
+        5.5357666015625,
+        16738.74609375
+      ],
+      "server_position": {
+        "x": 327.919921875,
+        "y": 200.873046875,
+        "z": 5.5357666015625
+      },
+      "rotation": [
+        -1.8074424266815186,
+        3.2057619094848633,
+        0.05058158561587334
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\WESTFALL\\BUILDINGS\\GRAINSILO\\WESTFALLGRAINSILO01.M2",
+      "unique_id": 180,
+      "raw_position": [
+        16745.13671875,
+        7.336841583251953,
+        16870.326171875
+      ],
+      "server_position": {
+        "x": 196.33984375,
+        "y": 321.529296875,
+        "z": 7.336841583251953
+      },
+      "rotation": [
+        0.08188226819038391,
+        4.010827541351318,
+        -0.0028671384789049625
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\LORDAERON\\PLAGUELAND\\ACTIVEDOODADS\\OUTHOUSE\\OUTHOUSETRAPPED.M2",
+      "unique_id": 181,
+      "raw_position": [
+        16787.41015625,
+        4.906005859375,
+        16852.0859375
+      ],
+      "server_position": {
+        "x": 214.580078125,
+        "y": 279.255859375,
+        "z": 4.906005859375
+      },
+      "rotation": [
+        1.3272662162780762,
+        -51.202796936035156,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\LORDAERON\\PLAGUELAND\\ACTIVEDOODADS\\OUTHOUSE\\OUTHOUSETRAPPED.M2",
+      "unique_id": 185,
+      "raw_position": [
+        16570.357421875,
+        3.8641130924224854,
+        16717.908203125
+      ],
+      "server_position": {
+        "x": 348.7578125,
+        "y": 496.30859375,
+        "z": 3.8641130924224854
+      },
+      "rotation": [
+        -3.998932361602783,
+        2.8534374237060547,
+        0.27650800347328186
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\WESTFALL_HUMAN_FARM\\WESTFALL_HUMAN_FARM.WMO",
+      "unique_id": 178,
+      "raw_position": [
+        16789.484375,
+        1.7662969827651978,
+        16875.822265625
+      ],
+      "server_position": {
+        "x": 190.84375,
+        "y": 277.181640625,
+        "z": 1.7662969827651978
+      },
+      "rotation": [
+        -0.4459104835987091,
+        11.867866516113281,
+        -0.0018529377412050962
+      ],
+      "server_bounds": {
+        "min_x": 179.416015625,
+        "max_x": 202.34765625,
+        "min_y": 266.08984375,
+        "max_y": 288.19921875,
+        "min_z": 1.5205557346343994,
+        "max_z": 29.322467803955078
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\WESTFALL_HUMAN_FARM\\WESTFALL_HUMAN_FARM.WMO",
+      "unique_id": 179,
+      "raw_position": [
+        16787.40234375,
+        1.2728357315063477,
+        16900.607421875
+      ],
+      "server_position": {
+        "x": 166.05859375,
+        "y": 279.263671875,
+        "z": 1.2728357315063477
+      },
+      "rotation": [
+        1.1730636358261108,
+        -19.577672958374023,
+        0.034753210842609406
+      ],
+      "server_bounds": {
+        "min_x": 153.24609375,
+        "max_x": 178.177734375,
+        "min_y": 267.298828125,
+        "max_y": 291.400390625,
+        "min_z": 0.8970375657081604,
+        "max_z": 28.94991683959961
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\REDRIDGE_HUMAN_FARM\\REDRIDGE_HUMAN_FARM.WMO",
+      "unique_id": 184,
+      "raw_position": [
+        16551.416015625,
+        0.020911216735839844,
+        16712.3828125
+      ],
+      "server_position": {
+        "x": 354.283203125,
+        "y": 515.25,
+        "z": 0.020911216735839844
+      },
+      "rotation": [
+        -0.6416733264923096,
+        66.55918884277344,
+        0.007187127601355314
+      ],
+      "server_bounds": {
+        "min_x": 342.025390625,
+        "max_x": 366.2109375,
+        "min_y": 502.916015625,
+        "max_y": 527.646484375,
+        "min_z": -0.11253310739994049,
+        "max_z": 17.03289031982422
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 112,
+      "raw_position": [
+        16094.8359375,
+        1.8470611572265625,
+        17191.427734375
+      ],
+      "server_position": {
+        "x": -124.76171875,
+        "y": 971.830078125,
+        "z": 1.8470611572265625
+      },
+      "rotation": [
+        11.774261474609375,
+        15.517324447631836,
+        -1.609783411026001
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 111,
+      "raw_position": [
+        16168.1015625,
+        1.668731689453125,
+        17181.9375
+      ],
+      "server_position": {
+        "x": -115.271484375,
+        "y": 898.564453125,
+        "z": 1.668731689453125
+      },
+      "rotation": [
+        -5.7039594650268555,
+        13.047687530517578,
+        0.6528211236000061
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 155,
+      "raw_position": [
+        16550.41796875,
+        1.595611572265625,
+        17199.654296875
+      ],
+      "server_position": {
+        "x": -132.98828125,
+        "y": 516.248046875,
+        "z": 1.595611572265625
+      },
+      "rotation": [
+        1.2844066619873047,
+        8.432938575744629,
+        -0.09469607472419739
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 104,
+      "raw_position": [
+        16080.8720703125,
+        0.9000091552734375,
+        17111.677734375
+      ],
+      "server_position": {
+        "x": -45.01171875,
+        "y": 985.7939453125,
+        "z": 0.9000091552734375
+      },
+      "rotation": [
+        -6.28615665435791,
+        -1.0265084505081177,
+        -0.05636928975582123
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 110,
+      "raw_position": [
+        16137.2080078125,
+        2.0638427734375,
+        17135.248046875
+      ],
+      "server_position": {
+        "x": -68.58203125,
+        "y": 929.4580078125,
+        "z": 2.0638427734375
+      },
+      "rotation": [
+        9.35991382598877,
+        4.157376289367676,
+        -0.34048283100128174
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 113,
+      "raw_position": [
+        16042.7880859375,
+        0.0,
+        17185.76171875
+      ],
+      "server_position": {
+        "x": -119.095703125,
+        "y": 1023.8779296875,
+        "z": 0.0
+      },
+      "rotation": [
+        0.0,
+        -2.818084716796875,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+      "unique_id": 232,
+      "raw_position": [
+        16363.416015625,
+        -10.489982604980469,
+        17315.298828125
+      ],
+      "server_position": {
+        "x": -248.6328125,
+        "y": 703.25,
+        "z": -10.489982604980469
+      },
+      "rotation": [
+        0.0,
+        -6.836118698120117,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+      "unique_id": 234,
+      "raw_position": [
+        16200.650390625,
+        -12.228549003601074,
+        17251.96484375
+      ],
+      "server_position": {
+        "x": -185.298828125,
+        "y": 866.015625,
+        "z": -12.228549003601074
+      },
+      "rotation": [
+        0.0,
+        -88.02274322509766,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+      "unique_id": 233,
+      "raw_position": [
+        16485.958984375,
+        -12.017313957214355,
+        17277.1796875
+      ],
+      "server_position": {
+        "x": -210.513671875,
+        "y": 580.70703125,
+        "z": -12.017313957214355
+      },
+      "rotation": [
+        0.0,
+        -88.19454193115234,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREBLACKSMITH\\GOLDSHIREBLACKSMITH.WMO",
+      "unique_id": 211,
+      "raw_position": [
+        16474.224609375,
+        -1.2832348346710205,
+        17106.212890625
+      ],
+      "server_position": {
+        "x": -39.546875,
+        "y": 592.44140625,
+        "z": -1.2832348346710205
+      },
+      "rotation": [
+        0.8570504784584045,
+        151.44757080078125,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": -82.87109375,
+        "max_x": -13.73828125,
+        "min_y": 549.4375,
+        "max_y": 626.20703125,
+        "min_z": -4.371238708496094,
+        "max_z": 26.17755699157715
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 153,
+      "raw_position": [
+        16603.78125,
+        7.6441650390625,
+        17183.634765625
+      ],
+      "server_position": {
+        "x": -116.96875,
+        "y": 462.884765625,
+        "z": 7.6441650390625
+      },
+      "rotation": [
+        -6.192823886871338,
+        5.751079082489014,
+        0.31136682629585266
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY03.M2",
+      "unique_id": 160,
+      "raw_position": [
+        16684.6015625,
+        13.87139892578125,
+        17362.208984375
+      ],
+      "server_position": {
+        "x": -295.54296875,
+        "y": 382.064453125,
+        "z": 13.87139892578125
+      },
+      "rotation": [
+        -0.26730501651763916,
+        -0.6928284764289856,
+        -0.001616167719475925
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 159,
+      "raw_position": [
+        16760.216796875,
+        13.244766235351562,
+        17347.4375
+      ],
+      "server_position": {
+        "x": -280.771484375,
+        "y": 306.44921875,
+        "z": 13.244766235351562
+      },
+      "rotation": [
+        -13.050408363342285,
+        9.412370681762695,
+        1.0789943933486938
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 162,
+      "raw_position": [
+        16620.7734375,
+        0.8754425048828125,
+        17312.89453125
+      ],
+      "server_position": {
+        "x": -246.228515625,
+        "y": 445.892578125,
+        "z": 0.8754425048828125
+      },
+      "rotation": [
+        -12.268199920654297,
+        1.338016152381897,
+        0.1438046395778656
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 150,
+      "raw_position": [
+        16747.591796875,
+        6.8609771728515625,
+        17146.0234375
+      ],
+      "server_position": {
+        "x": -79.357421875,
+        "y": 319.07421875,
+        "z": 6.8609771728515625
+      },
+      "rotation": [
+        -4.050502777099609,
+        11.501656532287598,
+        0.40809160470962524
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 152,
+      "raw_position": [
+        16663.568359375,
+        10.626693725585938,
+        17181.087890625
+      ],
+      "server_position": {
+        "x": -114.421875,
+        "y": 403.09765625,
+        "z": 10.626693725585938
+      },
+      "rotation": [
+        7.9864349365234375,
+        -2.0609114170074463,
+        0.14388328790664673
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 148,
+      "raw_position": [
+        16826.921875,
+        9.724586486816406,
+        17142.302734375
+      ],
+      "server_position": {
+        "x": -75.63671875,
+        "y": 239.744140625,
+        "z": 9.724586486816406
+      },
+      "rotation": [
+        4.115400791168213,
+        -6.728923797607422,
+        0.24204204976558685
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 163,
+      "raw_position": [
+        16584.7421875,
+        4.1837158203125,
+        17381.62109375
+      ],
+      "server_position": {
+        "x": -314.955078125,
+        "y": 481.923828125,
+        "z": 4.1837158203125
+      },
+      "rotation": [
+        4.568246364593506,
+        9.855073928833008,
+        -0.39405590295791626
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 142,
+      "raw_position": [
+        16897.779296875,
+        13.29864501953125,
+        17123.654296875
+      ],
+      "server_position": {
+        "x": -56.98828125,
+        "y": 168.88671875,
+        "z": 13.29864501953125
+      },
+      "rotation": [
+        -8.672383308410645,
+        2.3172004222869873,
+        0.1757270246744156
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY02.M2",
+      "unique_id": 161,
+      "raw_position": [
+        16722.419921875,
+        0.636627197265625,
+        17303.0234375
+      ],
+      "server_position": {
+        "x": -236.357421875,
+        "y": 344.24609375,
+        "z": 0.636627197265625
+      },
+      "rotation": [
+        -10.517974853515625,
+        -0.5674885511398315,
+        -0.05223506689071655
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY01.M2",
+      "unique_id": 158,
+      "raw_position": [
+        17000.640625,
+        0.0557861328125,
+        17265.041015625
+      ],
+      "server_position": {
+        "x": -198.375,
+        "y": 66.025390625,
+        "z": 0.0557861328125
+      },
+      "rotation": [
+        -1.888261318206787,
+        0.49032390117645264,
+        0.008080431260168552
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\ELWYNN\\PASSIVEDOODADS\\TREES\\ELWYNNTREECANOPY04.M2",
+      "unique_id": 157,
+      "raw_position": [
+        16905.88671875,
+        1.8561019897460938,
+        17275.771484375
+      ],
+      "server_position": {
+        "x": -209.10546875,
+        "y": 160.779296875,
+        "z": 1.8561019897460938
+      },
+      "rotation": [
+        -1.9249675273895264,
+        0.23771774768829346,
+        0.003993685357272625
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\LORDAERON\\PLAGUELAND\\ACTIVEDOODADS\\OUTHOUSE\\OUTHOUSETRAPPED.M2",
+      "unique_id": 198,
+      "raw_position": [
+        16557.802734375,
+        3.551961898803711,
+        17513.05078125
+      ],
+      "server_position": {
+        "x": -446.384765625,
+        "y": 508.86328125,
+        "z": 3.551961898803711
+      },
+      "rotation": [
+        -2.7186129093170166,
+        -90.01402282714844,
+        -0.13685311377048492
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\DUNGEON\\MD_SPIDERMINE\\MD_SPIDERMINE_NOKOBOLDS.WMO",
+      "unique_id": 46,
+      "raw_position": [
+        16715.7421875,
+        7.616074562072754,
+        17470.5390625
+      ],
+      "server_position": {
+        "x": -403.873046875,
+        "y": 350.923828125,
+        "z": 7.616074562072754
+      },
+      "rotation": [
+        -0.6405125856399536,
+        -89.53688049316406,
+        0.0
+      ],
+      "server_bounds": {
+        "min_x": -457.44921875,
+        "max_x": -357.435546875,
+        "min_y": 207.765625,
+        "max_y": 397.111328125,
+        "min_z": -4.955404281616211,
+        "max_z": 31.320072174072266
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\WESTFALL_HUMAN_FARM\\WESTFALL_HUMAN_FARMB.WMO",
+      "unique_id": 197,
+      "raw_position": [
+        16562.072265625,
+        -1.8477792739868164,
+        17455.1875
+      ],
+      "server_position": {
+        "x": -388.521484375,
+        "y": 504.59375,
+        "z": -1.8477792739868164
+      },
+      "rotation": [
+        -3.6957597732543945,
+        88.42671966552734,
+        -3.8856890201568604
+      ],
+      "server_bounds": {
+        "min_x": -397.9609375,
+        "max_x": -377.505859375,
+        "min_y": 494.736328125,
+        "max_y": 515.912109375,
+        "min_z": -3.077116012573242,
+        "max_z": 26.757427215576172
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    },
+    {
+      "kind": "wmo",
+      "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\WESTFALL_HUMAN_FARM\\WESTFALL_HUMAN_FARMB.WMO",
+      "unique_id": 196,
+      "raw_position": [
+        16564.951171875,
+        -0.9686670303344727,
+        17494.57421875
+      ],
+      "server_position": {
+        "x": -427.908203125,
+        "y": 501.71484375,
+        "z": -0.9686670303344727
+      },
+      "rotation": [
+        -3.1976158618927,
+        -82.16020202636719,
+        -0.1410498321056366
+      ],
+      "server_bounds": {
+        "min_x": -438.005859375,
+        "max_x": -417.3828125,
+        "min_y": 489.748046875,
+        "max_y": 512.462890625,
+        "min_z": -1.5387707948684692,
+        "max_z": 27.031095504760742
+      },
+      "flags": 0,
+      "doodad_set": 0,
+      "name_set": 0,
+      "scale_field": 1024
+    }
+  ],
+  "placement_record_counts": {
+    "m2": 108,
+    "wmo": 22
+  },
+  "unique_placement_counts": {
+    "m2": 96,
+    "wmo": 16
+  },
+  "duplicate_placement_records": [
+    {
+      "kind": "m2",
+      "unique_id": 133,
+      "tile": [
+        31,
+        31
+      ]
+    },
+    {
+      "kind": "wmo",
+      "unique_id": 183,
+      "tile": [
+        31,
+        31
+      ]
+    },
+    {
+      "kind": "wmo",
+      "unique_id": 199,
+      "tile": [
+        31,
+        31
+      ]
+    },
+    {
+      "kind": "wmo",
+      "unique_id": 209,
+      "tile": [
+        31,
+        31
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 109,
+      "tile": [
+        30,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 106,
+      "tile": [
+        30,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 103,
+      "tile": [
+        30,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 220,
+      "tile": [
+        30,
+        32
+      ]
+    },
+    {
+      "kind": "wmo",
+      "unique_id": 215,
+      "tile": [
+        30,
+        32
+      ]
+    },
+    {
+      "kind": "wmo",
+      "unique_id": 209,
+      "tile": [
+        30,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 129,
+      "tile": [
+        31,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 151,
+      "tile": [
+        31,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 144,
+      "tile": [
+        31,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 147,
+      "tile": [
+        31,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 154,
+      "tile": [
+        31,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 155,
+      "tile": [
+        31,
+        32
+      ]
+    },
+    {
+      "kind": "m2",
+      "unique_id": 149,
+      "tile": [
+        31,
+        32
+      ]
+    },
+    {
+      "kind": "wmo",
+      "unique_id": 209,
+      "tile": [
+        31,
+        32
+      ]
+    }
+  ],
+  "local_custom_asset_overrides": [],
+  "dependency_closure_scope": "Direct ADT texture/M2/WMO references checked for local overrides by path existence only. No custom overrides. Native client extraction must independently verify base-client assets and nested WMO dependencies.",
+  "native_collision_verified": false
+}

@@ -30,7 +30,7 @@ PROFILES = ROOT / 'data/npc_agents'
 LEDGER = 'ai_character_templates'
 ENTRY_BASE = 9800000
 RESIDENT_PROFILE = 'residents-v10'
-RESIDENT_PROFILES = (RESIDENT_PROFILE, 'residents-v11', 'living-v11')
+RESIDENT_PROFILES = (RESIDENT_PROFILE, 'residents-v11', 'living-v11', 'living-v12')
 TEMPLATE_PROFILES = (full_population.PROFILE, *RESIDENT_PROFILES)
 MAX_FILES = 100
 LEDGER_FIELDS = ('spawn_id', 'entry', 'base_entry', 'map_id', 'name', 'title',
@@ -42,11 +42,11 @@ ProfileError, require = base.ProfileError, base.require
 def population_for_profile(profile):
     if profile in RESIDENT_PROFILES:
         try:
-            from . import living_v11, residents_population, residents_v11
+            from . import living_v12, living_v11, residents_population, residents_v11
         except ImportError:
-            import living_v11, residents_population, residents_v11
+            import living_v12, living_v11, residents_population, residents_v11
         return {RESIDENT_PROFILE: residents_population, 'residents-v11': residents_v11,
-                'living-v11': living_v11}[profile].Population.load()
+                'living-v11': living_v11, 'living-v12': living_v12}[profile].Population.load()
     require(profile == full_population.PROFILE, 'Character templates require a reviewed character population')
     return full_population.Population.load()
 
@@ -138,7 +138,7 @@ def spec_from_document(document: dict, population=None) -> TemplateSpec:
     actors = {actor.spawn_id: actor for actor in population.settlement.actors}
     spawn = document['spawn_id']
     resident = getattr(population, 'profile', full_population.PROFILE) in RESIDENT_PROFILES
-    limit = 902045 if getattr(population, 'profile', '') in ('residents-v11', 'living-v11') else 902022
+    limit = 902045 if getattr(population, 'profile', '') in ('residents-v11', 'living-v11', 'living-v12') else 902022
     identities = frozenset(range(902000, limit)) if resident else full_population.SPAWN_IDS
     entry = 9810000 + spawn - 902000 if resident else ENTRY_BASE + spawn - 901000
     require(spawn in identities and spawn in actors and

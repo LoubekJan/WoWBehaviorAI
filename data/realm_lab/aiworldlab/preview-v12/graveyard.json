@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "profile": "authoring-empty",
+  "realm_id": 2,
+  "safe_location_id": 9000,
+  "map_id": 725,
+  "zone_id": 4988,
+  "team": 0,
+  "name": "AI World Lab",
+  "comment": "AI World Lab custom-map cemetery (preview-v8)",
+  "position": {
+    "x": 266.667,
+    "y": 800.0,
+    "z": 4.208838059822325,
+    "ground_z": 2.2088380598223254
+  },
+  "source": {
+    "revision": "preview-v12",
+    "proof_path": "data/realm_lab/aiworldlab/preview-v12/player-entry.json",
+    "proof_sha256": "5b33dee769eade1b23597fb55edcd8019d7a6c6754c74c1422ca5cda108004e0",
+    "geometry_verification_sha256": "180ee3995c3a8b2755fd63c90095a5774edeed0155098aaf81a7ea4eb5ee424e",
+    "evidence": {
+      "dry": true,
+      "slope_degrees": 1.5703288999829803,
+      "outside_collision_bounds_margin": 5,
+      "nav_ground_projection": {
+        "polygon": 841,
+        "nav_z": 2.2557933784480793,
+        "ground_delta": 0.04695531862575386,
+        "flags": 1,
+        "area": 11
+      },
+      "outside_native_and_source_terrain_holes": true,
+      "physical_player_walk_verified": false
+    }
+  },
+  "recovery": {
+    "mode": "ghost_corpse_run",
+    "spirit_healer_spawn": false,
+    "physical_death_release_and_corpse_reclaim_verified": false
+  }
+}

@@ -26,11 +26,11 @@ make graveyard-data
 "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 tools/realm_lab/manage.py preflight /workspace/runtime/lab/data
 
 lab_profile="$("${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
-if [ "$lab_profile" = living-v11 ]; then
+if [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ]; then
   "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev \
-    python3 tools/realm_lab/manage.py preflight-living-v11-adoption /workspace/runtime/lab/data
+    python3 tools/realm_lab/manage.py "preflight-$lab_profile-adoption" /workspace/runtime/lab/data
 fi
-if [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ]; then
+if [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ]; then
   # Authoring errors must fail before any healthy world process is stopped.
   "${lab_compose[@]}" run --rm --no-deps -T --interactive=false tc-dev \
     python3 -m tools.realm_lab.character_templates plan
@@ -51,10 +51,10 @@ if [ -n "$world_id" ]; then
 fi
 test -z "$("${lab_compose[@]}" ps --all -q worldserver)"
 run_args+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
-if [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ]; then
+if [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 -m tools.realm_lab.character_templates restore
 fi
-if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = authoring-empty ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ]; then
+if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = authoring-empty ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ]; then
   "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 tools/realm_lab/world_setup.py prepare \
     /workspace/runtime/lab/data /workspace/deploy/worldserver.conf /build/bin/worldserver
   receipt="/workspace/runtime/lab/receipts/start-policy-deploy-$(date -u +%Y%m%dT%H%M%SZ)-${expected_revision:0:12}.json"
@@ -68,7 +68,7 @@ if [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "
     "${lab_compose[@]}" "${run_args[@]}" tc-dev \
       python3 tools/realm_lab/manage.py "bootstrap-$lab_profile" /workspace/runtime/lab/data
   fi
-  if [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ]; then
+  if [ "$lab_profile" = full-v8 ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ]; then
     "${lab_compose[@]}" "${run_args[@]}" tc-dev python3 -m tools.realm_lab.character_templates apply
   fi
 fi
@@ -93,11 +93,11 @@ wait_healthy() {
 for service in auth-mysql authserver lab-mysql ai-server world-viewer worldserver account-web character-studio; do
   wait_healthy "$service"
 done
-if [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ]; then
+if [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ]; then
   # Seed only absent reviewed cards; later deploys preserve Studio edits.
   "${lab_compose[@]}" exec -T --interactive=false character-studio python -m app.seed_residents
 fi
-if [ "$lab_profile" = authoring-empty ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
+if [ "$lab_profile" = authoring-empty ] || [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ] || [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
   "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
     python3 tools/realm_lab/manage.py "preflight-$lab_profile" /runtime/data
 fi
@@ -114,10 +114,10 @@ template = Path("/etc/trinitycore/worldserver.conf").read_text(encoding="utf-8")
 assert config == render_config(template, settings)
 assert "Updates.EnableDatabases = 6" in config
 expected_enable = "1" if settings.ai_profile in ("single-return", "hunt-cycle", "hunt-100", "hunt-terrain-100") else "0"
-if settings.ai_profile in ("wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8", "living-v11"):
+if settings.ai_profile in ("wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8", "living-v11", "living-v12"):
     expected_enable = str(int(settings.wildlife_enabled))
 assert f"AIWorld.Enable = {expected_enable}\n" in config
-if settings.ai_profile in ("residents-v10", "residents-v11", "living-v11", "settlement-v8", "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
+if settings.ai_profile in ("residents-v10", "residents-v11", "living-v11", "living-v12", "settlement-v8", "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
     assert "AIWorld.TelemetryEnabled = 1\n" in config
     assert "AIWorld.TelemetryNativeCreaturesEnabled = 1\n" in config
 if settings.ai_profile == "authoring-empty":
@@ -129,7 +129,7 @@ if settings.ai_profile == "authoring-empty":
 assert f"RealmID = {settings.realm_id}\n" in config
 print("Lab realm ID, shared-auth migration exclusion and rendered AI profile verified:", settings.ai_profile)
 '
-if [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
+if [ "$lab_profile" = residents-v10 ] || [ "$lab_profile" = residents-v11 ] || [ "$lab_profile" = living-v11 ] || [ "$lab_profile" = living-v12 ] || [ "$lab_profile" = settlement-v8 ] || [ "$lab_profile" = wildlife-v8 ] || [ "$lab_profile" = supply-v8 ] || [ "$lab_profile" = consumers-v8 ] || [ "$lab_profile" = raids-v8 ] || [ "$lab_profile" = fields-v8 ] || [ "$lab_profile" = defias-v8 ] || [ "$lab_profile" = full-v8 ]; then
   "${lab_compose[@]}" exec -T --interactive=false -w /workspace worldserver \
     python3 tools/realm_lab/telemetry_contract.py
 fi

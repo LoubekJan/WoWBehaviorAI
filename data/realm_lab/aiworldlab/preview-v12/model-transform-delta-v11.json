@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "preview-v11",
+  "current_revision": "preview-v12",
+  "added": [
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+      "unique_id": 232,
+      "raw_position": [
+        16363.416015625,
+        -10.489982604980469,
+        17315.298828125
+      ],
+      "server_position": {
+        "x": -248.6328125,
+        "y": 703.25,
+        "z": -10.489982604980469
+      },
+      "rotation": [
+        0.0,
+        -6.836118698120117,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+      "unique_id": 233,
+      "raw_position": [
+        16485.958984375,
+        -12.017313957214355,
+        17277.1796875
+      ],
+      "server_position": {
+        "x": -210.513671875,
+        "y": 580.70703125,
+        "z": -12.017313957214355
+      },
+      "rotation": [
+        0.0,
+        -88.19454193115234,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    },
+    {
+      "kind": "m2",
+      "name": "WORLD\\AZEROTH\\STRANGLETHORN\\PASSIVEDOODADS\\BRIDGE\\STRANGLECHASMBRIDGE.M2",
+      "unique_id": 234,
+      "raw_position": [
+        16200.650390625,
+        -12.228549003601074,
+        17251.96484375
+      ],
+      "server_position": {
+        "x": -185.298828125,
+        "y": 866.015625,
+        "z": -12.228549003601074
+      },
+      "rotation": [
+        0.0,
+        -88.02274322509766,
+        0.0
+      ],
+      "scale": 1.0,
+      "flags": 0
+    }
+  ],
+  "removed": [],
+  "changed": [],
+  "unchanged_existing_placements": 109
+}

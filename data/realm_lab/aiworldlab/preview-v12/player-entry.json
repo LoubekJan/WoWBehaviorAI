@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "status": "pass",
+  "ok": true,
+  "source_revision": "preview-v12",
+  "map_id": 725,
+  "area_id": 4988,
+  "bounds": {
+    "min_x": -533.3333129882812,
+    "max_x": 533.3333129882812,
+    "min_y": 0.0,
+    "max_y": 1066.6666259765625
+  },
+  "verification_sha256": "180ee3995c3a8b2755fd63c90095a5774edeed0155098aaf81a7ea4eb5ee424e",
+  "player_entry": {
+    "map": 725,
+    "x": 266.667,
+    "y": 800.0,
+    "z": 4.208838059822325,
+    "ground_z": 2.2088380598223254
+  },
+  "evidence": {
+    "dry": true,
+    "slope_degrees": 1.5703288999829803,
+    "outside_collision_bounds_margin": 5,
+    "nav_ground_projection": {
+      "polygon": 841,
+      "nav_z": 2.2557933784480793,
+      "ground_delta": 0.04695531862575386,
+      "flags": 1,
+      "area": 11
+    },
+    "outside_native_and_source_terrain_holes": true,
+    "physical_player_walk_verified": false
+  },
+  "scope": "Source/native terrain, dry safe point, structural collision bounds and ground nav polygon; no physical player walk claim"
+}
