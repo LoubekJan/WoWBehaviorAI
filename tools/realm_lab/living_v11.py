@@ -360,10 +360,24 @@ def validate_telemetry(state, population):
                     "Live resident role or incarnation is unavailable or misclassified")
             supplied=row.get("supply")
             expected_role={"farmer":"FARMER","village_consumer":"CONSUMER","city_consumer":"CONSUMER",
-                           "city_carrier":"CARAVAN_CARRIER","raider":"RAIDER"}[capability(actor.spawn_id)]
+                           "city_carrier":"RESIDENT_CARRIER","raider":"RAIDER"}[capability(actor.spawn_id)]
             require(isinstance(supplied,dict) and supplied.get("enabled") is True and
+                    supplied.get("population_profile")==PROFILE and
                     supplied.get("role")==expected_role and supplied.get("depot_id")==depot_id(actor.spawn_id) and
                     isinstance(supplied.get("accounting"),dict) and supplied["accounting"].get("conserved") is True,
                     "Resident food capability, assigned depot or conserved ledger is unavailable")
+            raid=row.get("raid")
+            if actor.spawn_id in DEFIAS_IDS:
+                require(isinstance(raid,dict) and raid.get("enabled") is True and
+                        raid.get("population_profile")==PROFILE and raid.get("role")=="RAIDER" and
+                        raid.get("camp_depot_id")==6 and isinstance(raid.get("camp_depot"),dict) and
+                        raid["camp_depot"].get("id")==6 and type(raid.get("source_depot_id")) is int and
+                        raid["source_depot_id"] in (0,1,2,3,4) and
+                        (raid.get("source_depot") is None if raid["source_depot_id"]==0 else
+                         isinstance(raid.get("source_depot"),dict) and raid["source_depot"].get("id")==raid["source_depot_id"]) and
+                        raid.get("planning") is None and raid.get("party") is None,
+                        "Resident raider lost its current source, camp or individual raid capability")
+            else:
+                require(raid is None,"A peaceful resident acquired a raid capability")
             live_roles+=1
     return dict(total=45,managed=45,native=0,live_roles=live_roles,defias=10)

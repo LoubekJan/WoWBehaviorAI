@@ -56,6 +56,7 @@ TEST_CASE("V11 capability accepts exactly the newly reviewed 45 controlled resid
     REQUIRE(counts[Job::Farmer] == 12);
     REQUIRE(counts[Job::Consumer] == 21);
     REQUIRE(counts[Job::Carrier] == 2);
+    REQUIRE(std::string(RoleName(Job::Carrier)) == "RESIDENT_CARRIER");
     REQUIRE(counts[Job::Raider] == 10);
     for (uint64 foreign : {0ull, 901000ull, 901099ull, 901999ull, 902045ull})
         REQUIRE_FALSE(Capability(foreign, 725, AgentType::Civilian, AgentControlMode::AIWorldControlled, true));

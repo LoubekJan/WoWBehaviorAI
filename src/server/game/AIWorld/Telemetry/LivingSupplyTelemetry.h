@@ -56,6 +56,7 @@ struct LivingSupplyTelemetry
     std::optional<FoodAccountingTelemetry> Accounting;
     std::optional<LivingCaravanTelemetry> Caravan;
     uint64 Harvested = 0, Delivered = 0, Consumed = 0, Lost = 0, Stolen = 0;
+    std::optional<std::string> PopulationProfile;
 };
 
 #endif

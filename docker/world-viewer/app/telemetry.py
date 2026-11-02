@@ -119,8 +119,11 @@ class LivingCaravan(ProtocolModel):
 
 
 class LivingSupply(ProtocolModel):
+    # A new population opts into a separate bounded capability family. Merely
+    # using a new depot number must never relax the old v8 contracts.
+    population_profile: Literal["legacy", "living-v11"] = "legacy"
     enabled: bool = Field(strict=True)
-    role: Literal["HUNTER", "PREDATOR", "CONSUMER", "RAIDER", "FARMER", "CARAVAN_CARRIER", "CARAVAN_ESCORT", "CITY_CONSUMER"]
+    role: Literal["HUNTER", "PREDATOR", "CONSUMER", "RAIDER", "FARMER", "CARAVAN_CARRIER", "CARAVAN_ESCORT", "CITY_CONSUMER", "RESIDENT_CARRIER"]
     phase: str = Field(min_length=1, max_length=80, strict=True)
     depot_id: Quantity32
     cargo: Quantity32
@@ -146,12 +149,29 @@ class LivingSupply(ProtocolModel):
 
     @model_validator(mode="after")
     def consistent_cargo_and_depot(self):
+        resident = self.population_profile == "living-v11"
         if self.cargo > self.capacity:
             raise ValueError("Cargo exceeds carrying capacity")
+        if self.role == "RESIDENT_CARRIER" and not resident:
+            raise ValueError("Resident carrying requires its explicit reviewed population")
+        if resident:
+            if (not self.enabled or self.role not in ("FARMER", "CONSUMER", "RESIDENT_CARRIER", "RAIDER") or
+                self.depot is None or self.accounting is None or self.depot.position.map_id != 725 or
+                self.caravan is not None):
+                raise ValueError("Living v11 requires its separate enabled food capability and ledger")
+            depots = {"FARMER": (1, 2, 3), "CONSUMER": (4, 5), "RESIDENT_CARRIER": (5,), "RAIDER": (6,)}
+            if (self.depot_id not in depots[self.role] or
+                self.depot.capacity != (120 if self.depot_id == 5 else 30) or
+                self.depot.low_threshold != (12 if self.depot_id == 5 else 4)):
+                raise ValueError("Living v11 food capability has an unassigned warehouse or capacity")
+            if self.role == "RESIDENT_CARRIER" and (self.capacity != 6 or int(self.harvested) != 0 or
+                self.hunting_ground is not None or self.carcass_remaining is not None or
+                self.carcass_spawn_id is not None or self.carcass_life is not None):
+                raise ValueError("Resident carriers transport at most six existing portions without hunting")
         field_values = (self.field_id, self.field_workpoint_index, self.field_workpoint,
                         self.field_remaining, self.field_capacity)
         if self.role == "FARMER":
-            if (any(value is None for value in field_values) or self.field_id not in (4, 5, 6) or
+            if (any(value is None for value in field_values) or self.field_id not in ((1, 2, 3) if resident else (4, 5, 6)) or
                 self.depot_id != self.field_id or self.capacity != 2 or self.depot is None or
                 self.depot.capacity != 30 or self.depot.low_threshold != 4 or
                 self.field_capacity != 24 or self.field_remaining > self.field_capacity or
@@ -246,6 +266,7 @@ class RaidParty(ProtocolModel):
 
 
 class LivingRaid(ProtocolModel):
+    population_profile: Literal["legacy", "living-v11"] = "legacy"
     enabled: bool = Field(strict=True)
     role: Literal["RAIDER", "GUARD"]
     phase: str = Field(min_length=1, max_length=80, strict=True)
@@ -257,15 +278,34 @@ class LivingRaid(ProtocolModel):
     thefts: Counter64
     delivered: Counter64
     prevented: Counter64
-    source_depot_id: int = Field(gt=0, le=2**32 - 1, strict=True)
+    source_depot_id: int = Field(ge=0, le=2**32 - 1, strict=True)
     camp_depot_id: int = Field(gt=0, le=2**32 - 1, strict=True)
-    source_depot: FoodDepot
+    source_depot: FoodDepot | None = None
     camp_depot: FoodDepot
     planning: RaidPlanning | None = None
     party: RaidParty | None = None
 
     @model_validator(mode="after")
     def distinct_consistent_depots(self):
+        if self.population_profile == "living-v11":
+            if (not self.enabled or self.role != "RAIDER" or self.camp_depot_id != 6 or
+                self.camp_depot.id != 6 or self.camp_depot.position.map_id != 725 or
+                self.camp_depot.capacity != 30 or self.camp_depot.low_threshold != 4 or
+                self.source_depot_id not in (0, 1, 2, 3, 4) or self.party is not None or self.planning is not None or
+                any(int(value) != 0 for value in (self.target_spawn_id, self.noticed, self.interceptions, self.prevented))):
+                raise ValueError("Living v11 raids require their own camp and individual reviewed source capability")
+            if self.source_depot_id == 0:
+                if self.source_depot is not None:
+                    raise ValueError("An unselected resident raid source has no warehouse snapshot")
+            elif (self.source_depot is None or self.source_depot.id != self.source_depot_id or
+                self.source_depot.position.map_id != 725 or self.source_depot.capacity != 30 or
+                self.source_depot.low_threshold != 4):
+                raise ValueError("A selected resident raid source needs its matching village snapshot")
+            if not int(self.delivered) <= int(self.thefts) <= int(self.attempt_id):
+                raise ValueError("Resident raid completion counts exceed their own attempts")
+            return self
+        if self.source_depot_id == 0 or self.source_depot is None:
+            raise ValueError("Legacy raids require a selected positive source and its snapshot")
         if (self.source_depot_id == self.camp_depot_id or self.source_depot.id != self.source_depot_id or
             self.camp_depot.id != self.camp_depot_id or self.source_depot.position.map_id != self.camp_depot.position.map_id):
             raise ValueError("Raid source and camp must be distinct matching depot snapshots on the same map")
@@ -615,13 +655,39 @@ class Agent(ProtocolModel):
                     raise ValueError("Caravan observation must belong to its live authored participant")
                 if (self.supply.role == "CARAVAN_CARRIER") != (str(self.spawn_id) == caravan.leader_spawn_id):
                     raise ValueError("Caravan carrying capability must agree with the leader's identity")
+        resident_identity = 902000 <= self.spawn_id <= 902044
+        resident_supply = self.supply is not None and self.supply.population_profile == "living-v11"
+        resident_raid = self.raid is not None and self.raid.population_profile == "living-v11"
+        if (resident_supply or resident_raid) and not resident_identity:
+            raise ValueError("Living v11 telemetry belongs only to its 45 reviewed resident identities")
+        if resident_identity and self.supply is not None:
+            expected_role = ("FARMER" if self.spawn_id <= 902011 else "RESIDENT_CARRIER" if
+                             self.spawn_id in (902016, 902017) else "RAIDER" if self.spawn_id >= 902035 else "CONSUMER")
+            expected_depot = ((self.spawn_id - 902000) // 4 + 1 if self.spawn_id <= 902015 else
+                              6 if self.spawn_id >= 902035 else 5)
+            defias = self.spawn_id >= 902035
+            if (not resident_supply or self.agent_id != self.spawn_id or self.position.map_id != 725 or
+                self.control_mode != "AI_WORLD_CONTROLLED" or self.world_state != "MATERIALIZED" or
+                self.type != ("COMBATANT" if defias else "CIVILIAN") or type(self.world_faction) is not int or
+                self.world_faction != (2 if defias else 1) or self.entry != (38 if defias else 11328) or
+                self.template_entry != 9810000 + self.spawn_id - 902000 or
+                self.supply.role != expected_role or self.supply.depot_id != expected_depot or
+                not self.runtime_guid):
+                raise ValueError("Resident supply must match its explicit population, native identity, faction and assigned job")
+            if expected_role == "FARMER" and (self.supply.field_id != expected_depot or
+                self.supply.field_workpoint_index not in tuple((self.spawn_id - 902000) % 4 + 4 * cycle for cycle in range(3))):
+                raise ValueError("Resident farmer may expose only its own field and rotating workpoint slots")
+            if defias != resident_raid:
+                raise ValueError("Only the ten resident Defias expose their own required raid capability")
+        if resident_identity and self.raid is not None and not resident_raid:
+            raise ValueError("Resident raids require their explicit new population contract")
         if self.raid is not None:
             if self.control_mode != "AI_WORLD_CONTROLLED" or self.supply is None or not self.supply.enabled:
                 raise ValueError("Raid observations require a controlled actor with current supply observations")
             if self.supply.role != ("RAIDER" if self.raid.role == "RAIDER" else "CONSUMER"):
                 raise ValueError("Raid role must match the actor's supply capability")
             for depot in (self.raid.source_depot, self.raid.camp_depot):
-                if depot.position.map_id != self.position.map_id:
+                if depot is not None and depot.position.map_id != self.position.map_id:
                     raise ValueError("Raid depots must remain on the actor's map")
             party = self.raid.party
             if party is not None:
@@ -700,6 +766,9 @@ class TelemetryBatch(ProtocolModel):
         depots = {}
         fields = {}
         accounting = None
+        layouts = {agent.supply.population_profile for agent in self.agents if agent.supply is not None}
+        if "living-v11" in layouts and layouts != {"living-v11"}:
+            raise ValueError("Resident and legacy supply layouts cannot share one ledger snapshot")
         for agent in self.agents:
             copies = []
             if agent.supply is not None and agent.supply.field_id is not None:
@@ -713,7 +782,7 @@ class TelemetryBatch(ProtocolModel):
                 copies.extend(depot for depot in (agent.supply.caravan.source_depot,
                                                    agent.supply.caravan.destination_depot) if depot is not None)
             if agent.raid is not None:
-                copies.extend((agent.raid.source_depot, agent.raid.camp_depot))
+                copies.extend(depot for depot in (agent.raid.source_depot, agent.raid.camp_depot) if depot is not None)
             for copy in copies:
                 depot = copy.model_dump()
                 if copy.id in depots and depots[copy.id] != depot:

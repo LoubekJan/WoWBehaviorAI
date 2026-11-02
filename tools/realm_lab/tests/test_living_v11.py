@@ -47,9 +47,12 @@ def telemetry(population):
             type="COMBATANT" if a.spawn_id in living.DEFIAS_IDS else "CIVILIAN",alive=True,runtime_guid=f'Creature-{a.spawn_id}',
             position={**point,"source":"live"},home=point,needs=dict(hunger=.1,fatigue=.1),economy={},
             living_role=dict(enabled=True,extensions_enabled=True,role="RAIDER" if a.spawn_id in living.DEFIAS_IDS else "WORKER",lifetime_ms=10),
-            supply=dict(enabled=True,role={"farmer":"FARMER","village_consumer":"CONSUMER","city_consumer":"CONSUMER",
-                "city_carrier":"CARAVAN_CARRIER","raider":"RAIDER"}[living.capability(a.spawn_id)],
-                depot_id=living.depot_id(a.spawn_id),accounting=dict(conserved=True)),llm_agent=None))
+            supply=dict(enabled=True,population_profile=living.PROFILE,role={"farmer":"FARMER","village_consumer":"CONSUMER","city_consumer":"CONSUMER",
+                "city_carrier":"RESIDENT_CARRIER","raider":"RAIDER"}[living.capability(a.spawn_id)],
+                depot_id=living.depot_id(a.spawn_id),accounting=dict(conserved=True)),
+            raid=dict(enabled=True,population_profile=living.PROFILE,role='RAIDER',camp_depot_id=6,
+                      camp_depot=dict(id=6),source_depot_id=0,source_depot=None,planning=None,party=None)
+                 if a.spawn_id in living.DEFIAS_IDS else None,llm_agent=None))
     return dict(version=4,stale=False,captured_at_ms=12345,agents=rows)
 
 
@@ -184,9 +187,20 @@ class LivingV11Tests(unittest.TestCase):
     def test_food_capability_and_ledger_or_invalid_needs_cannot_spoof_success(self):
         for mutate in (lambda r:r['needs'].update(hunger=float('nan')),lambda r:r['needs'].update(fatigue=True),
             lambda r:r['supply'].update(role='RAIDER'),lambda r:r['supply'].update(depot_id=6),
+            lambda r:r['supply'].update(population_profile='legacy'),lambda r:r.update(raid={}),
             lambda r:r['supply']['accounting'].update(conserved=False),lambda r:r['living_role'].update(role='NONE'),
             lambda r:r.update(runtime_guid=None)):
             state=telemetry(self.population);mutate(state['agents'][0])
+            with self.subTest(mutate=mutate),self.assertRaises(living.ProfileError):living.validate_telemetry(state,self.population)
+
+    def test_resident_raids_require_the_new_layout_and_exact_current_permissions(self):
+        for mutate in (lambda r:r['raid'].update(population_profile='legacy'),
+                       lambda r:r['raid'].update(camp_depot_id=3),
+                       lambda r:r['raid'].update(source_depot_id=5),
+                       lambda r:r['raid'].update(source_depot_id=1,source_depot=None),
+                       lambda r:r['raid'].update(source_depot_id=0,source_depot=dict(id=1)),
+                       lambda r:r['raid'].update(planning={}),lambda r:r.update(raid=None)):
+            state=telemetry(self.population);mutate(state['agents'][35])
             with self.subTest(mutate=mutate),self.assertRaises(living.ProfileError):living.validate_telemetry(state,self.population)
 
 

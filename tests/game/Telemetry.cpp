@@ -573,3 +573,28 @@ TEST_CASE("Observer serializes historical long-term memories independently of li
     CHECK(json.find("NPC \\\"one\\\"") != std::string::npos);
 }
 
+
+TEST_CASE("Observer marks the new resident food layout without changing legacy payloads", "[AIWorld][Telemetry][LivingResidentsV11]")
+{
+    AgentTelemetrySnapshot agent;
+    agent.Agent = AgentId{902035}; agent.SpawnId = 902035;
+    agent.MapId = 725; agent.ControlMode = AgentControlMode::AIWorldControlled;
+    agent.Live.emplace(); agent.Live->Alive = true;
+    agent.Supply.emplace(); agent.Supply->Enabled = true; agent.Supply->Role = "RAIDER";
+    agent.Supply->Phase = "READY"; agent.Supply->DepotId = 6;
+    agent.Raid.emplace(); agent.Raid->Enabled = true; agent.Raid->Role = "RAIDER";
+    agent.Raid->Phase = "READY"; agent.Raid->CampDepotId = 6;
+    auto legacy = SerializeAgentTelemetry({agent}, 1234);
+    REQUIRE(legacy.find("population_profile") == std::string::npos);
+    agent.Supply->PopulationProfile = "living-v11";
+    agent.Raid->PopulationProfile = "living-v11";
+    auto resident = SerializeAgentTelemetry({agent}, 1234);
+    auto first = resident.find("\"population_profile\":\"living-v11\"");
+    REQUIRE(first != std::string::npos);
+    REQUIRE(resident.find("\"population_profile\":\"living-v11\"", first+1) != std::string::npos);
+    REQUIRE(resident.find("\"source_depot_id\":0") != std::string::npos);
+    REQUIRE(resident.find("\"source_depot\":null") != std::string::npos);
+    REQUIRE(resident.find("\"camp_depot_id\":6") != std::string::npos);
+    agent.Live.reset();
+    REQUIRE(SerializeAgentTelemetry({agent}, 1234).find("population_profile") == std::string::npos);
+}

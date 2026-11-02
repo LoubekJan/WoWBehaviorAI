@@ -2,6 +2,23 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const model = require("../app/static/observer-model.js");
+
+test("an individual resident carrier is labelled as a supply porter without inventing a caravan or predator", () => {
+  const actor = { native_creature: false, position: { source: "live", map_id: 725 },
+    supply: { enabled: true, population_profile: "living-v11", role: "RESIDENT_CARRIER",
+      phase: "RETURNING_CARGO", cargo: 6, capacity: 6, harvested: "0", delivered: "6", consumed: "1", lost: "0",
+      caravan: null, depot: { name: "Městský sklad", stock: 6, capacity: 120, low_threshold: 12,
+        delivered: "12", consumed: "6", stolen: "0", exported: "0" } } };
+  const facts = Object.fromEntries(model.supplyFacts(actor));
+  assert.equal(facts["Zásobování"], "Nosič zásob");
+  assert.equal(facts["Právě dělá"], "Nese zásoby do skladu");
+  assert.equal(facts["Náklad"], "6 / 6 porcí");
+  assert.equal(facts["Doručeno"], "6");
+  assert.equal(facts["Získáno z kořisti"], null);
+  assert.equal(facts["Odvezeno nosiči"], "0");
+  assert.equal(facts["Karavana"], undefined);
+  assert.equal(model.caravanSupported(actor), false);
+});
 const base = { position: { source: "live", map_id: 0 }, needs: { hunger: 0.8 }, agent_id: 1, spawn_id: 10 };
 
 function caravanFixture() {

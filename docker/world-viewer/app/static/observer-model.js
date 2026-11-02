@@ -94,15 +94,17 @@ const ObserverModel = (() => {
       RESTING_HOME: "Odpočinek doma", TO_WAREHOUSE: "Cesta do vlastního skladu",
       RALLY: "Shromažďování karavany", TO_VILLAGE: "Cesta do vesnice", LOADING: "Nakládání zásob",
       TO_CITY: "Cesta do města", UNLOADING: "Vykládání ve městě", REST: "Odpočinek ve městě",
-      RECOVER: "Obnovování sestavy karavany" };
+      RECOVER: "Obnovování sestavy karavany", READY: "Připraven", COMPLETED: "Dokončeno",
+      TO_SOURCE: "Cesta ke skladu", RETURNING_CARGO: "Nese zásoby do skladu", STEALING: "Odcizování zásob",
+      UNAVAILABLE: "Nedostupný", COOLDOWN: "Čeká na další výpravu" };
     const consumer = ["CONSUMER", "CITY_CONSUMER"].includes(supply.role), raider = supply.role === "RAIDER", farmer = supply.role === "FARMER";
-    const caravan = caravanSupported(agent), escort = supply.role === "CARAVAN_ESCORT";
+    const caravan = caravanSupported(agent), escort = supply.role === "CARAVAN_ESCORT", residentCarrier = supply.role === "RESIDENT_CARRIER";
     const rows = [["Zásobování", caravan ? (escort ? "Doprovod karavany" : "Dopravce karavany") :
-      supply.role === "CITY_CONSUMER" ? "Obyvatel města" : consumer ? "Spotřebitel" : raider ? "Nájezdník" : farmer ? "Zemědělec" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
+      residentCarrier ? "Nosič zásob" : supply.role === "CITY_CONSUMER" ? "Obyvatel města" : consumer ? "Spotřebitel" : raider ? "Nájezdník" : farmer ? "Zemědělec" : supply.role === "HUNTER" ? "Lovec" : "Predátor"],
       ["Právě dělá", phases[supply.phase] || supply.phase],
       ["Náklad", consumer || escort ? null : `${supply.cargo} / ${supply.capacity} porcí`],
       ["Zbývá v kořisti", supply.carcass_remaining == null ? null : `${supply.carcass_remaining} porcí`],
-      [farmer ? "Sklizeno na poli" : "Získáno z kořisti", consumer || raider || caravan ? null : supply.harvested],
+      [farmer ? "Sklizeno na poli" : "Získáno z kořisti", consumer || raider || caravan || residentCarrier ? null : supply.harvested],
       ["Odcizené jídlo", raider ? supply.stolen : null], ["Doručeno", consumer ? null : supply.delivered],
       ["Snědeno", supply.consumed], ["Ztracený náklad", consumer ? null : supply.lost]];
     if (farmer) rows.push(["Pole", supply.field_id], ["Pracovní místo", supply.field_workpoint_index == null ? null : supply.field_workpoint_index + 1],
@@ -122,7 +124,7 @@ const ObserverModel = (() => {
     if (depot) rows.push(["Zásobárna", depot.name], ["Zásoba jídla", `${depot.stock} / ${depot.capacity} porcí`],
       ["Stav zásob", depot.stock === 0 ? "Prázdná" : depot.stock <= depot.low_threshold ? "Nízká zásoba" : "Dostatek"],
       ["Do skladu doručeno", depot.delivered], ["Ze skladu snědeno", depot.consumed],
-      ["Ze skladu odcizeno", depot.stolen || "0"], ["Odvezeno karavanou", depot.exported || "0"]);
+      ["Ze skladu odcizeno", depot.stolen || "0"], [supply.population_profile === "living-v11" ? "Odvezeno nosiči" : "Odvezeno karavanou", depot.exported || "0"]);
     if (accounting) rows.push(["Bilance potravy", accounting.conserved ? "Souhlasí" : "Nesouhlasí"],
       ["Ve skladech / v nákladech", `${accounting.in_depots} / ${accounting.in_cargo}`]);
     if (supply.last_result) rows.push(["Poslední výsledek", supply.last_result]);
