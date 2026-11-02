@@ -29,6 +29,14 @@ Během CI běží dosavadní svět. Pod společným nasazovacím zámkem se znov
 
 Klient dostane nový patch-4.MPQ; patch-X.MPQ zůstává obsahově shodný. Patche W/Y se zachovávají. Ateliér na portu 9092 doplní 23 návrhů a ponechá původních 22 včetně autorských úprav. Observer na portu 9091 ověřuje všech 45 nativních NPC a deset vlastních příslušností Defias.
 
+## Dokončené nasazení 2. listopadu 2026
+
+[CI/CD otestované revize dd2accc67843](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41473146338) úspěšně dokončilo nasazení; revize prošla 923 testy Pythonu a 699 testy C++. [Ověření běžícího světa](activation.json) potvrzuje osm zdravých služeb, všech 45 živých nativních NPC, 45 samostatných šablon a 45 návrhů i exportů v Ateliéru. Pouze deset postav u levých stanů má vlastní Defias; původních 22 domovů, celé autorské návrhy, účty a hráčské postavy zůstaly zachované. Opakované doplnění návrhů nevytvořilo žádné duplikáty.
+
+[Instalace klienta](client-install.json) potvrzuje nový patch-4.MPQ, stejný patch-X.MPQ a zachované patche W/Y. Předchozí klientské soubory, geometrie i databáze mají zálohu. Závěrečné ověření pokrývá přítomnost NPC, šablony, frakce a návrhy; neoznačuje autonomní chování ani fyzicky odchozené cykly za přijaté.
+
+Pro prohlídku lze použít `.go creature 902022` (taverna), `.go creature 902025` (radnice) a `.go creature 902035` (levé stany).
+
 ## Zachované limity mapy
 
 Druhé vrstvy vody nadále zůstávají v klientských zdrojích: 33 buněk, 933 dalších viditelných čtverců, z toho 97 nad terénem. Nativní exportér převádí první vrstvu; [rozbor](multilayer-water-review.json) popisuje známý rozdíl. Všech 45 míst je ověřeně suchých vůči všem zdrojovým vrstvám. Neautorské krajní vzorky vody se normalizovaly podle [nového plánu](water-edge-normalization-plan.json) a navigace vznikla až poté.

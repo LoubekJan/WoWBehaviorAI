@@ -1,0 +1,573 @@
+{
+  "schema_version": 1,
+  "status": "verified",
+  "recorded_utc": "2026-11-02T15:55:31.187301+00:00",
+  "code_revision": "dd2accc6784381a76bdf250d1fb708c99cdbb1ff",
+  "source_revision": "preview-v11",
+  "profile": "residents-v11",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "ci_run_url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41473146338",
+  "services": {
+    "account-web": "healthy",
+    "ai-server": "healthy",
+    "auth-mysql": "healthy",
+    "authserver": "healthy",
+    "character-studio": "healthy",
+    "lab-mysql": "healthy",
+    "world-viewer": "healthy",
+    "worldserver": "healthy"
+  },
+  "world": {
+    "profile": "residents-v11",
+    "source_revision": "preview-v11",
+    "geometry_files": 74,
+    "resident_count": 45,
+    "location_counts": {
+      "households": 22,
+      "inn": 3,
+      "townhall": 10,
+      "defias_camp": 10
+    },
+    "independent_templates": [
+      {
+        "name": "Jan Polní",
+        "entry": 9810000,
+        "title": "Obyvatel domu 1",
+        "spawn_id": 902000,
+        "base_entry": 11328,
+        "bound_entry": 9810000,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Petr Polní",
+        "entry": 9810001,
+        "title": "Obyvatel domu 1",
+        "spawn_id": 902001,
+        "base_entry": 11328,
+        "bound_entry": 9810001,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Marek Kovář",
+        "entry": 9810002,
+        "title": "Obyvatel domu 2",
+        "spawn_id": 902002,
+        "base_entry": 11328,
+        "bound_entry": 9810002,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Adam Kovář",
+        "entry": 9810003,
+        "title": "Obyvatel domu 2",
+        "spawn_id": 902003,
+        "base_entry": 11328,
+        "bound_entry": 9810003,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Tomáš Březový",
+        "entry": 9810004,
+        "title": "Obyvatel domu 3",
+        "spawn_id": 902004,
+        "base_entry": 11328,
+        "bound_entry": 9810004,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Daniel Březový",
+        "entry": 9810005,
+        "title": "Obyvatel domu 3",
+        "spawn_id": 902005,
+        "base_entry": 11328,
+        "bound_entry": 9810005,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Matěj Zelený",
+        "entry": 9810006,
+        "title": "Obyvatel domu 4",
+        "spawn_id": 902006,
+        "base_entry": 11328,
+        "bound_entry": 9810006,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Lukáš Zelený",
+        "entry": 9810007,
+        "title": "Obyvatel domu 4",
+        "spawn_id": 902007,
+        "base_entry": 11328,
+        "bound_entry": 9810007,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Ondřej Sedlák",
+        "entry": 9810008,
+        "title": "Obyvatel domu 5",
+        "spawn_id": 902008,
+        "base_entry": 11328,
+        "bound_entry": 9810008,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Jakub Sedlák",
+        "entry": 9810009,
+        "title": "Obyvatel domu 5",
+        "spawn_id": 902009,
+        "base_entry": 11328,
+        "bound_entry": 9810009,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Martin Horský",
+        "entry": 9810010,
+        "title": "Obyvatel domu 6",
+        "spawn_id": 902010,
+        "base_entry": 11328,
+        "bound_entry": 9810010,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Filip Horský",
+        "entry": 9810011,
+        "title": "Obyvatel domu 6",
+        "spawn_id": 902011,
+        "base_entry": 11328,
+        "bound_entry": 9810011,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Pavel Dubový",
+        "entry": 9810012,
+        "title": "Obyvatel domu 7",
+        "spawn_id": 902012,
+        "base_entry": 11328,
+        "bound_entry": 9810012,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Vít Dubový",
+        "entry": 9810013,
+        "title": "Obyvatel domu 7",
+        "spawn_id": 902013,
+        "base_entry": 11328,
+        "bound_entry": 9810013,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Josef Potok",
+        "entry": 9810014,
+        "title": "Obyvatel domu 8",
+        "spawn_id": 902014,
+        "base_entry": 11328,
+        "bound_entry": 9810014,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Šimon Potok",
+        "entry": 9810015,
+        "title": "Obyvatel domu 8",
+        "spawn_id": 902015,
+        "base_entry": 11328,
+        "bound_entry": 9810015,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Karel Mlýnský",
+        "entry": 9810016,
+        "title": "Obyvatel domu 9",
+        "spawn_id": 902016,
+        "base_entry": 11328,
+        "bound_entry": 9810016,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Jiří Mlýnský",
+        "entry": 9810017,
+        "title": "Obyvatel domu 9",
+        "spawn_id": 902017,
+        "base_entry": 11328,
+        "bound_entry": 9810017,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Michal Strnad",
+        "entry": 9810018,
+        "title": "Obyvatel domu 10",
+        "spawn_id": 902018,
+        "base_entry": 11328,
+        "bound_entry": 9810018,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Hynek Strnad",
+        "entry": 9810019,
+        "title": "Obyvatel domu 10",
+        "spawn_id": 902019,
+        "base_entry": 11328,
+        "bound_entry": 9810019,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Antonín Veselý",
+        "entry": 9810020,
+        "title": "Obyvatel domu 11",
+        "spawn_id": 902020,
+        "base_entry": 11328,
+        "bound_entry": 9810020,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Oldřich Veselý",
+        "entry": 9810021,
+        "title": "Obyvatel domu 11",
+        "spawn_id": 902021,
+        "base_entry": 11328,
+        "bound_entry": 9810021,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Jindřich Korbel",
+        "entry": 9810022,
+        "title": "Obyvatel hostince",
+        "spawn_id": 902022,
+        "base_entry": 11328,
+        "bound_entry": 9810022,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Roman Kotlík",
+        "entry": 9810023,
+        "title": "Obyvatel hostince",
+        "spawn_id": 902023,
+        "base_entry": 11328,
+        "bound_entry": 9810023,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Václav Cestář",
+        "entry": 9810024,
+        "title": "Obyvatel hostince",
+        "spawn_id": 902024,
+        "base_entry": 11328,
+        "bound_entry": 9810024,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Bohumil Pečeť",
+        "entry": 9810025,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902025,
+        "base_entry": 11328,
+        "bound_entry": 9810025,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "František Písař",
+        "entry": 9810026,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902026,
+        "base_entry": 11328,
+        "bound_entry": 9810026,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Zdeněk Strážný",
+        "entry": 9810027,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902027,
+        "base_entry": 11328,
+        "bound_entry": 9810027,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Radek Listina",
+        "entry": 9810028,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902028,
+        "base_entry": 11328,
+        "bound_entry": 9810028,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Stanislav Měřič",
+        "entry": 9810029,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902029,
+        "base_entry": 11328,
+        "bound_entry": 9810029,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Miroslav Klíčník",
+        "entry": 9810030,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902030,
+        "base_entry": 11328,
+        "bound_entry": 9810030,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Ladislav Posel",
+        "entry": 9810031,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902031,
+        "base_entry": 11328,
+        "bound_entry": 9810031,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Vladimír Rada",
+        "entry": 9810032,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902032,
+        "base_entry": 11328,
+        "bound_entry": 9810032,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Jaroslav Mincovní",
+        "entry": 9810033,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902033,
+        "base_entry": 11328,
+        "bound_entry": 9810033,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Lubomír Svědek",
+        "entry": 9810034,
+        "title": "Obyvatel radnice",
+        "spawn_id": 902034,
+        "base_entry": 11328,
+        "bound_entry": 9810034,
+        "world_faction": 1,
+        "game_faction_template": 12
+      },
+      {
+        "name": "Boris Rudý",
+        "entry": 9810035,
+        "title": "Člen Defias",
+        "spawn_id": 902035,
+        "base_entry": 38,
+        "bound_entry": 9810035,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Viktor Stín",
+        "entry": 9810036,
+        "title": "Člen Defias",
+        "spawn_id": 902036,
+        "base_entry": 38,
+        "bound_entry": 9810036,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Erik Havran",
+        "entry": 9810037,
+        "title": "Člen Defias",
+        "spawn_id": 902037,
+        "base_entry": 38,
+        "bound_entry": 9810037,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Rudolf Tesák",
+        "entry": 9810038,
+        "title": "Člen Defias",
+        "spawn_id": 902038,
+        "base_entry": 38,
+        "bound_entry": 9810038,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Emil Šrám",
+        "entry": 9810039,
+        "title": "Člen Defias",
+        "spawn_id": 902039,
+        "base_entry": 38,
+        "bound_entry": 9810039,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Oskar Popel",
+        "entry": 9810040,
+        "title": "Člen Defias",
+        "spawn_id": 902040,
+        "base_entry": 38,
+        "bound_entry": 9810040,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Norbert Lišák",
+        "entry": 9810041,
+        "title": "Člen Defias",
+        "spawn_id": 902041,
+        "base_entry": 38,
+        "bound_entry": 9810041,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Vilém Rudoplášť",
+        "entry": 9810042,
+        "title": "Člen Defias",
+        "spawn_id": 902042,
+        "base_entry": 38,
+        "bound_entry": 9810042,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Albert Křemen",
+        "entry": 9810043,
+        "title": "Člen Defias",
+        "spawn_id": 902043,
+        "base_entry": 38,
+        "bound_entry": 9810043,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      },
+      {
+        "name": "Břetislav Mrak",
+        "entry": 9810044,
+        "title": "Člen Defias",
+        "spawn_id": 902044,
+        "base_entry": 38,
+        "bound_entry": 9810044,
+        "world_faction": 2,
+        "game_faction_template": 2300
+      }
+    ],
+    "native_templates_and_children_verified": true,
+    "custom_defias": {
+      "source_entry": 38,
+      "game_faction_template": 2300,
+      "reputation_faction": 1201,
+      "world_faction": 2,
+      "count": 10
+    },
+    "telemetry": {
+      "fresh_snapshots": 2,
+      "captured_at_ms": [
+        1793634923444,
+        1793634925445
+      ],
+      "all_45_alive_and_live": true,
+      "managed": 0,
+      "native": 45
+    },
+    "world_version": "TrinityCore rev. dd2accc67843 2026-11-02 16:35:45 +0100 (AI-World-lab branch) (Linux, x86_64, RelWithDebInfo, Static)",
+    "runtime_flags": {
+      "AIWorld.Enable": 0,
+      "AIWorld.NpcAgentEnabled": 0,
+      "AIWorld.TelemetryEnabled": 1,
+      "AIWorld.TelemetryNativeCreaturesEnabled": 1
+    }
+  },
+  "studio": {
+    "drafts": 45,
+    "targets": 45,
+    "individual_template_exports_verified": 45,
+    "individual_card_exports_verified": 45,
+    "old_22_draft_documents_preserved": true,
+    "native_appearance_export_omitted": true,
+    "repeat_seed": {
+      "created": 0,
+      "preserved": 45,
+      "residents": 45
+    }
+  },
+  "accounts_and_player_characters_preserved": true,
+  "protected_backup_verified": true,
+  "map_installation": {
+    "files": 74,
+    "existing_shared_vmo_preserved": 7541,
+    "previous_geometry_backed_up": true
+  },
+  "client_patch_required": true,
+  "physical_behavior_acceptance": false,
+  "client_installation": {
+    "status": "installed",
+    "receipt": "client-install.json",
+    "receipt_sha256": "0f65929fb79a4435073d25f0c13020b539f1d316f2790be56925bc4b123931a8",
+    "source_files_rechecked_unchanged": 9,
+    "preserved_archives": [
+      "patch-W.MPQ",
+      "patch-Y.MPQ"
+    ]
+  },
+  "ci_validation": {
+    "run_url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41473146338",
+    "run_attempt": 2,
+    "conclusion": "success",
+    "tested_code_revision": "dd2accc6784381a76bdf250d1fb708c99cdbb1ff",
+    "python_tests": 923,
+    "cpp_tests": 699,
+    "jobs": [
+      {
+        "id": 125381547810,
+        "name": "contracts",
+        "conclusion": "success"
+      },
+      {
+        "id": 125381554419,
+        "name": "build-server",
+        "conclusion": "success"
+      },
+      {
+        "id": 125381554698,
+        "name": "build-pr",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 125381561430,
+        "name": "deploy",
+        "conclusion": "success"
+      }
+    ]
+  }
+}

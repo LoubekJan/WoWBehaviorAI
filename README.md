@@ -14,6 +14,12 @@ creature template, name, subtitle and editable Studio draft. Existing homes
 and authored drafts are preserved. Placement uses verified collision floors,
 clear standing space, all source water layers and complete ground paths.
 
+[Deployment verification](data/realm_lab/aiworldlab/preview-v11/activation.json)
+confirms all 45 residents live, eight healthy services, 45 Studio drafts and
+preserved accounts, player characters and original authored drafts. The client
+patch is installed. [CI/CD](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41473146338)
+passed 923 Python tests and 699 C++ tests and deployed revision `dd2accc67843`.
+
 These residents use ordinary game AI at their authored homes; the tent group
 retains its reviewed native Defias combat behavior and custom faction.
 Food, jobs, daily routines and LLM control remain future population work.
