@@ -13,10 +13,10 @@ from .targets import TargetRegistry
 
 def seed(*, project_root: Path, source_dir: Path, catalog_path: Path, data_dir: Path,
          profile: str) -> dict[str, int]:
-    if profile not in ("residents-v10", "residents-v11"):
+    if profile not in ("residents-v10", "residents-v11", "living-v11"):
         raise ValueError("Resident drafts require the active reviewed resident profile")
     registry = TargetRegistry.load(project_root, profile)
-    identities = set(range(902000, 902045 if profile == "residents-v11" else 902022))
+    identities = set(range(902000, 902022 if profile == "residents-v10" else 902045))
     if not registry.available or {target.spawn_id for target in registry.targets} != identities:
         raise ValueError("Reviewed resident target registry is unavailable")
     paths = sorted(source_dir.glob("*.json"))

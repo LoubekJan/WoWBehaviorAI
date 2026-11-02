@@ -214,12 +214,12 @@ def native_template(card: Card, authoring: Authoring, target: dict, population_p
     """A reviewed recipe for a complete private clone, never client-selected SQL."""
     profile = native_profile(card)
     spawn_id = profile["spawn_id"]
-    if population_profile not in ("full-v8", "residents-v10", "residents-v11"):
-        raise ValueError("Samostatná herní šablona vyžaduje ověřený profil full-v8, residents-v10 nebo residents-v11. Kartu a vzhled lze exportovat samostatně.")
-    resident = population_profile in ("residents-v10", "residents-v11")
-    limit = 902044 if population_profile == "residents-v11" else 902021
+    if population_profile not in ("full-v8", "residents-v10", "residents-v11", "living-v11"):
+        raise ValueError("Samostatná herní šablona vyžaduje ověřený profil full-v8, residents-v10, residents-v11 nebo living-v11. Kartu a vzhled lze exportovat samostatně.")
+    resident = population_profile in ("residents-v10", "residents-v11", "living-v11")
+    limit = 902021 if population_profile == "residents-v10" else 902044
     valid_spawn = 902000 <= spawn_id <= limit if resident else 901000 <= spawn_id <= 901099
-    expected_base = 38 if population_profile == "residents-v11" and spawn_id >= 902035 else 11328
+    expected_base = 38 if population_profile in ("residents-v11", "living-v11") and spawn_id >= 902035 else 11328
     if (not valid_spawn or card.map_id != 725 or (resident and target.get("entry") != expected_base) or
             target.get("eligible") is not True or target.get("spawn_id") != card.spawn_id or
             target.get("agent_id") != card.agent_id or target.get("map_id") != card.map_id or

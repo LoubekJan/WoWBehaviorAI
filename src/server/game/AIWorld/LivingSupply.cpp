@@ -238,6 +238,8 @@ LivingSupply::ConsumerSpec const* AIWorldMgr::SupplyConsumerSpec(AgentRecord con
 
 LivingRolePolicy::Role AIWorldMgr::ResolveLivingRole(AgentRecord const& record, Creature const& creature) const
 {
+    if (IsLivingResidentV11(record) && LivingResidentsV11::Role(record.SpawnId) == LivingResidentsV11::Job::Raider)
+        return LivingRolePolicy::Role::Raider;
     if (IsCaravanMember(record) && LivingCaravan::IsCarrier(record.SpawnId))
         return LivingRolePolicy::Role::Worker;
     if (IsSupplyHunter(record))
@@ -253,6 +255,11 @@ LivingRolePolicy::Role AIWorldMgr::ResolveLivingRole(AgentRecord const& record, 
 
 void AIWorldMgr::ObserveLivingSupply(AgentRecord const& record, Creature const* creature, uint64 nowMs)
 {
+    if (_livingResidentsV11Enabled)
+    {
+        ObserveLivingResidentV11(record, creature, nowMs);
+        return;
+    }
     if (!_livingSupplyEnabled || record.MapId != 725 || record.Id.Value != record.SpawnId ||
         record.ControlMode != AgentControlMode::AIWorldControlled ||
         !GetSimulationScope().ContainsActor(record.MapId, record.SpawnId))
@@ -470,6 +477,7 @@ bool AIWorldMgr::SupplyWantsHunt(AgentRecord const& record) const
 
 std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const
 {
+    if (_livingResidentsV11Enabled) return DescribeLivingResidentV11(creature, record);
     if (!_livingSupplyEnabled || !SupplyIdentity(record, _livingConsumersEnabled, _livingRaidsEnabled, _livingFieldsEnabled, _livingDefiasEnabled, _livingCaravansEnabled) || creature.GetMapId() != 725 ||
         creature.GetSpawnId() != record.SpawnId || record.WorldState != AgentWorldState::Materialized ||
         record.RuntimeGuid != creature.GetGUID() || !GetSimulationScope().ContainsActor(record.MapId, record.SpawnId)) return std::nullopt;
@@ -563,7 +571,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
 {
     using namespace LivingReturnPolicy;
     approved.reset();
-    if ((!IsSupplyHunter(record) && !IsSupplyConsumer(record) && !IsSupplyRaider(record) && !IsFieldWorker(record) && !IsCaravanMember(record)) || !BoundActor(record, creature))
+    if ((!IsLivingResidentV11(record) && !IsSupplyHunter(record) && !IsSupplyConsumer(record) && !IsSupplyRaider(record) && !IsFieldWorker(record) && !IsCaravanMember(record)) || !BoundActor(record, creature))
         return std::nullopt;
     auto found = _supplyActors.find(record.SpawnId);
     if (found == _supplyActors.end()) return std::nullopt;
@@ -592,10 +600,10 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         if (!next) return std::nullopt;
         destination = *next;
     }
-    float homeRadius = IsCaravanMember(record) ? LivingCaravan::HomeRadius : IsSupplyRaider(record) ? LivingRaid::RaiderHomeRadius : 384.0f;
+    float homeRadius = IsLivingResidentV11(record) ? 1536.0f : IsCaravanMember(record) ? LivingCaravan::HomeRadius : IsSupplyRaider(record) ? LivingRaid::RaiderHomeRadius : 384.0f;
     bool fieldWorker = IsFieldWorker(record);
     float arrivalRadius = 3.0f;
-    if (IsCaravanMember(record)) arrivalRadius = 1.9f;
+    if (IsLivingResidentV11(record) || IsCaravanMember(record)) arrivalRadius = 1.9f;
     else if (fieldWorker)
         arrivalRadius = LivingFields::ArrivalRadius(*LivingFields::Worker(record.SpawnId), destination, home);
     else if (IsSupplyRaider(record))
@@ -750,7 +758,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         // A complete final leg can normalize its endpoint during grounding.
         // Recheck the actual endpoint against the same warehouse arrival rule;
         // a loose build tolerance must not strand the next anchor departure.
-        if ((fieldWorker || IsSupplyRaider(record) || IsCaravanMember(record)) && SamePosition(query, endpoint) &&
+        if ((IsLivingResidentV11(record) || fieldWorker || IsSupplyRaider(record) || IsCaravanMember(record)) && SamePosition(query, endpoint) &&
             (Distance({from.MapId, end.x, end.y, end.z}, destination) > arrivalRadius ||
                 !creature.GetMap()->isInLineOfSight(end.x, end.y, end.z + lift,
                     destination.X, destination.Y, destination.Z + lift, creature.GetPhaseMask(),

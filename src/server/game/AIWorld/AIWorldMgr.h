@@ -36,6 +36,7 @@
 #include "Agent/AgentId.h"
 #include "Agent/LivingAdviceBudget.h"
 #include "Agent/LivingSupplyRuntime.h"
+#include "Agent/LivingResidentsV11.h"
 #include "Agent/LivingCaravanRuntime.h"
 #include "Agent/LivingRaidRuntime.h"
 #include "Agent/NpcAgentProfile.h"
@@ -2950,6 +2951,17 @@ class TC_GAME_API AIWorldMgr
         bool _livingRolesEnabled = false;
         bool _livingRoleExtensionsEnabled = false;
         bool _livingSupplyEnabled = false;
+        bool _livingResidentsV11Enabled = false;
+        std::unordered_map<uint64, LivingResidentsV11::State> _residentActors;
+        void InitializeLivingResidentsV11();
+        bool IsLivingResidentV11(AgentRecord const& record) const;
+        void ObserveLivingResidentV11(AgentRecord const& record, Creature const* creature, uint64 nowMs);
+        bool UpdateLivingResidentV11(AgentRecord& record, Creature& creature, uint64 nowMs,
+            std::function<bool(ActionRequest, LivingRoleState::Phase, Unit*, bool)> const& start,
+            std::function<std::optional<ActionPosition>(ActionPosition const&)> const& step);
+        std::optional<LivingSupplyTelemetry> DescribeLivingResidentV11(Creature const& creature, AgentRecord const& record) const;
+        std::optional<FoodDepotTelemetry> DescribeResidentFoodDepot(uint32 id) const;
+        std::optional<LivingRaidTelemetry> DescribeResidentRaid(Creature const& creature, AgentRecord const& record) const;
         bool _livingConsumersEnabled = false;
         bool _livingRaidsEnabled = false;
         bool _livingFieldsEnabled = false;

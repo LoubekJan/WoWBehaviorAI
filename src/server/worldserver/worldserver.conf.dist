@@ -4349,6 +4349,8 @@ AIWorld.LivingWolvesEnabled = 0
 # LivingWolves; predators hunt classified attackable prey, other roles use local
 # activities and role-specific defense/flee. Service NPCs keep their posts.
 AIWorld.LivingRolesEnabled = 0
+# Reviewed v11 residents: physical fields, village granaries and scoped food hauling.
+AIWorld.LivingResidentsV11.Enabled = 0
 AIWorld.LivingSupplyEnabled = 0
 # Explicit depot consumers retain their ordinary roles; runtime-only stock.
 AIWorld.LivingConsumersEnabled = 0

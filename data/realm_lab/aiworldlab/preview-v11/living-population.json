@@ -1,0 +1,742 @@
+{
+  "schema_version": 1,
+  "profile": "living-v11",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v11",
+  "native_profile": "residents-v11",
+  "native_manifest_sha256": "29199102de9d32af1ee891294534485a03623e9b5a6b6c91dfde896f4e44e9a5",
+  "geometry_sha256": "f1a408ec4536f517b195c212a6d6d3d6b8a5e76ed5bc4119b4d627194c2fcb9c",
+  "owned_spawn_ids": [
+    902000,
+    902001,
+    902002,
+    902003,
+    902004,
+    902005,
+    902006,
+    902007,
+    902008,
+    902009,
+    902010,
+    902011,
+    902012,
+    902013,
+    902014,
+    902015,
+    902016,
+    902017,
+    902018,
+    902019,
+    902020,
+    902021,
+    902022,
+    902023,
+    902024,
+    902025,
+    902026,
+    902027,
+    902028,
+    902029,
+    902030,
+    902031,
+    902032,
+    902033,
+    902034,
+    902035,
+    902036,
+    902037,
+    902038,
+    902039,
+    902040,
+    902041,
+    902042,
+    902043,
+    902044
+  ],
+  "native_spawn_ids": [],
+  "immutable_spawn_homes": true,
+  "position_proof_sha256": "8e8f1188830c7f97f588d7c355abb15ae3a516b34add0b4329fce01b3ad06c4a",
+  "locations_header_sha256": "0d8229caaf6f203c81b1d42b780a4fc4d55cc18310cf2bdbb2147b8374dd6c66",
+  "runtime_catalog_sha256": "c50ed242c1d059b45a4a6e041bfc0567fd2ef999394d1bed4229430e277b0485",
+  "llm_cards_explicit_opt_in": true,
+  "runtime_food_state_only": true,
+  "actors": [
+    {
+      "spawn_id": 902000,
+      "entry": 9810000,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 1,
+      "home": {
+        "x": 190.81601562500015,
+        "y": 277.48984375000015,
+        "z": 5.925477582226083,
+        "o": 5.3003915839322575
+      }
+    },
+    {
+      "spawn_id": 902001,
+      "entry": 9810001,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 1,
+      "home": {
+        "x": 192.41601562500017,
+        "y": 275.0898437500001,
+        "z": 5.913632236357546,
+        "o": 2.158798930342464
+      }
+    },
+    {
+      "spawn_id": 902002,
+      "entry": 9810002,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 1,
+      "home": {
+        "x": 166.24609375000017,
+        "y": 279.49882812500016,
+        "z": 5.434857552885138,
+        "o": 4.124386376837123
+      }
+    },
+    {
+      "spawn_id": 902003,
+      "entry": 9810003,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 1,
+      "home": {
+        "x": 164.64609375000015,
+        "y": 277.0988281250001,
+        "z": 5.4196348295480545,
+        "o": 0.982793723247329
+      }
+    },
+    {
+      "spawn_id": 902004,
+      "entry": 9810004,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 2,
+      "home": {
+        "x": 359.1261718750001,
+        "y": 535.4183593749995,
+        "z": 4.188312573243143,
+        "o": 3.7295952571373276
+      }
+    },
+    {
+      "spawn_id": 902005,
+      "entry": 9810005,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 2,
+      "home": {
+        "x": 356.7261718750001,
+        "y": 533.8183593749995,
+        "z": 4.1444083776655205,
+        "o": 0.5880026035475348
+      }
+    },
+    {
+      "spawn_id": 902006,
+      "entry": 9810006,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 2,
+      "home": {
+        "x": 354.22539062500016,
+        "y": 515.1160156250002,
+        "z": 4.180078967852959,
+        "o": 0.5880026035475675
+      }
+    },
+    {
+      "spawn_id": 902007,
+      "entry": 9810007,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 2,
+      "home": {
+        "x": 356.6253906250002,
+        "y": 516.7160156250002,
+        "z": 4.153672196744975,
+        "o": 3.7295952571373605
+      }
+    },
+    {
+      "spawn_id": 902008,
+      "entry": 9810008,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 3,
+      "home": {
+        "x": 43.69453124999997,
+        "y": 843.8351562499995,
+        "z": 2.9597622193874713,
+        "o": 0.588002603547543
+      }
+    },
+    {
+      "spawn_id": 902009,
+      "entry": 9810009,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 3,
+      "home": {
+        "x": 46.09453124999996,
+        "y": 845.4351562499994,
+        "z": 2.9598034191792,
+        "o": 3.729595257137336
+      }
+    },
+    {
+      "spawn_id": 902010,
+      "entry": 9810010,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 3,
+      "home": {
+        "x": 73.25429687499995,
+        "y": 836.9689453124995,
+        "z": 3.049512325216356,
+        "o": 2.55359005004225
+      }
+    },
+    {
+      "spawn_id": 902011,
+      "entry": 9810011,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "farmer",
+      "depot_id": 3,
+      "home": {
+        "x": 70.85429687499996,
+        "y": 838.5689453124994,
+        "z": 3.0712988498702893,
+        "o": 5.695182703632043
+      }
+    },
+    {
+      "spawn_id": 902012,
+      "entry": 9810012,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "village_consumer",
+      "depot_id": 4,
+      "home": {
+        "x": -428.2058593749999,
+        "y": 498.7480468750001,
+        "z": 3.033428301519124,
+        "o": 5.695182703632018
+      }
+    },
+    {
+      "spawn_id": 902013,
+      "entry": 9810013,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "village_consumer",
+      "depot_id": 4,
+      "home": {
+        "x": -425.80585937499984,
+        "y": 497.1480468750001,
+        "z": 2.931911655597659,
+        "o": 2.5535900500422257
+      }
+    },
+    {
+      "spawn_id": 902014,
+      "entry": 9810014,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "village_consumer",
+      "depot_id": 4,
+      "home": {
+        "x": -388.1609374999999,
+        "y": 504.5363281250001,
+        "z": 2.308030472165346,
+        "o": 2.5535900500422257
+      }
+    },
+    {
+      "spawn_id": 902015,
+      "entry": 9810015,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "village_consumer",
+      "depot_id": 4,
+      "home": {
+        "x": -390.5609374999999,
+        "y": 506.13632812500015,
+        "z": 2.3752586385999535,
+        "o": 5.695182703632018
+      }
+    },
+    {
+      "spawn_id": 902016,
+      "entry": 9810016,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_carrier",
+      "depot_id": 5,
+      "home": {
+        "x": 23.803906250000008,
+        "y": 615.2589843749995,
+        "z": 0.7520489298777205,
+        "o": 5.695182703632045
+      }
+    },
+    {
+      "spawn_id": 902017,
+      "entry": 9810017,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_carrier",
+      "depot_id": 5,
+      "home": {
+        "x": 26.20390625000001,
+        "y": 613.6589843749996,
+        "z": 0.7793796349315487,
+        "o": 2.5535900500422524
+      }
+    },
+    {
+      "spawn_id": 902018,
+      "entry": 9810018,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 43.52460937499997,
+        "y": 616.1261718749995,
+        "z": 0.6119922615658596,
+        "o": 3.729595257137336
+      }
+    },
+    {
+      "spawn_id": 902019,
+      "entry": 9810019,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 41.12460937499998,
+        "y": 614.5261718749996,
+        "z": 0.6135952515886869,
+        "o": 0.588002603547543
+      }
+    },
+    {
+      "spawn_id": 902020,
+      "entry": 9810020,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 2.325390624999997,
+        "y": 613.9843749999995,
+        "z": 0.733578045606566,
+        "o": 0.5880026035475413
+      }
+    },
+    {
+      "spawn_id": 902021,
+      "entry": 9810021,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 4.7253906249999975,
+        "y": 615.5843749999995,
+        "z": 0.7382839048700222,
+        "o": 3.7295952571373343
+      }
+    },
+    {
+      "spawn_id": 902022,
+      "entry": 9810022,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": -1.90234375,
+        "y": 523.6484375,
+        "z": 0.5793672879409965,
+        "o": 4.6857286320100915
+      }
+    },
+    {
+      "spawn_id": 902023,
+      "entry": 9810023,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": -4.90234375,
+        "y": 499.6484375,
+        "z": 0.5758653163909913,
+        "o": 1.4265986627527
+      }
+    },
+    {
+      "spawn_id": 902024,
+      "entry": 9810024,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": -15.40234375,
+        "y": 526.6484375,
+        "z": 0.5793671882641107,
+        "o": 5.796192503739507
+      }
+    },
+    {
+      "spawn_id": 902025,
+      "entry": 9810025,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 72.916015625,
+        "y": 544.248046875,
+        "z": 2.6176688391028238,
+        "o": 2.9932648194680365
+      }
+    },
+    {
+      "spawn_id": 902026,
+      "entry": 9810026,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 50.416015625,
+        "y": 550.248046875,
+        "z": 2.6168302450140972,
+        "o": 6.007717132320201
+      }
+    },
+    {
+      "spawn_id": 902027,
+      "entry": 9810027,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 86.416015625,
+        "y": 554.748046875,
+        "z": 2.6176695527695744,
+        "o": 3.6989281828414717
+      }
+    },
+    {
+      "spawn_id": 902028,
+      "entry": 9810028,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 74.416015625,
+        "y": 529.248046875,
+        "z": 2.617237189815371,
+        "o": 1.836991548077497
+      }
+    },
+    {
+      "spawn_id": 902029,
+      "entry": 9810029,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 57.916015625,
+        "y": 539.748046875,
+        "z": 2.6203885179683524,
+        "o": 0.37934577992564683
+      }
+    },
+    {
+      "spawn_id": 902030,
+      "entry": 9810030,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 75.916015625,
+        "y": 554.748046875,
+        "z": 2.617671521542539,
+        "o": 4.19844423578728
+      }
+    },
+    {
+      "spawn_id": 902031,
+      "entry": 9810031,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 65.416015625,
+        "y": 533.748046875,
+        "z": 2.6173592348786348,
+        "o": 1.1560986974594512
+      }
+    },
+    {
+      "spawn_id": 902032,
+      "entry": 9810032,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 83.416015625,
+        "y": 545.748046875,
+        "z": 2.6176688669155315,
+        "o": 3.2244744484623937
+      }
+    },
+    {
+      "spawn_id": 902033,
+      "entry": 9810033,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 60.916015625,
+        "y": 547.248046875,
+        "z": 2.616144986812161,
+        "o": 6.0109194233685965
+      }
+    },
+    {
+      "spawn_id": 902034,
+      "entry": 9810034,
+      "base_entry": 11328,
+      "agent_type": 0,
+      "world_faction_id": 1,
+      "capability": "city_consumer",
+      "depot_id": 5,
+      "home": {
+        "x": 77.416015625,
+        "y": 538.248046875,
+        "z": 2.617668081425526,
+        "o": 2.414682837878785
+      }
+    },
+    {
+      "spawn_id": 902035,
+      "entry": 9810035,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 133.64322916666669,
+        "y": 1020.6305338541666,
+        "z": 0.8597046004419973,
+        "o": 3.20401146358575
+      }
+    },
+    {
+      "spawn_id": 902036,
+      "entry": 9810036,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 131.14322916666669,
+        "y": 1025.6305338541665,
+        "z": 0.49335826959036466,
+        "o": 3.5598169831690147
+      }
+    },
+    {
+      "spawn_id": 902037,
+      "entry": 9810037,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 118.64322916666667,
+        "y": 1030.6305338541665,
+        "z": 0.7085270717162818,
+        "o": 4.621729093183943
+      }
+    },
+    {
+      "spawn_id": 902038,
+      "entry": 9810038,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 113.64322916666667,
+        "y": 1035.6305338541665,
+        "z": 0.9773197784888219,
+        "o": 4.957367643511556
+      }
+    },
+    {
+      "spawn_id": 902039,
+      "entry": 9810039,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 103.64322916666667,
+        "y": 1030.6305338541665,
+        "z": 1.0862766724494826,
+        "o": 5.617216069800481
+      }
+    },
+    {
+      "spawn_id": 902040,
+      "entry": 9810040,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 101.14322916666667,
+        "y": 1020.6305338541666,
+        "z": 0.9810646294399049,
+        "o": 6.222653287397479
+      }
+    },
+    {
+      "spawn_id": 902041,
+      "entry": 9810041,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 103.64322916666667,
+        "y": 1010.6305338541666,
+        "z": 1.2594876776388806,
+        "o": 0.5713374798336268
+      }
+    },
+    {
+      "spawn_id": 902042,
+      "entry": 9810042,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 111.14322916666667,
+        "y": 1003.1305338541666,
+        "z": 1.8139554562933506,
+        "o": 1.1955255039389392
+      }
+    },
+    {
+      "spawn_id": 902043,
+      "entry": 9810043,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 123.64322916666667,
+        "y": 1003.1305338541666,
+        "z": 1.7419165226546514,
+        "o": 1.9195673303788037
+      }
+    },
+    {
+      "spawn_id": 902044,
+      "entry": 9810044,
+      "base_entry": 38,
+      "agent_type": 5,
+      "world_faction_id": 2,
+      "capability": "raider",
+      "depot_id": 6,
+      "home": {
+        "x": 131.14322916666669,
+        "y": 1010.6305338541666,
+        "z": 1.4655706944686577,
+        "o": 2.553590050042226
+      }
+    }
+  ]
+}

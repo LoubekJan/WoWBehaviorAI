@@ -58,6 +58,7 @@ namespace LivingSupply
         uint32 Low = 0;
         uint64 Stolen = 0;
         uint64 Exported = 0;
+        uint64 Delivered = 0, Consumed = 0;
     };
     struct Carcass
     {
@@ -115,12 +116,24 @@ namespace LivingSupply
             return true;
         }
 
+        // A second explicit layout is selected only on an empty ledger. The
+        // caller must first prove the complete bounded v11 simulation scope.
+        // Default construction retains every original preview-v8 restriction.
+        bool ConfigureResidentsV11()
+        {
+            if (!_actors.empty() || !_fields.empty() || !_carcasses.empty() || _depots.size() != 6 ||
+                _counters.InitialFood || _residentsV11) return false;
+            for (uint32 id = 1; id <= 6; ++id) if (!GetDepot(id)) return false;
+            _residentsV11 = true;
+            return true;
+        }
+
         // The reviewed three crop sources each belong to their same-numbered
         // village depot. Crops are potential, not carried or stored food.
         bool ConfigureField(uint32 id, uint64 nowMs, uint32 initial = FieldCapacity,
             uint32 capacity = FieldCapacity, uint64 regrowMs = FieldRegrowMs)
         {
-            if (id < 4 || id > 6 || !GetDepot(id) || !capacity || capacity > FieldCapacity ||
+            if ((_residentsV11 ? (id < 1 || id > 3) : (id < 4 || id > 6)) || !GetDepot(id) || !capacity || capacity > FieldCapacity ||
                 initial > capacity || regrowMs < FieldRegrowMs)
                 return false;
             if (auto current = GetField(id))
@@ -178,10 +191,10 @@ namespace LivingSupply
         bool RegisterRaider(uint64 actor, uint32 ownDepotId = 3, uint32 sourceDepotId = 1,
             uint32 cargoCapacity = RaiderCargoCapacity, bool allVillageSources = false)
         {
-            if (!actor || ownDepotId != 3 || sourceDepotId != 1 || cargoCapacity != RaiderCargoCapacity ||
+            if (!actor || ownDepotId != (_residentsV11 ? 6u : 3u) || sourceDepotId != 1 || cargoCapacity != RaiderCargoCapacity ||
                 !GetDepot(ownDepotId) || !GetDepot(sourceDepotId))
                 return false;
-            if (allVillageSources && (!GetDepot(4) || !GetDepot(5) || !GetDepot(6)))
+            if (allVillageSources && (_residentsV11 ? (!GetDepot(2) || !GetDepot(3) || !GetDepot(4)) : (!GetDepot(4) || !GetDepot(5) || !GetDepot(6))))
                 return false;
             auto current = _actors.find(actor);
             if (current != _actors.end())
@@ -202,8 +215,8 @@ namespace LivingSupply
         bool RegisterCarrier(uint64 actor, uint32 ownDepotId = CityDepotId,
             uint32 cargoCapacity = CarrierCargoCapacity)
         {
-            if (!actor || ownDepotId != CityDepotId || cargoCapacity != CarrierCargoCapacity ||
-                !GetDepot(ownDepotId) || !GetDepot(1) || !GetDepot(4) || !GetDepot(5) || !GetDepot(6))
+            if (!actor || ownDepotId != (_residentsV11 ? 5u : CityDepotId) || cargoCapacity != CarrierCargoCapacity ||
+                !GetDepot(ownDepotId) || !GetDepot(1) || (_residentsV11 ? (!GetDepot(2) || !GetDepot(3) || !GetDepot(4)) : (!GetDepot(4) || !GetDepot(5) || !GetDepot(6))))
                 return false;
             auto current = _actors.find(actor);
             if (current != _actors.end())
@@ -397,7 +410,7 @@ namespace LivingSupply
             if (!physicallyCompleted || !eventSerial || !requested || requested > RaiderCargoCapacity ||
                 owner.Predator || owner.Consumer || owner.Carrier || !owner.RaidSourceDepotId ||
                 (owner.RaidSourceDepotId != sourceDepotId && !(owner.AllVillageRaidSources &&
-                    sourceDepotId >= 4 && sourceDepotId <= 6)) ||
+                    (_residentsV11 ? sourceDepotId >= 1 && sourceDepotId <= 4 : sourceDepotId >= 4 && sourceDepotId <= 6))) ||
                 source == _depots.end())
                 return Rejected("THEFT_NOT_AUTHORIZED");
             uint32 amount = std::min(requested, owner.Capacity - owner.Cargo);
@@ -422,9 +435,9 @@ namespace LivingSupply
                 return *replay;
             auto source = _depots.find(sourceDepotId);
             if (!physicallyCompleted || !eventSerial || !requested || requested > CarrierCargoCapacity ||
-                !owner.Carrier || owner.DepotId != CityDepotId || owner.Predator || owner.Consumer ||
+                !owner.Carrier || owner.DepotId != (_residentsV11 ? 5u : CityDepotId) || owner.Predator || owner.Consumer ||
                 owner.RaidSourceDepotId || owner.FieldId || source == _depots.end() ||
-                (sourceDepotId != 1 && sourceDepotId != 4 && sourceDepotId != 5 && sourceDepotId != 6))
+                (_residentsV11 ? (sourceDepotId < 1 || sourceDepotId > 3) : (sourceDepotId != 1 && sourceDepotId != 4 && sourceDepotId != 5 && sourceDepotId != 6)))
                 return Rejected("LOAD_NOT_AUTHORIZED");
             if (owner.Cargo >= owner.Capacity) return Rejected("CARGO_FULL");
             // Recheck actual stock after any intervening meal, theft or other
@@ -451,13 +464,14 @@ namespace LivingSupply
                 return *replay;
             auto depot = _depots.find(depotId);
             if (!physicallyCompleted || !eventSerial || !requested || owner.Predator || owner.Consumer ||
-                owner.DepotId != depotId || depot == _depots.end())
+                (owner.DepotId != depotId && !(_residentsV11 && owner.Carrier && (depotId == 4 || depotId == 5))) || depot == _depots.end())
                 return Rejected("DELIVERY_NOT_AUTHORIZED");
             uint32 amount = std::min({requested, owner.Cargo, depot->second.Capacity - depot->second.Stock});
             if (!amount)
                 return Rejected(owner.Cargo ? "DEPOT_FULL" : "NO_CARGO");
             owner.Cargo -= amount;
             depot->second.Stock += amount;
+            depot->second.Delivered += amount;
             _counters.DeliveredTotal += amount;
             return SaveEvent(owner, eventSerial, EventKind::Delivery, depotId, requested, amount);
         }
@@ -473,11 +487,12 @@ namespace LivingSupply
                 return *replay;
             auto depot = _depots.find(depotId);
             if (!physicallyCompleted || !eventSerial || !portions || owner.Predator ||
-                owner.DepotId != depotId || depot == _depots.end())
+                (owner.DepotId != depotId && !(_residentsV11 && owner.Carrier && (depotId == 4 || depotId == 5))) || depot == _depots.end())
                 return Rejected("MEAL_NOT_AUTHORIZED");
             if (depot->second.Stock < portions)
                 return Rejected("NO_FOOD");
             depot->second.Stock -= portions;
+            depot->second.Consumed += portions;
             _counters.ConsumedTotal += portions;
             _counters.DepotConsumed += portions;
             return SaveEvent(owner, eventSerial, EventKind::Meal, depotId, portions, portions);
@@ -616,6 +631,7 @@ namespace LivingSupply
         std::map<uint64, Carcass> _carcasses;
         uint64 _nextClaimSerial = 0;
         Counters _counters;
+        bool _residentsV11 = false;
     };
 }
 #endif

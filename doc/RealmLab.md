@@ -1,5 +1,29 @@
 # Vlastní svět jako jediný realm
 
+## Připravené převzetí současného osazení — living-v11
+
+Nový profil `living-v11` zachovává současnou mapu preview-v11 a všech
+45 pojmenovaných obyvatel; mění jejich řízení na AI World. Domovy,
+samostatné šablony, frakce a upravené Studio návrhy se nepřepisují.
+Neobnovuje se vyřazených 100 testovacích NPC ani se nepřidává zvěř.
+
+Dvanáct farmářů používá tři skutečná pole a sklady přímo u sýpek:
+pravá vesnice 1, horní 2 a levá 3. Čtyři jižní obyvatelé používají
+venkovní sklad 4; na jihu není zdrojové pole ani sýpka. Dva nosiči přepravují
+existující potraviny do jižního a městského skladu 5. Celkem 21 spotřebitelů
+tvoří čtyři jižní a sedmnáct městských obyvatel. Deset Defias získává zásoby
+přepady a odnáší je do vlastního táborového skladu 6.
+
+Přepínač `AIWorld.LivingResidentsV11.Enabled` odděluje tento provoz od
+historických schopností v8. LLM řízení je vypnuté a zůstává samostatným
+zapnutím pro vybrané karty. Potřeby, úroda, zásoby, náklad a rozpracované
+výpravy se přes restart zatím neukládají.
+
+Příprava zahrnuje nové ověření interakčních míst a pozemních tras.
+Kontroly, CI/CD a nasazení profilu ještě následují; dřívější nativní
+[activation.json](../data/realm_lab/aiworldlab/preview-v11/activation.json)
+není důkazem nového řízeného chování. [Aktuální specifikace](../data/realm_lab/aiworldlab/preview-v11/living-population.json).
+
 ## Přesun taverny a osazení veřejných budov — preview-v11, 2. listopadu 2026
 
 Současný profil `residents-v11` používá nově uloženou mapu s přesunutou

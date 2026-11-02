@@ -200,6 +200,7 @@ bool AIWorldMgr::IsRaidGuard(AgentRecord const& record) const
 
 std::optional<FoodDepotTelemetry> AIWorldMgr::DescribeFoodDepot(uint32 id) const
 {
+    if (_livingResidentsV11Enabled) return DescribeResidentFoodDepot(id);
     auto depot = _supplyLedger.GetDepot(id);
     auto location = LivingSupply::DepotLocation(id);
     auto field = _livingFieldsEnabled ? LivingFields::Field(id) : nullptr;
@@ -229,6 +230,7 @@ std::optional<FoodDepotTelemetry> AIWorldMgr::DescribeFoodDepot(uint32 id) const
 
 std::optional<LivingRaidTelemetry> AIWorldMgr::DescribeLivingRaid(Creature const& creature, AgentRecord const& record) const
 {
+    if (_livingResidentsV11Enabled) return DescribeResidentRaid(creature, record);
     bool raider = IsSupplyRaider(record);
     if ((!raider && !IsRaidGuard(record)) || !Bound(record, creature, false)) return std::nullopt;
     auto const& raid = raider ? _raidRaiders.at(record.SpawnId) : _raidGuard;

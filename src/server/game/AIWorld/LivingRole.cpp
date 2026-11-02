@@ -654,7 +654,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     bool supplyRaider = IsSupplyRaider(record);
     bool fieldWorker = IsFieldWorker(record);
     bool caravanMember = IsCaravanMember(record);
-    bool sharedFood = supplyConsumer || supplyRaider || fieldWorker || caravanMember;
+    bool residentV11 = IsLivingResidentV11(record);
+    bool sharedFood = residentV11 || supplyConsumer || supplyRaider || fieldWorker || caravanMember;
     if (!scoped || role == Role::None || IsLivingWolf(record) || creature.IsPet() ||
         !creature.GetCharmerOrOwnerGUID().IsEmpty() || creature.IsControlledByPlayer())
     {
@@ -1062,7 +1063,7 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
             else
             {
                 approvedRecovery = RecoveryMovement{*request.Destination, homePoint,
-                    caravanMember ? LivingCaravan::HomeRadius : supplyRaider ? LivingRaid::RaiderHomeRadius : 384.0f,
+                    residentV11 ? 1536.0f : caravanMember ? LivingCaravan::HomeRadius : supplyRaider ? LivingRaid::RaiderHomeRadius : 384.0f,
                     nowMs < state.DangerUntilMs ? std::optional<ActionPosition>(state.DangerPosition) : std::nullopt, false};
                 approvedRecovery->DangerRadius = LivingRolePolicy::SafetyRadius(record.Id.Value);
             }
@@ -1402,6 +1403,8 @@ bool AIWorldMgr::UpdateLivingRole(AgentRecord& record, Creature& creature, uint6
     }
     auto supplyStep = [&](ActionPosition const& destination)
     { return PlanLivingSupplyStep(record, creature, destination, nowMs, approvedSupplyRecovery); };
+    if (residentV11 && UpdateLivingResidentV11(record, creature, nowMs, start, supplyStep))
+        return true;
     if (caravanMember && UpdateLivingCaravan(record, creature, nowMs, start, supplyStep))
         return true;
     if (fieldWorker && UpdateLivingFieldWorker(record, creature, nowMs, start, supplyStep))
