@@ -610,3 +610,240 @@ TEST_CASE("Strict resident endpoint checks require sight and isolate cached lega
     REQUIRE(cache.Matches(from,home,1.9f,384,nullptr,8,true,true));
     REQUIRE_FALSE(cache.Matches(from,home,1.9f,384,nullptr,8,true));
 }
+
+namespace
+{
+    auto fineDoorBounds = [](ActionPosition const& p)
+    { return p.X >= -3 && p.X <= 5 && p.Y >= -3 && p.Y <= 10; };
+    auto fineDoorFloor = [](ActionPosition const& p) -> std::optional<float>
+    { return p.Y < 2.5f ? 0 : p.Y < 3.0f ? .25f : p.Y < 3.5f ? .5f : .75f; };
+    auto fineDoorBody = [](ActionPosition const& a, ActionPosition const& b)
+    {
+        return LivingSurfaceCorridor::BodyClear(a,b,.2f,2.031f,
+            [](ActionPosition const& from, ActionPosition const& to)
+            {
+                // The .625-yard centre is deliberately between both older
+                // grids. A radius-.2 body fits this .825-yard stair doorway.
+                return !CrossesRectangle(from,to,-4,.15f,3.0f,3.3f) &&
+                    !CrossesRectangle(from,to,.975f,6,3.0f,3.3f);
+            });
+    };
+}
+
+TEST_CASE("Opted-in mixed graph keeps immutable physical proof through a sub-yard stair doorway", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{725,0,0,0}, home{725,0,8,.75f};
+    auto goal = [&](ActionPosition const& p)
+    { return LivingReturnPolicy::HomeEndpointMatches(home,1.9f,p,p,true,true); };
+    Search legacy;
+    FinishDetour(legacy,from,home,1.9f,fineDoorFloor,fineDoorBody,fineDoorBounds,goal);
+    REQUIRE(legacy.State == Status::Rejected);
+    REQUIRE(legacy.Spacing == NarrowGridStep);
+    REQUIRE(legacy.Route.empty());
+    Search search; search.FineTurnsEnabled = true;
+    unsigned calls = 0;
+    while (search.State == Status::Pending && ++calls < 5000)
+    {
+        auto before = search;
+        unsigned samples = 0;
+        auto height = [&](ActionPosition const& p) { ++samples; return fineDoorFloor(p); };
+        Advance(search,from,home,1.9f,96,height,fineDoorBody,fineDoorBounds,goal,8,1);
+        REQUIRE(samples <= 8);
+        REQUIRE(search.TotalNodes() <= search.NodeLimit);
+        REQUIRE(search.EdgeAttempts <= search.EdgeLimit);
+        REQUIRE(search.EdgeAttempts >= before.EdgeAttempts);
+        REQUIRE(search.TotalNodes() >= before.TotalNodes());
+        for (std::size_t i = 0; i < before.Nodes.size(); ++i)
+        {
+            auto const& old = before.Nodes[i]; auto const& node = search.Nodes[i];
+            REQUIRE(node.X == old.X);
+            REQUIRE(node.Y == old.Y);
+            if (old.Closed)
+            {
+                REQUIRE(node.Closed);
+                REQUIRE(Same(old.Position,node.Position));
+                REQUIRE(old.Cost == node.Cost);
+                REQUIRE(old.Parent == node.Parent);
+            }
+        }
+        REQUIRE(search.Spacing == FineTurnGridStep);
+        REQUIRE(search.RetiredNodes == 0);
+        if (search.State != Status::Complete) REQUIRE(search.Route.empty());
+    }
+    REQUIRE(search.State == Status::Complete);
+    REQUIRE(search.Spacing == FineTurnGridStep);
+    REQUIRE(search.RetiredNodes == 0);
+    REQUIRE(goal(search.Route.back()));
+    bool shortTurn = false, coarseTravel = false, changedDirection = false;
+    ActionPosition previous = from, beforePrevious = from;
+    for (auto const& point : search.Route)
+    {
+        float length = LivingReturnPolicy::Distance(previous,point);
+        shortTurn = shortTurn || length < 1.0f;
+        coarseTravel = coarseTravel || length >= GridStep;
+        float cross = (previous.X-beforePrevious.X)*(point.Y-previous.Y) -
+            (previous.Y-beforePrevious.Y)*(point.X-previous.X);
+        changedDirection = changedDirection || std::abs(cross) > .01f;
+        LivingSurfaceCorridor::Search edge;
+        REQUIRE(LivingSurfaceCorridor::Advance(edge,previous,point,fineDoorFloor,
+            fineDoorBody,fineDoorBounds,12) == Status::Complete);
+        beforePrevious = previous; previous = point;
+    }
+    REQUIRE(shortTurn);
+    REQUIRE(coarseTravel);
+    REQUIRE(changedDirection);
+}
+
+TEST_CASE("Mixed edge retries preserve their cursor context and shared work admission", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{725,0,0,0}, home{725,0,8,.75f};
+    auto goal = homeBand(home,1.9f);
+    Search baseline; baseline.FineTurnsEnabled = true;
+    unsigned calls = 0;
+    while (baseline.NextStride == 4 && baseline.State == Status::Pending && ++calls < 1000)
+        Advance(baseline,from,home,1.9f,96,fineDoorFloor,fineDoorBody,fineDoorBounds,goal,8,1);
+    REQUIRE(baseline.State == Status::Pending);
+    REQUIRE(baseline.NextStride < 4);
+    REQUIRE_FALSE(baseline.EdgeActive);
+    Search search;
+    SECTION("zero geometry allowance cannot spend or advance a shorter retry")
+    {
+        search = baseline;
+        auto before = search;
+        unsigned callbacks = 0;
+        auto height = [&](ActionPosition const&) -> std::optional<float> { ++callbacks; return 0; };
+        REQUIRE(Advance(search,from,home,1.9f,96,height,fineDoorBody,fineDoorBounds,goal,0,1) == Status::Pending);
+        REQUIRE(Advance(search,from,home,1.9f,96,height,fineDoorBody,fineDoorBounds,goal,8,0) == Status::Pending);
+        REQUIRE(callbacks == 0);
+        REQUIRE(search.Spacing == before.Spacing);
+        REQUIRE(search.TotalNodes() == before.TotalNodes());
+        REQUIRE(search.EdgeAttempts == before.EdgeAttempts);
+        REQUIRE(search.Current == before.Current);
+        REQUIRE(search.NextDirection == before.NextDirection);
+        REQUIRE(search.NextStride == before.NextStride);
+        REQUIRE(search.EdgeStride == before.EdgeStride);
+        REQUIRE(search.Open == before.Open);
+    }
+    SECTION("a proof cannot change to legacy execution after starting")
+    {
+        search = baseline; search.FineTurnsEnabled = false;
+        REQUIRE(Advance(search,from,home,1.9f,96,fineDoorFloor,fineDoorBody,fineDoorBounds,goal) == Status::Rejected);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_CONTEXT");
+        REQUIRE(search.Route.empty());
+    }
+    SECTION("a different physical origin cannot inherit its old stair proof")
+    {
+        search = baseline; from.X += .25f;
+        REQUIRE(Advance(search,from,home,1.9f,96,fineDoorFloor,fineDoorBody,fineDoorBounds,goal) == Status::Rejected);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_CONTEXT");
+        REQUIRE(search.Route.empty());
+    }
+    SECTION("node admission is shared by coarse and fine physical edges")
+    {
+        search.FineTurnsEnabled = true; search.NodeLimit = 2;
+        FinishDetour(search,from,home,1.9f,fineDoorFloor,fineDoorBody,fineDoorBounds,goal);
+        REQUIRE(search.State == Status::Rejected);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_NODE_LIMIT");
+        REQUIRE(search.TotalNodes() <= search.NodeLimit);
+        REQUIRE(search.Route.empty());
+    }
+    SECTION("edge admission cannot be reset by a shorter physical retry")
+    {
+        search.FineTurnsEnabled = true; search.EdgeLimit = 2;
+        auto blocked = [](ActionPosition const&, ActionPosition const&) { return false; };
+        FinishDetour(search,from,home,1.9f,fineDoorFloor,blocked,fineDoorBounds,goal);
+        REQUIRE(search.State == Status::Rejected);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_EDGE_LIMIT");
+        REQUIRE(search.EdgeAttempts == search.EdgeLimit);
+        REQUIRE(search.Nodes.size() == 1);
+        REQUIRE(search.Route.empty());
+    }
+}
+
+TEST_CASE("Mixed graph refines only rejected physical edges and never retries missing tiles or bounds", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{725,0,0,0}, home{725,0,8,0};
+    Search search; search.FineTurnsEnabled = true;
+    auto bounds = [](ActionPosition const&) { return true; };
+    auto goal = homeBand(home,1.9f);
+    SECTION("each sealed direction spends exactly three physical attempts")
+    {
+        auto blocked = [](ActionPosition const&, ActionPosition const&) { return false; };
+        FinishDetour(search,from,home,1.9f,flatDetour,blocked,bounds,goal);
+        REQUIRE(search.EdgeAttempts == 24);
+        REQUIRE(search.Nodes.size() == 1);
+    }
+    SECTION("a missing tile does not create a finer query")
+    {
+        auto tile = [&](ActionPosition const& p) { return Same(p,from); };
+        FinishDetour(search,from,home,1.9f,flatDetour,clearDetour,bounds,goal,tile);
+        REQUIRE(search.EdgeAttempts == 8);
+    }
+    SECTION("excluded physical bounds do not create a finer query")
+    {
+        auto onlyOrigin = [&](ActionPosition const& p) { return Same(p,from); };
+        FinishDetour(search,from,home,1.9f,flatDetour,clearDetour,onlyOrigin,goal);
+        REQUIRE(search.EdgeAttempts == 8);
+    }
+    REQUIRE(search.State == Status::Rejected);
+    REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_EXHAUSTED");
+    REQUIRE(search.Route.empty());
+    REQUIRE(search.RetiredNodes == 0);
+}
+
+TEST_CASE("Fine offsets reconnect to a single coarse grid on both sides of the source", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    // Shared anchors stop every local stair offset spawning another whole
+    // outdoor lattice. Half-cell ties must agree with the physical replay.
+    REQUIRE(CoarseAxis(2,0) == 4);
+    REQUIRE(CoarseAxis(-2,0) == -4);
+    REQUIRE(CoarseAxis(0,1) == 4);
+    REQUIRE(CoarseAxis(0,-1) == -4);
+    for (int coordinate = -32; coordinate <= 32; ++coordinate)
+        for (int direction = -1; direction <= 1; ++direction)
+        {
+            int anchor = CoarseAxis(coordinate,direction);
+            REQUIRE(anchor % 4 == 0);
+            REQUIRE(std::abs(anchor-coordinate) <= 4);
+            if (direction) REQUIRE((anchor-coordinate)*direction > 0);
+            else REQUIRE(std::abs(anchor-coordinate) <= 2);
+        }
+}
+
+TEST_CASE("Fine-turn routing never converts an unsafe wall floor or tile into a passage", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{725,0,0,0}, home{725,0,8,.75f};
+    auto goal = [&](ActionPosition const& p)
+    { return LivingReturnPolicy::HomeEndpointMatches(home,1.9f,p,p,true,true); };
+    Search search; search.FineTurnsEnabled = true;
+    SECTION("sealed stair door")
+    {
+        auto sealed = [](ActionPosition const& a, ActionPosition const& b)
+        { return !CrossesRectangle(a,b,-4,6,3.0f,3.3f); };
+        FinishDetour(search,from,home,1.9f,fineDoorFloor,sealed,fineDoorBounds,goal);
+    }
+    SECTION("cliff through the door")
+    {
+        auto cliff = [](ActionPosition const& p) -> std::optional<float> { return p.Y < 3 ? 0 : -3; };
+        FinishDetour(search,from,home,1.9f,cliff,fineDoorBody,fineDoorBounds,goal);
+    }
+    SECTION("missing intermediate map tile")
+    {
+        auto tile = [](ActionPosition const& p) { return p.Y < 2.75f || p.Y > 3.5f; };
+        FinishDetour(search,from,home,1.9f,fineDoorFloor,fineDoorBody,fineDoorBounds,goal,tile);
+    }
+    SECTION("another supported floor at the same XY")
+    {
+        home.Z = 6;
+        FinishDetour(search,from,home,1.9f,fineDoorFloor,fineDoorBody,fineDoorBounds,goal);
+    }
+    REQUIRE(search.State == Status::Rejected);
+    REQUIRE(search.Route.empty());
+    REQUIRE(search.TotalNodes() <= search.NodeLimit);
+    REQUIRE(search.EdgeAttempts <= search.EdgeLimit);
+}

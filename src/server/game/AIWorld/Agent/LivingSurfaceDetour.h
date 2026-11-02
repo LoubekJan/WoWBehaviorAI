@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <string_view>
 #include <unordered_map>
 
 namespace LivingSurfaceDetour
@@ -14,6 +15,8 @@ namespace LivingSurfaceDetour
     using Status = LivingSurfaceCorridor::Status;
     constexpr float GridStep = 2.5f;
     constexpr float NarrowGridStep = 1.25f;
+    constexpr float FineTurnGridStep = 0.625f;
+    constexpr float FineTurnGoalWeight = 3.0f;
     constexpr float MaxRouteLength = 480.0f;
     constexpr unsigned MaxNodes = 512;
     constexpr unsigned MaxEdges = 2048;
@@ -36,6 +39,9 @@ namespace LivingSurfaceDetour
         ActionPosition From, Home;
         float ArrivalRadius = 0, Limit = 0;
         float Spacing = GridStep;
+        // Sub-yard turns require the explicit bounded polyline executor. The
+        // default graph retains its original two-stage, single-leg behavior.
+        bool FineTurnsEnabled = false, StartedFineTurnsEnabled = false;
         // These may only be lowered, before the first call, e.g. in a test.
         unsigned NodeLimit = MaxNodes, EdgeLimit = MaxEdges;
         unsigned StartedNodeLimit = 0, StartedEdgeLimit = 0;
@@ -53,6 +59,10 @@ namespace LivingSurfaceDetour
         std::vector<ActionPosition> Route;
         unsigned Current = NoNode, NextDirection = 0;
         unsigned EdgeFrom = NoNode, EdgeExisting = NoNode;
+        // Fine-turn graphs share an immutable .625-yard coordinate system.
+        // Each direction starts at stride four and only a physical rejection
+        // may retry that same direction at stride two, then one.
+        unsigned NextStride = 4, EdgeStride = 4;
         int EdgeX = 0, EdgeY = 0;
         ActionPosition EdgeTarget;
         bool EdgeActive = false;
@@ -68,10 +78,24 @@ namespace LivingSurfaceDetour
     inline std::uint64_t Key(int x, int y)
     { return (std::uint64_t(std::uint32_t(x)) << 32) | std::uint32_t(y); }
 
+    inline int CoarseAxis(int coordinate, int direction)
+    {
+        float cell = float(coordinate)/4.0f;
+        return int(4.0f*(direction > 0 ? std::floor(cell)+1.0f :
+            direction < 0 ? std::ceil(cell)-1.0f : std::round(cell)));
+    }
+
     inline bool Before(Search const& search, unsigned a, unsigned b)
     {
         auto const& left = search.Nodes[a]; auto const& right = search.Nodes[b];
         float leftTotal = left.Cost+left.Remaining, rightTotal = right.Cost+right.Remaining;
+        if (search.FineTurnsEnabled)
+        {
+            // Prefer progress before densely exploring alternate approaches
+            // to a wall. Physical costs, route length and work caps stay exact.
+            leftTotal = left.Cost+FineTurnGoalWeight*left.Remaining;
+            rightTotal = right.Cost+FineTurnGoalWeight*right.Remaining;
+        }
         if (leftTotal != rightTotal) return leftTotal < rightTotal;
         if (left.Remaining != right.Remaining) return left.Remaining < right.Remaining;
         return a < b;
@@ -116,6 +140,12 @@ namespace LivingSurfaceDetour
         return result;
     }
 
+    inline bool PhysicalEdgeFailure(char const* failure)
+    {
+        std::string_view value(failure ? failure : "");
+        return value == "SURFACE_OBSTACLE" || value == "SURFACE_CLIFF" || value == "SURFACE_HEIGHT";
+    }
+
     // Incremental A* over supported short edges, not a series of speculative
     // moves. It can temporarily head away from home but publishes nothing
     // until an entire route reaches the caller's physically supported goal.
@@ -137,7 +167,8 @@ namespace LivingSurfaceDetour
         };
         if (search.Started && (!Same(search.From, from) || !Same(search.Home, home) ||
             search.ArrivalRadius != arrivalRadius || search.Limit != limit ||
-            search.NodeLimit != search.StartedNodeLimit || search.EdgeLimit != search.StartedEdgeLimit))
+            search.NodeLimit != search.StartedNodeLimit || search.EdgeLimit != search.StartedEdgeLimit ||
+            search.FineTurnsEnabled != search.StartedFineTurnsEnabled))
             return reject("SURFACE_DETOUR_CONTEXT");
         if (search.State != Status::Pending || !sampleBudget || !edgeBudget) return search.State;
         sampleBudget = std::min(8u, sampleBudget);
@@ -158,6 +189,8 @@ namespace LivingSurfaceDetour
             search.Started = true; search.From = from; search.Home = home;
             search.ArrivalRadius = arrivalRadius; search.Limit = limit;
             search.StartedNodeLimit = search.NodeLimit; search.StartedEdgeLimit = search.EdgeLimit;
+            search.StartedFineTurnsEnabled = search.FineTurnsEnabled;
+            if (search.FineTurnsEnabled) search.Spacing = FineTurnGridStep;
             search.Nodes.reserve(search.NodeLimit); search.Open.reserve(search.NodeLimit);
             search.Index.reserve(search.NodeLimit);
             search.Nodes.push_back({from, 0, 0, 0, Remaining(from, home, arrivalRadius)});
@@ -171,6 +204,8 @@ namespace LivingSurfaceDetour
             {
                 if (search.Open.empty())
                 {
+                    if (search.FineTurnsEnabled)
+                        return reject("SURFACE_DETOUR_EXHAUSTED");
                     // A room can contain several coarse cells while its
                     // supported doorway falls between their 2.5-yard tracks.
                     // Refine the exhausted graph once, from the same physical
@@ -194,7 +229,7 @@ namespace LivingSurfaceDetour
                     search.Spacing = NarrowGridStep;
                     Queue(search, 0);
                 }
-                search.Current = Pop(search); search.NextDirection = 0;
+                search.Current = Pop(search); search.NextDirection = 0; search.NextStride = 4;
                 auto& current = search.Nodes[search.Current]; current.Closed = true; ++search.Expanded;
                 if (current.Remaining == 0 && isGoal(current.Position))
                 {
@@ -214,7 +249,17 @@ namespace LivingSurfaceDetour
             {
                 auto direction = directions[search.NextDirection++];
                 auto const& current = search.Nodes[search.Current];
-                int x = current.X+direction[0], y = current.Y+direction[1];
+                unsigned stride = search.FineTurnsEnabled ? search.NextStride : 1;
+                search.NextStride = 4;
+                int x = current.X+direction[0]*int(stride), y = current.Y+direction[1]*int(stride);
+                if (search.FineTurnsEnabled && stride == 4)
+                {
+                    // Rejoin shared coarse intersections after a fine turn.
+                    // Extending every fine offset by 2.5 yards instead would
+                    // create overlapping outdoor lattices around each wall.
+                    x = CoarseAxis(current.X,direction[0]);
+                    y = CoarseAxis(current.Y,direction[1]);
+                }
                 ActionPosition target{from.MapId, from.X+x*search.Spacing, from.Y+y*search.Spacing, current.Position.Z};
                 if (std::hypot(target.X-from.X, target.Y-from.Y) > MaxRouteLength ||
                     std::hypot(target.X-home.X, target.Y-home.Y) > limit) continue;
@@ -226,6 +271,7 @@ namespace LivingSurfaceDetour
                 if (search.EdgeAttempts == search.EdgeLimit) return reject("SURFACE_DETOUR_EDGE_LIMIT");
                 ++search.EdgeAttempts;
                 search.EdgeFrom = search.Current; search.EdgeExisting = index;
+                search.EdgeStride = stride;
                 search.EdgeX = x; search.EdgeY = y; search.EdgeTarget = target;
                 search.Edge = {}; search.EdgeActive = true;
                 break;
@@ -238,7 +284,19 @@ namespace LivingSurfaceDetour
             search.EdgeTarget, heightAt, clearSegment, contains, sampleBudget-startSample, hasTile, true);
         if (state == Status::Pending) return search.State;
         search.EdgeActive = false; search.LastEdgeFailure = search.Edge.Failure;
-        if (state == Status::Rejected) return search.State;
+        if (state == Status::Rejected)
+        {
+            // Keep coarse travel along a building, using short edges only
+            // where the same physical direction actually needs a finer turn.
+            // Closed cells and their parent edges are never reopened. Every
+            // retry starts a fresh bounded corridor and pays the shared cap.
+            if (search.FineTurnsEnabled && search.EdgeStride > 1 && PhysicalEdgeFailure(search.LastEdgeFailure))
+            {
+                --search.NextDirection;
+                search.NextStride = search.EdgeStride/2;
+            }
+            return search.State;
+        }
         auto endpoint = search.Edge.Route.back();
         float cost = search.Nodes[search.EdgeFrom].Cost+search.Edge.Length;
         if (search.Edge.Length > 6.0f)

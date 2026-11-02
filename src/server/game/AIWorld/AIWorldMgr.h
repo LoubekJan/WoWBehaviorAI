@@ -349,6 +349,7 @@ class TC_GAME_API AIWorldMgr
         std::optional<LivingSupplyTelemetry> DescribeLivingSupply(Creature const& creature, AgentRecord const& record) const;
         std::optional<LivingRaidTelemetry> DescribeLivingRaid(Creature const& creature, AgentRecord const& record) const;
         bool IsLivingRaidPathMemorySafe(Creature const& creature, std::vector<ActionPosition> const& path) const;
+        bool IsCurrentResidentSurfaceProof(Creature const& creature, RecoveryMovement const& request) const;
 
         // Thin Manual-only wrappers around the otherwise-private
         // RequestJoinGroupWithPolicy()/RequestLeaveGroupWithPolicy() below -

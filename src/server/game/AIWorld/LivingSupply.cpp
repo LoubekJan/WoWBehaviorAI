@@ -566,6 +566,25 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingSupply(Creature c
     return info;
 }
 
+bool AIWorldMgr::IsCurrentResidentSurfaceProof(Creature const& creature, RecoveryMovement const& request) const
+{
+    auto const* record = _registry.FindBySpawn(creature.GetMapId(),creature.GetSpawnId());
+    if (!record || !IsLivingResidentV11(*record) || !BoundActor(*record,creature) || !request.Polyline) return false;
+    if (record->ActiveActionState || record->ActiveGoalState)
+    {
+        if (record->LivingRole.CurrentPhase != Phase::Moving || record->LivingRole.SourceGoal != GoalType::LocalActivity ||
+            !OwnedAction(*record,ActionType::MoveTo) || !record->ActiveActionState->Destination ||
+            !RecoveryMovement::SamePoint(*record->ActiveActionState->Destination,request.Destination) ||
+            !RecoveryMovement::SamePoint(record->LivingRole.Destination,request.Destination)) return false;
+    }
+    else if (record->LivingRole.CurrentPhase != Phase::Idle || !creature.IsStopped()) return false;
+    auto found = _supplyActors.find(record->SpawnId);
+    if (found == _supplyActors.end()) return false;
+    auto const& travel = found->second.Travel;
+    return travel.Guid == creature.GetGUID() && travel.PhaseMask == creature.GetPhaseMask() &&
+        travel.PolylinePrefix(request).has_value() && (!travel.Pending || *travel.Pending == request);
+}
+
 std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& record, Creature& creature,
     ActionPosition const& requestedDestination, uint64 nowMs, std::optional<RecoveryMovement>& approved)
 {
@@ -706,6 +725,12 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
             travel.Route.Planned.erase(travel.Route.Planned.begin());
         if (travel.Route.Planned.empty()) continue;
         ActionPosition query = travel.Route.Planned.front();
+        std::vector<ActionPosition> polyline;
+        if (IsLivingResidentV11(record) && travel.Route.SurfaceCorridor)
+        {
+            polyline = LivingFineRoute::Batch(from,travel.Route.Planned);
+            if (!polyline.empty()) query = polyline.back();
+        }
         if (!UsefulStep(from, query) || travel.FailedCandidate(from,query,travel.Route.SurfaceCorridor))
         {
             travel.RejectCandidate(from, query);
@@ -728,6 +753,8 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         RecoveryMovement request{query, home, homeRadius, danger, false};
         request.SurfaceCorridor = travel.Route.SurfaceCorridor;
         request.DangerRadius = clearance;
+        if (!polyline.empty())
+            request.Polyline = RecoveryMovement::SurfacePolyline{creature.GetGUID(),creature.GetPhaseMask(),destination,std::move(polyline)};
         Movement::PointsArray points;
         state.ReturnDiagnostics.Deferred = false;
         if (!LivingRecoveryPath::Build(creature, request, points, &state.ReturnDiagnostics))
@@ -770,6 +797,8 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         }
         request.Destination = {from.MapId, end.x, end.y, end.z};
         request.QueryDestination = query;
+        if (request.Polyline)
+            for (auto const& point : points) request.Polyline->SplinePoints.push_back({from.MapId,point.x,point.y,point.z});
         travel.Pending = request;
         travel.PendingFrom = from;
         approved = request;

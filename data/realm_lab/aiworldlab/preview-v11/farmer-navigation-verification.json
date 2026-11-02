@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "profile": "living-v11",
+  "map_id": 725,
+  "source_revision": "preview-v11",
+  "verification_kind": "offline_actual_map_geometry_and_native_cpp_batch",
+  "live_execution_claimed": false,
+  "geometry_sha256": "f1a408ec4536f517b195c212a6d6d3d6b8a5e76ed5bc4119b4d627194c2fcb9c",
+  "inputs": {
+    "position_proof_sha256_lf": "8e8f1188830c7f97f588d7c355abb15ae3a516b34add0b4329fce01b3ad06c4a",
+    "planner_header_sha256_lf": "c6ef7f9e7d89b9ae1316cfcbbd8e3d7b22762f82101b526ef5ba3257d001fad3",
+    "batch_header_sha256_lf": "e5eb0ef991e76e9e5ae3d49f7b078169ead97b36ee187a006683e93634bfcc6b",
+    "native_batch_compiled_header_sha256": "e5eb0ef991e76e9e5ae3d49f7b078169ead97b36ee187a006683e93634bfcc6b",
+    "native_batch_result_sha256": "5cdd87e56d7174bc51d5412a65bb2b20b38a2809e52156712c77eaa78ea6b5ba",
+    "native_batch_geometry_result_sha256": "c454493b6688636f84a985c9eddf6f7de529d3eb0d2833dbae31261b8e92094b",
+    "geometry_fixture_sha256": "f640d198d470e62130a4ecd7d73a123e5589c5c9d044b2468b26244134f5f861",
+    "perturbation_fixture_sha256": "b9575157a86bc9d691d22f983beeac01e09cd57fab0b6b6e0dee1f25a14ffeb5"
+  },
+  "body": {
+    "radius_yards": 0.306,
+    "collision_height_yards": 2.0309998989,
+    "collision_scene_instances": 329
+  },
+  "planner": {
+    "coarse_spacing_yards": 2.5,
+    "physical_rejection_retry_spacings_yards": [
+      1.25,
+      0.625
+    ],
+    "coarse_anchors_shared": true,
+    "nearest_axis_ties": "away_from_zero",
+    "goal_priority_weight": 3.0,
+    "closed_nodes_immutable": true,
+    "node_budget": 512,
+    "edge_budget": 2048,
+    "route_length_limit_yards": 480.0,
+    "budgets_never_refunded": true,
+    "legacy_default_unchanged": true
+  },
+  "baseline_paths": {
+    "total": 50,
+    "current_observed_source_to_immutable_home": 12,
+    "immutable_home_to_own_depot": 12,
+    "own_depot_to_immutable_home": 12,
+    "immutable_home_to_current_field": 12,
+    "historic_jan_and_karel_departures": 2,
+    "all_complete": true,
+    "maximum_nodes": 231,
+    "maximum_edges": 1420,
+    "all_raw_segments_body_clear_supported_and_dry": true,
+    "all_source_water_layers_checked": true,
+    "water_footprint_samples": 85384
+  },
+  "execution_batches": {
+    "actual_native_cpp_cases": 50,
+    "all_pass": true,
+    "selection_length_limit_yards": 5.0,
+    "strict_grounded_execution_limit_yards": 6.0,
+    "maximum_actual_native_float_grounded_length_yards": 5.000000476837158,
+    "maximum_original_controls": 17,
+    "maximum_dense_points": 64,
+    "minimum_initial_net_displacement_exclusive_yards": 1.0,
+    "every_original_corner_preserved": true,
+    "all_controls_consumed_without_stranded_tail": true,
+    "native_selected_prefixes_replayed_with_float32_controls_and_samples": true,
+    "all_native_selected_prefixes_body_clear_supported_and_dry": true,
+    "native_prefix_water_footprint_samples": 77844
+  },
+  "source_perturbations": {
+    "cases": 40,
+    "displacement_yards": 0.1,
+    "directions": [
+      "+x",
+      "-x",
+      "+y",
+      "-y"
+    ],
+    "spawn_ids": [
+      902000,
+      902006,
+      902007,
+      902008,
+      902009,
+      902010,
+      902011,
+      902016
+    ],
+    "all_complete": true,
+    "all_raw_segments_and_batches_body_clear_supported_and_dry": true,
+    "maximum_nodes": 250,
+    "maximum_edges": 1577,
+    "water_footprint_samples": 53469
+  },
+  "preservation": {
+    "homes_changed": false,
+    "map_geometry_changed": false,
+    "npc_teleports_used": false,
+    "production_mutations_used_by_geometry_verification": false
+  },
+  "limits": [
+    "This is finite offline geometry and native batch verification; it does not assert live farming cycles.",
+    "Runtime checks still validate current ownership, scope, floor, collisions, danger and installed map tiles before movement."
+  ]
+}
