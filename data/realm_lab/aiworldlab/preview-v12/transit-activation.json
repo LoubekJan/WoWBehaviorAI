@@ -598,17 +598,17 @@
   },
   "historical_receipts": [
     {
-      "file": "data\\realm_lab\\aiworldlab\\preview-v12\\activation.json",
+      "file": "data/realm_lab/aiworldlab/preview-v12/activation.json",
       "sha256": "27b55ae93b30b95eec059cf7d28b5c685aad9cbbf9b0990ceba551fa06303488",
       "unchanged": true
     },
     {
-      "file": "data\\realm_lab\\aiworldlab\\preview-v11\\living-activation.json",
+      "file": "data/realm_lab/aiworldlab/preview-v11/living-activation.json",
       "sha256": "53d5d4f5558fdee3e618f0767b1e1b632a37933c94eba965676a93c08e88f844",
       "unchanged": true
     },
     {
-      "file": "data\\realm_lab\\aiworldlab\\preview-v11\\farmer-navigation-acceptance.json",
+      "file": "data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json",
       "sha256": "70fc4335c27b42d9a3c181846d15a31bee23826e1901387dcd93aaac2fb0ebb8",
       "unchanged": true
     }
