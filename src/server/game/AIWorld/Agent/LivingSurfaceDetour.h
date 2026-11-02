@@ -42,6 +42,9 @@ namespace LivingSurfaceDetour
         // Sub-yard turns require the explicit bounded polyline executor. The
         // default graph retains its original two-stage, single-leg behavior.
         bool FineTurnsEnabled = false, StartedFineTurnsEnabled = false;
+        // An off-grid physical source is a distinct node. Its nearest exact
+        // world cell is an additional paid connector, never a snapped source.
+        bool OriginConnectorPending = false;
         // These may only be lowered, before the first call, e.g. in a test.
         unsigned NodeLimit = MaxNodes, EdgeLimit = MaxEdges;
         unsigned StartedNodeLimit = 0, StartedEdgeLimit = 0;
@@ -80,9 +83,19 @@ namespace LivingSurfaceDetour
 
     inline int CoarseAxis(int coordinate, int direction)
     {
-        float cell = float(coordinate)/4.0f;
-        return int(4.0f*(direction > 0 ? std::floor(cell)+1.0f :
-            direction < 0 ? std::ceil(cell)-1.0f : std::round(cell)));
+        double cell = double(coordinate)/4.0;
+        return int(4.0*(direction > 0 ? std::floor(cell)+1.0 :
+            direction < 0 ? std::ceil(cell)-1.0 : std::round(cell)));
+    }
+
+    inline std::optional<int> NearestWorldAxis(float coordinate)
+    {
+        double cell = std::round(double(coordinate)/FineTurnGridStep);
+        // Leave room for every bounded neighbour before converting to int.
+        constexpr int margin = int(MaxRouteLength/FineTurnGridStep)+8;
+        if (!std::isfinite(cell) || cell < double(std::numeric_limits<int>::min())+margin ||
+            cell > double(std::numeric_limits<int>::max())-margin) return std::nullopt;
+        return int(cell);
     }
 
     inline bool Before(Search const& search, unsigned a, unsigned b)
@@ -180,6 +193,13 @@ namespace LivingSurfaceDetour
                 !search.NodeLimit || search.NodeLimit > MaxNodes || !search.EdgeLimit || search.EdgeLimit > MaxEdges ||
                 std::hypot(from.X-home.X, from.Y-home.Y) > limit || !contains(from))
                 return reject("SURFACE_DETOUR_BOUNDS");
+            int originX = 0, originY = 0;
+            if (search.FineTurnsEnabled)
+            {
+                auto x = NearestWorldAxis(from.X), y = NearestWorldAxis(from.Y);
+                if (!x || !y) return reject("SURFACE_DETOUR_BOUNDS");
+                originX = *x; originY = *y;
+            }
             if (!hasTile(from)) return reject("SURFACE_MISSING_TILE");
             auto support = heightAt(from); --sampleBudget;
             if (!support || !std::isfinite(*support) || std::abs(*support-from.Z) > 1.0f)
@@ -193,8 +213,13 @@ namespace LivingSurfaceDetour
             if (search.FineTurnsEnabled) search.Spacing = FineTurnGridStep;
             search.Nodes.reserve(search.NodeLimit); search.Open.reserve(search.NodeLimit);
             search.Index.reserve(search.NodeLimit);
-            search.Nodes.push_back({from, 0, 0, 0, Remaining(from, home, arrivalRadius)});
-            search.Index.emplace(Key(0, 0), 0); Queue(search, 0); search.Failure = "NONE";
+            search.Nodes.push_back({from, originX, originY, 0, Remaining(from, home, arrivalRadius)});
+            search.OriginConnectorPending = search.FineTurnsEnabled &&
+                (originX*FineTurnGridStep != from.X || originY*FineTurnGridStep != from.Y);
+            // The actual off-grid point cannot shadow the exact lattice cell
+            // at the same rounded key; a proved connector may admit it later.
+            if (!search.OriginConnectorPending) search.Index.emplace(Key(originX,originY),0);
+            Queue(search, 0); search.Failure = "NONE";
             if (!sampleBudget) return search.State;
         }
 
@@ -241,15 +266,17 @@ namespace LivingSurfaceDetour
                 if (current.Remaining == 0) return search.State;
             }
 
-            // Bookkeeping skips at most eight neighbours. Geometry work for
-            // a new edge is always paid for by a subsequent bounded batch.
+            // Bookkeeping skips at most eight neighbours plus the off-grid
+            // origin's nearest-cell connector. Every edge is paid separately.
             constexpr std::array<std::array<int, 2>, 8> directions{{
                 {{1,0}}, {{1,1}}, {{0,1}}, {{-1,1}}, {{-1,0}}, {{-1,-1}}, {{0,-1}}, {{1,-1}}}};
-            while (search.NextDirection < directions.size())
+            while (search.NextDirection < directions.size() || (search.Current == 0 && search.OriginConnectorPending))
             {
-                auto direction = directions[search.NextDirection++];
+                bool originConnector = search.Current == 0 && search.OriginConnectorPending;
+                auto direction = originConnector ? std::array<int,2>{{0,0}} : directions[search.NextDirection++];
+                if (originConnector) search.OriginConnectorPending = false;
                 auto const& current = search.Nodes[search.Current];
-                unsigned stride = search.FineTurnsEnabled ? search.NextStride : 1;
+                unsigned stride = originConnector ? 1 : search.FineTurnsEnabled ? search.NextStride : 1;
                 search.NextStride = 4;
                 int x = current.X+direction[0]*int(stride), y = current.Y+direction[1]*int(stride);
                 if (search.FineTurnsEnabled && stride == 4)
@@ -260,7 +287,8 @@ namespace LivingSurfaceDetour
                     x = CoarseAxis(current.X,direction[0]);
                     y = CoarseAxis(current.Y,direction[1]);
                 }
-                ActionPosition target{from.MapId, from.X+x*search.Spacing, from.Y+y*search.Spacing, current.Position.Z};
+                ActionPosition target{from.MapId, (search.FineTurnsEnabled ? 0 : from.X)+x*search.Spacing,
+                    (search.FineTurnsEnabled ? 0 : from.Y)+y*search.Spacing, current.Position.Z};
                 if (std::hypot(target.X-from.X, target.Y-from.Y) > MaxRouteLength ||
                     std::hypot(target.X-home.X, target.Y-home.Y) > limit) continue;
                 auto existing = search.Index.find(Key(x,y));
