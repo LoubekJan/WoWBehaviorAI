@@ -1,6 +1,6 @@
 # Preview-v11 — taverna, radnice a stanový tábor
 
-## Připravené navázání AI World — living-v11
+## Aktivní AI World — living-v11
 
 [Řízená populace](living-population.json) zachovává všech 45 současných
 obyvatel, jejich vlastní šablony, jména, příběhy a pevné domovy. Změnou je
@@ -26,10 +26,23 @@ vygenerovaných bodů v serverovém kódu. Zásoby vznikají a mění majitele a
 fyzickými činnostmi; nosiči nepřidávají potraviny pouhým příchodem.
 Potřeby, úroda, zásoby a náklad se přes restart nadále neukládají.
 
-CI/CD a nasazení tohoto profilu ještě následují. Níže uvedený
-[nativní provozní důkaz](activation.json) dokládá předchozí osazení,
-nikoli nové pracovní, zásobovací či přepadové cykly. Úspěšné ověření cest
+[Řízené nasazení](living-activation.json) potvrzuje binár `3d439d28ea96`,
+CI/CD s 957 Python a 709 nativními testy, osm zdravých služeb a všech
+45 řízených, načtených a živých NPC. První sledování z 2. listopadu
+18:38–18:48 CET má 300 platných snímků bez chyby. Pozorovalo celé fyzické
+řetězce u 11 farmářů, 7 Defias a jednoho nosiče. Snědlo se 22 porcí,
+jídlo je doložené u 16 různých NPC. Bilance 52 získaných porcí odpovídá
+26 ve skladech + 4 v nákladu + 22 snědeným, bez ztrát.
+
+Farmář 902000 a nosič 902016 zůstali u výstupu z domu. Oprava jemnějšího
+plánování pro úzké dveře se právě ověřuje a není součástí uvedeného bináru.
+Úplné řetězce zatím chybí také u Defias 902037/902039/902040 a záznam
+nepotvrzuje dodávku do městského skladu 5. Tato místa zůstávají otevřená;
+neoznačují se za dokončené přijetí všech 45 NPC. Níže uvedený
+[nativní provozní důkaz](activation.json) je historický. Úspěšné ověření cest
 samo o sobě neprokazuje, že je NPC fyzicky odchodila.
+
+## Historie nativního osazení residents-v11
 
 Uložená mapa z 2. listopadu 2026 obsahuje přesunutou tavernu a upravenou výšku radnice, další drobné výškové změny a aktualizované díry v terénu. Nový profil **residents-v11** zachovává původních 22 obyvatel a přidává 23 nových NPC. Všechna mají vlastní herní šablony a editovatelné návrhy v Ateliéru.
 

@@ -291,7 +291,7 @@ namespace LivingRecoveryPath
                 { return HomeEndpointMatches(home, cursor.ArrivalRadius, p, GroundHomeTarget(creature, home, p)); },
                 8, 1, [&](ActionPosition const& p) { return surfaceTiles.RecoveryTile({p.X, p.Y, p.Z}); });
             report.DetourFailure = cursor.Detour.Failure;
-            report.DetourNodes = uint32(cursor.Detour.Nodes.size());
+            report.DetourNodes = cursor.Detour.TotalNodes();
             report.DetourEdges = cursor.Detour.EdgeAttempts;
         }
         cursor.Done = true;

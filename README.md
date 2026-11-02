@@ -3,24 +3,27 @@
 An authored living world for **TrinityCore 3.3.5a**, with deterministic NPC
 behavior and optional LLM characters that can act and talk in the game.
 
-## Připravené zapnutí AI World — living-v11
+## Současný řízený svět — living-v11
 
-Profil **`living-v11`** přebírá všech **45 současných NPC** na mapě v11.
+Profil **`living-v11`** již řídí všech **45 současných NPC** na mapě v11.
 Zachovává jejich jména, vlastní šablony, domovy i návrhy v Ateliéru. Tři
-sklady navazují přímo na sýpky u skutečných polí. Dvanáct farmářů dodává
-úrodu, dva nosiči zásobují jižní osadu a město, 21 obyvatel jí ze skladů
-a deset Defias vyráží pro zásoby z vlastního tábora. Jižní osada má venkovní
+sklady navazují přímo na sýpky u skutečných polí. Populace má 12 farmářů,
+dva nosiče pro jižní osadu a město, 21 spotřebitelů a deset Defias
+s přepadovou schopností. Jižní osada má venkovní
 sklad; pole ani sýpka tam v mapě nejsou.
 
 LLM řízení zůstává samostatně vypnuté. Původních 100 testovacích NPC ani
 zvěř se neobnovují. Potřeby a zásoby se přes restart zatím neukládají.
-Nasazení tohoto profilu a ověření skutečného chodu teprve následují po
-kontrolách a úspěšném CI/CD; níže uvedený ověřený provozní stav je předchozí
-nativní osazení. [Podrobnosti a meze](data/realm_lab/aiworldlab/preview-v11/README.md).
+[Ověření nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json)
+potvrzuje osm zdravých služeb a 45 živých řízených NPC. Desetiminutový záznam
+má 300 čerstvých snímků bez chyby bilance: zachytil celé řetězce u 11 farmářů,
+7 Defias a jednoho nosiče; celkem se snědlo 22 porcí. Zbývající cykly nejsou
+potvrzené. U dvou postav se ověřuje oprava průchodu úzkými dveřmi.
+[Podrobnosti a meze](data/realm_lab/aiworldlab/preview-v11/README.md).
 
-## Current state — 2 November 2026
+## Previous native population — 2 November 2026
 
-The active branch is **`AI-World-lab`**. Realm **2**, map **725**, area
+Before the AIWorld cutover, **`AI-World-lab`**, realm **2**, map **725**, area
 **4988** uses the pinned **`preview-v11`** geometry. The **`residents-v11`**
 profile contains **45 native NPCs**: the original 22 residents in 11 houses,
 3 in the moved inn, 10 in the town hall and 10 around the three left-hand
@@ -68,7 +71,7 @@ configured separately from these eight services.
 
 **Defaults differ from the deployed world.** `.env.example` intentionally
 selects `settlement-v8` with LLM requests disabled. The active population
-uses `residents-v11`; the previous `full-v8` test world used three LLM
+uses `living-v11`; the previous `full-v8` test world used three LLM
 cards and the Qwen backend. Copying the example does not reproduce private credentials,
 authored cards, extracted map data or model settings.
 

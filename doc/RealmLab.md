@@ -1,9 +1,9 @@
 # Vlastní svět jako jediný realm
 
-## Připravené převzetí současného osazení — living-v11
+## Aktivní řízení současného osazení — living-v11
 
-Nový profil `living-v11` zachovává současnou mapu preview-v11 a všech
-45 pojmenovaných obyvatel; mění jejich řízení na AI World. Domovy,
+Aktivní profil `living-v11` zachovává současnou mapu preview-v11 a všech
+45 pojmenovaných obyvatel; jejich řízení převzal AI World. Domovy,
 samostatné šablony, frakce a upravené Studio návrhy se nepřepisují.
 Neobnovuje se vyřazených 100 testovacích NPC ani se nepřidává zvěř.
 
@@ -19,14 +19,23 @@ historických schopností v8. LLM řízení je vypnuté a zůstává samostatný
 zapnutím pro vybrané karty. Potřeby, úroda, zásoby, náklad a rozpracované
 výpravy se přes restart zatím neukládají.
 
-Příprava zahrnuje nové ověření interakčních míst a pozemních tras.
-Kontroly, CI/CD a nasazení profilu ještě následují; dřívější nativní
-[activation.json](../data/realm_lab/aiworldlab/preview-v11/activation.json)
-není důkazem nového řízeného chování. [Aktuální specifikace](../data/realm_lab/aiworldlab/preview-v11/living-population.json).
+Nové ověření interakčních míst a pozemních tras navazuje na stejnou geometrii.
+[Provozní doklad](../data/realm_lab/aiworldlab/preview-v11/living-activation.json)
+potvrzuje binár `3d439d28ea96`, úspěšné CI/CD (957 Python / 709 nativních
+testů), osm zdravých služeb a 45 živých řízených NPC. První desetiminutové
+sledování obsahuje 300 platných snímků bez chyby bilance: úplné řetězce
+u 11 farmářů, 7 Defias a jednoho nosiče.
+Získalo se 52 porcí, z toho 26 zůstalo ve skladech, 4 v nákladu a 22 se snědlo.
+
+Oprava průchodu úzkými dveřmi u 902000 a 902016 se ověřuje samostatně;
+není součástí tohoto přijatého bináru ani důkazem vyřešení všech cest.
+Zbývající pracovní, přepadové a městské zásobovací cykly zůstávají otevřené.
+Původní nativní [activation.json](../data/realm_lab/aiworldlab/preview-v11/activation.json)
+je historický. [Aktuální specifikace](../data/realm_lab/aiworldlab/preview-v11/living-population.json).
 
 ## Přesun taverny a osazení veřejných budov — preview-v11, 2. listopadu 2026
 
-Současný profil `residents-v11` používá nově uloženou mapu s přesunutou
+Předchozí nativní profil `residents-v11` používal nově uloženou mapu s přesunutou
 tavernou a upravenou výškou radnice. Zachovává původních 22 obyvatel a jejich
 domovy; přidává 3 postavy do taverny, 10 do radnice a 10 kolem tří stanů vlevo.
 Celkem jde o 45 samostatných postav. Nová NPC mají spawn `902022`–`902044`

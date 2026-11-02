@@ -92,6 +92,7 @@ const ObserverModel = (() => {
       ACTOR_DEAD: "Mrtvý", UNLOADED: "Nenačtený", TO_FIELD: "Cesta na pole", WORKING_FIELD: "Práce na poli",
       HARVESTED_FIELD: "Sklizeň", FIELD_MAINTENANCE: "Péče o pole", READY_FOR_FIELD: "Připraven na pole",
       RESTING_HOME: "Odpočinek doma", TO_WAREHOUSE: "Cesta do vlastního skladu",
+      DEPARTURE_WAREHOUSE: "Cesta od domu ke skladu",
       RALLY: "Shromažďování karavany", TO_VILLAGE: "Cesta do vesnice", LOADING: "Nakládání zásob",
       TO_CITY: "Cesta do města", UNLOADING: "Vykládání ve městě", REST: "Odpočinek ve městě",
       RECOVER: "Obnovování sestavy karavany", READY: "Připraven", COMPLETED: "Dokončeno",

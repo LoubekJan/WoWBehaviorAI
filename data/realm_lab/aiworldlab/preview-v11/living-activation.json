@@ -1,0 +1,361 @@
+{
+  "schema_version": 1,
+  "status": "active_first_observation_navigation_followup_pending",
+  "profile": "living-v11",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v11",
+  "verified_at_utc": "2026-11-02T17:48:15.340790+00:00",
+  "binary_revision": "3d439d28ea96b496cf752a884e6c1ab41138ccdf",
+  "ci": {
+    "run_id": 41489179742,
+    "url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41489179742",
+    "result": "success",
+    "python_tests": 957,
+    "native_tests": 709
+  },
+  "live": {
+    "healthy_services": 8,
+    "population": {
+      "captured_at_ms": 1793641693046,
+      "stale": false,
+      "valid": true,
+      "total": 45,
+      "controlled": 45,
+      "materialized": 45,
+      "alive": 45,
+      "llm_agents": 0
+    },
+    "character_templates": 45,
+    "geometry_unchanged": true,
+    "aiworld_enabled": true,
+    "llm_controller_enabled": false,
+    "llm_model_provider_enabled": false
+  },
+  "runtime_header_mounts": {
+    "applied": true,
+    "read_only": true,
+    "services": [
+      "worldserver",
+      "world-viewer",
+      "character-studio",
+      "aiworld-recorder"
+    ],
+    "source": "src/server/game/AIWorld/Agent/LivingResidentsV11Locations.h",
+    "configuration_commit_receipt_pending": true
+  },
+  "ownership": {
+    "spawn_ids": [
+      902000,
+      902001,
+      902002,
+      902003,
+      902004,
+      902005,
+      902006,
+      902007,
+      902008,
+      902009,
+      902010,
+      902011,
+      902012,
+      902013,
+      902014,
+      902015,
+      902016,
+      902017,
+      902018,
+      902019,
+      902020,
+      902021,
+      902022,
+      902023,
+      902024,
+      902025,
+      902026,
+      902027,
+      902028,
+      902029,
+      902030,
+      902031,
+      902032,
+      902033,
+      902034,
+      902035,
+      902036,
+      902037,
+      902038,
+      902039,
+      902040,
+      902041,
+      902042,
+      902043,
+      902044
+    ],
+    "retired_v8_population_restored": false,
+    "new_wildlife_spawned": false,
+    "immutable_homes": true
+  },
+  "depots": [
+    {
+      "id": 1,
+      "name": "villageRight",
+      "position": {
+        "x": 196.3398,
+        "y": 306.4766,
+        "z": 7.268402,
+        "map_id": 725
+      },
+      "source_unique_id": 180,
+      "location_kind": "granary_approach",
+      "world_faction_id": 1
+    },
+    {
+      "id": 2,
+      "name": "villageTop",
+      "position": {
+        "x": 350.2383,
+        "y": 593.9121,
+        "z": 1.73598,
+        "map_id": 725
+      },
+      "source_unique_id": 186,
+      "location_kind": "granary_approach",
+      "world_faction_id": 1
+    },
+    {
+      "id": 3,
+      "name": "villageLeft",
+      "position": {
+        "x": 82.7832,
+        "y": 840.5918,
+        "z": 2.524771,
+        "map_id": 725
+      },
+      "source_unique_id": 212,
+      "location_kind": "granary_approach",
+      "world_faction_id": 1
+    },
+    {
+      "id": 4,
+      "name": "villageBottom",
+      "position": {
+        "x": -405.0,
+        "y": 481.0,
+        "z": 0.9572573,
+        "map_id": 725
+      },
+      "source_unique_id": null,
+      "location_kind": "outdoor_stock",
+      "world_faction_id": 1
+    },
+    {
+      "id": 5,
+      "name": "Stormwind city",
+      "position": {
+        "x": 65.0,
+        "y": 590.0,
+        "z": 0.4031451,
+        "map_id": 725
+      },
+      "source_unique_id": null,
+      "location_kind": "outdoor_stock",
+      "world_faction_id": 1
+    },
+    {
+      "id": 6,
+      "name": "Defias camp",
+      "position": {
+        "x": 118.5,
+        "y": 1018.5,
+        "z": 0.349472,
+        "map_id": 725
+      },
+      "source_unique_id": null,
+      "location_kind": "outdoor_stock",
+      "world_faction_id": 2
+    }
+  ],
+  "first_observation": {
+    "status": "completed",
+    "elapsed_seconds": 600.007,
+    "frames": 300,
+    "unique_frames": 300,
+    "valid_unique_frames": 300,
+    "invalid_unique_frames": 0,
+    "fetch_errors": 0,
+    "issues": {},
+    "unconfirmed_spatial_events": 0,
+    "depots_seen": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "physical_evidence": {
+      "farmer_chains": {
+        "observed": [
+          902001,
+          902002,
+          902003,
+          902004,
+          902005,
+          902006,
+          902007,
+          902008,
+          902009,
+          902010,
+          902011
+        ],
+        "pending": [
+          902000
+        ]
+      },
+      "carrier_chains": {
+        "observed": [
+          902017
+        ],
+        "pending": [
+          902016
+        ]
+      },
+      "raid_chains": {
+        "observed": [
+          902035,
+          902036,
+          902038,
+          902041,
+          902042,
+          902043,
+          902044
+        ],
+        "pending": [
+          902037,
+          902039,
+          902040
+        ]
+      },
+      "depot_meals": {
+        "observed": [
+          902001,
+          902002,
+          902003,
+          902011,
+          902013,
+          902014,
+          902017,
+          902035,
+          902036,
+          902038,
+          902039,
+          902040,
+          902041,
+          902042,
+          902043,
+          902044
+        ],
+        "pending": [
+          902000,
+          902004,
+          902005,
+          902006,
+          902007,
+          902008,
+          902009,
+          902010,
+          902012,
+          902015,
+          902016,
+          902018,
+          902019,
+          902020,
+          902021,
+          902022,
+          902023,
+          902024,
+          902025,
+          902026,
+          902027,
+          902028,
+          902029,
+          902030,
+          902031,
+          902032,
+          902033,
+          902034,
+          902037
+        ]
+      }
+    },
+    "latest_accounting": {
+      "initial_food": 0,
+      "harvested": 52,
+      "in_depots": 26,
+      "in_cargo": 4,
+      "consumed": 22,
+      "lost": 0
+    },
+    "distinct_npcs_with_observed_meal": 16,
+    "summary_sha256": "33600b403b596187b256d39a7c062b14952b99d7b5363e3422f59308fa4cf95b",
+    "raw_capture_sha256": "55be9680de546d8a97a06e8d7a107bf46f499b320de100b6c5337e8d3642826b",
+    "raw_capture_private": true,
+    "physical_all_cycles_pass": false
+  },
+  "geometry_proof_sha256": "8e8f1188830c7f97f588d7c355abb15ae3a516b34add0b4329fce01b3ad06c4a",
+  "remaining": {
+    "doorway_stalls": [
+      902000,
+      902016
+    ],
+    "doorway_fix_status": "coarse_to_fine_fallback_under_verification_not_in_running_binary",
+    "city_depot_delivery_observed": false,
+    "farmer_chains_pending": [
+      902000
+    ],
+    "carrier_chains_pending": [
+      902016
+    ],
+    "raid_chains_pending": [
+      902037,
+      902039,
+      902040
+    ]
+  },
+  "runtime_food_persistence": "deferred_by_user",
+  "limitations": [
+    "This receipt records the first finite capture; pending chains are not certified.",
+    "Geometry route proofs do not by themselves prove completion of an NPC action cycle.",
+    "The later doorway-navigation fix requires a new tested binary and a new live capture."
+  ],
+  "preservation": {
+    "player_character_identity": {
+      "count": 3,
+      "baseline": "final_offline_pre_ai_activation_backup",
+      "baseline_at_utc": "2026-11-02T17:34:20Z",
+      "compared_fields": [
+        "guid",
+        "account",
+        "name",
+        "race",
+        "class",
+        "gender",
+        "level"
+      ],
+      "matches": true,
+      "limitation": "Only the listed identity/progression fields are asserted; an online player level changed before the final offline baseline."
+    },
+    "accounts_unchanged_from_initial_inventory": true,
+    "authored_spawn_homes_unchanged": 45,
+    "owned_templates_unchanged": 45,
+    "native_source_entries_unchanged": [
+      38,
+      11328
+    ],
+    "geometry_files_unchanged": 74,
+    "authored_card_and_template_json_files_unchanged": 90,
+    "studio_drafts_unchanged": 45
+  }
+}

@@ -40,6 +40,10 @@ namespace LivingSurfaceDetour
         unsigned NodeLimit = MaxNodes, EdgeLimit = MaxEdges;
         unsigned StartedNodeLimit = 0, StartedEdgeLimit = 0;
         unsigned EdgeAttempts = 0, Expanded = 0;
+        // Coarse cells discarded during the single refinement still consume
+        // this episode's node allowance. The physical origin is reused.
+        unsigned RetiredNodes = 0;
+        unsigned TotalNodes() const { return RetiredNodes + unsigned(Nodes.size()); }
         bool Started = false;
         std::vector<Node> Nodes;
         std::vector<unsigned> Open;
@@ -167,15 +171,27 @@ namespace LivingSurfaceDetour
             {
                 if (search.Open.empty())
                 {
-                    // A supported ledge may turn before the first coarse
-                    // endpoint. Retry that isolated origin once at a shorter
-                    // spacing; never skip collision/support checks or spend a
-                    // fresh edge/node budget. Every resulting leg stays above
-                    // the recovery executor's one-yard useful-step threshold.
-                    if (search.Nodes.size() != 1 || search.Spacing != GridStep)
+                    // A room can contain several coarse cells while its
+                    // supported doorway falls between their 2.5-yard tracks.
+                    // Refine the exhausted graph once, from the same physical
+                    // origin, retaining all node/edge work already spent.
+                    if (search.Spacing != GridStep)
                         return reject("SURFACE_DETOUR_EXHAUSTED");
+                    if (search.EdgeAttempts >= search.EdgeLimit)
+                        return reject("SURFACE_DETOUR_EDGE_LIMIT");
+                    if (search.TotalNodes() >= search.NodeLimit)
+                        return reject("SURFACE_DETOUR_NODE_LIMIT");
+                    auto origin = search.Nodes.front();
+                    origin.Parent = origin.HeapPosition = NoNode;
+                    origin.Closed = false;
+                    search.RetiredNodes += unsigned(search.Nodes.size()) - 1;
+                    search.Nodes.clear(); search.Open.clear(); search.Index.clear();
+                    search.Nodes.push_back(origin);
+                    search.Index.emplace(Key(0,0),0);
+                    search.Current = search.EdgeFrom = search.EdgeExisting = NoNode;
+                    search.NextDirection = 0;
+                    search.EdgeActive = false; search.Edge = {};
                     search.Spacing = NarrowGridStep;
-                    search.Nodes.front().Closed = false;
                     Queue(search, 0);
                 }
                 search.Current = Pop(search); search.NextDirection = 0;
@@ -235,7 +251,7 @@ namespace LivingSurfaceDetour
         unsigned index = search.EdgeExisting;
         if (index == NoNode)
         {
-            if (search.Nodes.size() == search.NodeLimit) return reject("SURFACE_DETOUR_NODE_LIMIT");
+            if (search.TotalNodes() >= search.NodeLimit) return reject("SURFACE_DETOUR_NODE_LIMIT");
             index = unsigned(search.Nodes.size());
             search.Nodes.push_back({endpoint, search.EdgeX, search.EdgeY, cost, Remaining(endpoint,home,arrivalRadius), search.EdgeFrom});
             search.Index.emplace(Key(search.EdgeX,search.EdgeY), index);
