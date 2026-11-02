@@ -1,0 +1,618 @@
+{
+  "schema_version": 1,
+  "profile": "living-v12",
+  "source_revision": "preview-v12",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "status": "transit_catalog_active_and_food_carrying_bridge_use_observed",
+  "binary_revision": "9857ecc094a83407c59e2c3ba0383bb6f410f1cc",
+  "verified_at_utc": "2026-11-02T23:23:40.889946+00:00",
+  "ci": {
+    "run_id": 41540098828,
+    "result": "success",
+    "python_tests": 984,
+    "native_tests": 739
+  },
+  "live": {
+    "verified_at_utc": "2026-11-02T23:08:27.039708+00:00",
+    "exact_binary_verified": true,
+    "healthy_services": 8,
+    "profile": "living-v12",
+    "geometry_files": 75,
+    "bridge_routes_enabled": true
+  },
+  "preservation": {
+    "verified_at_utc": "2026-11-02T23:08:27.039708+00:00",
+    "checks": {
+      "accounts": true,
+      "spawns": true,
+      "templates_sha256": true,
+      "native_sources_sha256": true,
+      "geometry": true,
+      "character_inputs": true,
+      "studio": true,
+      "player_stable_identity": true
+    },
+    "check_baselines": {
+      "spawns": "bridge-routes-before.json (initial live owned custom template bindings)",
+      "default": "bridge-routes-predeploy.json"
+    },
+    "players": {
+      "count": 5,
+      "baseline_count": 5,
+      "baseline_ref": "private bridge-routes-predeploy.json compared to bridge-routes-after.json",
+      "compared_columns": ["guid", "account", "name", "race", "class", "gender"]
+    }
+  },
+  "geometry": {
+    "files": 75,
+    "sha256": "da33cd6fa0a69a40de1f58116e6657919f4cf4f7f35e2a8bd65b97859b6cddd0",
+    "position_proof_sha256": "6711dfd7c6793107962158f7534e6acf5ed0a4c8500b40ad53da3ade845fa572"
+  },
+  "transit_route_catalog": {
+    "schema_version": 1,
+    "source_revision": "preview-v12",
+    "proof_file": "transit-route-verification.json",
+    "proof_sha256": "5fe9c58c9a61ac7c9a30f75ec07b76fa49e5cd7b78ffef08edba1a66529a6e8e",
+    "header": "src/server/game/AIWorld/Agent/LivingResidentsV12Routes.h",
+    "header_sha256": "b6c40d8122886a4df2cf99a2f157c4113f1761d1fb179397f41eb6d6c3e3a5bc",
+    "routes_sha256": "2e95ed222865ddaa0dba970987e55c89bb1236f86db40f39970f8670c3ff8867",
+    "route_count": 30
+  },
+  "observation": {
+    "status": "completed",
+    "elapsed_seconds": 900.026,
+    "frames": 450,
+    "valid_unique_frames": 450,
+    "duplicate_frames": 0,
+    "fetch_errors": 0,
+    "invalid_unique_frames": 0,
+    "issues": {},
+    "first_capture_at_ms": 1793660920846,
+    "last_capture_at_ms": 1793661818888,
+    "summary_sha256": "24c034d0bb08efb6658a2dcfccf04d7776fd032aad084021fd3d5d1f2fd9d66e",
+    "raw_capture_sha256": "1be25878db439abcd074261d51a380d58e998b2dd80deae6f21fcdfa4e46dc3b",
+    "compact_capture_sha256": "1f56aed78ba9ed21d50f8cde9a621a160855fe3be79c5a6b0d9e8c4faecc9961",
+    "events_sha256": "57e08abd42b4092168375ac73884c29b35b3c6d21af7adb590689f3faacb9cc6",
+    "raw_capture_private": true,
+    "watcher_sha256": "1ea8d01980b7881b5f6757a4de5a28b54c1e052a4b0b62711b92f700b08b88ec"
+  },
+  "bridge_use": {
+    "counts": {
+      "232": 0,
+      "233": 8,
+      "234": 0
+    },
+    "bridge233_directions_observed": ["a_to_b", "b_to_a"],
+    "bridge233_directions_pending": [],
+    "live_use_pending_bridge_ids": [232, 234],
+    "all_observed_crossings_independently_rechecked": true,
+    "selected_crossing_proofs": [
+      {
+        "crossing_index": 0,
+        "bridge_id": 233,
+        "spawn_id": 902017,
+        "runtime_guid": "GUID Full: 0xF13095B061000014 Type: Creature Entry: 9810017 Low: 20",
+        "start_captured_at_ms": 1793661074851,
+        "end_captured_at_ms": 1793661082851,
+        "direction": "a_to_b",
+        "start_position": [-183.5486, 580.6557, -0.3113842],
+        "deck_sample_count": 1,
+        "first_deck_at_ms": 1793661078852,
+        "first_deck_position": [-214.2371, 580.5897, -2.295091],
+        "end_position": [-243.3901, 574.2866, -0.2493203],
+        "physical_recheck_pass": true
+      },
+      {
+        "crossing_index": 1,
+        "bridge_id": 233,
+        "spawn_id": 902017,
+        "runtime_guid": "GUID Full: 0xF13095B061000014 Type: Creature Entry: 9810017 Low: 20",
+        "start_captured_at_ms": 1793661144855,
+        "end_captured_at_ms": 1793661152856,
+        "direction": "b_to_a",
+        "start_position": [-239.4733, 577.4199, -0.2413322],
+        "deck_sample_count": 1,
+        "first_deck_at_ms": 1793661148856,
+        "first_deck_position": [-208.9064, 580.7577, -2.295091],
+        "end_position": [-184.0522, 581.5045, -0.2356163],
+        "physical_recheck_pass": true
+      },
+      {
+        "crossing_index": 5,
+        "bridge_id": 233,
+        "spawn_id": 902017,
+        "runtime_guid": "GUID Full: 0xF13095B061000014 Type: Creature Entry: 9810017 Low: 20",
+        "start_captured_at_ms": 1793661594881,
+        "end_captured_at_ms": 1793661602881,
+        "direction": "a_to_b",
+        "start_position": [-178.1822, 575.8793, -0.8438364],
+        "deck_sample_count": 1,
+        "first_deck_at_ms": 1793661598881,
+        "first_deck_position": [-207.0931, 580.8148, -2.29509],
+        "end_position": [-237.8586, 578.7839, -0.3787065],
+        "physical_recheck_pass": true
+      },
+      {
+        "crossing_index": 7,
+        "bridge_id": 233,
+        "spawn_id": 902017,
+        "runtime_guid": "GUID Full: 0xF13095B061000014 Type: Creature Entry: 9810017 Low: 20",
+        "start_captured_at_ms": 1793661658883,
+        "end_captured_at_ms": 1793661666884,
+        "direction": "b_to_a",
+        "start_position": [-245.4356, 572.4695, -0.1321801],
+        "deck_sample_count": 2,
+        "first_deck_at_ms": 1793661662884,
+        "first_deck_position": [-216.7772, 580.5096, -2.295091],
+        "end_position": [-185.7115, 581.4888, -0.1079842],
+        "physical_recheck_pass": true
+      }
+    ],
+    "proof_selection": "first_and_last_bridge233_crossing_in_each_observed_direction; full counts retained"
+  },
+  "carrier_bridge_delivery": {
+    "total_observed_chains": 4,
+    "spawn_ids": [902016, 902017],
+    "total_delivered_portions": 24,
+    "delivery_portions_observed": [6],
+    "published_chain_proofs": [
+      {
+        "spawn_id": 902017,
+        "role": "RESIDENT_CARRIER",
+        "runtime_guid": "GUID Full: 0xF13095B061000014 Type: Creature Entry: 9810017 Low: 20",
+        "source_depot_id": 1,
+        "destination_depot_id": 4,
+        "loaded_at_ms": 1793661014850,
+        "cargo_after_load": 6,
+        "crossing_indices": [0],
+        "delivered_at_ms": 1793661114853,
+        "delivered_portions": 6,
+        "cargo_after_delivery": 0,
+        "load_witness_at_ms": 1793661012850,
+        "delivery_witness_at_ms": 1793661114853
+      },
+      {
+        "spawn_id": 902017,
+        "role": "RESIDENT_CARRIER",
+        "runtime_guid": "GUID Full: 0xF13095B061000014 Type: Creature Entry: 9810017 Low: 20",
+        "source_depot_id": 1,
+        "destination_depot_id": 4,
+        "loaded_at_ms": 1793661534878,
+        "cargo_after_load": 6,
+        "crossing_indices": [5],
+        "delivered_at_ms": 1793661634882,
+        "delivered_portions": 6,
+        "cargo_after_delivery": 0,
+        "load_witness_at_ms": 1793661534878,
+        "delivery_witness_at_ms": 1793661634882
+      }
+    ],
+    "proof_selection": "first_and_last_fresh_food_load_bridge233_correct_depot_delivery_chain"
+  },
+  "farmer_acceptance": {
+    "at_least_one_cycle_observed": [902000, 902001, 902002, 902003, 902004, 902005, 902006, 902007, 902008, 902009, 902010, 902011],
+    "repeated_cycles_observed": [902000, 902001, 902002, 902003, 902004, 902005, 902006, 902007, 902008, 902009, 902010, 902011],
+    "pending_first_cycle": [],
+    "pending_repeat": [],
+    "all_twelve_repeat_observed": true,
+    "full_current_life_cycles_validated": 72,
+    "baseline_counters_are_evidence": false,
+    "all45_physical_cycles_certified": false,
+    "full_cycle_proofs_private": true
+  },
+  "farmers": {
+    "902000": {
+      "completed_cycles": 5,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B050000009 Type: Creature Entry: 9810000 Low: 9",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_HOME_REST",
+      "first_closed_at_ms": 1793661016850,
+      "last_closed_at_ms": 1793661614881,
+      "validated_full_current_life_cycles_sha256": "6e9bda5a7ea64336e3e5a24592dda69401b526bdfcc6e7618184714bcb2870cd"
+    },
+    "902001": {
+      "completed_cycles": 8,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05100000A Type: Creature Entry: 9810001 Low: 10",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_HOME_REST",
+      "first_closed_at_ms": 1793660992849,
+      "last_closed_at_ms": 1793661730886,
+      "validated_full_current_life_cycles_sha256": "4d0b4d96748c9253017f7e2d202517528ce8a9c9a0ecd9033986c89c67d62563"
+    },
+    "902002": {
+      "completed_cycles": 7,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05200000B Type: Creature Entry: 9810002 Low: 11",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_OWN_DEPOT_DELIVERY",
+      "first_closed_at_ms": 1793660994849,
+      "last_closed_at_ms": 1793661776887,
+      "validated_full_current_life_cycles_sha256": "dfdc4ddfa0b9fb81e8d04eac14e20b39f089f3c4a9f60f2118e7a173e013c829"
+    },
+    "902003": {
+      "completed_cycles": 6,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05300000C Type: Creature Entry: 9810003 Low: 12",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_OWN_DEPOT_DELIVERY",
+      "first_closed_at_ms": 1793661016850,
+      "last_closed_at_ms": 1793661664884,
+      "validated_full_current_life_cycles_sha256": "db0cf5f9122bb8fba6459012921112fa13e324f88a83890b9268d6415e7cdabe"
+    },
+    "902004": {
+      "completed_cycles": 6,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05400002C Type: Creature Entry: 9810004 Low: 44",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_LEAVE_AND_NEXT_WORK",
+      "first_closed_at_ms": 1793661054851,
+      "last_closed_at_ms": 1793661646882,
+      "validated_full_current_life_cycles_sha256": "bf6d37eef4e36ac607e653c0b18aad4a4af89a71e72db87f1720057b6447aff2"
+    },
+    "902005": {
+      "completed_cycles": 6,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05500002D Type: Creature Entry: 9810005 Low: 45",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_OWN_DEPOT_DELIVERY",
+      "first_closed_at_ms": 1793661042851,
+      "last_closed_at_ms": 1793661766887,
+      "validated_full_current_life_cycles_sha256": "8317cbefd6d2948df8b8d5bc0e58de33edd3863f0966a3c53129532ec0c67390"
+    },
+    "902006": {
+      "completed_cycles": 6,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05600000D Type: Creature Entry: 9810006 Low: 13",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_HOME_REST",
+      "first_closed_at_ms": 1793661026850,
+      "last_closed_at_ms": 1793661596881,
+      "validated_full_current_life_cycles_sha256": "cac08dc6108dba9f47798791476186c81dea5fdd0bc4c2d6c5f19d902e3556a4"
+    },
+    "902007": {
+      "completed_cycles": 5,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05700000E Type: Creature Entry: 9810007 Low: 14",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_HOME_REST",
+      "first_closed_at_ms": 1793661064851,
+      "last_closed_at_ms": 1793661592881,
+      "validated_full_current_life_cycles_sha256": "b9f23063c050cc88628ad6d52ccc1fdc39ef54a6cb87163c13c16a8d17b8d379"
+    },
+    "902008": {
+      "completed_cycles": 4,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B058000019 Type: Creature Entry: 9810008 Low: 25",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_HOME_REST",
+      "first_closed_at_ms": 1793661046851,
+      "last_closed_at_ms": 1793661574880,
+      "validated_full_current_life_cycles_sha256": "e2b9191e15e2c72b017f5071b0a6c7b526cf93106c3df7de4da7fa7f4a5ac63b"
+    },
+    "902009": {
+      "completed_cycles": 4,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05900001A Type: Creature Entry: 9810009 Low: 26",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_OWN_DEPOT_DELIVERY",
+      "first_closed_at_ms": 1793661090851,
+      "last_closed_at_ms": 1793661658883,
+      "validated_full_current_life_cycles_sha256": "0bce8d0183a319477a1e73ca93ccb27283701a1ce4c12d240ef4b119f5da2c21"
+    },
+    "902010": {
+      "completed_cycles": 5,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05A000020 Type: Creature Entry: 9810010 Low: 32",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_NEW_HARVEST",
+      "first_closed_at_ms": 1793661002850,
+      "last_closed_at_ms": 1793661748887,
+      "validated_full_current_life_cycles_sha256": "0390c3e120a497be0880bd9cc6b28f19f802c91896daf5bdb5d6579ec8093a88"
+    },
+    "902011": {
+      "completed_cycles": 10,
+      "repeat_observed": true,
+      "runtime_guid": "GUID Full: 0xF13095B05B000021 Type: Creature Entry: 9810011 Low: 33",
+      "life_epoch": 1,
+      "life_active": true,
+      "stage": "WAIT_OWN_DEPOT_DELIVERY",
+      "first_closed_at_ms": 1793660992849,
+      "last_closed_at_ms": 1793661792887,
+      "validated_full_current_life_cycles_sha256": "47a3ac005fea60b0a03a6b1878585bd2ebc2307ba46b2333b9dc5a26bc7d0a7b"
+    }
+  },
+  "navigation_review": {
+    "assessment_sha256": "e366f1e883865eb6a02c44f69412f79681fe2febf26135f1cb4cf84deb99402c",
+    "all_45_reviewed": true,
+    "all_45_navigation_pass": false,
+    "runtime_waits": [
+      {
+        "spawn_id": 902023,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "WAITING",
+        "result": "PLANNING_DEFERRED",
+        "observed_seconds": 416.017,
+        "current_wait_seconds": 416.017,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661423872,
+          "navigation_last_ms": 1793661839889,
+          "stationary_first_ms": 1793661423872,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture has the exact same stopped pose and capped2048-edge diagnostic. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      },
+      {
+        "spawn_id": 902025,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD",
+        "observed_seconds": 177.009,
+        "current_wait_seconds": 509.022,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661411872,
+          "navigation_last_ms": 1793661588881,
+          "stationary_first_ms": 1793661330867,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture already has a stationary pose and unsafe-ground obstacle/cliff diagnostics in this city building area; exact current pose and cap are not established by that baseline. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      },
+      {
+        "spawn_id": 902027,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD",
+        "observed_seconds": 181.009,
+        "current_wait_seconds": 505.022,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661411872,
+          "navigation_last_ms": 1793661592881,
+          "stationary_first_ms": 1793661334867,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture already has a stationary pose and unsafe-ground obstacle/cliff diagnostics in this city building area; exact current pose and cap are not established by that baseline. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      },
+      {
+        "spawn_id": 902028,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD",
+        "observed_seconds": 177.009,
+        "current_wait_seconds": 509.022,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661411872,
+          "navigation_last_ms": 1793661588881,
+          "stationary_first_ms": 1793661330867,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture has the exact same stopped pose and capped2048-edge diagnostic. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      },
+      {
+        "spawn_id": 902030,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD",
+        "observed_seconds": 173.009,
+        "current_wait_seconds": 517.023,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661411872,
+          "navigation_last_ms": 1793661584881,
+          "stationary_first_ms": 1793661322866,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture already has a stationary pose and unsafe-ground obstacle/cliff diagnostics in this city building area; exact current pose and cap are not established by that baseline. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      },
+      {
+        "spawn_id": 902031,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD",
+        "observed_seconds": 173.009,
+        "current_wait_seconds": 513.023,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661411872,
+          "navigation_last_ms": 1793661584881,
+          "stationary_first_ms": 1793661326866,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture already has a stationary pose and unsafe-ground obstacle/cliff diagnostics in this city building area; exact current pose and cap are not established by that baseline. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      },
+      {
+        "spawn_id": 902032,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "WAITING",
+        "result": "PLANNING_DEFERRED",
+        "observed_seconds": 493.021,
+        "current_wait_seconds": 493.021,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661346868,
+          "navigation_last_ms": 1793661839889,
+          "stationary_first_ms": 1793661346868,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture already has a stationary pose and unsafe-ground obstacle/cliff diagnostics in this city building area; exact current pose and cap are not established by that baseline. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      },
+      {
+        "spawn_id": 902034,
+        "classification": "city_consumer_navigation_limit",
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD",
+        "observed_seconds": 177.009,
+        "current_wait_seconds": 509.022,
+        "active_at_last_capture": true,
+        "source_or_interval": {
+          "source": "independent GET-only all45 capture",
+          "navigation_first_ms": 1793661411872,
+          "navigation_last_ms": 1793661588881,
+          "stationary_first_ms": 1793661330867,
+          "stationary_last_ms": 1793661839889
+        },
+        "note": "The prechange58.002s capture already has a stationary pose and unsafe-ground obstacle/cliff diagnostics in this city building area; exact current pose and cap are not established by that baseline. Active means no physical resumption since the interval; current NO_FOOD, if present, is recorded separately and is not mislabeled as a continuing path query.",
+        "offline_geometry_proven": false
+      }
+    ],
+    "active_waits": [
+      {
+        "spawn_id": 902023,
+        "phase": "WAITING",
+        "result": "PLANNING_DEFERRED"
+      },
+      {
+        "spawn_id": 902025,
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD"
+      },
+      {
+        "spawn_id": 902027,
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD"
+      },
+      {
+        "spawn_id": 902028,
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD"
+      },
+      {
+        "spawn_id": 902030,
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD"
+      },
+      {
+        "spawn_id": 902031,
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD"
+      },
+      {
+        "spawn_id": 902032,
+        "phase": "WAITING",
+        "result": "PLANNING_DEFERRED"
+      },
+      {
+        "spawn_id": 902034,
+        "phase": "NO_FOOD",
+        "result": "NO_FOOD"
+      }
+    ],
+    "prechange_comparison": {
+      "file": "runtime/bridge-route-audit/independent-live-9857ecc0/prechange-city-navigation-comparison.json",
+      "sha256": "00d0766fa137738a3a0d99f0894fc7c3f8db98951b9cfc50ff03ba1f097e7864",
+      "raw_capture_sha256": "eb7883efbe2d4f12c32362a3bbe0202a8ae220fb73f53f51bc69775792f29e1a",
+      "scope": "Only58.002s observed; exact pre-existing stopped-pose/capped evidence for023/028, existing obstacle/resource waits for the other six; no causal claim from cached diagnostics."
+    },
+    "separately_observed_silo_route_progress": {
+      "observed_spawn_ids": [902038, 902041],
+      "stealing_site": {
+        "x": 348.819,
+        "y": 594.959,
+        "z": 1.715259
+      },
+      "fresh_stolen_delta_each": 2,
+      "positive_cargo_each": 2,
+      "camp_return_observed": true,
+      "raw_native_funnel_use_certified": false
+    },
+    "limitation": "Stationary navigation waits are distinct from ordinary rest and empty-food waiting; causes are not inferred from counters."
+  },
+  "other_role_observations": {
+    "farmer_chains": {
+      "observed": [902000, 902001, 902002, 902003, 902004, 902005, 902006, 902007, 902008, 902009, 902010, 902011],
+      "pending": []
+    },
+    "carrier_chains": {
+      "observed": [902016, 902017],
+      "pending": []
+    },
+    "raid_chains": {
+      "observed": [902035, 902036, 902037, 902038, 902039, 902040, 902041, 902042, 902043, 902044],
+      "pending": []
+    },
+    "depot_meals": {
+      "observed": [902000, 902001, 902002, 902003, 902004, 902005, 902006, 902007, 902008, 902009, 902010, 902011, 902012, 902013, 902014, 902015, 902016, 902017, 902018, 902019, 902020, 902021, 902022, 902023, 902024, 902026, 902029, 902032, 902033, 902035, 902036, 902037, 902038, 902039, 902040, 902041, 902042, 902043, 902044],
+      "pending": [902025, 902027, 902028, 902030, 902031, 902034]
+    }
+  },
+  "food_accounting": {
+    "scope": "cumulative_since_world_restart",
+    "first": {
+      "initial_food": 0,
+      "harvested": 24,
+      "in_depots": 18,
+      "in_cargo": 6,
+      "consumed": 0,
+      "lost": 0
+    },
+    "last": {
+      "initial_food": 0,
+      "harvested": 167,
+      "in_depots": 45,
+      "in_cargo": 13,
+      "consumed": 109,
+      "lost": 0
+    },
+    "interval_delta": {
+      "scope": "last_valid_sample_minus_first_valid_sample",
+      "values": {
+        "harvested": 143,
+        "in_depots": 27,
+        "in_cargo": 7,
+        "consumed": 109,
+        "lost": 0
+      },
+      "conserved": true
+    }
+  },
+  "historical_receipts": [
+    {
+      "file": "data\\realm_lab\\aiworldlab\\preview-v12\\activation.json",
+      "sha256": "27b55ae93b30b95eec059cf7d28b5c685aad9cbbf9b0990ceba551fa06303488",
+      "unchanged": true
+    },
+    {
+      "file": "data\\realm_lab\\aiworldlab\\preview-v11\\living-activation.json",
+      "sha256": "53d5d4f5558fdee3e618f0767b1e1b632a37933c94eba965676a93c08e88f844",
+      "unchanged": true
+    },
+    {
+      "file": "data\\realm_lab\\aiworldlab\\preview-v11\\farmer-navigation-acceptance.json",
+      "sha256": "70fc4335c27b42d9a3c181846d15a31bee23826e1901387dcd93aaac2fb0ebb8",
+      "unchanged": true
+    }
+  ],
+  "runtime_food_persistence": "deferred_by_user",
+  "limits": ["This finite observation certifies only the observed incarnations and transactions, not future paths or all45 action cycles.", "Bridge232/234 use is not forced; unobserved live use remains pending.", "Native connectivity and physical compiled-anchor corridors are separate proofs; runtime body/floor/water checks remain enabled.", "Food present in the first frame is baseline, not a newly witnessed harvest.", "Player preservation refers only to the named predeployment baseline and compared columns."]
+}

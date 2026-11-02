@@ -13,12 +13,12 @@ původní; úprava humanoida je uložitelný návrh a tento balíček ji do hry 
 export vzhledu vrací srozumitelné vysvětlení. ZIP také výslovně uvádí, že LLM řízení vyžaduje
 samostatné zapnutí.
 
-Řízený profil zachovává všech 45 jmen, šablon, karet a uložených návrhů. [Aktuální provozní doklad](../data/realm_lab/aiworldlab/preview-v12/activation.json)
-potvrzuje všech 45 řízených, načtených a živých NPC; LLM zůstává vypnuté.
+Řízený profil zachovává všech 45 jmen, šablon, karet a uložených návrhů. [Aktuální provozní doklad](../data/realm_lab/aiworldlab/preview-v12/transit-activation.json)
+potvrzuje 45 živých řízených NPC a nové používání tranzitních tras přes most. Přesuny domovů ani
+změny charakterů tím neprobíhají; LLM zůstává vypnuté.
 
-Uložení draftu samo nemění běžící svět. Fyzické farmářské cykly a oddělené zbývající ověření
-spotřebitelů popisuje [přehled mapy](../data/realm_lab/aiworldlab/preview-v11/README.md). Tvorba postavy sama o sobě neprokazuje její úplný
-pracovní cyklus.
+Uložení návrhu samo nemění běžící svět. Skutečně pozorované dodávky a farmářské cykly popisuje
+[přehled mapy](../data/realm_lab/aiworldlab/preview-v12/README.md); tvorba postavy sama její úplný cyklus neprokazuje.
 
 ## Předchozí nativní osídlení — residents-v11
 

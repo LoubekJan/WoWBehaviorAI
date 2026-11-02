@@ -30,22 +30,22 @@ vlastních šablon, domovy a stav AI vazeb. Při zastaveném světě se pod spol
 chybějící AI identity a explicitní účast, potom se ověří jejich převzetí. Neprovádí se nové
 rozmístění obyvatel. Uchovávají se účty, hráčské postavy i mapové zdroje.
 
-Binár `c2d4eb389949` prošel 973 Python a 736 nativními testy; osm služeb je zdravých a všech 45
-NPC je řízených, načtených a živých. [Nasazení v12](data/realm_lab/aiworldlab/preview-v12/activation.json)
-ověřuje zachování všech 45 návrhů a 90 původních karet/šablon. [Doklad fyzických cyklů](data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json) zachovává původní měření na v11 jako historii.
-Čtyři služby mají katalog `LivingResidentsV11Locations.h` připojený jen pro čtení.
+Binár `9857ecc094a8` prošel 984 testy Pythonu a 739 nativními testy; osm služeb je zdravých a
+všech 45 NPC je řízených, načtených a živých. [Provozní doklad tranzitu](data/realm_lab/aiworldlab/preview-v12/transit-activation.json) váže nasazení na samostatný
+katalog 30 směrovaných cest a následný živý záznam.
 
-Historický patnáctiminutový záznam na preview-v11 má 450 platných snímků bez chyby bilance. Úplný cyklus
-sklizeň–dodávka–návrat–odpočinek–další práce je doložený u 12 z 12 farmářů, opakování u 12 z 12. V
-tomto záznamu už žádný z farmářů na konci neměl dlouhé navigační čekání. [Přehled mapy](data/realm_lab/aiworldlab/preview-v11/README.md) uvádí
-zbývající ověření spotřebitelů a konkrétní pozorování.
+Přepínač `AIWorld.LivingResidentsV12.BridgeRoutesEnabled=1` se vykreslí jen z aktivního profilu
+living-v12 s ověřenými vazbami důkazu a hlavičky. Ve v11, pozastaveném profilu a výchozí
+konfiguraci zůstává vypnutý. Čtyři služby připojují oba katalogy pouze pro čtení. Původní
+`LivingResidentsV11Locations.h` a jeho interakční souřadnice se nemění.
 
-Pohyb používá společnou mřížku světových souřadnic s kroky 0,625 a 2,5 yardu. Skutečná výchozí
-poloha zůstává na místě; první spojení na mřížku se fyzicky ověřuje a platí ze stejného rozpočtu
-jako ostatní cesta. Zachovávají se všechny rohy, skutečné podlahy, kolize, dlaždice a nebezpečí.
-Výběr má limit 5 yardů, provedená uzemněná cesta 6 yardů; rozpočty 512 uzlů a 2048 hran se
-neobnovují. Bilance je kumulativní od startu serveru, výchozí zásoby nejsou nově pozorované
-události. Potřeby a zásoby se přes restart zatím neukládají.
+Patnáctiminutový záznam má 450 platných snímků bez chyby bilance; obsahuje 8 fyzicky ověřených
+přechodů mostu 233 oběma směry a 4 navazující dodávky po 6 porcích obou nosičů. Opakovaný úplný
+pracovní cyklus je doložený u 12 z 12 farmářů. Otevřené zůstávají navigační limity části městských
+spotřebitelů; podrobnosti uvádí přehled mapy. [Podrobnosti mapy](data/realm_lab/aiworldlab/preview-v12/README.md) uvádějí meze měření. Pohyb dál
+kontroluje každou podlahu, tělo a vodu; rozpočty 512 uzlů / 2048 hran a délkové limity 5 / 6 yardů
+se nemění. Výchozí potrava je základ měření, ne nová událost. Potřeby a zásoby se přes restart
+zatím neukládají.
 
 ## Předchozí nativní osídlení — residents-v11
 
