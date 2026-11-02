@@ -6,6 +6,7 @@
 #include "Creature.h"
 #include "ElwynnHuntPath.h"
 #include "GroundedPathSupport.h"
+#include "LivingFineRoute.h"
 #include "Map.h"
 #include "MovementPathBounds.h"
 #include "PathGenerator.h"
@@ -288,6 +289,7 @@ namespace LivingRecoveryPath
             !std::any_of(cursor.SurfaceEligible.begin(), cursor.SurfaceEligible.end(), [](bool eligible) { return eligible; }))
         { cursor.Done = true; publish(); return {}; }
         PathGenerator surfaceTiles(&creature);
+        cursor.Detour.FineTurnsEnabled = cursor.StrictArrival;
         while (cursor.Detour.State == LivingSurfaceCorridor::Status::Pending)
         {
             auto permit = PlanningWorkBudget::TryAcquire();
@@ -409,11 +411,27 @@ namespace LivingRecoveryPath
         if (!ActorInScope(creature) || !InScope(creature, from) || !InScope(creature, to) ||
             !InScope(creature, request.Destination) || creature.IsInCombat() || creature.IsInEvadeMode() ||
             creature.IsPet() || creature.IsCharmed() || !creature.GetTransGUID().IsEmpty() ||
-            !creature.IsAlive() || !UsefulStep(from, to) || !UsefulStep(from, request.Destination) || Distance(from, to) > 30.0f ||
+            !creature.IsAlive() || (!request.Polyline && (!UsefulStep(from, to) || !UsefulStep(from, request.Destination))) || Distance(from, to) > 30.0f ||
             !InScope(creature, request.Home) ||
             !std::isfinite(request.HomeRadius) || request.HomeRadius <= 0.0f ||
             !std::isfinite(request.DangerRadius) || request.DangerRadius < 0.0f || request.DangerRadius > 30.0f ||
             (request.Danger && (!Finite(*request.Danger) || request.Danger->MapId != from.MapId))) return reject("INVALID_REQUEST");
+        if (request.Polyline)
+        {
+            auto const& proof = *request.Polyline;
+            auto const& home = creature.GetHomePosition();
+            ActionPosition nativeHome{from.MapId,home.GetPositionX(),home.GetPositionY(),home.GetPositionZ()};
+            if (!request.SurfaceCorridor || request.Rejoin || !creature.CanWalk() || creature.IsFlying() ||
+                !creature.GetCharmerOrOwnerGUID().IsEmpty() || creature.IsControlledByPlayer() ||
+                creature.GetMapId() != 725 || creature.GetSpawnId() < LivingResidentsV11::First ||
+                creature.GetSpawnId() > LivingResidentsV11::Last || !sAIWorldMgr->OwnsSpawn(from.MapId,creature.GetSpawnId()) ||
+                proof.Owner != creature.GetGUID() || proof.PhaseMask != creature.GetPhaseMask() ||
+                !sAIWorldMgr->IsCurrentResidentSurfaceProof(creature,request) ||
+                !SamePosition(request.Home,nativeHome) || !InScope(creature,proof.Goal) ||
+                std::hypot(proof.Goal.X-request.Home.X,proof.Goal.Y-request.Home.Y) > request.HomeRadius ||
+                !LivingFineRoute::Bounded(proof.Points) || !SamePosition(proof.Points.back(),to))
+                return reject("FINE_ROUTE_CONTEXT");
+        }
         Map* map = creature.GetMap();
         auto clearSegment = [&](ActionPosition const& a, ActionPosition const& b)
         {
@@ -442,17 +460,30 @@ namespace LivingRecoveryPath
         if (request.SurfaceCorridor)
         {
             if (!creature.CanWalk() || Distance(from, to) > 6.0f) return reject("SURFACE_RANGE");
-            LivingSurfaceCorridor::Search surface;
-            auto status = LivingSurfaceCorridor::Advance(surface, from, to,
-                [&](ActionPosition const& p)
-                { return TerrainHeight(creature, p, SamePosition(p, from) ? 0.3f : 0.8f); }, clearSegment,
-                [&](ActionPosition const& p)
-                { return InScope(creature, p) &&
-                    std::hypot(p.X-request.Home.X, p.Y-request.Home.Y) <= request.HomeRadius; }, 12,
-                [&](ActionPosition const& p) { return path.RecoveryTile({p.X, p.Y, p.Z}); });
-            nav.Detail = surface.Failure;
-            if (status != LivingSurfaceCorridor::Status::Complete) return reject(surface.Failure);
-            for (auto const& p : surface.Route) points.emplace_back(p.X, p.Y, p.Z);
+            auto heightAt = [&](ActionPosition const& p)
+            { return TerrainHeight(creature,p,SamePosition(p,from) ? 0.3f : 0.8f); };
+            auto contains = [&](ActionPosition const& p)
+            { return InScope(creature,p) && std::hypot(p.X-request.Home.X,p.Y-request.Home.Y) <= request.HomeRadius; };
+            auto hasTile = [&](ActionPosition const& p) { return path.RecoveryTile({p.X,p.Y,p.Z}); };
+            if (request.Polyline)
+            {
+                char const* failure = "NONE";
+                auto const& dense = request.Polyline->SplinePoints;
+                auto const& controls = dense.empty() ? request.Polyline->Points : dense;
+                auto route = LivingFineRoute::Revalidate(from,controls,heightAt,clearSegment,contains,hasTile,&failure,
+                    dense.empty() ? LivingFineRoute::MaxControls : LivingFineRoute::MaxDensePoints);
+                nav.Detail = failure;
+                if (route.empty()) return reject(failure);
+                for (auto const& p : route) points.emplace_back(p.X,p.Y,p.Z);
+            }
+            else
+            {
+                LivingSurfaceCorridor::Search surface;
+                auto status = LivingSurfaceCorridor::Advance(surface,from,to,heightAt,clearSegment,contains,12,hasTile);
+                nav.Detail = surface.Failure;
+                if (status != LivingSurfaceCorridor::Status::Complete) return reject(surface.Failure);
+                for (auto const& p : surface.Route) points.emplace_back(p.X,p.Y,p.Z);
+            }
         }
         else if (request.Rejoin)
         {
@@ -551,7 +582,7 @@ namespace LivingRecoveryPath
         auto const& end = points.back();
         if (std::hypot(end.x - to.X, end.y - to.Y) > 1.0f || std::abs(end.z - to.Z) > 1.0f) return reject("ENDPOINT_MISMATCH");
         ActionPosition resolved{from.MapId, end.x, end.y, end.z};
-        if (!UsefulStep(from, resolved)) return reject("ZERO_STEP");
+        if (request.Polyline && !request.Polyline->SplinePoints.empty() ? Distance(from,resolved) <= 0.001f : !UsefulStep(from,resolved)) return reject("ZERO_STEP");
         if (request.QueryDestination && Distance(resolved, request.Destination) > 1.0f) return reject("ENDPOINT_CHANGED");
         for (std::size_t i = 1; request.Danger && i < points.size(); ++i)
             if (std::hypot(points[i].x-points[i-1].x, points[i].y-points[i-1].y) > 0.1f &&

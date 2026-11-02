@@ -1,6 +1,7 @@
 /* This file is part of the TrinityCore Project. See AUTHORS file for Copyright information.
  * Licensed under the GNU General Public License, version 2 or later. */
 #include "AIWorldMgr.h"
+#include "Agent/LivingFineRoute.h"
 #include "Agent/LivingResidentsV11Locations.h"
 #include "Creature.h"
 #include "Log.h"
@@ -154,8 +155,10 @@ bool AIWorldMgr::UpdateLivingResidentV11(AgentRecord& record, Creature& creature
             creature.GetMotionMaster()->GetCurrentMovementGenerator(MOTION_SLOT_ACTIVE));
         bool owned = state.SourceGoal == GoalType::LocalActivity && OwnedGoal(record) &&
             (!record.ActiveActionState || OwnedAction(record, ActionType::MoveTo));
+        float arrivalTolerance = actor.Travel.Pending && actor.Travel.Pending->Polyline ?
+            LivingFineRoute::SourceTolerance : 2.0f;
         bool arrived = owned && creature.IsStopped() &&
-            creature.GetExactDist(state.Destination.X, state.Destination.Y, state.Destination.Z) <= 2.0f;
+            creature.GetExactDist(state.Destination.X, state.Destination.Y, state.Destination.Z) <= arrivalTolerance;
         if (!arrived && owned && record.ActiveActionState && movement && movement->GetId() == ActionExecutor::MovePointId &&
             state.MoveWatchdog.Continue(nowMs, {725, creature.GetPositionX(), creature.GetPositionY(), creature.GetPositionZ()}, false))
             return true;

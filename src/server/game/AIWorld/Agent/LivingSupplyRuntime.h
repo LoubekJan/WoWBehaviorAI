@@ -9,6 +9,7 @@
 #include "Action/RecoveryMovement.h"
 #include "ObjectGuid.h"
 #include "LivingReturnPolicy.h"
+#include "LivingFineRoute.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -103,14 +104,48 @@ namespace LivingSupply
             Danger = std::move(danger); Clearance = clearance; PhaseMask = phase; Capabilities = capabilities;
             SeparateFailureProofs = separateFailureProofs;
         }
+        std::optional<std::size_t> PolylinePrefix(RecoveryMovement const& request) const
+        {
+            if (!Active || !SeparateFailureProofs || !request.Polyline || !request.SurfaceCorridor || request.Rejoin)
+                return std::nullopt;
+            auto const& proof = *request.Polyline;
+            if (proof.Owner != Guid || proof.PhaseMask != PhaseMask || !LivingFineRoute::Same(proof.Goal,Goal) ||
+                !LivingFineRoute::Same(request.Home,Home) || !LivingFineRoute::Bounded(proof.Points) ||
+                (!proof.SplinePoints.empty() && !LivingFineRoute::RetainsCorners(proof.Points,proof.SplinePoints)) ||
+                request.DangerRadius != Clearance || request.Danger.has_value() != Danger.has_value() ||
+                (Danger && !LivingFineRoute::Same(*request.Danger,*Danger)) ||
+                proof.Points.front().MapId != Origin.MapId || LivingFineRoute::Distance(proof.Points.front(),Origin) > 0.01f ||
+                !LivingFineRoute::Same(proof.Points.back(),request.QueryDestination.value_or(request.Destination)))
+                return std::nullopt;
+            std::size_t consumed = 0;
+            for (std::size_t i = 1; i < proof.Points.size(); ++i)
+            {
+                while (consumed < Route.Planned.size() && LivingFineRoute::Same(Route.Planned[consumed],proof.Points[i-1]))
+                    ++consumed;
+                if (consumed == Route.Planned.size() || !LivingFineRoute::Same(Route.Planned[consumed],proof.Points[i]))
+                    return std::nullopt;
+                ++consumed;
+            }
+            return consumed;
+        }
         bool ObserveSource(ActionPosition const& here, bool ownedArrival = false)
         {
             if (!Active || here.MapId != Origin.MapId) return false;
+            if (ownedArrival && Pending && Pending->Polyline &&
+                (LivingFineRoute::Distance(PendingFrom,here) <= 0.25f ||
+                    LivingFineRoute::Distance(Pending->Destination,here) > LivingFineRoute::SourceTolerance)) return false;
             if (ownedArrival && Pending && LivingReturnPolicy::Distance(PendingFrom, here) > 0.25f &&
-                LivingReturnPolicy::Distance(Pending->Destination, here) <= (Route.SurfaceCorridor ? 0.5f : 2.0f))
+                LivingReturnPolicy::Distance(Pending->Destination, here) <=
+                    (Pending->Polyline ? LivingFineRoute::SourceTolerance : Route.SurfaceCorridor ? 0.5f : 2.0f))
             {
                 auto query = Pending->QueryDestination.value_or(Pending->Destination);
-                if (!Route.Planned.empty() && LivingReturnPolicy::SamePosition(Route.Planned.front(), query))
+                if (Pending->Polyline)
+                {
+                    auto consumed = PolylinePrefix(*Pending);
+                    if (!consumed || !LivingFineRoute::Same(Pending->Polyline->Points.front(),PendingFrom)) return false;
+                    Route.Planned.erase(Route.Planned.begin(),Route.Planned.begin()+*consumed);
+                }
+                else if (!Route.Planned.empty() && LivingReturnPolicy::SamePosition(Route.Planned.front(), query))
                     Route.Planned.erase(Route.Planned.begin());
                 // The remaining proved route survives. Unissued alternatives
                 // refer to the old origin and must be queried afresh if needed.
