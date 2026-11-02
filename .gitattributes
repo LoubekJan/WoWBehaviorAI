@@ -41,6 +41,7 @@ data/npc_templates/*.json text eol=lf
 tools/realm_lab/verify_resident_positions.py text eol=lf
 tools/realm_lab/verify_resident_navmesh.cpp text eol=lf
 src/server/game/AIWorld/Agent/LivingResidentsV11Locations.h text eol=lf
+src/server/game/AIWorld/Agent/LivingResidentsV12Routes.h text eol=lf
 tools/realm_lab/verify_living_v11_positions.py text eol=lf
 tools/realm_lab/verify_living_v12_positions.py text eol=lf
 tools/realm_lab/verify_v12_bridges.py text eol=lf

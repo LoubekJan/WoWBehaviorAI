@@ -2953,6 +2953,7 @@ class TC_GAME_API AIWorldMgr
         bool _livingRoleExtensionsEnabled = false;
         bool _livingSupplyEnabled = false;
         bool _livingResidentsV11Enabled = false;
+        bool _livingResidentsV12BridgeRoutesEnabled = false;
         std::unordered_map<uint64, LivingResidentsV11::State> _residentActors;
         void InitializeLivingResidentsV11();
         bool IsLivingResidentV11(AgentRecord const& record) const;

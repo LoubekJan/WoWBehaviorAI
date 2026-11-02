@@ -158,6 +158,7 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         "AIWorld.LivingRoleExtensionsEnabled": "0",
         "AIWorld.LivingSupplyEnabled": "0",
         "AIWorld.LivingResidentsV11.Enabled": "0",
+        "AIWorld.LivingResidentsV12.BridgeRoutesEnabled": "0",
         "AIWorld.LivingConsumersEnabled": "0",
         "AIWorld.LivingRaidsEnabled": "0",
         "AIWorld.LivingFieldsEnabled": "0",
@@ -218,7 +219,8 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
                        "AIWorld.TelemetryHost": "world-viewer", "AIWorld.TelemetryPort": "8000"})
         if settings.ai_profile in LIVING_PROFILES and not settings.wildlife_enabled:
             for key in ("AIWorld.Enable", "AIWorld.LivingRolesEnabled", "AIWorld.LivingRoleExtensionsEnabled",
-                        "AIWorld.LivingNeedEvolutionEnabled", "AIWorld.LivingResidentsV11.Enabled"):
+                        "AIWorld.LivingNeedEvolutionEnabled", "AIWorld.LivingResidentsV11.Enabled",
+                        "AIWorld.LivingResidentsV12.BridgeRoutesEnabled"):
                 result[key] = "0"
     elif settings.ai_profile == "single-return":
         scope = scope or single_return.Scope.load()

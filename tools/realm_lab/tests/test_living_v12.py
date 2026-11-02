@@ -58,7 +58,7 @@ class LivingV12Tests(unittest.TestCase):
         self.assertEqual(self.population.profile,'living-v12')
         self.assertEqual(self.population.source_revision,'preview-v12')
         self.assertEqual(self.population.actors,self.baseline.actors)
-        self.assertEqual(self.population.config(),self.baseline.config())
+        self.assertEqual(self.population.config(),{**self.baseline.config(),living_v12.transit.FLAG:'0'})
         self.assertEqual(living_v12.runtime_catalog(self.population.positions),living_v11.runtime_catalog(self.baseline.positions))
         self.assertEqual(living_v12.bootstrap_sql(self.population),living_v11.bootstrap_sql(self.baseline))
         rows=controlled_snapshot(self.population)

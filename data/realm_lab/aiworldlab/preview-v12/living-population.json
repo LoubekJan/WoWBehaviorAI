@@ -740,5 +740,15 @@
     }
   ],
   "behavior_profile": "living-v11",
-  "compiled_position_proof_sha256": "8e8f1188830c7f97f588d7c355abb15ae3a516b34add0b4329fce01b3ad06c4a"
+  "compiled_position_proof_sha256": "8e8f1188830c7f97f588d7c355abb15ae3a516b34add0b4329fce01b3ad06c4a",
+  "transit_route_catalog": {
+    "schema_version": 1,
+    "source_revision": "preview-v12",
+    "proof_file": "transit-route-verification.json",
+    "proof_sha256": "5fe9c58c9a61ac7c9a30f75ec07b76fa49e5cd7b78ffef08edba1a66529a6e8e",
+    "header": "src/server/game/AIWorld/Agent/LivingResidentsV12Routes.h",
+    "header_sha256": "b6c40d8122886a4df2cf99a2f157c4113f1761d1fb179397f41eb6d6c3e3a5bc",
+    "routes_sha256": "2e95ed222865ddaa0dba970987e55c89bb1236f86db40f39970f8670c3ff8867",
+    "route_count": 30
+  }
 }

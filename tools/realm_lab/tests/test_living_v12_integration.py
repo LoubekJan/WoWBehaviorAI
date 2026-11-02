@@ -10,12 +10,13 @@ import unittest
 from tools.realm_lab.tests import test_authoring_integration as authoring
 from tools.realm_lab.tests import test_living_v11_integration as previous
 from tools.realm_lab.tests import test_living_v11_runtime_mounts as mounts
+from tools.realm_lab import living_v12_routes as transit
 
 
 class LivingV12RuntimeMountTests(unittest.TestCase):
     def test_actual_v12_loader_uses_only_the_existing_readonly_runtime_inputs(self):
         blocks=mounts.consumer_blocks()
-        needed=('tools/realm_lab','data/realm_lab',mounts.HEADER)
+        needed=('tools/realm_lab','data/realm_lab',mounts.HEADER,transit.HEADER_RELATIVE)
         baseline=tuple(b for b in mounts.workspace_binds(blocks['worldserver']) if b[1] in needed)
         for service in mounts.CONSUMERS:
             self.assertEqual(tuple(b for b in mounts.workspace_binds(blocks[service]) if b[1] in needed),baseline)
@@ -37,11 +38,17 @@ from tools.realm_lab import living_v12
 p=living_v12.Population.load()
 assert living_v12.LOCATIONS_HEADER == Path(sys.argv[1])/sys.argv[2]
 assert p.config()['AIWorld.LivingResidentsV11.Enabled']=='1'
-print(json.dumps(dict(profile=p.profile,source_revision=p.source_revision,actors=len(p.actors))))
+assert p.config()['AIWorld.LivingResidentsV12.BridgeRoutesEnabled']=='1'
+assert p.transit_route_catalog is not None
+print(json.dumps(dict(profile=p.profile,source_revision=p.source_revision,actors=len(p.actors),transit_routes=len(p.transit_route_catalog.proof['routes']))))
 '''
             result=subprocess.run([sys.executable,'-I','-c',program,str(root),mounts.HEADER],cwd=root,capture_output=True,text=True,timeout=30)
             self.assertEqual(result.returncode,0,result.stderr[-3000:])
-            self.assertEqual(json.loads(result.stdout),dict(profile='living-v12',source_revision='preview-v12',actors=45))
+            self.assertEqual(json.loads(result.stdout),dict(profile='living-v12',source_revision='preview-v12',actors=45,transit_routes=30))
+            (root/transit.HEADER_RELATIVE).unlink()
+            missing=subprocess.run([sys.executable,'-I','-c',program,str(root),mounts.HEADER],cwd=root,capture_output=True,text=True,timeout=30)
+            self.assertNotEqual(missing.returncode,0)
+            self.assertIn('LivingResidentsV12Routes.h',missing.stderr)
 
 
 @unittest.skipUnless(authoring.bash_binary(),'Bash is required for deployment-flow checks')
