@@ -2,9 +2,8 @@
 
 ## Aktivní AI World — living-v11
 
-[Řízená populace](living-population.json) zachovává všech 45 současných
-obyvatel, jejich vlastní šablony, jména, příběhy a pevné domovy. Změnou je
-výslovné převzetí běžného řízení pod AI World; LLM controller a provider
+[Řízená populace](living-population.json) zachovává všech 45 současných obyvatel, jejich vlastní šablony, jména, příběhy
+a pevné domovy. Změnou je výslovné převzetí běžného řízení pod AI World; LLM controller a provider
 zůstávají vypnuté. Původní testovací stovka ani zvěř se nevytvářejí.
 
 | Schopnost | Počet | Sklad |
@@ -15,32 +14,57 @@ zůstávají vypnuté. Původní testovací stovka ani zvěř se nevytvářejí.
 | Městští spotřebitelé | 17 | 5 městský sklad |
 | Defias s přepadovou schopností | 10 | 6 vlastní táborový sklad |
 
-Skladové body patří k přístupným místům u staveb, nikoli dovnitř jejich
-neprůchodného modelu. [Nové ověření míst](living-position-verification.json)
-pokrývá šest skladů, 36 bodů úrody, všech 45 domovů a stejných 74 souborů
-geometrie. Nad 329 kolizními instancemi a všemi zdrojovými vrstvami vody
-prošlo **87 pozemních projekcí a 346 úplných cest**. Šestnáct směrovaných
-tras má navíc **70 ověřených bodů a 144 úplných úseků**; nejdelší úsek
-měří přibližně 139 yardů. Manifest připíná také otisk z těchto dat
-vygenerovaných bodů v serverovém kódu. Zásoby vznikají a mění majitele až dokončenými
-fyzickými činnostmi; nosiči nepřidávají potraviny pouhým příchodem.
-Potřeby, úroda, zásoby a náklad se přes restart nadále neukládají.
+Skladové body patří k přístupným místům u staveb, nikoli dovnitř jejich neprůchodného modelu.
+[Nové ověření míst](living-position-verification.json) pokrývá šest skladů, 36 bodů úrody, všech 45 domovů a stejných 74 souborů
+geometrie. Nad 329 kolizními instancemi a všemi zdrojovými vrstvami vody prošlo **87 pozemních
+projekcí a 346 úplných cest**. Šestnáct směrovaných tras má navíc **70 ověřených bodů a 144
+úplných úseků**; nejdelší úsek měří přibližně 139 yardů. Manifest připíná také otisk z těchto dat
+vygenerovaných bodů v serverovém kódu. Zásoby vznikají a mění majitele až dokončenými fyzickými
+činnostmi; nosiči nepřidávají potraviny pouhým příchodem. Potřeby, úroda, zásoby a náklad se přes
+restart nadále neukládají.
 
-[Řízené nasazení](living-activation.json) potvrzuje binár `3d439d28ea96`,
-CI/CD s 957 Python a 709 nativními testy, osm zdravých služeb a všech
-45 řízených, načtených a živých NPC. První sledování z 2. listopadu
-18:38–18:48 CET má 300 platných snímků bez chyby. Pozorovalo celé fyzické
-řetězce u 11 farmářů, 7 Defias a jednoho nosiče. Snědlo se 22 porcí,
-jídlo je doložené u 16 různých NPC. Bilance 52 získaných porcí odpovídá
-26 ve skladech + 4 v nákladu + 22 snědeným, bez ztrát.
+[Řízené nasazení](living-activation.json) potvrzuje osm zdravých služeb a všech 45 řízených, načtených a živých NPC.
+Binár `92f61dc23040` prošel CI/CD s 960 Python a 718 nativními testy.
 
-Farmář 902000 a nosič 902016 zůstali u výstupu z domu. Oprava jemnějšího
-plánování pro úzké dveře se právě ověřuje a není součástí uvedeného bináru.
-Úplné řetězce zatím chybí také u Defias 902037/902039/902040 a záznam
-nepotvrzuje dodávku do městského skladu 5. Tato místa zůstávají otevřená;
-neoznačují se za dokončené přijetí všech 45 NPC. Níže uvedený
-[nativní provozní důkaz](activation.json) je historický. Úspěšné ověření cest
-samo o sobě neprokazuje, že je NPC fyzicky odchodila.
+Záznam po opravě má 300 platných snímků za přibližně 10 minut bez chyby bilance. Zachytil sklizeň
+a dodávku u 8 z 12 farmářů, krádež a dopravu do tábora u všech 10 Defias a převoz u obou nosičů.
+Jídlo ze skladu je doložené u 3 z 21 spotřebitelů; konkrétní pozorovaná i nepozorovaná NPC uvádí
+provozní doklad. Na konci záznamu je kumulativní stav od startu serveru: 0 počátečních + 74
+získaných porcí = 36 ve skladech + 3 v nákladu + 35 snědených + 0 ztracených. První snímek už měl
+20 získaných porcí; ty se nepočítají jako události pozorované během záznamu. Dodávka do městského
+skladu 5 zatím v tomto záznamu doložená není. Úzké průchody a část návratů domů zůstávají
+otevřené; konkrétní případy rozlišuje níže uvedené TODO.
+
+Oprava kombinuje jeden jemnější průzkum po vyčerpání hrubé mřížky a krátký odchodový bod u
+vlastního skladu. Oba průzkumy sdílejí limit 512 uzlů / 2048 hran; skutečné podlahy, kolize těla,
+hranice mapy a nebezpečí se dál ověřují.
+
+První záznam na bináru `3d439d28ea96` z 18:38–18:48 CET zůstává samostatnou historií: 300 platných
+snímků, celé řetězce u 11 farmářů, 7 Defias a jednoho nosiče, 22 snědených porcí. Nezaměňuje se s
+novým záznamem po restartu, protože stav potravy se přes restart neukládá. [Původní nativní receipt](activation.json)
+popisuje ještě starší osazení.
+
+## TODO — úzké průchody a dokončení návratů domů
+
+Polohově závislé omezení schodišť zůstává otevřené u farmářů **902006/902007** a jižního
+spotřebitele **902015**. Kontrola skutečné geometrie s tělem o poloměru přibližně 0,306 a výšce
+2,031 yardu našla u všech tří průchod při rozteči 0,625 yardu; při 1,25 yardu jej nenašla. Mapa
+tedy nabízí fyzicky průchodnou cestu. Tento diagnostický výsledek není důkazem, že ji běžící NPC
+provedlo. Současné provádění vyžaduje krok delší než jeden yard a neumí zachovat všechny krátké
+zatáčky na těchto schodech.
+
+Pro tyto tři geometricky ověřené případy je další úkol provést **celou jemnou lomenou cestu** se
+zachováním každého potřebného rohu. Nesmí se přeskakovat ohyby, zeslabit kolize těla či podlahové
+kontroly, měnit domovy ani obnovovat výchozí rozpočet hledání. Ověření musí fyzicky zachytit
+odchod, práci nebo jídlo a návrat domů u všech tří NPC. První sklizeň a dodávka samy návrat domů
+neprokazují. [Doklad nasazení a mezí](living-activation.json) uchovává otisk geometrické diagnostiky; žádný záznam zde
+neoznačuje všechny činnosti všech 45 NPC za dokončené fyzické přijetí. V závěrečném záznamu je u
+902007 zachycen návrat a odpočinek doma. Známý problém schodiště tedy závisí na výchozí poloze;
+tato pozorování nepotvrzují všechny varianty průchodu.
+
+Další čekání při návratu domů je v závěrečném provozním posouzení zaznamenané u 902004, 902008,
+902009, 902010, 902011, 902013, 902014. Tato místa vyžadují samostatnou diagnostiku; příčina není
+geometrickým důkazem tří schodišť potvrzená.
 
 ## Historie nativního osazení residents-v11
 

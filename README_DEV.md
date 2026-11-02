@@ -2,11 +2,10 @@
 
 ## Současný řízený svět — living-v11
 
-`living-v11` řídí přesně současných 45 obyvatel mapy preview-v11 pod
-AI World. Jejich spawny `902000–902044`, vlastní entry `9810000–9810044`,
-jména, domovy a Studio návrhy zůstávají zachované. Původní testovací stovka
-ani nová zvěř se nevytvářejí. LLM controller a modelový provider jsou vypnuté;
-AI World řídí běžné potřeby, pohyb a fyzické činnosti.
+`living-v11` řídí přesně současných 45 obyvatel mapy preview-v11 pod AI World. Jejich spawny
+`902000–902044`, vlastní entry `9810000–9810044`, jména, domovy a Studio návrhy zůstávají
+zachované. Původní testovací stovka ani nová zvěř se nevytvářejí. LLM controller a modelový
+provider jsou vypnuté; AI World řídí běžné potřeby, pohyb a fyzické činnosti.
 
 | Úloha | NPC | Zásobování |
 | --- | --- | --- |
@@ -25,33 +24,26 @@ LAB_NPC_AGENTS_ENABLED=0
 AI_NPC_MODEL_ENABLED=0
 ```
 
-Přepínač `AIWorld.LivingResidentsV11.Enabled=1` se vykreslí z profilu;
-historické přepínače zásobování v8 zůstávají vypnuté. Před zastavením
-zdravého světa se čte a ověřuje úplných 45 vlastních šablon, domovy a stav
-AI vazeb. Při zastaveném světě se pod společným zámkem vytvoří jen chybějící
-AI identity a explicitní účast, potom se ověří jejich převzetí. Neprovádí se
-nové rozmístění obyvatel. Uchovávají se účty, hráčské postavy i mapové zdroje.
+Přepínač `AIWorld.LivingResidentsV11.Enabled=1` se vykreslí z profilu; historické přepínače
+zásobování v8 zůstávají vypnuté. Před zastavením zdravého světa se čte a ověřuje úplných 45
+vlastních šablon, domovy a stav AI vazeb. Při zastaveném světě se pod společným zámkem vytvoří jen
+chybějící AI identity a explicitní účast, potom se ověří jejich převzetí. Neprovádí se nové
+rozmístění obyvatel. Uchovávají se účty, hráčské postavy i mapové zdroje.
 
-[Ověření míst a tras](data/realm_lab/aiworldlab/preview-v11/living-position-verification.json)
-potvrzuje 87 pozemních projekcí a 346 úplných cest, samostatně také 70
-trasových bodů a 144 úplných úseků nad stejnými nativními daty.
-[Nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json) běží
-na bináru `3d439d28ea96`, jehož CI/CD prošlo 957 Python a 709 nativními
-testy. Osm služeb je zdravých, 45 NPC je řízených, načtených a živých.
-Všechny čtyři služby načítající populaci mají také samostatně připojený
-ověřený katalog `LivingResidentsV11Locations.h` jen pro čtení; kontrola
-v plném build kontejneru sama neověřuje omezené runtime vstupy.
+[Ověření míst a tras](data/realm_lab/aiworldlab/preview-v11/living-position-verification.json) potvrzuje 87 pozemních projekcí a 346 úplných cest, samostatně také 70
+trasových bodů a 144 úplných úseků nad stejnými nativními daty. [Nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json) potvrzuje binár
+`92f61dc23040` po 960 Python a 718 nativních testech, osm zdravých služeb a všech 45 řízených,
+načtených a živých NPC. Čtyři služby načítající populaci mají ověřený katalog
+`LivingResidentsV11Locations.h` samostatně připojený jen pro čtení.
 
-První desetiminutový záznam má 300 platných snímků bez chyby a se shodnými
-kopiemi šesti skladů. Pozoroval celé řetězce sklizeň–náklad–doručení u
-11 z 12 farmářů, odcizení–návrat–doručení u 7 z 10 Defias a nakládku–doručení
-u jednoho ze dvou nosičů. Bilance je 52 získaných porcí = 26 ve skladech +
-4 v nákladu + 22 snědených, bez ztrát. Jídlo se zachytilo u 16 různých NPC.
-Nejde o přijetí všech cyklů: farmář 902000 a nosič 902016 mají problém
-s výstupem z domu; jemnější plánovací krok pro úzké dveře se právě ověřuje.
-Také zbývající Defias a městské zásobování vyžadují další sledování.
-Potřeby, úroda, zásoby a náklad nadále zůstávají v paměti do restartu.
-[Přehled mapy a důkazů](data/realm_lab/aiworldlab/preview-v11/README.md).
+Konečný desetiminutový záznam má 300 platných snímků bez chyby bilance. Zachytil sklizeň a dodávku
+u 8 farmářů, převoz u obou nosičů a přepad s dopravou do tábora u všech 10 Defias; jídlo u 3 z 21
+spotřebitelů. Úzké průchody, část návratů domů a městské zásobování vyžadují další práci.
+[Přehled mapy a TODO](data/realm_lab/aiworldlab/preview-v11/README.md) uvádí konkrétní omezení a oddělené pozorování jednotlivých rolí.
+
+Bilance v dokladu je kumulativní od startu serveru; první snímek již obsahoval 20 získaných porcí.
+První starší záznam zůstává samostatnou historií. Potřeby, úroda, zásoby a náklad nadále zůstávají
+v paměti do restartu.
 
 ## Předchozí nativní osídlení — residents-v11
 
