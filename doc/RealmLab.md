@@ -1,5 +1,20 @@
 # Vlastní svět jako jediný realm
 
+## Přesun taverny a osazení veřejných budov — preview-v11, 2. listopadu 2026
+
+Současný profil `residents-v11` používá nově uloženou mapu s přesunutou
+tavernou a upravenou výškou radnice. Zachovává původních 22 obyvatel a jejich
+domovy; přidává 3 postavy do taverny, 10 do radnice a 10 kolem tří stanů vlevo.
+Celkem jde o 45 samostatných postav. Nová NPC mají spawn `902022`–`902044`
+a vlastní šablony `9810022`–`9810044`.
+
+Jen stanový tábor patří do vlastní frakce Defias: herní FactionTemplate 2300,
+Faction.dbc 1201, WorldFaction 2. Používá úplné samostatné klony nativního
+Defias Thuga 38 včetně jeho bojové hlášky; obyvatelé budov zachovávají svůj
+základ 11328. Nové LLM řízení ani living-world simulace se nezapínají.
+Podlahy, kolize, všechny zdrojové vrstvy vody a 90 cest jsou ověřené nad
+skutečnými novými daty. [Aktuální přehled a důkazy](../data/realm_lab/aiworldlab/preview-v11/README.md).
+
 ## Obyvatelé domů — residents-v10, 2. listopadu 2026
 
 Nová populace osazuje **11 obytných domů po dvou NPC**, celkem **22 obyvatel**.

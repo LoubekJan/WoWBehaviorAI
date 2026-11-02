@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v11",
+  "baseline_revision": "preview-v10",
+  "added": [],
+  "removed": [],
+  "changed": [
+    {
+      "before": {
+        "kind": "m2",
+        "name": "WORLD\\EXPANSION02\\DOODADS\\DALARAN\\DALARAN_WAGON01.M2",
+        "unique_id": 218,
+        "raw_position": [
+          16495.708984375,
+          0.0,
+          17052.634765625
+        ],
+        "server_position": {
+          "x": 14.03125,
+          "y": 570.95703125,
+          "z": 0.0
+        },
+        "rotation": [
+          0.0,
+          -12.079833984375,
+          0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      },
+      "after": {
+        "kind": "m2",
+        "name": "WORLD\\EXPANSION02\\DOODADS\\DALARAN\\DALARAN_WAGON01.M2",
+        "unique_id": 218,
+        "raw_position": [
+          16495.708984375,
+          0.001177668571472168,
+          17052.634765625
+        ],
+        "server_position": {
+          "x": 14.03125,
+          "y": 570.95703125,
+          "z": 0.001177668571472168
+        },
+        "rotation": [
+          0.0,
+          -12.079833984375,
+          0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      }
+    },
+    {
+      "before": {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREINN\\GOLDSHIREINN.WMO",
+        "unique_id": 209,
+        "raw_position": [
+          16550.384765625,
+          0.09819316864013672,
+          17066.029296875
+        ],
+        "server_position": {
+          "x": 0.63671875,
+          "y": 516.28125,
+          "z": 0.09819316864013672
+        },
+        "rotation": [
+          0.0,
+          -94.0924072265625,
+          0.0
+        ],
+        "server_bounds": {
+          "min_x": -20.69140625,
+          "max_x": 15.693359375,
+          "min_y": 477.640625,
+          "max_y": 539.501953125,
+          "min_z": -6.663619518280029,
+          "max_z": 23.374805450439453
+        },
+        "flags": 0,
+        "doodad_set": 0,
+        "name_set": 0,
+        "scale_field": 1024
+      },
+      "after": {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\GOLDSHIREINN\\GOLDSHIREINN.WMO",
+        "unique_id": 209,
+        "raw_position": [
+          16551.16796875,
+          0.08964419364929199,
+          17068.669921875
+        ],
+        "server_position": {
+          "x": -2.00390625,
+          "y": 515.498046875,
+          "z": 0.08964419364929199
+        },
+        "rotation": [
+          0.0,
+          -90.32888793945312,
+          0.0
+        ],
+        "server_bounds": {
+          "min_x": -20.90234375,
+          "max_x": 11.646484375,
+          "min_y": 477.6484375,
+          "max_y": 537.546875,
+          "min_z": -6.672168731689453,
+          "max_z": 23.366256713867188
+        },
+        "flags": 0,
+        "doodad_set": 0,
+        "name_set": 0,
+        "scale_field": 1024
+      }
+    },
+    {
+      "before": {
+        "kind": "m2",
+        "name": "WORLD\\GENERIC\\HUMAN\\PASSIVE DOODADS\\GYPSYWAGONS\\STORMWINDGYPSYWAGON01.M2",
+        "unique_id": 220,
+        "raw_position": [
+          16493.3984375,
+          -3.814697265625e-06,
+          17062.00390625
+        ],
+        "server_position": {
+          "x": 4.662109375,
+          "y": 573.267578125,
+          "z": -3.814697265625e-06
+        },
+        "rotation": [
+          0.0,
+          0.0,
+          -0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      },
+      "after": {
+        "kind": "m2",
+        "name": "WORLD\\GENERIC\\HUMAN\\PASSIVE DOODADS\\GYPSYWAGONS\\STORMWINDGYPSYWAGON01.M2",
+        "unique_id": 220,
+        "raw_position": [
+          16493.3984375,
+          0.0005338191986083984,
+          17062.00390625
+        ],
+        "server_position": {
+          "x": 4.662109375,
+          "y": 573.267578125,
+          "z": 0.0005338191986083984
+        },
+        "rotation": [
+          0.0,
+          0.0,
+          -0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      }
+    },
+    {
+      "before": {
+        "kind": "m2",
+        "name": "WORLD\\EXPANSION02\\DOODADS\\STRATHOLME_PAST\\BANNERS\\LD_STRATHOLME_OPENTENT.M2",
+        "unique_id": 222,
+        "raw_position": [
+          16496.447265625,
+          0.0,
+          17043.572265625
+        ],
+        "server_position": {
+          "x": 23.09375,
+          "y": 570.21875,
+          "z": 0.0
+        },
+        "rotation": [
+          0.0,
+          -124.28662872314453,
+          0.0
+        ],
+        "scale": 0.7890625,
+        "flags": 0
+      },
+      "after": {
+        "kind": "m2",
+        "name": "WORLD\\EXPANSION02\\DOODADS\\STRATHOLME_PAST\\BANNERS\\LD_STRATHOLME_OPENTENT.M2",
+        "unique_id": 222,
+        "raw_position": [
+          16496.447265625,
+          0.005562186241149902,
+          17043.572265625
+        ],
+        "server_position": {
+          "x": 23.09375,
+          "y": 570.21875,
+          "z": 0.005562186241149902
+        },
+        "rotation": [
+          0.0,
+          -124.28662872314453,
+          0.0
+        ],
+        "scale": 0.7890625,
+        "flags": 0
+      }
+    },
+    {
+      "before": {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\TOWNHALL_NOWALL\\TOWNHALL_NOWALL.WMO",
+        "unique_id": 199,
+        "raw_position": [
+          16504.19921875,
+          2.599346399307251,
+          17038.740234375
+        ],
+        "server_position": {
+          "x": 27.92578125,
+          "y": 562.466796875,
+          "z": 2.599346399307251
+        },
+        "rotation": [
+          0.0,
+          -33.28812789916992,
+          0.0
+        ],
+        "server_bounds": {
+          "min_x": 26.916015625,
+          "max_x": 105.1640625,
+          "min_y": 508.748046875,
+          "max_y": 587.185546875,
+          "min_z": 1.1196132898330688,
+          "max_z": 62.04737091064453
+        },
+        "flags": 0,
+        "doodad_set": 0,
+        "name_set": 0,
+        "scale_field": 1024
+      },
+      "after": {
+        "kind": "wmo",
+        "name": "WORLD\\WMO\\AZEROTH\\BUILDINGS\\TOWNHALL_NOWALL\\TOWNHALL_NOWALL.WMO",
+        "unique_id": 199,
+        "raw_position": [
+          16504.19921875,
+          1.5692973136901855,
+          17038.740234375
+        ],
+        "server_position": {
+          "x": 27.92578125,
+          "y": 562.466796875,
+          "z": 1.5692973136901855
+        },
+        "rotation": [
+          0.0,
+          -33.28812789916992,
+          0.0
+        ],
+        "server_bounds": {
+          "min_x": 26.916015625,
+          "max_x": 105.1640625,
+          "min_y": 508.748046875,
+          "max_y": 587.185546875,
+          "min_z": 0.08956420421600342,
+          "max_z": 61.0173225402832
+        },
+        "flags": 0,
+        "doodad_set": 0,
+        "name_set": 0,
+        "scale_field": 1024
+      }
+    },
+    {
+      "before": {
+        "kind": "m2",
+        "name": "WORLD\\EXPANSION02\\DOODADS\\GENERIC\\HIGHELF\\HE_WAGON_01.M2",
+        "unique_id": 219,
+        "raw_position": [
+          16489.4140625,
+          0.0,
+          17052.513671875
+        ],
+        "server_position": {
+          "x": 14.15234375,
+          "y": 577.251953125,
+          "z": 0.0
+        },
+        "rotation": [
+          0.0,
+          157.05673217773438,
+          0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      },
+      "after": {
+        "kind": "m2",
+        "name": "WORLD\\EXPANSION02\\DOODADS\\GENERIC\\HIGHELF\\HE_WAGON_01.M2",
+        "unique_id": 219,
+        "raw_position": [
+          16489.4140625,
+          0.0002307891845703125,
+          17052.513671875
+        ],
+        "server_position": {
+          "x": 14.15234375,
+          "y": 577.251953125,
+          "z": 0.0002307891845703125
+        },
+        "rotation": [
+          0.0,
+          157.05673217773438,
+          0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      }
+    },
+    {
+      "before": {
+        "kind": "m2",
+        "name": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GYPSYWAGON\\GYPSYWAGON.M2",
+        "unique_id": 216,
+        "raw_position": [
+          16487.96484375,
+          0.0,
+          17061.107421875
+        ],
+        "server_position": {
+          "x": 5.55859375,
+          "y": 578.701171875,
+          "z": 0.0
+        },
+        "rotation": [
+          0.0,
+          16.2437744140625,
+          0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      },
+      "after": {
+        "kind": "m2",
+        "name": "WORLD\\AZEROTH\\DUSKWOOD\\BUILDINGS\\GYPSYWAGON\\GYPSYWAGON.M2",
+        "unique_id": 216,
+        "raw_position": [
+          16487.96484375,
+          0.00014793872833251953,
+          17061.107421875
+        ],
+        "server_position": {
+          "x": 5.55859375,
+          "y": 578.701171875,
+          "z": 0.00014793872833251953
+        },
+        "rotation": [
+          0.0,
+          16.2437744140625,
+          0.0
+        ],
+        "scale": 1.0,
+        "flags": 0
+      }
+    }
+  ]
+}

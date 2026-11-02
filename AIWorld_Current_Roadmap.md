@@ -1,15 +1,17 @@
 # Obyvatelé finální mapy — 2. listopadu 2026
 
-Aktivní geometrie je `preview-v10`, realm 2, mapa 725 a oblast 4988.
-Nový profil `residents-v10` přidává dvě NPC do každého z 11 obytných domů.
-Celkem 22 obyvatel má samostatné herní šablony, jména, karty a Studio návrhy.
-Hostinec, kovárna, radnice, pila, sila a jeskyně se tímto krokem neosazují.
-Rozpis a geometrické důkazy jsou v [přehledu obyvatel](data/realm_lab/aiworldlab/preview-v10/residents-README.md).
+Aktivní geometrie je `preview-v11`, realm 2, mapa 725 a oblast 4988.
+Profil `residents-v11` zachovává 22 NPC v 11 obytných domech a doplňuje
+3 do taverny, 10 do radnice a 10 do levého stanového tábora. Všech 45 NPC
+má samostatné herní šablony, jména, karty a Studio návrhy. Pouze deset
+stanových postav patří do vlastní frakce Defias. Rozpis a geometrické důkazy
+jsou v [aktuálním přehledu](data/realm_lab/aiworldlab/preview-v11/README.md).
 
 - [x] Připravit 22 nových identit a vlastních šablon nad stávající mapou.
 - [x] Ověřit vnitřní podlahy, kolize, všechny vrstvy vody a cesty pro 22 bodů.
 - [x] Registrovat postavy v Ateliéru a doplňovat návrhy bez přepsání autorských úprav.
 - [x] Nasadit profil a živě ověřit 22 obyvatel, 22 šablon a 22 návrhů; [důkaz](data/realm_lab/aiworldlab/preview-v10/residents-activation.json), CI 910 Python / 699 C++.
+- [x] Připravit novou mapu s přesunutou tavernou a upravenou radnicí; ověřit 45 míst, 90 cest a vlastní frakci Defias pro deset NPC.
 - [ ] Vizuálně projít všechny domy v herním klientu a potvrdit umístění.
 - [ ] Podle zadání doplnit povolání, denní režimy a další chování obyvatel.
 - [ ] Pro nové role znovu ověřit fyzické cesty a potravní řetězce na této geometrii.

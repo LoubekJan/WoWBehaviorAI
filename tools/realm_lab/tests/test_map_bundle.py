@@ -132,7 +132,7 @@ class AuthoredMapBundleTests(unittest.TestCase):
             map_bundle.verify_data(data, metadata)
 
     def test_unsupported_revision_is_rejected_before_loading_revision_files(self):
-        for revision in ("preview-v11", "../preview-v10", "preview-v10/../../other"):
+        for revision in ("preview-v99", "../preview-v10", "preview-v10/../../other"):
             index_path = self.metadata / map_bundle.INDEX
             index = json.loads(index_path.read_text(encoding="utf-8"))
             index["source_revision"] = revision
@@ -141,6 +141,27 @@ class AuthoredMapBundleTests(unittest.TestCase):
                 with self.assertRaisesRegex(settlement_population.ProfileError, "unsupported authored revision"):
                     map_bundle.GeometryBundle.load(self.metadata)
                 pinned.assert_not_called()
+
+    def test_v11_selection_preserves_explicit_historical_population_geometry(self):
+        root = self.root / "revision-history"
+        metadata, data = fixture(root, revision="preview-v10")
+        old_index = json.loads((metadata / map_bundle.INDEX).read_text())
+        pins = {key: old_index[key] for key in ("server_manifest_sha256", "verification_sha256", "entry_proof_sha256")}
+        fixture(root, revision="preview-v11")
+        with patch.dict(map_bundle.FROZEN_REVISION_PINS, {"preview-v10": pins}, clear=True):
+            active = map_bundle.verify_data(data, metadata)
+            previous = map_bundle.GeometryBundle.load_revision(metadata, "preview-v10")
+            self.assertEqual(active.source_revision, "preview-v11")
+            self.assertEqual(previous.source_revision, "preview-v10")
+            self.assertEqual(world_setup.WorldStart.load(active).map_id, 725)
+            self.assertEqual(graveyard.Graveyard.load(active.metadata / "graveyard.json").map_id, 725)
+            historical = metadata / "preview-v10/server-manifest.json"
+            original = historical.read_bytes()
+            historical.write_bytes(original + b" ")
+            with self.assertRaisesRegex(settlement_population.ProfileError, "hash mismatch"):
+                map_bundle.GeometryBundle.load_revision(metadata, "preview-v10")
+        with self.assertRaisesRegex(settlement_population.ProfileError, "Unsupported explicit"):
+            map_bundle.GeometryBundle.load_revision(metadata, "../preview-v10")
 
     def test_v10_cannot_repin_mixed_revision_native_or_entry_proofs(self):
         records = (("server-manifest.json", "server_manifest_sha256", "bundle identity"),

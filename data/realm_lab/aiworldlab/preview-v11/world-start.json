@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v11",
+  "map_id": 725,
+  "area_id": 4988,
+  "x": 266.667,
+  "y": 800.0,
+  "z": 4.208838059822325,
+  "orientation": 0.0,
+  "geometry_sha256": "f1a408ec4536f517b195c212a6d6d3d6b8a5e76ed5bc4119b4d627194c2fcb9c",
+  "source_entry_receipt_sha256": "5409c6a3c02f1c1fe59d21eb6da2bf342e391b603846222d995dd0144c35d7ee",
+  "evidence": {
+    "ground_z": 2.2088380598223254,
+    "dry": true,
+    "slope_degrees": 1.5703288999829803,
+    "outside_collision_bounds_margin": 5,
+    "nav_ground_projection": {
+      "polygon": 841,
+      "nav_z": 2.2557933784480793,
+      "ground_delta": 0.04695531862575386,
+      "flags": 1,
+      "area": 11
+    },
+    "outside_native_and_source_terrain_holes": true,
+    "physical_player_walk_verified": false,
+    "outside_collision_bounds": true,
+    "outside_terrain_holes": true
+  },
+  "policy": {
+    "applies_to": "all existing playercreateinfo race/class combinations",
+    "changes_existing_characters": false,
+    "changes_existing_homebinds": false,
+    "changes_faction_relationships": false
+  }
+}

@@ -11,7 +11,7 @@ compose=(docker compose --env-file "$env_file" -f compose.yml)
 "${compose[@]}" config --quiet
 # Validate optional authored template inputs before stopping the world.
 profile="$("${compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
-if [ "$profile" = full-v8 ] || [ "$profile" = residents-v10 ]; then
+if [ "$profile" = full-v8 ] || [ "$profile" = residents-v10 ] || [ "$profile" = residents-v11 ]; then
   "${compose[@]}" run --rm --no-deps -T --interactive=false tc-dev python3 -m tools.realm_lab.character_templates plan
 elif [ "$profile" = authoring-empty ]; then
   # Refuse an uncleared world before stopping it. Setup never deletes NPCs.
@@ -30,7 +30,7 @@ fi
 run=("${compose[@]}" run --rm --no-deps -T --interactive=false)
 test -z "$("${compose[@]}" ps --all -q worldserver)"
 run+=(-e LAB_SETTLEMENT_WORLD_ABSENT=1)
-if [ "$profile" = full-v8 ] || [ "$profile" = residents-v10 ]; then
+if [ "$profile" = full-v8 ] || [ "$profile" = residents-v10 ] || [ "$profile" = residents-v11 ]; then
   "${run[@]}" tc-dev python3 -m tools.realm_lab.character_templates restore
 fi
 receipt="runtime/lab/receipts/start-policy-$(date -u +%Y%m%dT%H%M%SZ)-$(python3 -c 'import uuid; print(uuid.uuid4().hex)').json"
@@ -40,13 +40,13 @@ receipt="runtime/lab/receipts/start-policy-$(date -u +%Y%m%dT%H%M%SZ)-$(python3 
   /workspace/runtime/lab/data --receipt "/workspace/$receipt"
 "${run[@]}" tc-dev python3 tools/realm_lab/graveyard.py bootstrap /workspace/runtime/lab/data
 profile="$("${run[@]}" tc-dev python3 -c 'from tools.realm_lab.manage import Settings; import os; print(Settings.load(os.environ).ai_profile)')"
-case "$profile" in authoring-empty|residents-v10|settlement-v8|wildlife-v8|supply-v8|consumers-v8|raids-v8|fields-v8|defias-v8|full-v8) ;; *) echo 'A reviewed authored-world profile is required.' >&2; exit 2;; esac
+case "$profile" in authoring-empty|residents-v10|residents-v11|settlement-v8|wildlife-v8|supply-v8|consumers-v8|raids-v8|fields-v8|defias-v8|full-v8) ;; *) echo 'A reviewed authored-world profile is required.' >&2; exit 2;; esac
 if [ "$profile" = authoring-empty ]; then
   "${run[@]}" tc-dev python3 tools/realm_lab/manage.py preflight-authoring-empty /workspace/runtime/lab/data
 else
   "${run[@]}" tc-dev python3 tools/realm_lab/manage.py "bootstrap-$profile" /workspace/runtime/lab/data
 fi
-if [ "$profile" = full-v8 ] || [ "$profile" = residents-v10 ]; then
+if [ "$profile" = full-v8 ] || [ "$profile" = residents-v10 ] || [ "$profile" = residents-v11 ]; then
   "${run[@]}" tc-dev python3 -m tools.realm_lab.character_templates apply
 fi
 printf 'Authored world prepared offline; start-policy receipt: %s\n' "$receipt"

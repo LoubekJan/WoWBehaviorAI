@@ -133,5 +133,41 @@ INSERT INTO world.conditions VALUES (23,11328,123,0,0,1,7,'vendor condition'),(1
                 self.sql(repair)
         self.assertEqual(templates.verify(self.settings),(sasa,))
 
+    def test_v11_extends_existing_resident_bindings_with_complete_custom_defias_clones(self):
+        native = next(a for a in full_population.Population.load().settlement.actors if a.spawn_id==901014)
+        actors = tuple(replace(native,spawn_id=identity,entry=38 if identity==902035 else 11328,
+                               label=f'aiworld_lab_resident_{identity}',x=native.x+offset*3)
+                       for offset,identity in enumerate((902000,902022,902025,902035)))
+        old_population=SimpleNamespace(profile='residents-v10',settlement=SimpleNamespace(actors=actors[:1]))
+        population=SimpleNamespace(profile='residents-v11',settlement=SimpleNamespace(actors=actors))
+        old_settings=SimpleNamespace(ai_profile='residents-v10')
+        settings=SimpleNamespace(ai_profile='residents-v11')
+        self.sql("""INSERT INTO world.creature_template
+ SELECT 38,'Defias Thug',NULL,'SmartAI',2300,0,HealthModifier,speed_run,38,NewFutureColumn,OptionalField
+ FROM world.creature_template WHERE entry=11328;
+CREATE TABLE world.smart_scripts (entryorguid INT,source_type INT,id INT,event_type INT,action_type INT,target_type INT);
+INSERT INTO world.smart_scripts VALUES (38,0,0,4,1,7);
+CREATE TABLE world.creature_text (CreatureID INT,GroupID INT,ID INT,Text TEXT,Probability FLOAT);
+INSERT INTO world.creature_text VALUES (38,0,0,'The Defias will remember this!',30);
+INSERT INTO world.creature_template_addon VALUES (38,0,NULL);
+""")
+        specs=tuple(templates.spec_from_document(dict(schema_version=1,spawn_id=a.spawn_id,map_id=725,
+            entry=9810000+a.spawn_id-902000,base_entry=a.entry,name=f'NPC {a.spawn_id}',title='Obyvatel'),population) for a in actors)
+        for actor in actors:
+            self.sql(f"INSERT INTO world.creature VALUES ({actor.spawn_id},{actor.entry},725,'{actor.label}',{actor.x},{actor.y},{actor.z},{actor.orientation},17);")
+        with patch.object(templates,'population_for_profile',side_effect=lambda profile:old_population if profile=='residents-v10' else population):
+            templates.apply(old_settings,specs[:1])
+            before=self.sql('SELECT * FROM world.creature_template WHERE entry=9810000;')
+            source=templates._bundle(settings,templates._schema(settings),38)
+            templates.restore(settings)
+            self.assertEqual(templates.apply(settings,specs),specs)
+            self.assertEqual(templates.verify(settings),specs)
+            self.assertEqual(self.sql('SELECT * FROM world.creature_template WHERE entry=9810000;'),before)
+            self.assertEqual(self.sql('SELECT faction,AIName FROM world.creature_template WHERE entry=9810035;'),'2300\tSmartAI')
+            self.assertEqual(self.sql('SELECT event_type,action_type,target_type FROM world.smart_scripts WHERE entryorguid=9810035;'),'4\t1\t7')
+            self.assertEqual(self.sql('SELECT Text FROM world.creature_text WHERE CreatureID=9810035;'),'The Defias will remember this!')
+            self.assertEqual(templates._bundle(settings,templates._schema(settings),38),source)
+            self.assertEqual(self.sql('SELECT COUNT(*) FROM world.ai_character_templates;'),'4')
+
 
 if __name__ == '__main__':unittest.main()

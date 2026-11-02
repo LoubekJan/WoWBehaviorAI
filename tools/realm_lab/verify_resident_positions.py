@@ -191,17 +191,17 @@ def collision_scene(native):
     return meshes
 
 
-def clear_scene(meshes, point):
+def clear_scene(meshes, point, height=2.2):
     x,y,z=point['x'],point['y'],point['z']
-    lo=np.array((x-.75,y-.75,z+.12));hi=np.array((x+.75,y+.75,z+2.2))
+    lo=np.array((x-.75,y-.75,z+.12));hi=np.array((x+.75,y+.75,z+height))
     relevant=[m for m in meshes if np.all(m['max']>=lo) and np.all(m['min']<=hi)]
     angles=np.linspace(0,math.tau,12,endpoint=False)
     offsets=[(.0,.0)]+[(.75*math.cos(a),.75*math.sin(a)) for a in angles]
     for mesh in relevant:
         for dx,dy in offsets:
-            if ray(mesh,np.array((x+dx,y+dy,z+.12)),np.array((x+dx,y+dy,z+2.2))) is not None:
+            if ray(mesh,np.array((x+dx,y+dy,z+.12)),np.array((x+dx,y+dy,z+height))) is not None:
                 return False
-        for level in (.3,1.,2.1):
+        for level in (.3,1.,height-.1):
             for dx,dy in offsets[1:]:
                 if ray(mesh,np.array((x,y,z+level)),np.array((x+dx,y+dy,z+level))) is not None:
                     return False
@@ -241,14 +241,21 @@ def source_water(top, terrain, x, y):
 
 
 def verify(source: Path, data: Path, metadata: Path, probe: Path):
-    geometry = map_bundle.verify_data(data, metadata.parent)
-    check(geometry.source_revision == "preview-v10" and geometry.metadata.resolve() == metadata.resolve(),
-          "Resident verifier requires the selected preview-v10 bundle")
+    geometry = map_bundle.verify_data(data, metadata.parent, revision=metadata.name)
+    revision = geometry.source_revision
+    check(revision in ("preview-v10", "preview-v11") and geometry.metadata.resolve() == metadata.resolve(),
+          "Resident verifier requires the selected preview-v10 or preview-v11 bundle")
+    expanded = revision == "preview-v11"
+    profile = "residents-v11" if expanded else "residents-v10"
+    building_counts = dict.fromkeys(HOUSE_IDS, 2)
+    if expanded:
+        building_counts.update({209: 3, 199: 10})
+    expected_residents = 45 if expanded else 22
     proof = json.loads((metadata / "residents-position-verification.json").read_text(encoding="utf-8"))
     geometry_hash = hashlib.sha256(json.dumps(list(geometry.geometry_files), sort_keys=True,
                                              separators=(",", ":"), allow_nan=False).encode()).hexdigest()
     check((proof.get("profile"), proof.get("source_revision"), proof.get("map_id"), proof.get("ok"),
-           proof.get("geometry_sha256")) == ("residents-v10", "preview-v10", 725, True, geometry_hash),
+           proof.get("geometry_sha256")) == (profile, revision, 725, True, geometry_hash),
           "Resident proof belongs to different geometry")
     source_manifest = json.loads((metadata / "project-manifest.json").read_text(encoding="utf-8"))
     for record in source_manifest["files"]:
@@ -263,14 +270,15 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
         terrains[(ix, iy)] = terrain
         tops[(ix, iy)] = {tag: body for tag, body in tg.chunks(raw) if tag != b"MCNK"}
         for model in terrain.models:
-            if model["kind"] == "wmo" and "farm" in model["name"].lower():
+            if model["kind"] == "wmo" and ("farm" in model["name"].lower() or
+                                           expanded and model["unique_id"] in (199, 209)):
                 ident = model["unique_id"]
                 check(ident not in houses or houses[ident] == model, "Conflicting house placement")
                 houses[ident] = model
-    check(set(houses) == set(HOUSE_IDS), "Source residential house inventory changed")
+    check(set(houses) == set(building_counts), "Source resident building inventory changed")
     buildings = proof["buildings"]
-    check(len(buildings) == 11 and {b["house_id"] for b in buildings} == set(HOUSE_IDS),
-          "Proof must cover exactly eleven houses")
+    check(len(buildings) == len(building_counts) and {b["house_id"] for b in buildings} == set(building_counts),
+          "Proof must cover the exact resident buildings")
     scene = collision_scene(data)
     check(len(scene) == 329, "Native collision scene inventory changed")
     all_points = []
@@ -281,10 +289,12 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
         check(building["mesh_file"] == mesh["mesh_file"] and
               building["mesh_sha256"] == mesh["mesh_sha256"], "House collision model changed")
         positions = building["positions"]
-        check(len(positions) == 2 and {p["slot"] for p in positions} == {1, 2}, "House slots changed")
-        check(math.hypot(positions[0]["x"]-positions[1]["x"],
-                         positions[0]["y"]-positions[1]["y"]) >= 2.4, "Residents overlap")
+        count = building_counts[building["house_id"]]
+        check(len(positions) == count and {p["slot"] for p in positions} == set(range(1, count+1)), "Building slots changed")
+        check(all(math.hypot(a["x"]-b["x"], a["y"]-b["y"]) >= 2.4
+                  for index, a in enumerate(positions) for b in positions[index+1:]), "Residents overlap")
         for point in positions:
+            check(point["id"] == f"house_{building['house_id']}_{point['slot']}", "Indoor point identifier changed")
             x, y, z = (point[k] for k in ("x", "y", "z"))
             check(all(type(v) in (float, int) and math.isfinite(v) for v in (x, y, z, point["orientation"])) and
                   0 <= point["orientation"] < math.tau, "Invalid resident coordinates")
@@ -297,7 +307,8 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
             check(abs(hit[1]-point["geometry"]["slope_degrees"]) < .00001 and
                   int(mesh["groups"][hit[2]]) == point["geometry"]["group_id"], "Indoor floor proof changed")
             roof = [height for height, _, _ in hits if height > floor+2.3]
-            check(roof and roof[0]-floor <= 12 and
+            roof_limit = 40 if expanded and building["house_id"] == 199 else 12
+            check(roof and roof[0]-floor <= roof_limit and
                   not any(floor+.12 < height < floor+2.2 for height, _, _ in hits), "Missing indoor headroom")
             offsets = [(0., 0.)] + [(.75*math.cos(n*math.tau/12), .75*math.sin(n*math.tau/12)) for n in range(12)]
             ring = []
@@ -320,16 +331,60 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
                             slope < 20 and abs(height-floor) < .35 and mesh["flags"][index] & 0x2000]
                     check(near, "Standing cylinder leaves the indoor floor")
                     ring.append(min(near, key=lambda value: abs(value-floor)))
-            check(max(ring)-min(ring) <= .25 and clear_scene(scene, dict(x=x, y=y, z=floor)),
+            check(max(ring)-min(ring) <= .25 and clear_scene(scene, dict(x=x, y=y, z=floor), 2.4 if expanded else 2.2),
                   "Standing cylinder intersects native scene collision")
             all_points.append(point)
+    if expanded:
+        zones = proof.get("zones")
+        check(isinstance(zones, list) and len(zones) == 1 and zones[0].get("zone_id") == "left-tent-camp" and
+              zones[0].get("source_ids") == [223, 224, 225], "Outdoor camp must belong to the actual three tents")
+        source_models = [model for terrain in terrains.values() for model in terrain.models]
+        tents = {model["unique_id"]: model for model in source_models if model["kind"] == "m2" and
+                 model["unique_id"] in (223, 224, 225) and model["name"].lower().endswith("g_tentburninator.m2")}
+        check(set(tents) == {223, 224, 225}, "Source tent cluster changed")
+        center = {axis: sum(t["server_position"][axis] for t in tents.values())/3 for axis in ("x", "y")}
+        positions = zones[0].get("positions")
+        check(isinstance(positions, list) and len(positions) == 10 and
+              {p["slot"] for p in positions} == set(range(1, 11)), "Outdoor camp requires ten distinct slots")
+        check(all(math.hypot(a["x"]-b["x"], a["y"]-b["y"]) >= 2.4
+                  for index, a in enumerate(positions) for b in positions[index+1:]), "Camp residents overlap")
+        for point in positions:
+            x, y, z = (point[k] for k in ("x", "y", "z"))
+            floor = point["geometry"]["floor_z"]
+            check(point["id"] == f"camp_left_{point['slot']}" and point["geometry"].get("indoor") is False and
+                  0 <= z-floor <= .15 and 0 <= point["orientation"] < math.tau and
+                  8 <= math.hypot(x-center["x"], y-center["y"]) <= 25, "Invalid outdoor camp standing point")
+            ring = []
+            for dx, dy in [(0., 0.)]+[(.75*math.cos(n*math.tau/12), .75*math.sin(n*math.tau/12)) for n in range(12)]:
+                px, py = x+dx, y+dy
+                tile = next((key for key, terrain in terrains.items() if
+                             terrain.origin[0]-tg.GRID_SIZE <= px <= terrain.origin[0] and
+                             terrain.origin[1]-tg.GRID_SIZE <= py <= terrain.origin[1]), None)
+                check(tile is not None, "Camp standing cylinder leaves authored map")
+                terrain = terrains[tile]
+                sample = terrain.sample(px, py)  # Terrain holes are never valid camp floors.
+                check(sample["triangle_slope_degrees"] <= 15 and abs(sample["ground_z"]-floor) < .35,
+                      "Camp standing cylinder leaves level source terrain")
+                if not dx and not dy:
+                    check(abs(sample["ground_z"]-floor) < .00001, "Camp floor differs from authored terrain")
+                ring.append(sample["ground_z"])
+                check(all(floor > water["surface_max"]+.1 for water in source_water(tops[tile], terrain, px, py)),
+                      "Camp standing floor intersects source water")
+            check(max(ring)-min(ring) <= .25 and clear_scene(scene, dict(x=x, y=y, z=floor), 2.4),
+                  "Camp standing cylinder intersects native scene collision")
+            all_points.append(point)
+        previous = json.loads((metadata.parent / "preview-v10/residents-population.json").read_text(encoding="utf-8"))
+        by_spawn = {point["spawn_id"]: point for point in all_points}
+        check(set(by_spawn) == set(range(902000, 902045)), "Expanded resident identities changed")
+        for old in previous["actors"]:
+            check(all(by_spawn[old["spawn_id"]][key] == old[key] for key in ("x", "y", "z", "orientation")),
+                  "An existing farmhouse resident moved")
     entry = geometry.entry_proof["player_entry"]
     rows = ["kind\tid\trole\tx\ty\tz",
             f"test\tentry\t-\t{entry['x']}\t{entry['y']}\t{entry['ground_z']}"]
     routes = ["from\tto"]
     for point in all_points:
-        ident = f"house_{next(b['house_id'] for b in buildings if point in b['positions'])}_{point['slot']}"
-        check(point["id"] == ident, "Resident point identifier changed")
+        ident = point["id"]
         rows.append(f"home\t{ident}\tresident\t{point['x']:.12f}\t{point['y']:.12f}\t{point['geometry']['floor_z']:.12f}")
         routes.extend((f"entry\t{ident}", f"{ident}\tentry"))
     with tempfile.TemporaryDirectory(prefix="resident-nav-") as directory:
@@ -340,7 +395,8 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
                                 capture_output=True, check=True)
     native = json.loads(result.stdout)
     check(native["ok"] is True and native["poly_ref_bits"] == 64 and native["tiles"] == 4 and
-          native["valid_projections"] == 23 and native["complete_paths"] == native["required_paths"] == 44,
+          native["valid_projections"] == expected_residents+1 and
+          native["complete_paths"] == native["required_paths"] == expected_residents*2,
           "Native resident projection or route failed")
     for projection in native["projections"]:
         check(projection["valid"] is True and projection["flags"] == 1 and projection["xy_delta"] < .05 and
@@ -349,9 +405,10 @@ def verify(source: Path, data: Path, metadata: Path, probe: Path):
     check(all(path["complete"] is True and path["all_corridor_flags_ground_only"] is True and
               path["status"]["detail_bits"] == path["straight_status"]["detail_bits"] == 0
               for path in native["paths"]), "Native path is partial or leaves ground polygons")
-    return dict(ok=True, map_id=725, profile="residents-v10", source_revision="preview-v10",
+    return dict(ok=True, map_id=725, profile=profile, source_revision=revision,
                 geometry_sha256=geometry_hash, native_files=len(geometry.geometry_files), source_files=9,
-                houses=11, residents=22, native_collision_instances=len(scene), indoor_floor_clearance=True,
+                houses=11, buildings=len(buildings), residents=expected_residents,
+                native_collision_instances=len(scene), indoor_floor_clearance=True,
                 all_source_water_layers_checked=True, native_navigation=native)
 
 

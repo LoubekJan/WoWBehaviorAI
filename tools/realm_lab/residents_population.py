@@ -93,7 +93,7 @@ class Population:
     @classmethod
     def load(cls, metadata: Path = METADATA, geometry=None):
         try:
-            geometry = geometry or map_bundle.GeometryBundle.load(metadata.parent)
+            geometry = geometry or map_bundle.GeometryBundle.load_revision(metadata.parent, SOURCE_REVISION)
             require(geometry.source_revision == SOURCE_REVISION and geometry.metadata == metadata,
                     "Residents require the pinned preview-v10 geometry")
             document = base.load_json(metadata / MANIFEST)
@@ -202,7 +202,7 @@ class Population:
 
 
 def verify_data(data: Path, metadata: Path = METADATA):
-    geometry = map_bundle.verify_data(data, metadata.parent)
+    geometry = map_bundle.verify_data(data, metadata.parent, revision=SOURCE_REVISION)
     return Population.load(metadata, geometry)
 
 

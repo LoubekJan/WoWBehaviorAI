@@ -6,14 +6,16 @@ behavior and optional LLM characters that can act and talk in the game.
 ## Current state — 2 November 2026
 
 The active branch is **`AI-World-lab`**. Realm **2**, map **725**, area
-**4988** uses the pinned **`preview-v10`** geometry. The **`residents-v10`**
-profile places **22 native residents in 11 residential houses**, two per
-house. Each has a separately owned creature template, name, subtitle and
-editable Studio draft. Inns, public/work buildings, silos and the cave are
-excluded. Native telemetry shows these residents; their initial placement
-uses verified indoor floors and complete ground navigation paths.
+**4988** uses the pinned **`preview-v11`** geometry. The **`residents-v11`**
+profile contains **45 native NPCs**: the original 22 residents in 11 houses,
+3 in the moved inn, 10 in the town hall and 10 around the three left-hand
+tents. Only the tent group belongs to custom Defias. Every NPC has its own
+creature template, name, subtitle and editable Studio draft. Existing homes
+and authored drafts are preserved. Placement uses verified collision floors,
+clear standing space, all source water layers and complete ground paths.
 
-These residents stand at their authored homes with ordinary game AI.
+These residents use ordinary game AI at their authored homes; the tent group
+retains its reviewed native Defias combat behavior and custom faction.
 Food, jobs, daily routines and LLM control remain future population work.
 The earlier **`authoring-empty`** profile remains available for an explicitly
 cleared map and still refuses any population or character-template residue.
@@ -45,14 +47,14 @@ configured separately from these eight services.
 
 **Defaults differ from the deployed world.** `.env.example` intentionally
 selects `settlement-v8` with LLM requests disabled. The active population
-uses `residents-v10`; the previous `full-v8` test world used three LLM
+uses `residents-v11`; the previous `full-v8` test world used three LLM
 cards and the Qwen backend. Copying the example does not reproduce private credentials,
 authored cards, extracted map data or model settings.
 
 ## Implemented behavior in the retained populated profiles
 
 These systems remain available in code and versioned regression profiles.
-They are disabled in `authoring-empty` and the native `residents-v10` profile.
+They are disabled in `authoring-empty` and the native resident profiles.
 Further NPC behavior requires reviewed population metadata; do not reactivate the old
 `full-v8` bootstrap merely to add one new character.
 
@@ -200,9 +202,10 @@ snapshot because no NPC heartbeat is emitted; this is not a simulated
 fresh zero-agent recording. The Studio can save future drafts, but game
 exports are blocked until a new population is registered.
 
-For `residents-v10`, startup verifies the exact 22 homes and all 22 owned
-templates. CI/CD performs its idempotent population and template installation
-while the world is stopped. [Resident contracts and verification](data/realm_lab/aiworldlab/preview-v10/residents-README.md)
+For `residents-v11`, startup verifies the exact 45 homes and owned templates,
+including the ten custom Defias identities. CI/CD performs its idempotent
+population and template installation while the world is stopped.
+[Resident contracts and verification](data/realm_lab/aiworldlab/preview-v11/README.md)
 describe house assignments and the boundary between template editing and runtime AI.
 
 `make start` starts the canonical stack after preflight. `make backup` writes
@@ -231,7 +234,7 @@ Makefile                   current operator entry points
 ```
 
 Installed private authoring JSON is not automatically ignored by Git.
-Keep private additions out of commits; the 22 initial resident cards and
+Keep private additions out of commits; the 45 initial resident cards and
 template descriptors are reviewed fictional population inputs. The original example cards have been retired from
 the active directory. Credentials and private binary/runtime data belong outside
 the public repository.

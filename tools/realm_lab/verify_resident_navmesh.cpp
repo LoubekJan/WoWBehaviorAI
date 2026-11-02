@@ -340,8 +340,9 @@ int main(int argc, char** argv)
         {
             if(i)std::cout<<',';auto const& p=projections[i];
             unsigned short polygonFlags=0; unsigned char polygonArea=0;
-            require(p.ref && completeStatus(mesh->getPolyFlags(p.ref,&polygonFlags)) &&
-                completeStatus(mesh->getPolyArea(p.ref,&polygonArea)), "Cannot inspect projected polygon");
+            if (p.ref)
+                require(completeStatus(mesh->getPolyFlags(p.ref,&polygonFlags)) &&
+                    completeStatus(mesh->getPolyArea(p.ref,&polygonArea)), "Cannot inspect projected polygon");
             std::cout<<"{\"id\":"<<quoted(input.points[i].id)<<",\"input\":";emitPosition(input.points[i].server);
             std::cout<<",\"status\":";emitStatus(p.status);
             std::cout<<",\"ref\":"<<quoted(std::to_string(p.ref))<<",\"valid\":"<<(p.valid?"true":"false")<<",\"projected\":";

@@ -17,9 +17,12 @@ import sys
 from typing import Mapping
 
 try:
-    from . import residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    from . import residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
 except ImportError:  # Direct script invocation inside the lab container.
-    import residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+    import residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, hunt_population, settlement_population, single_return, supply_population, terrain_profile, wildlife_population
+
+
+RESIDENT_PROFILES = {residents_population.PROFILE: residents_population, residents_v11.PROFILE: residents_v11}
 
 
 class SetupError(ValueError):
@@ -95,7 +98,7 @@ class Settings:
         if port == 8085:
             raise SetupError("LAB_WORLD_PORT must differ from the original realm's 8085")
         profile = value(env, "LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "authoring-empty", residents_population.PROFILE, "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE, *hunt_population.PROFILES):
+        if profile not in ("disabled", "authoring-empty", *RESIDENT_PROFILES, "single-return", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE, *hunt_population.PROFILES):
             raise SetupError("Unknown reviewed LAB_AI_PROFILE")
         if profile != "disabled" and env.get("LAB_REALM_ID", "2") != "2":
             raise SetupError("The reviewed AI profiles belong to realm 2")
@@ -202,10 +205,11 @@ def config_overrides(settings: Settings, scope: single_return.Scope | hunt_popul
         except ImportError:
             import authoring_empty
         result.update(authoring_empty.config())
-    elif settings.ai_profile == residents_population.PROFILE:
-        if scope is not None and not isinstance(scope, residents_population.Population):
+    elif settings.ai_profile in RESIDENT_PROFILES:
+        module = RESIDENT_PROFILES[settings.ai_profile]
+        if scope is not None and not isinstance(scope, module.Population):
             raise SetupError("Population does not match the selected resident profile")
-        population = scope or residents_population.Population.load()
+        population = scope or module.Population.load()
         result.update(population.config())
         result.update({"AIWorld.TelemetryEnabled": "1", "AIWorld.TelemetryNativeCreaturesEnabled": "1",
                        "AIWorld.TelemetryHost": "world-viewer", "AIWorld.TelemetryPort": "8000"})
@@ -723,8 +727,8 @@ def preflight(data: Path, settings: Settings) -> None:
     verify_registration(settings, row)
     if settings.ai_profile == "authoring-empty":
         authoring_preflight(data, settings)
-    elif settings.ai_profile == residents_population.PROFILE:
-        residents_population.verify_data(data)
+    elif settings.ai_profile in RESIDENT_PROFILES:
+        RESIDENT_PROFILES[settings.ai_profile].verify_data(data)
     print("Lab data presence and shared-auth registration verified; custom geometry/AI are not certified.")
 
 
@@ -741,16 +745,18 @@ def residents_preflight(data: Path, settings: Settings, *, bootstrap: bool = Fal
         from . import character_templates
     except ImportError:
         import character_templates
-    if settings.realm_id != 2 or settings.ai_profile != residents_population.PROFILE or settings.npc_agents_enabled:
-        raise SetupError("Native residents require realm 2, residents-v10 and the NPC controller disabled")
-    population = residents_population.verify_data(data)
+    module = RESIDENT_PROFILES.get(settings.ai_profile)
+    if settings.realm_id != 2 or module is None or settings.npc_agents_enabled:
+        raise SetupError("Native residents require realm 2, a reviewed resident profile and the NPC controller disabled")
+    population = module.verify_data(data)
     bindings = character_templates.verify(settings, allow_restored=bootstrap)
     identities = {binding.spawn_id for binding in bindings}
-    if (identities != residents_population.SPAWN_IDS and not (bootstrap and not identities)):
-        raise SetupError("Residents require exactly 22 independently owned character templates")
-    rows = single_return.parse_snapshot(lab_mysql(settings, residents_population.snapshot_sql(population)))
+    allowed = (frozenset(), getattr(module, "HOUSEHOLD_IDS", module.SPAWN_IDS)) if bootstrap else ()
+    if identities != module.SPAWN_IDS and identities not in allowed:
+        raise SetupError("Residents require the complete set of independently owned character templates")
+    rows = single_return.parse_snapshot(lab_mysql(settings, module.snapshot_sql(population)))
     rows = character_templates.normalize_snapshot(rows, bindings)
-    residents_population.validate_snapshot(rows, population, bootstrap=bootstrap)
+    module.validate_snapshot(rows, population, bootstrap=bootstrap)
     return population
 
 
@@ -759,19 +765,20 @@ def bootstrap_residents(data: Path, settings: Settings):
         from . import character_templates
     except ImportError:
         import character_templates
-    if settings.ai_profile != residents_population.PROFILE:
-        raise SetupError("Resident bootstrap requires residents-v10 and a stopped worldserver")
+    module = RESIDENT_PROFILES.get(settings.ai_profile)
+    if module is None:
+        raise SetupError("Resident bootstrap requires a reviewed resident profile and a stopped worldserver")
     settlement_population.ensure_world_offline()
     population = residents_preflight(data, settings, bootstrap=True)
     settlement_population.ensure_world_offline()
-    lab_mysql(settings, residents_population.bootstrap_sql(population))
+    lab_mysql(settings, module.bootstrap_sql(population))
     # Character templates are installed immediately afterwards by CD. At this
     # stage newly inserted spawns still use their reviewed native source entry.
-    rows = single_return.parse_snapshot(lab_mysql(settings, residents_population.snapshot_sql(population)))
+    rows = single_return.parse_snapshot(lab_mysql(settings, module.snapshot_sql(population)))
     rows = character_templates.normalize_snapshot(rows, character_templates.verify(settings, allow_restored=True))
-    residents_population.validate_snapshot(rows, population)
+    module.validate_snapshot(rows, population)
     settlement_population.ensure_world_offline()
-    print("Exactly 22 stationary native residents prepared in eleven reviewed v10 houses; no retired actors or AI agents created.")
+    print(f"Exactly {len(population.actors)} reviewed native residents prepared; no retired actors or AI agents created.")
 
 
 def main() -> None:
@@ -795,7 +802,7 @@ def main() -> None:
                     "bootstrap-fields-v8", "preflight-fields-v8", "deactivate-fields-v8",
                     "bootstrap-defias-v8", "preflight-defias-v8", "deactivate-defias-v8",
                     "bootstrap-full-v8", "preflight-full-v8", "deactivate-full-v8", "preflight-authoring-empty",
-                    "bootstrap-residents-v10", "preflight-residents-v10"):
+                    "bootstrap-residents-v10", "preflight-residents-v10", "bootstrap-residents-v11", "preflight-residents-v11"):
         sub.add_parser(command).add_argument("data", type=Path)
     args = parser.parse_args()
     try:
@@ -804,7 +811,7 @@ def main() -> None:
             scope = None
             if settings.ai_profile == "authoring-empty":
                 authoring_preflight(Path("/runtime/data"), settings)
-            elif settings.ai_profile == residents_population.PROFILE:
+            elif settings.ai_profile in RESIDENT_PROFILES:
                 value(os.environ, "WORLD_VIEWER_TELEMETRY_TOKEN")
                 scope = residents_preflight(Path("/runtime/data"), settings)
             elif settings.ai_profile == "single-return":
@@ -860,11 +867,11 @@ def main() -> None:
         elif args.command == "preflight-authoring-empty":
             authoring_preflight(args.data, settings)
             print("Empty authored map verified: no NPCs, AI state or character inputs; simulation and telemetry disabled.")
-        elif args.command == "bootstrap-residents-v10":
+        elif args.command in ("bootstrap-residents-v10", "bootstrap-residents-v11"):
             bootstrap_residents(args.data, settings)
-        elif args.command == "preflight-residents-v10":
-            residents_preflight(args.data, settings)
-            print("Reviewed v10 geometry, eleven houses, 22 stationary residents and independent native templates verified.")
+        elif args.command in ("preflight-residents-v10", "preflight-residents-v11"):
+            population = residents_preflight(args.data, settings)
+            print(f"Reviewed {population.source_revision} geometry, {len(population.actors)} native residents and independent templates verified.")
         elif args.command == "bootstrap-single":
             bootstrap_single(args.data, settings)
         elif args.command == "activate-single":

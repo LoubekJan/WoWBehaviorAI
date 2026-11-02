@@ -22,7 +22,21 @@ ROOT = Path(__file__).resolve().parents[2]
 METADATA = ROOT / "data/realm_lab/aiworldlab"
 INDEX = "authoring-map.json"
 REVISION = "preview-v9"
-SUPPORTED_REVISIONS = frozenset({REVISION, "preview-v10"})
+SUPPORTED_REVISIONS = frozenset({REVISION, "preview-v10", "preview-v11"})
+# Historical population loaders must not follow a newly selected authoring map.
+# These immutable pins certify their original evidence independently of INDEX.
+FROZEN_REVISION_PINS = {
+    "preview-v10": {
+        "server_manifest_sha256": "6555a53b2461cd1e549146d590ded78ea4cfc85e2995e959ea9f92334c475408",
+        "verification_sha256": "eff8d27982dbf5cf9c1d5bc1e697675279e52b8daa934817a7eba6fcd5b514bc",
+        "entry_proof_sha256": "3251febfad6510ab63653eb003f67110f2623dd1b806d0eb7866afe9ac771cfa",
+    },
+    "preview-v11": {
+        "server_manifest_sha256": "6d29b517b72f97363b51ea8fa29014606bb4103d29b527d57a97e2320250bd12",
+        "verification_sha256": "d3e4224936042d8a7f5abae8e268e11844def61b07416826ef0362bd449c893c",
+        "entry_proof_sha256": "5409c6a3c02f1c1fe59d21eb6da2bf342e391b603846222d995dd0144c35d7ee",
+    },
+}
 TILES = ((30, 31), (30, 32), (31, 31), (31, 32))
 DBC_FILES = {"dbc/Map.dbc", "dbc/AreaTable.dbc", "dbc/Light.dbc"}
 MAP_FILES = {f"maps/725{y:02}{x:02}.map" for x, y in TILES}
@@ -70,9 +84,18 @@ class GeometryBundle:
     actors: tuple = ()
 
     @classmethod
-    def load(cls, metadata: Path = METADATA) -> GeometryBundle:
+    def load(cls, metadata: Path = METADATA, *, revision: str | None = None) -> GeometryBundle:
         try:
-            index = _read(metadata / INDEX)
+            if revision is not None:
+                require(revision in SUPPORTED_REVISIONS, "Unsupported explicit authored revision")
+            if revision in FROZEN_REVISION_PINS:
+                index = {"schema_version": 1, "profile": "authoring-empty", "realm_id": 2,
+                         "map_id": 725, "area_id": 4988, "source_revision": revision,
+                         **FROZEN_REVISION_PINS[revision]}
+            else:
+                index = _read(metadata / INDEX)
+                require(revision is None or index.get("source_revision") == revision,
+                        "Explicit authored revision is not pinned by the selected index")
             revision = index.get("source_revision")
             require((index.get("schema_version"), index.get("profile"), index.get("realm_id"),
                      index.get("map_id"), index.get("area_id")) ==
@@ -172,9 +195,13 @@ class GeometryBundle:
                 raise
             raise settlement.ProfileError("Missing or malformed versioned authored-map metadata") from exc
 
+    @classmethod
+    def load_revision(cls, metadata: Path, revision: str) -> GeometryBundle:
+        return cls.load(metadata, revision=revision)
 
-def verify_data(data: Path, metadata: Path = METADATA) -> GeometryBundle:
-    bundle = GeometryBundle.load(metadata)
+
+def verify_data(data: Path, metadata: Path = METADATA, *, revision: str | None = None) -> GeometryBundle:
+    bundle = GeometryBundle.load(metadata) if revision is None else GeometryBundle.load_revision(metadata, revision)
     root = data.resolve()
     for row in bundle.geometry_files:
         path = data / row["path"]

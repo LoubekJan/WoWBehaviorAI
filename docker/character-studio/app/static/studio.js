@@ -202,7 +202,11 @@ function validId(value) {
 }
 
 function supportsTemplates() {
-  return ['full-v8', 'residents-v10'].includes(catalog.target_registry?.profile);
+  return ['full-v8', 'residents-v10', 'residents-v11'].includes(catalog.target_registry?.profile);
+}
+
+function residentProfile() {
+  return ['residents-v10', 'residents-v11'].includes(catalog.target_registry?.profile);
 }
 
 function completion() {
@@ -231,12 +235,14 @@ function targetStatus() {
 
 function templateStatus() {
   if (!targetStatus().eligible) return {eligible: false, reason: targetStatus().reason};
-  if (!supportsTemplates()) return {eligible: false, reason: 'Aktivní starší profil nabízí kartu a vzhled. Vlastní herní jméno a šablona vyžadují profil full-v8 nebo residents-v10.'};
-  const resident = catalog.target_registry?.profile === 'residents-v10';
+  if (!supportsTemplates()) return {eligible: false, reason: 'Aktivní starší profil nabízí kartu a vzhled. Vlastní herní jméno a šablona vyžadují aktivní ověřený profil postav.'};
+  const resident = residentProfile();
   const spawn = Number(current.card.spawn_id);
   const row = (catalog.targets || []).find(row => row.spawn_id === current.card.spawn_id);
-  const validSpawn = resident ? spawn >= 902000 && spawn <= 902021 : spawn >= 901000 && spawn <= 901099;
-  if (!Number.isInteger(spawn) || !validSpawn || !Number.isInteger(row?.entry) || row.entry <= 0 || current.card.map_id !== 725) return {eligible: false, reason: 'Herní šablona vyžaduje ověřené NPC vlastní populace.'};
+  const limit = catalog.target_registry?.profile === 'residents-v11' ? 902044 : 902021;
+  const validSpawn = resident ? spawn >= 902000 && spawn <= limit : spawn >= 901000 && spawn <= 901099;
+  const expectedBase = catalog.target_registry?.profile === 'residents-v11' && spawn >= 902035 ? 38 : 11328;
+  if (!Number.isInteger(spawn) || !validSpawn || !Number.isInteger(row?.entry) || row.entry <= 0 || (resident && row.entry !== expectedBase) || current.card.map_id !== 725) return {eligible: false, reason: 'Herní šablona vyžaduje ověřené NPC vlastní populace.'};
   if (!current.card.name.trim()) return {eligible: false, reason: 'Doplň jméno, které se zobrazí nad postavou ve hře.'};
   const title = (current.authoring.role || '').trim();
   if (bytes(title) > 80 || /[\u0000-\u001f\u007f-\u009f|\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/u.test(title)) return {eligible: false, reason: 'Povolání se použije jako podtitul ve hře. Zkrať ho na jeden řádek do 80 UTF-8 bajtů; delší popis patří do příběhu.'};
@@ -279,7 +285,7 @@ function renderTargets() {
     $(`#${id}`).title = status.eligible ? '' : status.reason;
     $(`#${id}`).setAttribute('aria-describedby', 'target-status');
   }
-  const resident = catalog.target_registry?.profile === 'residents-v10';
+  const resident = residentProfile();
   if (resident) {
     $('#export-appearance').disabled = true;
     $('#export-appearance').title = 'Obyvatelé používají původní herní vzhled. Návrh vzhledu zůstává uložený v draftu.';
@@ -424,7 +430,7 @@ function downloadBlob(blob, name) {
 async function exportFile(kind) {
   readForm();
   if (!targetStatus().eligible) { showTab('export'); throw new Error(targetStatus().reason); }
-  if (kind === 'appearance' && catalog.target_registry?.profile === 'residents-v10') throw new Error('Obyvatelé používají původní herní vzhled. Návrh vzhledu lze uložit v draftu.');
+  if (kind === 'appearance' && residentProfile()) throw new Error('Obyvatelé používají původní herní vzhled. Návrh vzhledu lze uložit v draftu.');
   const completeTemplate = kind === 'template' || (kind === 'bundle.zip' && supportsTemplates());
   if (completeTemplate && !templateStatus().eligible) { showTab('export'); throw new Error(templateStatus().reason); }
   if (completion().slice(0, 4).some(ready => !ready)) { showTab('export'); throw new Error('Před exportem doplň jméno, osobnost, životopis a platnou identitu NPC.'); }

@@ -7,10 +7,10 @@ import sys
 
 try:
     from .single_return import ProfileError, Scope
-    from . import residents_population, full_population, defias_population, field_population, raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
+    from . import residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
 except ImportError:
     from single_return import ProfileError, Scope
-    import residents_population, full_population, defias_population, field_population, raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
+    import residents_v11, residents_population, full_population, defias_population, field_population, raid_population, consumer_population, settlement_population, supply_population, terrain_profile, wildlife_population
 
 
 def main() -> None:
@@ -18,9 +18,11 @@ def main() -> None:
         raise SystemExit("run_scoped.py requires a command")
     try:
         profile = os.environ.get("LAB_AI_PROFILE", "disabled")
-        if profile not in ("disabled", "authoring-empty", residents_population.PROFILE, "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
+        if profile not in ("disabled", "authoring-empty", residents_population.PROFILE, residents_v11.PROFILE, "single-return", "hunt-cycle", "hunt-100", terrain_profile.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE):
             raise ProfileError("Unknown reviewed observer lab profile")
-        if profile == residents_population.PROFILE:
+        if profile == residents_v11.PROFILE:
+            scope = residents_v11.Population.load()
+        elif profile == residents_population.PROFILE:
             scope = residents_population.Population.load()
         elif profile == full_population.PROFILE:
             scope = full_population.Population.load()

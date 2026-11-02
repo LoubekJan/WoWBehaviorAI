@@ -1,28 +1,31 @@
 # Vývoj a provoz vlastního světa
 
-## Současné osídlení — residents-v10
+## Současné osídlení — residents-v11
 
-Profil `residents-v10` používá geometrii preview-v10 a **22 nativních obyvatel
-v 11 obytných domech**. Každý má vlastní šablonu, jméno a Studio návrh.
+Profil `residents-v11` používá geometrii preview-v11 a **45 nativních NPC**:
+22 původních obyvatel domů, 3 v taverně, 10 v radnici a 10 u levých stanů.
+Pouze poslední desítka má vlastní frakci Defias; používá FactionTemplate 2300,
+reputační frakci 1201 a WorldFaction 2. Každé NPC má vlastní šablonu, jméno a Studio návrh.
 Nastavení existujícího serveru je:
 
 ```dotenv
-LAB_AI_PROFILE=residents-v10
+LAB_AI_PROFILE=residents-v11
 LAB_WILDLIFE_ENABLED=0
 LAB_NPC_AGENTS_ENABLED=0
 AI_NPC_MODEL_ENABLED=0
 ```
 
-CI/CD ověří autorské vstupy, zastaví svět, připraví jen nových 22 spawnů,
+CI/CD ověří autorské vstupy, zastaví svět, zachová 22 domovů a doplní 23 spawnů,
 obnoví a aplikuje jejich samostatné šablony a po startu ověří databázi i
 čerstvou nativní telemetrii. `make setup-world` podporuje stejný offline
 postup pro již připravenou instalaci; původní testovací stovku neobnovuje.
-Účty, hráčské postavy a klientský mapový patch se nemění.
+Účty a hráčské postavy zůstávají zachované. Přesun budov vyžaduje nový
+klientský mapový patch a shodná serverová mapová, kolizní a navigační data.
 
 Ateliér na portu 9092 při nasazení doplní chybějící návrhy a zachová uložené
 úpravy. Samotné uložení návrhu svět nezmění. Export instalované vlastní
 šablony mění jméno a podtitul; humanoidní vzhled a LLM řízení zůstávají pro
-tento profil vypnuté. [Přehled obyvatel](data/realm_lab/aiworldlab/preview-v10/residents-README.md)
+tento profil vypnuté. [Přehled obyvatel](data/realm_lab/aiworldlab/preview-v11/README.md)
 obsahuje přiřazení domů a meze ověření.
 
 > Vyčištění proběhlo a bylo ověřeno 31. října na revizi `5437178873e7`:

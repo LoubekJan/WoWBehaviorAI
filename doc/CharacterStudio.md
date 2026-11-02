@@ -1,5 +1,18 @@
 # Ateliér postav
 
+## Rozšířené osídlení — residents-v11
+
+Aktuální registr nabízí 45 samostatných NPC: 22 v domech, 3 v taverně,
+10 v radnici a 10 ve stanovém táboře Defias. Jejich šablony mají vlastní
+entry `9810000`–`9810044`. Doplnění návrhů zachovává všech 22 dříve uložených
+postav včetně jejich jmen, příběhů, vzhledových návrhů a revizí; nově vytvoří
+jen chybějících 23. Každou postavu lze samostatně upravit a exportovat.
+
+Defias příslušnost je součástí ověřeného herního profilu pro deset stanových
+NPC. Pole „frakce“ v autorském návrhu tuto herní příslušnost nepřepisuje.
+Nativní vzhled a AI vycházejí z vlastního klonu zdrojové šablony; návrh
+humanoidního vzhledu v editoru se do tohoto profilu neinstaluje.
+
 ## Obyvatelé finální mapy — residents-v10
 
 Aktuální profil obsahuje **22 samostatných obyvatel v 11 obytných domech**.

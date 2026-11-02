@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "preview-v10",
+  "current_revision": "preview-v11",
+  "tiles": [
+    {
+      "tile": [
+        30,
+        31
+      ],
+      "source_changed": true,
+      "terrain_height_vertices_changed": 927,
+      "max_height_delta": 1.160536527633667,
+      "holes_unchanged": true,
+      "before_hole_squares": 0,
+      "after_hole_squares": 0,
+      "before_model_records": 60,
+      "after_model_records": 60
+    },
+    {
+      "tile": [
+        31,
+        31
+      ],
+      "source_changed": true,
+      "terrain_height_vertices_changed": 831,
+      "max_height_delta": 1.2280571460723877,
+      "holes_unchanged": false,
+      "before_hole_squares": 12,
+      "after_hole_squares": 20,
+      "before_model_records": 30,
+      "after_model_records": 30
+    },
+    {
+      "tile": [
+        30,
+        32
+      ],
+      "source_changed": true,
+      "terrain_height_vertices_changed": 246,
+      "max_height_delta": 0.012529036495834589,
+      "holes_unchanged": true,
+      "before_hole_squares": 0,
+      "after_hole_squares": 0,
+      "before_model_records": 13,
+      "after_model_records": 13
+    },
+    {
+      "tile": [
+        31,
+        32
+      ],
+      "source_changed": true,
+      "terrain_height_vertices_changed": 508,
+      "max_height_delta": 0.016044506803154945,
+      "holes_unchanged": false,
+      "before_hole_squares": 32,
+      "after_hole_squares": 48,
+      "before_model_records": 24,
+      "after_model_records": 24
+    }
+  ]
+}

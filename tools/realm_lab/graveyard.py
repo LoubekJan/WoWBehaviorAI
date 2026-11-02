@@ -37,6 +37,15 @@ FIELD_COUNT = 22
 RECORD_SIZE = FIELD_COUNT * 4
 
 
+def authored_manifest(profile: str) -> Path | None:
+    if profile in ("residents-v10", "residents-v11"):
+        revision = "preview-v10" if profile == "residents-v10" else "preview-v11"
+        return map_bundle.GeometryBundle.load_revision(map_bundle.METADATA, revision).metadata / "graveyard.json"
+    if profile == "authoring-empty" and (map_bundle.METADATA / map_bundle.INDEX).exists():
+        return map_bundle.GeometryBundle.load().metadata / "graveyard.json"
+    return None
+
+
 @dataclass(frozen=True)
 class Graveyard:
     safe_location_id: int
@@ -52,10 +61,7 @@ class Graveyard:
     @classmethod
     def load(cls, path: Path | None = None) -> "Graveyard":
         if path is None:
-            path = MANIFEST
-            if os.environ.get("LAB_AI_PROFILE") in ("authoring-empty", "residents-v10"):
-                if (map_bundle.METADATA / map_bundle.INDEX).exists():
-                    path = map_bundle.GeometryBundle.load().metadata / "graveyard.json"
+            path = authored_manifest(os.environ.get("LAB_AI_PROFILE", "")) or MANIFEST
         value = json.loads(path.read_text(encoding="utf-8"))
         try:
             revision = value.get("source", {}).get("revision")
@@ -280,12 +286,13 @@ def bootstrap(data: Path, settings=None, graveyard: Graveyard | None = None) -> 
     except ImportError:
         import manage
     settings = settings or manage.Settings.load(os.environ)
-    if settings.ai_profile not in ("disabled", "authoring-empty", "residents-v10", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
+    if settings.ai_profile not in ("disabled", "authoring-empty", "residents-v10", "residents-v11", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
         raise ValueError("Graveyard bootstrap requires the native settlement profile and a stopped world")
     settlement_population.ensure_world_offline()
-    if graveyard is None and settings.ai_profile in ("authoring-empty", "residents-v10"):
-        if (map_bundle.METADATA / map_bundle.INDEX).exists():
-            graveyard = Graveyard.load(map_bundle.GeometryBundle.load().metadata / "graveyard.json")
+    if graveyard is None and settings.ai_profile in ("authoring-empty", "residents-v10", "residents-v11"):
+        path = authored_manifest(settings.ai_profile)
+        if path is not None:
+            graveyard = Graveyard.load(path)
     graveyard = verify_data(data, graveyard)
 
     def read_links() -> list[dict]:
