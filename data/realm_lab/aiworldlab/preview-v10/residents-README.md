@@ -2,6 +2,8 @@
 
 Nové osídlení preview-v10 z 2. listopadu 2026 obsahuje **22 NPC v 11 obytných domech**, vždy dvě postavy v každém domě. Hostinec, kovárna, radnice, pila, sila a jeskyně jsou vynechané.
 
+[Živé ověření nasazení](residents-activation.json) potvrzuje revizi `6a33965e5388`, osm zdravých služeb, všech 22 živých NPC, 22 samostatných šablon a 22 návrhů v Ateliéru. Ověřený je i jednotlivý export každé šablony a zachování účtů, hráčských postav a klientských patchů. [CI/CD](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41461277536) prošlo 910 Python a 699 C++ testy. Před aktivací vznikla ověřená soukromá záloha databází, návrhů a konfigurace.
+
 Každá postava má vlastní novou herní šablonu, jméno, podtitul a Studio návrh. Nativní parametry vycházejí z bezpečné neměnné šablony Eastvale Peasant `11328`; kopírují se všechny její sloupce a prostředky vázané na entry. Základní šablona zůstává zachovaná. Změna jednoho jména nepřejmenuje spolubydlící ani jinou postavu.
 
 ## Přiřazení domů

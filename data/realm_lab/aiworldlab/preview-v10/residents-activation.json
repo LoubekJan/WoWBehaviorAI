@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "status": "verified",
+  "recorded_utc": "2026-11-02T14:37:54.693863+00:00",
+  "code_revision": "6a33965e5388fde4851eab09fa8d3fbe3e99c22f",
+  "source_revision": "preview-v10",
+  "profile": "residents-v10",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "services": {
+    "account-web": "healthy",
+    "ai-server": "healthy",
+    "auth-mysql": "healthy",
+    "authserver": "healthy",
+    "character-studio": "healthy",
+    "lab-mysql": "healthy",
+    "world-viewer": "healthy",
+    "worldserver": "healthy"
+  },
+  "world": {
+    "profile": "residents-v10",
+    "source_revision": "preview-v10",
+    "geometry_files": 74,
+    "resident_count": 22,
+    "house_count": 11,
+    "independent_templates": [
+      {
+        "name": "Jan Polní",
+        "entry": 9810000,
+        "title": "Obyvatel domu 1",
+        "spawn_id": 902000,
+        "base_entry": 11328,
+        "bound_entry": 9810000
+      },
+      {
+        "name": "Petr Polní",
+        "entry": 9810001,
+        "title": "Obyvatel domu 1",
+        "spawn_id": 902001,
+        "base_entry": 11328,
+        "bound_entry": 9810001
+      },
+      {
+        "name": "Marek Kovář",
+        "entry": 9810002,
+        "title": "Obyvatel domu 2",
+        "spawn_id": 902002,
+        "base_entry": 11328,
+        "bound_entry": 9810002
+      },
+      {
+        "name": "Adam Kovář",
+        "entry": 9810003,
+        "title": "Obyvatel domu 2",
+        "spawn_id": 902003,
+        "base_entry": 11328,
+        "bound_entry": 9810003
+      },
+      {
+        "name": "Tomáš Březový",
+        "entry": 9810004,
+        "title": "Obyvatel domu 3",
+        "spawn_id": 902004,
+        "base_entry": 11328,
+        "bound_entry": 9810004
+      },
+      {
+        "name": "Daniel Březový",
+        "entry": 9810005,
+        "title": "Obyvatel domu 3",
+        "spawn_id": 902005,
+        "base_entry": 11328,
+        "bound_entry": 9810005
+      },
+      {
+        "name": "Matěj Zelený",
+        "entry": 9810006,
+        "title": "Obyvatel domu 4",
+        "spawn_id": 902006,
+        "base_entry": 11328,
+        "bound_entry": 9810006
+      },
+      {
+        "name": "Lukáš Zelený",
+        "entry": 9810007,
+        "title": "Obyvatel domu 4",
+        "spawn_id": 902007,
+        "base_entry": 11328,
+        "bound_entry": 9810007
+      },
+      {
+        "name": "Ondřej Sedlák",
+        "entry": 9810008,
+        "title": "Obyvatel domu 5",
+        "spawn_id": 902008,
+        "base_entry": 11328,
+        "bound_entry": 9810008
+      },
+      {
+        "name": "Jakub Sedlák",
+        "entry": 9810009,
+        "title": "Obyvatel domu 5",
+        "spawn_id": 902009,
+        "base_entry": 11328,
+        "bound_entry": 9810009
+      },
+      {
+        "name": "Martin Horský",
+        "entry": 9810010,
+        "title": "Obyvatel domu 6",
+        "spawn_id": 902010,
+        "base_entry": 11328,
+        "bound_entry": 9810010
+      },
+      {
+        "name": "Filip Horský",
+        "entry": 9810011,
+        "title": "Obyvatel domu 6",
+        "spawn_id": 902011,
+        "base_entry": 11328,
+        "bound_entry": 9810011
+      },
+      {
+        "name": "Pavel Dubový",
+        "entry": 9810012,
+        "title": "Obyvatel domu 7",
+        "spawn_id": 902012,
+        "base_entry": 11328,
+        "bound_entry": 9810012
+      },
+      {
+        "name": "Vít Dubový",
+        "entry": 9810013,
+        "title": "Obyvatel domu 7",
+        "spawn_id": 902013,
+        "base_entry": 11328,
+        "bound_entry": 9810013
+      },
+      {
+        "name": "Josef Potok",
+        "entry": 9810014,
+        "title": "Obyvatel domu 8",
+        "spawn_id": 902014,
+        "base_entry": 11328,
+        "bound_entry": 9810014
+      },
+      {
+        "name": "Šimon Potok",
+        "entry": 9810015,
+        "title": "Obyvatel domu 8",
+        "spawn_id": 902015,
+        "base_entry": 11328,
+        "bound_entry": 9810015
+      },
+      {
+        "name": "Karel Mlýnský",
+        "entry": 9810016,
+        "title": "Obyvatel domu 9",
+        "spawn_id": 902016,
+        "base_entry": 11328,
+        "bound_entry": 9810016
+      },
+      {
+        "name": "Jiří Mlýnský",
+        "entry": 9810017,
+        "title": "Obyvatel domu 9",
+        "spawn_id": 902017,
+        "base_entry": 11328,
+        "bound_entry": 9810017
+      },
+      {
+        "name": "Michal Strnad",
+        "entry": 9810018,
+        "title": "Obyvatel domu 10",
+        "spawn_id": 902018,
+        "base_entry": 11328,
+        "bound_entry": 9810018
+      },
+      {
+        "name": "Hynek Strnad",
+        "entry": 9810019,
+        "title": "Obyvatel domu 10",
+        "spawn_id": 902019,
+        "base_entry": 11328,
+        "bound_entry": 9810019
+      },
+      {
+        "name": "Antonín Veselý",
+        "entry": 9810020,
+        "title": "Obyvatel domu 11",
+        "spawn_id": 902020,
+        "base_entry": 11328,
+        "bound_entry": 9810020
+      },
+      {
+        "name": "Oldřich Veselý",
+        "entry": 9810021,
+        "title": "Obyvatel domu 11",
+        "spawn_id": 902021,
+        "base_entry": 11328,
+        "bound_entry": 9810021
+      }
+    ],
+    "native_templates_and_children_verified": true,
+    "telemetry": {
+      "fresh_snapshots": 2,
+      "captured_at_ms": [
+        1793630268860,
+        1793630270860
+      ],
+      "all_22_alive_and_live": true,
+      "managed": 0,
+      "native": 22
+    },
+    "world_version": "TrinityCore rev. 6a33965e5388 2026-11-02 15:22:02 +0100 (AI-World-lab branch) (Linux, x86_64, RelWithDebInfo, Static)",
+    "runtime_flags": {
+      "AIWorld.Enable": 0,
+      "AIWorld.NpcAgentEnabled": 0,
+      "AIWorld.TelemetryEnabled": 1,
+      "AIWorld.TelemetryNativeCreaturesEnabled": 1
+    }
+  },
+  "studio": {
+    "drafts": 22,
+    "targets": 22,
+    "individual_template_exports_verified": 22,
+    "native_appearance_export_omitted": true,
+    "repeat_seed": {
+      "created": 0,
+      "preserved": 22,
+      "residents": 22
+    }
+  },
+  "accounts_and_player_characters_preserved": true,
+  "protected_backup_verified": true,
+  "geometry_unchanged": true,
+  "client_patch_required": false,
+  "physical_behavior_acceptance": false,
+  "validation": {
+    "ci_run_url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41461277536",
+    "python_tests_passed": 910,
+    "cpp_tests_passed": 699,
+    "all_required_jobs": "success"
+  },
+  "client_patches": {
+    "changed": false,
+    "sha256": {
+      "patch-4.MPQ": "639d86ad044d1d2f00da3f1751c734af3b62f80658aee6d7345e21fd14f3c804",
+      "patch-X.MPQ": "4a21fba14735f1a2fb3b49492f739d2c0842d8d9e9142cb74684c3e08c1bbdb8"
+    }
+  }
+}

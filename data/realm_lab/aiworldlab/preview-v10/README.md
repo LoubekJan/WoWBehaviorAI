@@ -1,5 +1,10 @@
 # Mapa preview-v10 — uložená verze z 1. listopadu 2026, 22:14
 
+Od 2. listopadu je nad stejnou geometrií nasazený profil
+[`residents-v10`](residents-README.md): 22 samostatných obyvatel v 11 domech.
+[Aktuální provozní ověření](residents-activation.json) zachycuje toto osídlení;
+níže je zachovaný záznam původního nasazení samotné prázdné mapy.
+
 Další autorská úprava pro režim `authoring-empty`, realm 2, mapa 725,
 oblast 4988. Přibyly hostinec, kovárna, radnice, farmy, pila a další
 objekty; osazení NPC zůstává prázdné.

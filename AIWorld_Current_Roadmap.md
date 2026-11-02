@@ -9,6 +9,7 @@ Rozpis a geometrické důkazy jsou v [přehledu obyvatel](data/realm_lab/aiworld
 - [x] Připravit 22 nových identit a vlastních šablon nad stávající mapou.
 - [x] Ověřit vnitřní podlahy, kolize, všechny vrstvy vody a cesty pro 22 bodů.
 - [x] Registrovat postavy v Ateliéru a doplňovat návrhy bez přepsání autorských úprav.
+- [x] Nasadit profil a živě ověřit 22 obyvatel, 22 šablon a 22 návrhů; [důkaz](data/realm_lab/aiworldlab/preview-v10/residents-activation.json), CI 910 Python / 699 C++.
 - [ ] Vizuálně projít všechny domy v herním klientu a potvrdit umístění.
 - [ ] Podle zadání doplnit povolání, denní režimy a další chování obyvatel.
 - [ ] Pro nové role znovu ověřit fyzické cesty a potravní řetězce na této geometrii.

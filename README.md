@@ -77,7 +77,9 @@ Further NPC behavior requires reviewed population metadata; do not reactivate th
   behavior. Other NPCs sharing the source template keep their original names.
 
 Saving a Studio draft does not change the live game. Its full ZIP contains
-the card, appearance, native-template descriptor, draft and deployment guide.
+the card, native-template descriptor, draft and deployment guide. Profiles
+supporting runtime customization also include an appearance file; native
+residents retain that proposed appearance only in their editable draft.
 A controlled deployment installs these inputs. Log into WoW again after a
 name change so the client loads the updated label cache. Character changes
 require no additional map patch; geometry and shared DBC changes still need
