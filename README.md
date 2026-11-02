@@ -5,22 +5,16 @@ LLM characters that can act and talk in the game.
 
 ## Současný řízený svět — living-v12
 
-Profil **`living-v12`** používá mapu **preview-v12 se třemi doplněnými mosty** a řídí všech
-**45 současných NPC** se stejným řízením a katalogem interakcí jako living-v11. Zachovává jména,
-šablony, domovy i návrhy v Ateliéru. Binár `c2d4eb389949` prošel 973 Python a 736 nativními testy; osm služeb je
-zdravých a všech 45 NPC je řízených, načtených a živých. Tři vesnické sklady jsou u sýpek, jih má
-schválený venkovní sklad. LLM zůstává vypnuté.
+Profil **`living-v12`** řídí všech **45 současných NPC** na mapě se třemi mosty. Jména, domovy,
+pole, sklady, šablony a návrhy v Ateliéru zůstávají stejné; samostatný katalog tranzitních tras
+umožňuje cestu přes most místo dlouhé pobřežní okliky. Binár `9857ecc094a8` prošel 984 testy
+Pythonu a 739 nativními testy; osm služeb je zdravých a všech 45 NPC je řízených, načtených a
+živých. LLM zůstává vypnuté.
 
-Na předchozí mapě preview-v11 má patnáctiminutový záznam 450 platných snímků bez chyby bilance. Úplný cyklus
-sklizeň–dodávka–návrat–odpočinek–další práce je doložený u 12 z 12 farmářů, opakování u 12 z 12. V
-tomto záznamu už žádný z farmářů na konci neměl dlouhé navigační čekání. [Výsledky a další ověření](data/realm_lab/aiworldlab/preview-v11/README.md)
-oddělují farmáře od ostatních rolí; návraty některých spotřebitelů zůstávají neověřené. Potřeby a
-zásoby se přes restart zatím neukládají.
-
-[Nasazení v12](data/realm_lab/aiworldlab/preview-v12/activation.json) potvrzuje všech 45 živých
-řízených NPC, zachování návrhů i účtů a shodná serverová/klientská data. [Přehled mostů](data/realm_lab/aiworldlab/preview-v12/README.md)
-obsahuje jejich kolize, spojení s břehy a průchodné nativní cesty. Klientský patch je nainstalovaný
-v `C:\WoWModding\Client-Lab`; historické farmářské měření se novým nasazením neopakuje ani nepřepisuje.
+Patnáctiminutový záznam má 450 platných snímků bez chyby bilance; obsahuje 8 fyzicky ověřených
+přechodů mostu 233 oběma směry a 4 navazující dodávky po 6 porcích obou nosičů. Opakovaný úplný
+pracovní cyklus je doložený u 12 z 12 farmářů. [Provozní doklad a další ověření](data/realm_lab/aiworldlab/preview-v12/README.md) uvádějí také otevřené navigační
+limity městských spotřebitelů. Potřeby a zásoby se přes restart zatím neukládají.
 
 ## Previous native population — 2 November 2026
 

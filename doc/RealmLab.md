@@ -16,15 +16,17 @@ Přepínač `AIWorld.LivingResidentsV11.Enabled` odděluje tento provoz od histo
 LLM řízení je vypnuté a zůstává samostatným zapnutím pro vybrané karty. Potřeby, úroda, zásoby,
 náklad a rozpracované výpravy se přes restart zatím neukládají.
 
-Binár `c2d4eb389949` prošel 973 Python a 736 nativními testy; osm služeb je zdravých a všech 45
-NPC je řízených, načtených a živých. Domovy a katalog interakcí zůstaly stejné; [nasazení mostů](../data/realm_lab/aiworldlab/preview-v12/README.md)
-má vlastní nové důkazy geometrie a navigace. Historický patnáctiminutový záznam na preview-v11 má
-450 platných snímků bez chyby bilance. Úplný cyklus sklizeň–dodávka–návrat–odpočinek–další práce
-je doložený u 12 z 12 farmářů, opakování u 12 z 12. V tomto záznamu už žádný z farmářů na konci
-neměl dlouhé navigační čekání.
+Binár `9857ecc094a8` prošel 984 testy Pythonu a 739 nativními testy; osm služeb je zdravých a
+všech 45 NPC je řízených, načtených a živých. Nový katalog tranzitu mění dlouhé cesty mezi sklady;
+domovy, pole, sklady a původní katalog interakcí zůstávají stejné.
 
-[Nový provozní doklad](../data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json) odděluje opakované farmářské cykly od dosud neověřených návratů spotřebitelů.
-[Přehled mapy a další práce](../data/realm_lab/aiworldlab/preview-v11/README.md) obsahuje podrobnosti; starší aktivace zůstávají datovanou historií.
+Patnáctiminutový záznam má 450 platných snímků bez chyby bilance; obsahuje 8 fyzicky ověřených
+přechodů mostu 233 oběma směry a 4 navazující dodávky po 6 porcích obou nosičů. Opakovaný úplný
+pracovní cyklus je doložený u 12 z 12 farmářů. Otevřené zůstávají navigační limity části městských
+spotřebitelů; podrobnosti uvádí přehled mapy.
+
+[Provozní doklad](../data/realm_lab/aiworldlab/preview-v12/transit-activation.json) a [přehled mapy](../data/realm_lab/aiworldlab/preview-v12/README.md) zachovávají starší aktivace jako datovanou historii.
+Záznam neznamená přijetí všech činností všech 45 NPC.
 
 ## Přesun taverny a osazení veřejných budov — preview-v11, 2. listopadu 2026
 
