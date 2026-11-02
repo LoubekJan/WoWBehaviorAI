@@ -317,6 +317,8 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
     @app.get("/api/characters/{character_id}/appearance")
     def appearance_export(character_id: str):
         _doc, profile, appearance = exports(character_id)
+        if targets().profile == "residents-v10":
+            raise HTTPException(422, "Obyvatelé používají původní herní vzhled. Návrh vzhledu lze uložit v draftu; tento profil jej do hry nenasazuje.")
         return attachment(appearance, f"{profile['spawn_id']}.json")
 
     @app.get("/api/characters/{character_id}/template")
@@ -328,17 +330,22 @@ def create_app(*, data_dir: Path | None = None, catalog_path: Path | None = None
     @app.get("/api/characters/{character_id}/bundle.zip")
     def bundle_export(character_id: str):
         doc, profile, appearance = exports(character_id)
-        template = template_export_value(doc) if targets().profile == "full-v8" else None
+        population_profile = targets().profile
+        resident = population_profile == "residents-v10"
+        template = template_export_value(doc) if population_profile in ("full-v8", "residents-v10") else None
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-            for folder, item in (("npc_agents", profile), ("npc_appearances", appearance)):
+            runtime_files = (("npc_agents", profile),) if resident else (("npc_agents", profile), ("npc_appearances", appearance))
+            for folder, item in runtime_files:
                 bundle.writestr(f"{folder}/{profile['spawn_id']}.json", json.dumps(item, ensure_ascii=False, indent=2) + "\n")
             if template:
                 bundle.writestr(f"npc_templates/{profile['spawn_id']}.json", json.dumps(template, ensure_ascii=False, indent=2) + "\n")
             bundle.writestr("character-studio-draft.json", json.dumps(doc, ensure_ascii=False, indent=2) + "\n")
             bundle.writestr("README.txt", "CHARACTER STUDIO — export pro WoW 3.3.5a\n\n"
-                "npc_agents/ obsahuje přesný šestipolový profil LLM.\n"
-                "npc_appearances/ obsahuje samostatný vzhled stejného spawnu.\n"
+                "npc_agents/ obsahuje přesnou šestipolovou charakterovou kartu.\n"
+                + ("Obyvatelé používají původní herní vzhled a běžné herní AI. LLM řízení zůstává vypnuté.\n"
+                   "Vzhled uložený v draftu je návrh pro další úpravy. Do hry se tímto balíčkem neinstaluje.\n"
+                   if resident else "npc_appearances/ obsahuje samostatný vzhled stejného spawnu.\n")
                 + ("npc_templates/ obsahuje předpis samostatné herní šablony se jménem a podtitulem.\n"
                    "Řízené offline nasazení vytvoří úplnou kopii parametrů a souvisejících zdrojů původní šablony.\n"
                    "Změna této postavy nepřejmenuje ostatní NPC se stejným původním modelem.\n"

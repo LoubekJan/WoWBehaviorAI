@@ -5,9 +5,11 @@
 > geometrie jsou zachované; finální rozložení mapy zůstává další práce.
 
 
-Aktualizováno **1. listopadu 2026**. Aktivní svět používá mapu **725**, oblast
-**4988**, realm **2** a geometrii **`preview-v10`**. Pro finální úpravy se
-používá **`authoring-empty`**, bez NPC a aktivních charakterů. Manifesty
+Aktualizováno **2. listopadu 2026**. Aktivní svět používá mapu **725**, oblast
+**4988**, realm **2** a geometrii **`preview-v10`**. Nový profil
+**`residents-v10`** má **22 nativních obyvatel v 11 domech**, každého s vlastní
+šablonou a Studio návrhem. [Přehled obyvatel](preview-v10/residents-README.md)
+popisuje přiřazení domů a ověřené podlahy. Manifesty
 původních 100 aktérů zůstávají historickými/regresními daty; v tomto režimu
 se jejich bootstrap nespouští. Původní Elwynn runtime a geometrie v2/v3 nejsou aktivní
 provozní prostředí. Návod k provozu je v [README_DEV.md](../../../README_DEV.md)
@@ -26,7 +28,7 @@ budovy včetně hostince, kovárny, radnice, farem a pily.
 [Serverový manifest](preview-v10/server-manifest.json) a
 [kontrola dat](preview-v10/data-verification.json) popisují shodný výstup
 DBC/maps/vmaps/mmaps včetně kolizních závislostí. Prázdný mapový preflight
-ověřuje všech 74 geometrických souborů. [Přehled v10](preview-v10/README.md)
+ověřuje všech 74 geometrických souborů, které používá také profil obyvatel. [Přehled v10](preview-v10/README.md)
 uvádí bezpečný vstup i známé omezení druhých vrstev vody. Binární zdroje, klientské MPQ a extrahovaná
 serverová data jsou soukromé; nejsou distribuované v Gitu. Změna geometrie
 vyžaduje znovu sestavit shodný klientský i serverový balík. Pouhé nasazení
@@ -53,6 +55,7 @@ populační manifest zůstává nezměněným zdrojem behaviorální identity.
 | `defias-v8` | 55 / 45 | Všech 16 Defias, skupinové výpravy a táborová spotřeba |
 | `full-v8` | 100 / 0 | Původní plná testovací populace, běžné role, dvě karavany a městská spotřeba |
 | **`authoring-empty`** | **0 / 0** | **Příprava finální mapy**, žádné NPC, AI a telemetrie vypnuté |
+| **`residents-v10`** | **0 / 22** | **Současné osídlení**: dvě vlastní postavy v každém z 11 obytných domů |
 
 Tyto počty jsou pro zapnutý příslušný profil, nikoli počty LLM karet.
 Manifests [polí](preview-v8/field-population.json),

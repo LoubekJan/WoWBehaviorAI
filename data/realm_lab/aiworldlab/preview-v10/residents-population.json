@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "profile": "residents-v10",
+  "realm_id": 2,
+  "map_id": 725,
+  "area_id": 4988,
+  "source_revision": "preview-v10",
+  "geometry_sha256": "84a3d0f121b9f6e1b53da1df65a837f1e99ddae206d1942ebcfe0ccbbab2cf33",
+  "position_proof_sha256": "1002f20f5a42d200328f6ad08348b8b1964a663f72984a843f0a66c45aa7ec93",
+  "respawn_seconds": 300,
+  "templates": [
+    {
+      "entry": 11328,
+      "ai_name": "",
+      "script_name": "",
+      "regenerate_health": 1,
+      "vehicle": 0,
+      "npcflag": 0,
+      "unit_flags": 0,
+      "unit_flags2": 2048,
+      "faction": 12,
+      "minlevel": 6,
+      "maxlevel": 7,
+      "flags_extra": 2
+    }
+  ],
+  "actors": [
+    {
+      "spawn_id": 902000,
+      "entry": 11328,
+      "house_id": 178,
+      "slot": 1,
+      "x": 190.81601562500015,
+      "y": 277.48984375000015,
+      "z": 5.925477582226083,
+      "orientation": 5.3003915839322575,
+      "label": "aiworld_lab_resident_902000"
+    },
+    {
+      "spawn_id": 902001,
+      "entry": 11328,
+      "house_id": 178,
+      "slot": 2,
+      "x": 192.41601562500017,
+      "y": 275.0898437500001,
+      "z": 5.913632236357546,
+      "orientation": 2.158798930342464,
+      "label": "aiworld_lab_resident_902001"
+    },
+    {
+      "spawn_id": 902002,
+      "entry": 11328,
+      "house_id": 179,
+      "slot": 1,
+      "x": 166.24609375000017,
+      "y": 279.49882812500016,
+      "z": 5.434857552885138,
+      "orientation": 4.124386376837123,
+      "label": "aiworld_lab_resident_902002"
+    },
+    {
+      "spawn_id": 902003,
+      "entry": 11328,
+      "house_id": 179,
+      "slot": 2,
+      "x": 164.64609375000015,
+      "y": 277.0988281250001,
+      "z": 5.4196348295480545,
+      "orientation": 0.982793723247329,
+      "label": "aiworld_lab_resident_902003"
+    },
+    {
+      "spawn_id": 902004,
+      "entry": 11328,
+      "house_id": 183,
+      "slot": 1,
+      "x": 359.1261718750001,
+      "y": 535.4183593749995,
+      "z": 4.188312573243143,
+      "orientation": 3.7295952571373276,
+      "label": "aiworld_lab_resident_902004"
+    },
+    {
+      "spawn_id": 902005,
+      "entry": 11328,
+      "house_id": 183,
+      "slot": 2,
+      "x": 356.7261718750001,
+      "y": 533.8183593749995,
+      "z": 4.1444083776655205,
+      "orientation": 0.5880026035475348,
+      "label": "aiworld_lab_resident_902005"
+    },
+    {
+      "spawn_id": 902006,
+      "entry": 11328,
+      "house_id": 184,
+      "slot": 1,
+      "x": 354.22539062500016,
+      "y": 515.1160156250002,
+      "z": 4.180078967852959,
+      "orientation": 0.5880026035475675,
+      "label": "aiworld_lab_resident_902006"
+    },
+    {
+      "spawn_id": 902007,
+      "entry": 11328,
+      "house_id": 184,
+      "slot": 2,
+      "x": 356.6253906250002,
+      "y": 516.7160156250002,
+      "z": 4.153672196744975,
+      "orientation": 3.7295952571373605,
+      "label": "aiworld_lab_resident_902007"
+    },
+    {
+      "spawn_id": 902008,
+      "entry": 11328,
+      "house_id": 193,
+      "slot": 1,
+      "x": 43.69453124999997,
+      "y": 843.8351562499995,
+      "z": 2.9597622193874713,
+      "orientation": 0.588002603547543,
+      "label": "aiworld_lab_resident_902008"
+    },
+    {
+      "spawn_id": 902009,
+      "entry": 11328,
+      "house_id": 193,
+      "slot": 2,
+      "x": 46.09453124999996,
+      "y": 845.4351562499994,
+      "z": 2.9598034191792,
+      "orientation": 3.729595257137336,
+      "label": "aiworld_lab_resident_902009"
+    },
+    {
+      "spawn_id": 902010,
+      "entry": 11328,
+      "house_id": 194,
+      "slot": 1,
+      "x": 73.25429687499995,
+      "y": 836.9689453124995,
+      "z": 3.049512325216356,
+      "orientation": 2.55359005004225,
+      "label": "aiworld_lab_resident_902010"
+    },
+    {
+      "spawn_id": 902011,
+      "entry": 11328,
+      "house_id": 194,
+      "slot": 2,
+      "x": 70.85429687499996,
+      "y": 838.5689453124994,
+      "z": 3.0712988498702893,
+      "orientation": 5.695182703632043,
+      "label": "aiworld_lab_resident_902011"
+    },
+    {
+      "spawn_id": 902012,
+      "entry": 11328,
+      "house_id": 196,
+      "slot": 1,
+      "x": -428.2058593749999,
+      "y": 498.7480468750001,
+      "z": 3.033428301519124,
+      "orientation": 5.695182703632018,
+      "label": "aiworld_lab_resident_902012"
+    },
+    {
+      "spawn_id": 902013,
+      "entry": 11328,
+      "house_id": 196,
+      "slot": 2,
+      "x": -425.80585937499984,
+      "y": 497.1480468750001,
+      "z": 2.931911655597659,
+      "orientation": 2.5535900500422257,
+      "label": "aiworld_lab_resident_902013"
+    },
+    {
+      "spawn_id": 902014,
+      "entry": 11328,
+      "house_id": 197,
+      "slot": 1,
+      "x": -388.1609374999999,
+      "y": 504.5363281250001,
+      "z": 2.308030472165346,
+      "orientation": 2.5535900500422257,
+      "label": "aiworld_lab_resident_902014"
+    },
+    {
+      "spawn_id": 902015,
+      "entry": 11328,
+      "house_id": 197,
+      "slot": 2,
+      "x": -390.5609374999999,
+      "y": 506.13632812500015,
+      "z": 2.3752586385999535,
+      "orientation": 5.695182703632018,
+      "label": "aiworld_lab_resident_902015"
+    },
+    {
+      "spawn_id": 902016,
+      "entry": 11328,
+      "house_id": 213,
+      "slot": 1,
+      "x": 23.803906250000008,
+      "y": 615.2589843749995,
+      "z": 0.7520489298777205,
+      "orientation": 5.695182703632045,
+      "label": "aiworld_lab_resident_902016"
+    },
+    {
+      "spawn_id": 902017,
+      "entry": 11328,
+      "house_id": 213,
+      "slot": 2,
+      "x": 26.20390625000001,
+      "y": 613.6589843749996,
+      "z": 0.7793796349315487,
+      "orientation": 2.5535900500422524,
+      "label": "aiworld_lab_resident_902017"
+    },
+    {
+      "spawn_id": 902018,
+      "entry": 11328,
+      "house_id": 214,
+      "slot": 1,
+      "x": 43.52460937499997,
+      "y": 616.1261718749995,
+      "z": 0.6119922615658596,
+      "orientation": 3.729595257137336,
+      "label": "aiworld_lab_resident_902018"
+    },
+    {
+      "spawn_id": 902019,
+      "entry": 11328,
+      "house_id": 214,
+      "slot": 2,
+      "x": 41.12460937499998,
+      "y": 614.5261718749996,
+      "z": 0.6135952515886869,
+      "orientation": 0.588002603547543,
+      "label": "aiworld_lab_resident_902019"
+    },
+    {
+      "spawn_id": 902020,
+      "entry": 11328,
+      "house_id": 215,
+      "slot": 1,
+      "x": 2.325390624999997,
+      "y": 613.9843749999995,
+      "z": 0.733578045606566,
+      "orientation": 0.5880026035475413,
+      "label": "aiworld_lab_resident_902020"
+    },
+    {
+      "spawn_id": 902021,
+      "entry": 11328,
+      "house_id": 215,
+      "slot": 2,
+      "x": 4.7253906249999975,
+      "y": 615.5843749999995,
+      "z": 0.7382839048700222,
+      "orientation": 3.7295952571373343,
+      "label": "aiworld_lab_resident_902021"
+    }
+  ]
+}

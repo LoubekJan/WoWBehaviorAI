@@ -1,5 +1,18 @@
 # Vlastní svět jako jediný realm
 
+## Obyvatelé domů — residents-v10, 2. listopadu 2026
+
+Nová populace osazuje **11 obytných domů po dvou NPC**, celkem **22 obyvatel**.
+Hostinec, kovárna, radnice, pila, sila a jeskyně jsou vynechané. Každé NPC
+má vlastní entry `9810000`–`9810021`, spawn `902000`–`902021`, jméno, podtitul
+a samostatnou editovatelnou kartu v Ateliéru postav na portu 9092.
+
+Profil `residents-v10` používá stejnou připnutou geometrii preview-v10 a
+ověřené vnitřní podlahy; neobnovuje předchozí testovací stovku. Jde o
+nativní obyvatele stojící na domovských bodech. Denní režim, povolání a
+LLM řízení se tímto osídlením nezapínají. Observer ukazuje nových 22 NPC.
+Podrobnosti a důkazy jsou v [přehledu obyvatel](../data/realm_lab/aiworldlab/preview-v10/residents-README.md).
+
 ## Další úprava mapy — preview-v10, 1. listopadu 2026 večer
 
 [Preview-v10](../data/realm_lab/aiworldlab/preview-v10/README.md) používá

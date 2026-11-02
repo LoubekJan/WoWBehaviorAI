@@ -201,12 +201,16 @@ function validId(value) {
   try { return BigInt(value) <= 18446744073709551615n; } catch { return false; }
 }
 
+function supportsTemplates() {
+  return ['full-v8', 'residents-v10'].includes(catalog.target_registry?.profile);
+}
+
 function completion() {
   const checks = [!!current.card.name.trim() && current.card.name.length <= 32 && bytes(current.card.name) <= 80,
     !!current.card.personality.trim() && bytes(current.card.personality) <= 2048,
     !!current.card.backstory.trim() && bytes(current.card.backstory) <= 8192,
     targetStatus().eligible];
-  if (catalog.target_registry?.profile === 'full-v8') checks.push(templateStatus().eligible);
+  if (supportsTemplates()) checks.push(templateStatus().eligible);
   return checks;
 }
 
@@ -220,21 +224,23 @@ function targetStatus() {
   if (row.map_id !== current.card.map_id) return {eligible: false, reason: `Cílové NPC patří na mapu ${row.map_id}. Zvolená mapa s ním nesouhlasí.`};
   if (row.agent_id !== current.card.agent_id || row.eligible !== true) return {eligible: false, reason: row.reason || 'Toto NPC není registrované pro řízení LLM. Samotný import charakterové karty jeho řízení nezapne.'};
   const installed = catalog.source_profiles.find(source => source.card.spawn_id === row.spawn_id && source.card.map_id === row.map_id);
-  let reason = `Cíl ${row.spawn_id} je ověřený podle aktivního profilu ${registry.profile}.`;
+  let reason = row.control_mode === 'NATIVE_CORE' ? row.reason : `Cíl ${row.spawn_id} je ověřený podle aktivního profilu ${registry.profile}.`;
   if (installed && installed.card.name !== current.card.name) reason += ` Používá kartu „${installed.card.name}“. Nasazení tohoto exportu ji nahradí novou identitou.`;
   return {eligible: true, reason};
 }
 
 function templateStatus() {
   if (!targetStatus().eligible) return {eligible: false, reason: targetStatus().reason};
-  if (catalog.target_registry?.profile !== 'full-v8') return {eligible: false, reason: 'Aktivní starší profil nabízí kartu a vzhled. Vlastní herní jméno a šablona vyžadují profil full-v8.'};
+  if (!supportsTemplates()) return {eligible: false, reason: 'Aktivní starší profil nabízí kartu a vzhled. Vlastní herní jméno a šablona vyžadují profil full-v8 nebo residents-v10.'};
+  const resident = catalog.target_registry?.profile === 'residents-v10';
   const spawn = Number(current.card.spawn_id);
   const row = (catalog.targets || []).find(row => row.spawn_id === current.card.spawn_id);
-  if (!Number.isInteger(spawn) || spawn < 901000 || spawn > 901099 || !Number.isInteger(row?.entry) || row.entry <= 0 || current.card.map_id !== 725) return {eligible: false, reason: 'Herní šablona vyžaduje ověřené NPC vlastní populace.'};
+  const validSpawn = resident ? spawn >= 902000 && spawn <= 902021 : spawn >= 901000 && spawn <= 901099;
+  if (!Number.isInteger(spawn) || !validSpawn || !Number.isInteger(row?.entry) || row.entry <= 0 || current.card.map_id !== 725) return {eligible: false, reason: 'Herní šablona vyžaduje ověřené NPC vlastní populace.'};
   if (!current.card.name.trim()) return {eligible: false, reason: 'Doplň jméno, které se zobrazí nad postavou ve hře.'};
   const title = (current.authoring.role || '').trim();
   if (bytes(title) > 80 || /[\u0000-\u001f\u007f-\u009f|\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/u.test(title)) return {eligible: false, reason: 'Povolání se použije jako podtitul ve hře. Zkrať ho na jeden řádek do 80 UTF-8 bajtů; delší popis patří do příběhu.'};
-  return {eligible: true, entry: 9800000 + spawn - 901000, base_entry: row.entry,
+  return {eligible: true, entry: resident ? 9810000 + spawn - 902000 : 9800000 + spawn - 901000, base_entry: row.entry,
     reason: 'Po nasazení bude mít tato postava vlastní herní jméno a šablonu. Ostatní NPC se stejným původním modelem zůstanou beze změny.'};
 }
 
@@ -245,7 +251,7 @@ function renderTargets() {
   placeholder.value = ''; options.push(placeholder);
   const targets = catalog.targets || [];
   const groups = new Map([[true, el('optgroup')], [false, el('optgroup')]]);
-  groups.get(true).label = 'Řízená NPC – lze přiřadit kartu';
+  groups.get(true).label = 'Ověřená NPC – lze přiřadit kartu';
   groups.get(false).label = 'Původní AI – zatím nelze exportovat';
   for (const row of targets) {
     const source = catalog.source_profiles.find(source => source.card.spawn_id === row.spawn_id && source.card.map_id === row.map_id);
@@ -273,8 +279,13 @@ function renderTargets() {
     $(`#${id}`).title = status.eligible ? '' : status.reason;
     $(`#${id}`).setAttribute('aria-describedby', 'target-status');
   }
+  const resident = catalog.target_registry?.profile === 'residents-v10';
+  if (resident) {
+    $('#export-appearance').disabled = true;
+    $('#export-appearance').title = 'Obyvatelé používají původní herní vzhled. Návrh vzhledu zůstává uložený v draftu.';
+  }
   const template = templateStatus();
-  const full = catalog.target_registry?.profile === 'full-v8';
+  const full = supportsTemplates();
   $('#export-template').disabled = !template.eligible;
   $('#export-template').title = template.eligible ? '' : template.reason;
   $('#export-template').setAttribute('aria-describedby', 'template-status');
@@ -288,7 +299,7 @@ function renderTargets() {
   $('#template-status').textContent = template.reason;
   $('#template-entry-summary').textContent = template.eligible ? `Vlastní šablona ${template.entry} · výchozí šablona ${template.base_entry} · Spawn ID ${current.card.spawn_id}` : 'Identita se vytvoří z ověřeného cíle; zadávání vlastního čísla není potřeba.';
   $('#bundle-heading').textContent = full ? 'Úplný balíček postavy' : 'Karta a vzhled';
-  $('#bundle-description').textContent = full ? 'Vlastní herní jméno a šablona, vzhled, osobnost, životopis a postup nasazení.' : 'Starší profil: bez vlastní herní šablony a změny jména nad NPC.';
+  $('#bundle-description').textContent = resident ? 'Vlastní herní jméno a šablona, osobnost, životopis a postup nasazení. Návrh vzhledu se uloží v draftu.' : full ? 'Vlastní herní jméno a šablona, vzhled, osobnost, životopis a postup nasazení.' : 'Starší profil: bez vlastní herní šablony a změny jména nad NPC.';
 }
 
 function renderSummary() {
@@ -413,7 +424,8 @@ function downloadBlob(blob, name) {
 async function exportFile(kind) {
   readForm();
   if (!targetStatus().eligible) { showTab('export'); throw new Error(targetStatus().reason); }
-  const completeTemplate = kind === 'template' || (kind === 'bundle.zip' && catalog.target_registry?.profile === 'full-v8');
+  if (kind === 'appearance' && catalog.target_registry?.profile === 'residents-v10') throw new Error('Obyvatelé používají původní herní vzhled. Návrh vzhledu lze uložit v draftu.');
+  const completeTemplate = kind === 'template' || (kind === 'bundle.zip' && supportsTemplates());
   if (completeTemplate && !templateStatus().eligible) { showTab('export'); throw new Error(templateStatus().reason); }
   if (completion().slice(0, 4).some(ready => !ready)) { showTab('export'); throw new Error('Před exportem doplň jméno, osobnost, životopis a platnou identitu NPC.'); }
   if (dirty || !current.id) await save();

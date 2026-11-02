@@ -1,5 +1,19 @@
 # Ateliér postav
 
+## Obyvatelé finální mapy — residents-v10
+
+Aktuální profil obsahuje **22 samostatných obyvatel v 11 obytných domech**.
+Každý má vlastní herní šablonu `9810000`–`9810021` a vlastní uložený návrh.
+Ateliér běží na `http://192.168.0.248:9092`; po aktualizaci stránky lze
+vybrat jednotlivé postavy a upravovat jejich jména, podtituly a podklady.
+Při nasazení se chybějící návrhy doplní; již uložené úpravy se zachovají.
+
+Tyto postavy používají nativní herní AI. Jejich export mění kartu a vlastní
+šablonu; přizpůsobený humanoidní vzhled a LLM řízení se pro ně tímto profilem
+neinstalují. Náhled vzhledu v návrhu nepředstavuje nainstalovaný creature model.
+Uložení návrhu stále samo nemění běžící svět; jméno a podtitul přebírá až
+řízené nasazení. Po změně jména se do hry znovu přihlaste.
+
 ## Finální tvorba mapy — `authoring-empty`
 
 Pro další tvorbu světa je připravený prázdný profil `authoring-empty`.

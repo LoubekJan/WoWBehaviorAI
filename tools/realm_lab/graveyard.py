@@ -53,7 +53,7 @@ class Graveyard:
     def load(cls, path: Path | None = None) -> "Graveyard":
         if path is None:
             path = MANIFEST
-            if os.environ.get("LAB_AI_PROFILE") == "authoring-empty":
+            if os.environ.get("LAB_AI_PROFILE") in ("authoring-empty", "residents-v10"):
                 if (map_bundle.METADATA / map_bundle.INDEX).exists():
                     path = map_bundle.GeometryBundle.load().metadata / "graveyard.json"
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -280,10 +280,10 @@ def bootstrap(data: Path, settings=None, graveyard: Graveyard | None = None) -> 
     except ImportError:
         import manage
     settings = settings or manage.Settings.load(os.environ)
-    if settings.ai_profile not in ("disabled", "authoring-empty", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
+    if settings.ai_profile not in ("disabled", "authoring-empty", "residents-v10", settlement_population.PROFILE, "wildlife-v8", "supply-v8", "consumers-v8", "raids-v8", "fields-v8", "defias-v8", "full-v8"):
         raise ValueError("Graveyard bootstrap requires the native settlement profile and a stopped world")
     settlement_population.ensure_world_offline()
-    if graveyard is None and settings.ai_profile == "authoring-empty":
+    if graveyard is None and settings.ai_profile in ("authoring-empty", "residents-v10"):
         if (map_bundle.METADATA / map_bundle.INDEX).exists():
             graveyard = Graveyard.load(map_bundle.GeometryBundle.load().metadata / "graveyard.json")
     graveyard = verify_data(data, graveyard)

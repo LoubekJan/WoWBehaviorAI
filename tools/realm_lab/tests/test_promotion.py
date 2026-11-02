@@ -291,6 +291,33 @@ class WorldPromotionTests(unittest.TestCase):
         self.assertEqual(state["native_files_verified"], 61)
         self.assertFalse((self.directory / "deploy/lab/.env").exists())
 
+    def test_resident_adoption_checks_the_new_population_without_requiring_100_old_spawns(self):
+        from tools.realm_lab import residents_population as residents
+        _, containers = self.adoption_fixture()
+        path = self.directory / ".env"
+        path.write_text(path.read_text().replace("LAB_AI_PROFILE=settlement-v8", "LAB_AI_PROFILE=residents-v10"))
+        population = SimpleNamespace(actors=tuple(range(22)), geometry_files=tuple(range(74)))
+
+        def commands(arguments, **kwargs):
+            if arguments[:-1] == promotion.COMPOSE + ["ps", "-q"]:
+                return f"canonical-{arguments[-1]}".encode()
+            self.assertEqual(arguments, promotion.COMPOSE + [
+                "run", "--rm", "--no-deps", "-T", "--interactive=false", "tc-dev", "python3",
+                "tools/realm_lab/manage.py", "preflight-residents-v10", "/workspace/runtime/lab/data"])
+            return b"Verified 22 resident spawns and owned templates."
+
+        with patch.object(promotion, "run", side_effect=commands), \
+             patch.object(promotion, "inspect", side_effect=lambda identity: containers[identity]), \
+             patch.object(promotion, "sql", return_value="2") as database, \
+             patch.object(promotion, "account_identity", return_value={"count": 2}), \
+             patch.object(residents, "verify_data", return_value=population), \
+             patch.object(settlement, "verify_data", side_effect=AssertionError("retired geometry")):
+            promotion.adopt_canonical_installation()
+        database.assert_called_once()
+        state = json.loads(self.state.read_text())
+        self.assertEqual((state["native_spawn_count"], state["managed_spawn_count"]), (22, 0))
+        self.assertEqual(state["native_files_verified"], 74)
+
     def test_fresh_adoption_refuses_an_unknown_or_original_auth_database_volume(self):
         population, containers = self.adoption_fixture()
         containers["canonical-auth-mysql"]["Mounts"][0]["Name"] = "aitc_mysql-data"

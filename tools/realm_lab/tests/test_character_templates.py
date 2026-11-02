@@ -1,6 +1,7 @@
 """Authoring inputs cannot overwrite a shared or unrelated template identity."""
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 import copy
 import json
 import tempfile
@@ -18,6 +19,22 @@ def document(spawn=901014, name='Šaša', title='Obyvatelka'):
 
 
 class CharacterTemplateTests(unittest.TestCase):
+    def test_resident_templates_have_distinct_entries_and_cannot_adopt_legacy_spawns(self):
+        actors = tuple(SimpleNamespace(spawn_id=spawn, entry=11328) for spawn in range(902000, 902022))
+        population = SimpleNamespace(profile='residents-v10', settlement=SimpleNamespace(actors=actors))
+        specs = []
+        for index, actor in enumerate(actors):
+            source = dict(schema_version=1, spawn_id=actor.spawn_id, entry=9810000+index,
+                          base_entry=11328, map_id=725, name=f'Obyvatel {index}', title='Obyvatel domu')
+            specs.append(templates.spec_from_document(source, population))
+            for key, value in (('entry', 11328), ('entry', 9800000+index), ('base_entry', 295),
+                               ('spawn_id', 902022), ('map_id', 0)):
+                with self.subTest(spawn=actor.spawn_id, key=key), self.assertRaises(templates.ProfileError):
+                    templates.spec_from_document({**source, key:value}, population)
+        self.assertEqual(len({spec.entry for spec in specs}), 22)
+        with self.assertRaises(templates.ProfileError): templates.spec_from_document(document(), population)
+        with self.assertRaises(templates.ProfileError): templates.spec_from_document(specs[0].document())
+
     def test_descriptors_require_reviewed_target_and_matching_native_card(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -29,11 +29,24 @@ DIRECTORY = ROOT / 'data/npc_templates'
 PROFILES = ROOT / 'data/npc_agents'
 LEDGER = 'ai_character_templates'
 ENTRY_BASE = 9800000
+RESIDENT_PROFILE = 'residents-v10'
+TEMPLATE_PROFILES = (full_population.PROFILE, RESIDENT_PROFILE)
 MAX_FILES = 100
 LEDGER_FIELDS = ('spawn_id', 'entry', 'base_entry', 'map_id', 'name', 'title',
                  'source_sha256', 'clone_sha256', 'children_sha256')
 SPEC_FIELDS = frozenset(('schema_version', 'spawn_id', 'entry', 'base_entry', 'map_id', 'name', 'title'))
 ProfileError, require = base.ProfileError, base.require
+
+
+def population_for_profile(profile):
+    if profile == RESIDENT_PROFILE:
+        try:
+            from . import residents_population
+        except ImportError:
+            import residents_population
+        return residents_population.Population.load()
+    require(profile == full_population.PROFILE, 'Character templates require a reviewed character population')
+    return full_population.Population.load()
 
 
 @dataclass(frozen=True)
@@ -122,8 +135,11 @@ def spec_from_document(document: dict, population=None) -> TemplateSpec:
             'Character template identities must be integer JSON numbers')
     actors = {actor.spawn_id: actor for actor in population.settlement.actors}
     spawn = document['spawn_id']
-    require(spawn in full_population.SPAWN_IDS and spawn in actors and
-            document['entry'] == ENTRY_BASE + spawn - 901000 and document['map_id'] == 725 and
+    resident = getattr(population, 'profile', full_population.PROFILE) == RESIDENT_PROFILE
+    identities = frozenset(range(902000, 902022)) if resident else full_population.SPAWN_IDS
+    entry = 9810000 + spawn - 902000 if resident else ENTRY_BASE + spawn - 901000
+    require(spawn in identities and spawn in actors and
+            document['entry'] == entry and document['map_id'] == 725 and
             document['base_entry'] == actors[spawn].entry,
             'Character template does not match the reviewed native spawn')
     return TemplateSpec(spawn, document['entry'], document['base_entry'], 725,
@@ -262,7 +278,8 @@ def _ledger(settings, schema):
     if LEDGER not in schema: return []
     rows = _rows(settings, schema, LEDGER, '1')
     require(len(rows) <= MAX_FILES, 'Character identity ledger exceeds the reviewed population')
-    population = full_population.Population.load()
+    if not rows: return []
+    population = population_for_profile(settings.ai_profile)
     seen = set()
     for row in rows:
         spec = spec_from_document({'schema_version': 1, **{k: row[k] for k in ('spawn_id', 'entry', 'base_entry', 'map_id', 'name', 'title')}}, population)
@@ -279,7 +296,7 @@ def _spawn(settings, schema, spec, *, allow_restored):
     rows = _rows(settings, schema, 'creature', f'`guid`={spec.spawn_id}')
     require(len(rows) == 1, 'Authored character spawn is missing/duplicated')
     row = rows[0]
-    actor = next(a for a in full_population.Population.load().settlement.actors if a.spawn_id == spec.spawn_id)
+    actor = next(a for a in population_for_profile(settings.ai_profile).settlement.actors if a.spawn_id == spec.spawn_id)
     allowed = (spec.base_entry, spec.entry) if allow_restored else (spec.entry,)
     require(row['id'] in allowed and row['map'] == 725 and row['StringId'] == actor.label and
             all(base.near(row[key], expected) for key, expected in
@@ -311,7 +328,7 @@ def verify(settings, specs=None, *, allow_restored=False) -> tuple[TemplateSpec,
     schema = _schema(settings)
     installed, _, _, _ = _verified(settings, schema, allow_restored=allow_restored)
     if installed:
-        require(settings.ai_profile == full_population.PROFILE, 'Installed character identities require full-v8')
+        require(settings.ai_profile in TEMPLATE_PROFILES, 'Installed character identities require a reviewed character population')
     bindings = tuple(_spec(row) for row in installed)
     if specs is not None:
         current = {s.spawn_id: s for s in bindings}
@@ -395,7 +412,7 @@ def restore(settings, specs=None):
             f'(SELECT COUNT(*)=0 FROM world.creature WHERE id={spec.entry} AND guid<>{spec.spawn_id})'))
         updates.append(f'UPDATE world.creature SET id={spec.base_entry} WHERE guid={spec.spawn_id} AND map=725 AND @character_templates_ready=1;')
     if installed:
-        require(settings.ai_profile == full_population.PROFILE, 'Installed character identities require full-v8')
+        require(settings.ai_profile in TEMPLATE_PROFILES, 'Installed character identities require a reviewed character population')
         settlement.ensure_world_offline()
         _transaction(settings, guards, updates)
         verify(settings, allow_restored=True)
@@ -404,11 +421,12 @@ def restore(settings, specs=None):
 
 def apply(settings, specs=None):
     settlement.ensure_world_offline()
-    specs = load_descriptors() if specs is None else tuple(specs)
+    population = population_for_profile(settings.ai_profile) if settings.ai_profile in TEMPLATE_PROFILES else None
+    specs = load_descriptors(population=population) if specs is None else tuple(specs)
     schema = _schema(settings)
     installed, sources, targets, spawns = _verified(settings, schema, allow_restored=True)
     if not specs and not installed: return ()
-    require(settings.ai_profile == full_population.PROFILE, 'Native character templates require full-v8')
+    require(settings.ai_profile in TEMPLATE_PROFILES, 'Native character templates require a reviewed character population')
     _query(settings, f'''CREATE TABLE IF NOT EXISTS world.{LEDGER} (
  spawn_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,entry INT UNSIGNED NOT NULL UNIQUE,
  base_entry INT UNSIGNED NOT NULL,map_id INT UNSIGNED NOT NULL,
@@ -421,7 +439,7 @@ def apply(settings, specs=None):
     desired = {_spec(row).spawn_id: _spec(row) for row in installed}
     require(len(specs) == len({s.spawn_id for s in specs}), 'Duplicate desired character template')
     for spec in specs:
-        validated = spec_from_document(spec.document())
+        validated = spec_from_document(spec.document(), population)
         desired[spec.spawn_id] = validated
     guards, statements = [], []
     for spec in sorted(desired.values(), key=lambda s: s.spawn_id):
@@ -482,13 +500,15 @@ def main(argv=None):
             from manage import Settings
         settings = Settings.load(os.environ)
         if args.command == 'plan':
-            specs = load_descriptors(args.directory, args.profiles)
-            require(not specs or settings.ai_profile == full_population.PROFILE, 'Native character templates require full-v8')
+            population = population_for_profile(settings.ai_profile) if settings.ai_profile in TEMPLATE_PROFILES else None
+            specs = load_descriptors(args.directory, args.profiles, population)
+            require(not specs or settings.ai_profile in TEMPLATE_PROFILES, 'Native character templates require a reviewed character population')
             print(f'Native character template authoring validated: {len(specs)} requested identities; database unchanged.')
         elif args.command == 'restore':
             print(f'Owned character spawn bindings restored for reviewed bootstrap: {len(restore(settings))}.')
         elif args.command == 'apply':
-            bindings = apply(settings, load_descriptors(args.directory, args.profiles))
+            population = population_for_profile(settings.ai_profile) if settings.ai_profile in TEMPLATE_PROFILES else None
+            bindings = apply(settings, load_descriptors(args.directory, args.profiles, population))
             print(f'Complete independent native character templates installed and verified: {len(bindings)}.')
         else:
             print(f'Installed native character templates verified: {len(verify(settings))}.')

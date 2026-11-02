@@ -88,6 +88,31 @@ INSERT INTO world.conditions VALUES (23,11328,123,0,0,1,7,'vendor condition'),(1
         with self.assertRaises(templates.ProfileError):templates.verify(self.settings)
         self.assertEqual(templates.verify(self.settings,allow_restored=True),(renamed,matej))
 
+    def test_resident_owned_entries_use_the_new_namespace_and_preserve_other_people(self):
+        native = full_population.Population.load().settlement.actors
+        actors = tuple(replace(next(actor for actor in native if actor.spawn_id==old),
+                               spawn_id=spawn, label=f'aiworld_lab_resident_v10_{spawn}')
+                       for old,spawn in ((901014,902000),(901035,902001)))
+        population = SimpleNamespace(profile='residents-v10', settlement=SimpleNamespace(actors=actors))
+        settings = SimpleNamespace(ai_profile='residents-v10')
+        for actor in actors:
+            self.sql(f"INSERT INTO world.creature VALUES ({actor.spawn_id},11328,725,'{actor.label}',{actor.x},{actor.y},{actor.z},{actor.orientation},17);")
+        specs = tuple(templates.spec_from_document(dict(schema_version=1, spawn_id=actor.spawn_id,
+            entry=9810000+index, base_entry=11328, map_id=725, name=name, title='Obyvatel domu 1'),population)
+            for index,(actor,name) in enumerate(zip(actors,('Jan Polní','Petr Polní'))))
+        with patch.object(templates,'population_for_profile',return_value=population):
+            for _ in range(2): self.assertEqual(templates.apply(settings,specs),specs)
+            self.assertEqual(self.sql('SELECT guid,id FROM world.creature WHERE guid IN (902000,902001) ORDER BY guid;'),
+                             '902000\t9810000\n902001\t9810001')
+            renamed=replace(specs[0],name='Jan Nový')
+            templates.restore(settings)
+            self.assertEqual(templates.apply(settings,(renamed,)),(renamed,specs[1]))
+            self.assertEqual(templates.verify(settings),(renamed,specs[1]))
+        self.assertEqual(self.sql('SELECT name FROM world.creature_template WHERE entry=9810001;'),'Petr Polní')
+        self.assertEqual(self.sql('SELECT name FROM world.creature_template WHERE entry=11328;'),'Eastvale Peasant')
+        self.assertEqual(self.sql('SELECT id FROM world.creature WHERE guid=901014;'),'11328')
+        with self.assertRaises(templates.ProfileError): templates.verify(self.settings)
+
     def test_collisions_and_source_target_child_or_spawn_drift_prevent_adoption(self):
         sasa=self.spec()
         self.sql('INSERT INTO world.creature_template SELECT 9800014,name,subname,AIName,faction,npcflag,HealthModifier,speed_run,lootid,NewFutureColumn,OptionalField FROM world.creature_template WHERE entry=11328;')

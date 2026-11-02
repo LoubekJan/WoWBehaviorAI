@@ -91,6 +91,13 @@ def _caravan_supply(actor, identity, villages, depots, pairs):
 def validate_snapshot(state: dict, profile: str, wildlife_enabled: bool = True, *,
                       legacy_ordinary_full: bool = False) -> dict[str, int]:
     require = settlement.require
+    if profile == "residents-v10":
+        try:
+            from . import residents_population
+        except ImportError:
+            import residents_population
+        require(not legacy_ordinary_full, "Historical simulation validation cannot be applied to native residents")
+        return residents_population.validate_telemetry(state, residents_population.Population.load())
     require(profile in (settlement.PROFILE, wildlife.PROFILE, supply.PROFILE, consumers.PROFILE, raids.PROFILE, fields.PROFILE, defias.PROFILE, full.PROFILE), "Unknown authored-world telemetry profile")
     require(isinstance(state, dict) and state.get("stale") is False and state.get("version") == 4,
             "Authored-world telemetry must be a fresh version-4 snapshot")

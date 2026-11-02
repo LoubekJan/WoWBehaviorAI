@@ -3,15 +3,22 @@
 An authored living world for **TrinityCore 3.3.5a**, with deterministic NPC
 behavior and optional LLM characters that can act and talk in the game.
 
-## Current state — 31 October 2026
+## Current state — 2 November 2026
 
 The active branch is **`AI-World-lab`**. Realm **2**, map **725**, area
-**4988** is in its final map-authoring phase. The explicit
-**`authoring-empty`** profile runs the existing geometry without NPCs,
-AI simulation, LLM character control or AI telemetry. It never recreates
-previous test populations during startup or deployment.
+**4988** uses the pinned **`preview-v10`** geometry. The **`residents-v10`**
+profile places **22 native residents in 11 residential houses**, two per
+house. Each has a separately owned creature template, name, subtitle and
+editable Studio draft. Inns, public/work buildings, silos and the cave are
+excluded. Native telemetry shows these residents; their initial placement
+uses verified indoor floors and complete ground navigation paths.
 
-The verified reset removed the reviewed 100 active NPCs and the 100 masked legacy
+These residents stand at their authored homes with ordinary game AI.
+Food, jobs, daily routines and LLM control remain future population work.
+The earlier **`authoring-empty`** profile remains available for an explicitly
+cleared map and still refuses any population or character-template residue.
+
+The earlier verified reset removed the reviewed 100 active NPCs and the 100 masked legacy
 spawns, their AI state and three dedicated character templates, plus all
 saved Studio characters and installed cards/appearances. It used a
 verified private backup and an explicit offline before-image plan. Accounts,
@@ -37,16 +44,16 @@ service. Neither is a permanent ninth game service. The LLM backend is
 configured separately from these eight services.
 
 **Defaults differ from the deployed world.** `.env.example` intentionally
-selects `settlement-v8` with LLM requests disabled. The authoring phase
-uses `authoring-empty`; the previous `full-v8` test world used three LLM
+selects `settlement-v8` with LLM requests disabled. The active population
+uses `residents-v10`; the previous `full-v8` test world used three LLM
 cards and the Qwen backend. Copying the example does not reproduce private credentials,
 authored cards, extracted map data or model settings.
 
 ## Implemented behavior in the retained populated profiles
 
 These systems remain available in code and versioned regression profiles.
-They are disabled while `authoring-empty` is selected. A final NPC layout
-requires new reviewed population metadata; do not reactivate the old
+They are disabled in `authoring-empty` and the native `residents-v10` profile.
+Further NPC behavior requires reviewed population metadata; do not reactivate the old
 `full-v8` bootstrap merely to add one new character.
 
 - Wildlife: deer forage; bears hunt, eat and return through validated movement.
@@ -191,6 +198,11 @@ snapshot because no NPC heartbeat is emitted; this is not a simulated
 fresh zero-agent recording. The Studio can save future drafts, but game
 exports are blocked until a new population is registered.
 
+For `residents-v10`, startup verifies the exact 22 homes and all 22 owned
+templates. CI/CD performs its idempotent population and template installation
+while the world is stopped. [Resident contracts and verification](data/realm_lab/aiworldlab/preview-v10/residents-README.md)
+describe house assignments and the boundary between template editing and runtime AI.
+
 `make start` starts the canonical stack after preflight. `make backup` writes
 protected account and world/character backups under `runtime/lab/backups`.
 Do not repeat the TDB import to deploy a code or character change.
@@ -207,7 +219,7 @@ docker/                    services, Character Studio, Observer and scripts
 deploy/                    server configuration and deploy runner
 tools/realm_lab/           reviewed profiles, installers and acceptance tools
 data/realm_lab/            map/population manifests and dated evidence
-data/npc_agents/           operator-installed private cards; empty during authoring
+data/npc_agents/           reviewed initial resident cards and operator-installed cards
 data/npc_appearances/      operator-installed appearance files
 data/npc_templates/        operator-installed native-template descriptors
 sql/                       TrinityCore and project database updates
@@ -217,7 +229,8 @@ Makefile                   current operator entry points
 ```
 
 Installed private authoring JSON is not automatically ignored by Git.
-Keep it out of commits. The original example cards have been retired from
+Keep private additions out of commits; the 22 initial resident cards and
+template descriptors are reviewed fictional population inputs. The original example cards have been retired from
 the active directory. Credentials and private binary/runtime data belong outside
 the public repository.
 

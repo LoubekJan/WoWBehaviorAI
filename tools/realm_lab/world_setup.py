@@ -16,9 +16,9 @@ import subprocess
 import sys
 
 try:
-    from . import full_population, defias_population, field_population, raid_population, consumer_population, manage, map_bundle, settlement_population, single_return, supply_population, wildlife_population
+    from . import residents_population, full_population, defias_population, field_population, raid_population, consumer_population, manage, map_bundle, settlement_population, single_return, supply_population, wildlife_population
 except ImportError:  # Direct invocation inside the tools container.
-    import full_population, defias_population, field_population, raid_population, consumer_population, manage, map_bundle, settlement_population, single_return, supply_population, wildlife_population
+    import residents_population, full_population, defias_population, field_population, raid_population, consumer_population, manage, map_bundle, settlement_population, single_return, supply_population, wildlife_population
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -89,7 +89,7 @@ class WorldStart:
 
 
 def validate_profile(settings: manage.Settings) -> None:
-    require(settings.realm_id == 2 and settings.ai_profile in ("authoring-empty", settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE),
+    require(settings.realm_id == 2 and settings.ai_profile in ("authoring-empty", residents_population.PROFILE, settlement_population.PROFILE, wildlife_population.PROFILE, supply_population.PROFILE, consumer_population.PROFILE, raid_population.PROFILE, field_population.PROFILE, defias_population.PROFILE, full_population.PROFILE),
             "Canonical world setup requires realm 2 with a reviewed authored-world profile")
 
 
@@ -157,6 +157,8 @@ def prepare(data: Path, template: Path, binary: Path, settings: manage.Settings)
         # Preparation must never turn an uncleared population into an empty
         # world implicitly. Destructive retirement is a separate operation.
         population = manage.authoring_preflight(data, settings)
+    elif settings.ai_profile == residents_population.PROFILE:
+        population = manage.residents_preflight(data, settings, bootstrap=True)
     else:
         population = settlement_population.verify_data(data)
     WorldStart.load(population)
@@ -178,6 +180,8 @@ def prepare(data: Path, template: Path, binary: Path, settings: manage.Settings)
     demote_retired_pilots(settings)
     if settings.ai_profile == "authoring-empty":
         manage.authoring_preflight(data, settings)
+    elif settings.ai_profile == residents_population.PROFILE:
+        manage.residents_preflight(data, settings, bootstrap=True)
     print("World and characters schemas updated offline; retired Elwynn pilot control disabled and world simulation was not started.")
 
 
@@ -233,6 +237,8 @@ def apply_start(data: Path, receipt: Path, settings: manage.Settings) -> None:
     settlement_population.ensure_world_offline()
     if settings.ai_profile == "authoring-empty":
         population = manage.authoring_preflight(data, settings)
+    elif settings.ai_profile == residents_population.PROFILE:
+        population = manage.residents_preflight(data, settings, bootstrap=True)
     else:
         population = settlement_population.verify_data(data)
     start = WorldStart.load(population)
