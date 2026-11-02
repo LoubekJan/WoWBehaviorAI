@@ -4,6 +4,8 @@
 #include "Agent/LivingResidentsV11.h"
 #include "Agent/LivingResidentsV11Locations.h"
 #include "Agent/LivingSupplyState.h"
+#include "Agent/LivingSupplyRuntime.h"
+#include "GroundedPathSupport.h"
 #include "Agent/NpcAgentTemplateAliases.h"
 #include <map>
 #include <set>
@@ -256,4 +258,87 @@ TEST_CASE("A failed carrier home departure retires only its old long intent befo
     REQUIRE(LivingReturnPolicy::SamePosition(carrier.Waypoints.front(),Locations::Depots[4].Point));
     // This bounded home-stage reset must not weaken the separate coast test:
     // RetargetJourney still preserves a running journey's unvisited exit.
+}
+
+TEST_CASE("A native body failure cannot veto a separately proved resident surface leg to a nearby endpoint", "[AIWorld][LivingResidentsV11][RecoveryNavigation]")
+{
+    ActionPosition from{725,118.643f,1030.63f,.708527f};
+    ActionPosition native{725,116.423538208f,1027.302246094f,.311855262f};
+    ActionPosition surface{725,116.143f,1028.13f,.355934378f};
+    ActionPosition goal{725,118.5f,1018.5f,.349472f};
+    REQUIRE(LivingReturnPolicy::Distance(native,surface) < 1.0f); // real rejected-edge alias: .8751yd
+    auto floor = [&](ActionPosition const& p) -> std::optional<float>
+    { return from.Z + (from.X-p.X)/2.5f*(surface.Z-from.Z); };
+    auto body = [&](ActionPosition const& a, ActionPosition const& b)
+    {
+        return LivingSurfaceCorridor::BodyClear(a,b,.306f,2.031f,
+            [&](ActionPosition const& start, ActionPosition const& end)
+            {
+                float x = end.X-start.X, y = end.Y-start.Y, square = x*x+y*y;
+                float t = square > .000001f ? std::clamp(((native.X-start.X)*x+(native.Y-start.Y)*y)/square,0.0f,1.0f) : 0;
+                // Engine fixture: a narrow column obstructs the native end;
+                // the independently sampled surface edge passes beside it.
+                return std::hypot(start.X+t*x-native.X,start.Y+t*y-native.Y) > .1f;
+            });
+    };
+    struct Point { float x,y,z; };
+    std::vector<Point> raw{{from.X,from.Y,from.Z},{native.X,native.Y,native.Z}}, grounded;
+    char const* failure = "NONE";
+    REQUIRE_FALSE(Movement::PrepareGroundedPath(raw,raw.front(),grounded,
+        [&](Point const& p) { return floor({725,p.x,p.y,p.z}); },
+        [&](Point const& a, Point const& b) { return body({725,a.x,a.y,a.z},{725,b.x,b.y,b.z}); },
+        [](Point const&) { return true; },[](Point const&) { return true; },&failure));
+    REQUIRE(std::string(failure) == "GROUND_PATH_OBSTACLE");
+    LivingSupply::TravelContext travel;
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(38,37);
+    travel.Begin(guid,from,goal,from,std::nullopt,8,1,1,true);
+    travel.Route.SurfaceCorridor = false;
+    travel.RejectCandidate(from,native);
+    REQUIRE(travel.FailedCandidate(from,native,false));
+    REQUIRE(travel.FailedCandidate(from,surface,false));
+    REQUIRE_FALSE(travel.FailedCandidate(from,surface,true));
+    bool freshPhysicalProof = false;
+    if (!travel.FailedCandidate(from,surface,true))
+    {
+        LivingSurfaceCorridor::Search execution;
+        REQUIRE(LivingSurfaceCorridor::Advance(execution,from,surface,floor,body,
+            [](ActionPosition const&) { return true; },12) == LivingSurfaceCorridor::Status::Complete);
+        freshPhysicalProof = true;
+    }
+    REQUIRE(freshPhysicalProof);
+    travel.Route.SurfaceCorridor = true;
+    travel.RejectCandidate(from,surface); // A later genuine failure remains one-shot for this same proof kind.
+    REQUIRE(travel.FailedCandidate(from,surface,true));
+    REQUIRE(travel.FailedCandidate(from,native,false));
+    REQUIRE(travel.FailedProofs.size() == 2);
+}
+
+TEST_CASE("Resident failed proof kinds are bounded contextual and preserve default legacy rejection", "[AIWorld][LivingResidentsV11][RecoveryNavigation]")
+{
+    ActionPosition from{725,0,0,0}, goal{725,10,0,0}, query{725,2.5f,0,0};
+    auto guid = ObjectGuid::Create<HighGuid::Unit>(38,37);
+    LivingSupply::TravelContext typed, legacy;
+    typed.Begin(guid,from,goal,from,std::nullopt,8,1,1,true);
+    legacy.Begin(guid,from,goal,from,std::nullopt,8,1,1);
+    legacy.RejectCandidate(from,query);
+    REQUIRE(legacy.FailedCandidate(from,query,false));
+    REQUIRE(legacy.FailedCandidate(from,query,true)); // unchanged legacy wildcard semantics
+    typed.Pending = RecoveryMovement{query,from,100,std::nullopt,false};
+    typed.Pending->SurfaceCorridor = true;
+    typed.PendingFrom = from;
+    typed.RejectPending();
+    REQUIRE(typed.FailedCandidate(from,query,true));
+    REQUIRE_FALSE(typed.FailedCandidate(from,query,false));
+    REQUIRE(typed.Matches(guid,goal,from,std::nullopt,8,1,1,true));
+    REQUIRE_FALSE(typed.Matches(guid,goal,from,std::nullopt,8,1,1));
+    for (uint32 n = 1; n <= LivingReturnPolicy::MaxTrailPoints+10; ++n)
+    {
+        ActionPosition origin{725,float(n)*4,0,0}, target{725,float(n)*4+2.5f,0,0};
+        typed.Route.SurfaceCorridor = n%2 != 0;
+        typed.RejectCandidate(origin,target);
+        REQUIRE(typed.FailedProofs.size() <= LivingReturnPolicy::MaxTrailPoints);
+    }
+    typed.Begin(guid,{725,4,0,0},goal,from,std::nullopt,8,1,1,true);
+    REQUIRE(typed.FailedProofs.empty());
+    REQUIRE_FALSE(typed.FailedCandidate(from,query,true));
 }

@@ -652,9 +652,9 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         }
     }
     uint32 capabilities = uint32(creature.CanWalk()) + uint32(creature.CanEnterWater()) * 2 + uint32(creature.IsFlying()) * 4;
-    if (!travel.Matches(creature.GetGUID(), destination, home, danger, clearance, creature.GetPhaseMask(), capabilities) ||
+    if (!travel.Matches(creature.GetGUID(), destination, home, danger, clearance, creature.GetPhaseMask(), capabilities, IsLivingResidentV11(record)) ||
         !travel.ObserveSource(from) || (travel.RetryAtMs && nowMs >= travel.RetryAtMs))
-        travel.Begin(creature.GetGUID(), from, destination, home, danger, clearance, creature.GetPhaseMask(), capabilities);
+        travel.Begin(creature.GetGUID(), from, destination, home, danger, clearance, creature.GetPhaseMask(), capabilities, IsLivingResidentV11(record));
     state.Planning.ResumeWork(nowMs);
     if (travel.RetryAtMs) return std::nullopt;
     auto noRoute = [&]() -> std::optional<ActionPosition>
@@ -677,14 +677,15 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
         if (travel.Route.Planned.empty())
         {
             auto* rememberedDanger = danger ? &*danger : nullptr;
-            if (!travel.Search.Matches(from, destination, arrivalRadius, 384.0f, rememberedDanger, clearance, true))
-                travel.Search.Begin(from, destination, arrivalRadius, 384.0f, rememberedDanger, clearance, true);
+            bool strictArrival = IsLivingResidentV11(record);
+            if (!travel.Search.Matches(from, destination, arrivalRadius, 384.0f, rememberedDanger, clearance, true, strictArrival))
+                travel.Search.Begin(from, destination, arrivalRadius, 384.0f, rememberedDanger, clearance, true, strictArrival);
             // The caller's real arrival predicate includes 3D distance and
             // LOS. Being near an endpoint in XY cannot complete this trip.
             travel.Search.ArrivalChecked = true;
             uint64 started = PlanningWorkBudget::StartedOperations();
             auto corridor = LivingRecoveryPath::HomeCorridor(creature, from, destination, arrivalRadius, 384.0f,
-                rememberedDanger, clearance, &state.ReturnDiagnostics, &travel.Search, true);
+                rememberedDanger, clearance, &state.ReturnDiagnostics, &travel.Search, true, strictArrival);
             if (PlanningWorkBudget::StartedOperations() != started) state.Planning.MarkProgress(nowMs);
             if (state.ReturnDiagnostics.Deferred) return defer();
             if (corridor.empty()) return noRoute();
@@ -705,7 +706,7 @@ std::optional<ActionPosition> AIWorldMgr::PlanLivingSupplyStep(AgentRecord& reco
             travel.Route.Planned.erase(travel.Route.Planned.begin());
         if (travel.Route.Planned.empty()) continue;
         ActionPosition query = travel.Route.Planned.front();
-        if (!UsefulStep(from, query) || travel.Route.Failed(from, query))
+        if (!UsefulStep(from, query) || travel.FailedCandidate(from,query,travel.Route.SurfaceCorridor))
         {
             travel.RejectCandidate(from, query);
             continue;
