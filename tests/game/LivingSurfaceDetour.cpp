@@ -847,3 +847,145 @@ TEST_CASE("Fine-turn routing never converts an unsafe wall floor or tile into a 
     REQUIRE(search.TotalNodes() <= search.NodeLimit);
     REQUIRE(search.EdgeAttempts <= search.EdgeLimit);
 }
+
+TEST_CASE("An off-grid source physically connects to its own distinct world cell around a tight corner", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    float sign = 1;
+    SECTION("positive world coordinates") { sign = 1; }
+    SECTION("negative world coordinates") { sign = -1; }
+    ActionPosition from{725,.3f*sign,.3f*sign,0}, home{725,0,8*sign,0};
+    auto bounds = [](ActionPosition const& p) { return std::abs(p.X) <= 3 && std::abs(p.Y) <= 10; };
+    auto walkable = [&](ActionPosition const& p)
+    {
+        float x = p.X*sign, y = p.Y*sign;
+        return (x >= -.2f && x <= .45f && y >= -.2f && y <= .45f) ||
+            (std::abs(x) <= .15f && y >= -.2f && y <= 9);
+    };
+    auto body = [&](ActionPosition const& a, ActionPosition const& b)
+    {
+        return LivingSurfaceCorridor::BodyClear(a,b,.1f,2.031f,
+            [&](ActionPosition const& left, ActionPosition const& right)
+            {
+                unsigned samples = std::max(1u,unsigned(std::ceil(std::hypot(right.X-left.X,right.Y-left.Y)/.025f)));
+                for (unsigned n = 0; n <= samples; ++n)
+                {
+                    float t = float(n)/samples;
+                    if (!walkable({725,left.X+(right.X-left.X)*t,left.Y+(right.Y-left.Y)*t,0})) return false;
+                }
+                return true;
+            });
+    };
+    // All eight direct directions miss the supported L turn at every normal
+    // stride. The nearest-cell connector is a physical prerequisite.
+    for (int dx = -1; dx <= 1; ++dx)
+        for (int dy = -1; dy <= 1; ++dy)
+            if (dx || dy)
+                for (int stride : {4,2,1})
+                {
+                    LivingSurfaceCorridor::Search chord;
+                    ActionPosition target{725,dx*stride*FineTurnGridStep,dy*stride*FineTurnGridStep,0};
+                    REQUIRE(LivingSurfaceCorridor::Advance(chord,from,target,flatDetour,body,bounds,12) == Status::Rejected);
+                }
+    Search search; search.FineTurnsEnabled = true;
+    REQUIRE(Advance(search,from,home,1.9f,96,flatDetour,body,bounds,homeBand(home,1.9f),1,1) == Status::Pending);
+    REQUIRE(Same(search.Nodes.front().Position,from));
+    REQUIRE(search.Index.empty());
+    REQUIRE(search.OriginConnectorPending);
+    REQUIRE(search.EdgeAttempts == 0);
+    unsigned calls = 0;
+    while (search.Nodes.size() == 1 && search.State == Status::Pending && ++calls < 20)
+        Advance(search,from,home,1.9f,96,flatDetour,body,bounds,homeBand(home,1.9f));
+    REQUIRE(search.Nodes.size() == 2);
+    REQUIRE(search.EdgeAttempts == 1);
+    REQUIRE(search.Nodes[1].Parent == 0);
+    REQUIRE(search.Nodes[1].X == search.Nodes[0].X);
+    REQUIRE(search.Nodes[1].Y == search.Nodes[0].Y);
+    REQUIRE(search.Index.at(Key(0,0)) == 1);
+    REQUIRE(search.Nodes[1].Position.X == 0);
+    REQUIRE(search.Nodes[1].Position.Y == 0);
+    REQUIRE(Same(search.Nodes.front().Position,from));
+    FinishDetour(search,from,home,1.9f,flatDetour,body,bounds,homeBand(home,1.9f));
+    REQUIRE(search.State == Status::Complete);
+    REQUIRE_FALSE(search.Route.empty());
+    REQUIRE(Same(search.Route.front(),search.Nodes[1].Position));
+    ActionPosition previous = from;
+    for (auto const& point : search.Route)
+    {
+        REQUIRE(point.X/FineTurnGridStep == std::round(point.X/FineTurnGridStep));
+        REQUIRE(point.Y/FineTurnGridStep == std::round(point.Y/FineTurnGridStep));
+        LivingSurfaceCorridor::Search execution;
+        REQUIRE(LivingSurfaceCorridor::Advance(execution,previous,point,flatDetour,body,bounds,12) == Status::Complete);
+        previous = point;
+    }
+    REQUIRE(homeBand(home,1.9f)(previous));
+    REQUIRE(Same(search.Nodes.front().Position,from));
+}
+
+TEST_CASE("The world-cell connector retains zero-budget continuations and pays both shared caps", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{725,.3f,.3f,0}, home{725,0,8,0};
+    Search search; search.FineTurnsEnabled = true;
+    auto goal = homeBand(home,1.9f);
+    SECTION("zero budget keeps the unstarted and pending connector intact")
+    {
+        REQUIRE(Advance(search,from,home,1.9f,96,flatDetour,clearDetour,boxDetour,goal,1,1) == Status::Pending);
+        REQUIRE(search.OriginConnectorPending);
+        unsigned callbacks = 0;
+        auto floor = [&](ActionPosition const&) -> std::optional<float> { ++callbacks; return 0; };
+        REQUIRE(Advance(search,from,home,1.9f,96,floor,clearDetour,boxDetour,goal,0,1) == Status::Pending);
+        REQUIRE(Advance(search,from,home,1.9f,96,floor,clearDetour,boxDetour,goal,8,0) == Status::Pending);
+        REQUIRE(search.OriginConnectorPending);
+        REQUIRE(callbacks == 0);
+        REQUIRE(search.EdgeAttempts == 0);
+        REQUIRE(Advance(search,from,home,1.9f,96,floor,clearDetour,boxDetour,goal,1,1) == Status::Pending);
+        REQUIRE(search.EdgeActive);
+        REQUIRE_FALSE(search.OriginConnectorPending);
+        REQUIRE(search.NextDirection == 0);
+        REQUIRE(search.EdgeStride == 1); // A zero-direction connector cannot refine into itself.
+        auto before = callbacks;
+        REQUIRE(Advance(search,from,home,1.9f,96,floor,clearDetour,boxDetour,goal,0,1) == Status::Pending);
+        REQUIRE(callbacks == before);
+        REQUIRE(search.EdgeAttempts == 1);
+        FinishDetour(search,from,home,1.9f,floor,clearDetour,boxDetour,goal);
+        REQUIRE(search.State == Status::Complete);
+    }
+    SECTION("nearest-cell admission consumes a node from the same cap")
+    {
+        search.NodeLimit = 1;
+        FinishDetour(search,from,home,1.9f,flatDetour,clearDetour,boxDetour,goal);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_NODE_LIMIT");
+        REQUIRE(search.TotalNodes() == 1);
+        REQUIRE(search.EdgeAttempts == 1);
+    }
+    SECTION("nearest-cell proof consumes an edge from the same cap")
+    {
+        search.EdgeLimit = 1;
+        FinishDetour(search,from,home,1.9f,flatDetour,clearDetour,boxDetour,goal);
+        REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_EDGE_LIMIT");
+        REQUIRE(search.TotalNodes() == 2);
+        REQUIRE(search.EdgeAttempts == 1);
+    }
+    REQUIRE(Same(search.Nodes.front().Position,from));
+}
+
+TEST_CASE("World-grid key conversion rejects huge finite sources before geometry or integer overflow", "[AIWorld][RecoveryNavigation][SurfaceDetour][FineTurns]")
+{
+    using namespace LivingSurfaceDetour;
+    ActionPosition from{725,std::numeric_limits<float>::max(),0,0};
+    SECTION("positive huge source") { }
+    SECTION("negative huge source") { from.X = -from.X; }
+    ActionPosition home{725,from.X,8,0};
+    Search search; search.FineTurnsEnabled = true;
+    unsigned geometry = 0;
+    auto floor = [&](ActionPosition const&) -> std::optional<float> { ++geometry; return 0; };
+    auto tile = [&](ActionPosition const&) { ++geometry; return true; };
+    REQUIRE(Advance(search,from,home,1.9f,96,floor,clearDetour,
+        [](ActionPosition const&) { return true; },homeBand(home,1.9f),8,1,tile) == Status::Rejected);
+    REQUIRE(std::string(search.Failure) == "SURFACE_DETOUR_BOUNDS");
+    REQUIRE_FALSE(search.Started);
+    REQUIRE(search.Nodes.empty());
+    REQUIRE(search.EdgeAttempts == 0);
+    REQUIRE(geometry == 0);
+}
