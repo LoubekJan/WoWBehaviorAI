@@ -8,13 +8,14 @@
   "geometry_sha256": "f1a408ec4536f517b195c212a6d6d3d6b8a5e76ed5bc4119b4d627194c2fcb9c",
   "inputs": {
     "position_proof_sha256_lf": "8e8f1188830c7f97f588d7c355abb15ae3a516b34add0b4329fce01b3ad06c4a",
-    "planner_header_sha256_lf": "c6ef7f9e7d89b9ae1316cfcbbd8e3d7b22762f82101b526ef5ba3257d001fad3",
+    "planner_header_sha256_lf": "7baac5cb8fee6c2d5f5f2d4da0dedbf152e923b075fe09a7423cecadfd3d2855",
     "batch_header_sha256_lf": "e5eb0ef991e76e9e5ae3d49f7b078169ead97b36ee187a006683e93634bfcc6b",
     "native_batch_compiled_header_sha256": "e5eb0ef991e76e9e5ae3d49f7b078169ead97b36ee187a006683e93634bfcc6b",
-    "native_batch_result_sha256": "5cdd87e56d7174bc51d5412a65bb2b20b38a2809e52156712c77eaa78ea6b5ba",
-    "native_batch_geometry_result_sha256": "c454493b6688636f84a985c9eddf6f7de529d3eb0d2833dbae31261b8e92094b",
-    "geometry_fixture_sha256": "f640d198d470e62130a4ecd7d73a123e5589c5c9d044b2468b26244134f5f861",
-    "perturbation_fixture_sha256": "b9575157a86bc9d691d22f983beeac01e09cd57fab0b6b6e0dee1f25a14ffeb5"
+    "native_batch_result_sha256": "1258fd0e64cc79f52b01265a6860f8057d6d88004661a9f297da7b3fc3dac664",
+    "native_batch_geometry_result_sha256": "700cc2323ff49bce3bb4aef4edb76e131c913823120c9c22836b89ead7f65d15",
+    "geometry_fixture_sha256": "52449303ec4cc341fb634cb1eed34cbbf610e6e07d547842ee78ad756b57ebb5",
+    "perturbation_fixture_sha256": "e86c6bd59f7b2da89731fe7414dbe7f586c09fd5339f5d54b7e03769d3eeb201",
+    "native_batch_input_fixture_sha256": "aee0c6c51bbb2c39351764fab538ca28cd59b2cbcc50d168e008809d14a0df01"
   },
   "body": {
     "radius_yards": 0.306,
@@ -35,28 +36,36 @@
     "edge_budget": 2048,
     "route_length_limit_yards": 480.0,
     "budgets_never_refunded": true,
-    "legacy_default_unchanged": true
+    "legacy_default_unchanged": true,
+    "lattice_alignment": "global_world_coordinates",
+    "global_world_alignment": true,
+    "actual_origin_position_preserved": true,
+    "off_grid_origin_does_not_shadow_lattice_cell": true,
+    "nearest_grid_connector_fully_body_floor_and_tile_checked": true,
+    "nearest_grid_connector_spends_shared_node_and_edge_budgets": true,
+    "on_grid_origin_has_no_extra_connector": true
   },
   "baseline_paths": {
-    "total": 50,
+    "total": 51,
     "current_observed_source_to_immutable_home": 12,
     "immutable_home_to_own_depot": 12,
     "own_depot_to_immutable_home": 12,
     "immutable_home_to_current_field": 12,
     "historic_jan_and_karel_departures": 2,
     "all_complete": true,
-    "maximum_nodes": 231,
-    "maximum_edges": 1420,
+    "maximum_nodes": 228,
+    "maximum_edges": 1208,
     "all_raw_segments_body_clear_supported_and_dry": true,
     "all_source_water_layers_checked": true,
-    "water_footprint_samples": 85384
+    "water_footprint_samples": 87841,
+    "late_observed_home_return_regression": 1
   },
   "execution_batches": {
-    "actual_native_cpp_cases": 50,
+    "actual_native_cpp_cases": 169,
     "all_pass": true,
     "selection_length_limit_yards": 5.0,
     "strict_grounded_execution_limit_yards": 6.0,
-    "maximum_actual_native_float_grounded_length_yards": 5.000000476837158,
+    "maximum_actual_native_float_grounded_length_yards": 5.080666542053223,
     "maximum_original_controls": 17,
     "maximum_dense_points": 64,
     "minimum_initial_net_displacement_exclusive_yards": 1.0,
@@ -64,7 +73,8 @@
     "all_controls_consumed_without_stranded_tail": true,
     "native_selected_prefixes_replayed_with_float32_controls_and_samples": true,
     "all_native_selected_prefixes_body_clear_supported_and_dry": true,
-    "native_prefix_water_footprint_samples": 77844
+    "native_prefix_water_footprint_samples": 275756,
+    "observed_maximum_original_controls": 6
   },
   "source_perturbations": {
     "cases": 40,
@@ -87,9 +97,9 @@
     ],
     "all_complete": true,
     "all_raw_segments_and_batches_body_clear_supported_and_dry": true,
-    "maximum_nodes": 250,
-    "maximum_edges": 1577,
-    "water_footprint_samples": 53469
+    "maximum_nodes": 219,
+    "maximum_edges": 1208,
+    "water_footprint_samples": 53820
   },
   "preservation": {
     "homes_changed": false,
@@ -98,7 +108,90 @@
     "production_mutations_used_by_geometry_verification": false
   },
   "limits": [
-    "This is finite offline geometry and native batch verification; it does not assert live farming cycles.",
+    "This is finite offline geometry and native batch verification, including the later observed return failure; it does not certify live execution of the global-lattice revision.",
     "Runtime checks still validate current ownership, scope, floor, collisions, danger and installed map tiles before movement."
-  ]
+  ],
+  "late_source_perturbations": {
+    "total": 6,
+    "all_complete": true,
+    "maximum_nodes": 20,
+    "maximum_edges": 77,
+    "all_raw_segments_body_clear_supported_and_dry": true,
+    "all_source_water_layers_checked": true,
+    "water_footprint_samples": 1794,
+    "cases": 6,
+    "spawn_id": 902011,
+    "offsets_yards": [
+      [
+        0.1,
+        0
+      ],
+      [
+        -0.1,
+        0
+      ],
+      [
+        0,
+        0.1
+      ],
+      [
+        0,
+        -0.1
+      ],
+      [
+        0.05,
+        0.05
+      ],
+      [
+        -0.05,
+        -0.05
+      ]
+    ]
+  },
+  "field_rotation_paths": {
+    "total": 72,
+    "all_complete": true,
+    "maximum_nodes": 240,
+    "maximum_edges": 1346,
+    "all_raw_segments_body_clear_supported_and_dry": true,
+    "all_source_water_layers_checked": true,
+    "water_footprint_samples": 154791,
+    "cases": 72,
+    "fields": [
+      1,
+      2,
+      3
+    ],
+    "work_points": 36,
+    "to_own_depot": 36,
+    "to_round_robin_resident_home": 36
+  },
+  "total_verified_paths": 169,
+  "prior_live_failure": {
+    "binary_revision": "e1965530c424201a4937c37062440cdb8154c310",
+    "spawn_id": 902011,
+    "after_two_successful_cycles": true,
+    "observed_navigation_wait_seconds": 684.052,
+    "finite_capture_seconds": 900,
+    "capture_frames": 224,
+    "fetch_errors": 0,
+    "position": {
+      "x": 68.17389,
+      "y": 831.4326,
+      "z": 2.418215
+    },
+    "immutable_home": {
+      "x": 70.85429,
+      "y": 838.569,
+      "z": 3.071299
+    },
+    "live_failure": "SURFACE_DETOUR_EDGE_LIMIT",
+    "live_nodes": 410,
+    "live_edges": 2048,
+    "source_relative_weights_1_2_3_4_5_all_exhausted": true,
+    "global_regression_nodes": 19,
+    "global_regression_edges": 63,
+    "superseded_offline_verification_sha256": "b2127ad4463e9c27b7bbcb0659f0120ddeb2f05bdd5a765750bc4c784b6f75ee",
+    "global_live_acceptance_claimed": false
+  }
 }
