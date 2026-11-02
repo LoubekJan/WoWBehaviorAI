@@ -5,16 +5,16 @@ LLM characters that can act and talk in the game.
 
 ## Současný řízený svět — living-v11
 
-Profil **`living-v11`** řídí všech **45 současných NPC** a zachovává jejich jména, vlastní
-šablony, domovy i návrhy v Ateliéru. Tři vesnické sklady jsou u skutečných sýpek; jih má schválený
-venkovní sklad. [Nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json) potvrzuje osm zdravých služeb a binár `92f61dc23040` po 960
-Python a 718 nativních testech. LLM zůstává vypnuté, původní stovka ani nová zvěř se neobnovují.
+Profil **`living-v11`** řídí všech **45 současných NPC** a zachovává jména, šablony, domovy i
+návrhy v Ateliéru. Binár `4235444e3902` prošel 960 Python a 736 nativními testy; osm služeb je
+zdravých a všech 45 NPC je řízených, načtených a živých. Tři vesnické sklady jsou u sýpek, jih má
+schválený venkovní sklad. LLM zůstává vypnuté.
 
-Desetiminutový záznam má 300 platných snímků bez chyby bilance: sklizeň a dodávku zachytil u 8 z
-12 farmářů, převoz u obou nosičů a přepad s dopravou do tábora u všech 10 Defias. Úzké průchody a
-část návratů domů zůstávají otevřené; městská dodávka zatím v záznamu chybí. [Podrobnosti, meze a další úkoly](data/realm_lab/aiworldlab/preview-v11/README.md#todo--úzké-průchody-a-dokončení-návratů-domů)
-rozlišují geometrický důkaz od pozorované činnosti. Potřeby a zásoby se přes restart zatím
-neukládají.
+Patnáctiminutový záznam má 450 platných snímků bez chyby bilance. Úplný cyklus
+sklizeň–dodávka–návrat–odpočinek–další práce je doložený u 12 z 12 farmářů, opakování u 12 z 12. V
+tomto záznamu už žádný z farmářů na konci neměl dlouhé navigační čekání. [Výsledky a další ověření](data/realm_lab/aiworldlab/preview-v11/README.md)
+oddělují farmáře od ostatních rolí; návraty některých spotřebitelů zůstávají neověřené. Potřeby a
+zásoby se přes restart zatím neukládají.
 
 ## Previous native population — 2 November 2026
 

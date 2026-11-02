@@ -30,20 +30,21 @@ vlastních šablon, domovy a stav AI vazeb. Při zastaveném světě se pod spol
 chybějící AI identity a explicitní účast, potom se ověří jejich převzetí. Neprovádí se nové
 rozmístění obyvatel. Uchovávají se účty, hráčské postavy i mapové zdroje.
 
-[Ověření míst a tras](data/realm_lab/aiworldlab/preview-v11/living-position-verification.json) potvrzuje 87 pozemních projekcí a 346 úplných cest, samostatně také 70
-trasových bodů a 144 úplných úseků nad stejnými nativními daty. [Nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json) potvrzuje binár
-`92f61dc23040` po 960 Python a 718 nativních testech, osm zdravých služeb a všech 45 řízených,
-načtených a živých NPC. Čtyři služby načítající populaci mají ověřený katalog
-`LivingResidentsV11Locations.h` samostatně připojený jen pro čtení.
+Binár `4235444e3902` prošel 960 Python a 736 nativními testy; osm služeb je zdravých a všech 45
+NPC je řízených, načtených a živých. [Doklad fyzických cyklů](data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json) zachovává původní měření jako historii.
+Čtyři služby mají katalog `LivingResidentsV11Locations.h` připojený jen pro čtení.
 
-Konečný desetiminutový záznam má 300 platných snímků bez chyby bilance. Zachytil sklizeň a dodávku
-u 8 farmářů, převoz u obou nosičů a přepad s dopravou do tábora u všech 10 Defias; jídlo u 3 z 21
-spotřebitelů. Úzké průchody, část návratů domů a městské zásobování vyžadují další práci.
-[Přehled mapy a TODO](data/realm_lab/aiworldlab/preview-v11/README.md) uvádí konkrétní omezení a oddělené pozorování jednotlivých rolí.
+Patnáctiminutový záznam má 450 platných snímků bez chyby bilance. Úplný cyklus
+sklizeň–dodávka–návrat–odpočinek–další práce je doložený u 12 z 12 farmářů, opakování u 12 z 12. V
+tomto záznamu už žádný z farmářů na konci neměl dlouhé navigační čekání. [Přehled mapy](data/realm_lab/aiworldlab/preview-v11/README.md) uvádí
+zbývající ověření spotřebitelů a konkrétní pozorování.
 
-Bilance v dokladu je kumulativní od startu serveru; první snímek již obsahoval 20 získaných porcí.
-První starší záznam zůstává samostatnou historií. Potřeby, úroda, zásoby a náklad nadále zůstávají
-v paměti do restartu.
+Pohyb používá společnou mřížku světových souřadnic s kroky 0,625 a 2,5 yardu. Skutečná výchozí
+poloha zůstává na místě; první spojení na mřížku se fyzicky ověřuje a platí ze stejného rozpočtu
+jako ostatní cesta. Zachovávají se všechny rohy, skutečné podlahy, kolize, dlaždice a nebezpečí.
+Výběr má limit 5 yardů, provedená uzemněná cesta 6 yardů; rozpočty 512 uzlů a 2048 hran se
+neobnovují. Bilance je kumulativní od startu serveru, výchozí zásoby nejsou nově pozorované
+události. Potřeby a zásoby se přes restart zatím neukládají.
 
 ## Předchozí nativní osídlení — residents-v11
 

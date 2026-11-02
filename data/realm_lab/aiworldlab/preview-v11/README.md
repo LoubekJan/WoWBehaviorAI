@@ -23,48 +23,63 @@ vygenerovaných bodů v serverovém kódu. Zásoby vznikají a mění majitele a
 činnostmi; nosiči nepřidávají potraviny pouhým příchodem. Potřeby, úroda, zásoby a náklad se přes
 restart nadále neukládají.
 
-[Řízené nasazení](living-activation.json) potvrzuje osm zdravých služeb a všech 45 řízených, načtených a živých NPC.
-Binár `92f61dc23040` prošel CI/CD s 960 Python a 718 nativními testy.
+[Doklad farmářské navigace](farmer-navigation-acceptance.json) navazuje na stejnou mapu a stejné domovy. Binár `4235444e3902` prošel 960
+Python a 736 nativními testy; osm služeb je zdravých a všech 45 NPC je řízených, načtených a
+živých.
 
-Záznam po opravě má 300 platných snímků za přibližně 10 minut bez chyby bilance. Zachytil sklizeň
-a dodávku u 8 z 12 farmářů, krádež a dopravu do tábora u všech 10 Defias a převoz u obou nosičů.
-Jídlo ze skladu je doložené u 3 z 21 spotřebitelů; konkrétní pozorovaná i nepozorovaná NPC uvádí
-provozní doklad. Na konci záznamu je kumulativní stav od startu serveru: 0 počátečních + 74
-získaných porcí = 36 ve skladech + 3 v nákladu + 35 snědených + 0 ztracených. První snímek už měl
-20 získaných porcí; ty se nepočítají jako události pozorované během záznamu. Dodávka do městského
-skladu 5 zatím v tomto záznamu doložená není. Úzké průchody a část návratů domů zůstávají
-otevřené; konkrétní případy rozlišuje níže uvedené TODO.
+Patnáctiminutový záznam má 450 platných snímků bez chyby bilance. Úplný cyklus
+sklizeň–dodávka–návrat–odpočinek–další práce je doložený u 12 z 12 farmářů, opakování u 12 z 12. V
+tomto záznamu už žádný z farmářů na konci neměl dlouhé navigační čekání.
 
-Oprava kombinuje jeden jemnější průzkum po vyčerpání hrubé mřížky a krátký odchodový bod u
-vlastního skladu. Oba průzkumy sdílejí limit 512 uzlů / 2048 hran; skutečné podlahy, kolize těla,
-hranice mapy a nebezpečí se dál ověřují.
+| Farmář | Dokončené cykly v aktuálním životě | Opakování | Stav na konci |
+| --- | ---: | --- | --- |
+| 902000 | 6 | ano | návrat a odpočinek doma |
+| 902001 | 7 | ano | doprava zásob |
+| 902002 | 7 | ano | doprava zásob |
+| 902003 | 7 | ano | návrat a odpočinek doma |
+| 902004 | 7 | ano | doprava zásob |
+| 902005 | 6 | ano | odchod a další práce |
+| 902006 | 7 | ano | další sklizeň |
+| 902007 | 6 | ano | doprava zásob |
+| 902008 | 7 | ano | doprava zásob |
+| 902009 | 4 | ano | doprava zásob |
+| 902010 | 7 | ano | doprava zásob |
+| 902011 | 7 | ano | doprava zásob |
 
-První záznam na bináru `3d439d28ea96` z 18:38–18:48 CET zůstává samostatnou historií: 300 platných
-snímků, celé řetězce u 11 farmářů, 7 Defias a jednoho nosiče, 22 snědených porcí. Nezaměňuje se s
-novým záznamem po restartu, protože stav potravy se přes restart neukládá. [Původní nativní receipt](activation.json)
-popisuje ještě starší osazení.
+Doklad uvádí úplné počty dokončených cyklů v aktuálním životě, ale pro každého farmáře zveřejňuje
+nejvýše první dva a poslední stručný důkaz. Před výběrem se ověřily všechny cykly z aktuálních
+životů; úplný záznam zůstává soukromý.
 
-## TODO — úzké průchody a dokončení návratů domů
+Na konci záznamu činil kumulativní stav od startu serveru 159 získaných porcí = 49 ve skladech +
+22 v nákladu + 88 snědených + 0 ztracených (počáteční jídlo 0). První snímek už měl 13 získaných
+porcí; během měření přibylo 146. Výchozí stav není započtený jako nově pozorovaný cyklus.
 
-Polohově závislé omezení schodišť zůstává otevřené u farmářů **902006/902007** a jižního
-spotřebitele **902015**. Kontrola skutečné geometrie s tělem o poloměru přibližně 0,306 a výšce
-2,031 yardu našla u všech tří průchod při rozteči 0,625 yardu; při 1,25 yardu jej nenašla. Mapa
-tedy nabízí fyzicky průchodnou cestu. Tento diagnostický výsledek není důkazem, že ji běžící NPC
-provedlo. Současné provádění vyžaduje krok delší než jeden yard a neumí zachovat všechny krátké
-zatáčky na těchto schodech.
+[Ověření skutečné mapy](farmer-navigation-verification.json) pokrývá 169 cest: 51 základních, 40 dřívějších posunů výchozí polohy, 6 posunů
+pozdější problémové polohy a 72 rotací pracovních bodů. Pevná mřížka je ukotvená ve světě a při
+změně výchozí polohy NPC se neposouvá. Skutečný začátek zůstává nezměněný; i první spojení na
+mřížku projde stejnou fyzickou kontrolou a společným rozpočtem. Každý původní roh se zachovává;
+vykonání znovu kontroluje podlahu, celé tělo, dlaždice, prostor a nebezpečí. Výběr má limit 5
+yardů, skutečně uzemněná cesta 6 yardů a maximálně 17 původních / 64 hustých bodů. Rozpočty 512
+uzlů / 2048 hran zůstávají společné. Samotná geometrická kontrola není živým cyklem.
 
-Pro tyto tři geometricky ověřené případy je další úkol provést **celou jemnou lomenou cestu** se
-zachováním každého potřebného rohu. Nesmí se přeskakovat ohyby, zeslabit kolize těla či podlahové
-kontroly, měnit domovy ani obnovovat výchozí rozpočet hledání. Ověření musí fyzicky zachytit
-odchod, práci nebo jídlo a návrat domů u všech tří NPC. První sklizeň a dodávka samy návrat domů
-neprokazují. [Doklad nasazení a mezí](living-activation.json) uchovává otisk geometrické diagnostiky; žádný záznam zde
-neoznačuje všechny činnosti všech 45 NPC za dokončené fyzické přijetí. V závěrečném záznamu je u
-902007 zachycen návrat a odpočinek doma. Známý problém schodiště tedy závisí na výchozí poloze;
-tato pozorování nepotvrzují všechny varianty průchodu.
+## Další ověření
 
-Další čekání při návratu domů je v závěrečném provozním posouzení zaznamenané u 902004, 902008,
-902009, 902010, 902011, 902013, 902014. Tato místa vyžadují samostatnou diagnostiku; příčina není
-geometrickým důkazem tří schodišť potvrzená.
+Farmářské čekání z předchozího měření je v tomto záznamu pokryté opakovanými úplnými cykly.
+Spotřebitelé **902013/902014/902015** mají samostatně otevřené ověření návratů; farmářský protokol
+jejich úplný cyklus neposuzoval. Ani úspěšné farmářské opakování neznamená fyzické přijetí všech
+činností všech 45 NPC.
+
+## Historie předchozího živého měření — 2. listopadu 2026
+
+Předchozí binár `e1965530c424` se sledoval 2. listopadu 19:53–20:06 UTC: 375 platných snímků za
+748,065 sekundy. U všech dvanácti farmářů proběhlo opakování, později se však farmář 902011 znovu
+zastavil při návratu domů. Záznam proto není úspěšným přijetím opravy. Sledování bylo přerušeno
+při zápisu souhrnu; původní rámce zůstaly soukromě zachované a jejich nové vyhodnocení zachovává
+tehdejší neúspěšný výsledek.
+
+[Původní aktivace living-v11](living-activation.json) zůstává beze změny: binár `92f61dc23040`, 300 snímků a tehdejší čekání u deseti
+NPC. Uvnitř zachovává také první záznam bináru `3d439d28ea96`. Nový záznam po restartu nepřičítá
+starší potravu; její ukládání zůstává odložené. [Ještě starší nativní aktivace](activation.json) je rovněž historická.
 
 ## Historie nativního osazení residents-v11
 
