@@ -16,15 +16,14 @@ Přepínač `AIWorld.LivingResidentsV11.Enabled` odděluje tento provoz od histo
 LLM řízení je vypnuté a zůstává samostatným zapnutím pro vybrané karty. Potřeby, úroda, zásoby,
 náklad a rozpracované výpravy se přes restart zatím neukládají.
 
-Nové ověření interakčních míst a pozemních tras navazuje na stejnou geometrii. [Provozní doklad](../data/realm_lab/aiworldlab/preview-v11/living-activation.json)
-potvrzuje binár `92f61dc23040` po 960 Python a 718 nativních testech, osm zdravých služeb a všech
-45 živých řízených NPC. V 300 platných snímcích za deset minut se pozorovala sklizeň a dodávka u 8
-farmářů, převoz u obou nosičů a krádež s dopravou do tábora u všech 10 Defias. Bilance zůstala
-zachovaná.
+Binár `4235444e3902` prošel 960 Python a 736 nativními testy; osm služeb je zdravých a všech 45
+NPC je řízených, načtených a živých. Geometrie a domovy zůstaly stejné. Patnáctiminutový záznam má
+450 platných snímků bez chyby bilance. Úplný cyklus sklizeň–dodávka–návrat–odpočinek–další práce
+je doložený u 12 z 12 farmářů, opakování u 12 z 12. V tomto záznamu už žádný z farmářů na konci
+neměl dlouhé navigační čekání.
 
-Úzké průchody a část návratů domů zůstávají otevřené; městská dodávka zatím není doložená.
-[Přehled mapy a TODO](../data/realm_lab/aiworldlab/preview-v11/README.md) odděluje konkrétní provozní čekání od geometricky ověřených cest. Původní
-nativní [activation.json](../data/realm_lab/aiworldlab/preview-v11/activation.json) je historický; aktuální stav definuje [specifikace living-v11](../data/realm_lab/aiworldlab/preview-v11/living-population.json).
+[Nový provozní doklad](../data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json) odděluje opakované farmářské cykly od dosud neověřených návratů spotřebitelů.
+[Přehled mapy a další práce](../data/realm_lab/aiworldlab/preview-v11/README.md) obsahuje podrobnosti; starší aktivace zůstávají datovanou historií.
 
 ## Přesun taverny a osazení veřejných budov — preview-v11, 2. listopadu 2026
 
