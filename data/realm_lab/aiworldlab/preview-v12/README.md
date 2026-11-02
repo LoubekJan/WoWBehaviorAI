@@ -19,3 +19,9 @@ Profil **living-v12** používá novou geometrii a zachovává současných **45
 Nasazení zálohuje databáze, konfiguraci, všech 45 Studio návrhů a existující karty i šablony. Nová mapa se vymění až po úspěšném CI pod společným nasazovacím zámkem. Finální kontrola porovnává všechny původní návrhy a 90 zdrojových JSON souborů; seeder doplňuje pouze chybějící návrhy.
 
 Vstup, start nových postav i hřbitov zůstávají na `.go xyz 266.667 800 4.209 725`. Klient dostává nový `patch-4.MPQ`; obsah `patch-X.MPQ` i patche W/Y se nemění. Známý rozdíl druhých vodních vrstev je znovu popsaný v [rozboru](multilayer-water-review.json); zdrojová voda se proti v11 nezměnila.
+
+## Dokončené nasazení
+
+[CI/CD revize c2d4eb389949](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41526858975) úspěšně prošlo 973 testy Pythonu a 736 nativními testy a dokončilo nasazení. [Živá kontrola](activation.json) ověřuje všech 75 instalovaných geometrických souborů, osm zdravých služeb a všech 45 živých řízených NPC. Zachované jsou celé původní Studio návrhy včetně revizí, všech 90 karet/šablon, účty a hráčské postavy. Opakovaný seeder vytvořil nula návrhů a zachoval všech 45.
+
+[Klientský patch](client-install.json) je nainstalovaný v `C:\WoWModding\Client-Lab`. Původní patch-4/X, serverová geometrie a databáze mají zálohu. Patche W/Y byly porovnané se skutečným stavem bezprostředně před tímto v12 nasazením; starší instalace v11 zůstává datovanou historií. Geometrické kontroly mostů a zachovaných interakcí jsou nové; fyzické farmářské cykly ani návraty ostatních rolí se tímto nasazením znovu nepřijímají.

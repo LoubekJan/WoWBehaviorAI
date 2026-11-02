@@ -1,8 +1,8 @@
 # Vývoj a provoz vlastního světa
 
-## Současný řízený svět — living-v11
+## Současný řízený svět — living-v12
 
-`living-v11` řídí přesně současných 45 obyvatel mapy preview-v11 pod AI World. Jejich spawny
+`living-v12` řídí přesně současných 45 obyvatel mapy preview-v12 se třemi novými mosty pod AI World. Jejich spawny
 `902000–902044`, vlastní entry `9810000–9810044`, jména, domovy a Studio návrhy zůstávají
 zachované. Původní testovací stovka ani nová zvěř se nevytvářejí. LLM controller a modelový
 provider jsou vypnuté; AI World řídí běžné potřeby, pohyb a fyzické činnosti.
@@ -18,7 +18,7 @@ provider jsou vypnuté; AI World řídí běžné potřeby, pohyb a fyzické či
 Pro tento profil je soukromá konfigurace:
 
 ```dotenv
-LAB_AI_PROFILE=living-v11
+LAB_AI_PROFILE=living-v12
 LAB_WILDLIFE_ENABLED=1
 LAB_NPC_AGENTS_ENABLED=0
 AI_NPC_MODEL_ENABLED=0
@@ -30,11 +30,12 @@ vlastních šablon, domovy a stav AI vazeb. Při zastaveném světě se pod spol
 chybějící AI identity a explicitní účast, potom se ověří jejich převzetí. Neprovádí se nové
 rozmístění obyvatel. Uchovávají se účty, hráčské postavy i mapové zdroje.
 
-Binár `4235444e3902` prošel 960 Python a 736 nativními testy; osm služeb je zdravých a všech 45
-NPC je řízených, načtených a živých. [Doklad fyzických cyklů](data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json) zachovává původní měření jako historii.
+Binár `c2d4eb389949` prošel 973 Python a 736 nativními testy; osm služeb je zdravých a všech 45
+NPC je řízených, načtených a živých. [Nasazení v12](data/realm_lab/aiworldlab/preview-v12/activation.json)
+ověřuje zachování všech 45 návrhů a 90 původních karet/šablon. [Doklad fyzických cyklů](data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json) zachovává původní měření na v11 jako historii.
 Čtyři služby mají katalog `LivingResidentsV11Locations.h` připojený jen pro čtení.
 
-Patnáctiminutový záznam má 450 platných snímků bez chyby bilance. Úplný cyklus
+Historický patnáctiminutový záznam na preview-v11 má 450 platných snímků bez chyby bilance. Úplný cyklus
 sklizeň–dodávka–návrat–odpočinek–další práce je doložený u 12 z 12 farmářů, opakování u 12 z 12. V
 tomto záznamu už žádný z farmářů na konci neměl dlouhé navigační čekání. [Přehled mapy](data/realm_lab/aiworldlab/preview-v11/README.md) uvádí
 zbývající ověření spotřebitelů a konkrétní pozorování.

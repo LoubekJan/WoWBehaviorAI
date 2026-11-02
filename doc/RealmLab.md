@@ -1,8 +1,8 @@
 # Vlastní svět jako jediný realm
 
-## Aktivní řízení současného osazení — living-v11
+## Aktivní řízení současného osazení — living-v12
 
-Aktivní profil `living-v11` zachovává současnou mapu preview-v11 a všech 45 pojmenovaných
+Aktivní profil `living-v12` používá mapu preview-v12 se třemi doplněnými mosty a zachovává všech 45 pojmenovaných
 obyvatel; jejich řízení převzal AI World. Domovy, samostatné šablony, frakce a upravené Studio
 návrhy se nepřepisují. Neobnovuje se vyřazených 100 testovacích NPC ani se nepřidává zvěř.
 
@@ -16,8 +16,9 @@ Přepínač `AIWorld.LivingResidentsV11.Enabled` odděluje tento provoz od histo
 LLM řízení je vypnuté a zůstává samostatným zapnutím pro vybrané karty. Potřeby, úroda, zásoby,
 náklad a rozpracované výpravy se přes restart zatím neukládají.
 
-Binár `4235444e3902` prošel 960 Python a 736 nativními testy; osm služeb je zdravých a všech 45
-NPC je řízených, načtených a živých. Geometrie a domovy zůstaly stejné. Patnáctiminutový záznam má
+Binár `c2d4eb389949` prošel 973 Python a 736 nativními testy; osm služeb je zdravých a všech 45
+NPC je řízených, načtených a živých. Domovy a katalog interakcí zůstaly stejné; [nasazení mostů](../data/realm_lab/aiworldlab/preview-v12/README.md)
+má vlastní nové důkazy geometrie a navigace. Historický patnáctiminutový záznam na preview-v11 má
 450 platných snímků bez chyby bilance. Úplný cyklus sklizeň–dodávka–návrat–odpočinek–další práce
 je doložený u 12 z 12 farmářů, opakování u 12 z 12. V tomto záznamu už žádný z farmářů na konci
 neměl dlouhé navigační čekání.

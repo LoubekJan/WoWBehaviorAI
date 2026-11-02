@@ -3,18 +3,24 @@
 An authored living world for **TrinityCore 3.3.5a**, with deterministic NPC behavior and optional
 LLM characters that can act and talk in the game.
 
-## Současný řízený svět — living-v11
+## Současný řízený svět — living-v12
 
-Profil **`living-v11`** řídí všech **45 současných NPC** a zachovává jména, šablony, domovy i
-návrhy v Ateliéru. Binár `4235444e3902` prošel 960 Python a 736 nativními testy; osm služeb je
+Profil **`living-v12`** používá mapu **preview-v12 se třemi doplněnými mosty** a řídí všech
+**45 současných NPC** se stejným řízením a katalogem interakcí jako living-v11. Zachovává jména,
+šablony, domovy i návrhy v Ateliéru. Binár `c2d4eb389949` prošel 973 Python a 736 nativními testy; osm služeb je
 zdravých a všech 45 NPC je řízených, načtených a živých. Tři vesnické sklady jsou u sýpek, jih má
 schválený venkovní sklad. LLM zůstává vypnuté.
 
-Patnáctiminutový záznam má 450 platných snímků bez chyby bilance. Úplný cyklus
+Na předchozí mapě preview-v11 má patnáctiminutový záznam 450 platných snímků bez chyby bilance. Úplný cyklus
 sklizeň–dodávka–návrat–odpočinek–další práce je doložený u 12 z 12 farmářů, opakování u 12 z 12. V
 tomto záznamu už žádný z farmářů na konci neměl dlouhé navigační čekání. [Výsledky a další ověření](data/realm_lab/aiworldlab/preview-v11/README.md)
 oddělují farmáře od ostatních rolí; návraty některých spotřebitelů zůstávají neověřené. Potřeby a
 zásoby se přes restart zatím neukládají.
+
+[Nasazení v12](data/realm_lab/aiworldlab/preview-v12/activation.json) potvrzuje všech 45 živých
+řízených NPC, zachování návrhů i účtů a shodná serverová/klientská data. [Přehled mostů](data/realm_lab/aiworldlab/preview-v12/README.md)
+obsahuje jejich kolize, spojení s břehy a průchodné nativní cesty. Klientský patch je nainstalovaný
+v `C:\WoWModding\Client-Lab`; historické farmářské měření se novým nasazením neopakuje ani nepřepisuje.
 
 ## Previous native population — 2 November 2026
 
@@ -66,7 +72,7 @@ configured separately from these eight services.
 
 **Defaults differ from the deployed world.** `.env.example` intentionally
 selects `settlement-v8` with LLM requests disabled. The active population
-uses `living-v11`; the previous `full-v8` test world used three LLM
+uses `living-v12`; the previous `full-v8` test world used three LLM
 cards and the Qwen backend. Copying the example does not reproduce private credentials,
 authored cards, extracted map data or model settings.
 

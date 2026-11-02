@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "source_revision": "preview-v12",
+  "status": "installed",
+  "installed_at_utc": "2026-11-02T21:34:03.903034+00:00",
+  "source_files_rechecked_unchanged": 9,
+  "closed_wow_guard": true,
+  "windows_archive_locks_clear": true,
+  "files": [
+    {
+      "name": "patch-4.MPQ",
+      "bytes": 4355680,
+      "sha256": "27449b36034d057223c14d9a3b6e2da50f5c8d318ac46d295df37e39039ce1a1",
+      "previous_sha256": "6fe12c8274b40ec3b2aab0807da282486d8d4da2e8d52abbab3480822efbb40b",
+      "previous_patch_backed_up": true
+    },
+    {
+      "name": "patch-X.MPQ",
+      "bytes": 81711,
+      "sha256": "4a21fba14735f1a2fb3b49492f739d2c0842d8d9e9142cb74684c3e08c1bbdb8",
+      "previous_sha256": "4a21fba14735f1a2fb3b49492f739d2c0842d8d9e9142cb74684c3e08c1bbdb8",
+      "previous_patch_backed_up": true
+    }
+  ],
+  "preserved_patch_archives": {
+    "patch-W.MPQ": "5824709c66e9065c91132873887872198bc3225b64b89419dd9afb9431b18094",
+    "patch-Y.MPQ": "e81e95092cc8251f1b1d7098fd92d56c80f3481339dcfb76c6363d651fe32c5e"
+  },
+  "preservation_baseline": "immediately_before_v12_install"
+}

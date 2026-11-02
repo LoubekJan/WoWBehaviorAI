@@ -1,8 +1,8 @@
 # Ateliér postav
 
-## Aktivní řízení AI World — living-v11
+## Aktivní řízení AI World — living-v12
 
-Profil `living-v11` nabízí stejných 45 současných postav a jejich vlastní šablony
+Profil `living-v12` nabízí stejných 45 současných postav a jejich vlastní šablony
 `9810000–9810044`. Registr je označuje jako řízené AI World; nejde tím o zapnutí LLM pro všechna
 NPC. Karty, příběhy, uložené návrhy vzhledu, jména i revize se při přechodu zachovají. Opakované
 doplnění návrhů nevytváří další kopie již existujících postav.
@@ -13,7 +13,7 @@ původní; úprava humanoida je uložitelný návrh a tento balíček ji do hry 
 export vzhledu vrací srozumitelné vysvětlení. ZIP také výslovně uvádí, že LLM řízení vyžaduje
 samostatné zapnutí.
 
-Řízený profil zachovává všech 45 jmen, šablon, karet a uložených návrhů. [Aktuální provozní doklad](../data/realm_lab/aiworldlab/preview-v11/farmer-navigation-acceptance.json)
+Řízený profil zachovává všech 45 jmen, šablon, karet a uložených návrhů. [Aktuální provozní doklad](../data/realm_lab/aiworldlab/preview-v12/activation.json)
 potvrzuje všech 45 řízených, načtených a živých NPC; LLM zůstává vypnuté.
 
 Uložení draftu samo nemění běžící svět. Fyzické farmářské cykly a oddělené zbývající ověření
