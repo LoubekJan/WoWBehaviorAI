@@ -2,24 +2,24 @@
 
 ## Aktivní řízení AI World — living-v11
 
-Profil `living-v11` nabízí stejných 45 současných postav a jejich vlastní
-šablony `9810000–9810044`. Registr je označuje jako řízené AI World;
-nejde tím o zapnutí LLM pro všechna NPC. Karty, příběhy, uložené návrhy
-vzhledu, jména i revize se při přechodu zachovají. Opakované doplnění
-návrhů nevytváří další kopie již existujících postav.
+Profil `living-v11` nabízí stejných 45 současných postav a jejich vlastní šablony
+`9810000–9810044`. Registr je označuje jako řízené AI World; nejde tím o zapnutí LLM pro všechna
+NPC. Karty, příběhy, uložené návrhy vzhledu, jména i revize se při přechodu zachovají. Opakované
+doplnění návrhů nevytváří další kopie již existujících postav.
 
-Export obsahuje přesnou charakterovou kartu, předpis vlastní herní šablony
-a editovatelnou zálohu návrhu. Deset Defias zachovává zdroj 38 a ostatních
-35 obyvatel zdroj 11328. Herní vzhled zůstává původní; úprava humanoida je
-uložitelný návrh a tento balíček ji do hry neinstaluje. Samostatný export
-vzhledu vrací srozumitelné vysvětlení. ZIP také výslovně uvádí, že LLM
-řízení vyžaduje samostatné zapnutí.
+Export obsahuje přesnou charakterovou kartu, předpis vlastní herní šablony a editovatelnou zálohu
+návrhu. Deset Defias zachovává zdroj 38 a ostatních 35 obyvatel zdroj 11328. Herní vzhled zůstává
+původní; úprava humanoida je uložitelný návrh a tento balíček ji do hry neinstaluje. Samostatný
+export vzhledu vrací srozumitelné vysvětlení. ZIP také výslovně uvádí, že LLM řízení vyžaduje
+samostatné zapnutí.
 
-Řízený profil je nasazený; [provozní doklad](../data/realm_lab/aiworldlab/preview-v11/living-activation.json)
-potvrzuje všech 45 řízených, načtených a živých NPC. LLM zůstává vypnuté.
-Uložení draftu samo nemění běžící svět. Rozdělení pracovních schopností,
-skladů a meze dosavadního ověření popisuje
-[provozní návod](../README_DEV.md#současný-řízený-svět--living-v11).
+Řízený profil je nasazený; [provozní doklad](../data/realm_lab/aiworldlab/preview-v11/living-activation.json) potvrzuje všech 45 řízených, načtených a živých NPC.
+Původní jména, šablony, karty a uložené návrhy se zachovávají. LLM zůstává vypnuté.
+
+Uložení draftu samo nemění běžící svět. Úzké průchody a část návratů domů zůstávají otevřené;
+vytvořená postava ani její první dodávka neprokazují úplný pracovní cyklus. Rozdělení rolí a
+výsledky popisuje [provozní návod](../README_DEV.md#současný-řízený-svět--living-v11), konkrétní navigační omezení a další úkoly uvádí
+[přehled mapy](../data/realm_lab/aiworldlab/preview-v11/README.md#todo--úzké-průchody-a-dokončení-návratů-domů).
 
 ## Předchozí nativní osídlení — residents-v11
 

@@ -1,31 +1,26 @@
 # WoWBehaviorAI
 
-An authored living world for **TrinityCore 3.3.5a**, with deterministic NPC
-behavior and optional LLM characters that can act and talk in the game.
+An authored living world for **TrinityCore 3.3.5a**, with deterministic NPC behavior and optional
+LLM characters that can act and talk in the game.
 
 ## Současný řízený svět — living-v11
 
-Profil **`living-v11`** již řídí všech **45 současných NPC** na mapě v11.
-Zachovává jejich jména, vlastní šablony, domovy i návrhy v Ateliéru. Tři
-sklady navazují přímo na sýpky u skutečných polí. Populace má 12 farmářů,
-dva nosiče pro jižní osadu a město, 21 spotřebitelů a deset Defias
-s přepadovou schopností. Jižní osada má venkovní
-sklad; pole ani sýpka tam v mapě nejsou.
+Profil **`living-v11`** řídí všech **45 současných NPC** a zachovává jejich jména, vlastní
+šablony, domovy i návrhy v Ateliéru. Tři vesnické sklady jsou u skutečných sýpek; jih má schválený
+venkovní sklad. [Nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json) potvrzuje osm zdravých služeb a binár `92f61dc23040` po 960
+Python a 718 nativních testech. LLM zůstává vypnuté, původní stovka ani nová zvěř se neobnovují.
 
-LLM řízení zůstává samostatně vypnuté. Původních 100 testovacích NPC ani
-zvěř se neobnovují. Potřeby a zásoby se přes restart zatím neukládají.
-[Ověření nasazení](data/realm_lab/aiworldlab/preview-v11/living-activation.json)
-potvrzuje osm zdravých služeb a 45 živých řízených NPC. Desetiminutový záznam
-má 300 čerstvých snímků bez chyby bilance: zachytil celé řetězce u 11 farmářů,
-7 Defias a jednoho nosiče; celkem se snědlo 22 porcí. Zbývající cykly nejsou
-potvrzené. U dvou postav se ověřuje oprava průchodu úzkými dveřmi.
-[Podrobnosti a meze](data/realm_lab/aiworldlab/preview-v11/README.md).
+Desetiminutový záznam má 300 platných snímků bez chyby bilance: sklizeň a dodávku zachytil u 8 z
+12 farmářů, převoz u obou nosičů a přepad s dopravou do tábora u všech 10 Defias. Úzké průchody a
+část návratů domů zůstávají otevřené; městská dodávka zatím v záznamu chybí. [Podrobnosti, meze a další úkoly](data/realm_lab/aiworldlab/preview-v11/README.md#todo--úzké-průchody-a-dokončení-návratů-domů)
+rozlišují geometrický důkaz od pozorované činnosti. Potřeby a zásoby se přes restart zatím
+neukládají.
 
 ## Previous native population — 2 November 2026
 
-Before the AIWorld cutover, **`AI-World-lab`**, realm **2**, map **725**, area
-**4988** uses the pinned **`preview-v11`** geometry. The **`residents-v11`**
-profile contains **45 native NPCs**: the original 22 residents in 11 houses,
+The previous **`residents-v11`** deployment on **`AI-World-lab`** used realm
+**2**, map **725**, area **4988** and the pinned **`preview-v11`** geometry.
+It contained **45 native NPCs**: the original 22 residents in 11 houses,
 3 in the moved inn, 10 in the town hall and 10 around the three left-hand
 tents. Only the tent group belongs to custom Defias. Every NPC has its own
 creature template, name, subtitle and editable Studio draft. Existing homes
@@ -38,9 +33,9 @@ preserved accounts, player characters and original authored drafts. The client
 patch is installed. [CI/CD](https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41473146338)
 passed 923 Python tests and 699 C++ tests and deployed revision `dd2accc67843`.
 
-These residents use ordinary game AI at their authored homes; the tent group
-retains its reviewed native Defias combat behavior and custom faction.
-Food, jobs, daily routines and LLM control remain future population work.
+At that stage, residents used ordinary game AI at their authored homes; the
+tent group retained native Defias combat behavior and its custom faction.
+Food, jobs, daily routines and LLM control were later population work.
 The earlier **`authoring-empty`** profile remains available for an explicitly
 cleared map and still refuses any population or character-template residue.
 

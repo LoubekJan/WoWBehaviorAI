@@ -1,24 +1,24 @@
 {
   "schema_version": 1,
-  "status": "active_first_observation_navigation_followup_pending",
+  "status": "active_with_known_navigation_limits",
   "profile": "living-v11",
   "realm_id": 2,
   "map_id": 725,
   "area_id": 4988,
   "source_revision": "preview-v11",
-  "verified_at_utc": "2026-11-02T17:48:15.340790+00:00",
-  "binary_revision": "3d439d28ea96b496cf752a884e6c1ab41138ccdf",
+  "verified_at_utc": "2026-11-02T18:51:09.989131+00:00",
+  "binary_revision": "92f61dc230403a7c8a5c5ab7fd13da033550c435",
   "ci": {
-    "run_id": 41489179742,
-    "url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41489179742",
+    "run_id": 41499320682,
+    "url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41499320682",
     "result": "success",
-    "python_tests": 957,
-    "native_tests": 709
+    "python_tests": 960,
+    "native_tests": 718
   },
   "live": {
     "healthy_services": 8,
     "population": {
-      "captured_at_ms": 1793641693046,
+      "captured_at_ms": 1793645467779,
       "stale": false,
       "valid": true,
       "total": 45,
@@ -43,7 +43,8 @@
       "aiworld-recorder"
     ],
     "source": "src/server/game/AIWorld/Agent/LivingResidentsV11Locations.h",
-    "configuration_commit_receipt_pending": true
+    "configuration_commit_receipt_pending": false,
+    "configuration_revision": "92f61dc230403a7c8a5c5ab7fd13da033550c435"
   },
   "ownership": {
     "spawn_ids": [
@@ -306,29 +307,32 @@
   },
   "geometry_proof_sha256": "8e8f1188830c7f97f588d7c355abb15ae3a516b34add0b4329fce01b3ad06c4a",
   "remaining": {
-    "doorway_stalls": [
-      902000,
-      902016
-    ],
-    "doorway_fix_status": "coarse_to_fine_fallback_under_verification_not_in_running_binary",
+    "doorway_stalls": [],
+    "doorway_fix_status": "both_previously_blocked_npcs_completed_observed_job_chains_not_complete_home_return_proof",
     "city_depot_delivery_observed": false,
     "farmer_chains_pending": [
-      902000
+      902006,
+      902008,
+      902009,
+      902010
     ],
-    "carrier_chains_pending": [
-      902016
+    "carrier_chains_pending": [],
+    "raid_chains_pending": [],
+    "narrow_stairs_pending": [
+      902006,
+      902007,
+      902015
     ],
-    "raid_chains_pending": [
-      902037,
-      902039,
-      902040
-    ]
+    "complete_home_return_acceptance": false
   },
   "runtime_food_persistence": "deferred_by_user",
   "limitations": [
-    "This receipt records the first finite capture; pending chains are not certified.",
-    "Geometry route proofs do not by themselves prove completion of an NPC action cycle.",
-    "The later doorway-navigation fix requires a new tested binary and a new live capture."
+    "The original first_observation and initial_activation remain separate historical evidence for the first binary.",
+    "Pending means not observed in this finite capture; it is not a blanket physical PASS for every action or future cycle.",
+    "A farmer harvest/delivery chain is not proof of a subsequent home return. Known stair limits for 902006, 902007 and 902015 remain open independently of observed food chains.",
+    "Additional runtime home-return waits are a separate observation. Their causes are not certified by the geometric proof for the three original stair cases.",
+    "Latest accounting is cumulative since the world restart. Food already present in first_accounting is not credited as an observed event or physical chain during this capture.",
+    "Preservation fields refer to the explicitly stated initial offline baseline and compared columns, not all player state."
   ],
   "preservation": {
     "player_character_identity": {
@@ -356,6 +360,833 @@
     ],
     "geometry_files_unchanged": 74,
     "authored_card_and_template_json_files_unchanged": 90,
-    "studio_drafts_unchanged": 45
+    "studio_drafts_unchanged": 45,
+    "verification_scope": "initial_living_v11_activation_against_stated_offline_baseline"
+  },
+  "initial_activation": {
+    "binary_revision": "3d439d28ea96b496cf752a884e6c1ab41138ccdf",
+    "ci": {
+      "run_id": 41489179742,
+      "url": "https://github.com/LoubekJan/WoWBehaviorAI/actions/runs/41489179742",
+      "result": "success",
+      "python_tests": 957,
+      "native_tests": 709
+    },
+    "verified_at_utc": "2026-11-02T17:48:15.340790+00:00"
+  },
+  "latest_observation": {
+    "status": "completed",
+    "elapsed_seconds": 600.005,
+    "frames": 300,
+    "unique_frames": 300,
+    "valid_unique_frames": 300,
+    "invalid_unique_frames": 0,
+    "fetch_errors": 0,
+    "issues": {},
+    "depots_seen": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "physical_evidence": {
+      "farmer_chains": {
+        "observed": [
+          902000,
+          902001,
+          902002,
+          902003,
+          902004,
+          902005,
+          902007,
+          902011
+        ],
+        "pending": [
+          902006,
+          902008,
+          902009,
+          902010
+        ]
+      },
+      "carrier_chains": {
+        "observed": [
+          902016,
+          902017
+        ],
+        "pending": []
+      },
+      "raid_chains": {
+        "observed": [
+          902035,
+          902036,
+          902037,
+          902038,
+          902039,
+          902040,
+          902041,
+          902042,
+          902043,
+          902044
+        ],
+        "pending": []
+      },
+      "depot_meals": {
+        "observed": [
+          902000,
+          902001,
+          902002,
+          902003,
+          902005,
+          902007,
+          902012,
+          902013,
+          902014,
+          902016,
+          902017,
+          902035,
+          902036,
+          902037,
+          902038,
+          902039,
+          902040,
+          902041,
+          902042,
+          902043,
+          902044
+        ],
+        "pending": [
+          902004,
+          902006,
+          902008,
+          902009,
+          902010,
+          902011,
+          902015,
+          902018,
+          902019,
+          902020,
+          902021,
+          902022,
+          902023,
+          902024,
+          902025,
+          902026,
+          902027,
+          902028,
+          902029,
+          902030,
+          902031,
+          902032,
+          902033,
+          902034
+        ]
+      }
+    },
+    "first_accounting": {
+      "initial_food": 0,
+      "harvested": 20,
+      "in_depots": 10,
+      "in_cargo": 10,
+      "consumed": 0,
+      "lost": 0
+    },
+    "latest_accounting": {
+      "initial_food": 0,
+      "harvested": 74,
+      "in_depots": 36,
+      "in_cargo": 3,
+      "consumed": 35,
+      "lost": 0
+    },
+    "unconfirmed_spatial_events": 0,
+    "accounting_scope": "first_and_latest_values_are_cumulative_since_world_restart",
+    "interval_accounting_delta": {
+      "scope": "last_valid_sample_minus_first_valid_sample",
+      "values": {
+        "harvested": 54,
+        "in_depots": 26,
+        "in_cargo": -7,
+        "consumed": 35,
+        "lost": 0
+      },
+      "conserved": true
+    },
+    "distinct_npcs_with_observed_meal": 21,
+    "summary_sha256": "c05f3fc95a55286feee1c9c01a5c6f0c552497a727ef66a7b883db5a475bae39",
+    "raw_capture_sha256": "bf86e8353f02850344d54b94d214b969dca5f80e670d2a7791478ae7c2bbd2a0",
+    "raw_capture_private": true,
+    "physical_all_cycles_pass": false,
+    "role_cohorts": {
+      "farmers": {
+        "expected_spawn_ids": [
+          902000,
+          902001,
+          902002,
+          902003,
+          902004,
+          902005,
+          902006,
+          902007,
+          902008,
+          902009,
+          902010,
+          902011
+        ],
+        "physical_evidence_kind": "farmer_chains",
+        "observed_spawn_ids": [
+          902000,
+          902001,
+          902002,
+          902003,
+          902004,
+          902005,
+          902007,
+          902011
+        ],
+        "not_observed_spawn_ids": [
+          902006,
+          902008,
+          902009,
+          902010
+        ],
+        "resting_home_phase_observed_spawn_ids": [
+          902000,
+          902001,
+          902002,
+          902003,
+          902004,
+          902005,
+          902007,
+          902011
+        ],
+        "rested_home_result_observed_spawn_ids": [
+          902000,
+          902001,
+          902002,
+          902003,
+          902004,
+          902005
+        ],
+        "all_origin_variants_or_future_cycles_certified": false
+      },
+      "carriers": {
+        "expected_spawn_ids": [
+          902016,
+          902017
+        ],
+        "physical_evidence_kind": "carrier_chains",
+        "observed_spawn_ids": [
+          902016,
+          902017
+        ],
+        "not_observed_spawn_ids": [],
+        "resting_home_phase_observed_spawn_ids": [
+          902017
+        ],
+        "rested_home_result_observed_spawn_ids": [
+          902017
+        ],
+        "all_origin_variants_or_future_cycles_certified": false
+      },
+      "raiders": {
+        "expected_spawn_ids": [
+          902035,
+          902036,
+          902037,
+          902038,
+          902039,
+          902040,
+          902041,
+          902042,
+          902043,
+          902044
+        ],
+        "physical_evidence_kind": "raid_chains",
+        "observed_spawn_ids": [
+          902035,
+          902036,
+          902037,
+          902038,
+          902039,
+          902040,
+          902041,
+          902042,
+          902043,
+          902044
+        ],
+        "not_observed_spawn_ids": [],
+        "resting_home_phase_observed_spawn_ids": [
+          902035,
+          902036,
+          902037,
+          902038,
+          902039,
+          902040,
+          902041,
+          902042,
+          902043,
+          902044
+        ],
+        "rested_home_result_observed_spawn_ids": [
+          902036,
+          902037,
+          902042,
+          902043,
+          902044
+        ],
+        "all_origin_variants_or_future_cycles_certified": false
+      },
+      "consumers": {
+        "expected_spawn_ids": [
+          902012,
+          902013,
+          902014,
+          902015,
+          902018,
+          902019,
+          902020,
+          902021,
+          902022,
+          902023,
+          902024,
+          902025,
+          902026,
+          902027,
+          902028,
+          902029,
+          902030,
+          902031,
+          902032,
+          902033,
+          902034
+        ],
+        "physical_evidence_kind": "depot_meals",
+        "observed_spawn_ids": [
+          902012,
+          902013,
+          902014
+        ],
+        "not_observed_spawn_ids": [
+          902015,
+          902018,
+          902019,
+          902020,
+          902021,
+          902022,
+          902023,
+          902024,
+          902025,
+          902026,
+          902027,
+          902028,
+          902029,
+          902030,
+          902031,
+          902032,
+          902033,
+          902034
+        ],
+        "resting_home_phase_observed_spawn_ids": [],
+        "rested_home_result_observed_spawn_ids": [],
+        "all_origin_variants_or_future_cycles_certified": false
+      }
+    }
+  },
+  "known_navigation_limits": {
+    "status": "pending_intermittent_narrow_stair_execution",
+    "spawn_ids": [
+      902006,
+      902007,
+      902015
+    ],
+    "proof_kind": "offline_body_clear_geometry_diagnosis_not_runtime_execution",
+    "proof_sha256": "1dd98fa0408affdf782b6d1d1f527e2a4e18a5f829588428c1e6d955b7e566c3",
+    "body_radius_yards": 0.306,
+    "body_height_yards": 2.0309998989,
+    "paths": [
+      {
+        "spawn_id": 902006,
+        "geometric_path_found": true,
+        "coarse_spacing_yards": 1.25,
+        "successful_diagnostic_spacing_yards": 0.625,
+        "successful_nodes": 66,
+        "successful_edges": 115
+      },
+      {
+        "spawn_id": 902007,
+        "geometric_path_found": true,
+        "coarse_spacing_yards": 1.25,
+        "successful_diagnostic_spacing_yards": 0.625,
+        "successful_nodes": 106,
+        "successful_edges": 190
+      },
+      {
+        "spawn_id": 902015,
+        "geometric_path_found": true,
+        "coarse_spacing_yards": 1.25,
+        "successful_diagnostic_spacing_yards": 0.625,
+        "successful_nodes": 123,
+        "successful_edges": 270
+      }
+    ],
+    "runtime_limitation": "current UsefulStep > 1 yard cannot execute the required fine stair bends intact",
+    "next_task": "execute the complete fine polyline without skipping bends, relaxing collision checks, changing homes or resetting shared origin budgets",
+    "runtime_rest_activity_observed": {
+      "spawn_ids": [
+        902007
+      ],
+      "evidence": [
+        {
+          "spawn_id": 902007,
+          "resting_home_phase_samples": 11,
+          "rested_home_result_samples": 0
+        }
+      ],
+      "completed_rest_result_spawn_ids": []
+    },
+    "all_origin_variants_certified": false,
+    "final_runtime_assessment": {
+      "assessment_sha256": "597741345af8ab8206ba998e32cf0bfe567c11324c87d86b4f038a8d8ebc706c",
+      "observed_at_utc": "2026-11-02T18:51:07.779000+00:00",
+      "runtime_waits": [
+        {
+          "spawn_id": 902004,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 498.032,
+          "current_wait_seconds": 498.032,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793644969747,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793644969747,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": 351.6822,
+                "y": 540.7364,
+                "z": 3.496971,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 201,
+                "NO_ROUTE": 49
+              },
+              "results": {
+                "PLANNING_DEFERRED": 201,
+                "NO_ROUTE": 49
+              },
+              "samples": 250,
+              "observed_seconds": 498.032
+            }
+          ],
+          "note": "An earlier full return and owned rest at the immutable home were observed; a later route wait is also present. No geometric root cause was independently established for this NPC.",
+          "offline_geometry_proven": false,
+          "completed_owned_home_rest_observed": true
+        },
+        {
+          "spawn_id": 902006,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 582.037,
+          "current_wait_seconds": 582.037,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793644885742,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793644885742,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": 348.5473,
+                "y": 521.9319,
+                "z": 3.525198,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 242,
+                "NO_ROUTE": 50
+              },
+              "results": {
+                "PLANNING_DEFERRED": 242,
+                "NO_ROUTE": 50
+              },
+              "samples": 292,
+              "observed_seconds": 582.037
+            }
+          ],
+          "note": "Repeated route planning/no-route at a stable position was observed; a completed home return/rest was not witnessed in this capture. A separate offline geometric path exists for one previously diagnosed stair position; that does not establish current planner acceptance.",
+          "offline_geometry_proven": true,
+          "completed_owned_home_rest_observed": false
+        },
+        {
+          "spawn_id": 902007,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 408.027,
+          "current_wait_seconds": 408.027,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793645059752,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793645059752,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": 348.5473,
+                "y": 521.9319,
+                "z": 3.525198,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 166,
+                "NO_ROUTE": 39
+              },
+              "results": {
+                "PLANNING_DEFERRED": 166,
+                "NO_ROUTE": 39
+              },
+              "samples": 205,
+              "observed_seconds": 408.027
+            }
+          ],
+          "note": "An earlier full return and owned rest at the immutable home were observed; a later route wait is also present. A separate offline geometric path exists for one previously diagnosed stair position; that does not establish current planner acceptance.",
+          "offline_geometry_proven": true,
+          "completed_owned_home_rest_observed": true
+        },
+        {
+          "spawn_id": 902008,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 596.037,
+          "current_wait_seconds": 596.037,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793644871742,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793644871742,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": 79.65636,
+                "y": 842.7339,
+                "z": 2.493008,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 249,
+                "NO_ROUTE": 50
+              },
+              "results": {
+                "PLANNING_DEFERRED": 249,
+                "NO_ROUTE": 50
+              },
+              "samples": 299,
+              "observed_seconds": 596.037
+            }
+          ],
+          "note": "Repeated route planning/no-route at a stable position was observed; a completed home return/rest was not witnessed in this capture. No geometric root cause was independently established for this NPC.",
+          "offline_geometry_proven": false,
+          "completed_owned_home_rest_observed": false
+        },
+        {
+          "spawn_id": 902009,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 598.037,
+          "current_wait_seconds": 598.037,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793644869742,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793644869742,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": 79.69516,
+                "y": 842.8264,
+                "z": 2.490003,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 244,
+                "NO_ROUTE": 56
+              },
+              "results": {
+                "PLANNING_DEFERRED": 244,
+                "NO_ROUTE": 56
+              },
+              "samples": 300,
+              "observed_seconds": 598.037
+            }
+          ],
+          "note": "Repeated route planning/no-route at a stable position was observed; a completed home return/rest was not witnessed in this capture. No geometric root cause was independently established for this NPC.",
+          "offline_geometry_proven": false,
+          "completed_owned_home_rest_observed": false
+        },
+        {
+          "spawn_id": 902010,
+          "phase": "NO_ROUTE",
+          "result": "NO_ROUTE",
+          "observed_seconds": 588.037,
+          "current_wait_seconds": 588.037,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793644879742,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793644879742,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": 70.32411,
+                "y": 829.8978,
+                "z": 2.491678,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 241,
+                "NO_ROUTE": 54
+              },
+              "results": {
+                "PLANNING_DEFERRED": 241,
+                "NO_ROUTE": 54
+              },
+              "samples": 295,
+              "observed_seconds": 588.037
+            }
+          ],
+          "note": "Repeated route planning/no-route at a stable position was observed; a completed home return/rest was not witnessed in this capture. No geometric root cause was independently established for this NPC.",
+          "offline_geometry_proven": false,
+          "completed_owned_home_rest_observed": false
+        },
+        {
+          "spawn_id": 902011,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 512.034,
+          "current_wait_seconds": 512.034,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793644955745,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793644955745,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": 70.32411,
+                "y": 829.8978,
+                "z": 2.491678,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 212,
+                "NO_ROUTE": 45
+              },
+              "results": {
+                "PLANNING_DEFERRED": 212,
+                "NO_ROUTE": 45
+              },
+              "samples": 257,
+              "observed_seconds": 512.034
+            }
+          ],
+          "note": "An earlier full return and owned rest at the immutable home were observed; a later route wait is also present. No geometric root cause was independently established for this NPC.",
+          "offline_geometry_proven": false,
+          "completed_owned_home_rest_observed": true
+        },
+        {
+          "spawn_id": 902013,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 228.018,
+          "current_wait_seconds": 228.018,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793645239761,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793645239761,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": -418.1159,
+                "y": 497.6299,
+                "z": 1.973754,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 95,
+                "NO_ROUTE": 20
+              },
+              "results": {
+                "PLANNING_DEFERRED": 95,
+                "NO_ROUTE": 20
+              },
+              "samples": 115,
+              "observed_seconds": 228.018
+            }
+          ],
+          "note": "Repeated route planning/no-route at a stable position was observed; a completed home return/rest was not witnessed in this capture. No geometric root cause was independently established for this NPC.",
+          "offline_geometry_proven": false,
+          "completed_owned_home_rest_observed": false
+        },
+        {
+          "spawn_id": 902014,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 230.019,
+          "current_wait_seconds": 230.019,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793645237760,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793645237760,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": -396.5525,
+                "y": 502.8847,
+                "z": 1.515113,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 94,
+                "NO_ROUTE": 22
+              },
+              "results": {
+                "PLANNING_DEFERRED": 94,
+                "NO_ROUTE": 22
+              },
+              "samples": 116,
+              "observed_seconds": 230.019
+            }
+          ],
+          "note": "Repeated route planning/no-route at a stable position was observed; a completed home return/rest was not witnessed in this capture. No geometric root cause was independently established for this NPC.",
+          "offline_geometry_proven": false,
+          "completed_owned_home_rest_observed": false
+        },
+        {
+          "spawn_id": 902015,
+          "phase": "WAITING",
+          "result": "PLANNING_DEFERRED",
+          "observed_seconds": 244.019,
+          "current_wait_seconds": 244.019,
+          "source_or_interval": {
+            "source": "final92 finite observer compact samples",
+            "capture_start_ms": 1793645223760,
+            "capture_end_ms": 1793645467779,
+            "max_inter_sample_gap_ms": 5000,
+            "stationary_radius_yards": 0.5
+          },
+          "intervals": [
+            {
+              "start_capture_ms": 1793645223760,
+              "end_capture_ms": 1793645467779,
+              "position": {
+                "x": -393.5377,
+                "y": 507.1865,
+                "z": 2.467244,
+                "map_id": 725,
+                "source": "live"
+              },
+              "phases": {
+                "WAITING": 62,
+                "NO_ROUTE": 61
+              },
+              "results": {
+                "PLANNING_DEFERRED": 62,
+                "NO_ROUTE": 61
+              },
+              "samples": 123,
+              "observed_seconds": 244.019
+            }
+          ],
+          "note": "Repeated route planning/no-route at a stable position was observed; a completed home return/rest was not witnessed in this capture. A separate offline geometric path exists for one previously diagnosed stair position; that does not establish current planner acceptance.",
+          "offline_geometry_proven": true,
+          "completed_owned_home_rest_observed": false
+        }
+      ],
+      "cause_not_established_by_the_three_stair_proofs": true
+    },
+    "offline_geometrically_traversable_stair_ids": [
+      902006,
+      902007,
+      902015
+    ],
+    "additional_runtime_wait_spawn_ids": [
+      902004,
+      902008,
+      902009,
+      902010,
+      902011,
+      902013,
+      902014
+    ]
+  },
+  "navigation_proof": {
+    "binary_revision": "92f61dc230403a7c8a5c5ab7fd13da033550c435",
+    "coarse_grid_step_yards": 2.5,
+    "fine_grid_step_yards": 1.25,
+    "shared_node_limit": 512,
+    "shared_edge_limit": 2048,
+    "maximum_refinements_per_search": 1,
+    "unchanged_floor_body_tile_scope_and_danger_checks": true,
+    "near_home_departure_staging_creates_no_food": true,
+    "strict_arrival_3d_and_line_of_sight": true,
+    "failed_edges_separated_by_native_or_surface_proof": true,
+    "failed_proof_memory_limit": 64,
+    "previously_blocked_actor_ids": [
+      902000,
+      902016
+    ],
+    "both_actor_job_chains_observed": true,
+    "complete_home_return_acceptance": false,
+    "city_delivery_observed": false
   }
 }
