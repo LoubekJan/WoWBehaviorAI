@@ -459,6 +459,7 @@ std::optional<LivingSupplyTelemetry> AIWorldMgr::DescribeLivingResidentV11(Creat
     auto job = Role(record.SpawnId);
     LivingSupplyTelemetry info;
     info.Enabled = true; info.Role = RoleName(job); info.Phase = actor.Phase; info.LastResult = actor.LastResult;
+    info.PopulationProfile = "living-v11";
     info.DepotId = Depot(record.SpawnId); info.Depot = DescribeResidentFoodDepot(info.DepotId);
     info.Cargo = _supplyLedger.GetCargo(record.SpawnId);
     info.Capacity = job == Job::Carrier ? 6 : job == Job::Farmer || job == Job::Raider ? 2 : 0;
@@ -490,7 +491,8 @@ std::optional<LivingRaidTelemetry> AIWorldMgr::DescribeResidentRaid(Creature con
     if (found == _supplyActors.end() || state == _residentActors.end() || found->second.Guid != creature.GetGUID()) return std::nullopt;
     LivingRaidTelemetry result;
     result.Enabled = true; result.Role = "RAIDER"; result.Phase = found->second.Phase; result.Outcome = found->second.LastResult;
-    result.AttemptId = state->second.Attempts; result.Thefts = state->second.Thefts; result.Delivered = found->second.Delivered;
+    result.PopulationProfile = "living-v11";
+    result.AttemptId = state->second.Attempts; result.Thefts = state->second.Thefts; result.Delivered = state->second.CompletedTrips;
     result.SourceDepotId = state->second.SourceDepot; result.CampDepotId = 6;
     result.SourceDepot = DescribeResidentFoodDepot(result.SourceDepotId); result.CampDepot = DescribeResidentFoodDepot(6);
     return result;

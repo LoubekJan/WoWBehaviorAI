@@ -40,6 +40,7 @@ struct LivingRaidTelemetry
     std::optional<FoodDepotTelemetry> SourceDepot, CampDepot;
     std::optional<LivingRaidPlanningTelemetry> Planning;
     std::optional<LivingRaidPartyTelemetry> Party;
+    std::optional<std::string> PopulationProfile;
 };
 
 #endif

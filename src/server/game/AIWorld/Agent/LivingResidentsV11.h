@@ -56,7 +56,7 @@ namespace LivingResidentsV11
         switch (job)
         {
             case Job::Farmer: return "FARMER";
-            case Job::Carrier: return "CARAVAN_CARRIER";
+            case Job::Carrier: return "RESIDENT_CARRIER";
             case Job::Raider: return "RAIDER";
             case Job::Consumer: return "CONSUMER";
             default: return "NONE";

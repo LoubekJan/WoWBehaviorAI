@@ -311,6 +311,7 @@ namespace
     void WriteValue(std::ostream& out, LivingSupplyTelemetry const& supply)
     {
         out << "{\"enabled\":"; WriteValue(out, supply.Enabled);
+        if (supply.PopulationProfile) WriteJsonField(out, "population_profile", *supply.PopulationProfile);
         WriteJsonField(out, "role", supply.Role); WriteJsonField(out, "phase", supply.Phase);
         WriteJsonField(out, "depot_id", supply.DepotId); WriteJsonField(out, "cargo", supply.Cargo);
         WriteJsonField(out, "capacity", supply.Capacity);
@@ -343,6 +344,7 @@ namespace
     void WriteValue(std::ostream& out, LivingRaidTelemetry const& raid)
     {
         out << "{\"enabled\":"; WriteValue(out, raid.Enabled);
+        if (raid.PopulationProfile) WriteJsonField(out, "population_profile", *raid.PopulationProfile);
         WriteJsonField(out, "role", raid.Role); WriteJsonField(out, "phase", raid.Phase);
         WriteJsonField(out, "outcome", raid.Outcome);
         WriteJsonField(out, "attempt_id", std::to_string(raid.AttemptId));
